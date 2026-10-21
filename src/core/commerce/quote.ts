@@ -2,7 +2,7 @@ import { type Result, ok, err } from '../types/result.js';
 import {
   type Money, roundMoney, isBelow, isAbove, compareMoney, timesQuantity, lessPercent,
 } from '../types/money.js';
-import { decimal, divDecimal, mulDecimal, subDecimal } from '../types/decimal.js';
+import { decimal, divDecimal, mulDecimal, percentNumber, subDecimal } from '../types/decimal.js';
 import { blockingClosure, type FactoryClosure } from './closures.js';
 import type {
   HistoryContradiction,
@@ -178,7 +178,7 @@ export function computeQuote(input: {
     if (compareMoney(listUnit, policy.floorPrice) >= 0) {
       unitPrice = policy.floorPrice;
       // The discount actually given, to two decimals, computed exactly (a percentage, stored as numeric(5,2)).
-      discountPct = Number(divDecimal(mulDecimal(subDecimal(listUnit.amount, unitPrice.amount), decimal('100')), listUnit.amount, 2));
+      discountPct = percentNumber(divDecimal(mulDecimal(subDecimal(listUnit.amount, unitPrice.amount), decimal('100')), listUnit.amount, 2));
       applied.push(`clamped_to_floor:${policy.floorPrice.amount}`);
     } else {
       // ...but if even the list price is below the floor, the catalog is

@@ -1,6 +1,7 @@
 import { figuresIn } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
+import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
@@ -829,7 +830,7 @@ function cardReadingOf(
     language: typeof language?.['detected'] === 'string' ? language['detected'] : null,
     differsOn: differsOn(own),
     quote: q ? {
-      unitPrice: Number(q.unit_price_usd), total: Number(q.total_usd), quantity: q.quantity,
+      unitPrice: numeralOfDecimal(decimal(q.unit_price_usd)), total: numeralOfDecimal(decimal(q.total_usd)), quantity: q.quantity,
       discountPct: Number(q.discount_pct), leadTimeDays: q.lead_time_days, moq: q.moq,
     } : null,
   };

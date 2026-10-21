@@ -1,6 +1,6 @@
 import { currencyOf } from '../../db/currency.js';
 import { sql } from 'kysely';
-import { type Money, type Currency, moneyFromRow } from '../../core/types/money.js';
+import { type Money, type Currency, isBelow, moneyFromRow } from '../../core/types/money.js';
 import type { Db, Tx } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -472,7 +472,7 @@ export function renderPriceRules(
   // product still needs an answer of its own and says so.
   const beyondDefault = (p: ProductRules): boolean =>
     p.listPrice !== null && v.businessDefault !== null
-    && (p.listPrice.currency !== v.businessDefault.floor.currency || p.listPrice.amount < v.businessDefault.floor.amount);
+    && (p.listPrice.currency !== v.businessDefault.floor.currency || isBelow(p.listPrice, v.businessDefault.floor));
   const needing = v.products.filter((p) => p.listPrice !== null && p.own === null && (!p.inheritsDefault || beyondDefault(p)));
   const answered = v.products.filter((p) => p.own !== null);
   // D8 — and the ones it DOES cover stay listed. They vanished the moment she

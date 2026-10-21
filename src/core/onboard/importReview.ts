@@ -1,6 +1,6 @@
 import { lessSure, figuresOn, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
-import { type Decimal, addDecimal, ceilDecimal, compareDecimal, decimal, divDecimal, mulDecimal, parseDecimal, roundDecimal, signOf, subDecimal } from '../types/decimal.js';
+import { addDecimal, ceilDecimal, compareDecimal, type Decimal, decimal, divDecimal, mulDecimal, parseDecimal, percentNumber, roundDecimal, signOf, subDecimal } from '../types/decimal.js';
 import { percentDecimal } from '../types/money.js';
 import { type ExtractedProduct, type RejectReason, ownPriceCount, readWithDecimalComma, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
@@ -398,7 +398,7 @@ export function readDiscount(raw: string): number | null | 'invalid' {
   if (n === null) return null;
   if (n === 'not_a_number' || signOf(n) < 0 || compareDecimal(n, decimal('100')) >= 0) return 'invalid';
   // A percentage to two decimals (numeric(5,2)): exact text, held as the number it reads as.
-  return Number(roundDecimal(n, 2));
+  return percentNumber(n);
 }
 
 /** ── Ready to confirm? ─────────────────────────────────────────────────────── */

@@ -1,5 +1,5 @@
 import { type Money, type Currency } from '../types/money.js';
-import { type Decimal, compareDecimal, decimal, parseDecimal, roundDecimal, signOf } from '../types/decimal.js';
+import { compareDecimal, type Decimal, decimal, parseDecimal, percentNumber, roundDecimal, signOf } from '../types/decimal.js';
 import { readTypedAmount } from './amount.js';
 
 /*
@@ -139,8 +139,8 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
       // caller happens to write the row.
       floor: { amount: roundDecimal(floor as Decimal, 4), currency: input.currency },
       // A percentage with two decimals (numeric(5,2)): exact text, held as the number it reads as.
-      maxDiscountPct: Number(roundDecimal(max as Decimal, 2)),
-      askAbovePct: Number(roundDecimal(ask as Decimal, 2)),
+      maxDiscountPct: percentNumber(max as Decimal),
+      askAbovePct: percentNumber(ask as Decimal),
     },
   };
 }
