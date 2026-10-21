@@ -256,11 +256,10 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
  * answer comes, so a misread or shifted price is caught by the owner and not
  * by a customer. Only where there is a price list to quote from.
  */
-const parseTotal = (raw: unknown, currency: Currency): Decimal | null => {
-  // CUR — read the way the workspace's currency writes a figure: "1.250,00"
-  // is 1250 in reais, and was 1.25.
-  const n = readTypedAmount(String(raw ?? ''), currency);
-  return n !== null && signOf(n) > 0 && compareDecimal(n, TRILLION) < 0 ? roundDecimal(n, 2) : null;
+const parseTotal = (raw: unknown): Decimal | null => {
+  // A1 — a figure with two readings is no total: it is not guessed at (amount.ts).
+  const n = readTypedAmount(String(raw ?? ''));
+  return n !== null && n !== 'ambiguous' && signOf(n) > 0 && compareDecimal(n, TRILLION) < 0 ? roundDecimal(n, 2) : null;
 };
 const TRILLION = decimal('1000000000000');
 export { parseTotal };

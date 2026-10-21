@@ -219,9 +219,10 @@ export const symbolIsCode = (c: Currency): boolean => SYMBOL[c].trim() === c;
 /**
  * CUR — how the currency's own people write a figure: Brazil and Indonesia
  * group thousands with a dot and mark decimals with a comma ("R$ 1.250,50",
- * "Rp 150.000"); the others as in English. A1 — so do Morocco ("1.250,50 DH")
- * and most of the euro area ("1.250,50 €"; France writes a space, read the
- * same); the pound as in English. Nothing is converted — this only
+ * "Rp 150.000"); the others as in English. A1 (2026-10-22) — this is now read
+ * ONLY by the reply guard, to accept a right figure written their way in a reply.
+ * Nothing the owner types or imports takes its meaning from a separator
+ * (commerce/amount.ts). Nothing is converted — this only
  * says how the SAME figure may be written.
  */
-export const DOT_THOUSANDS: ReadonlySet<Currency> = new Set<Currency>(['BRL', 'IDR', 'MAD', 'EUR']);
+export const DOT_THOUSANDS: ReadonlySet<Currency> = new Set<Currency>(['BRL', 'IDR']);

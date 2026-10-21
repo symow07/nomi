@@ -147,12 +147,12 @@ describe('Products — one product', () => {
 
   it('V1-305 — what the boxes change: a figure read the currency\'s way, never below the floor, an empty or stale box left alone', () => {
     const current = [{ minQty: 2000, price: decimal('0.92') }, { minQty: 10000, price: decimal('0.85') }];
-    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.9' }] });
-    expect(readTierEdits(current, { '2000': '0,88' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.88' }] });
-    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, 'USD', null)).toEqual({ ok: true, set: [] });
-    expect(readTierEdits(current, { '10000': 'cheap' }, 'USD', null)).toEqual({ ok: false, error: 'not_a_number' });
-    expect(readTierEdits(current, { '10000': '0' }, 'USD', null)).toEqual({ ok: false, error: 'not_positive' });
-    expect(readTierEdits(current, { '10000': '0.70' }, 'USD', decimal('0.72'))).toEqual({ ok: false, error: 'below_floor' });
+    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.9' }] });
+    expect(readTierEdits(current, { '2000': '0,88' }, null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.88' }] });
+    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, null)).toEqual({ ok: true, set: [] });
+    expect(readTierEdits(current, { '10000': 'cheap' }, null)).toEqual({ ok: false, error: 'not_a_number' });
+    expect(readTierEdits(current, { '10000': '0' }, null)).toEqual({ ok: false, error: 'not_positive' });
+    expect(readTierEdits(current, { '10000': '0.70' }, decimal('0.72'))).toEqual({ ok: false, error: 'below_floor' });
     // The route reads the boxes, and the edit writes them through the one audited edit.
     const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/\/\^tier:\\d\+\$\/\.test\(k\)/);

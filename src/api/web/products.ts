@@ -973,15 +973,16 @@ export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 
  */
 export function readTierEdits(
   current: readonly { readonly minQty: number; readonly price: Decimal }[],
-  typed: Readonly<Record<string, string>>, currency: Currency, floor: Decimal | null,
+  typed: Readonly<Record<string, string>>, floor: Decimal | null,
 ): { readonly ok: true; readonly set: readonly { minQty: number; price: Decimal }[] }
   | { readonly ok: false; readonly error: ProductEditError } {
   const set: { minQty: number; price: Decimal }[] = [];
   for (const tr of current) {
     const raw = typed[String(tr.minQty)];
     if (raw === undefined || raw.trim() === '') continue;
-    const n = readTypedAmount(raw, currency);
+    const n = readTypedAmount(raw);
     if (n === null) return { ok: false, error: 'not_a_number' };
+    if (n === 'ambiguous') return { ok: false, error: 'ambiguous' };
     if (signOf(n) <= 0) return { ok: false, error: 'not_positive' };
     if (floor !== null && compareDecimal(n, floor) < 0) return { ok: false, error: 'below_floor' };
     // A1 — four decimals, as `numeric(10,4)` holds it; canonical text, so an unchanged price compares equal.
@@ -990,7 +991,7 @@ export function readTierEdits(
   }
   return { ok: true, set };
 }
-export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
+export type ProductEditError = 'not_a_number' | 'ambiguous' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
   | 'no_name' | 'no_values' | 'too_many_options' | 'too_many_values' | 'option_too_long';
 
 /** RT — the longest lead time a product may state: a year. */
@@ -1041,8 +1042,9 @@ async function updateProductTx(
   let unit = cur.unit;
 
   if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
-    const n = readTypedAmount(edit.price, currency);
+    const n = readTypedAmount(edit.price);
     if (n === null) errors.price = 'not_a_number';
+    else if (n === 'ambiguous') errors.price = 'ambiguous';
     else if (signOf(n) <= 0) errors.price = 'not_positive';
     // A new list price BELOW her own floor would make the product silently
     // unquotable — quote.ts refuses `below_floor` rather than selling at a
@@ -1100,7 +1102,7 @@ async function updateProductTx(
   const curTiers = (await sql<{ min_qty: number; price: string }>`
     select min_qty, unit_price_usd as price from price_tiers where product_id = ${productId} order by min_qty asc`.execute(tx)).rows
     .map((r) => ({ minQty: Number(r.min_qty), price: decimal(r.price) }));
-  const tierEdit = edit.tiers ? readTierEdits(curTiers.slice(1), edit.tiers, currency, cur.floor === null ? null : decimal(cur.floor)) : null;
+  const tierEdit = edit.tiers ? readTierEdits(curTiers.slice(1), edit.tiers, cur.floor === null ? null : decimal(cur.floor)) : null;
   if (tierEdit && !tierEdit.ok) errors.tiers = tierEdit.error;
   // VAR — its options, read whole; one bad line refuses them all.
   const curOptions = optionsOf(cur.options);

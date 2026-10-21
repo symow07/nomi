@@ -36,6 +36,23 @@ multiplied and rounded. **$5.30 less 5% is exactly $5.035; Nomi quoted $5.03**, 
    Every currency's minor unit comes from ISO 4217, and all eleven have two. A shop signing up in Morocco, the
    euro area or the United Kingdom now gets its own money without being asked.
 
+7. **A figure is read one way, or refused (the owner, 2026-10-22).** No meaning is taken from the separator, and
+   none from the currency. This holds in every money box (price, larger-order prices, lowest price, sample, rate,
+   a corrected import row) and in the price-list reader.
+   - **Refused as ambiguous:** one separator before exactly three digits, after a whole part of one to three digits
+     that is not zero: `1.250`, `1,250`, `15.000`. Before, the currency settled it: reais and rupiah read `15.000`
+     as fifteen thousand, every other currency read `1,250` as one thousand two hundred and fifty, and the rate box
+     read `15.000` as fifteen. A silent misread could be a thousand times too high or too low. Now the box says,
+     in the owner's language: *"A figure like 1.250 or 1,250 can be read two ways. Type 1.25, or 1250 with no
+     separator."* A price-list line with such a figure gets no price and is flagged for the owner.
+   - **Read one way:** `1.25` and `1,25` (decimals; no thousands group is two digits long); `0.4500` and `0.450`;
+     `1 250` (a space is never a decimal mark); `1.250.000` (a decimal mark appears once); `1.250,50` and
+     `1,250.50` (both marks: the last is the decimal); the rupee's `1,50,000`.
+   - **The reply guard** credits a figure in a euro or dirham reply only when it reads one way: `0,45 €`,
+     `4.500,00 €` and `4 500 €` pass for a quote of 4,500, and `4.500 €` is held for the owner. Reais and rupiah
+     keep their rule (`Rp 150.000`).
+   - The owner's five cases are tests in every box and in each currency (`tests/parity/a1-ambiguous-figures.test.ts`).
+
 ## The check on the day (before and after)
 
 The plan's done-criterion for A1: *stored amounts, with a before-and-after sum per table per workspace that matches

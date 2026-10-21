@@ -6,8 +6,8 @@ import { readTypedAmount } from './amount.js';
  * The currency the owner's boxes are denominated in was a constant here,
  * TENANT_CURRENCY = 'USD', "named rather than assumed: when a tenant can
  * choose, this is the line that becomes a lookup". CUR is that day: the caller
- * passes the workspace's own currency (`currencyOf`), and the boxes are read
- * the way that currency writes a figure.
+ * passes the workspace's own currency (`currencyOf`). A1 — the boxes are read
+ * one way in every currency, or refused as ambiguous (`amount.ts`).
  */
 
 /**
@@ -58,6 +58,7 @@ export type PriceRuleField = 'floor' | 'maxDiscountPct' | 'askAbovePct';
 export type PriceRuleError =
   | 'missing'
   | 'not_a_number'
+  | 'ambiguous'
   | 'floor_not_positive'
   | 'pct_out_of_range'
   | 'ask_above_max'
@@ -72,7 +73,7 @@ export type PriceRulesInput = {
    *  floor-above-list check, which is the mistake that silently stops her
    *  quoting at all. */
   readonly listPrice?: Money | null;
-  /** CUR — the workspace's one currency: the floor is in it, and the boxes are read its way. */
+  /** CUR — the workspace's one currency: the floor is in it. (A1 — the boxes are read one way in every currency.) */
   readonly currency: Currency;
 };
 
@@ -82,14 +83,15 @@ export type PriceRulesResult =
 
 /** Money to 4dp and percentages to 2dp — the precision the columns actually hold. */
 /** A1 — what she typed, as an exact decimal. A number (from a caller, not a box) is read through its own shortest text. */
-function num(raw: string | number | null | undefined, currency: Currency): Decimal | 'missing' | 'not_a_number' {
+function num(raw: string | number | null | undefined): Decimal | 'missing' | 'not_a_number' | 'ambiguous' {
   if (raw === null || raw === undefined) return 'missing';
   if (typeof raw === 'number') return Number.isFinite(raw) ? (parseDecimal(String(raw)) ?? 'not_a_number') : 'not_a_number';
   if (raw.trim() === '') return 'missing';
-  return readTypedAmount(raw, currency) ?? 'not_a_number';
+  return readTypedAmount(raw) ?? 'not_a_number';
 }
 
-const isWord = (v: Decimal | 'missing' | 'not_a_number'): v is 'missing' | 'not_a_number' => v === 'missing' || v === 'not_a_number';
+const isWord = (v: Decimal | 'missing' | 'not_a_number' | 'ambiguous'): v is 'missing' | 'not_a_number' | 'ambiguous' =>
+  v === 'missing' || v === 'not_a_number' || v === 'ambiguous';
 
 /**
  * Validate all three together, because two of them only make sense against each
@@ -100,9 +102,9 @@ const isWord = (v: Decimal | 'missing' | 'not_a_number'): v is 'missing' | 'not_
 export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
   const errors: Partial<Record<PriceRuleField, PriceRuleError>> = {};
 
-  const floor = num(input.floor, input.currency);
-  const max = num(input.maxDiscountPct, input.currency);
-  const ask = num(input.askAbovePct, input.currency);
+  const floor = num(input.floor);
+  const max = num(input.maxDiscountPct);
+  const ask = num(input.askAbovePct);
 
   if (isWord(floor)) errors.floor = floor;
   else if (signOf(floor) <= 0) errors.floor = 'floor_not_positive';

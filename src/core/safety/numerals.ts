@@ -221,12 +221,18 @@ export function currencyBeside(text: string, at: readonly [number, number]): rea
  * reading would take "150.000" for 150 and hold a right reply. Each such
  * figure, read their way, with its place in the text.
  */
-const DOT_FIGURE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+,\d{1,2})(?![\d.,]*\d)/g;
-function dotFigures(text: string): { value: number; at: [number, number] }[] {
-  const out: { value: number; at: [number, number] }[] = [];
+/** A1 — currencies whose replies may write a decimal comma; only a figure that reads one way is credited. */
+const COMMA_DECIMAL: ReadonlySet<Currency> = new Set<Currency>(['EUR', 'MAD']);
+const DOT_FIGURE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:,\d{1,2})?|\d+,\d{1,2})(?![\d.,]*\d)/g;
+function dotFigures(text: string): { value: number; at: [number, number]; oneWay: boolean }[] {
+  const out: { value: number; at: [number, number]; oneWay: boolean }[] = [];
   for (const m of text.matchAll(DOT_FIGURE)) {
-    const value = Number(m[1]!.replace(/\./g, '').replace(',', '.'));
-    if (Number.isFinite(value)) out.push({ value, at: [m.index, m.index + m[0].length] });
+    const value = Number(m[1]!.replace(/[.\s\u00a0\u202f]/g, '').replace(',', '.'));
+    // A1 — reads one way only: it has a decimal comma ("0,45", "1.250,00"), two groups or more ("1.250.000"), or
+    // spaces between its groups ("1 250": a space is never a decimal mark).
+    // A bare "1.250" is 1.25 to one reader and 1250 to another.
+    const oneWay = m[1]!.includes(',') || (m[1]!.match(/\./g) ?? []).length >= 2 || /[ \u00a0\u202f]/.test(m[1]!);
+    if (Number.isFinite(value)) out.push({ value, at: [m.index, m.index + m[0].length], oneWay });
   }
   return out;
 }
@@ -449,9 +455,12 @@ export function guardNumerals(input: {
     return named !== null && !named.includes(currency) && !theirs.some((c) => near(c, n.value));
   };
   // A figure written the Brazilian or Indonesian way, in a quote of theirs,
-  // counts for what it says there ("Rp 150.000" is 150000).
-  const covered = currency !== null && DOT_THOUSANDS.has(currency)
-    ? dotFigures(text).filter((d) => sourced.some((s) => near(s, d.value))
+  // counts for what it says there ("Rp 150.000" is 150000). A1 — in euros and
+  // dirhams a comma-decimal figure counts too, but only one that reads one way
+  // ("0,45 €", "1.250,00 DH"): a bare "1.250" is never credited as 1250.
+  const dotted = currency !== null && (DOT_THOUSANDS.has(currency) || COMMA_DECIMAL.has(currency));
+  const covered = dotted
+    ? dotFigures(text).filter((d) => (DOT_THOUSANDS.has(currency!) || d.oneWay) && sourced.some((s) => near(s, d.value))
       && !foreign({ value: d.value, commercial: true, at: d.at }))
     : [];
   const inCovered = (n: ExtractedNumeral): boolean =>

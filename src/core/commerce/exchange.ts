@@ -1,6 +1,7 @@
 import { type Result, ok, err } from '../types/result.js';
 import { type Currency, type Money, roundMoney, scaleMoney } from '../types/money.js';
-import { type Decimal, decimal, parseDecimal, roundDecimal, signOf, storedDecimal } from '../types/decimal.js';
+import { type Decimal, decimal, roundDecimal, signOf, storedDecimal } from '../types/decimal.js';
+import { readTypedAmount } from './amount.js';
 
 /**
  * M43b — the rate SHE stated, or nothing.
@@ -92,7 +93,7 @@ export function convertMoney(
   return ok({ money: roundMoney(scaleMoney({ amount: money.amount, currency: to }, rate.rate)), rate });
 }
 
-export type RateError = 'missing' | 'not_a_number' | 'not_positive' | 'same_currency';
+export type RateError = 'missing' | 'not_a_number' | 'ambiguous' | 'not_positive' | 'same_currency';
 
 /**
  * Validate what she typed into the box.
@@ -112,9 +113,12 @@ export function validateRate(input: {
   if (input.rate === null || input.rate === undefined) return err('missing');
   const raw = typeof input.rate === 'number' ? String(input.rate) : input.rate.trim();
   if (raw === '') return err('missing');
-  // A1 — read exactly ("6.9", "0.1371"); an exponent or a sign is not how a rate is written, and is refused.
-  const n = typeof input.rate === 'number' ? storedDecimal(input.rate) : parseDecimal(raw);
+  // A1 — read exactly, one way or refused (commerce/amount.ts): "6.9", "0,1371", "15 000"; "15.000" is ambiguous
+  // (fifteen, or fifteen thousand?), an exponent or a plus sign is not how a rate is written; a minus is read, to be
+  // refused as not above zero.
+  const n = typeof input.rate === 'number' ? storedDecimal(input.rate) : readTypedAmount(raw);
   if (n === null) return err('not_a_number');
+  if (n === 'ambiguous') return err('ambiguous');
   const rate = roundDecimal(n, 6);
   if (signOf(rate) <= 0) return err('not_positive');   // a rate that rounds to nothing at six places is not one
   return ok({ from: input.from, to: input.to, rate, statedAt: input.now });

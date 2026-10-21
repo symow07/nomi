@@ -1031,12 +1031,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const FIELD_OF: Readonly<Record<string, string>> = {
     'forbidden.flash.empty': 'term', 'forbidden.flash.duplicate': 'term',
-    'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
+    'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.ambiguous': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
     'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
     'business.kind.bad.kind': 'kind', 'business.kind.bad.country': 'country', 'business.kind.bad.website': 'website',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
-    'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
+    'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.ambiguous': 'price', 'samples.flash.negative': 'price',
     // Phase 7 — the calendar's own date.
     'calendar.flash.title': 'title', 'calendar.flash.day': 'day', 'calendar.flash.time': 'from', 'calendar.flash.order': 'to',
   };
@@ -6169,7 +6169,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       const b = (req.body ?? {}) as { text?: string; expected?: string };
-      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected, await workspaceCurrency(deps.db, s0.businessId))));
+      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected)));
     });
 
     // A situation from the golden set: its customer's words, answered live.

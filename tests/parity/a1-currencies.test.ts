@@ -65,12 +65,14 @@ describe('A1.3 · the eleven currencies', () => {
     expect(currencyOfCountry('CH')).toBeNull();   // the franc is not on the list: asked, never assumed
   });
 
-  it('a figure typed in each one\'s own way', () => {
-    expect(readTypedAmount('1.250,50', 'MAD')).toBe('1250.5');
-    expect(readTypedAmount('1.250,50', 'EUR')).toBe('1250.5');
-    expect(readTypedAmount('12,90', 'EUR')).toBe('12.9');
-    expect(readTypedAmount('1,250.50', 'GBP')).toBe('1250.5');
-    expect(readTypedAmount('15.000', 'MAD')).toBe('15000');
+  it('the owner\'s five ambiguous cases, in each of the three (A1, 2026-10-22): no meaning from the separator', () => {
+    for (const c of ['MAD', 'EUR', 'GBP'] as const) {
+      expect(readTypedAmount('1.250'), c).toBe('ambiguous');    // 1.25 or 1250: refused, never guessed
+      expect(readTypedAmount('1,250'), c).toBe('ambiguous');
+      expect(readTypedAmount('1 250'), c).toBe('1250');         // a space only ever groups
+      expect(readTypedAmount('1.25'), c).toBe('1.25');
+      expect(readTypedAmount('1,25'), c).toBe('1.25');
+    }
   });
 });
 
@@ -95,6 +97,16 @@ describe('A1.3 · the reply guard: a figure in the workspace\'s own money passes
     expect(ok('The price is 0.45 euros each.', eur)).toBe(true);
     expect(ok('The price is £0.45 each.', eur)).toBe(false);
     expect(ok('The price is $0.45 each.', eur)).toBe(false);
+    // A1 — a reply's figure counts only when it reads one way: "1.250 €" is never credited as 1250.
+    const big = quoteIn('EUR', 2779);   // 1,250.55 a piece
+    expect(ok('Le prix est de 1.250,55 € la pièce.', big)).toBe(true);
+    expect(ok('Le prix est de 1 250,55 € la pièce.', big)).toBe(true);
+    const even = quoteIn('EUR', 10_000);   // 4,500 a piece
+    expect(even.unitPrice.amount).toBe('4500');
+    expect(ok('Le prix est de 4.500,00 € la pièce.', even)).toBe(true);
+    expect(ok('Le prix est de 4 500 € la pièce.', even)).toBe(true);
+    expect(ok('Le prix est de 4500 € la pièce.', even)).toBe(true);
+    expect(ok('Le prix est de 4.500 € la pièce.', even)).toBe(false);   // 4.5 or 4500: held for the owner, never sent
   });
   it('the pound', () => {
     expect(ok('The price is £0.45 each.', gbp)).toBe(true);

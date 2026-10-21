@@ -1,6 +1,7 @@
 import type { ExtractedLine } from './extract.js';
 import { type Money, type Currency, DOT_THOUSANDS } from '../types/money.js';
 import { type Decimal, decimal, signOf, compareDecimal, fromInteger } from '../types/decimal.js';
+import { readWrittenFigure } from '../commerce/amount.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
  * price-list photos (via the M4 vision path) — anything goes in; what comes
@@ -93,26 +94,12 @@ const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدن
  * Spanish write a price, and it is read as 24.50; the review flags the row for
  * its own tick (`decimal_comma`), so the owner sees the figure it became.
  */
-function readAmount(raw: string, currency: Currency): Decimal | 'ambiguous' {
-  const s = raw.replace(/[.,]+$/, '');
-  // A1 — the figure stays exact text: normalised to a decimal, never a float.
-  // CUR — reais and rupiah group thousands with a dot and mark decimals with a
-  // comma ("R$ 1.250,50", "Rp 150.000"): there, one reading is the right one.
-  if (DOT_THOUSANDS.has(currency)) {
-    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return decimal(s.replace(/\./g, '').replace(',', '.'));
-    if (/^\d+,\d+$/.test(s)) return decimal(s.replace(',', '.'));
-    if (/^\d+(?:\.\d{1,2})?$/.test(s)) return decimal(s);
-    return 'ambiguous';
-  }
-  if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return decimal(s.replace(/,/g, ''));
-  if (DECIMAL_COMMA_FIGURE.test(s)) return decimal(s.replace(',', '.'));
-  if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
-  if (/^\d+(?:\.\d+)?$/.test(s)) return decimal(s);
-  return 'ambiguous';
+function readAmount(raw: string): Decimal | 'ambiguous' {
+  // A1 (the owner, 2026-10-22) — the ONE reader of a written figure (commerce/amount.ts): one reading, or refused.
+  // No meaning from the separator or the currency: "Rp 150.000" and "1,250" are ambiguous here as in a box.
+  const r = readWrittenFigure(raw.replace(/[.,]+$/, ''));
+  return r === null ? 'ambiguous' : r;
 }
-
-/** Phase 9 (V1-334) — "24,50": a decimal comma and its cents, the only way such a figure reads. */
-const DECIMAL_COMMA_FIGURE = /^\d+,\d{2}$/;
 
 /**
  * Phase 9 (V1-334) — does this line carry a price written with a decimal comma
@@ -306,7 +293,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   let price: Decimal | null = null;
   const written = priced.match(reading.before)?.[1] ?? priced.match(reading.after)?.[1] ?? null;
   if (!problem && written !== null) {
-    const a = readAmount(written, currency);
+    const a = readAmount(written);
     if (a === 'ambiguous') problem = 'ambiguous_price';
     else price = a;
   }
@@ -319,7 +306,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   if (!problem && price === null && line.includes('\t')) {
     const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
     if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
-      const a = readAmount(nums[0]!, currency);
+      const a = readAmount(nums[0]!);
       if (a === 'ambiguous') problem = 'ambiguous_price';
       else price = a;
       rowMoq = nums[1] ?? null;
@@ -334,7 +321,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   const bare = !problem && price === null && written === null
     ? (half ? line.match(/(?:^|\s)(\d+(?:[.,]\d{1,2})?)\s*[.;]?\s*$/) : barePrice(line)) : null;
   if (bare) {
-    const a = readAmount(bare[1]!, currency);
+    const a = readAmount(bare[1]!);
     if (a === 'ambiguous') problem = 'ambiguous_price';
     else price = a;
   }

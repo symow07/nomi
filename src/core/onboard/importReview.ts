@@ -2,6 +2,7 @@ import { lessSure, figuresOn, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
 import { addDecimal, ceilDecimal, compareDecimal, type Decimal, decimal, divDecimal, mulDecimal, parseDecimal, percentNumber, roundDecimal, signOf, subDecimal } from '../types/decimal.js';
 import { percentDecimal } from '../types/money.js';
+import { readWrittenFigure } from '../commerce/amount.js';
 import { type ExtractedProduct, type RejectReason, ownPriceCount, readWithDecimalComma, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
 
@@ -249,18 +250,13 @@ export type RowEdit = {
   readonly ticked?: boolean | undefined;
 };
 
-export type RowEditError = 'name_empty' | 'name_long' | 'price_not_number' | 'price_not_positive' | 'moq_not_whole' | 'unit_empty' | 'names_too_long' | 'names_too_many';
+export type RowEditError = 'name_empty' | 'name_long' | 'price_not_number' | 'price_ambiguous' | 'price_not_positive' | 'moq_not_whole' | 'unit_empty' | 'names_too_long' | 'names_too_many';
 
 /** A figure as the owner types it into a box: digits, one decimal point or comma. */
-export function readTypedFigure(raw: string): Decimal | null | 'not_a_number' {
-  // A1 — exact: the figure as typed, normalised to a decimal; 'not_a_number' where it was NaN.
-  const s = raw.trim().replace(/\s/g, '');
-  if (s === '') return null;
-  const t = /^\d+(?:[.,]\d+)?$/.test(s) ? s.replace(',', '.')
-    : /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s) ? s.replace(/,/g, '')
-    : /^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s) ? s.replace(/\./g, '').replace(',', '.')
-    : null;
-  return t === null ? 'not_a_number' : (parseDecimal(t) ?? 'not_a_number');
+export function readTypedFigure(raw: string): Decimal | null | 'not_a_number' | 'ambiguous' {
+  // A1 (the owner, 2026-10-22) — the one reader (commerce/amount.ts): one reading, or refused as ambiguous.
+  if (raw.trim() === '') return null;
+  return readWrittenFigure(raw) ?? 'not_a_number';
 }
 
 
@@ -288,6 +284,7 @@ export function editRow(row: ImportRow, e: RowEdit): { readonly row: ImportRow; 
     const p = readTypedFigure(e.price);
     if (p === null) set('price', null);
     else if (p === 'not_a_number') errors.push('price_not_number');
+    else if (p === 'ambiguous') errors.push('price_ambiguous');
     else if (signOf(p) <= 0) errors.push('price_not_positive');
     else set('price', p);
   }
@@ -359,7 +356,8 @@ export function applyChallenge(
     if (r.challenge !== 'ask') continue;
     const raw = typed.get(r.key);
     const n = raw === undefined ? null : readTypedFigure(raw);
-    if (n === null || n === 'not_a_number') { missing.push(r.key); continue; }
+    // A1 — a figure with two readings answers nothing: asked again, never guessed.
+    if (n === null || n === 'not_a_number' || n === 'ambiguous') { missing.push(r.key); continue; }
     if (r.price !== null && samePrice(n, r.price)) (r as { challenge: ChallengeState }).challenge = 'ok';
     else { (r as { challenge: ChallengeState }).challenge = 'mismatch'; mismatch = true; }
   }
@@ -396,7 +394,7 @@ export function readDiscount(raw: string): number | null | 'invalid' {
   if (s === '') return null;
   const n = readTypedFigure(s);
   if (n === null) return null;
-  if (n === 'not_a_number' || signOf(n) < 0 || compareDecimal(n, decimal('100')) >= 0) return 'invalid';
+  if (n === 'not_a_number' || n === 'ambiguous' || signOf(n) < 0 || compareDecimal(n, decimal('100')) >= 0) return 'invalid';
   // A percentage to two decimals (numeric(5,2)): exact text, held as the number it reads as.
   return percentNumber(n);
 }

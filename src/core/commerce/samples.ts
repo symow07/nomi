@@ -85,7 +85,7 @@ export function sampleAnswerContext(
   return { ok: true, note, allow: free ? [] : [numeralOf(policy.price)] };
 }
 
-export type SamplePolicyError = 'price_missing' | 'not_a_number' | 'negative';
+export type SamplePolicyError = 'price_missing' | 'not_a_number' | 'ambiguous' | 'negative';
 
 /**
  * What she typed.
@@ -103,13 +103,13 @@ export function validateSamplePolicy(input: {
   if (input.price === null || input.price === undefined) return { ok: false, error: 'price_missing' };
   const raw = typeof input.price === 'number' ? String(input.price) : input.price.trim();
   if (raw === '') return { ok: false, error: 'price_missing' };
-  // CUR — read the way the currency writes a figure ("15.000" is fifteen
-  // thousand rupiah).
+  // A1 — read one way or refused: "15.000" is ambiguous in every currency (amount.ts).
   // A1 — exact: what she typed, as a decimal (a number from a caller is read through its own shortest text).
   const n = typeof input.price === 'number'
     ? (Number.isFinite(input.price) ? parseDecimal(String(input.price)) : null)
-    : readTypedAmount(raw, input.currency);
+    : readTypedAmount(raw);
   if (n === null) return { ok: false, error: 'not_a_number' };
+  if (n === 'ambiguous') return { ok: false, error: 'ambiguous' };
   if (signOf(n) < 0) return { ok: false, error: 'negative' };
   return {
     ok: true,

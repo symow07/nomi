@@ -78,31 +78,42 @@ describe('CUR · the currency sign-up gives', () => {
   });
 });
 
-describe('CUR · a figure the owner types, read the currency\'s way', () => {
-  it('reais and rupiah: a dot groups thousands, a comma marks decimals', () => {
-    expect(readTypedAmount('15.000', 'IDR')).toBe('15000');
-    expect(readTypedAmount('1.500.000', 'IDR')).toBe('1500000');
-    expect(readTypedAmount('1.250,50', 'BRL')).toBe('1250.5');
-    expect(readTypedAmount('12,50', 'BRL')).toBe('12.5');
-    expect(readTypedAmount('12.50', 'BRL')).toBe('12.5');
+describe('A1 · a figure the owner types is read ONE way, in every currency, or refused (the owner, 2026-10-22)', () => {
+  it('no meaning is taken from the separator: one mark before exactly three digits is ambiguous, whatever the currency', () => {
+    for (const c of ['1.250', '1,250', '15.000', '150,000', '7.150']) expect(readTypedAmount(c), c).toBe('ambiguous');
   });
-  it('every other: a comma groups thousands (and lakhs), a dot marks decimals; a comma before one or two digits is the decimal', () => {
-    expect(readTypedAmount('1,250.50', 'USD')).toBe('1250.5');
-    expect(readTypedAmount('1,50,000', 'INR')).toBe('150000');
-    expect(readTypedAmount('1,250', 'USD')).toBe('1250');
-    expect(readTypedAmount('12,50', 'USD')).toBe('12.5');
-    expect(readTypedAmount('2,5', 'MXN')).toBe('2.5');
-    expect(readTypedAmount('1,2,3', 'USD')).toBeNull();
-    expect(readTypedAmount('abc', 'AED')).toBeNull();
-    expect(readTypedAmount('', 'AED')).toBeNull();
-    expect(readTypedAmount('-5', 'USD')).toBe('-5');
+  it('every other form reads one way only', () => {
+    expect(readTypedAmount('1.25')).toBe('1.25');
+    expect(readTypedAmount('1,25')).toBe('1.25');              // no thousands group is two digits long
+    expect(readTypedAmount('12,50')).toBe('12.5');
+    expect(readTypedAmount('2,5')).toBe('2.5');
+    expect(readTypedAmount('0.4500')).toBe('0.45');            // nor four
+    expect(readTypedAmount('0.450')).toBe('0.45');             // nobody groups a thousand behind a zero
+    expect(readTypedAmount('1 250')).toBe('1250');             // a space is never a decimal mark
+    expect(readTypedAmount('1 250,50')).toBe('1250.5');
+    expect(readTypedAmount('1\u202f250')).toBe('1250');
+    expect(readTypedAmount('1.500.000')).toBe('1500000');      // a decimal mark appears once
+    expect(readTypedAmount('1,50,000')).toBe('150000');        // the rupee's lakhs
+    expect(readTypedAmount('1.250,50')).toBe('1250.5');        // both marks: the last is the decimal
+    expect(readTypedAmount('1,250.50')).toBe('1250.5');
+    expect(readTypedAmount('1250')).toBe('1250');
+    expect(readTypedAmount('-5')).toBe('-5');
+  });
+  it('and what is not one figure is not a number', () => {
+    for (const c of ['1,2,3', '1.2.3', '1 25', '12 50', '1.250.5', '1,25.0', 'abc', '', '1e3', '+5', '.5', '5.'])
+      expect(readTypedAmount(c), c).toBeNull();
   });
 });
 
+
 describe('CUR · the price list is read in the workspace\'s currency', () => {
   it('its own marks are its price, in its own notation', () => {
-    expect(one('Kaos polos Rp 150.000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
-    expect(one('Kaos polos\t150.000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
+    // A1 (the owner, 2026-10-22) — the currency no longer settles a separator: "Rp 150.000" is 150 or 150,000, and
+    // is refused for the owner to write one way. Two groups, or no mark, read one way.
+    expect(one('Kaos polos Rp 150.000', 'IDR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kaos polos\t150.000', 'IDR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kaos polos Rp 150000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
+    expect(one('Kaos polos Rp 1.500.000', 'IDR').price).toEqual(moneyOf('1500000', 'IDR'));
     expect(one('Camiseta R$ 49,90', 'BRL').price).toEqual(moneyOf('49.9', 'BRL'));
     expect(one('Playera $199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
     expect(one('Playera MX$199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
@@ -110,7 +121,9 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
     expect(one('عطر 50 درهم', 'AED').price).toEqual(moneyOf('50', 'AED'));
     expect(one('帆布袋 18元', 'CNY').price).toEqual(moneyOf('18', 'CNY'));
     expect(one('Kurta ₹899', 'INR').price).toEqual(moneyOf('899', 'INR'));
-    expect(one('Kurta Rs. 1,299', 'INR').price).toEqual(moneyOf('1299', 'INR'));
+    expect(one('Kurta Rs. 1,299', 'INR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kurta Rs. 1,299.00', 'INR').price).toEqual(moneyOf('1299', 'INR'));
+    expect(one('Sofa Rs. 1,29,999', 'INR').price).toEqual(moneyOf('129999', 'INR'));   // the lakhs read one way
   });
 
   it('anyone else\'s money is refused, never read as the workspace\'s', () => {
@@ -123,7 +136,8 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
   it('dollars read exactly as they did', () => {
     expect(one('Cup $2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
     expect(one('Serum HK$25', 'USD')).toMatchObject({ price: null, problem: 'other_currency' });
-    expect(one('Bag $1.250,00', 'USD')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Bag $1.250', 'USD')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Bag $1.250,00', 'USD').price).toEqual(moneyOf('1250', 'USD'));   // A1 — both marks: one reading
     expect(one('帆布袋 1.05美元 500个起', 'USD')).toMatchObject({ price: moneyOf('1.05', 'USD'), moq: 500 });
     // "USD 2.60" is the dollar's own mark, before or after.
     expect(one('Cup USD 2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
@@ -131,7 +145,7 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
 
   it('a large price is a large price in rupiah, a misread in dollars', () => {
     expect(validateExtracted(parsePriceLines('Phone Rp 15.000.000', 'IDR')).accepted).toHaveLength(1);
-    expect(validateExtracted(parsePriceLines('Phone $150,000', 'USD')).rejected.map((r) => r.reason)).toEqual(['bad_price']);
+    expect(validateExtracted(parsePriceLines('Phone $150000', 'USD')).rejected.map((r) => r.reason)).toEqual(['bad_price']);
   });
 
   it('the examples on the paste page are in the workspace\'s money', () => {
@@ -151,8 +165,10 @@ describe('CUR · floors and samples are in the workspace\'s currency', () => {
     expect(!bad.ok && bad.errors.maxDiscountPct).toBe('pct_out_of_range');
   });
   it('a sample', () => {
-    const s = validateSamplePolicy({ price: '15.000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() });
+    const s = validateSamplePolicy({ price: '15 000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() });
     expect(s.ok && s.value.price).toEqual(moneyOf('15000', 'IDR'));
+    // A1 — "15.000" is refused as ambiguous, rupiah or not (the owner, 2026-10-22).
+    expect(validateSamplePolicy({ price: '15.000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() })).toEqual({ ok: false, error: 'ambiguous' });
     expect(validateSamplePolicy({ price: '-1', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() })).toMatchObject({ ok: false, error: 'negative' });
   });
 });

@@ -29,13 +29,17 @@ import { moneyOf } from '../../src/core/types/money.js';
 const one = (line: string) => parsePriceLines(line, 'USD')[0]!;
 
 describe('T4 · separators', () => {
-  it('thousands commas are thousands', () => {
+  it('thousands marks are thousands when the figure also has its decimals', () => {
     expect(one('Leather bag $1,250.00').price).toEqual(usd('1250'));
-    expect(one('Sofa $12,500').price).toEqual(usd('12500'));
     expect(one('Leather bag 1,250.00 USD').price).toEqual(usd('1250'));
+    // A1 (the owner, 2026-10-22) — both marks read one way, whichever order: the last is the decimal.
+    expect(one('Bag $1.250,00').price).toEqual(usd('1250'));
+    expect(one('Bag\t1.250,00').price).toEqual(usd('1250'));
+    expect(one('Sofa $12,500.00').price).toEqual(usd('12500'));
   });
-  it('a figure that reads two ways is refused, never guessed', () => {
-    for (const line of ['Bag $1.250,00', 'Bag $1.250', 'Bag\t1.250,00']) {
+  it('a figure that reads two ways is refused, never guessed — whatever the mark, whatever the currency', () => {
+    // A1 (the owner, 2026-10-22) — "$12,500" was read as twelve thousand five hundred: 12.5 is the other reading.
+    for (const line of ['Bag $1.250', 'Sofa $12,500', 'Bag 1,250 USD', 'Bag\t1.250']) {
       expect(one(line), line).toMatchObject({ price: null, problem: 'ambiguous_price' });
     }
   });
@@ -43,8 +47,8 @@ describe('T4 · separators', () => {
     for (const line of ['Bag $12,50', 'Bag 12,50 USD', 'Bag\t12,50', 'Bag 12,50 each']) {
       expect(one(line).price, line).toEqual(usd('12.5'));
     }
-    // A thousands group is three digits, so these keep their reading.
-    expect(one('Sofa $12,500').price).toEqual(usd('12500'));
+    // With its decimals a thousands group reads one way; bare, it is refused (above).
+    expect(one('Sofa $12,500.00').price).toEqual(usd('12500'));
     expect(one('Sofa $1,250.00').price).toEqual(usd('1250'));
   });
   it('an ordinary decimal, and sentence punctuation after it, are fine', () => {
@@ -89,7 +93,7 @@ describe('T4 · the minimum', () => {
 
 describe('T4 · the review names each refusal, with the line itself', () => {
   it('refused with its reason, in paste and on a page, never brought in', () => {
-    const text = ['Bag $1.250,00', 'Serum €34.90', 'Tote\t2.6\t3.1', 'Cup $2.60'].join('\n');
+    const text = ['Bag $1.250', 'Serum €34.90', 'Tote\t2.6\t3.1', 'Cup $2.60'].join('\n');
     for (const v of [validateExtracted(parsePriceLines(text, 'USD')), validatePage(parsePriceLines(text, 'USD'))]) {
       expect(v.accepted.map((p) => p.name)).toEqual(['Cup']);
       expect(v.rejected.map((r) => r.reason)).toEqual(['ambiguous_price', 'other_currency', 'several_numbers']);
