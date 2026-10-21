@@ -238,6 +238,8 @@ import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { booksAccountsOf, draftFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
+import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
+import { INVOICE_FORM_LINES, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
@@ -2636,6 +2638,149 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       salesJournalId: one('salesJournal', c.journals), receivableAccountId: one('receivable', c.accounts), salesAccountId: one('sales', c.accounts),
       fxLossAccountId: one('fxLoss', c.accounts), fxGainAccountId: one('fxGain', c.accounts) }));
     return flashTo(reply, '/app/books#accounts', 'books.flash.accountsSaved');
+  });
+  /**
+   * C2 (item 5) — INVOICES AND PAYMENTS. The list and each invoice are the books' to see; drafting, issuing,
+   * discarding, recording a payment and adding a customer are the owner's. The numbers and every rule are the
+   * database's (0184); these routes ask, and say a refusal in the owner's words.
+   */
+  const invoiceChoices = (bid: BusinessId) => withTenantTx(deps.db, bid, async (tx) => {
+    const c = await entryChoices(tx, bid);
+    const a = await booksAccountsOf(tx, bid);
+    return { parties: c.parties, accounts: c.accounts, taxCodes: c.taxCodes, bookCurrency: c.bookCurrency, salesAccountId: a.salesAccountId };
+  });
+  const invoiceRefusedWhy = (locale: Locale, r: { reason: string; detail: string | null }) =>
+    r.reason === 'accounts_not_set' ? t(locale, 'books.orders.setFirst')
+      : r.reason === 'too_much' ? t(locale, 'books.invoice.tooMuch', { owed: r.detail ?? '' })
+      : r.reason === 'not_issued' ? t(locale, 'books.invoice.notIssued')
+      : entryRefusedWhy(locale, r as EntryRefusal);
+  app.get('/app/books/invoices', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid, (tx) => listInvoices(tx, bid, todayIso()));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.invoices.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoices(locale, personOf(s), rows)}` }));
+  });
+  app.get('/app/books/invoices/new', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.invoices.new'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewInvoice(locale, await invoiceChoices(bid), {}, [], todayIso())}` }));
+  });
+  app.post('/app/books/invoices', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const values: Record<string, string> = {};
+    for (const [k, v] of Object.entries((req.body ?? {}) as Record<string, unknown>)) if (typeof v === 'string') values[k] = v.slice(0, 300);
+    const c = await invoiceChoices(bid);
+    const problems: string[] = [];
+    const has = (rows: readonly { id: string }[], id: string | undefined) => !!id && rows.some((r) => r.id === id);
+    if (!has(c.parties, values['party'])) problems.push(t(locale, 'books.invoice.problem.customer'));
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    if (!iso.test(values['issueDate'] ?? '')) problems.push(t(locale, 'books.entry.problem.date'));
+    const due = (values['dueDate'] ?? '').trim();
+    if (due && (!iso.test(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
+    const currency = values['currency'] ?? c.bookCurrency;
+    if (!(CURRENCIES as readonly string[]).includes(currency)) problems.push(t(locale, 'books.entry.problem.date'));
+    const figure = (raw: string | undefined, n: number, zeroOk: boolean): Decimal | null => {
+      const r = readTypedAmount((raw ?? '').trim());
+      if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return null; }
+      if (r === null || (!zeroOk && r === '0')) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
+      return r;
+    };
+    const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
+    for (let i = 0; i < INVOICE_FORM_LINES; i++) {
+      const n = i + 1;
+      const label = (values[`label${i}`] ?? '').trim();
+      if (!label && !(values[`quantity${i}`] ?? '').trim() && !(values[`price${i}`] ?? '').trim()) continue;
+      if (!label) { problems.push(t(locale, 'books.invoice.problem.lineLabel', { n })); continue; }
+      const quantity = figure(values[`quantity${i}`], n, false); const unitPrice = figure(values[`price${i}`], n, true);
+      const account = values[`account${i}`]; const tax = values[`tax${i}`] || null;
+      if (!has(c.accounts, account) || (tax && !has(c.taxCodes, tax))) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
+      if (quantity === null || unitPrice === null) continue;
+      lines.push({ label, quantity, unitPrice, accountId: account!, taxCodeId: tax });
+    }
+    if (problems.length === 0 && lines.length === 0) problems.push(t(locale, 'books.invoice.problem.noLines'));
+    const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'books.invoices.new'), active: 'settings', bodyHtml: renderNewInvoice(locale, c, values, list, todayIso()) }));
+    if (problems.length > 0) return again(problems);
+    const out = await withTenantTx(deps.db, bid, (tx) => draftInvoice(tx, bid, personOf(s).id, {
+      partyId: values['party']!, issueDate: values['issueDate']!, dueDate: due || null, currency, label: (values['label'] ?? '').trim() || null, lines }));
+    if (out.kind === 'refused') return again([entryRefusedWhy(locale, out)]);
+    return reply.redirect(`/app/books/invoices/${out.id}`, 303);
+  });
+  app.get('/app/books/invoices/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const v = await loadInvoice(tx, bid, id, todayIso());
+      const journals = (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals
+        where business_id = ${bid}::uuid and kind in ('bank', 'cash') order by code`.execute(tx)).rows;
+      const accounts = (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from accounts
+        where business_id = ${bid}::uuid and kind = 'asset' and is_active order by code`.execute(tx)).rows;
+      return { v, pay: { journals, accounts } };
+    });
+    if (!got.v) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, todayIso())}` }));
+  });
+  app.post('/app/books/invoices/:id/issue', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const out = await withTenantTx(deps.db, bid, (tx) => issueInvoice(tx, bid, id, personOf(s).id));
+    if (out.kind === 'refused') return flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.invoiceRefused', { why: invoiceRefusedWhy(localeOf(req), out) });
+    return flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.invoiceIssued', { key: out.key });
+  });
+  app.post('/app/books/invoices/:id/discard', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const done = await withTenantTx(deps.db, bid, (tx) => discardInvoice(tx, bid, id));
+    return done ? flashTo(reply, '/app/books/invoices', 'books.flash.invoiceDiscarded')
+      : flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.invoiceRefused', { why: t(localeOf(req), 'books.entry.refused.not_a_draft', { detail: '' }) });
+  });
+  app.post('/app/books/invoices/:id/payments', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+    const amount = readTypedAmount(str('amount'));
+    const back = (why: string) => flashTo(reply, `/app/books/invoices/${id}#pay`, 'books.flash.invoiceRefused', { why });
+    if (amount === 'ambiguous') return back(t(locale, 'books.entry.problem.ambiguous', { n: 1 }));
+    if (amount === null || amount === '0') return back(t(locale, 'books.entry.problem.amount', { n: 1 }));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(str('paidOn'))) return back(t(locale, 'books.entry.problem.date'));
+    const out = await withTenantTx(deps.db, bid, async (tx) => {
+      const ok = (await sql<{ n: number }>`select (select count(*) from journals where business_id = ${bid}::uuid and id::text = ${str('journal')} and kind in ('bank', 'cash'))::int
+        + (select count(*) from accounts where business_id = ${bid}::uuid and id::text = ${str('account')})::int as n`.execute(tx)).rows[0]!.n;
+      if (ok !== 2) return { kind: 'refused' as const, reason: 'other' as const, detail: null };
+      return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account') });
+    });
+    if (out.kind === 'refused') return back(invoiceRefusedWhy(locale, out));
+    return flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.paymentRecorded');
+  });
+  /** C2 — a customer, added as a party of the books (no link to a buyer: a party is the books' own record). */
+  app.post('/app/books/parties', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+    const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), str('ice')];
+    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !/^[0-9]{15}$/.test(ice))) {
+      return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
+    }
+    try {
+      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice)
+        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null})`.execute(tx));
+    } catch { return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused'); }
+    return flashTo(reply, '/app/books/invoices/new', 'books.flash.partyAdded');
   });
   app.post('/app/books/odoo/disconnect', async (req, reply) => {
     const s = sessionOf(req);

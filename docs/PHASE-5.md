@@ -293,6 +293,15 @@ Each item is built and fully tested (§4) before the next one that depends on it
     What is read in (B2–B5) arrives as drafts and posts the same way. Not yet: editing a draft (discard and draft
     again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
+  *(built 2026-10-22, 0184: invoices numbered at issue from their own counter, F-<year>-<n>, inside the issuing
+  transaction — no gap, ten at once consecutive; issued, never changed (a correction is a credit note, not built yet);
+  net and tax checked to the cent by the database; issuing posts receivable / sales / tax, a foreign invoice's
+  conversion rounding its own marked exchange line. Payments in the invoice's currency, never more than owed (app and
+  database); the receivable relieved at its own book value, the last payment taking exactly what is left; the realised
+  gain or loss a marked line — a USD invoice paid in two parts at two rates clears to 0.00 in MAD and in USD.
+  Standing: draft, open, partly paid, paid, overdue. Pages /app/books/invoices; customers added as parties of the
+  books. Calls: a payment in a third currency is not taken; a party is not linked to a buyer — so the per-buyer legal
+  hold A2.4 tied to that link is not needed yet, and comes with the link when there is one.)*
 - **C3 · Item 4 — reconciliation:**
   - from **statement files only** (CSV, OFX, CAMT.053; decision 8);
   - suggested by rule, **always confirmed by a person.**
