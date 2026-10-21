@@ -21,6 +21,12 @@ const OWN: Readonly<Record<string, Currency>> = {
   US: 'USD', PR: 'USD', GU: 'USD', VI: 'USD', AS: 'USD', MP: 'USD', UM: 'USD', EC: 'USD', SV: 'USD', PA: 'USD',
   TL: 'USD', FM: 'USD', MH: 'USD', PW: 'USD', BQ: 'USD', TC: 'USD', VG: 'USD', IO: 'USD',
   CN: 'CNY', AE: 'AED', SA: 'SAR', BR: 'BRL', MX: 'MXN', IN: 'INR', ID: 'IDR',
+  // A1 (0168) — Morocco; the twenty countries of the euro area and the six others whose money it is; the pound's.
+  MA: 'MAD',
+  AT: 'EUR', BE: 'EUR', HR: 'EUR', CY: 'EUR', EE: 'EUR', FI: 'EUR', FR: 'EUR', DE: 'EUR', GR: 'EUR', IE: 'EUR',
+  IT: 'EUR', LV: 'EUR', LT: 'EUR', LU: 'EUR', MT: 'EUR', NL: 'EUR', PT: 'EUR', SK: 'EUR', SI: 'EUR', ES: 'EUR',
+  AD: 'EUR', MC: 'EUR', SM: 'EUR', VA: 'EUR', ME: 'EUR', XK: 'EUR',
+  GB: 'GBP', GG: 'GBP', JE: 'GBP', IM: 'GBP',
 };
 
 /** The currency a country's own shops count in, when it is on the list; null otherwise. */

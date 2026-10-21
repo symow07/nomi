@@ -54,20 +54,20 @@ describe('CUR · the currency sign-up gives', () => {
   });
 
   it('any other country is asked, and only the list answers', () => {
-    expect(currencyOfCountry('MA')).toBeNull();
-    expect(asksCurrency('MA')).toBe(true);
+    expect(currencyOfCountry('CH')).toBeNull();   // A1.3 — Morocco has its own now; the franc is not on the list
+    expect(asksCurrency('CH')).toBe(true);
     expect(asksCurrency('')).toBe(false);
-    expect(validateSignup({ ...good, country: 'MA' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
-    expect(validateSignup({ ...good, country: 'MA', currency: 'EUR' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
-    const v = validateSignup({ ...good, country: 'MA', currency: 'usd' }, opts);
+    expect(validateSignup({ ...good, country: 'CH' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
+    expect(validateSignup({ ...good, country: 'CH', currency: 'CHF' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
+    const v = validateSignup({ ...good, country: 'CH', currency: 'usd' }, opts);
     expect(v.ok && v.value.profile.currency).toBe('USD');
   });
 
-  it('the form asks only where it must, and offers the eight', () => {
-    const ma = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'MA' } });
+  it('the form asks only where it must, and offers the list', () => {
+    const ma = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'CH' } });
     expect(ma).toContain('<select id="su-currency" name="currency" required>');
     for (const c of CURRENCIES) expect(ma).toContain(`value="${c}"`);
-    expect(ma).not.toContain('value="EUR"');
+    expect(ma).not.toContain('value="CHF"');
     const ae = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'AE' } });
     expect(ae).not.toContain('name="currency"');
   });
@@ -214,7 +214,8 @@ describe('CUR · the database holds the eight, and room for them', () => {
       'quotes_currency_known', 'orders_currency_known', 'sample_policy_currency_known']) {
       expect(sql, c).toMatch(new RegExp(`${c} check \\(currency in \\(${list.replace(/[()]/g, '\\$&')}\\)\\)`));
     }
-    expect(CURRENCIES.map((c) => `'${c}'`).join(', ')).toBe(list);
+    // 0092's eight are the list's first eight; 0168 adds MAD, EUR and GBP (tests/parity/a1-currencies.test.ts)
+    expect(CURRENCIES.slice(0, 8).map((c) => `'${c}'`).join(', ')).toBe(list);
   });
   it('a price in rupiah fits', () => {
     expect(sql).toContain('alter table price_tiers    alter column unit_price_usd        type numeric(14,4)');

@@ -39,9 +39,10 @@ const state = emptyState({ quantity: { value: 5_000, unit: 'pcs' } });
 const guard = (reply: string, quote: Quote, clientText = '') => guardNumerals({ reply, quote, state, clientText });
 
 describe('CUR · every currency a workspace can sell in', () => {
-  it('the eight, each with its own sign', () => {
-    expect([...CURRENCIES].sort()).toEqual(['AED', 'BRL', 'CNY', 'IDR', 'INR', 'MXN', 'SAR', 'USD']);
-    expect(CURRENCIES.map(currencySymbol)).toEqual(['$', '￥', 'AED ', 'SAR ', 'R$', 'MX$', '₹', 'Rp ']);
+  it('the eleven, each with its own sign', () => {
+    expect([...CURRENCIES].sort()).toEqual(['AED', 'BRL', 'CNY', 'EUR', 'GBP', 'IDR', 'INR', 'MAD', 'MXN', 'SAR', 'USD']);   // A1.3 adds three
+    expect(CURRENCIES.map(currencySymbol)).toEqual(['$', '￥', 'AED ', 'SAR ', 'R$', 'MX$', '₹', 'Rp ', 'MAD ', '€', '£']);
+    expect(symbolIsCode('MAD')).toBe(true);
     expect(symbolIsCode('AED')).toBe(true);
     expect(symbolIsCode('USD')).toBe(false);
   });

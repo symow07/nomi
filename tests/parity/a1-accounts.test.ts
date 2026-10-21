@@ -65,7 +65,7 @@ describe('A1 · who may create a workspace', () => {
 
   it('trims what she typed, lower-cases the address, and keeps the password exactly', () => {
     const v = validateSignup(good, opts('open'));
-    expect(v).toEqual({ ok: true, value: { factory: 'Atlas Canvas', name: 'Mei', email: 'mei@atlas.example', password: 'correct horse battery', invite: null, profile } });
+    expect(v).toEqual({ ok: true, value: { factory: 'Atlas Canvas', name: 'Mei', email: 'mei@atlas.example', password: 'correct horse battery', invite: null, profile: { ...profile, currency: 'MAD' } } });   // A1.3 — Morocco's own money; a pick cannot move it
     expect(normalizeEmail('  A@B.Co ')).toBe('a@b.co');
   });
 

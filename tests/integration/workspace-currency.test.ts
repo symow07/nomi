@@ -82,8 +82,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(row.currency).toBe('AED');
     bid = row.id;
 
-    // Morocco's dirham is not on the list: the form asks, and nothing is made until it is answered.
-    const M = { ...ABOUT, factory: `Atlas Shop ${RUN}`, name: 'Sam', email: `sam-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, country: 'MA', invite: '' };
+    // The Swiss franc is not on the list (Morocco's dirham is, since A1.3): the form asks, and nothing is made until it is answered.
+    const M = { ...ABOUT, factory: `Atlas Shop ${RUN}`, name: 'Sam', email: `sam-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, country: 'CH', invite: '' };
     const asked = await form('/signup', M);
     expect(asked.statusCode).toBe(400);
     expect(asked.body).toContain(t('en', 'signup.problem.currency_missing'));
@@ -100,7 +100,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('SAR');
     const back = await form('/app/settings/currency', { currency: 'AED' }, cookie);
     expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.currencySaved'));
-    const bad = await form('/app/settings/currency', { currency: 'EUR' }, cookie);
+    const bad = await form('/app/settings/currency', { currency: 'CHF' }, cookie);
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
     expect((await get('/app/settings/profile')).body).toContain('<option value="AED" selected>');
   });

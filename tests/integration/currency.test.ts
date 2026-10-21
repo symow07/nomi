@@ -66,7 +66,7 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
 
   afterAll(async () => { await db?.destroy(); });
 
-  it('a · every table that carries a currency holds the eight a workspace can sell in, and nothing else (CUR, 0092)', async () => {
+  it('a · every table that carries a currency holds the eleven a workspace can sell in, and nothing else (CUR 0092, A1.3 0168)', async () => {
     const rows = await tx((t) => sql<{ tbl: string; def: string }>`
       select conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
         from pg_constraint where conname like '%currency_known%' or conname like '%currency%check%'
@@ -81,8 +81,8 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
     for (const tbl of ['businesses', 'orders', 'products', 'price_tiers', 'pricing_policy', 'quotes', 'sample_policy']) {
       const def = byTable.get(tbl);
       expect(def, `${tbl} has no currency check at all`).toBeTruthy();
-      for (const c of ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR']) expect(def, `${tbl} · ${c}`).toContain(`'${c}'`);
-      for (const c of ['EUR', 'GBP']) expect(def, `${tbl} · ${c}`).not.toContain(`'${c}'`);
+      for (const c of ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR', 'MAD', 'EUR', 'GBP']) expect(def, `${tbl} · ${c}`).toContain(`'${c}'`);
+      for (const c of ['CHF', 'JPY']) expect(def, `${tbl} · ${c}`).not.toContain(`'${c}'`);
     }
   });
 

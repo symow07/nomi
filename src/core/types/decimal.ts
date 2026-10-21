@@ -156,6 +156,16 @@ export const divDecimal = (a: Decimal, b: Decimal, places: number): Decimal => {
 };
 
 /**
+ * The two ways OUT of exact decimals into a plain number, and the only ones (tests/parity/exact-money.test.ts):
+ *   · a figure to MATCH in text — the numeral guard and the reply's reading compare the numbers a reply contains
+ *     with the ones it may contain; nothing is computed from the result;
+ *   · a PERCENTAGE, as the rules hold and compare it (`maxDiscountPct`, 12.5): at most two decimals, exact in a float
+ *     for every value a `numeric(5,2)` can hold.
+ */
+export const numeralOfDecimal = (d: Decimal): number => Number(d);
+export const percentNumber = (d: Decimal): number => Number(roundDecimal(d, 2));
+
+/**
  * A decimal through `Intl.NumberFormat`, exactly. Intl formats a numeric STRING without converting it to a float
  * (ECMA-402 "Intl.NumberFormat v3", in every Node this product runs on); TypeScript's ES2022 library types do not
  * know that yet, hence the one cast, here and nowhere else.

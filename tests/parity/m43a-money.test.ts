@@ -73,7 +73,7 @@ describe('M43a · arithmetic that mixes currencies cannot happen quietly', () =>
    * That is the point: the runtime check is for the day the union grows, and a
    * check nobody has ever executed is a check nobody knows works.
    */
-  const eur = { amount: decimal('1'), currency: 'EUR' } as unknown as Money;
+  const eur = { amount: decimal('1'), currency: 'EUR' } as Money;   // A1.3 — a real currency now; still not dollars
 
   it('subtraction throws rather than returning a plausible number', () => {
     expect(() => subMoney(usd('5'), eur)).toThrow(/not comparable/);
@@ -94,9 +94,9 @@ describe('M43a · arithmetic that mixes currencies cannot happen quietly', () =>
 describe('M43a · a row whose currency this build cannot price is DROPPED, never defaulted', () => {
   it('an unknown currency parses to null, not to USD', () => {
     expect(parseCurrency('USD')).toBe('USD');
-    expect(parseCurrency('EUR')).toBeNull();
+    expect(parseCurrency('CHF')).toBeNull();   // the franc: not on the list (the euro joined in A1.3)
     expect(parseCurrency('')).toBeNull();
-    expect(moneyFromRow('1.05', 'EUR')).toBeNull();
+    expect(moneyFromRow('1.05', 'CHF')).toBeNull();
     expect(moneyFromRow('1.05', 'USD')).toEqual(usd('1.05'));
   });
 

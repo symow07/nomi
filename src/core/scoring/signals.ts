@@ -397,6 +397,9 @@ export const HIGH_VALUE: Readonly<Record<Currency, { readonly large: number; rea
   MXN: { large: 50_000, veryLarge: 175_000 },
   INR: { large: 250_000, veryLarge: 800_000 },
   IDR: { large: 50_000_000, veryLarge: 150_000_000 },
+  MAD: { large: 30_000, veryLarge: 100_000 },
+  EUR: { large: 3_000, veryLarge: 10_000 },
+  GBP: { large: 2_500, veryLarge: 8_000 },
 };
 
 /**

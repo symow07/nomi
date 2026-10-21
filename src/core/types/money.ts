@@ -27,7 +27,7 @@
  */
 
 import {
-  type Decimal, decimal, parseDecimal, storedDecimal, fromInteger, subDecimal, mulDecimal, divDecimal, compareDecimal, roundDecimal, signOf,
+  type Decimal, decimal, parseDecimal, storedDecimal, fromInteger, numeralOfDecimal, subDecimal, mulDecimal, divDecimal, compareDecimal, roundDecimal, signOf,
 } from './decimal.js';
 
 /**
@@ -46,12 +46,13 @@ import {
  * no conversion: a shop in Dubai prices in dirhams, one in São Paulo in reais,
  * and every figure a customer reads is in that one currency. The first list
  * is the plan's (decision 19): USD, AED, SAR, BRL, MXN, INR, IDR, and CNY that
- * was already here. EUR and GBP join only with EU1. A workspace that sells in
- * two currencies waits for CONV. The promise above is re-read for each: no
+ * was already here. A1 (Phase 5, 0168) adds the Moroccan dirham, the euro and
+ * the pound, for the books. A workspace that sells in two currencies waits for
+ * CONV. The promise above is re-read for each: no
  * comparison in `core/commerce` ever crosses two of them (`sameCurrency`
  * throws), and the numeral guard refuses a figure written in another one.
  */
-export type Currency = 'USD' | 'CNY' | 'AED' | 'SAR' | 'BRL' | 'MXN' | 'INR' | 'IDR';
+export type Currency = 'USD' | 'CNY' | 'AED' | 'SAR' | 'BRL' | 'MXN' | 'INR' | 'IDR' | 'MAD' | 'EUR' | 'GBP';
 
 /**
  * An amount and the currency it is denominated in. Never one without the other.
@@ -72,7 +73,17 @@ export const usd = (amount: string): Money => ({ amount: decimal(amount), curren
 /** Any currency, from decimal text. */
 export const moneyOf = (amount: string, currency: Currency): Money => ({ amount: decimal(amount), currency });
 
-export const CURRENCIES: readonly Currency[] = ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR'];
+export const CURRENCIES: readonly Currency[] = ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR', 'MAD', 'EUR', 'GBP'];
+
+/**
+ * A1 — each currency's minor unit, from ISO 4217 (the List One table, "Minor unit"): the number of decimals an
+ * amount in it is rounded to. Two for every currency here — the rupiah included: ISO lists IDR with 2, though its
+ * coins are long gone, and a price list may still write "Rp 15.000,00". A currency with 0 (JPY) or 3 (KWD) gets its
+ * own figure the day it joins, and every rounding follows.
+ */
+export const MINOR_UNITS: Readonly<Record<Currency, number>> = {
+  USD: 2, CNY: 2, AED: 2, SAR: 2, BRL: 2, MXN: 2, INR: 2, IDR: 2, MAD: 2, EUR: 2, GBP: 2,
+};
 
 /** A currency read from a row, checked. Unknown text is not silently accepted. */
 export function parseCurrency(raw: string): Currency | null {
@@ -174,7 +185,7 @@ export const isZero = (m: Money): boolean => signOf(m.amount) === 0;
  * The amount as a plain number, ONLY to match a figure written in text — the numeral guard compares the numbers a
  * reply contains with the ones it may contain. Never for arithmetic: that is what every other function here is for.
  */
-export const numeralOf = (m: Money): number => Number(m.amount);
+export const numeralOf = (m: Money): number => numeralOfDecimal(m.amount);
 
 /** Do two amounts differ by more than `tolerance` (same currency)? */
 export const differsByMoreThan = (a: Money, b: Money, tolerance: Decimal): boolean => {
@@ -182,8 +193,8 @@ export const differsByMoreThan = (a: Money, b: Money, tolerance: Decimal): boole
   return compareDecimal(d, tolerance) > 0 || compareDecimal(d, subDecimal(decimal('0'), tolerance)) < 0;
 };
 
-/** Rounding, half away from zero, in the currency's own minor unit. Two places for every currency here. */
-export const roundMoney = (m: Money, places = 2): Money =>
+/** Rounding, half away from zero, in the currency's own minor unit (ISO 4217, `MINOR_UNITS`). */
+export const roundMoney = (m: Money, places = MINOR_UNITS[m.currency]): Money =>
   ({ amount: roundDecimal(m.amount, places), currency: m.currency });
 
 /**
@@ -197,6 +208,8 @@ export const roundMoney = (m: Money, places = 2): Money =>
  */
 const SYMBOL: Record<Currency, string> = {
   USD: '$', CNY: '￥', AED: 'AED ', SAR: 'SAR ', BRL: 'R$', MXN: 'MX$', INR: '₹', IDR: 'Rp ',
+  // A1 — the dirham by its code ("DH" is also the UAE's, and "د.م." reads right to left inside a figure).
+  MAD: 'MAD ', EUR: '€', GBP: '£',
 };
 export const currencySymbol = (c: Currency): string => SYMBOL[c];
 
@@ -206,7 +219,9 @@ export const symbolIsCode = (c: Currency): boolean => SYMBOL[c].trim() === c;
 /**
  * CUR — how the currency's own people write a figure: Brazil and Indonesia
  * group thousands with a dot and mark decimals with a comma ("R$ 1.250,50",
- * "Rp 150.000"); the others as in English. Nothing is converted — this only
+ * "Rp 150.000"); the others as in English. A1 — so do Morocco ("1.250,50 DH")
+ * and most of the euro area ("1.250,50 €"; France writes a space, read the
+ * same); the pound as in English. Nothing is converted — this only
  * says how the SAME figure may be written.
  */
-export const DOT_THOUSANDS: ReadonlySet<Currency> = new Set<Currency>(['BRL', 'IDR']);
+export const DOT_THOUSANDS: ReadonlySet<Currency> = new Set<Currency>(['BRL', 'IDR', 'MAD', 'EUR']);

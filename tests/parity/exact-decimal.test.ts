@@ -93,7 +93,7 @@ describe('A1 · exact decimals', () => {
     expect(storedDecimal(Number.POSITIVE_INFINITY)).toBeNull();
     expect(storedDecimal('5,03')).toBeNull();
     expect(moneyFromStored(4.2, 'USD')).toEqual({ amount: '4.2', currency: 'USD' });
-    expect(moneyFromStored('4.20', 'EUR')).toBeNull();           // a currency this build cannot price is dropped
+    expect(moneyFromStored('4.20', 'CHF')).toBeNull();           // a currency this build cannot price is dropped
     expect(moneyFromRow('4.20', 'USD')).toEqual({ amount: '4.2', currency: 'USD' });
     expect(moneyFromRow('4,20', 'USD')).toBeNull();
   });

@@ -821,6 +821,9 @@ const EXAMPLE_PRICES: Readonly<Record<Currency, readonly [string, string, string
   MXN: ['$19', '$45', '$599'],
   INR: ['₹90', '₹220', '₹2,899'],
   IDR: ['Rp 15.000', 'Rp 40.000', 'Rp 499.000'],
+  MAD: ['MAD 10', 'MAD 25', 'MAD 349'],
+  EUR: ['1,05 €', '2,60 €', '34,90 €'],
+  GBP: ['£1.05', '£2.60', '£34.90'],
 };
 
 export function renderAddForm(

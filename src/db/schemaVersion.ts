@@ -412,7 +412,9 @@ import type { Db } from './client.js';
 // 166 = every five-minute model check kept a month (0166): `model_check_log`, which the check appends to and
 //       tools/model-uptime.mjs reads. Against a 165 database the check's history is not kept (logged).
 // 167 = the deploy alarm (0167): `deploy_lag`, which the ten-minute look writes once per head of main an hour late.
-export const REQUIRED_SCHEMA_VERSION = 167;
+// 168 = MAD, EUR and GBP (0168): the nine currency checks admit them. Against a 167 database a workspace in one of
+//       them fails on its first write.
+export const REQUIRED_SCHEMA_VERSION = 168;
 
 export type SchemaState = {
   readonly required: number;
