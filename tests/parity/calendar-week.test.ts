@@ -34,7 +34,7 @@ const e = (x: Partial<CalendarEntry> & Pick<CalendarEntry, 'category' | 'kind' |
 const MON = weekStart(TODAY, 1);
 const ENTRIES: CalendarEntry[] = [
   e({ category: 'samples', kind: 'sample_asked', at: at(MON, '09:12'), source: { table: 'sample_requests', id: 's1', column: 'requested_at' } }),
-  e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '12:40'), detail: { price: usd(34.9), quantity: 10 },
+  e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '12:40'), detail: { price: usd('34.9'), quantity: 10 },
     source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
   e({ category: 'negotiation', kind: 'reply_due', at: at(TODAY, '16:00'), source: { table: 'handoffs', id: 'h1', column: 'sla_deadline_at' } }),
   e({ category: 'yours', kind: 'own', at: at(addDays(TODAY, 1), '11:00'), conversationId: null, buyer: null,
@@ -174,7 +174,7 @@ describe('phase 7 · a chosen day as one list in time order', () => {
     draw(week({ entries }), 'en', { ask: chosen(ymd), now: NOW });
 
   it('the hour, a kind icon, the name whole, what it is — all-day dates first, then by time; no grid of empty hours', () => {
-    const late = e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '18:05'), detail: { price: usd(2), quantity: 5 },
+    const late = e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '18:05'), detail: { price: usd('2'), quantity: 5 },
       source: { table: 'quotes', id: 'q2', column: 'created_at' } });
     const html = day(TODAY, [late, ...ENTRIES]);
     expect(html).toContain('<ol class="dl">');
@@ -189,9 +189,9 @@ describe('phase 7 · a chosen day as one list in time order', () => {
   it('done is greyed, never hidden; what is owed carries its signal however old', () => {
     // "Now" is 12:00 on TODAY.
     const mine = [
-      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '09:00'), detail: { price: usd(1), quantity: 1 },
+      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '09:00'), detail: { price: usd('1'), quantity: 1 },
         source: { table: 'quotes', id: 'past', column: 'created_at' } }),
-      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '15:00'), detail: { price: usd(1), quantity: 1 },
+      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '15:00'), detail: { price: usd('1'), quantity: 1 },
         source: { table: 'quotes', id: 'later', column: 'created_at' } }),
       e({ category: 'negotiation', kind: 'reply_due', at: at(TODAY, '08:00'), detail: { overdue: true },
         source: { table: 'handoffs', id: 'owed', column: 'sla_deadline_at' } }),

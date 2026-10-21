@@ -7,6 +7,7 @@ import { renderClosures, type ClosureView } from '../../src/api/web/settings.js'
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { product, tiers, policy, emptyState } from './fixtures.js';
+import { signOf } from '../../src/core/types/decimal.js';
 
 /**
  * M44 — she does not promise a date her factory cannot hit.
@@ -89,7 +90,7 @@ describe('M44 · the quote loses the date, and cannot get it back', () => {
     expect(r.value.leadTimeBlocked?.closure.label).toBe('春节');
     // The PRICE is untouched: her factory being shut does not change what a bag
     // costs, and refusing the whole quote would be refusing more than she did.
-    expect(r.value.unitPrice.amount).toBeGreaterThan(0);
+    expect(signOf(r.value.unitPrice.amount)).toBe(1);
   });
 
   it('an unblocked quote keeps the lead time exactly as before', () => {

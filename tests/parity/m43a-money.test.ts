@@ -3,13 +3,15 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   type Money, usd, parseCurrency, moneyFromRow, subMoney, scaleMoney,
-  compareMoney, isBelow, isAbove, roundMoney, currencySymbol,
+  compareMoney, isBelow, isAbove, roundMoney, currencySymbol, timesQuantity,
 } from '../../src/core/types/money.js';
 import { computeQuote, selectTier, contradictsHistory } from '../../src/core/commerce/quote.js';
 import { validatePriceRules } from '../../src/core/commerce/priceRules.js';
 import { renderInvoiceEn, buildInvoice } from '../../src/core/commerce/invoice.js';
 import { guardFallbackReply } from '../../src/core/conversation/templates.js';
 import { product, tiers, policy } from './fixtures.js';
+import { moneyOf } from '../../src/core/types/money.js';
+import { type Decimal, decimal, fromInteger, roundDecimal } from '../../src/core/types/decimal.js';
 
 /**
  * M43a — money is a pair, and this milestone changes no behaviour.
@@ -24,12 +26,15 @@ import { product, tiers, policy } from './fixtures.js';
  * So these tests are about SHAPE, not sums. The sums were correct before.
  */
 
-const cheap = usd(0.38);
-const dear = usd(0.44);
+const cheap = usd('0.38');
+const dear = usd('0.44');
+
+/** A1 — a figure as a page writes it, two decimals, from the exact amount. */
+const twoPlaces = (d: Decimal): string => { const [i, f = ''] = roundDecimal(d, 2).split('.'); return `${i}.${f.padEnd(2, '0')}`; };
 
 describe('M43a · the currency travels with the amount', () => {
   it('a price is an amount AND a currency, never one alone', () => {
-    expect(cheap).toEqual({ amount: 0.38, currency: 'USD' });
+    expect(cheap).toEqual(moneyOf('0.38', 'USD'));
   });
 
   it('the quote engine returns money, not numbers', () => {
@@ -39,7 +44,7 @@ describe('M43a · the currency travels with the amount', () => {
     expect(r.value.unitPrice.currency).toBe('USD');
     expect(r.value.total.currency).toBe('USD');
     // and the total is the unit price SCALED by the quantity, in the same currency
-    expect(r.value.total.amount).toBeCloseTo(r.value.unitPrice.amount * 20000, 2);
+    expect(r.value.total).toEqual(roundMoney(timesQuantity(r.value.unitPrice, 20000)));   // A1 — exact, not "close to"
   });
 
   it('the tier, the floor and the refusal all carry it too', () => {
@@ -47,10 +52,10 @@ describe('M43a · the currency travels with the amount', () => {
     expect(policy()!.floorPrice.currency).toBe('USD');
     const r = computeQuote({
       product: product(), tiers: tiers(),
-      policy: { ...policy()!, floorPrice: usd(99) }, rules: [], quantity: 20000,
+      policy: { ...policy()!, floorPrice: usd('99') }, rules: [], quantity: 20000,
     });
     expect(r.ok).toBe(false);
-    if (!r.ok && r.error.kind === 'below_floor') expect(r.error.floorPrice).toEqual(usd(99));
+    if (!r.ok && r.error.kind === 'below_floor') expect(r.error.floorPrice).toEqual(usd('99'));
   });
 
   it('and so does a price she was quoted before', () => {
@@ -68,21 +73,21 @@ describe('M43a · arithmetic that mixes currencies cannot happen quietly', () =>
    * That is the point: the runtime check is for the day the union grows, and a
    * check nobody has ever executed is a check nobody knows works.
    */
-  const eur = { amount: 1, currency: 'EUR' } as unknown as Money;
+  const eur = { amount: decimal('1'), currency: 'EUR' } as unknown as Money;
 
   it('subtraction throws rather than returning a plausible number', () => {
-    expect(() => subMoney(usd(5), eur)).toThrow(/not comparable/);
+    expect(() => subMoney(usd('5'), eur)).toThrow(/not comparable/);
   });
 
   it('comparison throws rather than ordering two currencies', () => {
-    expect(() => compareMoney(usd(5), eur)).toThrow(/not comparable/);
-    expect(() => isBelow(usd(5), eur)).toThrow(/not comparable/);
-    expect(() => isAbove(usd(5), eur)).toThrow(/not comparable/);
+    expect(() => compareMoney(usd('5'), eur)).toThrow(/not comparable/);
+    expect(() => isBelow(usd('5'), eur)).toThrow(/not comparable/);
+    expect(() => isAbove(usd('5'), eur)).toThrow(/not comparable/);
   });
 
   it('scaling by a plain number is always safe — a quantity has no currency', () => {
-    expect(scaleMoney(usd(0.38), 20000)).toEqual(usd(7600));
-    expect(roundMoney({ amount: 7599.9999, currency: 'USD' })).toEqual(usd(7600));
+    expect(scaleMoney(usd('0.38'), fromInteger(20000))).toEqual(usd('7600'));
+    expect(roundMoney(moneyOf('7599.9999', 'USD'))).toEqual(usd('7600'));
   });
 });
 
@@ -91,15 +96,15 @@ describe('M43a · a row whose currency this build cannot price is DROPPED, never
     expect(parseCurrency('USD')).toBe('USD');
     expect(parseCurrency('EUR')).toBeNull();
     expect(parseCurrency('')).toBeNull();
-    expect(moneyFromRow(1.05, 'EUR')).toBeNull();
-    expect(moneyFromRow(1.05, 'USD')).toEqual(usd(1.05));
+    expect(moneyFromRow('1.05', 'EUR')).toBeNull();
+    expect(moneyFromRow('1.05', 'USD')).toEqual(usd('1.05'));
   });
 
   it('the repos drop such a tier rather than quoting it in dollars', async () => {
     // Structural: a `?? usd(...)` here would turn every unpriceable row into a
     // dollar price, which is the exact failure this milestone exists to remove.
     const src = await readFile(new URL('../../src/db/repos.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/const unitPrice = moneyFromRow\(num\(r\.unit_price_usd\), r\.currency\);/);
+    expect(src).toMatch(/const unitPrice = moneyFromRow\(amountOf\(r\.unit_price_usd\), r\.currency\);/);
     expect(src).toContain('return unitPrice === null ? [] : [{');
     // and a prior quote in another currency is not compared against. Scoped to
     // the function, not a character window: G7b's history filter grew it.
@@ -109,7 +114,7 @@ describe('M43a · a row whose currency this build cannot price is DROPPED, never
 
   it('a floor it cannot read is not silently treated as a dollar floor', async () => {
     const src = await readFile(new URL('../../src/db/repos.ts', import.meta.url), 'utf8');
-    expect(src).toContain('const floorPrice = moneyFromRow(num(r.floor_price_usd), r.currency);');
+    expect(src).toContain('const floorPrice = moneyFromRow(amountOf(r.floor_price_usd), r.currency);');
     expect(src).toContain('if (floorPrice === null) return null;');
   });
 });
@@ -126,7 +131,7 @@ describe('M43a · no surface prints a symbol it did not read from the money', ()
       conversationRef: 'conv-0301', now: new Date('2026-08-13T00:00:00Z'),
     });
     expect(inv.unitPrice).toEqual(q.value.unitPrice);
-    expect(renderInvoiceEn(inv)).toContain(`${currencySymbol('USD')}${inv.unitPrice.amount.toFixed(2)}`);
+    expect(renderInvoiceEn(inv)).toContain(`${currencySymbol('USD')}${twoPlaces(inv.unitPrice.amount)}`);
   });
 
   it('the deterministic fallback reply names the currency it is quoting in', () => {
@@ -151,12 +156,12 @@ describe('M43a · the owner states her floor and it becomes money', () => {
     const r = validatePriceRules({ floor: '0.36', maxDiscountPct: '10', askAbovePct: '7', currency: 'USD' as const });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value.floor).toEqual(usd(0.36));
+    expect(r.value.floor).toEqual(usd('0.36'));
   });
 
   it('and it is still compared against the list price she actually has', () => {
     const r = validatePriceRules({
-      floor: '9.99', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(1.05), currency: 'USD',
+      floor: '9.99', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd('1.05'), currency: 'USD',
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.floor).toBe('floor_above_list');

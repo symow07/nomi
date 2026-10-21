@@ -28,7 +28,7 @@ const plain = (s: string): string => s.replace(/[\u2066-\u2069]/g, '');
 const draft = (over: Partial<ConversationDetail> = {}): ConversationDetail => conversationDetail({
   buyer: 'Aisha Bello', country: 'NG', channel: 'whatsapp', status: 'awaiting',
   product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000,
-  quote: { unitPrice: usd(1.45), total: usd(7250), quantity: 5000 },
+  quote: { unitPrice: usd('1.45'), total: usd('7250'), quantity: 5000 },
   messages: [{ direction: 'inbound', text: 'Hello, what is your price for 5,000 pcs of the LED string lights 10m?', at: ago(35) }],
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs of LED String Lights 10m (ZX-300): $1.45/pc FOB Ningbo, lead time 25 days.', capability: 'quote' },
   ...over,
@@ -43,7 +43,7 @@ const row = (id: string, over: Partial<ConversationSummary> = {}): ConversationS
 const panel = (over: Partial<CustomerPanel> = {}): CustomerPanel => ({
   clientId: 'cl-1', name: 'Aisha Bello', country: 'NG', channel: 'whatsapp', address: '2345000000261', language: 'en',
   firstWrote: ago(35), conversations: 1, askedAbout: [],
-  prices: [{ unitPrice: usd(1.45), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' }],
+  prices: [{ unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' }],
   samples: [], promised: [], orders: [], activity: [{ kind: 'waiting', at: ago(33) }], ...over,
 });
 
@@ -53,9 +53,9 @@ const file = (over: Partial<CustomerFile> = {}): CustomerFile => ({
   profile: { firstContact: ago(35), products: [{ name: 'LED String Lights 10m', nameZh: null }], quoteCount: 1, orderCount: 0 },
   timeline: [
     { kind: 'buyer_text', at: ago(35), text: 'Hello, what is your price for 5,000 pcs of the LED string lights 10m?', qty: null, unitPrice: null, orderStatus: null },
-    { kind: 'quote', at: ago(33), text: null, qty: 5000, unitPrice: usd(1.45), orderStatus: null },
+    { kind: 'quote', at: ago(33), text: null, qty: 5000, unitPrice: usd('1.45'), orderStatus: null },
   ],
-  context: { products: [{ sku: null, name: 'LED String Lights 10m', nameZh: null }], latestQuote: { qty: 5000, unitPrice: usd(1.45), total: usd(7250) }, order: null, corrections: [] },
+  context: { products: [{ sku: null, name: 'LED String Lights 10m', nameZh: null }], latestQuote: { qty: 5000, unitPrice: usd('1.45'), total: usd('7250') }, order: null, corrections: [] },
   deletion: null, deletionAsk: null, ...over,
 });
 
@@ -155,8 +155,8 @@ describe('V1-234, V1-266, conversation-missed-05 · the customer panel\'s doors'
     for (const l of LOCALES) {
       const html = renderCustomerPanel(panel({
         prices: [
-          { unitPrice: usd(1.45), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' },
-          { unitPrice: usd(1.5), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before' },
+          { unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' },
+          { unitPrice: usd('1.5'), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before' },
         ],
       }), [], l, NOW, 'conv-here');
       // the fix wave (w4-whole-13) — the panel is "About this customer" (its label, its door's words); its door onward is the full page

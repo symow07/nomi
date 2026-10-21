@@ -99,7 +99,7 @@ describe('scoring: problem vs lead', () => {
   // NEVER be confirmed. The system blocked its own best deals.
   it('a $20k order is a HOT LEAD, not a problem — and does not block the close', () => {
     const signals: Signal[] = [
-      { kind: 'high_value', total: usd(20_000) },
+      { kind: 'high_value', total: usd('20000') },
       { kind: 'logistics_discussed' },
       { kind: 'customization_requested' },
     ];
@@ -139,9 +139,9 @@ describe('scoring: problem vs lead', () => {
  * ──────────────────────────────────────────────────────────────────────────── */
 describe('quote', () => {
   it('selects the volume tier', () => {
-    expect(selectTier(tiers(), 5_000)?.unitPrice).toEqual(usd(0.45));
-    expect(selectTier(tiers(), 1_500)?.unitPrice).toEqual(usd(0.5));
-    expect(selectTier(tiers(), 50_000)?.unitPrice).toEqual(usd(0.38));
+    expect(selectTier(tiers(), 5_000)?.unitPrice).toEqual(usd('0.45'));
+    expect(selectTier(tiers(), 1_500)?.unitPrice).toEqual(usd('0.5'));
+    expect(selectTier(tiers(), 50_000)?.unitPrice).toEqual(usd('0.38'));
   });
 
   it('refuses below MOQ', () => {
@@ -160,8 +160,8 @@ describe('quote', () => {
     if (r.ok) {
       // M43a — the amount AND its currency, because a quote that lost the
       // second half is exactly what this type exists to prevent.
-      expect(r.value.unitPrice).toEqual(usd(0.45));
-      expect(r.value.total).toEqual(usd(2_250));
+      expect(r.value.unitPrice).toEqual(usd('0.45'));
+      expect(r.value.total).toEqual(usd('2250'));
     }
   });
 
@@ -171,12 +171,12 @@ describe('quote', () => {
     const r = computeQuote({
       product: product(),
       tiers: tiers(),
-      policy: policy({ floorPrice: usd(0.44), maxDiscountPct: 90 }),
+      policy: policy({ floorPrice: usd('0.44'), maxDiscountPct: 90 }),
       rules: [{ businessId: policy().businessId, priority: 1, condition: {}, action: { kind: 'discount_pct', value: 80 } }],
       quantity: 5_000,
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.unitPrice.amount).toBeGreaterThanOrEqual(0.44);
+    if (r.ok) expect(compareDecimal(r.value.unitPrice.amount, decimal('0.44'))).toBeGreaterThanOrEqual(0);
   });
 
   it('clamps a discount to the AI’s authority and flags human approval', () => {
@@ -221,7 +221,7 @@ describe('order confirmation (deterministic — replaces an LLM call)', () => {
       paymentTerms: '50% with order, balance against B/L copy', incoterm: 'CIF',
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.total).toEqual(usd(2_250));
+    if (r.ok) expect(r.value.total).toEqual(usd('2250'));
     // G6 — her terms travel on the order verbatim.
     if (r.ok) expect([r.value.paymentTerms, r.value.incoterm]).toEqual(['50% with order, balance against B/L copy', 'CIF']);
   });
@@ -373,6 +373,7 @@ describe('numeral guard: commercial positions are never safe-small', () => {
 
 /* ── Id parsing: shape-safety, not RFC version policing (Supabase-exit find) ── */
 import { parseBusinessId } from '../../src/core/types/ids.js';
+import { compareDecimal, decimal } from '../../src/core/types/decimal.js';
 
 describe('id parsing accepts real tenant ids', () => {
   it('legacy pilot id (version nibble 0) and demo ids both parse', () => {

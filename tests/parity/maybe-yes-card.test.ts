@@ -20,7 +20,7 @@ import { usd } from '../../src/core/types/money.js';
 const NOW = new Date('2026-10-14T10:00:00Z');
 const OFFER = {
   productName: 'Gift box', quantity: 500, unit: 'boxes',
-  unitPrice: usd(2.1), total: usd(1050), givenAt: '2026-10-14T09:00:00.000Z',
+  unitPrice: usd('2.1'), total: usd('1050'), givenAt: '2026-10-14T09:00:00.000Z',
 };
 const base = (over: Partial<ConversationDetail> = {}): ConversationDetail => ({
   conversationId: 'conv-1', buyer: 'Maya', country: 'GB', status: 'awaiting',
@@ -70,8 +70,8 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
       const facts = [
         '<bdi>Gift box</bdi>',
         `<bdi>${esc(show.quantityOf(locale, 500, 'boxes'))}</bdi>`,
-        `<bdi>${esc(show.money(locale, usd(2.1)))}</bdi>`,
-        `<bdi>${esc(show.money(locale, usd(1050)))}</bdi>`,
+        `<bdi>${esc(show.money(locale, usd('2.1')))}</bdi>`,
+        `<bdi>${esc(show.money(locale, usd('1050')))}</bdi>`,
         esc(show.date(locale, new Date(OFFER.givenAt))),
       ].map((x) => card.indexOf(x));
       expect(words, `${locale}: their words`).toBeGreaterThan(-1);
@@ -138,7 +138,7 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
       orderProposal: {
         id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1',
         productId: 'b0000000-0000-0000-0000-000000000001', productName: 'Gift box', quantity: 500, unit: 'boxes',
-        unitPrice: usd(2.1), total: usd(1050), email: 'maya@example.com',
+        unitPrice: usd('2.1'), total: usd('1050'), email: 'maya@example.com',
         paymentTerms: null, incoterm: null, createdAt: new Date('2026-10-14T09:30:00Z'),
       },
     }), 'en', NOW, null, OWNER_VIEW));
@@ -171,7 +171,7 @@ describe('the order card — a real yes — shows their words and the unit price
     orderProposal: {
       id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1',
       productId: 'b0000000-0000-0000-0000-000000000001', productName: 'Gift box', quantity: 40, unit: 'boxes',
-      unitPrice: usd(2.1), total: usd(84), email: 'customer@example.com',
+      unitPrice: usd('2.1'), total: usd('84'), email: 'customer@example.com',
       paymentTerms: null, incoterm: null, createdAt: new Date('2026-10-14T09:00:00Z'), said,
     },
   });
@@ -185,7 +185,7 @@ describe('the order card — a real yes — shows their words and the unit price
       expect(unit, locale).toBeGreaterThan(-1);
       expect(words, locale).toBeLessThan(confirm);
       expect(unit, locale).toBeLessThan(confirm);
-      expect(html, locale).toContain(esc(show.money(locale, usd(2.1))));
+      expect(html, locale).toContain(esc(show.money(locale, usd('2.1'))));
     }
   });
   it('ON #345 — prepared at a price never sent to them: said, before Confirm, in every language; not otherwise', () => {

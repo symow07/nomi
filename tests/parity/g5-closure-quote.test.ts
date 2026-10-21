@@ -104,7 +104,7 @@ describe('G5 · a turn inside her closure', () => {
 
 const view = (over: Partial<ProofView> = {}): ProofView => ({
   seller: 'Yiwu Hongfa', productName: 'Canvas tote bag', sku: 'ZX-100',
-  quantity: 20000, unit: 'pcs', unitPrice: usd(0.85), total: usd(17000),
+  quantity: 20000, unit: 'pcs', unitPrice: usd('0.85'), total: usd('17000'),
   tier: { minQty: 10000, maxQty: null }, moq: 500, leadTimeDays: null,
   leadTimeWithheld: { label: '春节', from: '2027-02-05', to: '2027-02-21' },
   certifications: [], taught: [], issuedAt: new Date('2027-01-20'), locale: 'en', ...over,

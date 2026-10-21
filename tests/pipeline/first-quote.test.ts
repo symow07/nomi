@@ -22,7 +22,7 @@ function ports(): TurnPorts & { tenant: FakeTenant; analyzer: FakeAnalyzer; repl
   const p = { tenant: new FakeTenant(), retriever: new FakeRetriever(), analyzer: new FakeAnalyzer(), replyWriter: new FakeReplyWriter(), now: () => NOW };
   p.tenant.selling = { pricesToOwner: false, kind: 'online_shop', quantityFirst: false };
   p.tenant.products.set(PRODUCT, product({ name: 'Rose lip oil', moq: null, unit: 'item' }));
-  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: 1, maxQty: null, unitPrice: usd(12) }]);
+  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: 1, maxQty: null, unitPrice: usd('12') }]);
   const sells = modesFor('sells');
   p.tenant.grantRows = CAPABILITIES.map((capability) => ({ capability, mode: sells[capability], timeWindow: null }));
   p.tenant.seed(CONVERSATION, emptyState({ phase: 'clarification', aiDisclosedAt: new Date('2026-10-01T03:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-10-01T03:00:00Z') }));

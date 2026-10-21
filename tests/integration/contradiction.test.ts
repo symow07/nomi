@@ -123,13 +123,13 @@ d('G7b · a contradicting price waits for her, then becomes the baseline (requir
 
   it('a first price is only history once she has sent it', async () => {
     const { r, fx } = await turn('price for 5000?');
-    expect(r.quote?.unitPrice.amount).toBe(0.40);
+    expect(r.quote?.unitPrice.amount).toBe('0.4');
     expect(r.hold).toBeNull();
     expect(fx.draftCreated).not.toBeNull();       // draft-first: no grant
     expect(await baseline()).toEqual([]);          // pending — he has not seen it
 
     expect((await decide(fx.draftCreated!.draftId, '发送')).outcome).toBe('sent');
-    expect(await baseline()).toEqual([0.40]);
+    expect(await baseline()).toEqual(['0.4']);
   });
 
   it('SHE RAISES HER PRICE — the next quote is held, naming both prices', async () => {
@@ -137,7 +137,7 @@ d('G7b · a contradicting price waits for her, then becomes the baseline (requir
     await tx((t) => sql`insert into price_tiers (product_id, min_qty, max_qty, unit_price_usd, currency)
                         values (${PID}, 4000, null, 0.45, 'USD')`.execute(t));
     const { r, fx } = await turn('same again for 5000?');
-    expect(r.quote?.unitPrice.amount).toBe(0.45);
+    expect(r.quote?.unitPrice.amount).toBe('0.45');
     expect(r.hold).toBe('contradicts_history');
     expect(fx.outbound).toBeNull();
 
@@ -148,24 +148,24 @@ d('G7b · a contradicting price waits for her, then becomes the baseline (requir
     const payload = await pendingEvent(fx.draftCreated!.draftId);
     expect(payload).toMatchObject({
       heldBecause: 'contradicts_history',
-      contradicts: { prior: { unitPrice: { amount: 0.40 } }, proposedUnitPrice: { amount: 0.45 } },
+      contradicts: { prior: { unitPrice: { amount: '0.4' } }, proposedUnitPrice: { amount: '0.45' } },
     });
 
     // She skips it. A price he never saw never becomes his baseline.
     expect((await decide(fx.draftCreated!.draftId, '不回')).outcome).toBe('skipped');
-    expect(await baseline()).toEqual([0.40]);
+    expect(await baseline()).toEqual(['0.4']);
   });
 
   it('asked again it is held again — and once she SENDS it, it is the price he has', async () => {
     const { r, fx } = await turn('any movement on price for 5000?');
     expect(r.hold).toBe('contradicts_history');
     expect((await decide(fx.draftCreated!.draftId, '发送')).outcome).toBe('sent');
-    expect(await baseline()).toEqual([0.45, 0.40]);
+    expect(await baseline()).toEqual(['0.45', '0.4']);
 
     // CHANGED BY DESIGN (2026-10-14, 0157): this was "ok, 5000 again please" — after a price, a possible yes, which
     // now goes to the owner as "this may be a confirmation" instead of being quoted. Asked as a question, it is quoted.
     const next = await turn('5000 again — what is the price?');
-    expect(next.r.quote?.unitPrice.amount).toBe(0.45);
+    expect(next.r.quote?.unitPrice.amount).toBe('0.45');
     expect(next.r.quote?.contradicts).toBeNull();
     expect(next.r.hold).toBeNull();
   });
@@ -173,6 +173,6 @@ d('G7b · a contradicting price waits for her, then becomes the baseline (requir
   it('a rewritten draft never sets the baseline either — the price in her words is not ours to read', async () => {
     const { fx } = await turn('5000 pcs?');
     expect((await decide(fx.draftCreated!.draftId, '改 I can do a little better, let me check.')).outcome).toBe('edited_sent');
-    expect(await baseline()).toEqual([0.45, 0.40]);
+    expect(await baseline()).toEqual(['0.45', '0.4']);
   });
 });

@@ -1,4 +1,5 @@
 import { type Currency, DOT_THOUSANDS } from '../types/money.js';
+import { type Decimal, parseDecimal } from '../types/decimal.js';
 
 /**
  * CUR — an amount the OWNER typed into a box, read the way her currency writes
@@ -19,25 +20,29 @@ import { type Currency, DOT_THOUSANDS } from '../types/money.js';
  *
  * Spaces (and the no-break space) between groups are ignored. Returns null for
  * anything that is not one clear amount; the caller says "not a number".
+ *
+ * A1 (Phase 5) — returns the amount as an exact decimal, never a float.
  */
-export function readTypedAmount(raw: string, currency: Currency): number | null {
+export function readTypedAmount(raw: string, currency: Currency): Decimal | null {
   const typed = raw.trim().replace(/[\s\u00a0\u202f]/g, '');
   // A minus sign is read, so a box can say "must be above zero" about "-5"
   // rather than "not a number".
   const negative = typed.startsWith('-');
   const s = negative ? typed.slice(1) : typed;
   if (s === '') return null;
-  let n: number;
+  // A1 — the figure stays TEXT, exactly as she typed it, normalised to a decimal; it is never a float.
+  let t: string;
   if (DOT_THOUSANDS.has(currency)) {
-    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) n = Number(s.replace(/\./g, '').replace(',', '.'));
-    else if (/^\d+,\d+$/.test(s)) n = Number(s.replace(',', '.'));
-    else if (/^\d+(?:\.\d{1,2})?$/.test(s)) n = Number(s);
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) t = s.replace(/\./g, '').replace(',', '.');
+    else if (/^\d+,\d+$/.test(s)) t = s.replace(',', '.');
+    else if (/^\d+(?:\.\d{1,2})?$/.test(s)) t = s;
     else return null;
   } else {
-    if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) n = Number(s.replace(/,/g, ''));
-    else if (/^\d+,\d{1,2}$/.test(s)) n = Number(s.replace(',', '.'));
-    else if (/^\d+(?:\.\d+)?$/.test(s)) n = Number(s);
+    if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) t = s.replace(/,/g, '');
+    else if (/^\d+,\d{1,2}$/.test(s)) t = s.replace(',', '.');
+    else if (/^\d+(?:\.\d+)?$/.test(s)) t = s;
     else return null;
   }
-  return Number.isFinite(n) ? (negative ? -n : n) : null;
+  const d = parseDecimal(negative ? `-${t}` : t);
+  return d;
 }

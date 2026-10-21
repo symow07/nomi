@@ -297,7 +297,7 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
     ]);
     const empty = rowsOf(screen('how', 'en', FIRST_DAY, { isOwner: true }));
     expect(empty.map((r) => r.value)).toEqual(['0 of 9 answered', 'Not set up', 'Not set up', 'None planned']);
-    const waiting = rowsOf(screen('how', 'en', { ...SET_UP, menu: { ...SET_UP.menu!, samples: { price: usd(5), waiting: 2 } } }));
+    const waiting = rowsOf(screen('how', 'en', { ...SET_UP, menu: { ...SET_UP.menu!, samples: { price: usd('5'), waiting: 2 } } }));
     expect(waiting.find((r) => r.href === '/app/settings/samples')!.value).toBe('2 requests waiting');
   });
 });

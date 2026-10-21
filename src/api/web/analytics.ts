@@ -1,7 +1,7 @@
 import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { summarizePaths, type AnswerPath } from '../../core/conversation/answerPath.js';
-import { type Money, moneyFromRow } from '../../core/types/money.js';
+import { type Money, isPositive, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { PRICE_GIVEN } from '../../db/quotesGiven.js';
@@ -133,8 +133,8 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     // A row in a currency this build does not know is dropped, not defaulted:
     // `moneyFromRow` returns null rather than calling it dollars.
     const totals = totalRows
-      .map((r) => moneyFromRow(Number(r.val), r.currency))
-      .filter((m): m is Money => m !== null && m.amount > 0);
+      .map((r) => moneyFromRow(r.val, r.currency))
+      .filter((m): m is Money => m !== null && isPositive(m));
 
     const hasActivity =
       c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + handled > 0;

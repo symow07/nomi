@@ -18,19 +18,19 @@ import { usd } from '../../src/core/types/money.js';
 
 const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   id: 'p1', name: 'Rose lip oil', nameZh: null, sku: 'RL-1', moq: null, unit: 'item',
-  entryQty: 1, entryPrice: usd(12), learned: true, status: 'learned', imageMatchable: false, isActive: true,
+  entryQty: 1, entryPrice: usd('12'), learned: true, status: 'learned', imageMatchable: false, isActive: true,
   ...over,
 } as ProductListItem);
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   currency: 'USD',
   id: 'p1', name: 'Rose lip oil', nameZh: null, sku: 'RL-1', category: null, unit: 'item', moq: null,
   leadTimeDays: null, customizable: false, learned: true, status: 'learned', imageMatchable: false, isActive: true,
-  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(12) }], aliases: [], images: [], recentQuotes: [],
+  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('12') }], aliases: [], images: [], recentQuotes: [],
   ...over,
 } as ProductDetail);
 const PROOF: ProofView = {
   seller: 'Rose Oil Studio', productName: 'Rose lip oil', sku: 'RL-1',
-  quantity: 1, unit: 'item', unitPrice: usd(12), total: usd(12),
+  quantity: 1, unit: 'item', unitPrice: usd('12'), total: usd('12'),
   tier: { minQty: 1, maxQty: null }, moq: null, leadTimeDays: null, certifications: [], taught: [],
   issuedAt: new Date('2026-10-01T02:00:00Z'), locale: 'en',
 };

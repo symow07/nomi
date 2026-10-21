@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Currency } from '../../core/types/money.js';
+import type { Decimal } from '../../core/types/decimal.js';
 import { parsePriceLines, type ExtractedProduct, type CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { containExtracted, lessSure } from '../../core/onboard/extract.js';
 import { formatList, labelled } from '../../core/owner/i18n/format.js';
@@ -357,7 +358,7 @@ export async function confirmWithFloors(db: Db, businessIdRaw: string, id: strin
 
 /** The rows written, the import marked added, the audit row for the whole list. */
 async function confirmIn(tx: Tx, bid: BusinessId, m: ReviewModel, actor: string, floorTicks: ReadonlySet<string> | null): Promise<ImportResult & { readonly floors: number }> {
-  const byRow = new Map<string, number>();
+  const byRow = new Map<string, Decimal>();
   if (floorTicks && m.imp.discountPct !== null) {
     for (const p of m.diff.added) {
       const key = m.keyOf.get(p)!;
@@ -650,7 +651,7 @@ export function renderImportReview(
   const newRows = ordered.filter((r) => r.refused === null && !changed.has(r.key) && !unchanged.has(r.key) && !held.has(r.key));
   const need = newRows.filter((r) => !r.removed && (r.challenge === 'ask' || flagsOf(r, imp.rows, m.ctx).length > 0 || r.reopened)).length;
   const refused = imp.rows.filter((r) => r.refused !== null);
-  const money = (n: number | null): string => n === null ? t(locale, 'product.list.priceTbd') : show.money(locale, { amount: n, currency: imp.currency });
+  const money = (n: Decimal | null): string => n === null ? t(locale, 'product.list.priceTbd') : show.money(locale, { amount: n, currency: imp.currency });
 
   const changes = m.diff.changed.map((c) => {
     const key = keyOfLine(c.line);

@@ -1,4 +1,5 @@
 import type { ImportRow } from './importReview.js';
+import { type Decimal, decimal, divDecimal, parseDecimal, roundDecimal, signOf } from '../types/decimal.js';
 
 /**
  * K8 — A STORE'S OWN CATALOGUE, AS REVIEW ROWS (the onboarding plan, decision
@@ -21,8 +22,8 @@ import type { ImportRow } from './importReview.js';
  */
 
 export type StoreVariant = {
-  /** In the store's own figures, major units; null when the store gives none. */
-  readonly price: number | null;
+  /** In the store's own figures, major units, exact (A1); null when the store gives none. */
+  readonly price: Decimal | null;
   readonly sku: string | null;
   /** This variant's value for each of the item's options, in order. */
   readonly options: readonly string[];
@@ -40,13 +41,12 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !=
 const clean = (s: string): string => s.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** A figure as a store writes it: "24.00", "24", 24. */
-function amount(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
-  if (typeof v !== 'string') return null;
-  const s = v.trim().replace(/,/g, '');
-  if (!/^\d+(?:\.\d+)?$/.test(s)) return null;
-  const n = Number(s);
-  return n > 0 ? n : null;
+function amount(v: unknown): Decimal | null {
+  // A1 — exact: a JSON number is read through its own shortest text, a string as written.
+  const t = typeof v === 'number' ? (Number.isFinite(v) ? String(v) : null) : typeof v === 'string' ? v.trim().replace(/,/g, '') : null;
+  if (t === null || !/^\d+(?:\.\d+)?$/.test(t)) return null;
+  const d = parseDecimal(t);
+  return d !== null && signOf(d) > 0 ? d : null;
 }
 
 /** Shopify's placeholder for a product with one variant and no real option. */
@@ -83,14 +83,15 @@ export function parseShopify(json: unknown): StoreItem[] | null {
 }
 
 /** A WooCommerce Store API price: minor units as a string, and how many there are. */
-function wooPrice(prices: unknown): number | null {
+function wooPrice(prices: unknown): Decimal | null {
   const p = prices as Record<string, unknown> | null;
   if (!p) return null;
   const minor = typeof p['currency_minor_unit'] === 'number' ? p['currency_minor_unit'] : 2;
   const raw = str(p['price']);
   if (!raw || !/^\d+$/.test(raw)) return null;
-  const n = Number(raw) / 10 ** minor;
-  return n > 0 ? n : null;
+  // Minor units as text, shifted exactly (A1): "1250" with 2 minor units is 12.5.
+  const n = Number.isInteger(minor) && minor >= 0 ? divDecimal(decimal(raw), decimal(`1${'0'.repeat(minor)}`), minor) : null;
+  return n !== null && signOf(n) > 0 ? n : null;
 }
 
 export type WooProduct = {
@@ -143,7 +144,7 @@ export function parseWooVariation(json: unknown, optionNames: readonly string[])
   return { price: wooPrice(r['prices']), sku: str(r['sku']), options: optionNames.map(valueOf) };
 }
 
-const cents = (n: number | null): string => (n === null ? 'none' : String(Math.round(n * 100)));
+const cents = (n: Decimal | null): string => (n === null ? 'none' : roundDecimal(n, 2));
 
 /**
  * The rows for these items. One row per distinct price of an item; its name

@@ -8,7 +8,7 @@ const active: AnalyticsData = {
   range: 'week', hasActivity: true,
   summary: { newClients: 6, activeConvos: 5, quotes: 2, orders: 1 },
   activity: { inbound: 6, replied: 3, waiting: 4 },
-  commerce: { quotes: 2, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(4600)] },
+  commerce: { quotes: 2, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd('4600')] },
   employee: { handled: 8, waiting: 4, edits: 2 },
 };
 

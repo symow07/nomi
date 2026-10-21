@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * THE WARMTH RUN (2026-10-03) — customers' faces (0123), what a customer is
@@ -164,9 +165,9 @@ d('the warmth run · faces, value and the profile card (requires DATABASE_URL + 
   it('spent is the orders that stand; three make a regular; a regular who stopped ordering is quiet', async () => {
     const { customerValues } = await import('../../src/db/customerValue.js');
     const v = await as(BIZ, (x) => customerValues(x, [ids.maya, ids.omar, ids.lena]));
-    expect(v.get(ids.maya)).toMatchObject({ spent: { amount: 1450, currency: 'USD' }, orders: 4, regular: true });
+    expect(v.get(ids.maya)).toMatchObject({ spent: moneyOf('1450', 'USD'), orders: 4, regular: true });
     expect(v.get(ids.maya)!.quietSince).not.toBeNull();
-    expect(v.get(ids.omar)).toMatchObject({ spent: { amount: 200, currency: 'USD' }, orders: 2, regular: false, quietSince: null });
+    expect(v.get(ids.omar)).toMatchObject({ spent: moneyOf('200', 'USD'), orders: 2, regular: false, quietSince: null });
     expect(v.get(ids.lena)).toMatchObject({ spent: null, orders: 0, regular: false, quietSince: null });
   });
 

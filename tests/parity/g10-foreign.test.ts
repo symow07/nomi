@@ -14,12 +14,12 @@ import { withoutIsolates } from './isolates.js';
  * Over Postgres and the route: tests/integration/g10-translate.test.ts.
  */
 
-const usd = (n: number) => moneyFromRow(n, 'USD')!;
+const usd = (n: string) => moneyFromRow(n, 'USD')!;
 const NOW = new Date('2026-09-29T10:00:00Z');
 const base: ConversationDetail = {
   conversationId: '0b0c3a3e-6a5c-4f0e-9a3b-1d2e3f405060', buyer: 'Wang Fang', country: 'CN', status: 'awaiting',
   product: { name: 'Rose Face Serum', nameZh: '玫瑰精华' }, quantity: 10,
-  quote: { unitPrice: usd(34.9), total: usd(349), quantity: 10 }, order: null,
+  quote: { unitPrice: usd('34.9'), total: usd('349'), quantity: 10 }, order: null,
   messages: [{ direction: 'inbound', text: '玫瑰精华10瓶多少钱？', at: new Date('2026-09-29T09:58:00Z') }],
   pendingDraft: { draftId: 'd-1', draftText: '玫瑰精华每瓶34.90美元，10瓶共349美元，满１０瓶包邮。', capability: 'quote', language: 'zh' },
   ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,

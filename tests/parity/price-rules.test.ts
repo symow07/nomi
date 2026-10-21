@@ -9,6 +9,7 @@ import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRu
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { product, tiers } from './fixtures.js';
+import { compareDecimal, decimal } from '../../src/core/types/decimal.js';
 
 /**
  * M29 — the owner's own price rules.
@@ -21,7 +22,7 @@ import { product, tiers } from './fixtures.js';
  * written.
  */
 
-const RULES: PriceRules = { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 };
+const RULES: PriceRules = { floor: usd('0.35'), maxDiscountPct: 10, askAbovePct: 7 };
 
 // ── the answers are the owner's, and unanswered is a state ───────────────────
 
@@ -69,7 +70,7 @@ describe('M29 · nothing is inferred', () => {
   it('rejects a floor above the product’s own list price', () => {
     // quote.ts refuses `below_floor` rather than selling at a loss, so this
     // silently makes the product unquotable. Caught before she creates it.
-    const r = validatePriceRules({ floor: '0.90', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(0.45), currency: 'USD' });
+    const r = validatePriceRules({ floor: '0.90', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd('0.45'), currency: 'USD' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.floor).toBe('floor_above_list');
   });
@@ -85,9 +86,9 @@ describe('M29 · nothing is inferred', () => {
 
 describe('M29 · an edit supersedes, and reads as a change', () => {
   it('names each field that moved, with where it moved from', () => {
-    const c = priceRuleChanges(RULES, { floor: usd(0.30), maxDiscountPct: 15, askAbovePct: 7 });
+    const c = priceRuleChanges(RULES, { floor: usd('0.30'), maxDiscountPct: 15, askAbovePct: 7 });
     expect(c).toEqual({
-      floor: { from: 0.35, to: 0.30 },
+      floor: { from: '0.35', to: '0.3' },
       maxDiscountPct: { from: 10, to: 15 },
     });
     expect(c.askAbovePct).toBeUndefined();          // unchanged is not a change
@@ -95,7 +96,7 @@ describe('M29 · an edit supersedes, and reads as a change', () => {
 
   it('the first answer records from: null — it came from nowhere, not from a default', () => {
     const c = priceRuleChanges(null, RULES);
-    expect(c.floor).toEqual({ from: null, to: 0.35 });
+    expect(c.floor).toEqual({ from: null, to: '0.35' });
   });
 
   it('re-submitting the same answers is not an edit', () => {
@@ -144,22 +145,22 @@ describe('M29 · the same engine, before and after the owner grants authority', 
   it('once the owner grants 10%, the same buyer gets a real discount', () => {
     // Her own answers: floor 0.30 against the 0.38 tier, so 10% off (0.342)
     // clears the floor and she gets the full authority she was granted.
-    const r = quoteAt({ floor: usd(0.30), maxDiscountPct: 10, askAbovePct: 7 }, 20000);
+    const r = quoteAt({ floor: usd('0.30'), maxDiscountPct: 10, askAbovePct: 7 }, 20000);
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.discountPct).toBe(10);                       // her ceiling, not the rule's 12
       expect(r.value.appliedRules.join(' ')).toContain('clamped_to_authority:10');
-      expect(r.value.unitPrice.amount).toBeGreaterThanOrEqual(0.30);
+      expect(compareDecimal(r.value.unitPrice.amount, decimal('0.30'))).toBeGreaterThanOrEqual(0);
       expect(r.value.requiresHuman).toBe(true);                   // 10% > her 7% ask-above
     }
   });
 
   it('her floor still holds — authority is not permission to sell at a loss', () => {
     // 90% off 0.38 is 0.038; her floor is 0.36, so the price stops there.
-    const r = quoteAt({ floor: usd(0.36), maxDiscountPct: 90, askAbovePct: 5 }, 20000);
+    const r = quoteAt({ floor: usd('0.36'), maxDiscountPct: 90, askAbovePct: 5 }, 20000);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.unitPrice).toEqual(usd(0.36));
+      expect(r.value.unitPrice).toEqual(usd('0.36'));
       expect(r.value.appliedRules.join(' ')).toContain('clamped_to_floor:0.36');
     }
   });
@@ -179,7 +180,7 @@ const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
   businessDefault: null,
   products: [{
     productId: 'p1', sku: 'BAG-001', name: 'Canvas tote', nameZh: null,
-    listPrice: usd(0.45), own: null, inheritsDefault: false, isActive: false,
+    listPrice: usd('0.45'), own: null, inheritsDefault: false, isActive: false,
   }],
   unanswered: 1,
   ...over,
@@ -199,7 +200,7 @@ describe('M29 · questions, not a form', () => {
     for (const l of LOCALES) {
       const html = renderPriceRules(view({
         businessDefault: RULES,
-        products: [{ productId: 'p1', sku: 'S', name: 'N', nameZh: null, listPrice: usd(0.45),
+        products: [{ productId: 'p1', sku: 'S', name: 'N', nameZh: null, listPrice: usd('0.45'),
           own: RULES, inheritsDefault: false, isActive: true }],
         unanswered: 0,
       }), l).replace(/<style>[\s\S]*?<\/style>/g, '');
@@ -249,7 +250,7 @@ describe('M29 · the importer no longer writes a rule the owner did not give', (
     expect(fn).toMatch(/const floor = floors\?\.byRow\.get\(row\.key\);[\s\S]{0,120}if \(floors && floor !== undefined/);
     expect(fn).not.toMatch(/is_active\)[\s\S]{0,220},\s*true\)/);
     expect(fn).toMatch(/from pricing_policy[\s\S]{0,120}product_id is null/);
-    expect(fn).toMatch(/price\.amount >= Number\(general\.floor\)/);
+    expect(fn).toMatch(/compareDecimal\(price\.amount, decimal\(general\.floor\)\) >= 0/);
   });
 
   it('savePriceRules is the only writer of pricing_policy in the owner surface', async () => {

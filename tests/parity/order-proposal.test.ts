@@ -30,7 +30,7 @@ const read = (f: string) => readFileSync(`${ROOT}${f}`, 'utf8');
 const PROPOSAL = {
   productId: 'b0000000-0000-0000-0000-000000000001',
   quantity: 40, unit: 'boxes',
-  unitPrice: usd(2.1), total: usd(84),
+  unitPrice: usd('2.1'), total: usd('84'),
   email: 'customer@example.com' as string | null,
   paymentTerms: null, incoterm: null,
 };
@@ -41,7 +41,7 @@ describe('0080 · what a proposal may become', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.quantity).toEqual({ value: 40, unit: 'boxes' });
-    expect(r.value.total).toEqual(usd(84));
+    expect(r.value.total).toEqual(usd('84'));
     expect(r.value.email).toBe('customer@example.com');
   });
 
@@ -49,8 +49,8 @@ describe('0080 · what a proposal may become', () => {
     const bad = (over: Partial<typeof PROPOSAL>) => confirmableFromProposal({ ...PROPOSAL, ...over });
     expect(bad({ productId: 'not-a-uuid' })).toMatchObject({ ok: false, error: ['missing_product'] });
     expect(bad({ quantity: 0 })).toMatchObject({ ok: false });
-    expect(bad({ unitPrice: usd(0), total: usd(0) })).toMatchObject({ ok: false });
-    expect(bad({ total: usd(85) })).toMatchObject({ ok: false, error: ['total_mismatch'] });
+    expect(bad({ unitPrice: usd('0'), total: usd('0') })).toMatchObject({ ok: false });
+    expect(bad({ total: usd('85') })).toMatchObject({ ok: false, error: ['total_mismatch'] });
     // CHANGED BY DESIGN (2026-10-15): an order needs no e-mail — none is fine; one given must be an address.
     expect(bad({ email: 'no address' })).toMatchObject({ ok: false, error: ['email_invalid'] });
     expect(bad({ email: null })).toMatchObject({ ok: true });
@@ -183,7 +183,7 @@ describe('0080 · the card the owner decides on', () => {
     orderProposal: {
       id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1',
       productId: PROPOSAL.productId, productName: 'Gift box', quantity: 40, unit: 'boxes',
-      unitPrice: usd(2.1), total: usd(84), email: 'customer@example.com',
+      unitPrice: usd('2.1'), total: usd('84'), email: 'customer@example.com',
       paymentTerms: null, incoterm: null, createdAt: new Date('2026-09-29T09:00:00Z'),
     },
     ...over,

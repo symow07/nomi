@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODEL_PRICES_PER_MTOK, estimateCost, summarizePaths, type MeasuredTurn } from '../../src/core/conversation/answerPath.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * T7 — COMPLETE METERING (the one-month build order, 2026-09-29): the parts a
@@ -67,9 +68,9 @@ describe('T7 · the ledger has one clock, UTC', () => {
 describe('T7 · what a turn costs', () => {
   it('the production model has its list price, dated', () => {
     expect(MODEL_PRICES_PER_MTOK['deepseek-flash']).toEqual({
-      input: { amount: 0.3, currency: 'USD' }, output: { amount: 1.2, currency: 'USD' }, asOf: '2026-09-29',
+      input: moneyOf('0.3', 'USD'), output: moneyOf('1.2', 'USD'), asOf: '2026-09-29',
     });
-    expect(estimateCost('deepseek-flash', 1_000_000, 1_000_000)).toEqual({ amount: 1.5, currency: 'USD' });
+    expect(estimateCost('deepseek-flash', 1_000_000, 1_000_000)).toEqual(moneyOf('1.5', 'USD'));
   });
 
   const turn = (o: Partial<MeasuredTurn>): MeasuredTurn => ({

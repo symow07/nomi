@@ -22,14 +22,14 @@ const listWithWork: InboxList = {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE',
     status: 'awaiting', needsAction: true, ownership: 'AI', heldBy: null, awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you do 5000 pcs?', latestAt: NOW,
-    product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd(0.92),
+    product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd('0.92'),
   }],
 };
 
 const detailWithDraft: ConversationDetail = {
   conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
-  quote: { unitPrice: usd(0.92), total: usd(4600), quantity: 5000 },
+  quote: { unitPrice: usd('0.92'), total: usd('4600'), quantity: 5000 },
   order: null,
   messages: [
     { direction: 'inbound', text: 'Price for 5000?', at: new Date('2026-07-27T09:00:00Z') },

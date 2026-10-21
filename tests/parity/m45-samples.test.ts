@@ -29,7 +29,7 @@ import { emptyState } from './fixtures.js';
 
 const stated = new Date('2026-08-01T00:00:00Z');
 const policy = (over: Partial<SamplePolicy> = {}): SamplePolicy =>
-  ({ price: usd(30), creditedOnFirstOrder: true, statedAt: stated, ...over });
+  ({ price: usd('30'), creditedOnFirstOrder: true, statedAt: stated, ...over });
 
 describe('M45 · she states it, or nothing is said', () => {
   it('a stated policy produces the sentence AND the numeral that may appear in it', () => {
@@ -67,7 +67,7 @@ describe('M45 · she states it, or nothing is said', () => {
   });
 
   it('FREE is an answer; unstated is not the same thing', () => {
-    const free = sampleAnswerContext(policy({ price: usd(0) }));
+    const free = sampleAnswerContext(policy({ price: usd('0') }));
     expect(free.ok).toBe(true);
     if (!free.ok) return;
     expect(free.note).toBe('Samples are free.');
@@ -87,7 +87,7 @@ describe('M45 · she states it, or nothing is said', () => {
 
 describe('M45 · what she typed', () => {
   it('accepts a price, and accepts zero', () => {
-    for (const [raw, amount] of [['30', 30], ['0', 0], ['2.50', 2.5]] as const) {
+    for (const [raw, amount] of [['30', '30'], ['0', '0'], ['2.50', '2.5']] as const) {
       const r = validateSamplePolicy({ price: raw, creditedOnFirstOrder: false, currency: 'USD', now: stated });
       expect(r.ok, raw).toBe(true);
       if (r.ok) expect(r.value.price.amount).toBe(amount);
@@ -203,7 +203,7 @@ describe('M45 · the owner surfaces', () => {
   });
 
   it('free reads as FREE, not as a zero', () => {
-    const html = renderSamples(view({ policy: policy({ price: usd(0) }) }), 'en', null, now);
+    const html = renderSamples(view({ policy: policy({ price: usd('0') }) }), 'en', null, now);
     expect(html).toContain(t('en', 'samples.current.free'));
     expect(html).not.toContain('$0.00');
   });

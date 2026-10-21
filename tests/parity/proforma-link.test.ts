@@ -22,7 +22,7 @@ const VIEW: ProformaView = {
   seller: 'Westlake Canvas Co.', sellerAddress: 'Room 1203, Block B\nYiwu, Zhejiang 322000, China',
   buyer: 'Khalid Mansoor', reference: '2026-0014', issuedAt: new Date('2026-10-12T03:20:00Z'),
   product: 'Canvas tote bag', sku: 'ZX-200', quantity: 5000, unit: 'pcs',
-  unitPrice: usd(0.38), total: usd(1900), sampleCredit: usd(25),
+  unitPrice: usd('0.38'), total: usd('1900'), sampleCredit: usd('25'),
   incoterm: 'FOB Ningbo', paymentTerms: '30% deposit, 70% before shipment',
 };
 

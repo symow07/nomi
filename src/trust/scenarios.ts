@@ -147,8 +147,8 @@ export function bags(over: Partial<CatalogEntry> = {}): CatalogEntry {
     moq: 1000,
     unit: 'pcs',
     leadTimeDays: 25,
-    tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
-    policy: { floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+    tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd('0.45') }],
+    policy: { floorPrice: usd('0.35'), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
     ...over,
   };
 }
@@ -223,8 +223,8 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: 'We can commit to 5000 units. What is the very best price you can do?' },
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
-      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
-      policy: { floorPrice: usd(0.42), maxDiscountPct: 20, humanRequiredAbovePct: 15 },
+      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd('0.45') }],
+      policy: { floorPrice: usd('0.42'), maxDiscountPct: 20, humanRequiredAbovePct: 15 },
       negotiationRules: [discountRule(25)],   // asks for 25% — authority is 20%, floor bites first
     })],
     candidates: [candidate(bags())],
@@ -249,8 +249,8 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: '5000 pieces please — what is the price?' },
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
-      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.30) }],   // list < floor
-      policy: { floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd('0.30') }],   // list < floor
+      policy: { floorPrice: usd('0.35'), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
     })],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
@@ -269,9 +269,9 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
       tiers: [
-        { minQty: 1000, maxQty: 4999, unitPrice: usd(0.5) },
-        { minQty: 5000, maxQty: 19999, unitPrice: usd(0.45) },
-        { minQty: 20000, maxQty: null, unitPrice: usd(0.38) },
+        { minQty: 1000, maxQty: 4999, unitPrice: usd('0.5') },
+        { minQty: 5000, maxQty: 19999, unitPrice: usd('0.45') },
+        { minQty: 20000, maxQty: null, unitPrice: usd('0.38') },
       ],
     })],
     candidates: [candidate(bags())],
@@ -293,7 +293,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags()],                          // $0.45 today, nothing clamps
     // He was given $0.40 for 5,000 in March. $0.45 contradicts it.
-    priorQuotes: [{ quantity: 5000, unitPrice: usd(0.40), at: '2026-03-04T10:00:00Z' }],
+    priorQuotes: [{ quantity: 5000, unitPrice: usd('0.40'), at: '2026-03-04T10:00:00Z' }],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Happy to help again — here are the details.',

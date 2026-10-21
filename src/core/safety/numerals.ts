@@ -1,6 +1,6 @@
 import { type Result, ok, err } from '../types/result.js';
 import type { Quote } from '../types/commerce.js';
-import { type Currency, DOT_THOUSANDS } from '../types/money.js';
+import { type Currency, DOT_THOUSANDS, numeralOf } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import { ownSku } from '../owner/sku.js';
 
@@ -419,8 +419,8 @@ export function guardNumerals(input: {
 
   if (quote) {
     sourced.push(
-      quote.unitPrice.amount,
-      quote.total.amount,
+      numeralOf(quote.unitPrice),
+      numeralOf(quote.total),
       quote.discountPct,
       quote.quantity.value,
     );

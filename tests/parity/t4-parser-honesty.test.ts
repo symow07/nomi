@@ -6,6 +6,7 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import { usd } from '../../src/core/types/money.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * T4 — THE PRICE LIST IS READ HONESTLY, OR NOT AT ALL.
@@ -29,9 +30,9 @@ const one = (line: string) => parsePriceLines(line, 'USD')[0]!;
 
 describe('T4 · separators', () => {
   it('thousands commas are thousands', () => {
-    expect(one('Leather bag $1,250.00').price).toEqual(usd(1250));
-    expect(one('Sofa $12,500').price).toEqual(usd(12500));
-    expect(one('Leather bag 1,250.00 USD').price).toEqual(usd(1250));
+    expect(one('Leather bag $1,250.00').price).toEqual(usd('1250'));
+    expect(one('Sofa $12,500').price).toEqual(usd('12500'));
+    expect(one('Leather bag 1,250.00 USD').price).toEqual(usd('1250'));
   });
   it('a figure that reads two ways is refused, never guessed', () => {
     for (const line of ['Bag $1.250,00', 'Bag $1.250', 'Bag\t1.250,00']) {
@@ -40,16 +41,16 @@ describe('T4 · separators', () => {
   });
   it('a decimal comma before two digits reads one way: the cents', () => {
     for (const line of ['Bag $12,50', 'Bag 12,50 USD', 'Bag\t12,50', 'Bag 12,50 each']) {
-      expect(one(line).price, line).toEqual(usd(12.5));
+      expect(one(line).price, line).toEqual(usd('12.5'));
     }
     // A thousands group is three digits, so these keep their reading.
-    expect(one('Sofa $12,500').price).toEqual(usd(12500));
-    expect(one('Sofa $1,250.00').price).toEqual(usd(1250));
+    expect(one('Sofa $12,500').price).toEqual(usd('12500'));
+    expect(one('Sofa $1,250.00').price).toEqual(usd('1250'));
   });
   it('an ordinary decimal, and sentence punctuation after it, are fine', () => {
-    expect(one('Cup $0.125').price).toEqual(usd(0.125));
-    expect(one('Rose face serum 50 ml $34.90.').price).toEqual(usd(34.9));
-    expect(one('Serum US$25').price).toEqual(usd(25));
+    expect(one('Cup $0.125').price).toEqual(usd('0.125'));
+    expect(one('Rose face serum 50 ml $34.90.').price).toEqual(usd('34.9'));
+    expect(one('Serum US$25').price).toEqual(usd('25'));
   });
 });
 
@@ -60,21 +61,21 @@ describe('T4 · only the workspace\'s currency (a dollar workspace here)', () =>
     }
   });
   it('美元 is dollars, not 元', () => {
-    expect(one('帆布袋 1.05美元 500个起')).toMatchObject({ price: usd(1.05), moq: 500 });
+    expect(one('帆布袋 1.05美元 500个起')).toMatchObject({ price: usd('1.05'), moq: 500 });
   });
 });
 
 describe('T4 · spreadsheet rows', () => {
   it('one number is the price; a price and a whole minimum is the documented shape', () => {
-    expect(one('Tote\t2.6')).toMatchObject({ price: usd(2.6), moq: null });
-    expect(one('保温杯\t2.6\t1000')).toMatchObject({ price: usd(2.6), moq: 1000 });
+    expect(one('Tote\t2.6')).toMatchObject({ price: usd('2.6'), moq: null });
+    expect(one('保温杯\t2.6\t1000')).toMatchObject({ price: usd('2.6'), moq: 1000 });
   });
   it('several numbers and none marked as the price: refused', () => {
     for (const line of ['Tote\t2.6\t3.1', 'Tote\t2.6\t3.1\t1000']) {
       expect(one(line), line).toMatchObject({ price: null, problem: 'several_numbers' });
     }
     // A $ says which one it is.
-    expect(one('Tote\t$2.6\t3.1')).toMatchObject({ price: usd(2.6) });
+    expect(one('Tote\t$2.6\t3.1')).toMatchObject({ price: usd('2.6') });
   });
 });
 
@@ -121,7 +122,7 @@ describe('a currency code inside an article number is not a currency', () => {
     for (const code of ['D1-FFF4AED6-TOTE', 'TA-3AED7', 'BAG-USD12-X', 'CN-4CNY9-S', 'SR-77SAR-1']) {
       const [p] = parsePriceLines(`${code} Canvas tote $1.05 MOQ 500`, 'USD');
       expect(p?.problem, code).toBeUndefined();
-      expect(p?.price, code).toEqual({ amount: 1.05, currency: 'USD' });
+      expect(p?.price, code).toEqual(moneyOf('1.05', 'USD'));
       expect(p?.sku, code).toBe(code);
     }
   });

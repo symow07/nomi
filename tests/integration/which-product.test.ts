@@ -115,13 +115,13 @@ d('which product — ask when two fit about equally, never guess (requires DATAB
   it('NOT AMBIGUOUS — the whole name, in the same shop: priced, no question', async () => {
     const { r } = await turn(BOTH, ids[BOTH]!['shopping']!, '无纺布购物袋多少钱');
     expect(r.reply ?? '').not.toMatch(/哪一款/);
-    expect(r.quote?.unitPrice.amount).toBe(0.45);
+    expect(r.quote?.unitPrice.amount).toBe('0.45');
   });
 
   it('NOT AMBIGUOUS — «无纺布袋多少钱？» where only 无纺布购物袋 is non-woven (帆布袋 trails): priced, no question', async () => {
     const { r } = await turn(CLEAR, ids[CLEAR]!['shopping']!, '无纺布袋多少钱？');
     expect(r.reply ?? '').not.toMatch(/哪一款/);
-    expect(r.quote?.unitPrice.amount).toBe(0.45);
+    expect(r.quote?.unitPrice.amount).toBe('0.45');
   });
 
   it('THREE CLOSE — «无纺布袋多少钱？» with 无纺布购物袋, 无纺布手提袋 and 无纺布背心袋: all three named; nothing priced', async () => {
@@ -137,6 +137,6 @@ d('which product — ask when two fit about equally, never guess (requires DATAB
     expect(asked.r.quote).toBeNull();
     expect(asked.r.reply).toMatch(/Non-woven shopping bag|Canvas shopping bag/);
     const priced = await turn(BOTH, ids[BOTH]!['shopping']!, 'how much is the non-woven shopping bag?');
-    expect(priced.r.quote?.unitPrice.amount).toBe(0.45);
+    expect(priced.r.quote?.unitPrice.amount).toBe('0.45');
   });
 });

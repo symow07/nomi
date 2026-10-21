@@ -1,3 +1,4 @@
+import type { Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
@@ -6154,7 +6155,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // CC-25 — every practice action returns through `practiceUrl`: onto its
     // notice under the newest line, the reply to approve under it.
-    const say = async (s: OwnerSession, text: string, expected: number | null = null) => {
+    const say = async (s: OwnerSession, text: string, expected: Decimal | null = null) => {
       const live = liveOf(s);
       if (!live.ok || !deps.enqueueInbound) return 'empty' as const;
       return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text, expected);

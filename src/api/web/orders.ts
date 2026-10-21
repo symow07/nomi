@@ -7,6 +7,7 @@ import {
 } from '../../core/commerce/orderState.js';
 import { buildInvoice, renderInvoiceEn } from '../../core/commerce/invoice.js';
 import { moneyFromRow, type Money } from '../../core/types/money.js';
+import { type Decimal, decimal, signOf } from '../../core/types/decimal.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -49,8 +50,8 @@ export type OrderView = {
   readonly productSku: string;
   readonly quantity: number;
   readonly unit: string;
-  readonly unitPriceAmount: number | null;
-  readonly totalAmount: number | null;
+  readonly unitPriceAmount: Decimal | null;
+  readonly totalAmount: Decimal | null;
   readonly currency: string;
   readonly email: string | null;
   readonly paymentTerms: string | null;
@@ -134,8 +135,8 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
               and earlier.created_at < o.created_at)
        order by sr.requested_at asc limit 1
     `.execute(tx)).rows[0];
-    const creditMoney = credit && credit.credited && Number(credit.amount) > 0
-      ? moneyFromRow(Number(credit.amount), credit.currency) : null;
+    const creditMoney = credit && credit.credited && signOf(decimal(credit.amount)) > 0
+      ? moneyFromRow(credit.amount, credit.currency) : null;
 
     const h = await sql<{
       state: string; at: Date; note: string | null; tracking_reference: string | null; by_actor: string;
@@ -148,8 +149,8 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       orderId: o.id, reference: o.reference, conversationId: o.conversation_id,
       buyer: o.buyer, clientId: o.client_id, photo: o.client_id ? photos.get(o.client_id) ?? null : null, productName: o.name, productNameZh: o.name_zh, productSku: o.sku,
       quantity: Number(o.quantity), unit: o.unit,
-      unitPriceAmount: o.unit_price === null ? null : Number(o.unit_price),
-      totalAmount: o.total === null ? null : Number(o.total),
+      unitPriceAmount: o.unit_price === null ? null : decimal(o.unit_price),
+      totalAmount: o.total === null ? null : decimal(o.total),
       currency: o.currency,
       email: o.client_email, paymentTerms: o.payment_terms, incoterm: o.incoterm,
       sellerName: o.seller, confirmedAt: o.confirmed_at,

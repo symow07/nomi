@@ -30,7 +30,7 @@ import { sheetLinks, linkedCss } from './linked-css.js';
 
 const PROOF: ProofView = {
   seller: 'Yiwu Honghua', productName: 'Canvas tote', sku: 'ZX-100',
-  quantity: 20000, unit: 'pcs', unitPrice: usd(0.38), total: usd(7600),
+  quantity: 20000, unit: 'pcs', unitPrice: usd('0.38'), total: usd('7600'),
   tier: { minQty: 10000, maxQty: 50000 }, moq: 1000, leadTimeDays: 25,
   certifications: ['BSCI'], taught: [{ label: 'Stitching', content: 'Double-stitched.' }],
   issuedAt: new Date('2026-08-12T02:00:00Z'), locale: 'en',

@@ -120,9 +120,9 @@ describe('G7b · a price above what he was given waits for her', () => {
 
   it('held — as a QUOTE, with both prices on the event — however her autonomy is set', async () => {
     const { p, req } = quoting(0);                       // $0.45, no discount
-    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.40), at: march }];
+    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd('0.40'), at: march }];
     const r = await computeTurn(p, req);
-    expect(r.quote?.unitPrice).toEqual(usd(0.45));       // the quote EXISTS — not refused
+    expect(r.quote?.unitPrice).toEqual(usd('0.45'));       // the quote EXISTS — not refused
     expect(r.hold).toBe('contradicts_history');
 
     const fx = await commitTurn(p, req, r, Date.now());
@@ -131,20 +131,20 @@ describe('G7b · a price above what he was given waits for her', () => {
     const pending = p.tenant.eventRows.find((e) => e.type === 'draft_pending');
     expect(pending?.payload).toMatchObject({
       heldBecause: 'contradicts_history',
-      contradicts: { prior: { unitPrice: usd(0.40), at: march }, proposedUnitPrice: usd(0.45), how: 'higher_same_quantity' },
+      contradicts: { prior: { unitPrice: usd('0.40'), at: march }, proposedUnitPrice: usd('0.45'), how: 'higher_same_quantity' },
     });
   });
 
   it('contradicting him outranks her discount line — and the card still gets both prices', async () => {
     const { p, req } = quoting(9);                       // $0.41, past her 7% line
-    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.38), at: march }];
+    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd('0.38'), at: march }];
     const r = await computeTurn(p, req);
     expect(r.quote?.requiresHuman).toBe(true);
     expect(r.hold).toBe('contradicts_history');
   });
 
   it('the same price again, or a lower one, is not held', async () => {
-    for (const before of [0.45, 0.50]) {
+    for (const before of ['0.45', '0.50']) {
       const { p, req } = quoting(0);
       p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(before), at: march }];
       const r = await computeTurn(p, req);

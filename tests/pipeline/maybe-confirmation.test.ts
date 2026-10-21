@@ -94,7 +94,7 @@ describe('a yes the list does not know goes to the owner — never answered with
   it('a price given, nothing asked yet: a yes in words is the owner\'s too', async () => {
     for (const text of ['sounds good', '好的，就这个']) {
       const p = ports();
-      p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T10:00:00Z') }];
+      p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd('0.45'), at: new Date('2026-07-14T10:00:00Z') }];
       const { r } = await run(p, priced(), text);
       expect(r.signals.map((s) => s.kind), text).toContain('maybe_confirmation');
       expect(p.replyWriter.calls, text).toBe(0);
@@ -104,14 +104,14 @@ describe('a yes the list does not know goes to the owner — never answered with
   it('the owner\'s card is told what to show: their words verbatim, and the LAST price given — "5000" after a price for 1,000', async () => {
     const p = ports();
     p.tenant.priorQuotes = [
-      { quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T09:00:00Z') },
-      { quantity: 1000, unitPrice: usd(0.5), at: new Date('2026-07-14T10:00:00Z') },
+      { quantity: 5000, unitPrice: usd('0.45'), at: new Date('2026-07-14T09:00:00Z') },
+      { quantity: 1000, unitPrice: usd('0.5'), at: new Date('2026-07-14T10:00:00Z') },
     ];
     const { r } = await run(p, priced(), 'ok, 5000 again please');
     const s = r.signals.find((x) => x.kind === 'maybe_confirmation');
     expect(s).toMatchObject({
       said: 'ok, 5000 again please',
-      offer: { quantity: 1000, unitPrice: usd(0.5), total: usd(500), givenAt: '2026-07-14T10:00:00.000Z' },
+      offer: { quantity: 1000, unitPrice: usd('0.5'), total: usd('500'), givenAt: '2026-07-14T10:00:00.000Z' },
     });
     expect(s && 'offer' in s ? s.offer?.productName : null).toBeTruthy();
   });
@@ -124,7 +124,7 @@ describe('a yes the list does not know goes to the owner — never answered with
 
   it('a yes with none of the words, read by the analysis as an order, after a price: the owner\'s', async () => {
     const p = ports();
-    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T10:00:00Z') }];
+    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd('0.45'), at: new Date('2026-07-14T10:00:00Z') }];
     p.analyzer.next = analysis('order_intent');
     const { r } = await run(p, priced(), 'Please put it through.');
     expect(r.signals.map((s) => s.kind)).toContain('maybe_confirmation');
@@ -156,7 +156,7 @@ describe('what is NOT a maybe', () => {
 
   it('a price given, and the analysis reads no order in words with no yes: answered', async () => {
     const p = ports();
-    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T10:00:00Z') }];
+    p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd('0.45'), at: new Date('2026-07-14T10:00:00Z') }];
     const { r } = await run(p, priced(), 'What colours does it come in');
     expect(r.signals.map((s) => s.kind)).not.toContain('maybe_confirmation');
   });

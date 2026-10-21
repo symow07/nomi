@@ -1,5 +1,6 @@
 import type { ExtractedLine } from './extract.js';
 import { type Money, type Currency, DOT_THOUSANDS } from '../types/money.js';
+import { type Decimal, decimal, signOf, compareDecimal, fromInteger } from '../types/decimal.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
  * price-list photos (via the M4 vision path) — anything goes in; what comes
@@ -92,20 +93,21 @@ const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدن
  * Spanish write a price, and it is read as 24.50; the review flags the row for
  * its own tick (`decimal_comma`), so the owner sees the figure it became.
  */
-function readAmount(raw: string, currency: Currency): number | 'ambiguous' {
+function readAmount(raw: string, currency: Currency): Decimal | 'ambiguous' {
   const s = raw.replace(/[.,]+$/, '');
+  // A1 — the figure stays exact text: normalised to a decimal, never a float.
   // CUR — reais and rupiah group thousands with a dot and mark decimals with a
   // comma ("R$ 1.250,50", "Rp 150.000"): there, one reading is the right one.
   if (DOT_THOUSANDS.has(currency)) {
-    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'));
-    if (/^\d+,\d+$/.test(s)) return Number(s.replace(',', '.'));
-    if (/^\d+(?:\.\d{1,2})?$/.test(s)) return Number(s);
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return decimal(s.replace(/\./g, '').replace(',', '.'));
+    if (/^\d+,\d+$/.test(s)) return decimal(s.replace(',', '.'));
+    if (/^\d+(?:\.\d{1,2})?$/.test(s)) return decimal(s);
     return 'ambiguous';
   }
-  if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
-  if (DECIMAL_COMMA_FIGURE.test(s)) return Number(s.replace(',', '.'));
+  if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return decimal(s.replace(/,/g, ''));
+  if (DECIMAL_COMMA_FIGURE.test(s)) return decimal(s.replace(',', '.'));
   if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
-  if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
+  if (/^\d+(?:\.\d+)?$/.test(s)) return decimal(s);
   return 'ambiguous';
 }
 
@@ -291,7 +293,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   const code = CODE_FIRST.exec(line);
   const priced = code ? line.slice(code[0].length) : line;
   let problem: ReadingProblem | null = reading.foreign(priced) ? 'other_currency' : null;
-  let price: number | null = null;
+  let price: Decimal | null = null;
   const written = priced.match(reading.before)?.[1] ?? priced.match(reading.after)?.[1] ?? null;
   if (!problem && written !== null) {
     const a = readAmount(written, currency);
@@ -400,7 +402,8 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
       rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });
-    } else if (p.price !== null && (p.price.amount <= 0 || p.price.amount > PRICE_CEILING[p.price.currency])) {
+    } else if (p.price !== null && (signOf(p.price.amount) <= 0
+        || compareDecimal(p.price.amount, fromInteger(PRICE_CEILING[p.price.currency])) > 0)) {
       rejected.push({ product: p, reason: 'bad_price', reasonZh: '价格看着不对' });
     } else if (p.moq !== null && (!Number.isInteger(p.moq) || p.moq <= 0)) {
       rejected.push({ product: p, reason: 'bad_moq', reasonZh: '起订量看着不对' });

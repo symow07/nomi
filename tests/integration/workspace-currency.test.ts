@@ -6,6 +6,7 @@ import { currencyLabel, currencyInLine } from '../../src/core/owner/currencies.j
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
 import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -180,8 +181,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     });
     expect(quote.ok).toBe(true);
     if (!quote.ok) return;
-    expect(quote.value.unitPrice).toEqual({ amount: 1250.5, currency: 'AED' });
-    expect(quote.value.total).toEqual({ amount: 2501, currency: 'AED' });
+    expect(quote.value.unitPrice).toEqual(moneyOf('1250.5', 'AED'));
+    expect(quote.value.total).toEqual(moneyOf('2501', 'AED'));
     const state = { quantity: { value: 2, unit: 'pcs' } } as never;
     expect(guardNumerals({ reply: 'That is AED 1,250.50 each, AED 2,501 for the two.', quote: quote.value, state, clientText: '' }).ok).toBe(true);
     expect(guardNumerals({ reply: 'That is $1,250.50 each, $2,501 for the two.', quote: quote.value, state, clientText: '' }).ok).toBe(false);

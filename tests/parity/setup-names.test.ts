@@ -115,7 +115,7 @@ describe('Home: when names are what the products step waits for, Home says so', 
 describe('the list and the product\'s page say it of each product', () => {
   const item = (namesWanted: readonly ScriptLanguage[]): ProductListItem => ({
     id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', moq: 100, unit: 'pcs',
-    entryQty: 100, entryPrice: usd(1.2), learned: true, status: 'learned', imageMatchable: true, isActive: true, namesWanted,
+    entryQty: 100, entryPrice: usd('1.2'), learned: true, status: 'learned', imageMatchable: true, isActive: true, namesWanted,
   });
   it('the list marks a product with no name in a served script, and only that one', () => {
     for (const l of LOCALES) {
@@ -131,7 +131,7 @@ describe('the list and the product\'s page say it of each product', () => {
     const detail = (namesWanted: ProductDetail['namesWanted'], aliases: string[]): ProductDetail => ({
       id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', category: null, unit: 'pcs', moq: 100, leadTimeDays: null,
       customizable: false, learned: true, status: 'learned', imageMatchable: true, isActive: true,
-      tiers: [{ minQty: 100, maxQty: null, unitPrice: usd(1.2) }], aliases, images: [], recentQuotes: [],
+      tiers: [{ minQty: 100, maxQty: null, unitPrice: usd('1.2') }], aliases, images: [], recentQuotes: [],
       photo: null, currency: 'USD', source: null, namesWanted,
     } as unknown as ProductDetail);
     for (const l of LOCALES) {
@@ -156,7 +156,7 @@ describe('the list and the product\'s page say it of each product', () => {
       const detail = withWorkspace(scope({}), () => renderProductDetail({
         id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', category: null, unit: 'pcs', moq: 100, leadTimeDays: null,
         customizable: false, learned: true, status: 'learned', imageMatchable: true, isActive: true,
-        tiers: [{ minQty: 100, maxQty: null, unitPrice: usd(1.2) }], aliases: ['canvas tote'], images: [], recentQuotes: [],
+        tiers: [{ minQty: 100, maxQty: null, unitPrice: usd('1.2') }], aliases: ['canvas tote'], images: [], recentQuotes: [],
         photo: null, currency: 'USD', source: null, namesWanted: [], namesSuggested: ['ar'],
       } as unknown as ProductDetail, l));
       expect(detail, l).toContain(`<p class="caption muted">${esc(t(l, 'product.detail.nameSuggested', { language: languageCalled(l, 'ar') }))}</p>`);

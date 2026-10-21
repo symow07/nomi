@@ -7,6 +7,7 @@ import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * M46 — after the order.
@@ -153,7 +154,7 @@ describe('M46 · the owner page', () => {
   const view = (over: Partial<OrderView> = {}): OrderView => ({
     orderId: 'o1', reference: 'PI-HF-20260803-0301', conversationId: 'c1',
     buyer: 'Ahmed', productName: 'Vacuum cup', productSku: 'ZX-200',
-    quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600,
+    quantity: 5000, unit: 'pcs', unitPriceAmount: decimal('0.92'), totalAmount: decimal('4600'),
     currency: 'USD', email: 'a@example.com',
     paymentTerms: '50% with order, balance against B/L copy', incoterm: 'CIF',
     sellerName: '义乌宏发日用品厂',

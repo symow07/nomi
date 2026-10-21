@@ -91,7 +91,7 @@ describe('G8 · the owner sees them', () => {
         draftId: 'd-1', draftText: 'For 5,000 pcs, the unit price is $0.45 USD.', capability: 'quote',
         heldBecause: 'guards_failed_twice', forbidden: ['Guangzhou Textile'],
       },
-      quote: { unitPrice: usd(0.45), total: usd(2250), quantity: 5000 },
+      quote: { unitPrice: usd('0.45'), total: usd('2250'), quantity: 5000 },
     }), 'en', NOW, null);
     expect(html).toContain(esc(t('en', 'inbox.draft.held.guards_failed_twice', { name: ASSISTANT_FALLBACK.en })));
     expect(html).toContain('Guangzhou Textile');

@@ -166,10 +166,10 @@ describe('LG · the turn reads it, and nothing else', () => {
 });
 
 describe('LG · the fixed sentences, in English, Chinese and Arabic', () => {
-  const base: Quote = { productId: PRODUCT, quantity: { value: 500, unit: 'pcs' }, unitPrice: usd(1.2), discountPct: 0, total: usd(600),
+  const base: Quote = { productId: PRODUCT, quantity: { value: 500, unit: 'pcs' }, unitPrice: usd('1.2'), discountPct: 0, total: usd('600'),
     moq: 100, leadTimeDays: 20, leadTimeBlocked: null, requiresHuman: false, contradicts: null, appliedRules: [] };
   const quote = base;
-  const one: Quote = { ...base, quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: null, moq: null };
+  const one: Quote = { ...base, quantity: { value: 1, unit: 'item' }, unitPrice: usd('12'), total: usd('12'), leadTimeDays: null, moq: null };
 // CHANGED BY DESIGN (2026-10-15): no order asks for an e-mail any more — the sentence is gone.
   const reasons: readonly BlockingReason[] = ['product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
     'pending_question_unresolved', 'conversation_handed_off', 'missing_product', 'price_missing'];

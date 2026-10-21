@@ -3,6 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
 import { usd, type Money } from '../../src/core/types/money.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * G18 · M43a + M43b — money shows its currency everywhere.
@@ -25,7 +26,7 @@ import { usd, type Money } from '../../src/core/types/money.js';
  */
 
 const WEB_DIR = new URL('../../src/api/web/', import.meta.url);
-const cny = (amount: number): Money => ({ amount, currency: 'CNY' });
+const cny = (amount: string): Money => ({ amount: decimal(amount), currency: 'CNY' });
 
 const analytics = (totals: readonly Money[]): AnalyticsData => ({
   range: 'month', hasActivity: true,
@@ -38,7 +39,7 @@ const analytics = (totals: readonly Money[]): AnalyticsData => ({
 const order = (over: Partial<OrderView> = {}): OrderView => ({
   orderId: 'o1', reference: '2026-0001', conversationId: 'c1',
   buyer: 'Ahmed Al-Rashid', productName: 'Canvas Tote Bag', productSku: 'ZX-100',
-  quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600, currency: 'USD',
+  quantity: 5000, unit: 'pcs', unitPriceAmount: decimal('0.92'), totalAmount: decimal('4600'), currency: 'USD',
   email: null, confirmedAt: new Date('2026-09-01T08:00:00Z'), history: [],
   sellerName: 'Yiwu Factory', paymentTerms: '30% deposit, 70% before shipment', incoterm: 'FOB',
   sampleCredit: null, ...over,
@@ -46,7 +47,7 @@ const order = (over: Partial<OrderView> = {}): OrderView => ({
 
 describe('G18 · the screen says what the row says', () => {
   it('ANALYTICS TOTALS ARE ONE PER CURRENCY — never one number made of two', () => {
-    const html = renderAnalytics(analytics([usd(4600), cny(31000)]), 'en');
+    const html = renderAnalytics(analytics([usd('4600'), cny('31000')]), 'en');
     expect(html).toContain('$4,600');
     expect(html).toContain('￥31,000');
     // the sum of the two would be this, and it must appear nowhere
@@ -61,7 +62,7 @@ describe('G18 · the screen says what the row says', () => {
   it('AN ORDER IN HER OWN MONEY IS SHOWN, not hidden for not being dollars', () => {
     // It used to render only `currency === 'USD'`: an order taken in ￥ showed
     // her no total and no proforma at all — a blank where her own order was.
-    const html = renderOrder(order({ currency: 'CNY', unitPriceAmount: 6.5, totalAmount: 32500 }), 'en', null);
+    const html = renderOrder(order({ currency: 'CNY', unitPriceAmount: decimal('6.5'), totalAmount: decimal('32500') }), 'en', null);
     expect(html).toContain('￥32,500');
     expect(html).not.toContain('$32,500');
     // and the document she sends a buyer carries the same currency

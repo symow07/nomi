@@ -163,7 +163,7 @@ const msgs = (n: number, from = 1): TimelineMessage[] => Array.from({ length: n 
 const detail = (over: Partial<ConversationDetail> = {}): ConversationDetail => ({
   conversationId: CONV, buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Vacuum cup', nameZh: null }, quantity: 5000,
-  quote: { unitPrice: usd(0.92), total: usd(4600), quantity: 5000 }, order: null,
+  quote: { unitPrice: usd('0.92'), total: usd('4600'), quantity: 5000 }, order: null,
   messages: msgs(50, 401), transcript: { earlier: `1790000000123_${ID}`, older: false },
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },
   ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null,

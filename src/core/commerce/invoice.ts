@@ -1,5 +1,6 @@
 import type { Quote } from '../types/commerce.js';
-import { type Money, currencySymbol } from '../types/money.js';
+import { type Money, currencySymbol, subMoney } from '../types/money.js';
+import { formatDecimal } from '../types/decimal.js';
 
 /**
  * M6 — Wow #3: negotiation → formatted proforma invoice in one tap (开票).
@@ -73,7 +74,8 @@ export function renderInvoiceEn(inv: InvoiceData): string {
   // The symbol comes from the money, not from a literal in the template: a
   // line reading "$" beside an amount that is not dollars is the exact defect
   // M43a exists to make impossible.
-  const money = (m: Money) => `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // A1 — the decimal text goes to Intl as text, so it is formatted exactly (never through a float).
+  const money = (m: Money) => `${currencySymbol(m.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), m.amount)}`;
   return [
     `PROFORMA INVOICE ${inv.piNumber}`,
     `Seller: ${inv.seller}`,
@@ -89,7 +91,7 @@ export function renderInvoiceEn(inv: InvoiceData): string {
     // to see the price he was quoted AND the deduction he was promised.
     ...(inv.sampleCredit ? [
       `Less sample already paid: -${money(inv.sampleCredit)}`,
-      `Amount due: ${money({ amount: inv.total.amount - inv.sampleCredit.amount, currency: inv.total.currency })}`,
+      `Amount due: ${money(subMoney(inv.total, inv.sampleCredit))}`,
     ] : []),
     inv.leadTimeDays !== null ? `Ready in: ${inv.leadTimeDays} days` : null,
     `Payment: ${inv.paymentTermsEn}`,

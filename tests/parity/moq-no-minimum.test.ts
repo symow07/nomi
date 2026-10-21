@@ -104,19 +104,19 @@ describe('0081 · the fixed sentences never name a minimum that is not there', (
 
 const listItem = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   id: 'p1', name: 'Rose face serum', nameZh: null, sku: 'RS-50', moq: null, unit: 'pcs',
-  entryQty: 1, entryPrice: usd(34.9), learned: true, status: 'learned', imageMatchable: false, isActive: true,
+  entryQty: 1, entryPrice: usd('34.9'), learned: true, status: 'learned', imageMatchable: false, isActive: true,
   ...over,
 } as ProductListItem);
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   currency: 'USD',
   id: 'p1', name: 'Rose face serum', nameZh: null, sku: 'RS-50', category: null, unit: 'pcs', moq: null,
   leadTimeDays: null, customizable: false, learned: true, status: 'learned', imageMatchable: false, isActive: true,
-  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(34.9) }], aliases: [], images: [], recentQuotes: [],
+  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('34.9') }], aliases: [], images: [], recentQuotes: [],
   ...over,
 } as ProductDetail);
 const PROOF: ProofView = {
   seller: 'Rosa & Clay', productName: 'Rose face serum', sku: 'RS-50',
-  quantity: 2, unit: 'pcs', unitPrice: usd(34.9), total: usd(69.8),
+  quantity: 2, unit: 'pcs', unitPrice: usd('34.9'), total: usd('69.8'),
   tier: null, moq: null, leadTimeDays: null, certifications: [], taught: [],
   issuedAt: new Date('2026-09-29T02:00:00Z'), locale: 'en',
 };

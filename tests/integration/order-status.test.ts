@@ -82,7 +82,7 @@ d('G4 · where is my order, after the conversation closed (requires DATABASE_URL
       // THE CALL THE TURN MAKES when a buyer confirms.
       const created = await repos.orders.create(firstConv as never, {
         productId: PID, quantity: { value: 2000, unit: 'pcs' },
-        unitPrice: usd(0.92), total: usd(1840), email: 'khalid@example.com',
+        unitPrice: usd('0.92'), total: usd('1840'), email: 'khalid@example.com',
         paymentTerms: 'as agreed',
       } as never);
       orderId = created.orderId;

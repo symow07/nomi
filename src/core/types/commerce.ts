@@ -1,3 +1,4 @@
+import type { Decimal } from './decimal.js';
 import type { Brand } from './brand.js';
 import type { Money } from './money.js';
 import type { LeadTimeBlocked } from '../commerce/closures.js';
@@ -65,7 +66,7 @@ export type RuleCondition = {
   readonly qtyLte?: number;
   readonly productId?: ProductId;
   readonly category?: string;
-  readonly totalValueGte?: number;
+  readonly totalValueGte?: Decimal;
 };
 
 export type RuleAction =

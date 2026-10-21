@@ -91,7 +91,7 @@ describe('Phase 2d · the pages', () => {
     currency: 'USD',
     id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', category: null,
     unit: 'pcs', moq: null, leadTimeDays: null, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: false,
-    tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }],
+    tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('2') }],
     aliases: [], images: [], recentQuotes: [],
   };
   const staff: Viewer = { id: 'staff-1', isOwner: false };

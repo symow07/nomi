@@ -1,6 +1,7 @@
 import type { BlockingReason, Quote, QuoteRefusal } from '../types/commerce.js';
 import { currencySymbol, symbolIsCode } from '../types/money.js';
 import type { FixedLanguage } from './gateLanguage.js';
+import { formatDecimal } from '../types/decimal.js';
 
 /**
  * Deterministic outbound templates.
@@ -218,9 +219,9 @@ export function guardFallbackReply(quote: Quote | null, nextQuestion: string | n
     // Symbol and code both come from the quote's currency. A hardcoded "$"
     // beside an amount that is not dollars is the defect M43a removes.
     // CUR — a currency written by its code ("AED 12.00") is not repeated after it.
-    const unit = `${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)}` +
+    const unit = `${currencySymbol(quote.unitPrice.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }), quote.unitPrice.amount)}` +
       `${symbolIsCode(quote.unitPrice.currency) ? '' : ` ${quote.unitPrice.currency}`}`;
-    const total = `${currencySymbol(quote.total.currency)}${quote.total.amount.toLocaleString('en-US')}`;
+    const total = `${currencySymbol(quote.total.currency)}${formatDecimal(new Intl.NumberFormat('en-US'), quote.total.amount)}`;
     const days = quote.leadTimeDays;
     // RT — the price of one, as a shop gives it: no "for 1 pcs", no total that repeats it.
     const one = quote.quantity.value === 1;

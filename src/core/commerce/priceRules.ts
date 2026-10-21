@@ -1,4 +1,5 @@
 import { type Money, type Currency } from '../types/money.js';
+import { type Decimal, compareDecimal, decimal, parseDecimal, roundDecimal, signOf } from '../types/decimal.js';
 import { readTypedAmount } from './amount.js';
 
 /*
@@ -80,14 +81,15 @@ export type PriceRulesResult =
   | { readonly ok: false; readonly errors: Partial<Record<PriceRuleField, PriceRuleError>> };
 
 /** Money to 4dp and percentages to 2dp — the precision the columns actually hold. */
-const round = (n: number, dp: number): number => Number(n.toFixed(dp));
-
-function num(raw: string | number | null | undefined, currency: Currency): number | 'missing' | 'not_a_number' {
+/** A1 — what she typed, as an exact decimal. A number (from a caller, not a box) is read through its own shortest text. */
+function num(raw: string | number | null | undefined, currency: Currency): Decimal | 'missing' | 'not_a_number' {
   if (raw === null || raw === undefined) return 'missing';
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 'not_a_number';
+  if (typeof raw === 'number') return Number.isFinite(raw) ? (parseDecimal(String(raw)) ?? 'not_a_number') : 'not_a_number';
   if (raw.trim() === '') return 'missing';
   return readTypedAmount(raw, currency) ?? 'not_a_number';
 }
+
+const isWord = (v: Decimal | 'missing' | 'not_a_number'): v is 'missing' | 'not_a_number' => v === 'missing' || v === 'not_a_number';
 
 /**
  * Validate all three together, because two of them only make sense against each
@@ -102,16 +104,16 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
   const max = num(input.maxDiscountPct, input.currency);
   const ask = num(input.askAbovePct, input.currency);
 
-  if (typeof floor === 'string') errors.floor = floor;
-  else if (!(floor > 0)) errors.floor = 'floor_not_positive';
+  if (isWord(floor)) errors.floor = floor;
+  else if (signOf(floor) <= 0) errors.floor = 'floor_not_positive';
 
   for (const [field, v] of [['maxDiscountPct', max], ['askAbovePct', ask]] as const) {
-    if (typeof v === 'string') errors[field] = v;
-    else if (!(v >= 0 && v <= 100)) errors[field] = 'pct_out_of_range';
+    if (isWord(v)) errors[field] = v;
+    else if (signOf(v) < 0 || compareDecimal(v, decimal('100')) > 0) errors[field] = 'pct_out_of_range';
   }
 
   if (errors.maxDiscountPct === undefined && errors.askAbovePct === undefined
-      && typeof max === 'number' && typeof ask === 'number' && ask > max) {
+      && !isWord(max) && !isWord(ask) && compareDecimal(ask, max) > 0) {
     // "Ask me above 10% off" while she may only ever give 7% describes a
     // question that can never be asked. This ordering is not pedantry: a test
     // fixture in M20.5 carried maxDiscount 5 / askAbove 10, the inverted
@@ -119,8 +121,8 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
     errors.askAbovePct = 'ask_above_max';
   }
 
-  if (errors.floor === undefined && typeof floor === 'number'
-      && input.listPrice != null && floor > input.listPrice.amount) {
+  if (errors.floor === undefined && !isWord(floor)
+      && input.listPrice != null && compareDecimal(floor, input.listPrice.amount) > 0) {
     // The quote engine refuses `below_floor` rather than quoting at a loss, so a
     // floor above the list price means she silently cannot quote this product at
     // all. M20.5's factory rehearsal surfaces it after the fact; catching it here
@@ -135,9 +137,10 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
       // She typed a number into a box that is denominated in the tenant's
       // currency; the pair is assembled HERE, once, rather than by whichever
       // caller happens to write the row.
-      floor: { amount: round(floor as number, 4), currency: input.currency },
-      maxDiscountPct: round(max as number, 2),
-      askAbovePct: round(ask as number, 2),
+      floor: { amount: roundDecimal(floor as Decimal, 4), currency: input.currency },
+      // A percentage with two decimals (numeric(5,2)): exact text, held as the number it reads as.
+      maxDiscountPct: Number(roundDecimal(max as Decimal, 2)),
+      askAbovePct: Number(roundDecimal(ask as Decimal, 2)),
     },
   };
 }
@@ -148,8 +151,8 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
  */
 export function priceRuleChanges(
   before: PriceRules | null, after: PriceRules,
-): Partial<Record<PriceRuleField, { readonly from: number | null; readonly to: number }>> {
-  const out: Partial<Record<PriceRuleField, { from: number | null; to: number }>> = {};
+): Partial<Record<PriceRuleField, { readonly from: string | number | null; readonly to: string | number }>> {
+  const out: Partial<Record<PriceRuleField, { from: string | number | null; to: string | number }>> = {};
   // The audit records amounts, because that is what changed: the currency of a
   // tenant does not move, and a row that did change currency would be a
   // different fact needing its own entry rather than a from/to on this one.

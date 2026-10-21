@@ -48,7 +48,7 @@ d('0162 · each workspace numbers its own orders (requires DATABASE_URL)', () =>
     const bid = parseBusinessId(biz); if (!bid.ok) throw new Error('fixture');
     const order = {
       productId: biz === A ? PA : PB, quantity: { value: 500, unit: 'pcs' },
-      unitPrice: usd(1.2), total: usd(600), email: null, paymentTerms: null, incoterm: null,
+      unitPrice: usd('1.2'), total: usd('600'), email: null, paymentTerms: null, incoterm: null,
     } as unknown as import('../../src/core/types/commerce.js').ConfirmableOrder;
     return (await tenantRepos(t, bid.value).orders.create(conv as never, order)).orderReference;
   };

@@ -1,4 +1,5 @@
-import { type Money, type Currency, currencySymbol } from '../types/money.js';
+import { type Money, type Currency, currencySymbol, numeralOf } from '../types/money.js';
+import { parseDecimal, roundDecimal, signOf } from '../types/decimal.js';
 import { readTypedAmount } from './amount.js';
 
 /**
@@ -68,7 +69,7 @@ export function sampleAnswerContext(
 ): { ok: true; note: string; allow: readonly number[] } | { ok: false; error: SampleRefusal } {
   if (!policy) return { ok: false, error: { kind: 'no_sample_policy' } };
 
-  const free = policy.price.amount === 0;
+  const free = signOf(policy.price.amount) === 0;
   // G15 — one sentence for free, not a branch with two identical arms. Free
   // AND credited is not a contradiction (she may credit a courier cost she
   // still charges), but there is nothing to deduct from an order, so the
@@ -81,7 +82,7 @@ export function sampleAnswerContext(
 
   // Zero is not offered as a numeral: "0" in a reply is never a price a buyer
   // needs to read, and allowing it widens the guard for nothing.
-  return { ok: true, note, allow: free ? [] : [policy.price.amount] };
+  return { ok: true, note, allow: free ? [] : [numeralOf(policy.price)] };
 }
 
 export type SamplePolicyError = 'price_missing' | 'not_a_number' | 'negative';
@@ -104,13 +105,16 @@ export function validateSamplePolicy(input: {
   if (raw === '') return { ok: false, error: 'price_missing' };
   // CUR — read the way the currency writes a figure ("15.000" is fifteen
   // thousand rupiah).
-  const n = typeof input.price === 'number' ? input.price : readTypedAmount(raw, input.currency) ?? NaN;
-  if (!Number.isFinite(n)) return { ok: false, error: 'not_a_number' };
-  if (n < 0) return { ok: false, error: 'negative' };
+  // A1 — exact: what she typed, as a decimal (a number from a caller is read through its own shortest text).
+  const n = typeof input.price === 'number'
+    ? (Number.isFinite(input.price) ? parseDecimal(String(input.price)) : null)
+    : readTypedAmount(raw, input.currency);
+  if (n === null) return { ok: false, error: 'not_a_number' };
+  if (signOf(n) < 0) return { ok: false, error: 'negative' };
   return {
     ok: true,
     value: {
-      price: { amount: Number(n.toFixed(2)), currency: input.currency },
+      price: { amount: roundDecimal(n, 2), currency: input.currency },
       creditedOnFirstOrder: input.creditedOnFirstOrder,
       statedAt: input.now,
     },

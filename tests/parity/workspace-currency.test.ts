@@ -13,6 +13,8 @@ import { CURRENCIES, type Currency } from '../../src/core/types/money.js';
 import { OWNER_VIEW, type Viewer } from '../../src/core/conversation/people.js';
 import { PASSWORD_MIN, PASSWORD_MAX } from '../../src/security/password.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { moneyOf } from '../../src/core/types/money.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * CUR, part two (the owner's decision, 2026-09-30: "one currency per
@@ -78,37 +80,37 @@ describe('CUR · the currency sign-up gives', () => {
 
 describe('CUR · a figure the owner types, read the currency\'s way', () => {
   it('reais and rupiah: a dot groups thousands, a comma marks decimals', () => {
-    expect(readTypedAmount('15.000', 'IDR')).toBe(15000);
-    expect(readTypedAmount('1.500.000', 'IDR')).toBe(1_500_000);
-    expect(readTypedAmount('1.250,50', 'BRL')).toBe(1250.5);
-    expect(readTypedAmount('12,50', 'BRL')).toBe(12.5);
-    expect(readTypedAmount('12.50', 'BRL')).toBe(12.5);
+    expect(readTypedAmount('15.000', 'IDR')).toBe('15000');
+    expect(readTypedAmount('1.500.000', 'IDR')).toBe('1500000');
+    expect(readTypedAmount('1.250,50', 'BRL')).toBe('1250.5');
+    expect(readTypedAmount('12,50', 'BRL')).toBe('12.5');
+    expect(readTypedAmount('12.50', 'BRL')).toBe('12.5');
   });
   it('every other: a comma groups thousands (and lakhs), a dot marks decimals; a comma before one or two digits is the decimal', () => {
-    expect(readTypedAmount('1,250.50', 'USD')).toBe(1250.5);
-    expect(readTypedAmount('1,50,000', 'INR')).toBe(150000);
-    expect(readTypedAmount('1,250', 'USD')).toBe(1250);
-    expect(readTypedAmount('12,50', 'USD')).toBe(12.5);
-    expect(readTypedAmount('2,5', 'MXN')).toBe(2.5);
+    expect(readTypedAmount('1,250.50', 'USD')).toBe('1250.5');
+    expect(readTypedAmount('1,50,000', 'INR')).toBe('150000');
+    expect(readTypedAmount('1,250', 'USD')).toBe('1250');
+    expect(readTypedAmount('12,50', 'USD')).toBe('12.5');
+    expect(readTypedAmount('2,5', 'MXN')).toBe('2.5');
     expect(readTypedAmount('1,2,3', 'USD')).toBeNull();
     expect(readTypedAmount('abc', 'AED')).toBeNull();
     expect(readTypedAmount('', 'AED')).toBeNull();
-    expect(readTypedAmount('-5', 'USD')).toBe(-5);
+    expect(readTypedAmount('-5', 'USD')).toBe('-5');
   });
 });
 
 describe('CUR · the price list is read in the workspace\'s currency', () => {
   it('its own marks are its price, in its own notation', () => {
-    expect(one('Kaos polos Rp 150.000', 'IDR').price).toEqual({ amount: 150000, currency: 'IDR' });
-    expect(one('Kaos polos\t150.000', 'IDR').price).toEqual({ amount: 150000, currency: 'IDR' });
-    expect(one('Camiseta R$ 49,90', 'BRL').price).toEqual({ amount: 49.9, currency: 'BRL' });
-    expect(one('Playera $199', 'MXN').price).toEqual({ amount: 199, currency: 'MXN' });
-    expect(one('Playera MX$199', 'MXN').price).toEqual({ amount: 199, currency: 'MXN' });
-    expect(one('Oud oil AED 120', 'AED').price).toEqual({ amount: 120, currency: 'AED' });
-    expect(one('عطر 50 درهم', 'AED').price).toEqual({ amount: 50, currency: 'AED' });
-    expect(one('帆布袋 18元', 'CNY').price).toEqual({ amount: 18, currency: 'CNY' });
-    expect(one('Kurta ₹899', 'INR').price).toEqual({ amount: 899, currency: 'INR' });
-    expect(one('Kurta Rs. 1,299', 'INR').price).toEqual({ amount: 1299, currency: 'INR' });
+    expect(one('Kaos polos Rp 150.000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
+    expect(one('Kaos polos\t150.000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
+    expect(one('Camiseta R$ 49,90', 'BRL').price).toEqual(moneyOf('49.9', 'BRL'));
+    expect(one('Playera $199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
+    expect(one('Playera MX$199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
+    expect(one('Oud oil AED 120', 'AED').price).toEqual(moneyOf('120', 'AED'));
+    expect(one('عطر 50 درهم', 'AED').price).toEqual(moneyOf('50', 'AED'));
+    expect(one('帆布袋 18元', 'CNY').price).toEqual(moneyOf('18', 'CNY'));
+    expect(one('Kurta ₹899', 'INR').price).toEqual(moneyOf('899', 'INR'));
+    expect(one('Kurta Rs. 1,299', 'INR').price).toEqual(moneyOf('1299', 'INR'));
   });
 
   it('anyone else\'s money is refused, never read as the workspace\'s', () => {
@@ -119,12 +121,12 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
   });
 
   it('dollars read exactly as they did', () => {
-    expect(one('Cup $2.60', 'USD').price).toEqual({ amount: 2.6, currency: 'USD' });
+    expect(one('Cup $2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
     expect(one('Serum HK$25', 'USD')).toMatchObject({ price: null, problem: 'other_currency' });
     expect(one('Bag $1.250,00', 'USD')).toMatchObject({ price: null, problem: 'ambiguous_price' });
-    expect(one('帆布袋 1.05美元 500个起', 'USD')).toMatchObject({ price: { amount: 1.05, currency: 'USD' }, moq: 500 });
+    expect(one('帆布袋 1.05美元 500个起', 'USD')).toMatchObject({ price: moneyOf('1.05', 'USD'), moq: 500 });
     // "USD 2.60" is the dollar's own mark, before or after.
-    expect(one('Cup USD 2.60', 'USD').price).toEqual({ amount: 2.6, currency: 'USD' });
+    expect(one('Cup USD 2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
   });
 
   it('a large price is a large price in rupiah, a misread in dollars', () => {
@@ -141,7 +143,7 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
 describe('CUR · floors and samples are in the workspace\'s currency', () => {
   it('a floor', () => {
     const r = validatePriceRules({ floor: '0,35', maxDiscountPct: '10', askAbovePct: '7', currency: 'BRL' });
-    expect(r.ok && r.value.floor).toEqual({ amount: 0.35, currency: 'BRL' });
+    expect(r.ok && r.value.floor).toEqual(moneyOf('0.35', 'BRL'));
     const a = validatePriceRules({ floor: '4', maxDiscountPct: '10', askAbovePct: '7', currency: 'AED' });
     expect(a.ok && a.value.floor.currency).toBe('AED');
     // Percentages keep their own refusal.
@@ -150,7 +152,7 @@ describe('CUR · floors and samples are in the workspace\'s currency', () => {
   });
   it('a sample', () => {
     const s = validateSamplePolicy({ price: '15.000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() });
-    expect(s.ok && s.value.price).toEqual({ amount: 15000, currency: 'IDR' });
+    expect(s.ok && s.value.price).toEqual(moneyOf('15000', 'IDR'));
     expect(validateSamplePolicy({ price: '-1', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() })).toMatchObject({ ok: false, error: 'negative' });
   });
 });
@@ -165,7 +167,7 @@ describe('CUR · the rate page converts only where there is something to convert
   });
   it('a pair: the rate is between those two', () => {
     const html = renderRate(view({ currency: 'USD', pair: { from: 'USD', to: 'INR' },
-      current: { from: 'USD', to: 'INR', rate: 83.1, statedAt: new Date('2026-09-30T00:00:00Z') } }), 'en', null);
+      current: { from: 'USD', to: 'INR', rate: decimal('83.1'), statedAt: new Date('2026-09-30T00:00:00Z') } }), 'en', null);
     expect(html).toContain('1 USD = 83.1 INR');
     expect(html).toContain('name="rate"');
     expect(html).not.toContain('￥');

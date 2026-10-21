@@ -147,8 +147,8 @@ describe('ADR-0008 · localized formatting', () => {
   });
 
   it('currency is never localized away from USD', () => {
-    expect(formatMoney(usd(0.92))).toBe('$0.92');
-    expect(formatMoney(usd(4600))).toBe('$4,600.00');
+    expect(formatMoney(usd('0.92'))).toBe('$0.92');
+    expect(formatMoney(usd('4600'))).toBe('$4,600.00');
   });
 
   it('dates/times render per locale without throwing', () => {

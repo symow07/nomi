@@ -17,6 +17,8 @@
  * row waits for the owner's own tick (`needsTick`), and one read less surely
  * than LOW_CONFIDENCE anywhere is flagged.
  */
+import { type Decimal, compareDecimal, fromInteger, parseDecimal, signOf } from '../types/decimal.js';
+
 export type FieldConfidence = { readonly name: number; readonly price: number; readonly unit: number; readonly moq: number };
 export const LOW_CONFIDENCE = 0.8;
 
@@ -34,7 +36,8 @@ export type ExtractedLine = {
 export type ContainedLine = {
   readonly line: string;
   readonly name: string;
-  readonly price: number | null;
+  /** A1 — exact, as written on the line. */
+  readonly price: Decimal | null;
   readonly unit: string | null;
   readonly moq: number | null;
   readonly confidence: FieldConfidence;
@@ -42,8 +45,11 @@ export type ContainedLine = {
 
 const squash = (s: string): string => s.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** A number as written, with either decimal mark ("1,200.50", "1.200,50", "24,5", "24.50"); null when it is not one. */
-export function readFigure(raw: string): number | null {
+/**
+ * A number as written, with either decimal mark ("1,200.50", "1.200,50", "24,5", "24.50"); null when it is not one.
+ * A1 — exact: the decimal the line wrote, never a floating-point reading of it.
+ */
+export function readFigure(raw: string): Decimal | null {
   const s = raw.normalize('NFKC').replace(/[^\d.,]/g, '');
   if (!/\d/.test(s)) return null;
   const lastDot = s.lastIndexOf('.'); const lastComma = s.lastIndexOf(',');
@@ -57,13 +63,15 @@ export function readFigure(raw: string): number | null {
   } else {
     n = /^\d{1,3}(\.\d{3}){2,}$/.test(s) ? s.replace(/\./g, '') : s;
   }
-  const v = Number(n);
-  return Number.isFinite(v) ? v : null;
+  if (n.startsWith('.')) n = `0${n}`;
+  if (n.endsWith('.')) n = n.slice(0, -1);
+  return parseDecimal(n);
 }
 
 /** Every number written on the line, each read as written. */
-export const figuresOn = (line: string): number[] =>
-  [...line.normalize('NFKC').matchAll(/\d[\d.,]*\d|\d/g)].map((m) => readFigure(m[0])).filter((v): v is number => v !== null);
+export const figuresOn = (line: string): Decimal[] =>
+  [...line.normalize('NFKC').matchAll(/\d[\d.,]*\d|\d/g)].map((m) => readFigure(m[0])).filter((v): v is Decimal => v !== null);
+const among = (figures: readonly Decimal[], d: Decimal): boolean => figures.some((f) => compareDecimal(f, d) === 0);
 
 const clamp = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
 
@@ -77,9 +85,9 @@ export function containExtracted(items: readonly ExtractedLine[], lines: readonl
     if (!name || name.length > 120 || !squash(line).includes(squash(name))) continue;
     const figures = figuresOn(line);
     const price = it.price === null ? null : readFigure(it.price);
-    if (it.price !== null && (price === null || price <= 0 || !figures.includes(price))) continue;
+    if (it.price !== null && (price === null || signOf(price) <= 0 || !among(figures, price))) continue;
     const moq = it.moq;
-    if (moq !== null && (!Number.isInteger(moq) || moq < 1 || !figures.includes(moq))) continue;
+    if (moq !== null && (!Number.isSafeInteger(moq) || moq < 1 || !among(figures, fromInteger(moq)))) continue;
     open.set(line, false);
     out.push({
       line, name, price, unit: it.unit?.trim().slice(0, 30) || null, moq,
@@ -90,7 +98,7 @@ export function containExtracted(items: readonly ExtractedLine[], lines: readonl
 }
 
 /** The fields read less surely than LOW_CONFIDENCE — only those that were read at all. */
-export function lessSure(c: FieldConfidence, row: { readonly price: number | null; readonly moq: number | null }): readonly ('name' | 'price' | 'unit' | 'moq')[] {
+export function lessSure(c: FieldConfidence, row: { readonly price: string | number | null; readonly moq: number | null }): readonly ('name' | 'price' | 'unit' | 'moq')[] {
   return (['name', 'price', 'unit', 'moq'] as const).filter((f) =>
     c[f] < LOW_CONFIDENCE && !(f === 'price' && row.price === null) && !(f === 'moq' && row.moq === null));
 }

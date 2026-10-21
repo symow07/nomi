@@ -16,6 +16,7 @@ import { shownTotals, type PracticeTotal } from '../../src/db/practiceChecklist.
 import * as show from '../../src/api/web/values.js';
 import type { CatchUp } from '../../src/db/catchUp.js';
 import { conversationDetail } from './fixtures.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * THE WARMTH RUN, phase 9 — the fix wave for a conversation, the draft card,
@@ -68,7 +69,7 @@ describe('w4-conversation-05, -13 · the strip says what they asked about, that 
     const bought = detail({ product: { name: 'Stainless Steel Thermos 500ml', nameZh: '保温杯' }, quantity: 5000 }, {
       quoteSentAt: ago(9 * DAY), lastOrder: { reference: 'USAB-de300000-0001', confirmedAt: ago(2 * DAY) },
       bought: [{ name: 'Stainless Steel Thermos 500ml', nameZh: '保温杯', orders: 1 }],
-      value: { clientId: CLIENT, spent: usd(11750), orders: 1, lastOrderAt: ago(2 * DAY), regular: false, quietSince: null },
+      value: { clientId: CLIENT, spent: usd('11750'), orders: 1, lastOrderAt: ago(2 * DAY), regular: false, quietSince: null },
     });
     for (const l of LOCALES) {
       const html = page(bought, l);
@@ -85,7 +86,7 @@ describe('w4-conversation-05, -13 · the strip says what they asked about, that 
   it('bought one thing and now asking about another: both, each labelled', () => {
     const html = page(detail({}, {
       bought: [{ name: 'Stainless Steel Thermos 500ml', nameZh: '保温杯', orders: 2 }],
-      value: { clientId: CLIENT, spent: usd(23500), orders: 2, lastOrderAt: ago(40 * DAY), regular: false, quietSince: null },
+      value: { clientId: CLIENT, spent: usd('23500'), orders: 2, lastOrderAt: ago(40 * DAY), regular: false, quietSince: null },
     }), 'en');
     const f = facts(html);
     expect(f.indexOf('Bought')).toBeLessThan(f.indexOf('Asked about'));
@@ -137,7 +138,7 @@ describe('the draft card\'s fold (V1-220, w4-conversation-01, -02, -07, -08, -09
   const drafted = (sku: string | null): ConversationDetail => detail({
     pendingDraft: { draftId: 'd-1', capability: 'quote', draftText: reply }, status: 'awaiting',
     product: { name: 'LED String Lights 10m', nameZh: 'LED灯串', sku }, quantity: 5000,
-    quote: { unitPrice: usd(1.45), total: usd(7250), quantity: 5000 }, claimsAllowed: [],
+    quote: { unitPrice: usd('1.45'), total: usd('7250'), quantity: 5000 }, claimsAllowed: [],
   });
   const card = (html: string): string => html.slice(html.indexOf('id="approve"'), html.indexOf('</section>', html.indexOf('id="approve"')));
   const summary = (c: string): string => c.slice(c.indexOf('<summary>'), c.indexOf('</summary>'));
@@ -252,8 +253,8 @@ describe('w4-conversation-19 · the customer\'s file has their face, what they s
       expect(head, l).toContain(`<a class="face-link" href="/app/customers/${CLIENT}" data-card aria-label="${esc(t(l, 'catchup.card', { who: 'Aisha Bello' }))}">`);
       expect(none, l).toContain(`<span class="muted">${esc(t(l, 'pcard.spent'))}</span><b>${esc(t(l, 'pcard.nothingSpent'))}</b>`);
       expect(none, l).toContain(`<span class="muted">${esc(t(l, 'pcard.orders'))}</span><b>${esc(plain(show.count(l, 0)))}</b>`);
-      const spent = plain(renderCustomerFile(file({ customer: { clientId: CLIENT, photo: 'v1', value: { clientId: CLIENT, spent: usd(11750), orders: 3, lastOrderAt: ago(DAY), regular: true, quietSince: null } } }), l, NOW));
-      expect(spent, l).toContain(`<b><bdi>${plain(show.money(l, usd(11750)))}</bdi></b>`);
+      const spent = plain(renderCustomerFile(file({ customer: { clientId: CLIENT, photo: 'v1', value: { clientId: CLIENT, spent: usd('11750'), orders: 3, lastOrderAt: ago(DAY), regular: true, quietSince: null } } }), l, NOW));
+      expect(spent, l).toContain(`<b><bdi>${plain(show.money(l, usd('11750')))}</bdi></b>`);
       expect(spent, l).toContain(`<img class="face-p" src="/app/faces/${CLIENT}?v=v1"`);
     }
   });
@@ -302,7 +303,7 @@ describe('Practice (V1-289, w4-conversation-17, -23, -24)', () => {
   });
 
   it('a waiting total is listed only while its line is still in Practice; decided ones always', () => {
-    const total = (id: string, agreed: boolean | null): PracticeTotal => ({ messageId: id, expected: 900, quoted: agreed === null ? null : 900, currency: 'USD', agreed });
+    const total = (id: string, agreed: boolean | null): PracticeTotal => ({ messageId: id, expected: decimal('900'), quoted: agreed === null ? null : decimal('900'), currency: 'USD', agreed });
     const rows = [total('gone', null), total('here', null), total('old', true), total('older', false), total('oldest', true)];
     expect(shownTotals(rows, new Set(['here'])).map((r) => r.messageId)).toEqual(['here', 'old', 'older']);
     expect(shownTotals(rows, new Set()).map((r) => r.messageId)).toEqual(['old', 'older', 'oldest']);

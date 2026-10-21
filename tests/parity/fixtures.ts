@@ -63,15 +63,15 @@ export const product = (over: Partial<Product> = {}): Product => ({
 });
 
 export const tiers = (): PriceTier[] => [
-  { productId: PRODUCT, minQty: 1000, maxQty: 4999, unitPrice: usd(0.5) },
-  { productId: PRODUCT, minQty: 5000, maxQty: 19999, unitPrice: usd(0.45) },
-  { productId: PRODUCT, minQty: 20000, maxQty: null, unitPrice: usd(0.38) },
+  { productId: PRODUCT, minQty: 1000, maxQty: 4999, unitPrice: usd('0.5') },
+  { productId: PRODUCT, minQty: 5000, maxQty: 19999, unitPrice: usd('0.45') },
+  { productId: PRODUCT, minQty: 20000, maxQty: null, unitPrice: usd('0.38') },
 ];
 
 export const policy = (over: Partial<PricingPolicy> = {}): PricingPolicy => ({
   businessId: BUSINESS,
   productId: PRODUCT,
-  floorPrice: usd(0.35),
+  floorPrice: usd('0.35'),
   maxDiscountPct: 10,
   humanRequiredAbovePct: 7,
   ...over,
@@ -87,7 +87,7 @@ export const conversationDetail = (
 ): import('../../src/api/web/inbox.js').ConversationDetail => ({
   conversationId: '44444444-4444-4444-8444-444444444444', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Vacuum cup', nameZh: null }, quantity: 5000,
-  quote: { unitPrice: usd(0.92), total: usd(4600), quantity: 5000 }, order: null,
+  quote: { unitPrice: usd('0.92'), total: usd('4600'), quantity: 5000 }, order: null,
   messages: [{ direction: 'inbound', text: 'How much for 5,000?', at: new Date('2026-09-27T09:55:00Z') }],
   transcript: { earlier: null, older: false },
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },

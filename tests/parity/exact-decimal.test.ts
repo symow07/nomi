@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   decimal, parseDecimal, fromInteger, addDecimal, subDecimal, mulDecimal, divDecimal, roundDecimal,
-  compareDecimal, allocateDecimal, type Decimal,
+  compareDecimal, ceilDecimal, storedDecimal, type Decimal,
 } from '../../src/core/types/decimal.js';
+import { moneyFromRow, moneyFromStored } from '../../src/core/types/money.js';
 
 /**
  * A1 (Phase 5) — exact decimals, proven against an INDEPENDENT reference: exact fractions (numerator / denominator in
@@ -74,12 +75,27 @@ describe('A1 · exact decimals', () => {
     expect(() => roundDecimal(decimal('1'), -1)).toThrow();
   });
 
-  it('a split always adds up to the whole, to the minor unit', () => {
-    expect(allocateDecimal(decimal('10'), 3, 2)).toEqual(['3.34', '3.33', '3.33']);
-    expect(allocateDecimal(decimal('-10'), 3, 2)).toEqual(['-3.34', '-3.33', '-3.33']);
-    expect(allocateDecimal(decimal('0.01'), 3, 2)).toEqual(['0.01', '0', '0']);
-    expect(allocateDecimal(decimal('100'), 1, 0)).toEqual(['100']);
-    expect(() => allocateDecimal(decimal('1'), 0, 2)).toThrow();
+  it('up to the next cent, for a floor that must never allow more off than was said', () => {
+    expect(ceilDecimal(decimal('8.4915'), 2)).toBe('8.5');
+    expect(ceilDecimal(decimal('8.49'), 2)).toBe('8.49');
+    expect(ceilDecimal(decimal('0.000001'), 2)).toBe('0.01');
+    expect(ceilDecimal(decimal('-1.005'), 2)).toBe('-1');       // toward positive infinity, not away from zero
+    expect(ceilDecimal(decimal('12'), 2)).toBe('12');
+    expect(() => ceilDecimal(decimal('1'), -1)).toThrow();
+  });
+
+  it('a STORED value reads back as the decimal that was written: text, or an older payload\'s number', () => {
+    expect(storedDecimal('5.0350')).toBe('5.035');
+    expect(storedDecimal(5.03)).toBe('5.03');                   // a number in a JSON payload written before A1
+    expect(storedDecimal(0.1 + 0.2)).toBe('0.30000000000000004');   // read as stored, never "corrected" into 0.3
+    expect(storedDecimal(1e-7)).toBeNull();                     // an exponent is not a stored amount
+    expect(storedDecimal(Number.NaN)).toBeNull();
+    expect(storedDecimal(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(storedDecimal('5,03')).toBeNull();
+    expect(moneyFromStored(4.2, 'USD')).toEqual({ amount: '4.2', currency: 'USD' });
+    expect(moneyFromStored('4.20', 'EUR')).toBeNull();           // a currency this build cannot price is dropped
+    expect(moneyFromRow('4.20', 'USD')).toEqual({ amount: '4.2', currency: 'USD' });
+    expect(moneyFromRow('4,20', 'USD')).toBeNull();
   });
 
   it('division is exact up to its rounding; by zero throws', () => {
@@ -89,10 +105,10 @@ describe('A1 · exact decimals', () => {
     expect(() => divDecimal(decimal('1'), decimal('0'), 2)).toThrow();
   });
 
-  it('A MILLION RANDOM QUOTES — discount, round, multiply, split — every one equal to the exact-fraction reference', () => {
+  it('A MILLION RANDOM QUOTES — discount, round, multiply — every one equal to the exact-fraction reference', () => {
     const r = mulberry32(20261022);
     const N = 1_000_000;
-    let checked = 0, splits = 0, wrongAgainstReference = 0, splitNotWhole = 0, moreDecimalsThanAsked = 0;
+    let checked = 0, wrongAgainstReference = 0, moreDecimalsThanAsked = 0;
     let firstFailure = '';
     for (let i = 0; i < N; i++) {
       // a unit price with up to 4 decimals (price tiers are numeric(10,4)), a discount with 2 (numeric(5,2)), a quantity
@@ -118,20 +134,13 @@ describe('A1 · exact decimals', () => {
       }
       if ((unit.split('.')[1]?.length ?? 0) > places) moreDecimalsThanAsked++;
 
-      // every 10th: split the total into 1–12 parts; the parts must add back to the total exactly
-      if (i % 10 === 0) {
-        splits++;
-        const parts = allocateDecimal(total, int(r, 1, 12), places);
-        const sum = parts.reduce((a, b) => addDecimal(a, b), decimal('0'));
-        if (compareDecimal(sum, total) !== 0) splitNotWhole++;
-      }
     }
     // The output the owner asked to see.
     console.log(`A1 property test: ${checked.toLocaleString('en')} random quotes (unit price to 4 decimals, discount to 2, ` +
       `quantity 1–100,000, rounded at 0–3 places); wrong against the exact-fraction reference: ${wrongAgainstReference}; ` +
-      `more decimals than the currency allows: ${moreDecimalsThanAsked}; ${splits.toLocaleString('en')} splits, not adding up to the total: ${splitNotWhole}.`);
+      `more decimals than the currency allows: ${moreDecimalsThanAsked}.`);
     expect(firstFailure).toBe('');
-    expect([wrongAgainstReference, moreDecimalsThanAsked, splitNotWhole]).toEqual([0, 0, 0]);
+    expect([wrongAgainstReference, moreDecimalsThanAsked]).toEqual([0, 0]);
   }, 300_000);
 
   it('the same million inputs through floating point, as the old code did, are NOT all exact — the test can fail', () => {

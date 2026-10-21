@@ -26,6 +26,7 @@ import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
 import { BACK, GO, icon } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -43,7 +44,7 @@ const conv = (id: string, over: Partial<ConversationSummary> = {}): Conversation
   conversationId: id, buyer: `Buyer ${id}`, country: 'AE', status: 'handled', needsAction: false,
   ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
   latestMessage: `last words of ${id}`, latestAt: AGO(30),
-  product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000, unitPrice: usd(1.45),
+  product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000, unitPrice: usd('1.45'),
   channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', ...over,
 });
 const LIST: InboxList = {
@@ -243,7 +244,7 @@ const ce = (x: Partial<CalendarEntry> & Pick<CalendarEntry, 'category' | 'kind' 
 });
 const DATES: CalendarEntry[] = [
   ce({ category: 'samples', kind: 'sample_asked', at: calAt(MONDAY, '09:12'), source: { table: 'sample_requests', id: 's1', column: 'requested_at' } }),
-  ce({ category: 'negotiation', kind: 'price_worked_out', at: calAt(addDays(MONDAY, 2), '02:19'), detail: { price: usd(1.95), quantity: 2000 },
+  ce({ category: 'negotiation', kind: 'price_worked_out', at: calAt(addDays(MONDAY, 2), '02:19'), detail: { price: usd('1.95'), quantity: 2000 },
     source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
   ce({ category: 'orders', kind: 'order_state', at: calAt(addDays(MONDAY, 3), '17:53'), orderId: 'o1', buyer: ANNA,
     detail: { orderReference: 'USAB-de300000-0001', orderState: 'confirmed' }, source: { table: 'order_updates', id: 'u1', column: 'at' } }),
@@ -348,7 +349,7 @@ describe('the calendar', () => {
       // the warmth run — the kind is said once, in the date's own sentence
       const said = t(l, 'calendar.say.price_worked_out', { who: NADIA.name });
       expect(row.replace(/<[^>]+>/g, '').split(said).length - 1, l).toBe(1);
-      expect(row, l).toContain(`</span><span class="small"><bdi>${esc(t(l, 'calendar.detail.price', { price: withZone(CAL_ZONE, () => withoutIsolates(showMoney(l, usd(1.95)))), qty: l === 'zh' ? '2000' : '2,000' }))}</bdi></span>`);
+      expect(row, l).toContain(`</span><span class="small"><bdi>${esc(t(l, 'calendar.detail.price', { price: withZone(CAL_ZONE, () => withoutIsolates(showMoney(l, usd('1.95')))), qty: l === 'zh' ? '2000' : '2,000' }))}</bdi></span>`);
       expect(t(l, 'calendar.detail.price'), l).toMatch(/ \{qty\}$/);
     }
   });
@@ -396,7 +397,7 @@ const RESULTS: AnalyticsData = {
   range: 'week', hasActivity: true,
   summary: { newClients: 6, activeConvos: 5, quotes: 12, orders: 1 },
   activity: { inbound: 6, replied: 3, waiting: 1 },
-  commerce: { quotes: 12, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(11750)] },
+  commerce: { quotes: 12, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd('11750')] },
   employee: { handled: 1, waiting: 1, edits: 0 },
 };
 const results = (l: Locale, over: Partial<AnalyticsData> = {}) => withoutIsolates(renderAnalytics({ ...RESULTS, ...over }, l));
@@ -444,7 +445,7 @@ describe('Results', () => {
       const h = results(l);
       expect(h, l).not.toContain('class="chip"');
       // the warmth run's phase 9 (w4-customers-22) — the Sales section's headline line, under its own heading
-      expect(h, l).toContain(`<p class="an-total"><span class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</span> <span class="l">${shown(l, 'analytics.commerce.value')}</span></p>`);
+      expect(h, l).toContain(`<p class="an-total"><span class="v">${withoutIsolates(esc(showMoney(l, usd('11750'))))}</span> <span class="l">${shown(l, 'analytics.commerce.value')}</span></p>`);
       expect(h, l).toContain(`${esc(t(l, `analytics.n.order.${new Intl.PluralRules(l).select(1)}` as MessageKey))} · ${esc(t(l, 'order.status.confirmed' as MessageKey))}`);
     }
   });
@@ -466,7 +467,7 @@ describe('Results', () => {
 const ORDER_VIEW: OrderView = {
   orderId: '44444444-4444-4444-8444-444444444444', reference: 'USAB-de300000-0001', conversationId: C1,
   buyer: 'Nadia Rahimi', productName: 'Stainless Steel Thermos 500ml', productNameZh: '保温杯', productSku: 'ZX-200',
-  quantity: 5000, unit: 'pcs', unitPriceAmount: 2.35, totalAmount: 11750,
+  quantity: 5000, unit: 'pcs', unitPriceAmount: decimal('2.35'), totalAmount: decimal('11750'),
   currency: 'USD', email: 'n@example.com', paymentTerms: '30 days', incoterm: 'FOB',
   sellerName: 'Atlas Trading', confirmedAt: new Date('2026-09-30T06:00:00Z'), history: [],
 };

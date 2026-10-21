@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { containExtracted, readFigure, figuresOn, parseExtractorAnswer, lessSure, LOW_CONFIDENCE, type ExtractedLine } from '../../src/core/onboard/extract.js';
 import { needsTick, flagsOf, type ImportRow, type ReviewContext } from '../../src/core/onboard/importReview.js';
 import { anthropicCatalogExtractor, anthropicPageTranscriber } from '../../src/llm/anthropic.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * EXT — the model extractor, contained: no figure exists that a line does not
@@ -17,23 +18,23 @@ const item = (over: Partial<ExtractedLine> = {}): ExtractedLine =>
 
 describe('EXT · figures as written', () => {
   it('either decimal mark, thousands both ways', () => {
-    expect(readFigure('24,50')).toBe(24.5);
-    expect(readFigure('24.50')).toBe(24.5);
-    expect(readFigure('1,200')).toBe(1200);
-    expect(readFigure('1.200,50')).toBe(1200.5);
-    expect(readFigure('1,200.50')).toBe(1200.5);
-    expect(readFigure('1.200.000')).toBe(1200000);
+    expect(readFigure('24,50')).toBe('24.5');
+    expect(readFigure('24.50')).toBe('24.5');
+    expect(readFigure('1,200')).toBe('1200');
+    expect(readFigure('1.200,50')).toBe('1200.5');
+    expect(readFigure('1,200.50')).toBe('1200.5');
+    expect(readFigure('1.200.000')).toBe('1200000');
     expect(readFigure('abc')).toBeNull();
   });
   it('every number written on a line', () => {
-    expect(figuresOn('Silk scarf — 24,50 each, min 12')).toEqual([24.5, 12]);
+    expect(figuresOn('Silk scarf — 24,50 each, min 12')).toEqual(['24.5', '12']);
   });
 });
 
 describe('EXT · what a reading may become', () => {
   const LINES = ['Silk scarf — 24,50 each, min 12', 'Tote bag 39 | 2 colours', 'SPRING SALE'];
   it('a reading the line holds survives, with its confidence', () => {
-    expect(containExtracted([item()], LINES)).toEqual([{ line: LINES[0], name: 'Silk scarf', price: 24.5, unit: 'each', moq: 12, confidence: sure }]);
+    expect(containExtracted([item()], LINES)).toEqual([{ line: LINES[0], name: 'Silk scarf', price: decimal('24.5'), unit: 'each', moq: 12, confidence: sure }]);
   });
   it('a line it was not given, a name not on the line, a price or a minimum the line does not hold: nothing', () => {
     expect(containExtracted([item({ line: 'Silk scarf 24,50' })], LINES)).toEqual([]);
@@ -50,7 +51,7 @@ describe('EXT · what a reading may become', () => {
     expect(noPrice.confidence).toEqual({ name: 1, price: 0, unit: 0, moq: 0.5 });
   });
   it('less sure: only the fields read at all', () => {
-    expect(lessSure({ name: 0.9, price: 0.5, unit: 0.9, moq: 0.2 }, { price: 10, moq: null })).toEqual(['price']);
+    expect(lessSure({ name: 0.9, price: 0.5, unit: 0.9, moq: 0.2 }, { price: '10', moq: null })).toEqual(['price']);
     expect(LOW_CONFIDENCE).toBe(0.8);
   });
 });
@@ -72,7 +73,7 @@ describe('EXT · the tick rule', () => {
   const ctx = { kind: 'paste', currency: 'USD', countryCurrency: null, country: null, defaultUnit: 'pcs' } as unknown as ReviewContext;
   const row = (over: Partial<ImportRow> = {}): ImportRow => ({
     // Phase 9 — the line carries its sign: a price read with none waits for a tick of its own (`no_sign`).
-    key: 'l1', line: 'Silk scarf $24.50', photo: null, sku: null, name: 'Silk scarf', nameZh: null, price: 24.5, unit: 'pcs', moq: null,
+    key: 'l1', line: 'Silk scarf $24.50', photo: null, sku: null, name: 'Silk scarf', nameZh: null, price: decimal('24.5'), unit: 'pcs', moq: null,
     names: [], refused: null, removed: false, ticked: false, challenge: null, reopened: false, edited: false, ...over,
   });
   it('a row the extractor read always waits for its own tick, and is flagged when read less surely', () => {

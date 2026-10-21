@@ -247,7 +247,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
   }
   const seenQuote = new Set<string>();
   for (const r of quotes) {
-    const price = moneyFromRow(Number(r.unit_price_usd), r.currency);
+    const price = moneyFromRow(r.unit_price_usd, r.currency);
     if (price === null) continue;
     const key = keyOf(r);
     if (seenQuote.has(key)) continue;

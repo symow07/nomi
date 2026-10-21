@@ -5,6 +5,7 @@ import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
 import { BOX } from '../../src/core/owner/tokens.js';
 import { product, tiers, policy } from './fixtures.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 const NOW = new Date('2026-07-18T10:00:00Z');
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 24 * 3600 * 1000);
@@ -50,7 +51,7 @@ describe('M6 · instant invoice', () => {
 
   it('the buyer PI carries only quote-derived money figures', () => {
     const en = renderInvoiceEn(inv);
-    const moneyFigures = [...en.matchAll(/\$([\d,]+\.\d{2})/g)].map((m) => Number(m[1]!.replace(/,/g, '')));
+    const moneyFigures = [...en.matchAll(/\$([\d,]+\.\d{2})/g)].map((m) => decimal(m[1]!.replace(/,/g, '')));   // A1 — exact text, compared exactly
     for (const f of moneyFigures) {
       expect([quote.unitPrice.amount, quote.total.amount]).toContain(f);
     }

@@ -221,8 +221,8 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
     // currency this build cannot price is not a proof page: it reads as a link
     // that no longer resolves, which is the same fail-closed answer the page
     // already gives for a quote that is gone.
-    const unitPrice = moneyFromRow(Number(q.unit_price_usd), q.currency);
-    const total = moneyFromRow(Number(q.total_usd), q.currency);
+    const unitPrice = moneyFromRow(q.unit_price_usd, q.currency);
+    const total = moneyFromRow(q.total_usd, q.currency);
     if (!unitPrice || !total) return null;
 
     const locale = await buyerLocale(tx, r.conversation_id);

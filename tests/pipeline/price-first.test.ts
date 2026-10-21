@@ -30,7 +30,7 @@ function ports(quantityFirst: boolean, moq: number | null = null, firstBand = 1)
   };
   p.tenant.selling = { pricesToOwner: false, kind: quantityFirst ? 'manufacturer' : 'online_shop', quantityFirst };
   p.tenant.products.set(PRODUCT, product({ name: 'Rose lip oil', moq, unit: 'item' }));
-  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: firstBand, maxQty: null, unitPrice: usd(12) }]);
+  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: firstBand, maxQty: null, unitPrice: usd('12') }]);
   // The "sells" level, exactly as the owner's choice writes it.
   const sells = modesFor('sells');
   p.tenant.grantRows = CAPABILITIES.map((capability) => ({ capability, mode: sells[capability], timeWindow: null }));
@@ -52,7 +52,7 @@ describe('RT · price first', () => {
     const r = await computeTurn(p, req);
     expect(r.quote).not.toBeNull();
     expect(r.quote!.quantity.value).toBe(1);
-    expect(r.quote!.unitPrice).toEqual(usd(12));
+    expect(r.quote!.unitPrice).toEqual(usd('12'));
     expect(p.replyWriter.inputs[0]!.priceFirst).toBe(true);
     // The quantity is not invented into the conversation: the customer named none.
     expect(r.newState.quantity).toBeNull();
@@ -103,9 +103,9 @@ describe('RT · price first', () => {
   });
 
   it('the stand-in reply at quantity one is the price of one — no "for 1 pcs", no total repeating it', () => {
-    const one = guardFallbackReply({ quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: null } as never, null);
+    const one = guardFallbackReply({ quantity: { value: 1, unit: 'item' }, unitPrice: usd('12'), total: usd('12'), leadTimeDays: null } as never, null);
     expect(one).toBe('$12.00 USD each.');
-    const many = guardFallbackReply({ quantity: { value: 500, unit: 'pcs' }, unitPrice: usd(1), total: usd(500), leadTimeDays: 20 } as never, null);
+    const many = guardFallbackReply({ quantity: { value: 500, unit: 'pcs' }, unitPrice: usd('1'), total: usd('500'), leadTimeDays: 20 } as never, null);
     expect(many).toBe('For 500 pcs: $1.00 USD each, $500 in total, ready in 20 days.');
   });
 });

@@ -32,13 +32,13 @@ describe('G7a · the ask line is decided on the discount actually given', () => 
     // discount nobody was being given.
     const r = computeQuote({
       product: product(), quantity: 5000,
-      tiers: [{ productId: product().id, minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
-      policy: policy({ floorPrice: usd(0.42), maxDiscountPct: 20, humanRequiredAbovePct: 15 }),
+      tiers: [{ productId: product().id, minQty: 1000, maxQty: null, unitPrice: usd('0.45') }],
+      policy: policy({ floorPrice: usd('0.42'), maxDiscountPct: 20, humanRequiredAbovePct: 15 }),
       rules: discount(25),
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value.unitPrice).toEqual(usd(0.42));
+    expect(r.value.unitPrice).toEqual(usd('0.42'));
     expect(r.value.discountPct).toBeLessThan(15);
     expect(r.value.requiresHuman).toBe(false);
   });
@@ -121,7 +121,7 @@ describe('G7a · the draft card says why it is waiting', () => {
   const detail = (heldBecause: HoldReason | null): ConversationDetail => ({
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
-    quote: { unitPrice: usd(0.41), total: usd(2050), quantity: 5000 },
+    quote: { unitPrice: usd('0.41'), total: usd('2050'), quantity: 5000 },
     order: null, messages: [],
     pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.41/pc.', capability: 'quote', heldBecause },
     ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
@@ -130,8 +130,8 @@ describe('G7a · the draft card says why it is waiting', () => {
 
   it('G7b · a contradiction shows both prices, the date of the first, and names the worse case', () => {
     const contradicts = {
-      before: { price: usd(0.40), quantity: 5000, at: new Date('2026-03-04T10:00:00Z') },
-      now: { price: usd(0.45), quantity: 8000 }, largerQuantity: true,
+      before: { price: usd('0.40'), quantity: 5000, at: new Date('2026-03-04T10:00:00Z') },
+      now: { price: usd('0.45'), quantity: 8000 }, largerQuantity: true,
     };
     for (const l of LOCALES) {
       const html = withoutIsolates(renderConversationDetail({

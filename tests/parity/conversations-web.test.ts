@@ -14,13 +14,13 @@ const file: CustomerFile = {
   profile: { firstContact: new Date('2026-07-01T00:00:00Z'), products: [{ name: 'Vacuum cup', nameZh: '保温杯' }], quoteCount: 3, orderCount: 1 },
   timeline: [
     m({ kind: 'buyer_image', at: new Date('2026-07-10T02:00:00Z') }),
-    m({ kind: 'quote', at: new Date('2026-07-10T03:00:00Z'), qty: 5000, unitPrice: usd(0.92) }),
+    m({ kind: 'quote', at: new Date('2026-07-10T03:00:00Z'), qty: 5000, unitPrice: usd('0.92') }),
     m({ kind: 'owner_approved', at: new Date('2026-07-10T04:00:00Z') }),
   ],
   context: {
     products: [{ sku: 'ZX-100', name: 'Canvas bag', nameZh: '帆布袋' }],
-    latestQuote: { qty: 5000, unitPrice: usd(0.92), total: usd(4600) },
-    order: { status: 'confirmed', reference: 'ORD-1', qty: 5000, total: usd(4600) },
+    latestQuote: { qty: 5000, unitPrice: usd('0.92'), total: usd('4600') },
+    order: { status: 'confirmed', reference: 'ORD-1', qty: 5000, total: usd('4600') },
     corrections: ['quote'],   // capability code
   },
 };

@@ -123,7 +123,7 @@ describe('G12 · Mine', () => {
       conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'paused',
       needsAction: false, ownership: 'OWNER_CONTROLLED', heldBy: chen.id, awaitingReview: false,
       handoffReason: null, latestMessage: 'Can you do 5000 pcs?', latestAt: NOW,
-      product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd(0.92),
+      product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd('0.92'),
     }],
     ...over,
   });

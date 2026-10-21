@@ -2,6 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
+import { formatDecimalToParts, roundDecimal } from '../../core/types/decimal.js';
 import { workspaceZone, workspaceCountry, countryUnknown } from './zone.js';
 import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
@@ -79,8 +80,9 @@ const AR = 'ar-u-nu-latn';
  * (seen in the screenshots, 2026-09-30).
  */
 const arabicMoney = (m: Money, fraction: number): string =>
-  new Intl.NumberFormat(AR, { style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction })
-    .formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount)
+  formatDecimalToParts(
+    new Intl.NumberFormat(AR, { style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction }),
+    roundDecimal(m.amount, fraction))
     .map((p) => (p.type === 'currency' ? `\u2066${p.value}${PDI}` : p.value)).join('');
 
 /**
@@ -113,9 +115,9 @@ const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): 
   if (!region) return null;
   let parts: Intl.NumberFormatPart[];
   try {
-    parts = new Intl.NumberFormat(region, {
+    parts = formatDecimalToParts(new Intl.NumberFormat(region, {
       style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction,
-    }).formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount);
+    }), roundDecimal(m.amount, fraction));
   } catch { return null; }
   const at = parts.findIndex((p) => p.type === 'currency');
   const figure = parts.filter((p) => ['minusSign', 'integer', 'group', 'decimal', 'fraction'].includes(p.type)).map((p) => p.value).join('');

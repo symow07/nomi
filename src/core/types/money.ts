@@ -26,6 +26,10 @@
  * currency column (G18) instead of assuming the dollar it used to be.
  */
 
+import {
+  type Decimal, decimal, parseDecimal, storedDecimal, fromInteger, subDecimal, mulDecimal, divDecimal, compareDecimal, roundDecimal, signOf,
+} from './decimal.js';
+
 /**
  * The currencies this product can hold.
  *
@@ -49,14 +53,24 @@
  */
 export type Currency = 'USD' | 'CNY' | 'AED' | 'SAR' | 'BRL' | 'MXN' | 'INR' | 'IDR';
 
-/** An amount and the currency it is denominated in. Never one without the other. */
+/**
+ * An amount and the currency it is denominated in. Never one without the other.
+ *
+ * A1 (Phase 5, 2026-10-22) — the amount is an exact DECIMAL (text, see `decimal.ts`), never a floating-point number.
+ * It was a `number`, and the quote engine discounted and rounded in floating point: $5.30 less 5% (exactly 5.035) was
+ * quoted $5.03 — one discounted quote in 75 a cent too low (docs/PHASE-5.md §2.1). Every operation on an amount is
+ * one of the functions below; a static test forbids arithmetic on `.amount` anywhere else.
+ */
 export type Money = {
-  readonly amount: number;
+  readonly amount: Decimal;
   readonly currency: Currency;
 };
 
-/** The common constructor, and the only one most callers need. */
-export const usd = (amount: number): Money => ({ amount, currency: 'USD' });
+/** The common constructor, from decimal text ("2.40"). */
+export const usd = (amount: string): Money => ({ amount: decimal(amount), currency: 'USD' });
+
+/** Any currency, from decimal text. */
+export const moneyOf = (amount: string, currency: Currency): Money => ({ amount: decimal(amount), currency });
 
 export const CURRENCIES: readonly Currency[] = ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR'];
 
@@ -71,10 +85,26 @@ export function parseCurrency(raw: string): Currency | null {
  * Returns null for an unrecognised currency rather than defaulting to USD.
  * Defaulting is how a euro row becomes a dollar quote — the caller must decide
  * what to do with a row it cannot price, and every caller here drops it.
+ *
+ * A1 — the amount is the row's own text: Postgres returns a `numeric` as exact text, and it stays exact. A number is
+ * never accepted: a number here is one some code computed in floating point, which is the defect. An older JSON
+ * payload's number goes through `storedDecimal` first, by name. Text that is not a decimal is a row that cannot be
+ * priced, and is null like an unknown currency.
  */
-export function moneyFromRow(amount: number, currency: string): Money | null {
+export function moneyFromRow(amount: string, currency: string): Money | null {
   const c = parseCurrency(currency);
-  return c === null ? null : { amount, currency: c };
+  const a = parseDecimal(amount);
+  return c === null || a === null ? null : moneyOf(a, c);
+}
+
+/**
+ * Money from a JSON payload written by this product (an event, a draft's note): the amount is text since A1 and a
+ * number in a payload written before it — read from its shortest text, which is the figure that was written
+ * (`storedDecimal`). Reading what was stored, never a number some code just computed.
+ */
+export function moneyFromStored(amount: string | number, currency: string): Money | null {
+  const a = storedDecimal(amount);
+  return a === null ? null : moneyFromRow(a, currency);
 }
 
 /**
@@ -102,22 +132,59 @@ function sameCurrency(a: Money, b: Money): Currency {
  * caught it, which is what it is for.
  */
 export const subMoney = (a: Money, b: Money): Money =>
-  ({ amount: a.amount - b.amount, currency: sameCurrency(a, b) });
+  ({ amount: subDecimal(a.amount, b.amount), currency: sameCurrency(a, b) });
 
-/** Money times a plain number — a quantity or a multiplier, never money. */
-export const scaleMoney = (m: Money, factor: number): Money =>
-  ({ amount: m.amount * factor, currency: m.currency });
+/** Money times an exact factor — a quantity (`fromInteger`) or a multiplier — never money. Exact; not rounded. */
+export const scaleMoney = (m: Money, factor: Decimal): Money =>
+  ({ amount: mulDecimal(m.amount, factor), currency: m.currency });
+
+/** Money times a whole quantity. Exact; not rounded. */
+export const timesQuantity = (m: Money, quantity: number): Money => scaleMoney(m, fromInteger(quantity));
+
+/**
+ * Money less a percentage (12.5 means 12.5%), exact. The percentage is a stored `numeric(5,2)`: at most two decimals,
+ * read back exactly from its shortest text; anything finer is refused rather than guessed.
+ */
+export function lessPercent(m: Money, percent: number): Money {
+  const pct = percentDecimal(percent);
+  return scaleMoney(m, subDecimal(decimal('1'), divDecimal(pct, decimal('100'), 4)));
+}
+
+/** A percentage with at most two decimals, as an exact decimal. */
+export function percentDecimal(percent: number): Decimal {
+  const t = String(percent);
+  if (!/^-?\d+(\.\d{1,2})?$/.test(t)) throw new Error(`money: ${t} is not a percentage with at most two decimals`);
+  return decimal(t);
+}
 
 /** Negative when a is cheaper. Throws rather than ordering two currencies. */
 export const compareMoney = (a: Money, b: Money): number =>
-  (sameCurrency(a, b), a.amount - b.amount);
+  (sameCurrency(a, b), compareDecimal(a.amount, b.amount));
 
 export const isBelow = (a: Money, b: Money): boolean => compareMoney(a, b) < 0;
 export const isAbove = (a: Money, b: Money): boolean => compareMoney(a, b) > 0;
 
-/** Rounding, in the currency's own minor unit. Two places for every currency here. */
+/** Is the amount above zero? */
+export const isPositive = (m: Money): boolean => signOf(m.amount) > 0;
+
+/** Is the amount exactly zero (a sample given at no charge, say)? */
+export const isZero = (m: Money): boolean => signOf(m.amount) === 0;
+
+/**
+ * The amount as a plain number, ONLY to match a figure written in text — the numeral guard compares the numbers a
+ * reply contains with the ones it may contain. Never for arithmetic: that is what every other function here is for.
+ */
+export const numeralOf = (m: Money): number => Number(m.amount);
+
+/** Do two amounts differ by more than `tolerance` (same currency)? */
+export const differsByMoreThan = (a: Money, b: Money, tolerance: Decimal): boolean => {
+  const d = subDecimal(a.amount, b.amount);
+  return compareDecimal(d, tolerance) > 0 || compareDecimal(d, subDecimal(decimal('0'), tolerance)) < 0;
+};
+
+/** Rounding, half away from zero, in the currency's own minor unit. Two places for every currency here. */
 export const roundMoney = (m: Money, places = 2): Money =>
-  ({ amount: Number(m.amount.toFixed(places)), currency: m.currency });
+  ({ amount: roundDecimal(m.amount, places), currency: m.currency });
 
 /**
  * The symbol a reader sees. NOT a translation — $ is $ and ￥ is ￥ in all

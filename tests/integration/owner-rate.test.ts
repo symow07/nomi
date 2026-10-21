@@ -144,7 +144,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
     const detail = await loadConversationDetail(db, BIZ, convId);
     expect(detail).not.toBeNull();
     // The rate in force is the most recent one she stated, not the first.
-    expect(detail!.rate?.rate).toBe(7.22);
+    expect(detail!.rate?.rate).toBe('7.22');
     expect(detail!.rate?.statedAt).toBeInstanceOf(Date);
   });
 });

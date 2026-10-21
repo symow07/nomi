@@ -197,7 +197,7 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
     const quote = (c: string, leadTimeDays: number | null, withheld: boolean) =>
       tx((t) => tenantRepos(t, bid.value).audit.recordQuote({
         conversationId: c as never, productId: PID, quantity: 20000, inputs: {},
-        unitPrice: usd(0.45), discountPct: 0, total: usd(9000), requiresHuman: false, appliedRules: [],
+        unitPrice: usd('0.45'), discountPct: 0, total: usd('9000'), requiresHuman: false, appliedRules: [],
         leadTimeDays,
         leadTimeWithheld: withheld
           ? { label: '春节', from: new Date('2027-02-05'), to: new Date('2027-02-21') } : null,

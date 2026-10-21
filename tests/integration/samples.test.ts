@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * M45 — samples, end to end.
@@ -211,7 +212,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
 
     const { bid, tenantRepos } = await repos();
     const policy = await tx((t) => tenantRepos(t, bid.value).catalog.samplePolicy());
-    expect(policy!.price).toEqual({ amount: 30, currency: 'USD' });
+    expect(policy!.price).toEqual(moneyOf('30', 'USD'));
     expect(policy!.creditedOnFirstOrder).toBe(true);
 
     const { sampleAnswerContext } = await import('../../src/core/commerce/samples.js');
@@ -235,7 +236,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     // and the newest is the one in force, with its own answer to "credited"
     const { bid, tenantRepos } = await repos();
     const policy = await tx((t) => tenantRepos(t, bid.value).catalog.samplePolicy());
-    expect(policy!.price.amount).toBe(45);
+    expect(policy!.price.amount).toBe('45');
     expect(policy!.creditedOnFirstOrder).toBe(false);
   });
 
@@ -249,7 +250,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     await post('/app/settings/samples', 'price=0');
     const { bid, tenantRepos } = await repos();
     const policy = await tx((t) => tenantRepos(t, bid.value).catalog.samplePolicy());
-    expect(policy!.price.amount).toBe(0);
+    expect(policy!.price.amount).toBe('0');
     // Still a policy — the difference between "free" and "unstated" is a row.
     expect(policy).not.toBeNull();
   });

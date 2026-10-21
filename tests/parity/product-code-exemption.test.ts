@@ -35,8 +35,8 @@ const CATALOGUE = catalogueWords([...WESTLAKE, ZX, THERMOS]);
 
 /** A quote of 5,000 pcs at $1.45, $7,250 in all — the figures the guard reads from one. */
 const QUOTE = {
-  productId: PRODUCT, quantity: { value: 5000, unit: 'pcs' }, unitPrice: usd(1.45), discountPct: 0,
-  total: usd(7250), moq: null, leadTimeDays: null, leadTimeBlocked: null, requiresHuman: false,
+  productId: PRODUCT, quantity: { value: 5000, unit: 'pcs' }, unitPrice: usd('1.45'), discountPct: 0,
+  total: usd('7250'), moq: null, leadTimeDays: null, leadTimeBlocked: null, requiresHuman: false,
 } as unknown as Quote;
 
 /** The guard's verdict: null when the reply passes, else the figures it held. */

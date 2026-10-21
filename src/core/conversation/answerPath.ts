@@ -16,6 +16,7 @@
  * Pure: labels, a sum and a price table. No I/O.
  */
 import { usd, type Money } from '../types/money.js';
+import { addDecimal, decimal, divDecimal, fromInteger, mulDecimal } from '../types/decimal.js';
 
 export const ANSWER_PATHS = [
   'silent',         // a person holds the conversation; she says nothing
@@ -56,11 +57,11 @@ export function analyserWasAvoidable(f: {
  * message" without anybody opening a billing page. Dated, because prices move.
  */
 export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { readonly input: Money; readonly output: Money; readonly asOf: string }>> = {
-  'claude-haiku-4-5': { input: usd(1), output: usd(5), asOf: '2026-09' },
+  'claude-haiku-4-5': { input: usd('1'), output: usd('5'), asOf: '2026-09' },
   // T7 — DeepSeek's own page (api-docs.deepseek.com, Models & Pricing), read
   // 2026-09-29: input on a cache miss and output, at PEAK — off-peak is half —
   // so the estimate is a ceiling. Production's LLM_MODEL is this id.
-  'deepseek-flash': { input: usd(0.3), output: usd(1.2), asOf: '2026-09-29' },
+  'deepseek-flash': { input: usd('0.3'), output: usd('1.2'), asOf: '2026-09-29' },
 };
 
 /** The currency travels with the amount (M43a): an estimate is money, not a bare number. */
@@ -68,7 +69,8 @@ export function estimateCost(modelId: string | null, inputTokens: number, output
   const p = modelId ? MODEL_PRICES_PER_MTOK[modelId] : undefined;
   if (!p || p.input.currency !== p.output.currency) return null;
   return {
-    amount: (inputTokens * p.input.amount + outputTokens * p.output.amount) / 1_000_000,
+    // A1 — exact: tokens × price per million, to eight decimals (an estimate of fractions of a cent).
+    amount: divDecimal(addDecimal(mulDecimal(fromInteger(inputTokens), p.input.amount), mulDecimal(fromInteger(outputTokens), p.output.amount)), decimal('1000000'), 8),
     currency: p.input.currency,
   };
 }
@@ -113,10 +115,10 @@ export function summarizePaths(turns: readonly MeasuredTurn[]): PathSummary {
       const c = estimateCost(t.modelId, t.inputTokens, t.outputTokens);
       cost = c === null || (cost !== undefined && cost.currency !== c.currency)
         ? null
-        : { amount: (cost?.amount ?? 0) + c.amount, currency: c.currency };
+        : { amount: addDecimal(cost?.amount ?? decimal('0'), c.amount), currency: c.currency };
     }
   }
-  const estimatedCost = cost === undefined ? usd(0) : cost;
+  const estimatedCost = cost === undefined ? usd('0') : cost;
   const n = turns.length;
   return {
     turns: n, replies, repliesWordedByHer: hers, llmCalls: calls,
@@ -124,7 +126,7 @@ export function summarizePaths(turns: readonly MeasuredTurn[]): PathSummary {
     estimatedCost,
     perTurn: n === 0 ? null : {
       inputTokens: Math.round(tin / n), outputTokens: Math.round(tout / n),
-      cost: estimatedCost === null ? null : { amount: estimatedCost.amount / n, currency: estimatedCost.currency },
+      cost: estimatedCost === null ? null : { amount: divDecimal(estimatedCost.amount, fromInteger(n), 8), currency: estimatedCost.currency },
     },
     byPath,
   };

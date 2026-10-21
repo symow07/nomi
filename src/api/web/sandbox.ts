@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { type Money, type Currency, usd, parseCurrency } from '../../core/types/money.js';
+import { type Money, type Currency, usd, moneyFromStored, parseCurrency } from '../../core/types/money.js';
+import { type Decimal, compareDecimal, decimal, roundDecimal, signOf } from '../../core/types/decimal.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
@@ -67,7 +68,7 @@ export async function sayInPractice(
   deps: { readonly db: Db; readonly enqueue: (job: InboundJob) => Promise<void> },
   live: BusinessId, text: string,
   /** P4 — "your total first": the total the owner expects the answer to give, typed before it comes. */
-  expected: number | null = null,
+  expected: Decimal | null = null,
 ): Promise<'sent' | 'empty' | PracticeRefusal> {
   const said = text.trim();
   if (!said) return 'empty';
@@ -82,7 +83,7 @@ export async function sayInPractice(
     await recordTypedMessage(tx, id, messageId, said);
     return id;
   });
-  if (expected !== null && expected > 0) await expectTotal(deps.db, live, messageId, expected);
+  if (expected !== null && signOf(expected) > 0) await expectTotal(deps.db, live, messageId, expected);
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
   return 'sent';
 }
@@ -96,7 +97,7 @@ export async function sayInPractice(
  */
 export function quoteUnit(q: NonNullable<PracticeTrust['quote']>): Money {
   const legacy = (q as unknown as { unitPriceUsd?: number }).unitPriceUsd;
-  return q.unitPrice ?? usd(legacy ?? 0);
+  return q.unitPrice ?? moneyFromStored(legacy ?? 0, 'USD') ?? usd('0');
 }
 
 // ── read model ────────────────────────────────────────────────────────────────
@@ -255,12 +256,13 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
  * answer comes, so a misread or shifted price is caught by the owner and not
  * by a customer. Only where there is a price list to quote from.
  */
-const parseTotal = (raw: unknown, currency: Currency): number | null => {
+const parseTotal = (raw: unknown, currency: Currency): Decimal | null => {
   // CUR — read the way the workspace's currency writes a figure: "1.250,00"
   // is 1250 in reais, and was 1.25.
-  const n = readTypedAmount(String(raw ?? ''), currency) ?? NaN;
-  return Number.isFinite(n) && n > 0 && n < 1e12 ? Math.round(n * 100) / 100 : null;
+  const n = readTypedAmount(String(raw ?? ''), currency);
+  return n !== null && signOf(n) > 0 && compareDecimal(n, TRILLION) < 0 ? roundDecimal(n, 2) : null;
 };
+const TRILLION = decimal('1000000000000');
 export { parseTotal };
 
 /**
@@ -394,7 +396,7 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
       <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span>${
       gap ? `<span class="dt muted">${esc(t(locale, 'practice.check.notYet'))}</span>` : ''}</li>`;
   }).join('');
-  const money = (n: number, currency: string | null) =>
+  const money = (n: Decimal, currency: string | null) =>
     show.money(locale, { amount: n, currency: parseCurrency(currency ?? '') ?? c.currency ?? 'USD' });
   const totals = c.totals.map((x) => `<li class="chk ${x.agreed === true ? 'ok' : x.agreed === false ? 'bad' : ''}"><span class="mk" aria-hidden="true">${
     shape(x.agreed === true ? 'ok' : x.agreed === false ? 'failed' : 'waiting')}</span><span class="lbl">${esc(

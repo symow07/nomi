@@ -12,6 +12,7 @@ import { esc } from '../../src/api/web/layout.js';
 import type { CustomerCard } from '../../src/db/customerCard.js';
 import { linkedCss } from './linked-css.js';
 import { icon } from '../../src/api/web/icons.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * THE WARMTH RUN (2026-10-03) — customers' faces and the profile card.
@@ -156,7 +157,7 @@ describe('phase 3 · the profile card', () => {
   const card = (over: Partial<CustomerCard> = {}): CustomerCard => ({
     clientId: ID, name: 'Maya Rahman', photo: null, channels: ['instagram'], lastWrote: new Date('2026-10-02T10:00:00Z'),
     bought: [{ name: 'Canvas tote', nameZh: '帆布袋', quantity: 200, unit: 'pcs' }], askedAbout: [],
-    value: { clientId: ID, spent: { amount: 1840, currency: 'USD' }, orders: 4, lastOrderAt: new Date('2026-09-20T00:00:00Z'), regular: true, quietSince: null },
+    value: { clientId: ID, spent: moneyOf('1840', 'USD'), orders: 4, lastOrderAt: new Date('2026-09-20T00:00:00Z'), regular: true, quietSince: null },
     waiting: true, conversationId: 'c0de0000-0000-4000-8000-000000000001', ...over,
   });
   const NOW = new Date('2026-10-03T08:00:00Z');

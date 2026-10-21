@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { type Decimal, compareDecimal, decimal, roundDecimal } from '../core/types/decimal.js';
 import { isRetailKind } from '../core/owner/sellingStyle.js';
 import { withTenantTx, type Db } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -127,15 +128,15 @@ export async function observeChecklist(db: Db, live: BusinessId, copy: BusinessI
  * "YOUR TOTAL FIRST" — the total the owner expects, typed with the practice
  * message before the answer comes. Kept on the workspace (0091).
  */
-export async function expectTotal(db: Db, live: BusinessId, messageId: string, expected: number): Promise<void> {
+export async function expectTotal(db: Db, live: BusinessId, messageId: string, expected: Decimal): Promise<void> {
   await withTenantTx(db, live, (tx) => sql`
     insert into practice_totals (business_id, message_id, expected) values (${live}::uuid, ${messageId}, ${expected})
     on conflict do nothing`.execute(tx));
 }
 
 export type PracticeTotal = {
-  readonly messageId: string; readonly expected: number;
-  readonly quoted: number | null; readonly currency: string | null; readonly agreed: boolean | null;
+  readonly messageId: string; readonly expected: Decimal;
+  readonly quoted: Decimal | null; readonly currency: string | null; readonly agreed: boolean | null;
 };
 
 /**
@@ -156,7 +157,8 @@ export async function settleTotals(db: Db, live: BusinessId, copy: BusinessId | 
          where q.business_id = ${copy}::uuid and q.created_at >= m.sent_at
          order by q.created_at limit 1`.execute(tx)).rows[0]);
       if (!q) continue;
-      const agreed = Math.abs(Number(q.total) - Number(w.expected)) < 0.005;
+      // A1 — the same figure to the cent (both are written to two places), compared exactly.
+      const agreed = compareDecimal(roundDecimal(decimal(q.total), 2), roundDecimal(decimal(w.expected), 2)) === 0;
       await withTenantTx(db, live, (tx) => sql`
         update practice_totals set quoted = ${q.total}::numeric, currency = ${q.currency}, agreed = ${agreed}, decided_at = now()
          where business_id = ${live}::uuid and message_id = ${w.message_id} and decided_at is null`.execute(tx));
@@ -165,7 +167,7 @@ export async function settleTotals(db: Db, live: BusinessId, copy: BusinessId | 
   const rows = await withTenantTx(db, live, async (tx) => (await sql<{ message_id: string; expected: string; quoted: string | null; currency: string | null; agreed: boolean | null }>`
     select message_id, expected::text as expected, quoted::text as quoted, currency, agreed from practice_totals
      where business_id = ${live}::uuid order by created_at desc limit 20`.execute(tx)).rows.map((r) => ({
-    messageId: r.message_id, expected: Number(r.expected), quoted: r.quoted === null ? null : Number(r.quoted),
+    messageId: r.message_id, expected: decimal(r.expected), quoted: r.quoted === null ? null : decimal(r.quoted),
     currency: r.currency, agreed: r.agreed,
   })));
   // The fix wave (w4-conversation-23) — a total still waiting is shown only while its line is

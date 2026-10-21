@@ -84,7 +84,7 @@ const toRules = (
   r: { floor: string; max: string; ask: string; currency?: string } | undefined,
 ): PriceRules | null => {
   if (!r) return null;
-  const floor = moneyFromRow(Number(r.floor), r.currency ?? 'USD');
+  const floor = moneyFromRow(r.floor, r.currency ?? 'USD');
   return floor === null ? null : { floor, maxDiscountPct: Number(r.max), askAbovePct: Number(r.ask) };
 };
 
@@ -136,7 +136,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
         // G18 — the row's own currency, for the price as well as the floor.
         // `toRules` has read it since M43a; the query never selected it, so
         // every floor was read back as dollars whatever it was stored as.
-        listPrice: r.list_price === null ? null : moneyFromRow(Number(r.list_price), r.list_currency ?? 'USD'),
+        listPrice: r.list_price === null ? null : moneyFromRow(r.list_price, r.list_currency ?? 'USD'),
         own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask!, currency: r.currency ?? 'USD' }) : null,
         inheritsDefault: r.floor === null && businessDefault !== null,
         isActive: r.is_active ?? false,
@@ -247,7 +247,7 @@ export async function savePriceRulesTx(
       : undefined;
     if (input.productId && !product) return { ok: false, errors: { floor: 'missing' } };
 
-    const listPrice = product?.price != null ? moneyFromRow(Number(product.price), product.currency) : null;
+    const listPrice = product?.price != null ? moneyFromRow(product.price, product.currency) : null;
     const v = validatePriceRules({
       floor: input.floor, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
       ...(input.productId ? { listPrice } : {}),

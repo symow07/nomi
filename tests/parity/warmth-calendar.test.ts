@@ -47,7 +47,7 @@ const e = (x: Partial<CalendarEntry> & Pick<CalendarEntry, 'category' | 'kind' |
 const DATES: CalendarEntry[] = [
   e({ category: 'samples', kind: 'sample_handled', at: at(TODAY, '08:00'), buyer: CHEN, source: { table: 'sample_requests', id: 's0', column: 'handled_at' } }),
   e({ category: 'samples', kind: 'sample_asked', at: at(TODAY, '09:12'), buyer: AHMED, detail: { open: true }, source: { table: 'sample_requests', id: 's1', column: 'requested_at' } }),
-  e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '15:40'), buyer: CHEN, detail: { price: usd(1.95), quantity: 2000 },
+  e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '15:40'), buyer: CHEN, detail: { price: usd('1.95'), quantity: 2000 },
     source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
   e({ category: 'negotiation', kind: 'reply_due', at: at(TODAY, '16:00'), source: { table: 'handoffs', id: 'h1', column: 'sla_deadline_at' } }),
   e({ category: 'orders', kind: 'order_state', at: at(addDays(TODAY, 1), '11:00'), orderId: 'o1', buyer: AHMED,

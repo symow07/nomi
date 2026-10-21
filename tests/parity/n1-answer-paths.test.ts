@@ -8,6 +8,7 @@ import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import { emptyState, CONVERSATION, PRODUCT } from './fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from '../pipeline/fakes.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * N1 — who answered: her own rules and memory, or a model?
@@ -69,7 +70,7 @@ describe('N1 · the sums', () => {
   it('a model with no listed price makes the total unknown, never a partial sum', () => {
     expect(estimateCost('some-new-model', 1000, 1000)).toBeNull();
     expect(summarizePaths([t({}), t({ modelId: 'some-new-model' })]).estimatedCost).toBeNull();
-    expect(summarizePaths([]).estimatedCost).toEqual({ amount: 0, currency: 'USD' });
+    expect(summarizePaths([]).estimatedCost).toEqual(moneyOf('0', 'USD'));
   });
 });
 

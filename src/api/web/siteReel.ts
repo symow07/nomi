@@ -45,7 +45,7 @@ const CUSTOMER = 'Amira';
 const ASSISTANT = 'Mira';
 const INSTAGRAM: Readonly<Record<Locale, string>> = { en: 'Instagram', zh: 'Instagram', ar: 'إنستغرام', es: 'Instagram', fr: 'Instagram' };
 /** The example's figures: a quantity, the per-piece price before and after — inside the reel only. */
-const EXAMPLE = { qty: 500, was: usd(4.2), now: usd(3.8), total: usd(1900) } as const;
+const EXAMPLE = { qty: 500, was: usd('4.2'), now: usd('3.8'), total: usd('1900') } as const;
 
 const CYCLE = 20;
 const SCENE = 5;

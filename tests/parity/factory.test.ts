@@ -11,6 +11,7 @@ import { esc } from '../../src/api/web/layout.js';
 import { readFileSync } from 'node:fs';
 import { withoutIsolates } from './isolates.js';
 import { GO } from '../../src/api/web/icons.js';
+import { compareDecimal } from '../../src/core/types/decimal.js';
 
 /** V1 step four — My business's rules, as they sit in the shell's stylesheet. */
 const factorySectionOfShell = (): string => {
@@ -55,7 +56,7 @@ const complete: FactoryView = {
   products: { total: 12, needPrice: 0, names: [
     { name: 'Vacuum cup', nameZh: '保温杯' }, { name: 'Lunch box', nameZh: '饭盒' },
     { name: 'Thermos', nameZh: '热水瓶' }, { name: 'Kettle', nameZh: '水壶' }] },
-  promises: { certs: ['food_grade', 'BPA_free'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false,
+  promises: { certs: ['food_grade', 'BPA_free'], floorLow: usd('0.75'), floorHigh: usd('0.75'), ceilingPct: 8, ceilingVaries: false,
     askPct: 5, askVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
@@ -64,7 +65,7 @@ const complete: FactoryView = {
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
   // A discount she wrote: without one, nothing ever comes off and the ceiling
   // and ask line limit nothing (phase 9 — see the no-discount test below).
-  prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 },
+  prices: { currency: 'USD', businessDefault: { floor: usd('0.35'), maxDiscountPct: 10, askAbovePct: 7 },
     products: [], unanswered: 0,
     volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 10000, discountPct: 4, asksFirst: false }] },
 };
@@ -180,7 +181,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // The guard reads the PER-PRODUCT policy; quoting a single business-wide
     // floor described numbers no quote had ever used.
     const html = screen('promises', { ...complete, promises: {
-      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } });
+      ...complete.promises, floorLow: usd('0.30'), floorHigh: usd('2.40'), ceilingVaries: true } });
     expect(html).toContain('$0.30');
     expect(html).toContain('$2.40');
     expect(html).toContain('less on some products');
@@ -392,14 +393,15 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     // A catalogue with two products on DIFFERENT rules — the shape that broke it.
     // (Floors sit under the fixture's $0.38 tier price so both quotes are real.)
     const policies = [
-      policy({ floorPrice: usd(0.30), maxDiscountPct: 8, humanRequiredAbovePct: 5 }),
-      policy({ floorPrice: usd(0.36), maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
+      policy({ floorPrice: usd('0.30'), maxDiscountPct: 8, humanRequiredAbovePct: 5 }),
+      policy({ floorPrice: usd('0.36'), maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
     ];
     const floors = policies.map((p) => p.floorPrice.amount);
     const view: FactoryView = {
       ...complete,
       promises: {
-        certs: [], floorLow: usd(Math.min(...floors)), floorHigh: usd(Math.max(...floors)),
+        certs: [], floorLow: usd(floors.reduce((a, b) => (compareDecimal(b, a) < 0 ? b : a))),
+        floorHigh: usd(floors.reduce((a, b) => (compareDecimal(b, a) > 0 ? b : a))),
         ceilingPct: Math.max(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
         askPct: Math.max(...policies.map((p) => p.humanRequiredAbovePct)), askVaries: false,
       },
@@ -415,7 +417,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
       const r = computeQuote({ product: product(), tiers: tiers(), policy, rules: [], quantity: 20000 });
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      expect(r.value.unitPrice.amount).toBeGreaterThanOrEqual(stated!.amount);
+      expect(compareDecimal(r.value.unitPrice.amount, stated!.amount)).toBeGreaterThanOrEqual(0);
     }
 
     // 2. The page must show the RANGE, never one product's number as "the" floor.
@@ -447,7 +449,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     const { computeQuote } = await import('../../src/core/commerce/quote.js');
     const { holdReasonOf } = await import('../../src/core/conversation/hold.js');
     const { product, tiers, policy } = await import('./fixtures.js');
-    const p = policy({ floorPrice: usd(0.10), maxDiscountPct: 8, humanRequiredAbovePct: 5 });
+    const p = policy({ floorPrice: usd('0.10'), maxDiscountPct: 8, humanRequiredAbovePct: 5 });
     const q = computeQuote({
       product: product(), tiers: tiers(), policy: p, quantity: 20000,
       rules: [{ businessId: p.businessId, priority: 1, condition: {}, action: { kind: 'discount_pct', value: 6 } }],

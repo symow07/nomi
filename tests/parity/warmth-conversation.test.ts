@@ -37,7 +37,7 @@ const MAGENTA = DESIGN_TOKENS.color.assistant.toUpperCase();
 
 const catchUp = (over: Partial<CatchUp> = {}): CatchUp => ({
   clientId: CLIENT, channel: 'whatsapp', address: '2348035550101', photo: null,
-  value: { clientId: CLIENT, spent: usd(1240), orders: 3, lastOrderAt: ago(40 * DAY), regular: true, quietSince: null },
+  value: { clientId: CLIENT, spent: usd('1240'), orders: 3, lastOrderAt: ago(40 * DAY), regular: true, quietSince: null },
   bought: [{ name: 'Canvas tote', nameZh: '帆布袋', orders: 2 }, { name: 'Apron', nameZh: '围裙', orders: 1 }],
   boughtMore: 0, askedAbout: { name: 'Canvas tote', nameZh: '帆布袋' },
   lastOrder: { reference: 'ZX-1042', confirmedAt: ago(40 * DAY) },
@@ -148,7 +148,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       for (const side of sides(l, 'catchup.bought', 'items')) expect(s, l).toContain(side);
       // what they spent, and the Regular mark
       expect(s, l).toContain(`<span class="fig">`);
-      expect(s, l).toContain(`<bdi>${plain(show.money(l, usd(1240)))}</bdi>`);
+      expect(s, l).toContain(`<bdi>${plain(show.money(l, usd('1240')))}</bdi>`);
       for (const side of sides(l, 'catchup.spent', 'money')) expect(s, l).toContain(side);
       expect(s, l).toContain(`<span class="cu-regular">${esc(t(l, 'catchup.regular'))}</span>`);
     }
@@ -221,7 +221,7 @@ describe('the state of play, drawn — one line, from the rows', () => {
       ['deletion', detail({ deletionAsk: { askedAt: ago(DAY) } })],
       ['order', detail({ ownership: 'OWNER_CONTROLLED', orderProposal: {
         id: 'op-1', conversationId: 'c', productId: 'p', productName: 'Canvas tote', quantity: 500, unit: 'pcs',
-        unitPrice: usd(1.2), total: usd(600), email: 'buyer@example.com', paymentTerms: null, incoterm: null, createdAt: ago(MIN),
+        unitPrice: usd('1.2'), total: usd('600'), email: 'buyer@example.com', paymentTerms: null, incoterm: null, createdAt: ago(MIN),
       } })],
     ];
     for (const l of LOCALES) {

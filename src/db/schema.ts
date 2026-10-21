@@ -12,7 +12,8 @@ import type { ColumnType, Generated } from 'kysely';
  */
 
 type Timestamp = ColumnType<Date, Date | string, Date | string>;
-type Numeric = ColumnType<string, number, number>;
+// A1 — a `numeric` reads back as exact text, and is written as exact text (a Decimal) or, for counts and settings, a number.
+type Numeric = ColumnType<string, string | number, string | number>;
 
 export interface Database {
   businesses: {

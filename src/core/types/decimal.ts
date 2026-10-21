@@ -77,6 +77,16 @@ export function fromInteger(n: number): Decimal {
   return text({ n: BigInt(n), s: 0 });
 }
 
+/**
+ * A value read back from STORAGE — a `numeric` column's text, or a number an older JSON payload holds (an import draft,
+ * an event written before A1). A number is read from its shortest text, which is the decimal that was written; an
+ * exponent form ("1e-7") or a non-finite number is not a stored amount and is refused. Reading, never computing.
+ */
+export function storedDecimal(v: string | number): Decimal | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? parseDecimal(String(v)) : null;
+  return parseDecimal(v);
+}
+
 export const addDecimal = (a: Decimal, b: Decimal): Decimal => {
   const [x, y, s] = aligned(scaled(a), scaled(b));
   return text({ n: x + y, s });
@@ -117,6 +127,17 @@ export const roundDecimal = (a: Decimal, places: number): Decimal => {
   return text(roundScaled(scaled(a), places));
 };
 
+/** Up, toward positive infinity, at `places` decimals: a floor price that must never allow more off than was said. */
+export const ceilDecimal = (a: Decimal, places: number): Decimal => {
+  if (!Number.isInteger(places) || places < 0) throw new Error(`decimal: ${places} decimal places`);
+  const v = scaled(a);
+  if (v.s <= places) return text(v);
+  const drop = pow10(v.s - places);
+  let q = v.n / drop;                       // BigInt division truncates toward zero
+  if (v.n > 0n && v.n % drop !== 0n) q += 1n;
+  return text({ n: q, s: places });
+};
+
 /**
  * a ÷ b, rounded half away from zero at `places` decimals — exact up to that rounding (the quotient is computed as
  * a fraction, never as a float). Division by zero throws.
@@ -135,20 +156,12 @@ export const divDecimal = (a: Decimal, b: Decimal, places: number): Decimal => {
 };
 
 /**
- * `total` split into `parts` amounts at `places` decimals that ADD UP EXACTLY to the total rounded at `places`
- * (largest remainder: the first parts carry the extra minor units). Splitting $10.00 in three gives 3.34, 3.33, 3.33.
+ * A decimal through `Intl.NumberFormat`, exactly. Intl formats a numeric STRING without converting it to a float
+ * (ECMA-402 "Intl.NumberFormat v3", in every Node this product runs on); TypeScript's ES2022 library types do not
+ * know that yet, hence the one cast, here and nowhere else.
  */
-export function allocateDecimal(total: Decimal, parts: number, places: number): Decimal[] {
-  if (!Number.isSafeInteger(parts) || parts < 1) throw new Error(`decimal: cannot split into ${parts} parts`);
-  const whole = roundScaled(scaled(total), places);
-  const unit = pow10(places - whole.s);
-  const n = whole.n * unit; // in minor units at `places`
-  const neg = n < 0n;
-  const abs = neg ? -n : n;
-  const base = abs / BigInt(parts);
-  const extra = Number(abs % BigInt(parts));
-  return Array.from({ length: parts }, (_, i) => {
-    const m = base + (i < extra ? 1n : 0n);
-    return text({ n: neg ? -m : m, s: places });
-  });
-}
+export const formatDecimal = (nf: Intl.NumberFormat, d: Decimal): string => nf.format(d as unknown as number);
+
+/** The same, in parts (for a page that styles the integer and the fraction separately). */
+export const formatDecimalToParts = (nf: Intl.NumberFormat, d: Decimal): Intl.NumberFormatPart[] =>
+  nf.formatToParts(d as unknown as number);

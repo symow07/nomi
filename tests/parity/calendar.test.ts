@@ -46,7 +46,7 @@ const ENTRIES: CalendarEntry[] = [
     detail: { orderReference: '2026-0001', orderState: 'shipped', trackingReference: 'SF123' },
     source: { table: 'order_updates', id: 'u1', column: 'at' } }),
   e({ category: 'negotiation', kind: 'price_worked_out', at: at(addDays(TODAY, -3), '11:00'),
-    detail: { price: usd(0.38), quantity: 20000 }, source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
+    detail: { price: usd('0.38'), quantity: 20000 }, source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
   e({ category: 'negotiation', kind: 'reply_due', at: at(addDays(TODAY, 1), '09:00'),
     source: { table: 'handoffs', id: 'h1', column: 'sla_deadline_at' } }),
   e({ category: 'followups', kind: 'followup_due', at: at(addDays(TODAY, 1), '08:00'), conversationId: null,

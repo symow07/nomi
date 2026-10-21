@@ -1,5 +1,6 @@
 import type { Locale } from './locale.js';
 import { type Money, currencySymbol } from '../../types/money.js';
+import { formatDecimal } from '../../types/decimal.js';
 
 /**
  * ADR-0008 — Locale-aware formatting. Pure (Intl only; clock/date injected).
@@ -36,7 +37,7 @@ export function formatQty(locale: Locale, n: number): string {
  * been correct in its own terms.
  */
 export const formatMoney = (m: Money): string =>
-  `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${currencySymbol(m.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), m.amount)}`;
 
 /** A localized calendar date in the workspace's zone. */
 export function formatDate(locale: Locale, d: Date, zone: string): string {

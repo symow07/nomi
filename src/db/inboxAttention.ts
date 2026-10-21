@@ -1,6 +1,9 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { Money } from '../core/types/money.js';
+import { compareDecimal, decimal } from '../core/types/decimal.js';
+
+const ZERO = decimal('0');
 import { needsOwnerFor } from './buyersList.js';
 import { customerValues, SPEND_STATUSES, REGULAR_ORDERS } from './customerValue.js';
 import { faceVersions } from './faces.js';
@@ -155,7 +158,7 @@ export async function readAttention(tx: Tx, now: Date, viewerId?: string): Promi
       clientId: id, name: w.name, photo: photos.get(id) ?? null, conversationId: w.conversation_id,
       kind: k.kind, since: k.since, spent: values.get(id)?.spent ?? null,
     }];
-  }).sort((a, b) => (b.spent?.amount ?? 0) - (a.spent?.amount ?? 0)
+  }).sort((a, b) => compareDecimal(b.spent?.amount ?? ZERO, a.spent?.amount ?? ZERO)
     || b.since.getTime() - a.since.getTime() || (a.clientId < b.clientId ? -1 : 1));
 }
 

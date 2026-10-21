@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { withCountry } from '../../src/api/web/zone.js';
 import * as show from '../../src/api/web/values.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * Phase 9 (V1-169, V1-229, V1-300, V1-307) — a quantity on an owner's page by
@@ -28,7 +29,7 @@ describe('Phase 9 · a quantity is written the reader\'s way in the workspace\'s
     expect(withCountry(null, () => strip(show.quantity('es', 5000)))).toBe('5000');
     expect(withCountry(null, () => strip(show.quantity('es', 12000)))).toBe('12.000');
     expect(withCountry(null, () => strip(show.quantity('fr', 2000)).replace(/\u202f/g, ' '))).toBe('2 000');
-    expect(withCountry(null, () => strip(show.money('fr', { amount: 1.05, currency: 'USD' })))).toBe('1,05\u00a0$');
+    expect(withCountry(null, () => strip(show.money('fr', moneyOf('1.05', 'USD'))))).toBe('1,05\u00a0$');
     expect(withCountry(null, () => strip(show.quantity('en', 5000)))).toBe('5,000');
     expect(strip(show.quantity('es', 5000))).toBe('5,000');
   });

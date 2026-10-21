@@ -31,6 +31,7 @@ import { signupModeFrom } from '../../src/core/owner/signup.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * The audit of 2026-09-20 (`docs/AUDIT-2026-09-20.md`), its last open rows,
@@ -63,15 +64,15 @@ const employee: EmployeeProfile = {
 
 const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs',
-  entryQty: 5000, entryPrice: usd(0.92), learned: true, status: 'learned', imageMatchable: true, isActive: true, ...over,
+  entryQty: 5000, entryPrice: usd('0.92'), learned: true, status: 'learned', imageMatchable: true, isActive: true, ...over,
 });
 
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: false,
-  tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) }],
-  aliases: [], images: [], recentQuotes: [{ quantity: 5000, unitPrice: usd(0.92), total: usd(4600) }], ...over,
+  tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd('1.05') }, { minQty: 2000, maxQty: null, unitPrice: usd('0.92') }],
+  aliases: [], images: [], recentQuotes: [{ quantity: 5000, unitPrice: usd('0.92'), total: usd('4600') }], ...over,
 });
 
 const contact = (over: Partial<ContactRow> = {}): ContactRow => ({
@@ -84,7 +85,7 @@ const contacts = (rows: readonly ContactRow[]): ContactsView => ({ contacts: row
 const order = (over: Partial<OrderView> = {}): OrderView => ({
   orderId: 'o1', reference: 'PI-HF-20260803-0301', conversationId: 'c1',
   buyer: 'Ahmed', productName: 'Vacuum cup', productSku: 'ZX-200',
-  quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600,
+  quantity: 5000, unit: 'pcs', unitPriceAmount: decimal('0.92'), totalAmount: decimal('4600'),
   currency: 'USD', email: 'a@example.com', paymentTerms: '30% with order', incoterm: 'FOB',
   sellerName: 'Atlas Trading', confirmedAt: new Date('2026-08-01T00:00:00Z'),
   history: [{ state: 'shipped', at: new Date('2026-08-05T00:00:00Z'), trackingReference: 'MAEU123', note: null, by: 'owner' }],
@@ -95,7 +96,7 @@ const practice = (trust: Partial<PracticeTrust> = {}): SandboxView => ({
   hasConversation: true, messages: [], ownership: 'AI',
   lastTurn: {
     scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
-    guardViolations: 0, handoff: false, quote: { unitPrice: usd(0.85), total: usd(17000) },
+    guardViolations: 0, handoff: false, quote: { unitPrice: usd('0.85'), total: usd('17000') },
     checks: [{ invariant: 'priceFloorRespected', pass: true, detail: 'ok' }], ...trust,
   },
 });
@@ -106,14 +107,14 @@ const list: InboxList = {
     conversationId: 'conv-1', buyer: 'Aisha Bello', country: 'NG',
     status: 'awaiting', needsAction: false, ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null,
     latestMessage: 'Price for 5,000 pcs?', latestAt: NOW,
-    product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000, unitPrice: usd(1.45),
+    product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000, unitPrice: usd('1.45'),
   }],
 };
 
 const conversation: ConversationDetail = {
   conversationId: 'conv-1', buyer: 'Aisha Bello', country: 'NG', status: 'awaiting',
   product: { name: 'LED String Lights 10m', nameZh: 'LED灯串' }, quantity: 5000,
-  quote: { unitPrice: usd(1.45), total: usd(7250), quantity: 5000 }, order: null,
+  quote: { unitPrice: usd('1.45'), total: usd('7250'), quantity: 5000 }, order: null,
   messages: [{ direction: 'inbound', text: 'Price for 5,000 pcs?', at: NOW }],
   pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null,
   lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
@@ -123,8 +124,8 @@ const buyerFile = (products: CustomerFile['context']['products'] = [{ sku: 'ZX-1
   conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channel: 'whatsapp',
   status: { t: 'awaiting' }, statusTone: 'warn', needsOwner: false,
   profile: { firstContact: NOW, products: [], quoteCount: 1, orderCount: 0 },
-  timeline: [{ kind: 'quote', at: NOW, text: null, qty: 5000, unitPrice: usd(0.92), orderStatus: null }],
-  context: { products, latestQuote: { qty: 5000, unitPrice: usd(0.92), total: usd(4600) }, order: null, corrections: [] },
+  timeline: [{ kind: 'quote', at: NOW, text: null, qty: 5000, unitPrice: usd('0.92'), orderStatus: null }],
+  context: { products, latestQuote: { qty: 5000, unitPrice: usd('0.92'), total: usd('4600') }, order: null, corrections: [] },
 });
 
 const knowledge: ProductKnowledge = {
