@@ -87,7 +87,8 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     // exists only where the area is switched on. On for this tenant; the OFF
     // state (404s, no links) is outreach-area.test.ts.
     await withTenantTx(db, bid.value, (tx) =>
-      sql`update businesses set outreach_area = true where id = ${RUN_BIZ}::uuid`.execute(tx));
+      // A6 (0176) — and the books, which also exist only where they are switched on (off: books-roles.test.ts).
+      sql`update businesses set outreach_area = true, books_area = true where id = ${RUN_BIZ}::uuid`.execute(tx));
 
     // REAL ids out of the seeded data, not invented ones: a route given a
     // nonexistent id takes its not-found branch and never runs the query that
@@ -475,7 +476,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           }
           if (/data-mark="agent"/.test(m[1]!) && m[2] !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot in the nav drawn by something else`);
         }
-        if (nav && navIcons < 6) problems.push(`${at}: the nav drew ${navIcons} icons`);
+        // A6 — the books' mode has a rail of its own: its entry and the switch (or an accountant's way out).
+        const railIcons = /\/app\/books(\/|$)/.test(at.split(' ')[1] ?? '') ? 2 : 6;
+        if (nav && navIcons < railIcons) problems.push(`${at}: the nav drew ${navIcons} icons`);
         for (const m of html.replace(nav, ' ').matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/g)) {
           const [whole, attrs, body] = [m[0], m[1]!, m[2]!];
           if (/class="mark"/.test(attrs)) continue;                     // the brand's mark (brand.ts), drawn on its own grid
