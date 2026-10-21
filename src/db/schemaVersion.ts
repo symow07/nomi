@@ -414,7 +414,9 @@ import type { Db } from './client.js';
 // 167 = the deploy alarm (0167): `deploy_lag`, which the ten-minute look writes once per head of main an hour late.
 // 168 = MAD, EUR and GBP (0168): the nine currency checks admit them. Against a 167 database a workspace in one of
 //       them fails on its first write.
-export const REQUIRED_SCHEMA_VERSION = 168;
+// 169 = the ledger (0169): accounts, journals, fiscal years, entries and lines, with the database's rules. Against a
+//       168 database every books page fails on the missing tables.
+export const REQUIRED_SCHEMA_VERSION = 169;
 
 export type SchemaState = {
   readonly required: number;

@@ -182,6 +182,9 @@ async function main() {
 
     const steps = await plan(client);
     await client.query('begin');
+    // 0169 — a test tenant's books are purged with it: posted entries refuse deletion unless an operator's
+    // transaction says so (books_purge_allowed). Only here, and only for the tenants a test run left behind.
+    await client.query("set local nomi.books_purge = 'prune-test-tenants'");
     try {
       let rows = 0;
       for (const s of steps) {
