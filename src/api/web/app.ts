@@ -227,14 +227,15 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
+import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, xeroWhy } from './books.js';
+import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
 import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
 import { readBooks, readInBooks, rememberWritten } from '../../db/booksInterchange.js';
-import { writeBackOdoo, writeBackSheets, type WriteResult } from '../../books/writeBack.js';
+import { writeBackOdoo, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
@@ -465,6 +466,8 @@ export type WebDeps = {
   readonly sheetsClient?: OAuthClient;
   /** B4 — how Nomi posts to a shop's own Odoo (tests give a recorded fake); absent, the public-internet post. */
   readonly odooPost?: PublicPost;
+  /** D8 — the installation's Xero client (wired only once the privacy page names Xero, D18); absent, Xero is not offered. */
+  readonly xeroClient?: XeroClient;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -2319,11 +2322,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const odooConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'odoo')) : null;
     const odoo = { offered: Boolean(deps.credentialKey), connection: odooConn, silent: odooConn ? silentSince(odooConn, new Date()) : null,
       key: odooConn && odooConn.state === 'connected' ? odooKeyState(odooConn.connectedAt.slice(0, 10), odooConn.keyExpiresOn, todayIso()) : null };
+    // D8 — the shop's own Xero, where this installation has its client.
+    const xeroConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero')) : null;
+    const xero = { offered: xeroReady(), connection: xeroConn, silent: xeroConn ? silentSince(xeroConn, new Date()) : null };
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}${
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
         personOf(s).isOwner ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
@@ -2441,15 +2447,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
   const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
-    odoo: { post: deps.odooPost ?? publicPost, today: todayIso } });
-  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
+    odoo: { post: deps.odooPost ?? publicPost, today: todayIso }, ...(xeroReady() ? { xero: xeroDeps() } : {}) });
+  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
     const locale = localeOf(req);
     if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
-          bodyHtml: renderWorkbookRefused(locale, r.problems, system === 'odoo' && r.undatedTaxes ? { system: 'odoo', taxes: r.undatedTaxes } : undefined) }));
+          bodyHtml: renderWorkbookRefused(locale, r.problems, system !== 'sheets' && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined) }));
     }
+    if (system === 'xero') return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotRead', { why: xeroWhy(locale, r.reason) });
     if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
     return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
   };
@@ -2457,12 +2464,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * C4 — WRITING BACK: the books to the spreadsheet, Nomi's posted entries to Odoo. A conflict is shown and waits —
    * the page lists it and nothing is written over anything (src/books/writeBack.ts).
    */
-  const answerWrite = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo', r: WriteResult) => {
+  const answerWrite = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero', r: WriteResult) => {
     const locale = localeOf(req);
     const back = `/app/books#${system}`;
     if (r.kind === 'written') return flashTo(reply, back, 'books.flash.written', { n: r.count });
     if (r.kind === 'refused') {
-      return flashTo(reply, back, 'books.flash.notWritten', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: system === 'odoo' ? 'Odoo' : t(locale, 'books.sheets.title') }) });
+      return flashTo(reply, back, 'books.flash.notWritten', { why: system === 'xero' ? xeroWhy(locale, r.reason)
+        : t(locale, `books.connection.${r.reason}` as MessageKey, { system: system === 'odoo' ? 'Odoo' : t(locale, 'books.sheets.title') }) });
     }
     return reply.code(409).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.conflict.title'), active: 'settings',
       bodyHtml: renderWriteConflicts(locale, system, r) }));
@@ -2531,21 +2539,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const code = typeof f['code'] === 'string' ? f['code'] : '';
     const from = typeof f['from'] === 'string' ? f['from'] : '';
     const today = todayIso();
-    if (!bid.ok || f['system'] !== 'odoo' || !/^[A-Z0-9_-]{1,12}$/.test(code) || !/^\d{4}-\d{2}-\d{2}$/.test(from) || from > today
+    const system = f['system'] === 'xero' ? 'xero' : f['system'] === 'odoo' ? 'odoo' : null;
+    if (!bid.ok || !system || !/^[A-Z0-9_-]{1,12}$/.test(code) || !/^\d{4}-\d{2}-\d{2}$/.test(from) || from > today
         || Number.isNaN(Date.parse(`${from}T00:00:00Z`))) {
       return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartBad');
     }
     try {
       await withTenantTx(deps.db, bid.value, async (tx) => {
-        await sql`insert into tax_start_dates (business_id, system, code, valid_from, confirmed_by) values (${bid.value}::uuid, 'odoo', ${code}, ${from}::date, ${personOf(s).id})
+        await sql`insert into tax_start_dates (business_id, system, code, valid_from, confirmed_by) values (${bid.value}::uuid, ${system}, ${code}, ${from}::date, ${personOf(s).id})
           on conflict (business_id, system, code) do update set valid_from = excluded.valid_from, confirmed_by = excluded.confirmed_by, confirmed_at = now()`.execute(tx);
         await sql`update tax_codes set valid_from = ${from}::date where business_id = ${bid.value}::uuid and code = ${code}
           and valid_from = (select min(valid_from) from tax_codes where business_id = ${bid.value}::uuid and code = ${code})`.execute(tx);
       });
     } catch {
-      return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartUsed');
+      return flashTo(reply, `/app/books#${system}`, 'books.flash.taxStartUsed');
     }
-    return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartSaved');
+    return flashTo(reply, `/app/books#${system}`, 'books.flash.taxStartSaved', { system: system === 'xero' ? 'Xero' : 'Odoo' });
   });
   /**
    * C1 (item 3) — ENTRIES BY HAND. The list and each entry are the books' to see (the accountant too); drafting,
@@ -3319,6 +3328,65 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (conn?.grant && deps.sheetsClient) await booksConnector('sheets', { bookCurrency: 'MAD', sheets: sheetsDeps() })!.revoke(conn.grant);
     await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'sheets', personOf(s).id));
     return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsDisconnected');
+  });
+  /**
+   * D8 — THE SHOP'S OWN XERO. Connecting goes to Xero's own consent page, where the owner signs in and chooses the
+   * organisation; back here the code is exchanged, the ONE organisation chosen is found, and the grant sealed. Reading
+   * in, sending posted entries and disconnecting as for Odoo; every Xero call rotates the grant first
+   * (src/books/connectors/xero.ts).
+   */
+  const XERO_COOKIE = 'yf_xero_oauth';
+  const xeroRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/xero/callback`;
+  function xeroReady(): boolean { return Boolean(deps.xeroClient && deps.publicBaseUrl && deps.credentialKey); }
+  const xeroDeps = () => ({ client: deps.xeroClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  app.get('/app/books/xero/start', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!xeroReady()) return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotOffered');
+    const nonce = randomBytes(24).toString('base64url');
+    // The signed state (provider and verifier unused: Xero's web flow has a client secret, and no PKCE).
+    writeCookie(reply, XERO_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier: '', nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/books/xero', maxAgeSec: 600 });
+    return reply.redirect(xeroAuthorizeUrl(deps.xeroClient!, { redirectUri: xeroRedirect(), state: nonce }));
+  });
+  app.get('/app/books/xero/callback', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[XERO_COOKIE];
+    writeCookie(reply, XERO_COOKIE, '', { path: '/app/books/xero', maxAgeSec: 0 });   // used once, whatever happens
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    const bid = parseBusinessId(s.businessId);
+    if (!xeroReady() || !bid.ok || !state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)
+        || q.error || typeof q.code !== 'string' || !q.code) {
+      return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotConnected', { why: '' });
+    }
+    const connected = await xeroConnector(xeroDeps(), await bookCurrencyOf(bid.value)).connect({ code: q.code.slice(0, 2048), redirectUri: xeroRedirect() });
+    if (connected.kind === 'refused') return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotConnected', { why: xeroWhy(locale, connected.reason) });
+    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+      businessId: bid.value, system: 'xero', secret: connected.grant!.secret, by: personOf(s).id,
+      settings: { tenantId: connected.source.tenantId, tenantName: connected.source.tenantName ?? '' },
+    }));
+    return flashTo(reply, '/app/books#xero', 'books.flash.xeroConnected', { org: connected.source.tenantName ?? '' });
+  });
+  app.post('/app/books/xero/read', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!xeroReady()) return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotOffered');
+    return answerRead(req, reply, 'xero', await readConnectedSystem(readDeps(), s.businessId, 'xero', personOf(s).id));
+  });
+  app.post('/app/books/xero/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!xeroReady()) return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotOffered');
+    return answerWrite(req, reply, 'xero', await writeBackXero(readDeps(), s.businessId, personOf(s).id));
+  });
+  app.post('/app/books/xero/disconnect', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotOffered');
+    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero'));
+    // Revoking the refresh token removes Nomi's connection in Xero too.
+    if (conn?.grant && xeroReady()) await xeroConnector(xeroDeps(), 'MAD').revoke(conn.grant);
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'xero', personOf(s).id));
+    return flashTo(reply, '/app/books#xero', 'books.flash.xeroDisconnected');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {

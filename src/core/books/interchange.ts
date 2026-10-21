@@ -206,6 +206,8 @@ export function booksProblems(
   for (const p of d.parties) custom('party', p.custom, 'party', p.code);
   for (const e of d.entries) { custom('entry', e.custom, 'entry', e.key); e.lines.forEach((l, i) => custom('line', l.custom, 'entry', e.key, i)); }
   for (const t of d.taxCodes) if (t.account !== null && !accounts.has(t.account)) at('tax_code', taxCodeKey(t), 'Account', 'unknown_account');
+  // A tax that is collected or deducted goes to an account (0170): one without is said, never left to the database.
+  for (const t of d.taxCodes) if (t.kind !== 'exempt' && t.account === null) at('tax_code', taxCodeKey(t), 'Account', 'required');
   for (const e of d.entries) {
     if (!journals.has(e.journal)) at('entry', e.key, 'Journal', 'unknown_journal');
     if (e.lines.length === 0) { at('entry', e.key, 'Entry', 'no_lines'); continue; }

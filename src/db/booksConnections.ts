@@ -9,7 +9,7 @@ import type { ConnectRefusalReason, Grant } from '../core/books/connector.js';
  * the column), and how the last read went. Nothing here is ever deleted: a new grant archives the old, a disconnect
  * archives the grant and says so.
  */
-export type ConnectedSystem = 'sheets' | 'odoo';
+export type ConnectedSystem = 'sheets' | 'odoo' | 'xero';
 export type BooksConnection = {
   readonly system: ConnectedSystem;
   readonly state: 'connected' | 'connect_again' | 'stopped' | 'disconnected';
@@ -41,6 +41,20 @@ export async function saveConnection(tx: Tx, credentialKey: Buffer, input: {
     on conflict (business_id, system) do update set state = 'connected', reason = null, settings = excluded.settings,
       credential_id = excluded.credential_id, key_expires_on = excluded.key_expires_on, cursor = null,
       connected_at = now(), connected_by = excluded.connected_by`.execute(tx);
+}
+
+/**
+ * D8 — a grant the system ROTATED (Xero: every refresh returns the next refresh token, and the one before stops
+ * working): kept at once, the way a connection's is — the old one archived, never deleted — and the connection left
+ * as it is otherwise. Called before the new token is used, so a crash after a refresh never strands the grant.
+ */
+export async function rotateGrant(tx: Tx, credentialKey: Buffer, businessId: string, system: ConnectedSystem, secret: string, by: string): Promise<void> {
+  await sql`update connector_credentials set archived_at = now(), archived_by = ${by}
+    where business_id = ${businessId}::uuid and connector = ${system} and archived_at is null`.execute(tx);
+  const id = (await sql<{ id: string }>`insert into connector_credentials (business_id, connector, secret_ciphertext, fingerprint, created_by)
+    values (${businessId}::uuid, ${system}, ${encryptSecret(secret, credentialKey)}, ${credentialFingerprint(secret)}, ${by})
+    returning id::text as id`.execute(tx)).rows[0]!.id;
+  await sql`update books_connections set credential_id = ${id}::uuid where business_id = ${businessId}::uuid and system = ${system}`.execute(tx);
 }
 
 /** The connection, with its grant opened; null when this system was never connected. */

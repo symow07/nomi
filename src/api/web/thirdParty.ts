@@ -165,6 +165,10 @@ export const COOKIES: readonly NomiCookie[] = [
     reason: 'B3 — the state of a Google Sheets connection in progress (the books), checked when Google sends the owner back.',
   },
   {
+    name: 'yf_xero_oauth', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
+    reason: 'D8 — the state of a Xero connection in progress (the books), checked when Xero sends the owner back.',
+  },
+  {
     name: 'yf_meta', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of an Instagram or Messenger connection in progress, checked when Meta sends the person back.',
   },

@@ -441,7 +441,8 @@ import type { Db } from './client.js';
 // 190 = the CGNC chart (modèle normal), read from the CNC's own text, as a chart template (0190).
 // 191 = what a reader read from the books' papers, kept as read; one draft made from it, once (0191).
 // 192 = custom fields travel with the books: a connector's record kind 'field'; only a party's field is required (0192).
-export const REQUIRED_SCHEMA_VERSION = 192;
+// 193 = the shop's own Xero: its grant, its connection, its records, its taxes' start days (0193).
+export const REQUIRED_SCHEMA_VERSION = 193;
 
 export type SchemaState = {
   readonly required: number;

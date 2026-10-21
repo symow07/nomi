@@ -563,6 +563,29 @@ Each item is built and fully tested (§4) before the next one that depends on it
       arrives retired comes with its values and is retired after them.
   - The accountant sees the fields and changes none (0186's trigger on the definitions, proven past the route).
 - **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
+  - **D8 Xero** *(built 2026-10-22, 0193: `src/books/connectors/xero.ts`; against a recorded fake of Xero's documented
+    answers — no Xero account was made. Live on deploy day, within the Starter tier: 5 connections, no card.)*
+    - **Sign-in:** Xero's own consent page (the web flow: the client's secret, no PKCE), the granular scopes an app
+      made after 2 March 2026 must use. The ONE organisation the owner chose is found by the token's own consent;
+      none or several is refused with its reason, and the grant Xero just gave is given back.
+    - **The refresh token rotates** (each use returns the next; the one before stops after 30 minutes): every call
+      refreshes it and keeps the new one first (`rotateGrant`), the old one archived, never deleted.
+    - **What Xero holds** (the conformance suite's `xeroHolds`, said in the open):
+      - accounts without a parent, only ACTIVE ones; tax rates by their TaxType, with the organisation's tax account
+        ("GST / VAT", SystemAccount GST) and no start day — the owner confirms it, as for Odoo (C0);
+      - contacts without custom values (a contact has no notes a connector can write);
+      - manual journals, in ONE journal ("XERO"), in the organisation's currency only: an entry with a foreign line is
+        not held by the mapping, and C4 sends the converted amounts;
+      - a line's party and tax code, and the custom values, in Nomi's mark (`[nomi:…]`) in the narration and the line
+        descriptions — Xero's lines name no contact.
+    - **C4:** each posted entry not from Xero and not sent before becomes a POSTED manual journal, with an
+      Idempotency-Key. A conflict waits, nothing sent for it: already there, an account Xero lacks or archived, books
+      in another currency than the organisation's, Xero's own refusal (a bank or system account). What was sent is
+      never read back in as new.
+    - **Found building it:** a tax collected or deducted with no account now stops a read-in with its reason (it was
+      a database error); the tax-day form and its notice named Odoo, they now name the system.
+    - Not yet: the Journals endpoint (all of Xero's own postings, invoices included) is Xero's premium tier and is not
+      read: what Nomi reads from Xero is its manual journals.
 - **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
   - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
     statements).

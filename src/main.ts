@@ -967,6 +967,10 @@ export async function buildProduction(
     // once the privacy page names Google Sheets (D18 stops the boot before that).
     ...(recipientNamed('googleSheets') && process.env['SHEETS_CLIENT_ID']?.trim() && process.env['SHEETS_CLIENT_SECRET']?.trim()
       ? { sheetsClient: { clientId: process.env['SHEETS_CLIENT_ID'].trim(), clientSecret: process.env['SHEETS_CLIENT_SECRET'].trim() } } : {}),
+    // D8 — the shop's own Xero: the installation's Xero client, wired only once the privacy page names Xero (D18
+    // stops the boot before that).
+    ...(recipientNamed('xero') && process.env['XERO_CLIENT_ID']?.trim() && process.env['XERO_CLIENT_SECRET']?.trim()
+      ? { xeroClient: { clientId: process.env['XERO_CLIENT_ID'].trim(), clientSecret: process.env['XERO_CLIENT_SECRET'].trim() } } : {}),
     // C9 — the accounts buyers write to, when the host configured them.
     instagramAccountId: igAccountId ?? null,
     messengerPageId: pageId ?? null,
@@ -1129,15 +1133,17 @@ export async function buildProduction(
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
-    // B5 (0180) — every morning, every connected system (Google Sheets, Odoo) is read into the books as the owner's
+    // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
     await boss.schedule(QUEUES.booksRead, '20 5 * * *', {});
     await boss.work(QUEUES.booksRead, async () => {
       const sheetsId = process.env['SHEETS_CLIENT_ID']?.trim(); const sheetsSecret = process.env['SHEETS_CLIENT_SECRET']?.trim();
+      const xeroId = process.env['XERO_CLIENT_ID']?.trim(); const xeroSecret = process.env['XERO_CLIENT_SECRET']?.trim();
       const t = await readEveryConnectedSystem({
         db, credentialKey,
         ...(recipientNamed('googleSheets') && sheetsId && sheetsSecret ? { sheets: { client: { clientId: sheetsId, clientSecret: sheetsSecret }, fetch: oauthFetch } } : {}),
         odoo: { post: publicPost, today: () => new Date().toISOString().slice(0, 10) },
+        ...(recipientNamed('xero') && xeroId && xeroSecret ? { xero: { client: { clientId: xeroId, clientSecret: xeroSecret }, fetch: oauthFetch } } : {}),
       });
       if (t.read + t.refused + t.problems > 0) console.log(`[books] morning read: ${t.read} read, ${t.refused} refused, ${t.problems} with problems`);
     });

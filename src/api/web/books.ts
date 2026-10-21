@@ -34,6 +34,12 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/odoo/connect', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/read', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
+  // D8 — the shop's own Xero: connecting, reading in, writing back and disconnecting, the owner's.
+  { method: 'GET', url: '/app/books/xero/start', action: 'post' },
+  { method: 'GET', url: '/app/books/xero/callback', action: 'post' },
+  { method: 'POST', url: '/app/books/xero/read', action: 'post' },
+  { method: 'POST', url: '/app/books/xero/write', action: 'post' },
+  { method: 'POST', url: '/app/books/xero/disconnect', action: 'post' },
   // C0 — the day a tax took effect, where its system gave none: the owner's.
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
   // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
@@ -112,6 +118,7 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
 export type BooksSystems = {
   readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
   readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null; readonly silent?: Date | null };
+  readonly xero?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
 };
 
 export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems): string {
@@ -135,7 +142,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
     </li></ul>
     ${workbookBlock(locale, viewer)}
-    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') : ''}`;
+    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') + (systems.xero ? xeroBlock(locale, systems.xero) : '') : ''}`;
 }
 
 /** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
@@ -177,6 +184,39 @@ function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string
       <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>` : form}
       <form method="post" action="/app/books/odoo/disconnect" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.odoo.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
+    </div>`;
+}
+
+/** D8 — why Xero refused, in the owner's words (a Xero that no longer lets Nomi in has its own). */
+export const xeroWhy = (locale: Locale, reason: string): string =>
+  (reason === 'source_missing' ? t(locale, 'books.xero.missing') : t(locale, `books.connection.${reason}` as MessageKey, { system: 'Xero' }));
+
+/**
+ * D8 — the shop's own Xero on the books' home, the owner's: not set up on this installation (said, not hidden); a door
+ * to connect (Xero's own page, where the organisation is chosen); or the organisation, when it was last read, a way to
+ * read it in and to send posted entries, and a disconnect that asks first.
+ */
+function xeroBlock(locale: Locale, x: NonNullable<BooksSystems['xero']>): string {
+  const head = `<h2>${esc(t(locale, 'books.xero.title'))}</h2><p>${esc(t(locale, 'books.xero.explain'))}</p>`;
+  if (!x.offered) return `<div class="block" id="xero">${head}<p class="caption muted">${esc(t(locale, 'books.xero.notSetUp'))}</p></div>`;
+  const c = x.connection;
+  const connect = (key: 'books.xero.connect' | 'books.sheets.again') => `<p><a class="deeper" href="/app/books/xero/start">${esc(t(locale, key))}</a></p>`;
+  if (!c || c.state === 'disconnected') return `<div class="block" id="xero">${head}${connect('books.xero.connect')}</div>`;
+  if (c.state !== 'connected') {
+    return `<div class="block" id="xero">${head}
+      <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(xeroWhy(locale, c.reason ?? 'revoked'))}</p>
+      ${connect('books.sheets.again')}</div>`;
+  }
+  return `<div class="block" id="xero">${head}
+      <p><bdi>${esc(c.settings['tenantName'] ?? '')}</bdi></p>
+      ${silentLine(locale, 'Xero', x.silent)}
+      ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
+      ${c.reason === 'unreachable' ? `<p class="caption muted">${esc(t(locale, 'books.connection.unreachable', { system: 'Xero' }))}</p>` : ''}
+      <form method="post" action="/app/books/xero/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
+      <form method="post" action="/app/books/xero/write" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.xero.write'))}</button></form>
+      <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>
+      <form method="post" action="/app/books/xero/disconnect" class="pform">
+        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.xero.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
     </div>`;
 }
 
@@ -236,7 +276,7 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
 
 /** B2 — a workbook that was not read in, and every reason: the sheet, the row, the column, and what is wrong there. */
 export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[],
-  undated?: { readonly system: 'odoo'; readonly taxes: readonly { readonly code: string; readonly label: string }[] }): string {
+  undated?: { readonly system: 'odoo' | 'xero'; readonly taxes: readonly { readonly code: string; readonly label: string }[] }): string {
   const shown = problems.slice(0, 200);
   return `<h1 class="page">${esc(t(locale, 'books.workbook.refused.title'))}</h1>
     <p class="lede" role="alert">${esc(t(locale, 'books.workbook.refused.explain', { n: problems.length }))}</p>
@@ -255,10 +295,10 @@ export function renderWorkbookRefused(locale: Locale, problems: readonly BooksPr
  * C0 (0181) — the taxes a system gave no start date, each with the day to confirm: the owner's, never Nomi's guess.
  * Until a day is confirmed, the tax counts from the day it was first read, and an earlier entry naming it waits.
  */
-function taxStartForm(locale: Locale, system: 'odoo', taxes: readonly { readonly code: string; readonly label: string }[]): string {
+function taxStartForm(locale: Locale, system: 'odoo' | 'xero', taxes: readonly { readonly code: string; readonly label: string }[]): string {
   return `<div class="block" id="tax-start">
       <h2>${esc(t(locale, 'books.taxStart.title'))}</h2>
-      <p>${esc(t(locale, 'books.taxStart.explain'))}</p>
+      <p>${esc(t(locale, 'books.taxStart.explain', { system: system === 'xero' ? 'Xero' : 'Odoo' }))}</p>
       ${taxes.map((x) => `<form method="post" action="/app/books/taxes/start" class="pform">
         <input type="hidden" name="system" value="${esc(system)}" /><input type="hidden" name="code" value="${esc(x.code)}" />
         <label class="pq"><span><bdi>${esc(x.label)}</bdi> · <bdi>${esc(x.code)}</bdi></span><input type="date" name="from" required /></label>
@@ -270,14 +310,14 @@ function taxStartForm(locale: Locale, system: 'odoo', taxes: readonly { readonly
  * C4 — a write-back that waits: what in the spreadsheet Nomi has not read (the owner's own edits), or which of Nomi's
  * entries Odoo could not take and why. Nothing was written over anything; the owner decides, then writes again.
  */
-export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo', r: {
+export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' | 'xero', r: {
   readonly sheets?: readonly { kind: string; key: string; how: 'changed' | 'removed' }[]; readonly odoo?: readonly { key: string; reason: string; detail: string }[]; readonly written: number;
 }): string {
   const items = system === 'sheets'
     ? (r.sheets ?? []).map((c) => esc(t(locale, c.how === 'removed' ? 'books.conflict.sheetsRemoved' : 'books.conflict.sheetsRecord', { kind: t(locale, `books.conflict.kind.${c.kind}` as MessageKey), key: c.key })))
-    : (r.odoo ?? []).map((c) => esc(t(locale, `books.conflict.odoo.${c.reason}` as MessageKey, { key: c.key, detail: c.detail })));
+    : (r.odoo ?? []).map((c) => esc(t(locale, `books.conflict.${system}.${c.reason}` as MessageKey, { key: c.key, detail: c.detail })));
   return `<h1 class="page">${esc(t(locale, 'books.conflict.title'))}</h1>
-    <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
+    <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : system === 'xero' ? 'books.conflict.xeroLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
     <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
     <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
