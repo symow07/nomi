@@ -136,6 +136,11 @@ weeks. They start well before the deploy that needs them:
     2 March 2026) when the app is made.
 
   Confirm on the day the app is created; nothing here needs starting early.
+- **Xero's real ceiling, before certification** (the owner, 2026-10-22): 1,000 API calls a day per organisation,
+  and at most five uncertified apps per organisation. That is a scaling limit, not a launch one. It decides when
+  certification stops being optional:
+  - a busy organisation's reads (the morning read, the owner's "Read it in", writing back) near 1,000 a day;
+  - more than 50 connections (Core's ceiling) means the Plus tier, which requires certification.
 
 ## Somebody hears when it breaks (CC-10)
 

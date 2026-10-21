@@ -2312,6 +2312,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(file.csv);
   });
 
+  /** The owner, 2026-10-22 — a Moroccan workspace is told how its books are best started (Avis n° 24). */
+  const businessInMorocco = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
+    sql<{ c: string | null }>`select country as c from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]?.c === 'MA';
   // A5 — the books' home, and the copy from it: the owner's and the accountant's (the guard above decides who).
   app.get('/app/books', async (req, reply) => {
     const s = sessionOf(req);
@@ -2338,7 +2341,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks })}${
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks }, { morocco: await businessInMorocco(bid.value) })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
         personOf(s).isOwner ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${

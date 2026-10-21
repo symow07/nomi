@@ -128,7 +128,7 @@ export type BooksSystems = {
   readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
 };
 
-export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems): string {
+export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems, o: { readonly morocco?: boolean } = {}): string {
   const lead = viewer.kind === 'accountant' ? t(locale, 'books.home.accountant') : t(locale, 'books.home.owner');
   const state = b.hasBooks
     ? (b.lastCopyAt ? t(locale, 'data.books.lastCopy', { date: show.dateYear(locale, b.lastCopyAt) }) : '')
@@ -136,6 +136,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
   return `<h1 class="page">${esc(t(locale, 'books.home.title'))}</h1>
     <p class="lede">${esc(lead)}</p>
     ${state ? `<p class="muted">${esc(state)}</p>` : ''}
+    ${o.morocco ? moroccoStart(locale) : ''}
     <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
     <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
     <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
@@ -151,6 +152,17 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     ${workbookBlock(locale, viewer)}
     ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') + (systems.xero ? ledgerBlock(locale, 'xero', systems.xero) : '') + (systems.quickbooks ? ledgerBlock(locale, 'quickbooks', systems.quickbooks) : '') : ''}`;
 }
+
+/**
+ * The owner, 2026-10-22 — the advice an accountant would give a Moroccan shop, said where the books start, so it is
+ * never learnt from a refusal: start at a fiscal year's first day; mid-year, what came before comes as one opening
+ * entry of balances (Avis n° 24, 2.3 d). "Period", as the Avis says it: it sets no length.
+ */
+const moroccoStart = (locale: Locale): string => `<div class="block" id="morocco-start">
+    <h2>${esc(t(locale, 'books.morocco.title'))}</h2>
+    <p>${esc(t(locale, 'books.morocco.when'))}</p>
+    <p class="caption muted">${esc(t(locale, 'books.morocco.rule'))}</p>
+  </div>`;
 
 /** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
 const silentLine = (locale: Locale, system: string, since: Date | null | undefined): string =>

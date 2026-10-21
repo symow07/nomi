@@ -532,10 +532,52 @@ Each item is built and fully tested (§4) before the next one that depends on it
         - Detailed history from earlier months of the current year falls under the two-period rule as written.
         - The owner's to choose: an opening mode that takes the opening entry only, with history kept as balances, or
           one that also takes the year's detailed entries.
+      - **DECIDED (the owner, 2026-10-22): THE OPENING ENTRY ONLY — balances at the start date, nothing more.**
+        - The text names « l'écriture d'ouverture », singular; taking the year's detailed entries goes beyond it.
+        - The reason is the asymmetry. Too strict costs a shop some convenience at onboarding. Too loose puts entries
+          in the ledger that the rules say should not be there, found by an inspector rather than by us. A system of
+          record survives an audit on the text, not on our reading of it.
+        - Built as **D10** (below). Until then the lock stays manual.
+      - **The advice an accountant would give**, now on the books' home of a Moroccan workspace (`books.morocco.*`),
+        not only in the code's constraints:
+        - start at a fiscal year's first day: the opening balances are then last year's close, and the whole year is
+          entered inside the two-period window;
+        - mid-year, what came before comes in as one opening entry of balances — ask the accountant for them.
+        - It says "period", as the Avis does, never "month": the Avis sets no length (see D10).
       - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the business's own identifiers
         (ICE, IF, RC) are not held, and the DGI has published no name for the FEC file (checked 2026-10-22: the Avis,
         CGI article 210, the DGI's 2025 report). `tools/books-area.mjs` refuses a Moroccan workspace until both are
         built.
+- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
+  - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
+    its own period. It is recorded with its date and who ran it.
+  - **After it, for a Moroccan workspace, the two-period rule applies automatically:** only the current and the
+    previous period are open for entries, besides the opening entry's period and the previous year's closing period
+    (2.3 d). The lock stops being a manual tool there.
+  - **To settle before building — what a « période » is.** The Avis does not define its length. The CGNC or the
+    DGI's practice may (monthly VAT returns suggest a month; quarterly filers suggest otherwise). It will be checked
+    against the text and asked, never assumed.
+  - **Done when:**
+    - the opening entry is taken once and refused a second time;
+    - the date and the person are recorded;
+    - for a Moroccan workspace, an entry dated outside the open periods is refused BY THE DATABASE, with its reason,
+      and an entry inside them goes through;
+    - a non-Moroccan workspace keeps the manual lock;
+    - each rule, switched off, fails its own test.
+- **D11 · History, not in the books — PROPOSED, not built (the owner, 2026-10-22: "tell me rather than building it
+  quietly").**
+  - The idea: a shop joining in November keeps its January-to-October detail in sight. Detail read in that falls
+    outside the open periods is kept as RECORDS — viewable and exportable, never posted, never in the trial balance or
+    the FEC — and marked "history, not in the books".
+  - **Not a small piece:** about the size of D7.
+    - its own table, so the trial balance and the FEC cannot reach it by construction;
+    - the read-in routing entries outside the window there instead of to drafts, for every connector (workbook, Sheets,
+      Odoo, Xero, QuickBooks), with tests per connector;
+    - a page and an export, in five languages, marked as history;
+    - the accountant's view of it, checked at the database;
+    - its place at closure (kept with the books, or erased with the workspace: the owner's call);
+    - it depends on D10's window.
+  - Waits for the owner's go.
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
@@ -655,7 +697,9 @@ Each item is built and fully tested (§4) before the next one that depends on it
     it is shut (CC-24); refused while the workspace is frozen, the box untouched.
   - Archived, never deleted; one archived is never offered, and comes back only while no other one in use has its
     title.
-  - Not yet: no placeholders (a buyer's name filled in) — the words are put in as written, for the person to change.
+  - **No placeholders, by decision (the owner, 2026-10-22).** A placeholder that silently fails sends a buyer
+    "Hi {name}". The words are put in as written, for the person to read and change. This is not a gap to fill
+    later.
 - **S2 · Item 19 — labels.**
 - **S3 · Item 21 — round-robin assignment.**
 - **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
