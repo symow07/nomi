@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0181 — A TAX'S START DATE IS THE OWNER'S TO CONFIRM, NEVER NOMI'S TO GUESS (Phase 5, C0; the owner, 2026-10-22).
+-- 0181 — A TAX'S START DATE IS THE OWNER'S TO CONFIRM, NEVER NOMI'S TO GUESS (Phase 5, C0; the owner, 2026-10-21).
 --
 -- Odoo keeps no start date on a tax. B4 read one in as in force since 2000-01-01 — "a guess wearing a fact's
 -- clothes": any period before the real start would have used a rate that did not exist then. Now such a tax is in

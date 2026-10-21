@@ -265,7 +265,7 @@ begin
   end if;
   v_ids := array(select id from businesses where practice_of = p_business order by id) || p_business;
   -- A2.4 — posted books are the statutory record: they stay until the legal date, with the business row they hang
-  -- on; everything else of the workspace goes. And the owner leaves with them FIRST (the owner, 2026-10-22): no
+  -- on; everything else of the workspace goes. And the owner leaves with them FIRST (the owner, 2026-10-21): no
   -- export covering the last posting, no closure.
   v_hold := exists (select 1 from journal_entries e where e.business_id = p_business and e.state = 'posted')
          -- A4 (0174): papers are the record too, attached yet or not.

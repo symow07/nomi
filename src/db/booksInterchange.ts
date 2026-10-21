@@ -283,3 +283,40 @@ async function applyBooks(
   }
   return { kind: 'applied', added, replaced, unchanged };
 }
+
+/**
+ * C4 (Phase 5, item 13, part 2) — what Nomi WROTE to a system, remembered as if read: the next read of it then sees
+ * nothing new, and the next write-back can tell the owner's own edits there from Nomi's.
+ */
+export async function rememberWritten(tx: Tx, businessId: string, system: BooksSystem, data: BooksData): Promise<void> {
+  const records = recordsOf(data);
+  for (const r of records) {
+    await sql`insert into connector_records (business_id, system, kind, key, digest)
+      values (${businessId}::uuid, ${system}, ${r.kind}, ${r.key}, ${digest(r.content)})
+      on conflict (business_id, system, kind, key) do update set digest = excluded.digest, read_at = now()`.execute(tx);
+  }
+  // A record no longer written there (a draft since posted under its number): marked GONE, never deleted (0178).
+  await sql`update connector_records set digest = ${GONE}, read_at = now()
+    where business_id = ${businessId}::uuid and system = ${system} and digest <> ${GONE}
+      and not (kind || ':' || key = any(${records.map((r) => `${r.kind}:${r.key}`)}::text[]))`.execute(tx);
+}
+
+/** connector_records' digest for a record not there any more — or, for Odoo, a move Nomi sent (src/books/writeBack.ts). */
+export const GONE = '0'.repeat(64);
+
+export type UnreadRecord = { readonly kind: BooksRecord['kind']; readonly key: string; readonly how: 'changed' | 'removed' };
+/**
+ * C4 — what a system holds that Nomi has not read or written there: the owner's own edits. A record changed or added
+ * there, and one Nomi read or wrote there that is gone (the owner deleted the row: writing would put it back).
+ */
+export async function unreadAt(tx: Tx, businessId: string, system: BooksSystem, data: BooksData): Promise<UnreadRecord[]> {
+  const rows = (await sql<{ kind: BooksRecord['kind']; key: string; digest: string }>`select kind, key, digest from connector_records
+    where business_id = ${businessId}::uuid and system = ${system} and digest <> ${GONE}`.execute(tx)).rows;
+  const last = new Map(rows.map((r) => [`${r.kind}:${r.key}`, r.digest]));
+  const records = recordsOf(data);
+  const there = new Set(records.map((r) => `${r.kind}:${r.key}`));
+  return [
+    ...changedRecords(records, last, digest).map((r) => ({ kind: r.kind, key: r.key, how: 'changed' as const })),
+    ...rows.filter((r) => !there.has(`${r.kind}:${r.key}`)).map((r) => ({ kind: r.kind, key: r.key, how: 'removed' as const })),
+  ];
+}

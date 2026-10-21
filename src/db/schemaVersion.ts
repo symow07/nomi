@@ -434,7 +434,8 @@ import type { Db } from './client.js';
 // 183 = an entry from a Nomi order, once (0183): the sales accounts in books_settings, `journal_entries.source_order_id`.
 // 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
 // 185 = reconciliation from statement files (0185): statement lines kept once, matches made and set aside by a person.
-export const REQUIRED_SCHEMA_VERSION = 185;
+// 186 = what an accountant may not do to the books, said by the database (0186): invoices, payments, statements, matches.
+export const REQUIRED_SCHEMA_VERSION = 186;
 
 export type SchemaState = {
   readonly required: number;

@@ -53,7 +53,7 @@ It rests on four readings:
     - **staff** see nothing.
     - **An accountant sees nothing of the sales side: no buyer, no conversation, no message.** A shop's external
       accountant has no business reading its customers' messages. That is a privacy boundary, not a convenience
-      (the owner, 2026-10-22), and it is held twice: by the app's route guard (A5) and by the database, which shows an
+      (the owner, 2026-10-21), and it is held twice: by the app's route guard (A5) and by the database, which shows an
       accountant's request no row of a sales table (B0).
 13. **Exchange rates:** the owner's own. The rate used is **stored on the transaction and never recomputed.** A report
     that re-rates history is wrong by construction.
@@ -159,7 +159,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
   - **never recomputed;** a missing rate refuses the posting.
   - *Depends on A1 and A2.*
-- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under the installation's document key —
+- **A4 · Document storage, residency-aware:** *(built 2026-10-21, 0174: sealed with AES-256-GCM under the installation's document key —
   derived from CREDENTIAL_KEY, which lives in the environment and never in the database, so a dump or a backup alone
   opens nothing — with a fresh IV per document, bound to workspace and id; B0 makes a CREDENTIAL_KEY rotation re-seal
   them; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
@@ -170,7 +170,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
    encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
-- **A5 · The books' tenancy and the three roles (decision 12):** *(built 2026-10-22, 0175: `people.kind`
+- **A5 · The books' tenancy and the three roles (decision 12):** *(built 2026-10-21, 0175: `people.kind`
   'accountant', made by the owner on the team page and never changed; the guard confines an accountant to the books'
   routes, every registered route walked in tests/integration/books-roles.test.ts; an accountant's posting refused by
   the database too; closure waits for the OWNER's copy. The roles are the books' only: staff keep their sales work and
@@ -181,7 +181,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - erasure-contract entries with the legal-retention action;
   - D18 privacy lines for each new processor.
   - *Depends on A2.*
-- **A6 · The salesperson ↔ accountant toggle:** *(built 2026-10-22, 0176: `businesses.books_area`, OFF by default,
+- **A6 · The salesperson ↔ accountant toggle:** *(built 2026-10-21, 0176: `businesses.books_area`, OFF by default,
   switched by tools/books-area.mjs; off, every /app/books address is not found and nobody is offered the switch or
   an accountant. A page under /app/books is the books' mode and its rail shows only the books; the switch at the
   rail's foot is the owner's alone; an accountant has the books and a way out; staff the sales side. Its books
@@ -192,7 +192,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage B — the connector layer
 
-- **B1 · Item 12 — one plug-in shape:** *(built 2026-10-22: `src/core/books/connector.ts` (config, connect / refresh /
+- **B1 · Item 12 — one plug-in shape:** *(built 2026-10-21: `src/core/books/connector.ts` (config, connect / refresh /
   revoke with a closed list of refusal reasons, the mapping both ways, "changed since") over one interchange shape,
   `src/core/books/interchange.ts` (keyed by codes and the source's own entry keys, never Nomi's ids; exact decimals);
   one registry, `src/books/connectors/registry.ts`; the suite `tests/books-connectors/conformance.ts`, passed by the
@@ -201,7 +201,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - all behind one registry;
   - a conformance suite every connector must pass.
   - *Depends on A2 and A5.*
-- **B2 · Excel by file (option A):** *(built 2026-10-22, 0178: the versioned Nomi workbook (a "Nomi" sheet, then
+- **B2 · Excel by file (option A):** *(built 2026-10-21, 0178: the versioned Nomi workbook (a "Nomi" sheet, then
   Accounts, Journals, Parties, Tax codes, Journal — one row per line), written and read by `src/net/xlsx.ts` with no
   library; opened and saved by Microsoft Excel 16 in the test (`tests/books-connectors/fixtures/excel-saved.xlsx`,
   its author and path removed). Found doing so: Excel writes 33.34 back as 33.340000000000003, so a number cell is
@@ -214,19 +214,19 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **it validates the interface on the easy case first:** no external dependency, so B1 is proven against something we
     fully control before it meets Odoo's sign-in, plans and expiring keys.
   - *Depends on B1.*
-- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook). *(built 2026-10-22, 0179:
+- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook). *(built 2026-10-21, 0179:
   `src/books/connectors/sheets.ts` — OAuth with PKCE asking `drive.file` alone; on connecting, a NEW spreadsheet with
   the books in it; read in through the workbook's own reader and the same read-in; values read UNFORMATTED with
   JSON's own digits, never a float. A revoked grant is `connect_again` and nothing is read; a deleted spreadsheet is
   `source_missing`; Google down is "try later". The grant sealed in `connector_credentials` (rekey covers it),
-  `books_connections` keeps the state. Writing an existing spreadsheet again is C4's (conflicts shown). Against a
+  `books_connections` keeps the state. Writing an existing spreadsheet again is C4's (conflicts shown; built). Against a
   recorded fake of Google's documented answers; live on deploy day with SHEETS_CLIENT_ID / _SECRET, which D18 holds
   until the privacy page names Google Sheets.)*
-- **B4 · Odoo, JSON-2, our own client:** *(built 2026-10-22: `src/books/connectors/odoo.ts`, a POST of a JSON object to
+- **B4 · Odoo, JSON-2, our own client:** *(built 2026-10-21: `src/books/connectors/odoo.ts`, a POST of a JSON object to
   `/json/2/<model>/<method>` with "bearer" and the key and `X-Odoo-Database` (Odoo 19 docs), sent only to a public https
   address (`publicPost`: our own DNS lookup refuses private, loopback and link-local answers at connect time). Item 15:
   a wrong key (401 "Invalid apikey", documented), a wrong name, a Free or Standard plan, an address that is not public
-  https — each its own sentence, nothing saved. **C0 (2026-10-22):** the wrong name is now a FACT, read from Odoo
+  https — each its own sentence, nothing saved. **C0 (2026-10-21):** the wrong name is now a FACT, read from Odoo
   19's source (odoo/http.py: a database the dbfilter rejects or the server lacks leaves the request with none; the
   no-database routes are only `auth='none'`, and JSON-2's is `bearer`; so the answer is a 404 with Odoo's HTML page
   "No database is selected…", not JSON — B4 had read a JSON 404 as the sign and would have called a wrong name
@@ -285,7 +285,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
       - C1's tests: a decrease refused; a delete refused; a rollback leaves neither a gap nor a repeat; two postings at
         once get consecutive numbers.
   - *Depends on A2–A5 and B5.*
-  - *(built 2026-10-22, 0182–0183: the exchange accounts and the marked line (refused anywhere else); twenty
+  - *(built 2026-10-21, 0182–0183: the exchange accounts and the marked line (refused anywhere else); twenty
     postings at once in two journals, each 1…n; entries by hand — `/app/books/entries`, drafted, posted by the
     database's rules, discarded (never deleted), reversed (a new entry, lines swapped, linked, its own number; a
     posted entry offers nothing else); entries from Nomi's confirmed orders, once each (`source_order_id`, unique
@@ -293,7 +293,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
     What is read in (B2–B5) arrives as drafts and posts the same way. Not yet: editing a draft (discard and draft
     again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
-  *(built 2026-10-22, 0184: invoices numbered at issue from their own counter, F-<year>-<n>, inside the issuing
+  *(built 2026-10-21, 0184: invoices numbered at issue from their own counter, F-<year>-<n>, inside the issuing
   transaction — no gap, ten at once consecutive; issued, never changed (a correction is a credit note, not built yet);
   net and tax checked to the cent by the database; issuing posts receivable / sales / tax, a foreign invoice's
   conversion rounding its own marked exchange line. Payments in the invoice's currency, never more than owed (app and
@@ -306,7 +306,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - from **statement files only** (CSV, OFX, CAMT.053; decision 8);
   - suggested by rule, **always confirmed by a person.**
   - *Depends on C2.*
-  - *(built 2026-10-22, 0185: `src/core/books/statements.ts` reads CSV (the Nomi layout, "1.250" refused), OFX 1.x/2.x
+  - *(built 2026-10-21, 0185: `src/core/books/statements.ts` reads CSV (the Nomi layout, "1.250" refused), OFX 1.x/2.x
     and CAMT.053 (booked entries only), machine numbers exactly; each line kept once per bank account by its
     fingerprint — the bank's reference, else day, amount, wording and its place among equal lines — so a statement
     read twice adds nothing. The rule suggests a posted line of the same account, currency and amount within a week;
@@ -315,6 +315,18 @@ Each item is built and fully tested (§4) before the next one that depends on it
     /app/books/bank; the accountant sees it and matches nothing.)*
 - **C4 · Item 13, part 2 — writing back** to Sheets, Excel and Odoo: conflicts shown, never overwritten silently.
   *Depends on C1–C3.*
+  *(built 2026-10-21, 0186: EXCEL is the download (B2), which holds every posted entry. SHEETS: "Write the books"
+  reads the spreadsheet first. If anything there differs from what Nomi last read or wrote — a row the owner added or
+  changed, or one Nomi put there that the owner deleted — it is a conflict, listed by kind and code, and nothing is
+  written. Read it in, or undo it there, then write again. With nothing unread, the sheets are cleared and written,
+  and what was written is remembered, so the next read sees nothing new. A draft written there and since posted (its
+  row now goes by its number) is Nomi's own row, never "removed". ODOO: "Send posted entries" creates and posts
+  each posted entry of Nomi's that did not come from Odoo and was not sent before, its reference Nomi's number, its
+  lines in book currency (a foreign line also gives its own amount). One Odoo already holds under that reference, or
+  one naming an account, journal, partner or currency Odoo lacks, is a conflict: named, and nothing is created for
+  it. Odoo's own rules then apply. Each sent move is remembered by its Nomi entry (never sent twice) and by the name
+  Odoo gave it, so the next Odoo read does not bring it back as a new entry. 0186: the database refuses an
+  accountant any write to invoices, payments, statements and matches, as 0175 refuses their posting.)*
 
 ### Stage D — everything on top
 
@@ -526,7 +538,7 @@ Parties, Invoices, Payments) and fixed columns.
   required for the statutory record are kept to the legal date, then erased.**
   - The erasure contract gains a "keep until the legal date, then erase" action, with the date stored per row.
   - `erase-buyer` and workspace closure refuse to erase inside the legal period, and say which records and why.
-  - **Closing a workspace ends with its books in the owner's hands, every time (the owner, 2026-10-22).** A2.1 keeps
+  - **Closing a workspace ends with its books in the owner's hands, every time (the owner, 2026-10-21).** A2.1 keeps
     posted books when a workspace is deleted, as the duty requires. So an owner who closes would leave their statutory
     accounts with us for ten years, unable to sign in to reach them, holding a company's legal records hostage by
     accident. Therefore:

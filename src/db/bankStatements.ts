@@ -82,7 +82,7 @@ export async function matchLine(tx: Tx, businessId: string, by: string, statemen
   } catch (e) {
     await sql`rollback to savepoint match_line`.execute(tx);
     const code = String((e as { code?: unknown } | null)?.code ?? '');
-    if (code === 'NB020' || code === '23505' || code === '23503' || code === '22P02') return false;
+    if (code === 'NB020' || code === 'NB021' || code === '23505' || code === '23503' || code === '22P02') return false;
     throw e;
   }
 }

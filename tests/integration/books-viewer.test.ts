@@ -5,7 +5,7 @@ import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ } from './tenant.js';
 
 /**
- * B0 (Phase 5; the owner, 2026-10-22) — AN ACCOUNTANT SEES NOTHING OF THE SALES SIDE, AND THE DATABASE HOLDS IT.
+ * B0 (Phase 5; the owner, 2026-10-21) — AN ACCOUNTANT SEES NOTHING OF THE SALES SIDE, AND THE DATABASE HOLDS IT.
  * A5's route guard is the first wall (tests/integration/books-roles.test.ts walks every route). This is the second
  * (0177): a signed-in request's transactions say who is asking, and every table under row security outside the
  * books shows an accountant no row and takes none. Proven through the real app with the first wall stepped past:
@@ -20,8 +20,9 @@ const SECRET = 'a-test-session-secret-of-sufficient-length';
 /** What an accountant may see, and why: the books' own tables, and the workspace's row (its name heads the rail). */
 const ACCOUNTANT_SEES = [
   'accounts', 'books_exports', 'books_settings', 'businesses', 'custom_field_defs', 'document_blobs', 'documents',
-  'fiscal_years', 'journal_counters', 'journal_entries', 'journal_lines', 'journals', 'owner_rates', 'parties', 'tax_codes',
-];
+  'fiscal_years', 'invoice_counters', 'invoice_lines', 'invoice_payments', 'invoices', 'journal_counters', 'journal_entries', 'journal_lines',
+  'journals', 'owner_rates', 'parties', 'statement_imports', 'statement_lines', 'statement_matches', 'tax_codes',
+];   // C2's invoices and C3's statements are books: the accountant reads them, and changes none (0175 and 0186)
 
 d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)', { timeout: 120_000 }, () => {
   let app: import('fastify').FastifyInstance;
@@ -97,6 +98,15 @@ d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)',
       .rejects.toThrow(/row-level security/);
     // the books are theirs to see
     await asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) => sql`select count(*) from journal_entries`.execute(tx)));
+    // and C2's and C3's tables are theirs to see, never to change (0186): each write refused before anything else is checked
+    for (const t of ['invoices', 'invoice_lines', 'invoice_payments', 'statement_imports', 'statement_lines', 'statement_matches']) {
+      await asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) => sql`select count(*) from ${sql.table(t)}`.execute(tx)));
+      await expect(asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) =>
+        sql`insert into ${sql.table(t)} (business_id) values (${RUN_BIZ}::uuid)`.execute(tx)))).rejects.toThrow(/an accountant sees and exports the books; this is the owner's/);
+      // the control: staff are refused by the table's own rules, not by this one
+      await expect(asViewer(staffId, () => withTenantTx(db, bid.value, (tx) =>
+        sql`insert into ${sql.table(t)} (business_id) values (${RUN_BIZ}::uuid)`.execute(tx)))).rejects.not.toThrow(/an accountant sees/);
+    }
   });
 
   it('PAST THE ROUTE GUARD: a session naming the accountant without their kind reaches the Buyers list — and it holds no buyer', async () => {

@@ -227,13 +227,14 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused } from './books.js';
+import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
 import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
-import { readBooks, readInBooks } from '../../db/booksInterchange.js';
+import { readBooks, readInBooks, rememberWritten } from '../../db/booksInterchange.js';
+import { writeBackOdoo, writeBackSheets, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
@@ -2409,10 +2410,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     const made = await createSpreadsheet(d, connected.source.accessToken, `${books.name} · Nomi`, books.data);
     if (made.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
-    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
-      businessId: bid.value, system: 'sheets', secret: connected.grant!.secret, by: personOf(s).id,
-      settings: { spreadsheetId: made.spreadsheetId, url: made.url },
-    }));
+    await withTenantTx(deps.db, bid.value, async (tx) => {
+      await saveConnection(tx, deps.credentialKey!, {
+        businessId: bid.value, system: 'sheets', secret: connected.grant!.secret, by: personOf(s).id,
+        settings: { spreadsheetId: made.spreadsheetId, url: made.url },
+      });
+      // C4 — what Nomi wrote there is remembered: the owner's later edits are then told from Nomi's own.
+      await rememberWritten(tx, bid.value, 'sheets', books.data);
+    });
     return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnected');
   });
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
@@ -2429,6 +2434,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
     return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
   };
+  /**
+   * C4 — WRITING BACK: the books to the spreadsheet, Nomi's posted entries to Odoo. A conflict is shown and waits —
+   * the page lists it and nothing is written over anything (src/books/writeBack.ts).
+   */
+  const answerWrite = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo', r: WriteResult) => {
+    const locale = localeOf(req);
+    const back = `/app/books#${system}`;
+    if (r.kind === 'written') return flashTo(reply, back, 'books.flash.written', { n: r.count });
+    if (r.kind === 'refused') {
+      return flashTo(reply, back, 'books.flash.notWritten', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: system === 'odoo' ? 'Odoo' : t(locale, 'books.sheets.title') }) });
+    }
+    return reply.code(409).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.conflict.title'), active: 'settings',
+      bodyHtml: renderWriteConflicts(locale, system, r) }));
+  };
+  app.post('/app/books/sheets/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    return answerWrite(req, reply, 'sheets', await writeBackSheets(readDeps(), s.businessId));
+  });
+  app.post('/app/books/odoo/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
+    return answerWrite(req, reply, 'odoo', await writeBackOdoo(readDeps(), s.businessId));
+  });
   app.post('/app/books/sheets/read', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
