@@ -6,7 +6,8 @@ import {
 } from '../../core/books/interchange.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { excelNumber } from './excel.js';
-import { parseExact } from './exactJson.js';
+import { exactBody, parseExact } from './exactJson.js';
+import { nomiMark, readNomiMark } from './mark.js';
 
 /**
  * D8 (Phase 5, item 12; decision 4) — THE SHOP'S OWN XERO, over its Accounting API, with our own client: OAuth 2.0
@@ -131,25 +132,10 @@ export async function xeroAccess(deps: XeroDeps, grant: Grant): Promise<{ readon
   return { accessToken: t.access, grant: { secret: t.refresh, expiresAt: null } };
 }
 
-// ── the mark ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-type EntryMark = { readonly k?: string; readonly c?: CustomValues };
-type LineMark = { readonly p?: string; readonly t?: string; readonly c?: CustomValues };
-const MARK_IN = /\s*\[nomi:([A-Za-z0-9_-]+)\]/;
+/** Nomi's mark, as Xero's texts carry it (src/books/connectors/mark.ts). */
+export const xeroMark = nomiMark;
+export const readXeroMark = readNomiMark;
 const sortedValues = (c: CustomValues | undefined) => (c && Object.keys(c).length > 0 ? Object.fromEntries(Object.entries(c).sort(([a], [b]) => a.localeCompare(b))) : undefined);
-/** Nomi's mark: only what is there, as JSON in URL-safe base64 ("" when there is nothing to say). */
-export function xeroMark(m: EntryMark | LineMark): string {
-  const kept = Object.fromEntries(Object.entries({ ...m, c: sortedValues(m.c) }).filter(([, v]) => v !== undefined && v !== null));
-  return Object.keys(kept).length === 0 ? '' : `[nomi:${Buffer.from(JSON.stringify(kept)).toString('base64url')}]`;
-}
-/** A text, and the mark at its end read back (anything that is not Nomi's mark, of texts, is no mark). */
-export function readXeroMark(text: string | null): { readonly rest: string | null; readonly mark: Record<string, unknown> } {
-  const m = text === null ? null : MARK_IN.exec(text);
-  if (!m || text === null) return { rest: text, mark: {} };
-  const rest = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
-  let v: unknown = null;
-  try { v = JSON.parse(Buffer.from(m[1]!, 'base64url').toString('utf8')); } catch { v = null; }
-  return { rest: rest === '' ? null : rest, mark: v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {} };
-}
 const textOf = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 const valuesOf = (v: unknown): CustomValues | undefined =>
   (v && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'string') ? sortedValues(v as CustomValues) : undefined);
@@ -411,11 +397,4 @@ export async function sendEntriesToXero(deps: XeroDeps, s: XeroSource, bookCurre
     written.push({ key: e.key, journalId: typeof made === 'string' ? made : `#${e.key}` });
   }
   return { written, conflicts };
-}
-
-/** A body whose `{ number }` values are written as JSON numbers with their own digits — never a float's. */
-function exactBody(v: unknown): string {
-  return JSON.stringify(v, (_k, x: unknown) =>
-    (x && typeof x === 'object' && 'number' in x && typeof (x as { number: unknown }).number === 'string' ? `\u0000n${(x as { number: string }).number}` : x))
-    .replace(/"\\u0000n(-?\d+(?:\.\d+)?)"/g, '$1');
 }

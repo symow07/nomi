@@ -9,7 +9,7 @@ import type { ConnectRefusalReason, Grant } from '../core/books/connector.js';
  * the column), and how the last read went. Nothing here is ever deleted: a new grant archives the old, a disconnect
  * archives the grant and says so.
  */
-export type ConnectedSystem = 'sheets' | 'odoo' | 'xero';
+export type ConnectedSystem = 'sheets' | 'odoo' | 'xero' | 'quickbooks';
 export type BooksConnection = {
   readonly system: ConnectedSystem;
   readonly state: 'connected' | 'connect_again' | 'stopped' | 'disconnected';

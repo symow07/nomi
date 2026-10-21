@@ -227,7 +227,8 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, xeroWhy } from './books.js';
+import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
+import { qboAuthorizeUrl, qboConnector, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
@@ -235,7 +236,7 @@ import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
 import { readBooks, readInBooks, rememberWritten } from '../../db/booksInterchange.js';
-import { writeBackOdoo, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
+import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
@@ -468,6 +469,8 @@ export type WebDeps = {
   readonly odooPost?: PublicPost;
   /** D8 — the installation's Xero client (wired only once the privacy page names Xero, D18); absent, Xero is not offered. */
   readonly xeroClient?: XeroClient;
+  /** D9 — the installation's Intuit client (wired only once the privacy page names Intuit, D18); absent, QuickBooks is not offered. */
+  readonly qboClient?: QboClient;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -2325,11 +2328,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // D8 — the shop's own Xero, where this installation has its client.
     const xeroConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero')) : null;
     const xero = { offered: xeroReady(), connection: xeroConn, silent: xeroConn ? silentSince(xeroConn, new Date()) : null };
+    // D9 — the shop's own QuickBooks, likewise.
+    const qboConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks')) : null;
+    const quickbooks = { offered: qboReady(), connection: qboConn, silent: qboConn ? silentSince(qboConn, new Date()) : null };
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero })}${
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
         personOf(s).isOwner ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
@@ -2447,16 +2453,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
   const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
-    odoo: { post: deps.odooPost ?? publicPost, today: todayIso }, ...(xeroReady() ? { xero: xeroDeps() } : {}) });
-  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
+    odoo: { post: deps.odooPost ?? publicPost, today: todayIso }, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}) });
+  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero' | 'quickbooks', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
     const locale = localeOf(req);
     if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
-          bodyHtml: renderWorkbookRefused(locale, r.problems, system !== 'sheets' && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined) }));
+          bodyHtml: renderWorkbookRefused(locale, r.problems, (system === 'odoo' || system === 'xero') && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined) }));
     }
     if (system === 'xero') return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotRead', { why: xeroWhy(locale, r.reason) });
+    if (system === 'quickbooks') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotRead', { why: ledgerWhy(locale, 'quickbooks', r.reason) });
     if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
     return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
   };
@@ -2464,12 +2471,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * C4 — WRITING BACK: the books to the spreadsheet, Nomi's posted entries to Odoo. A conflict is shown and waits —
    * the page lists it and nothing is written over anything (src/books/writeBack.ts).
    */
-  const answerWrite = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero', r: WriteResult) => {
+  const answerWrite = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero' | 'quickbooks', r: WriteResult) => {
     const locale = localeOf(req);
     const back = `/app/books#${system}`;
     if (r.kind === 'written') return flashTo(reply, back, 'books.flash.written', { n: r.count });
     if (r.kind === 'refused') {
-      return flashTo(reply, back, 'books.flash.notWritten', { why: system === 'xero' ? xeroWhy(locale, r.reason)
+      return flashTo(reply, back, 'books.flash.notWritten', { why: system === 'xero' || system === 'quickbooks' ? ledgerWhy(locale, system, r.reason)
         : t(locale, `books.connection.${r.reason}` as MessageKey, { system: system === 'odoo' ? 'Odoo' : t(locale, 'books.sheets.title') }) });
     }
     return reply.code(409).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.conflict.title'), active: 'settings',
@@ -3387,6 +3394,64 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (conn?.grant && xeroReady()) await xeroConnector(xeroDeps(), 'MAD').revoke(conn.grant);
     await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'xero', personOf(s).id));
     return flashTo(reply, '/app/books#xero', 'books.flash.xeroDisconnected');
+  });
+  /**
+   * D9 — THE SHOP'S OWN QUICKBOOKS ONLINE. Connecting goes to Intuit's own page; back here come the code and the
+   * company's realmId, the code is exchanged, the company checked, the grant sealed. Reading in, sending posted entries
+   * and disconnecting as for Xero; the refresh token Intuit returns is kept first (src/books/connectors/quickbooks.ts).
+   */
+  const QBO_COOKIE = 'yf_qbo_oauth';
+  const qboRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/quickbooks/callback`;
+  function qboReady(): boolean { return Boolean(deps.qboClient && deps.publicBaseUrl && deps.credentialKey); }
+  const qboDeps = () => ({ client: deps.qboClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  app.get('/app/books/quickbooks/start', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!qboReady()) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
+    const nonce = randomBytes(24).toString('base64url');
+    // The signed state (provider and verifier unused: Intuit's web flow has a client secret, and no PKCE).
+    writeCookie(reply, QBO_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier: '', nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/books/quickbooks', maxAgeSec: 600 });
+    return reply.redirect(qboAuthorizeUrl(deps.qboClient!, { redirectUri: qboRedirect(), state: nonce }));
+  });
+  app.get('/app/books/quickbooks/callback', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; realmId?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[QBO_COOKIE];
+    writeCookie(reply, QBO_COOKIE, '', { path: '/app/books/quickbooks', maxAgeSec: 0 });   // used once, whatever happens
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    const bid = parseBusinessId(s.businessId);
+    if (!qboReady() || !bid.ok || !state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)
+        || q.error || typeof q.code !== 'string' || !q.code || typeof q.realmId !== 'string') {
+      return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: '' });
+    }
+    const connected = await qboConnector(qboDeps(), await bookCurrencyOf(bid.value)).connect({ code: q.code.slice(0, 512), realmId: q.realmId.slice(0, 30), redirectUri: qboRedirect() });
+    if (connected.kind === 'refused') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(locale, 'quickbooks', connected.reason) });
+    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+      businessId: bid.value, system: 'quickbooks', secret: connected.grant!.secret, by: personOf(s).id,
+      settings: { realmId: connected.source.realmId, companyName: connected.source.companyName ?? '' },
+    }));
+    return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksConnected', { org: connected.source.companyName ?? '' });
+  });
+  app.post('/app/books/quickbooks/read', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!qboReady()) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
+    return answerRead(req, reply, 'quickbooks', await readConnectedSystem(readDeps(), s.businessId, 'quickbooks', personOf(s).id));
+  });
+  app.post('/app/books/quickbooks/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!qboReady()) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
+    return answerWrite(req, reply, 'quickbooks', await writeBackQuickbooks(readDeps(), s.businessId, personOf(s).id));
+  });
+  app.post('/app/books/quickbooks/disconnect', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
+    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks'));
+    // Revoking the refresh token ends Nomi's connection to the company at Intuit too.
+    if (conn?.grant && qboReady()) await qboConnector(qboDeps(), 'MAD').revoke(conn.grant);
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'quickbooks', personOf(s).id));
+    return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnected');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {

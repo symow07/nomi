@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../db/client.js';
-import { parseBusinessId } from '../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import { recordsOf } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
@@ -11,6 +11,7 @@ import { booksConnector } from './connectors/registry.js';
 import { rewriteSpreadsheet, sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
 import { sendEntriesToOdoo, type OdooEntryOut, type OdooWriteConflict } from './connectors/odoo.js';
 import { sendEntriesToXero, xeroAccess, type XeroDeps, type XeroEntryOut, type XeroWriteConflict } from './connectors/xero.js';
+import { qboAccess, sendEntriesToQbo, type QboDeps, type QboWriteConflict } from './connectors/quickbooks.js';
 
 /**
  * C4 (Phase 5; item 13, part 2) — WRITING BACK, NEVER OVER ANYTHING. Nomi's books are the record (decision 10), and a
@@ -28,10 +29,11 @@ export type WriteDeps = {
   readonly sheets?: SheetsDeps;
   readonly odoo?: { readonly post: PublicPost; readonly today: () => string };
   readonly xero?: XeroDeps;
+  readonly quickbooks?: QboDeps;
 };
 export type WriteResult =
   | { readonly kind: 'written'; readonly count: number }
-  | { readonly kind: 'conflicts'; readonly sheets?: readonly UnreadRecord[]; readonly odoo?: readonly (OdooWriteConflict | XeroWriteConflict)[]; readonly written: number }
+  | { readonly kind: 'conflicts'; readonly sheets?: readonly UnreadRecord[]; readonly odoo?: readonly (OdooWriteConflict | XeroWriteConflict | QboWriteConflict)[]; readonly written: number }
   | { readonly kind: 'refused'; readonly reason: ConnectRefusalReason };
 
 export async function writeBackSheets(deps: WriteDeps, businessIdRaw: string): Promise<WriteResult> {
@@ -62,7 +64,7 @@ const SENT = 'sent:';
  * The moves (manual journals) of Nomi's own that an Odoo or a Xero read finds — sent by C4 — are not read back in as
  * new entries: known by the name the system gave them, or by Nomi's number (Odoo's reference, Xero's mark).
  */
-export async function sentTo(tx: Tx, businessId: string, system: 'odoo' | 'xero'): Promise<{ readonly names: ReadonlySet<string>; readonly refs: ReadonlySet<string> }> {
+export async function sentTo(tx: Tx, businessId: string, system: 'odoo' | 'xero' | 'quickbooks'): Promise<{ readonly names: ReadonlySet<string>; readonly refs: ReadonlySet<string> }> {
   const rows = (await sql<{ key: string; nomi: string }>`
     select r.key, j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as nomi
       from connector_records r join journal_entries e on e.id = r.nomi_id join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
@@ -128,12 +130,29 @@ export async function writeBackXero(deps: WriteDeps, businessIdRaw: string, by: 
   if ('kind' in access) return { kind: 'refused', reason: access.reason };
   await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'xero', access.grant.secret, by));
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
-  const entries = await withTenantTx(deps.db, bid.value, async (tx) => {
+  const entries = await postedNotSent(deps.db, bid.value, 'xero');
+  if (entries.length === 0) return { kind: 'written', count: 0 };
+  const sent = await sendEntriesToXero(deps.xero, { accessToken: access.accessToken, tenantId }, book, entries);
+  if ('kind' in sent) return { kind: 'refused', reason: sent.reason };
+  await withTenantTx(deps.db, bid.value, async (tx) => {
+    for (const s of sent.written) {
+      const e = entries.find((x) => x.key === s.key)!;
+      await sql`insert into connector_records (business_id, system, kind, key, digest, nomi_id)
+        values (${bid.value}::uuid, 'xero', 'entry', ${`${SENT}${s.journalId}`}, ${GONE}, ${e.id}::uuid)
+        on conflict (business_id, system, kind, key) do nothing`.execute(tx);
+    }
+  });
+  return sent.conflicts.length > 0 ? { kind: 'conflicts', odoo: sent.conflicts, written: sent.written.length } : { kind: 'written', count: sent.written.length };
+}
+
+/** Nomi's posted entries not from the system and not sent to it before, in the books' own amounts (D8, D9). */
+async function postedNotSent(db: Db, businessId: BusinessId, system: 'xero' | 'quickbooks'): Promise<(XeroEntryOut & { id: string })[]> {
+  return withTenantTx(db, businessId, async (tx) => {
     const heads = (await sql<{ id: string; key: string; date: string; label: string; custom: Record<string, string> }>`
       select e.id::text as id, j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as key, e.entry_date::text as date, e.label, e.custom
         from journal_entries e join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
-       where e.business_id = ${bid.value}::uuid and e.state = 'posted'
-         and not exists (select 1 from connector_records r where r.business_id = e.business_id and r.system = 'xero' and r.kind = 'entry' and r.nomi_id = e.id)
+       where e.business_id = ${businessId}::uuid and e.state = 'posted'
+         and not exists (select 1 from connector_records r where r.business_id = e.business_id and r.system = ${system} and r.kind = 'entry' and r.nomi_id = e.id)
        order by e.entry_date, e.number limit 200`.execute(tx)).rows;
     const out: (XeroEntryOut & { id: string })[] = [];
     for (const h of heads) {
@@ -148,14 +167,34 @@ export async function writeBackXero(deps: WriteDeps, businessIdRaw: string, by: 
     }
     return out;
   });
+}
+
+/**
+ * D9 — Nomi's posted entries into the shop's QuickBooks, as journal entries numbered by Nomi (src/books/connectors/
+ * quickbooks.ts), as for Xero: the grant Intuit returns kept first, a conflict shown and waiting, what was sent never
+ * read back in as new.
+ */
+export async function writeBackQuickbooks(deps: WriteDeps, businessIdRaw: string, by: string): Promise<WriteResult> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok || !deps.quickbooks) return { kind: 'refused', reason: 'source_missing' };
+  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'quickbooks'));
+  const realmId = conn?.settings['realmId'];
+  if (!conn || conn.state === 'disconnected' || !conn.grant || !realmId) return { kind: 'refused', reason: 'revoked' };
+  const access = await qboAccess(deps.quickbooks, conn.grant);
+  if ('kind' in access) return { kind: 'refused', reason: access.reason };
+  if (access.grant.secret !== conn.grant.secret) {
+    await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', access.grant.secret, by));
+  }
+  const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
+  const entries = await postedNotSent(deps.db, bid.value, 'quickbooks');
   if (entries.length === 0) return { kind: 'written', count: 0 };
-  const sent = await sendEntriesToXero(deps.xero, { accessToken: access.accessToken, tenantId }, book, entries);
+  const sent = await sendEntriesToQbo(deps.quickbooks, { accessToken: access.accessToken, realmId }, book, entries);
   if ('kind' in sent) return { kind: 'refused', reason: sent.reason };
   await withTenantTx(deps.db, bid.value, async (tx) => {
     for (const s of sent.written) {
       const e = entries.find((x) => x.key === s.key)!;
       await sql`insert into connector_records (business_id, system, kind, key, digest, nomi_id)
-        values (${bid.value}::uuid, 'xero', 'entry', ${`${SENT}${s.journalId}`}, ${GONE}, ${e.id}::uuid)
+        values (${bid.value}::uuid, 'quickbooks', 'entry', ${`${SENT}${s.entryId}`}, ${GONE}, ${e.id}::uuid)
         on conflict (business_id, system, kind, key) do nothing`.execute(tx);
     }
   });

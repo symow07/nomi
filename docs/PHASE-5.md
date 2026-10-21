@@ -586,6 +586,28 @@ Each item is built and fully tested (§4) before the next one that depends on it
       a database error); the tax-day form and its notice named Odoo, they now name the system.
     - Not yet: the Journals endpoint (all of Xero's own postings, invoices included) is Xero's premium tier and is not
       read: what Nomi reads from Xero is its manual journals.
+  - **D9 QuickBooks Online** *(built 2026-10-22, 0194: `src/books/connectors/quickbooks.ts`; against a recorded fake of
+    Intuit's documented answers — no Intuit account was made. Live on deploy day, on the Builder tier: free, reads
+    capped at 500,000 a month and blocked above, writes uncapped. Production keys wait on Intuit's App Assessment
+    Questionnaire.)*
+    - **Sign-in:** Intuit's own page, one scope (`com.intuit.quickbooks.accounting`); the company by the `realmId`
+      that comes back with the code, checked before anything is kept (the grant given back when it does not answer).
+      Minor version 75, the lowest Intuit still serves.
+    - **The refresh token changes every 24 hours** (the old one then expires): the one each refresh returns is kept,
+      as Xero's.
+    - **What QuickBooks holds** (`qboHolds`, said in the open):
+      - accounts by their number (`AcctNum`), WITH their parents;
+      - customers and vendors: a vendor's code is its `AcctNum`; a customer's code, ICE and custom values are in Nomi's
+        mark in its `Notes`. A tax identifier comes back masked, so none is read; a vendor carries no custom values;
+      - NO taxes: QuickBooks' tax rates name no account the books could post them to, and a United States company's
+        sales tax is QuickBooks' own automation. Nomi's tax codes stay Nomi's; a line's tax code travels in the mark;
+      - journal entries, numbered by `DocNumber` (21 at most), in one journal ("QBO"), all posted (QuickBooks keeps no
+        draft), one currency each — an entry in two currencies is not held, and C4 sends the converted amounts.
+    - **C4:** each posted entry not from QuickBooks and not sent before becomes a journal entry numbered by Nomi, with
+      a `requestid`; the party is the line's `Entity`; `GlobalTaxCalculation` is sent outside the United States only
+      (required there, refused in the US). A conflict waits: already there (or 6140), an account or a party QuickBooks
+      lacks, books in another currency than the company's, a number longer than 21, QuickBooks' own refusal. A
+      subscription that ended (6190) is said for what it is.
 - **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
   - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
     statements).

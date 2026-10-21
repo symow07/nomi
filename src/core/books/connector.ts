@@ -19,7 +19,7 @@ import type { BooksData, BooksProblem, RecordKind } from './interchange.js';
  * The shapes are pure; the systems are not (they read files and call the network), so they live outside core.
  */
 
-export const BOOKS_SYSTEMS = ['excel', 'sheets', 'odoo', 'xero'] as const;
+export const BOOKS_SYSTEMS = ['excel', 'sheets', 'odoo', 'xero', 'quickbooks'] as const;
 export type BooksSystem = (typeof BOOKS_SYSTEMS)[number];
 
 /** Why connecting, refreshing or reading was refused. Retryable says whether trying again later could help. */

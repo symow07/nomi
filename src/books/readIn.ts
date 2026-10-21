@@ -9,6 +9,7 @@ import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
 import { xeroAccess, type XeroDeps } from './connectors/xero.js';
+import { qboAccess, type QboDeps } from './connectors/quickbooks.js';
 import { sentTo } from './writeBack.js';
 
 /**
@@ -28,6 +29,7 @@ export type ReadDeps = {
   readonly sheets?: SheetsDeps;
   readonly odoo?: { readonly post: PublicPost; readonly today: () => string };
   readonly xero?: XeroDeps;
+  readonly quickbooks?: QboDeps;
 };
 
 export type ReadResult =
@@ -60,6 +62,16 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'xero', access.grant.secret, by));
     read = await booksConnector('xero', { bookCurrency, xero: deps.xero })!
       .changedSince({ accessToken: access.accessToken, tenantId: conn.settings['tenantId'] }, conn.cursor);
+  } else if (system === 'quickbooks') {
+    if (!deps.quickbooks || !conn.settings['realmId']) return { kind: 'refused', reason: 'source_missing' };
+    // Intuit's refresh token changes every 24 hours: the one it returns is kept before anything is read with it.
+    const access = await qboAccess(deps.quickbooks, conn.grant);
+    if ('kind' in access) return refuse(access.reason);
+    if (access.grant.secret !== conn.grant.secret) {
+      await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', access.grant.secret, by));
+    }
+    read = await booksConnector('quickbooks', { bookCurrency, quickbooks: deps.quickbooks })!
+      .changedSince({ accessToken: access.accessToken, realmId: conn.settings['realmId'] }, conn.cursor);
   } else {
     if (!deps.odoo) return { kind: 'refused', reason: 'unreachable' };
     const odoo = booksConnector('odoo', { bookCurrency, odoo: deps.odoo })!;
@@ -69,7 +81,7 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     read = await odoo.changedSince({ origin: conn.settings['url'] ?? '', database: conn.settings['database'] ?? '', key: conn.grant.secret }, conn.cursor);
   }
   if (read.kind === 'refused') return refuse(read.reason);
-  if (system === 'odoo' || system === 'xero') {
+  if (system === 'odoo' || system === 'xero' || system === 'quickbooks') {
     // C4: a move (a manual journal) Nomi sent there is Nomi's own entry, already in these books — never a new one
     const sent = await withTenantTx(deps.db, bid.value, (tx) => sentTo(tx, bid.value, system));
     read = { ...read, data: { ...read.data, entries: read.data.entries.filter((e) => !sent.names.has(e.key) && !sent.refs.has(e.label) && !sent.refs.has(e.key)) } };

@@ -15,3 +15,9 @@ export function parseExact(text: string): unknown {
   } as (this: unknown, k: string, v: unknown) => unknown);
 }
 
+/** A body whose `{ number }` values are written as JSON numbers with their own digits — never a float's. */
+export function exactBody(v: unknown): string {
+  return JSON.stringify(v, (_k, x: unknown) =>
+    (x && typeof x === 'object' && 'number' in x && typeof (x as { number: unknown }).number === 'string' ? `\u0000n${(x as { number: string }).number}` : x))
+    .replace(/"\\u0000n(-?\d+(?:\.\d+)?)"/g, '$1');
+}

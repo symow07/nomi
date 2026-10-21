@@ -40,6 +40,12 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/xero/read', action: 'post' },
   { method: 'POST', url: '/app/books/xero/write', action: 'post' },
   { method: 'POST', url: '/app/books/xero/disconnect', action: 'post' },
+  // D9 — the shop's own QuickBooks, likewise.
+  { method: 'GET', url: '/app/books/quickbooks/start', action: 'post' },
+  { method: 'GET', url: '/app/books/quickbooks/callback', action: 'post' },
+  { method: 'POST', url: '/app/books/quickbooks/read', action: 'post' },
+  { method: 'POST', url: '/app/books/quickbooks/write', action: 'post' },
+  { method: 'POST', url: '/app/books/quickbooks/disconnect', action: 'post' },
   // C0 — the day a tax took effect, where its system gave none: the owner's.
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
   // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
@@ -119,6 +125,7 @@ export type BooksSystems = {
   readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
   readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null; readonly silent?: Date | null };
   readonly xero?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
+  readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
 };
 
 export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems): string {
@@ -142,7 +149,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
     </li></ul>
     ${workbookBlock(locale, viewer)}
-    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') + (systems.xero ? xeroBlock(locale, systems.xero) : '') : ''}`;
+    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') + (systems.xero ? ledgerBlock(locale, 'xero', systems.xero) : '') + (systems.quickbooks ? ledgerBlock(locale, 'quickbooks', systems.quickbooks) : '') : ''}`;
 }
 
 /** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
@@ -187,36 +194,41 @@ function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string
     </div>`;
 }
 
-/** D8 — why Xero refused, in the owner's words (a Xero that no longer lets Nomi in has its own). */
-export const xeroWhy = (locale: Locale, reason: string): string =>
-  (reason === 'source_missing' ? t(locale, 'books.xero.missing') : t(locale, `books.connection.${reason}` as MessageKey, { system: 'Xero' }));
+/** D8, D9 — the name each shop's own ledger goes by on the page. */
+export const LEDGER_NAME = { xero: 'Xero', quickbooks: 'QuickBooks' } as const;
+type Ledger = keyof typeof LEDGER_NAME;
+/** Why Xero or QuickBooks refused, in the owner's words (one that no longer lets Nomi in has its own sentence). */
+export const ledgerWhy = (locale: Locale, system: Ledger, reason: string): string =>
+  (reason === 'source_missing' ? t(locale, `books.${system}.missing` as MessageKey) : t(locale, `books.connection.${reason}` as MessageKey, { system: LEDGER_NAME[system] }));
+export const xeroWhy = (locale: Locale, reason: string): string => ledgerWhy(locale, 'xero', reason);
 
 /**
- * D8 — the shop's own Xero on the books' home, the owner's: not set up on this installation (said, not hidden); a door
- * to connect (Xero's own page, where the organisation is chosen); or the organisation, when it was last read, a way to
- * read it in and to send posted entries, and a disconnect that asks first.
+ * D8, D9 — the shop's own Xero or QuickBooks on the books' home, the owner's: not set up on this installation (said,
+ * not hidden); a door to connect (the vendor's own page, where the organisation or company is chosen); or which one it
+ * is, when it was last read, a way to read it in and to send posted entries, and a disconnect that asks first.
  */
-function xeroBlock(locale: Locale, x: NonNullable<BooksSystems['xero']>): string {
-  const head = `<h2>${esc(t(locale, 'books.xero.title'))}</h2><p>${esc(t(locale, 'books.xero.explain'))}</p>`;
-  if (!x.offered) return `<div class="block" id="xero">${head}<p class="caption muted">${esc(t(locale, 'books.xero.notSetUp'))}</p></div>`;
+function ledgerBlock(locale: Locale, system: Ledger, x: NonNullable<BooksSystems['xero']>): string {
+  const key = (k: string) => `books.${system}.${k}` as MessageKey;
+  const head = `<h2>${esc(t(locale, key('title')))}</h2><p>${esc(t(locale, key('explain')))}</p>`;
+  if (!x.offered) return `<div class="block" id="${system}">${head}<p class="caption muted">${esc(t(locale, key('notSetUp')))}</p></div>`;
   const c = x.connection;
-  const connect = (key: 'books.xero.connect' | 'books.sheets.again') => `<p><a class="deeper" href="/app/books/xero/start">${esc(t(locale, key))}</a></p>`;
-  if (!c || c.state === 'disconnected') return `<div class="block" id="xero">${head}${connect('books.xero.connect')}</div>`;
+  const connect = (k: MessageKey) => `<p><a class="deeper" href="/app/books/${system}/start">${esc(t(locale, k))}</a></p>`;
+  if (!c || c.state === 'disconnected') return `<div class="block" id="${system}">${head}${connect(key('connect'))}</div>`;
   if (c.state !== 'connected') {
-    return `<div class="block" id="xero">${head}
-      <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(xeroWhy(locale, c.reason ?? 'revoked'))}</p>
+    return `<div class="block" id="${system}">${head}
+      <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(ledgerWhy(locale, system, c.reason ?? 'revoked'))}</p>
       ${connect('books.sheets.again')}</div>`;
   }
-  return `<div class="block" id="xero">${head}
-      <p><bdi>${esc(c.settings['tenantName'] ?? '')}</bdi></p>
-      ${silentLine(locale, 'Xero', x.silent)}
+  return `<div class="block" id="${system}">${head}
+      <p><bdi>${esc(c.settings['tenantName'] ?? c.settings['companyName'] ?? '')}</bdi></p>
+      ${silentLine(locale, LEDGER_NAME[system], x.silent)}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
-      ${c.reason === 'unreachable' ? `<p class="caption muted">${esc(t(locale, 'books.connection.unreachable', { system: 'Xero' }))}</p>` : ''}
-      <form method="post" action="/app/books/xero/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
-      <form method="post" action="/app/books/xero/write" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.xero.write'))}</button></form>
+      ${c.reason === 'unreachable' ? `<p class="caption muted">${esc(t(locale, 'books.connection.unreachable', { system: LEDGER_NAME[system] }))}</p>` : ''}
+      <form method="post" action="/app/books/${system}/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
+      <form method="post" action="/app/books/${system}/write" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, key('write')))}</button></form>
       <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>
-      <form method="post" action="/app/books/xero/disconnect" class="pform">
-        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.xero.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
+      <form method="post" action="/app/books/${system}/disconnect" class="pform">
+        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, key('disconnectAsk')))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
     </div>`;
 }
 
@@ -310,14 +322,14 @@ function taxStartForm(locale: Locale, system: 'odoo' | 'xero', taxes: readonly {
  * C4 — a write-back that waits: what in the spreadsheet Nomi has not read (the owner's own edits), or which of Nomi's
  * entries Odoo could not take and why. Nothing was written over anything; the owner decides, then writes again.
  */
-export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' | 'xero', r: {
+export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' | 'xero' | 'quickbooks', r: {
   readonly sheets?: readonly { kind: string; key: string; how: 'changed' | 'removed' }[]; readonly odoo?: readonly { key: string; reason: string; detail: string }[]; readonly written: number;
 }): string {
   const items = system === 'sheets'
     ? (r.sheets ?? []).map((c) => esc(t(locale, c.how === 'removed' ? 'books.conflict.sheetsRemoved' : 'books.conflict.sheetsRecord', { kind: t(locale, `books.conflict.kind.${c.kind}` as MessageKey), key: c.key })))
     : (r.odoo ?? []).map((c) => esc(t(locale, `books.conflict.${system}.${c.reason}` as MessageKey, { key: c.key, detail: c.detail })));
   return `<h1 class="page">${esc(t(locale, 'books.conflict.title'))}</h1>
-    <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : system === 'xero' ? 'books.conflict.xeroLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
+    <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : system === 'xero' ? 'books.conflict.xeroLede' : system === 'quickbooks' ? 'books.conflict.quickbooksLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
     <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
     <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
