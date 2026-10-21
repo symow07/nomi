@@ -15981,3 +15981,16 @@ Reviewer (per language): ______  Date: ______
   inside the sentence.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A5 — the accountant (not a gate)
+
+- **The keys:** `books.home.title`, `books.home.owner`, `books.home.accountant`, `books.home.empty`,
+  `books.flash.postIsOwners`, `books.flash.notYours`, `books.flash.onlyBooks`, `people.add.accountant`,
+  `people.kind.accountant`.
+- **Where the words differ, and why:** Arabic says what the role covers rather than addressing the accountant
+  («يمكن الاطلاع على هذه الدفاتر وتنزيلها», «صلاحية المحاسب هنا تقتصر على الدفاتر»), so no verb agrees with them in a
+  gender; zh 会计 for the accountant, 老板 for the owner, as the team page already does.
+- **Check:** that «تسجيل القيود للمالك» and 记账由老板来做 read as "posting is the owner's job", not as a refusal of the
+  person reading.
+
+Reviewer (per language): ______  Date: ______

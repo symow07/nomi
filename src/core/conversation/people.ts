@@ -43,7 +43,26 @@ export type Person = {
   readonly id: string;
   readonly name: string;
   readonly isOwner: boolean;
+  /** A5 (0175) — 'accountant': the books, and nothing else. Absent: a member of the team. */
+  readonly kind?: PersonKind;
 };
+
+/**
+ * A5 (Phase 5, decision 12) — THE BOOKS HAVE THREE ROLES, AND ONLY THE BOOKS.
+ *
+ *   · the OWNER sees, posts and exports;
+ *   · the ACCOUNTANT — a person of their own kind, made by the owner — sees and exports, and any posting is refused
+ *     with the reason. An accountant reaches the books and nothing else: never a customer's conversation, a
+ *     product, a price or a setting (the guard in app.ts walks every route; tests/integration/books-roles.test.ts);
+ *   · STAFF — the team — keep the sales work they always had, and get nothing of the books.
+ *
+ * Still not an organisation chart: one more kind of person, for the one outside person a shop's books need.
+ */
+export type PersonKind = 'team' | 'accountant';
+export const BOOKS_ACTIONS = ['see', 'post', 'export'] as const;
+export type BooksAction = (typeof BOOKS_ACTIONS)[number];
+export const booksMay = (person: Person, action: BooksAction): boolean =>
+  person.isOwner || (person.kind === 'accountant' && action !== 'post');
 
 /**
  * THE FOUR THINGS ONLY THE OWNER MAY DO, named here rather than left to a

@@ -423,7 +423,8 @@ import type { Db } from './client.js';
 //       `books_retention`, `businesses.books_held_until`, and the erasure that holds them.
 // 173 = the books in one currency at the owner's rates (0173): the line's rate, its day and its book amounts.
 // 174 = documents (0174): sealed, kept to their date, stored where the workspace's residency says.
-export const REQUIRED_SCHEMA_VERSION = 174;
+// 175 = the accountant (0175): `people.kind`, an accountant's posting refused, closure waiting for the owner's copy.
+export const REQUIRED_SCHEMA_VERSION = 175;
 
 export type SchemaState = {
   readonly required: number;

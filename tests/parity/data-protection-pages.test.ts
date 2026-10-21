@@ -357,7 +357,8 @@ describe('D17 · staff and owner records: archiving clears them, and the page sa
 describe('D18 · no service receives anyone\'s data before the privacy page names it', () => {
   it('each of the six, switched on, stops the boot; none switched on, nothing is said', async () => {
     const { unnamedRecipientProblems, OPTIONAL_RECIPIENTS } = await import('../../src/core/legal/recipients.js');
-    expect(OPTIONAL_RECIPIENTS.map((r) => r.id).sort()).toEqual(['apollo', 'd360', 'httpsMail', 'smtp', 'stripe', 'webPush']);
+    expect(OPTIONAL_RECIPIENTS.map((r) => r.id).sort()).toEqual(['apollo', 'd360', 'documentReader', 'googleSheets', 'httpsMail', 'intuit',
+      'odoo', 'smtp', 'stripe', 'telegram', 'webPush', 'xero']);   // A5 adds the books' six
     expect(unnamedRecipientProblems({})).toEqual([]);
     for (const [env, name] of [
       [{ STRIPE_SECRET_KEY: 'sk_test_x' }, 'Stripe'], [{ VAPID_PRIVATE_KEY: 'x' }, 'web push'], [{ MAIL_API_KEY: 'x' }, 'Resend or Postmark'],

@@ -19,7 +19,7 @@ export type OwnerSession = {
    * when the access code was a single owner. Extending the payload rather than
    * changing it means nobody is logged out by a deploy.
    */
-  readonly person?: { readonly id: string; readonly name: string; readonly isOwner: boolean };
+  readonly person?: { readonly id: string; readonly name: string; readonly isOwner: boolean; readonly kind?: 'team' | 'accountant' };
   /**
    * S1 — WHICH password this session was opened with: the login's
    * `password_changed_at`, in ms, as the database wrote it. Optional for the

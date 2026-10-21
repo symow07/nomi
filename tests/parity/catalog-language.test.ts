@@ -92,8 +92,10 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     // sales assistant (M47), ABOUT the owner — the one reader for whom she is
     // 老板. Addressing a refusal to staff as "only you can do this" (G9a found
     // it) is the error this rule exists to prevent, pointed the other way.
+    // A5 (Phase 5) — the same reason for the two lines said TO an accountant, about the owner's part.
+    const toAccountant = new Set(['books.home.accountant', 'books.flash.postIsOwners']);
     const hits = entries('zh')
-      .filter(([k, s]) => !k.startsWith('login.') && !k.startsWith('staff.') && /老板/.test(s))
+      .filter(([k, s]) => !k.startsWith('login.') && !k.startsWith('staff.') && !toAccountant.has(k) && /老板/.test(s))
       .map(([k, s]) => `${k}: ${s}`);
     expect(hits, hits.join('\n')).toEqual([]);
   });

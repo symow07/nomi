@@ -169,7 +169,8 @@ describe('V1-514, V1-520 · one label style and one field width on the page', ()
       // the owner's name form and the add form are the same shape, both outside the list
       const rows = html.slice(html.indexOf('<ul class="rows">'), html.indexOf('</ul>'));
       expect(rows, l).not.toContain('<form method="post" action="/app/settings/people/p-you/name"');
-      expect(html.match(/<div class="setrow"><div class="fr-l"><label class="fr-name" for="pp-/g)?.length, l).toBe(2);
+      // the name's row, the new person's name, and (A5) whether they are the business's accountant
+      expect(html.match(/<div class="setrow"><div class="fr-l"><label class="fr-name" for="pp-/g)?.length, l).toBe(3);
     }
   });
   it('the channels are a grid of two, so no channel sits alone on a line', () => {

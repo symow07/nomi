@@ -148,14 +148,14 @@ export async function loadPeople(db: Db, businessIdRaw: string): Promise<readonl
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => {
-    const r = await sql<{ id: string; name: string; is_owner: boolean; created_at: Date; last_seen_at: Date | null; has_login: boolean }>`
-      select p.id::text as id, p.name, p.is_owner, p.created_at, p.last_seen_at,
+    const r = await sql<{ id: string; name: string; is_owner: boolean; kind: 'team' | 'accountant'; created_at: Date; last_seen_at: Date | null; has_login: boolean }>`
+      select p.id::text as id, p.name, p.is_owner, p.kind, p.created_at, p.last_seen_at,
              exists (select 1 from logins l where l.person_id = p.id and l.archived_at is null) as has_login
         from people p
        where p.business_id = ${bid.value}::uuid and p.archived_at is null
        order by p.is_owner desc, p.created_at`.execute(tx);
     return r.rows.map((x) => ({
-      id: x.id, name: x.name, isOwner: x.is_owner, addedAt: x.created_at,
+      id: x.id, name: x.name, isOwner: x.is_owner, kind: x.kind, addedAt: x.created_at,
       signsInWithEmail: x.has_login, lastSeenAt: x.last_seen_at,
     }));
   });
@@ -215,7 +215,7 @@ export async function ownerPerson(db: Db, businessIdRaw: string): Promise<Person
 }
 
 export async function addPerson(
-  db: Db, businessIdRaw: string, secret: string, name: string | null,
+  db: Db, businessIdRaw: string, secret: string, name: string | null, kind: 'team' | 'accountant' = 'team',
 ): Promise<{ code: 'added'; name: string; accessCode: string } | { code: PersonError | 'failed' | 'seat_limit' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
@@ -229,8 +229,9 @@ export async function addPerson(
       const n = Number((await sql<{ n: number }>`select count(*)::int as n from people where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx)).rows[0]?.n ?? 0);
       if (n >= seats) return { code: 'seat_limit' as const };
     }
-    await sql`insert into people (business_id, name, code_hash)
-              values (${bid.value}::uuid, ${v.value}, ${hashCode(secret, accessCode)})`.execute(tx);
+    // A5 (0175) — an accountant is made as one, and stays one.
+    await sql`insert into people (business_id, name, code_hash, kind)
+              values (${bid.value}::uuid, ${v.value}, ${hashCode(secret, accessCode)}, ${kind})`.execute(tx);
     return { code: 'added' as const, name: v.value, accessCode };
   });
 }
@@ -299,7 +300,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
       ${/* The warmth run (-03) — the list is as wide as the forms on the page (team). */ ''}<ul class="rows team">${v.people.map((p) => `<li class="row">
-        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}</span>
+        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}${p.kind === 'accountant' ? ` <span class="muted">· ${esc(t(locale, 'people.kind.accountant'))}</span>` : ''}</span>
           <span class="caption muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))} · ${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span>
           ${/* The warmth run (-01) — where they are is a line of its own: wrapped after a dot, it began a line with one. */ ''}<span class="caption">${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
@@ -316,6 +317,9 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
           fieldRow({ label: t(locale, 'people.add.label'), forId: 'pp-add-name',
             control: `<input id="pp-add-name" name="name" required maxlength="60"
               placeholder="${esc(t(locale, 'people.add.placeholder'))}" />` }),
+          // A5 (decision 12) — the business's accountant: the books, and nothing else.
+          fieldRow({ label: t(locale, 'people.add.accountant'), forId: 'pp-add-accountant',
+            control: `<span class="chkbox"><input id="pp-add-accountant" type="checkbox" name="accountant" /></span>` }),
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>`),
         ])}
       </form>

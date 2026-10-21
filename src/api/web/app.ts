@@ -150,7 +150,7 @@ import {
   confirmFollowUpById, loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
   updateStepFrom,
 } from './sequences.js';
-import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
+import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
@@ -225,7 +225,8 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
-import { makeBooksFile } from '../../db/booksExport.js';
+import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
+import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome } from './books.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -831,6 +832,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // A stranger is not told what exists here: the route answers with the same
     // login redirect as every other address.
     if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
+  });
+
+  /**
+   * A5 (decision 12) — THE BOOKS' THREE ROLES, at every route. A books route (`BOOKS_ROUTES`) is reached only by
+   * whom `booksMay` lets do its action: the owner all, the accountant see and export, staff nothing. And an
+   * ACCOUNTANT reaches the books and nothing else: any other page sends them to the books, any other write is
+   * refused. tests/integration/books-roles.test.ts walks every route the app registers against this.
+   */
+  app.addHook('preHandler', async (req, reply) => {
+    if (!req.url.startsWith('/app')) return;
+    const s = sessionOf(req);
+    if (!s) return;
+    const who = personOf(s);
+    const route = req.routeOptions.url;
+    const books = booksRouteOf(req.method, route);
+    if (books) {
+      if (booksMay(who, books.action)) return;
+      return flashTo(reply, who.kind === 'accountant' ? '/app/books' : '/app',
+        who.kind === 'accountant' ? 'books.flash.postIsOwners' : 'staff.booksNotYours');
+    }
+    if (who.kind !== 'accountant' || ACCOUNTANT_ALSO.has(`${req.method} ${route}`)) return;
+    if (req.method === 'GET' || req.method === 'HEAD') return reply.redirect('/app/books');
+    return flashTo(reply, '/app/books', 'books.flash.onlyBooks');
   });
 
   /**
@@ -1459,10 +1483,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return undefined;
     return (await readLiveness(deps.db, bid.value, personId).catch(() => null))?.passwordChangedAt ?? undefined;
   };
-  const signIn = (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app', pv?: number) => {
-    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person, ...(pv === undefined ? {} : { pv }) }),
+  const signIn = async (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app', pv?: number) => {
+    // A5 (0175) — the person's kind, read at the door from their own row, signed into the session: an accountant's
+    // session reaches the books and nothing else, and lands there. The kind never changes (0175), so it never goes stale.
+    const kind = await personKindOf(businessId, person.id);
+    const who = kind === 'accountant' ? { ...person, kind } : person;
+    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person: who, ...(pv === undefined ? {} : { pv }) }),
       Math.floor(SESSION_TTL_MS / 1000));
-    return reply.redirect(next);
+    return reply.redirect(kind === 'accountant' ? '/app/books' : next);
+  };
+  const personKindOf = async (businessId: string, personId: string): Promise<'team' | 'accountant'> => {
+    const bid = parseBusinessId(businessId);
+    if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(personId)) return 'team';
+    return withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ kind: 'team' | 'accountant' }>`
+      select kind from people where id = ${personId}::uuid`.execute(tx)).rows[0]?.kind ?? 'team');
   };
 
   app.get('/login', async (req, reply) => {
@@ -2208,6 +2242,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
       .header('cache-control', 'no-store')
       .send(file.csv);
+  });
+
+  // A5 — the books' home, and the copy from it: the owner's and the accountant's (the guard above decides who).
+  app.get('/app/books', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'books.home.title'), active: 'settings', bodyHtml: renderBooksHome(locale, personOf(s), holding),
+    }));
+  });
+  app.get('/app/books/books.csv', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books', 'data.export.flash.tooMany');
+    const file = await makeBooksFile(deps.db, s.businessId, personOf(s).id, show.csvDialectFor(localeOf(req)));
+    if (!file) return reply.callNotFound();
+    return reply.type('text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
+      .header('cache-control', 'no-store').send(file.csv);
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {
@@ -5041,8 +5098,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
     const locale = localeOf(req);
-    const name = String((req.body as { name?: string } | undefined)?.name ?? '');
-    const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name);
+    const body = (req.body as { name?: string; accountant?: string } | undefined) ?? {};
+    const name = String(body.name ?? '');
+    const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name, body.accountant === 'on' ? 'accountant' : 'team');
     if (r.code !== 'added') {
       return flashTo(reply, '/app/settings/people', `people.flash.${r.code}` as MessageKey);
     }

@@ -163,7 +163,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
    encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
-- **A5 · The books' tenancy and the three roles (decision 12):**
+- **A5 · The books' tenancy and the three roles (decision 12):** *(built 2026-10-22, 0175: `people.kind`
+  'accountant', made by the owner on the team page and never changed; the guard confines an accountant to the books'
+  routes, every registered route walked in tests/integration/books-roles.test.ts; an accountant's posting refused by
+  the database too; closure waits for the OWNER's copy. The roles are the books' only: staff keep their sales work and
+  get nothing of the books; an accountant reaches nothing of the sales side. D18: the six new processors stop the boot
+  until named. The per-buyer legal-retention action comes with C2's party link, as A2.4 says.)*
   - row-level security on every new table;
   - owner, accountant (see and export only) and staff (nothing), as real roles with a permission test per route;
   - erasure-contract entries with the legal-retention action;
