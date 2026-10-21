@@ -279,6 +279,10 @@ export const RULES = Object.freeze({
   statement_imports: { do: 'unrelated' },
   statement_lines: { do: 'unrelated' },
   statement_matches: { do: 'unrelated' },
+  // 0188 (D1b) — credit notes against issued invoices, their lines and their counter.
+  credit_note_counters: { do: 'unrelated' },
+  credit_notes: { do: 'unrelated' },
+  credit_note_lines: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

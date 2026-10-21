@@ -242,7 +242,8 @@ import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccount
 import { defaultPeriod, trialBalanceOf } from '../../db/booksReports.js';
 import { renderTrialBalance } from './booksReports.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
-import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
+import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
+import { creditable, discardCreditNote, draftCreditNote, issueCreditNote, loadCreditNote } from '../../db/booksCreditNotes.js';
 import { bankAccounts, importStatement, matchedLines, matchLine, openLines, unmatch } from '../../db/bankStatements.js';
 import { readStatement } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
@@ -2691,6 +2692,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const invoiceRefusedWhy = (locale: Locale, r: { reason: string; detail: string | null }) =>
     r.reason === 'accounts_not_set' ? t(locale, 'books.orders.setFirst')
       : r.reason === 'too_much' ? t(locale, 'books.invoice.tooMuch', { owed: r.detail ?? '' })
+      : r.reason === 'too_much_refund' ? t(locale, 'books.credit.tooMuchRefund', { owed: r.detail ?? '' })
+      : r.reason === 'credit_more_than_left' ? t(locale, 'books.credit.moreThanLeft', { line: r.detail ?? '' })
+      : r.reason === 'credit_before_invoice' ? t(locale, 'books.credit.beforeInvoice', { day: r.detail ?? '' })
+      : r.reason === 'credit_refused' ? t(locale, 'books.credit.refused')
+      : r.reason === 'nothing_to_credit' ? t(locale, 'books.credit.nothing')
       : r.reason === 'not_issued' ? t(locale, 'books.invoice.notIssued')
       : entryRefusedWhy(locale, r as EntryRefusal);
   app.get('/app/books/invoices', async (req, reply) => {
@@ -2784,15 +2790,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return done ? flashTo(reply, '/app/books/invoices', 'books.flash.invoiceDiscarded')
       : flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.invoiceRefused', { why: t(localeOf(req), 'books.entry.refused.not_a_draft', { detail: '' }) });
   });
-  app.post('/app/books/invoices/:id/payments', async (req, reply) => {
+  /** C2 — a payment in; D1b — a refund out, to a customer owed it back after a credit note. One handler, one rule. */
+  const moneyRoute = (refund: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
     const f = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
     const amount = readTypedAmount(str('amount'));
-    const back = (why: string) => flashTo(reply, `/app/books/invoices/${id}#pay`, 'books.flash.invoiceRefused', { why });
+    const back = (why: string) => flashTo(reply, `/app/books/invoices/${id}#${refund ? 'refund' : 'pay'}`, 'books.flash.invoiceRefused', { why });
     if (amount === 'ambiguous') return back(t(locale, 'books.entry.problem.ambiguous', { n: 1 }));
     if (amount === null || amount === '0') return back(t(locale, 'books.entry.problem.amount', { n: 1 }));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(str('paidOn'))) return back(t(locale, 'books.entry.problem.date'));
@@ -2800,10 +2808,79 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const ok = (await sql<{ n: number }>`select (select count(*) from journals where business_id = ${bid}::uuid and id::text = ${str('journal')} and kind in ('bank', 'cash'))::int
         + (select count(*) from accounts where business_id = ${bid}::uuid and id::text = ${str('account')})::int as n`.execute(tx)).rows[0]!.n;
       if (ok !== 2) return { kind: 'refused' as const, reason: 'other' as const, detail: null };
-      return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account') });
+      return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account'), refund });
     });
     if (out.kind === 'refused') return back(invoiceRefusedWhy(locale, out));
-    return flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.paymentRecorded');
+    return flashTo(reply, `/app/books/invoices/${id}`, refund ? 'books.flash.refundRecorded' : 'books.flash.paymentRecorded');
+  };
+  app.post('/app/books/invoices/:id/payments', moneyRoute(false));
+  app.post('/app/books/invoices/:id/refunds', moneyRoute(true));
+  /** D1b — a credit note: drafted from an issued invoice's lines, issued (numbered, posted), or discarded while a draft. */
+  const creditForm = async (req: FastifyRequest, reply: FastifyReply, values: Readonly<Record<string, string>>, problems: readonly string[], code = 200) => {
+    const s = sessionOf(req)!; const bid = bidOf(s)!; const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, todayIso()), lines: await creditable(tx, bid, id) }));
+    if (!got.v || !got.v.key) return reply.callNotFound();
+    return reply.code(code).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.credit.new', { invoice: got.v.key }), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, { id, key: got.v.key, party: got.v.party, currency: got.v.currency }, got.lines, values, problems, todayIso())}` }));
+  };
+  app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
+    return creditForm(req, reply, {}, []);
+  });
+  app.post('/app/books/invoices/:id/credit-notes', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const values: Record<string, string> = {};
+    for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.trim();
+    const problems: string[] = [];
+    const reason = (values['reason'] ?? '').slice(0, 200);
+    if (!reason) problems.push(t(locale, 'books.credit.problem.reason'));
+    const issueDate = values['issueDate'] ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) problems.push(t(locale, 'books.entry.problem.date'));
+    const lines: { invoiceLineNo: number; quantity: Decimal }[] = [];
+    for (const [k, v] of Object.entries(values)) {
+      const m = /^qty(\d{1,3})$/.exec(k); if (!m || v === '' || v === '0') continue;
+      const q = readTypedAmount(v);
+      if (q === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n: Number(m[1]) })); continue; }
+      if (q === null) { problems.push(t(locale, 'books.entry.problem.amount', { n: Number(m[1]) })); continue; }
+      lines.push({ invoiceLineNo: Number(m[1]), quantity: q });
+    }
+    if (problems.length > 0) return creditForm(req, reply, values, problems, 422);
+    const out = await withTenantTx(deps.db, bid, (tx) => draftCreditNote(tx, bid, personOf(s).id, { invoiceId: id, issueDate, reason, lines }));
+    if (out.kind === 'refused') return creditForm(req, reply, values, [invoiceRefusedWhy(locale, out)], 422);
+    return flashTo(reply, `/app/books/credit-notes/${out.id}`, 'books.flash.creditDrafted');
+  });
+  app.get('/app/books/credit-notes/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const c = await withTenantTx(deps.db, bid, (tx) => loadCreditNote(tx, bid, (req.params as { id: string }).id));
+    if (!c) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: c.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderCreditNote(locale, personOf(s), c)}` }));
+  });
+  app.post('/app/books/credit-notes/:id/issue', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const out = await withTenantTx(deps.db, bid, (tx) => issueCreditNote(tx, bid, id, personOf(s).id));
+    if (out.kind === 'refused') return flashTo(reply, `/app/books/credit-notes/${id}`, 'books.flash.invoiceRefused', { why: invoiceRefusedWhy(localeOf(req), out) });
+    return flashTo(reply, `/app/books/credit-notes/${id}`, 'books.flash.creditIssued', { key: out.key });
+  });
+  app.post('/app/books/credit-notes/:id/discard', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const ok = await withTenantTx(deps.db, bid, (tx) => discardCreditNote(tx, bid, id));
+    return flashTo(reply, `/app/books/credit-notes/${id}`, ok ? 'books.flash.creditDiscarded' : 'books.flash.invoiceRefused', ok ? undefined : { why: t(localeOf(req), 'books.entry.refused.not_a_draft') });
   });
   /**
    * C3 (item 4) — RECONCILIATION. The page is the books' to see; reading a statement in, matching and undoing a match

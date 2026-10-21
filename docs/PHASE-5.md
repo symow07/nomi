@@ -376,11 +376,25 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - numbered at issue from its OWN gap-free counter (`A-<year>-<n>`);
     - its customer copied at issue, like an invoice's (decision 18);
     - issuing posts the mirror of the invoice's entry: sales and tax debited, the receivable credited with the
-      customer on it, at the INVOICE's rate for a foreign invoice;
+      customer on it. For a foreign invoice this is at the credit note's OWN day's rate (decision 13: a rate is
+      stored, never recomputed). The receivable is relieved at the invoice's book value by the one rule C2's
+      payments use, and any difference is a marked exchange line. *(Changed from "at the invoice's rate" while
+      building: posting picks the owner's rate for the entry's own day, and forcing another would mean re-making
+      the posting rule.)*
     - it lowers what is owed on the invoice. Already paid, the excess is a credit owed to the customer, refunded by a
       payment out.
   - **Never more** than the invoice less the credit notes already issued against it (the app and the database).
   - *Depends on C2 and D0.*
+  - *(built 2026-10-22, 0188.)*
+    - A credit note credits quantities of an invoice's lines, at each line's own price, account and tax code.
+    - The last of a line takes exactly what is left of its net and tax: a line credited in thirds comes to the cent.
+    - It is numbered at issue from its own counter, its customer copied from the invoice's copy.
+    - Refunds are payments of kind `refund`, never more than the customer is owed back.
+    - What is owed counts the credit notes. The invoice reads as credited, or as refund due.
+    - **Every payment and every credit note is now checked with the invoice LOCKED.** C2 did not lock: two
+      payments at once on two journals could have paid an invoice twice. Both races are proven by tests that hold
+      one transaction open.
+    - Not yet: a price reduction on its own (no quantity given back) is not a credit note. Said in §10.
 - **D2 · Item 6 — period close:**
   - a pre-close checklist, then a lock;
   - closing entries in their own journal;
@@ -712,4 +726,6 @@ Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/bo
 - **A payment is taken only in the invoice's own currency.** A payment in any other currency is refused.
 - **A bank statement in CSV is read in one layout only:** a header row naming Date and Amount (or Debit and Credit),
   with Description and Currency where the bank gives them. OFX and CAMT.053 files are read as banks send them.
-- **A draft entry or a draft invoice cannot be edited:** discard it and draft it again.
+- **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
+- **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
+  with nothing given back, is not a credit note yet.

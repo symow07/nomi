@@ -38,6 +38,13 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
   // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
   { method: 'GET', url: '/app/books/entries', action: 'see' },
+  // D1b — credit notes and refunds: each one is the books' to see; making, issuing, discarding and refunding the owner's.
+  { method: 'GET', url: '/app/books/credit-notes/:id', action: 'see' },
+  { method: 'POST', url: '/app/books/credit-notes/:id/issue', action: 'post' },
+  { method: 'POST', url: '/app/books/credit-notes/:id/discard', action: 'post' },
+  { method: 'GET', url: '/app/books/invoices/:id/credit-notes/new', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/credit-notes', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/refunds', action: 'post' },
   // D1 — the trial balance: the books' to see (the accountant's too).
   { method: 'GET', url: '/app/books/trial-balance', action: 'see' },
   { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
@@ -252,7 +259,7 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo', 
 export function renderBooksNotYet(locale: Locale): string {
   return `<div class="block" id="not-yet">
       <h2>${esc(t(locale, 'books.notYet.title'))}</h2>
-      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts'] as const).map((k) =>
+      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price'] as const).map((k) =>
         `<li class="row"><span>${esc(t(locale, k))}</span></li>`).join('')}</ul>
     </div>`;
 }

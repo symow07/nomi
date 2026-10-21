@@ -143,7 +143,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // B2 — a workbook read in.
   'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected', 'books.flash.taxStartSaved',
   'books.flash.entryPosted', 'books.flash.entryDiscarded', 'books.flash.entryReversed', 'books.flash.orderDrafted', 'books.flash.accountsSaved',
-  'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded',
+  'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded', 'books.flash.creditDrafted', 'books.flash.creditIssued', 'books.flash.creditDiscarded', 'books.flash.refundRecorded',
   'books.flash.statementRead', 'books.flash.matched', 'books.flash.unmatched', 'books.flash.written',
   // EXT — lines read more closely.
   'import.flash.extracted',
