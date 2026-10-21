@@ -222,8 +222,9 @@ d('B2 · the Nomi workbook, in and out (requires DATABASE_URL + MIGRATE_DATABASE
     const changed = { ...books, entries: books.entries.map((e) => (e.key === draft.key ? { ...e, label: 'Avoir AV-2026-0003' } : e)) };
     const r = await upload(excel.fromBooks(changed));
     expect(await flashOf(r)).toContain('Read in: 0 new, 1 replaced,');
-    const rows = await as((q) => q(`select label, state from journal_entries where label in ('Avoir à préparer', 'Avoir AV-2026-0003') order by label`));
-    expect(rows.rows).toEqual([{ label: 'Avoir AV-2026-0003', state: 'draft' }, { label: 'Avoir à préparer', state: 'discarded' }]);
+    // ordered by state, never by label: 'à' and 'A' sort apart differently under each collation (CI's is not this Mac's)
+    const rows = await as((q) => q(`select label, state from journal_entries where label in ('Avoir à préparer', 'Avoir AV-2026-0003') order by state`));
+    expect(rows.rows).toEqual([{ label: 'Avoir à préparer', state: 'discarded' }, { label: 'Avoir AV-2026-0003', state: 'draft' }]);
   });
 
   it('a file that is not the Nomi workbook is refused as such; the accountant downloads but cannot read in', async () => {
