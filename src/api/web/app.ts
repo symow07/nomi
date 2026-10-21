@@ -235,6 +235,10 @@ import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
 import { readBooks, readInBooks } from '../../db/booksInterchange.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
+import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
+import { ENTRY_FORM_LINES, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { readTypedAmount } from '../../core/commerce/amount.js';
+import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
@@ -2487,6 +2491,116 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartUsed');
     }
     return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartSaved');
+  });
+  /**
+   * C1 (item 3) — ENTRIES BY HAND. The list and each entry are the books' to see (the accountant too); drafting,
+   * posting, discarding and reversing are the owner's. Every rule is the database's: these routes ask, and say its
+   * refusal in the owner's words.
+   */
+  const entryRefusedWhy = (locale: Locale, r: EntryRefusal) =>
+    t(locale, `books.entry.refused.${r.reason}` as MessageKey, { detail: r.detail ?? '' });
+  const bidOf = (s: OwnerSession) => { const b = parseBusinessId(s.businessId); return b.ok ? b.value : null; };
+  app.get('/app/books/entries', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid, (tx) => listEntries(tx, bid));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.entries.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderEntries(locale, personOf(s), rows)}` }));
+  });
+  app.get('/app/books/entries/new', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const c = await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.entries.new'), active: 'settings',
+      bodyHtml: renderNewEntry(locale, c, {}, [], todayIso()) }));
+  });
+  app.post('/app/books/entries', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const values: Record<string, string> = {};
+    for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.slice(0, 300);
+    const c = await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid));
+    const problems: string[] = [];
+    const has = (rows: readonly { id: string }[], id: string | undefined) => !!id && rows.some((r) => r.id === id);
+    if (!has(c.journals, values['journal'])) problems.push(t(locale, 'books.entry.problem.journal'));
+    const date = values['date'] ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) problems.push(t(locale, 'books.entry.problem.date'));
+    const label = (values['label'] ?? '').trim();
+    if (!label) problems.push(t(locale, 'books.entry.problem.label'));
+    const docDate = (values['documentDate'] ?? '').trim();
+    if (docDate && !/^\d{4}-\d{2}-\d{2}$/.test(docDate)) problems.push(t(locale, 'books.entry.problem.date'));
+    const lines: DraftLine[] = [];
+    const figure = (raw: string | undefined, n: number): Decimal | null | 'bad' => {
+      const x = (raw ?? '').trim();
+      if (!x) return null;
+      const r = readTypedAmount(x);
+      if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return 'bad'; }
+      if (r === null || r === '0') { problems.push(t(locale, 'books.entry.problem.amount', { n })); return 'bad'; }
+      return r;
+    };
+    for (let i = 0; i < ENTRY_FORM_LINES; i++) {
+      const n = i + 1;
+      const account = values[`account${i}`];
+      const debit = figure(values[`debit${i}`], n); const credit = figure(values[`credit${i}`], n);
+      if (!account && debit === null && credit === null) continue;
+      if (!has(c.accounts, account)) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
+      if (debit === 'bad' || credit === 'bad') continue;
+      if ((debit === null) === (credit === null)) { problems.push(t(locale, 'books.entry.problem.oneSide', { n })); continue; }
+      const currency = values[`currency${i}`] ?? c.bookCurrency;
+      if (!(CURRENCIES as readonly string[]).includes(currency)) { problems.push(t(locale, 'books.entry.problem.amount', { n })); continue; }
+      const party = values[`party${i}`] || null; const tax = values[`tax${i}`] || null;
+      if ((party && !has(c.parties, party)) || (tax && !has(c.taxCodes, tax))) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
+      lines.push({ accountId: account!, partyId: party, taxCodeId: tax, currency, debit, credit,
+        label: (values[`label${i}`] ?? '').trim() || null, isFx: values[`fx${i}`] === '1' });
+    }
+    if (problems.length === 0 && lines.length < 2) problems.push(t(locale, 'books.entry.problem.twoLines'));
+    const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'books.entries.new'), active: 'settings', bodyHtml: renderNewEntry(locale, c, values, list, todayIso()) }));
+    if (problems.length > 0) return again(problems);
+    const out = await withTenantTx(deps.db, bid, (tx) => draftEntry(tx, bid, personOf(s).id, {
+      journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines }));
+    if (out.kind === 'refused') return again([entryRefusedWhy(locale, out)]);
+    return reply.redirect(`/app/books/entries/${out.id}`, 303);
+  });
+  app.get('/app/books/entries/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const found = await withTenantTx(deps.db, bid, async (tx) => ({ e: await loadEntry(tx, bid, id), c: (await entryChoices(tx, bid)).bookCurrency }));
+    if (!found.e) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: found.e.state === 'posted' ? found.e.key : t(locale, 'books.entry.state.draft'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderEntry(locale, personOf(s), found.e, todayIso(), found.c)}` }));
+  });
+  app.post('/app/books/entries/:id/post', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const out = await withTenantTx(deps.db, bid, (tx) => postEntry(tx, bid, id, personOf(s).id));
+    if (out.kind === 'refused') return flashTo(reply, `/app/books/entries/${id}`, 'books.flash.entryRefused', { why: entryRefusedWhy(localeOf(req), out) });
+    return flashTo(reply, `/app/books/entries/${id}`, 'books.flash.entryPosted', { key: out.key });
+  });
+  app.post('/app/books/entries/:id/discard', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const done = await withTenantTx(deps.db, bid, (tx) => discardEntry(tx, bid, id));
+    return flashTo(reply, done ? '/app/books/entries' : `/app/books/entries/${id}`, done ? 'books.flash.entryDiscarded' : 'books.flash.entryRefused',
+      done ? undefined : { why: t(localeOf(req), 'books.entry.refused.not_a_draft', { detail: '' }) });
+  });
+  app.post('/app/books/entries/:id/reverse', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const date = String(((req.body ?? {}) as Record<string, unknown>)['date'] ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return flashTo(reply, `/app/books/entries/${id}`, 'books.flash.entryRefused', { why: t(localeOf(req), 'books.entry.problem.date') });
+    const out = await withTenantTx(deps.db, bid, (tx) => reverseEntry(tx, bid, id, personOf(s).id, date));
+    if (out.kind === 'refused') return flashTo(reply, `/app/books/entries/${id}`, 'books.flash.entryRefused', { why: entryRefusedWhy(localeOf(req), out) });
+    return flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.entryReversed', { key: out.key });
   });
   app.post('/app/books/odoo/disconnect', async (req, reply) => {
     const s = sessionOf(req);

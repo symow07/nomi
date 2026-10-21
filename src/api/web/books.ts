@@ -33,6 +33,14 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
   // C0 — the day a tax took effect, where its system gave none: the owner's.
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
+  // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
+  { method: 'GET', url: '/app/books/entries', action: 'see' },
+  { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
+  { method: 'GET', url: '/app/books/entries/new', action: 'post' },
+  { method: 'POST', url: '/app/books/entries', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/post', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/discard', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/reverse', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -58,6 +66,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
   return `<h1 class="page">${esc(t(locale, 'books.home.title'))}</h1>
     <p class="lede">${esc(lead)}</p>
     ${state ? `<p class="muted">${esc(state)}</p>` : ''}
+    <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
