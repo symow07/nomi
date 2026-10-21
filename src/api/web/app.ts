@@ -247,6 +247,8 @@ import { renderLabels } from './labels.js';
 import { rotationOf, setPersonTurn, setRotationOn } from '../../db/rotation.js';
 import { answerSuggestions, dismissSuggestion, teachSuggestion } from '../../db/answerSuggestions.js';
 import { renderAnswerSuggestions } from './answerSuggestions.js';
+import { latestSurveyAnswers, setSurveysOn, surveyFacts } from '../../db/surveys.js';
+import { renderSurveys } from './surveys.js';
 import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
@@ -4225,6 +4227,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const { clientId, labelId } = req.params as { clientId: string; labelId: string };
     const done = await withTenantTx(deps.db, bid.value, (tx) => takeOffLabel(tx, bid.value, clientId, labelId, personOf(s).id));
     return flashTo(reply, labelBack(req), done ? 'labels.flash.off' : 'labels.flash.notOn');
+  });
+  /**
+   * S6 (Phase 5, item 20; 0202) — HOW DID WE DO? The page under Buyers; the switch is the owner's: it lets the assistant
+   * write to buyers on its own, which is going live (rule 11).
+   */
+  app.get('/app/surveys', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const now = new Date();
+    const [facts, answers] = await withTenantTx(deps.db, bid.value, async (tx) => [await surveyFacts(tx, bid.value, now), await latestSurveyAnswers(tx, bid.value)] as const);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'surveys.title'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSurveys(locale, facts, answers, personOf(s), now)}` }));
+  });
+  app.post('/app/surveys', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/surveys'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/surveys');
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setSurveysOn(tx, bid.value, on));
+    return flashTo(reply, '/app/surveys', on ? 'surveys.flash.on' : 'surveys.flash.off');
   });
   app.get('/app/labels', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

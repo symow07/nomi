@@ -71,6 +71,8 @@ import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
+import { sendDueSurveys, surveyBusinessesDue } from './db/surveys.js';
+import type { SurveySigned } from './core/conversation/survey.js';
 import { deliverOwnerAlert, sendAlert, lateUrgentAlert } from './pipeline/notify.js';
 import type { JobWithMetadata } from 'pg-boss';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
@@ -515,6 +517,11 @@ export async function buildProduction(
     media?: MediaPorts;
     /** G2b — model ports, tests only; production builds them from the key. */
     models?: Parameters<typeof startWorker>[2];
+    /**
+     * S6 — tests only: survey sentences as if a reader had signed them. Production never passes it: a sentence is
+     * signed in src/core/conversation/survey.ts, by name, in the commit that names the reader.
+     */
+    surveySigned?: SurveySigned;
     /** CH3 — tests only: how long an echo waits before it is read (production: ECHO_SETTLE_SECONDS). */
     echoSettleSeconds?: number;
     /** G5b — tests only: the push service, instead of the network. */
@@ -1455,6 +1462,20 @@ export async function buildProduction(
       if (spent()) return;
       await runDueSteps(sequenceDeps, tenant)
         .catch((e: unknown) => { console.warn('[sequences]', loggableMessage(e instanceof Error ? e.message : String(e))); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); });
+    }
+
+    /**
+     * S6 (0202) — THE SURVEYS DUE, in every workspace that has one: each asked (an automated message, held by the send
+     * gate like a follow-up) or set aside with its reason, in that workspace's own transaction; then sent like any reply.
+     */
+    const surveying = spent() ? [] : await surveyBusinessesDue(db).catch(() => [] as readonly string[]);
+    for (const id of surveying) {
+      if (spent()) return;
+      const b = parseBusinessId(id);
+      if (!b.ok) continue;
+      const queued = await withTenantTx(db, b.value, (tx) => sendDueSurveys(tx, b.value, new Date(), overrides?.surveySigned))
+        .catch((e: unknown) => { console.warn('[surveys]', loggableMessage(e instanceof Error ? e.message : String(e))); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: b.value }); return [] as readonly string[]; });
+      for (const c of queued) await sequenceDeps.kickDrive(id, c);
     }
 
     /**

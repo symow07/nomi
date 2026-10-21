@@ -2,6 +2,7 @@ import { createDb, lockConversation, withTenantTx } from '../db/client.js';
 import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
 import { giveToNextInTurn } from '../db/rotation.js';
+import { recordSurveyAnswer } from '../db/surveys.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { decideBatch } from '../core/conversation/batching.js';
@@ -596,6 +597,23 @@ export async function startWorker(
       });
       await alertHandoff(businessId.value, conversationId.value, effects);
       return;
+    }
+
+    /**
+     * ── S6 (0202) · A SCORE, AFTER A SURVEY ────────────────────────────────
+     *
+     * Asked how it went after an order, the buyer answered with only a number from 1 to 5 within their 24 hours:
+     * that is their answer. It is on the timeline and kept, and nothing answers it — no turn, no model, no reply.
+     * Anything more than the score ("5 more please") is an ordinary message and goes on below.
+     */
+    if ((job.data.messageType ?? 'text') === 'text' && job.data.text) {
+      const answered = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, conversationId.value);
+        if (!(await recordSurveyAnswer(tx, businessId.value, conversationId.value, { text: job.data.text, messageId: job.data.messageId, now: new Date() }))) return false;
+        await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
+        return true;
+      });
+      if (answered) return;
     }
 
     // M34 — a voice note is heard BEFORE the turn, outside the tenant

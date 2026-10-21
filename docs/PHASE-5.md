@@ -788,8 +788,29 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - Read from the last 90 days; at most 12 shown, the most asked first.
   - The accountant is refused by the route, and by the database, which shows them no decision and takes none (DZ,
     in this block).
-- **S6 · Item 20 — satisfaction surveys,** only where they're free: inside WhatsApp's 24-hour window, and on channels with
-  no per-message cost.
+- **S6 · Item 20 — satisfaction surveys.** *(built 2026-10-22, 0202: `/app/surveys`, under Buyers.)*
+  - **One question, after an order the owner confirmed:** how it went, from 1 to 5. Off until the owner switches it
+    on (`messaging_activation`: it lets the assistant write to buyers alone). Ten minutes after the order, so the
+    confirmation goes first; the minute's sweep asks it.
+  - **Only where free:** a chat channel (WhatsApp, Instagram, Messenger) inside the buyer's 24 hours, with an hour to
+    spare. The row is the assistant's automated message, so the send gate holds it as it holds a follow-up: never as a
+    template; never while stopped or silenced; never after a stop request, or in a language without a signed
+    disclosure. Otherwise it is set aside, with why (off, held by a person, not a chat channel, not free, unsigned, no
+    name for the disclosure it would need), and nothing is queued.
+  - **Signed sentences only, like the disclosure:** `src/core/conversation/survey.ts` holds the sentence in five
+    languages and a `SIGNED` table, empty today. A language is asked only when its reader signed that exact text,
+    named, in the same commit. **Until the owner signs the English one and native readers sign the rest, no buyer is
+    asked anything, whatever the switch says.**
+  - **Answers are stored and erasable:** a message that is ONLY a score (any of the digits buyers type, "/5", 分, the
+    word for stars, or 1 to 5 stars), within 24 hours of the question, is the answer: kept once, on the timeline, and
+    answered by nobody. It is checked after the hold, so a stopped assistant's buyer still reaches a person. Anything
+    more ("5 more bags please") is an ordinary message. `survey_asks` is erased with the buyer (contract, links,
+    `erase_customer_rows`; the real tool run finds it gone and the next buyer's kept).
+  - **Claude's calls, reported:**
+    - The moment is the owner's order confirmation, the only place a conversation closes today.
+    - E-mail is free, but it is left out: a letter needs a subject, which would also need signing.
+    - A score answers nobody: no thank-you, which would be another sentence to sign.
+    - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
 - **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
   TikTok wait for revenue.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.

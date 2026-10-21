@@ -185,6 +185,8 @@ describe('Phase 9 · the shell', () => {
       // S1 — the saved replies lead back to Buyers.
       ['/app/replies', '/app/inbox', 'nav.inbox'],
       ['/app/labels', '/app/inbox', 'nav.inbox'],
+      // S6 — the surveys too.
+      ['/app/surveys', '/app/inbox', 'nav.inbox'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));

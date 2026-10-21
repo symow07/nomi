@@ -187,7 +187,8 @@ describe('0051 · where his answer cannot be seen, a follow-up waits for a perso
     const main = readFileSync(fileURLToPath(new URL('../../src/main.ts', import.meta.url)), 'utf8');
     const worker = /boss\.work<SequenceSweepJob>[\s\S]*?\n {2}\}\);/.exec(main)?.[0] ?? '';
     expect(worker).toMatch(/const spent = \(\): boolean => closing \|\| Date\.now\(\) - started > SWEEP_BUDGET_MS/);
-    expect(worker.match(/if \(spent\(\)\) return;/g)?.length, 'asked before each look-up AND before each send').toBe(2);
+    // S6 (0202) — and before each workspace's due surveys: three.
+    expect(worker.match(/if \(spent\(\)\) return;/g)?.length, 'asked before each look-up, each send AND each survey sweep').toBe(3);
     // E1 — reading an inbox is network work in the same minute, so it happens
     // in its own pass AFTER every send, rationed like a domain check. A mailbox
     // that will not answer can then cost a read, never a send.

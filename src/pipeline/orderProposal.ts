@@ -8,6 +8,7 @@ import { fixedLanguage } from '../core/conversation/gateLanguage.js';
 import { lockProposal, decideProposal } from '../db/orderProposals.js';
 import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
 import { takeOver } from '../conversations/takeover.js';
+import { noteSurveyDue } from '../db/surveys.js';
 
 /**
  * 0080 — THE OWNER'S TAP ON AN ORDER.
@@ -81,7 +82,11 @@ export async function confirmOrderProposal(
     await repos.events.append(cid, 'order_created', {
       orderId: created.orderId, alreadyExisted: created.alreadyExisted, proposalId: p.id, actor: input.decidedBy,
     });
-    if (!created.alreadyExisted) await repos.conversations.close(cid);
+    if (!created.alreadyExisted) {
+      await repos.conversations.close(cid);
+      // S6 (0202) — with surveys on, one question is due ten minutes after the order: the confirmation goes first.
+      await noteSurveyDue(tx, input.businessId, input.conversationId, now);
+    }
     const sendText = created.alreadyExisted ? null : orderConfirmedReply({
       orderReference: created.orderReference,
       productName: p.productName,

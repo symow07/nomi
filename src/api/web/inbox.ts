@@ -1628,7 +1628,7 @@ export function renderInboxList(
   // calendar door: the rail has Calendar on every width since phase 1, and on
   // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
   // S1 — and the saved replies a person answers with, kept here, under Buyers.
-  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}</div>`;
+  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/surveys', t(locale, 'surveys.title'))}</div>`;
   const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}${labelRow}`;
 
   if (data.conversations.length === 0) {
