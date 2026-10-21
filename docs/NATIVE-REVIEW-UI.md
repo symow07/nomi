@@ -16003,3 +16003,23 @@ Reviewer (per language): ______  Date: ______
   and that the Spanish and French «Contabilidad» / «Comptabilité» are what an owner there calls their books.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 B — the workbook, Google Sheets, Odoo (not a gate)
+
+- **The keys:** `books.workbook.*`, `books.problem.*` (25 reasons a workbook is not read in, each named by sheet,
+  row and column), `books.sheets.*`, `books.odoo.*`, `books.connection.*` (why a connected system refused),
+  `books.silent.*`, and the notices `books.flash.workbookRead`, `notWorkbook`, `sheetsConnected`, `sheetsNotConnected`,
+  `sheetsNotOffered`, `sheetsDisconnected`, `connectAgain`, `notReachable`, `odooConnected`, `odooRefused`,
+  `odooNotRead`, `odooDisconnected`.
+- **Where the words differ, and why:**
+  - the workbook is 工作簿 / «مصنّف» / «classeur» (Excel's own word in each), «hoja de cálculo» in Spanish, where
+    «libro» would be read as the books themselves;
+  - Google's product is «Google 表格» / «جداول بيانات Google» / «Hojas de cálculo de Google», its own names there;
+    French keeps «Google Sheets», as Google does;
+  - Odoo's "database" is never named (the word is the software's, and banned in owner copy): the name Odoo shows at
+    sign-in (登录时 Odoo 显示的名称 / «الاسم الذي يظهر في Odoo عند تسجيل الدخول»); its "API key" is the Odoo key;
+  - Arabic addresses nobody: «يُكتب», «يُرجى», «يُعاد الربط», «يُنشأ مفتاح جديد».
+- **Check:** that 冲销 / «يُعكس» / «contraasiento» / «contre-passer» read as the accountant's own word for reversing a
+  posted entry; that the 25 reasons are short enough to scan in a table on a phone.
+
+Reviewer (per language): ______  Date: ______
