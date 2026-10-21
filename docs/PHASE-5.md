@@ -62,6 +62,17 @@ It rests on four readings:
 15. **Strict mode depends on a person:** a native reviewer per language. That's a dependency on someone, not a
     technical task, so nobody plans around it.
 16. **Bank connections are out** (§9).
+17. **A party is not a buyer — and must never be linked to one** (the owner, 2026-10-22). A party (`parties`) is
+    the books' own record of a customer or supplier. A buyer is a contact in a conversation. They are kept apart on
+    purpose. Why: a buyer can ask for their data to be erased (CC-02, `tools/erase-buyer.mjs`), while an issued
+    invoice is a statutory document the shop must keep intact for ten years. A link from the books to the buyer
+    record would let an erasure blank or break an issued invoice. **This is not an unfinished feature. Do not "fix"
+    it by adding the link.** Nomi's orders reach the books through an invoice for a party the owner chooses (D0), and
+    the buyer's name is never written into the books.
+18. **An issued invoice carries its customer as they were at issue** (the owner, 2026-10-22; 0187). At issue, the
+    database copies the party's code, name, address, country, ICE and tax number onto the invoice. The copy is frozen
+    with the rest of the issued invoice and never read from the party again. Renaming the party later changes no
+    issued invoice.
 
 ### 1a · What "Nomi's books are the record" means (decision 10)
 
@@ -289,7 +300,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     postings at once in two journals, each 1…n; entries by hand — `/app/books/entries`, drafted, posted by the
     database's rules, discarded (never deleted), reversed (a new entry, lines swapped, linked, its own number; a
     posted entry offers nothing else); entries from Nomi's confirmed orders, once each (`source_order_id`, unique
-    while not discarded — two at once make one), onto the owner's chosen sales journal, receivable and sales accounts.
+    while not discarded — two at once make one), onto the owner's chosen sales journal, receivable and sales accounts
+    (since D0, an order goes through an invoice instead, with its customer: see D0).
     What is read in (B2–B5) arrives as drafts and posts the same way. Not yet: editing a draft (discard and draft
     again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
@@ -330,7 +342,40 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage D — everything on top
 
+- **D0 · The owner's answers on block C** (2026-10-22).
+  - *(built 2026-10-22, 0187.)*
+  - **The invoice's customer is a SNAPSHOT,** no longer a link (decision 18). Parties gained an address.
+  - **What an order's entry debited, and why that changed.** C1's entry from an order debited the receivable account
+    with **no party** and credited sales. So an unpaid order could only be traced to who owed it through the order
+    itself, which lives on the sales side the accountant cannot see. The receivable could not be aged by customer,
+    and reconciliation had nothing to meet. Worse, the entry's label carried the buyer's name into a document that
+    never changes.
+  - **Now an order goes into the books THROUGH AN INVOICE:** a draft invoice for the customer the owner chooses among
+    the books' parties. It has one line (the order's reference and total, on the sales account) and the tax code the
+    owner chooses, dated the day the order was confirmed. It is made once per order. Issued, it posts what every
+    invoice posts: the receivable debited **with the customer on it**, and the sale and its tax credited. So D1's
+    trial balance and the receivables by customer see every sale with its debtor. An order entered the old way stays
+    in the books and is not offered again.
+  - **The add-customer form's labels were shuffled** in all five languages (C2). Fixed, and
+    `tests/parity/books-party-labels.test.ts` reads each label against its field.
+  - **A connection's day was read in the database session's time zone** while the app counts in UTC. A key's age came
+    out a day short before 08:00 in a +08:00 zone (found 2026-10-22, 00:40 local). It is read in UTC now, and the
+    test reads it in two other zones.
+  - "What the books do not do yet" is said on the books' page (§10).
 - **D1 · Item 1 — trial balance.** *Depends on C1.*
+- **D1b · Credit notes** (the owner, 2026-10-22: a schedule item, not a note; before tax reports).
+  - Numbering is gap-free and an issued invoice never changes, which is correct. So an invoice issued in error, or a
+    sale refunded, needs its own route: **a credit note.**
+  - **What it is:**
+    - drafted against ONE issued invoice, for all of it or some of its lines;
+    - numbered at issue from its OWN gap-free counter (`A-<year>-<n>`);
+    - its customer copied at issue, like an invoice's (decision 18);
+    - issuing posts the mirror of the invoice's entry: sales and tax debited, the receivable credited with the
+      customer on it, at the INVOICE's rate for a foreign invoice;
+    - it lowers what is owed on the invoice. Already paid, the excess is a credit owed to the customer, refunded by a
+      payment out.
+  - **Never more** than the invoice less the credit notes already issued against it (the app and the database).
+  - *Depends on C2 and D0.*
 - **D2 · Item 6 — period close:**
   - a pre-close checklist, then a lock;
   - closing entries in their own journal;
@@ -403,6 +448,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
   alone. *Depends on A4 and C1.* 💰 (a model reads each document).
 - **D7 · Item 9 — custom categories and fields.** *Depends on C1.*
 - **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
+- **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
+  - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
+    statements).
+  - Before Phase 5 closes, **every role restriction is checked at the database, not the page:**
+    - for each table, what the accountant and staff may read and write;
+    - each one proven by a test that goes past the route guard, as `books-viewer.test.ts` does.
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 
@@ -428,7 +479,7 @@ A1 exact money (existing path + books) → A2 model (+ Avis 24 criteria) → A3 
                                        └→ A5 tenancy + three roles → A6 toggle (early: the demonstrable piece)
 A2+A5 → B1 plug-in shape → B2 Excel file → B3 Sheets ;  B1 → B4 Odoo (+14, +15)
 B2–B4 → B5 read → C1 entries (no-gap numbering) → C2 payments → C3 reconciliation (files) → C4 write back
-C1 → D1 trial balance → D2 period close (two open, closing journal)
+C1 → D1 trial balance → D2 period close (two open, closing journal) ;  C2+D0 → D1b credit notes → D3
 C1 → D3 accountant pack + verified country reports ;  A2+C1+D2 → D4 CGNC chart + Moroccan FEC
 A4+C1 → D6 reading documents ;  C1 → D7 custom fields ;  C4 → D8 Xero → D9 QuickBooks
 S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed until a French customer
@@ -482,7 +533,9 @@ S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed u
 
 | Item | Done and tested when |
 |---|---|
+| D0 the answers on C | An issued invoice shows its customer as at issue, whatever the party becomes; the database refuses to change the copy, and a draft holds none. An order becomes one invoice draft for a chosen customer; issued, the receivable carries that customer; the buyer's name is in no books table. |
 | D1 trial balance | Debits equal credits for any period. It matches a hand-computed fixture to the cent. |
+| D1b credit notes | Numbered without a gap from their own counter. Issuing posts the invoice's mirror at the invoice's rate. What is owed falls by it, and never below what was credited. More than the invoice's remainder is refused by the app and the database. A fully credited invoice reads as credited, not paid. |
 | D2 period close | The checklist must be clear before a lock. A locked period refuses postings, with the reason. A third open period is refused. Closing entries go to their own journal. Reopening is the owner's, and recorded. |
 | D3 accountant pack and country reports | The pack (trial balance, journal, general ledger) exports in a standard format and re-imports into a fresh workspace with identical balances. A country report exists only with its verification note (the primary sources, line by line), and matches a worked example from that country's official form. |
 | D4 Morocco | **The chart:** every account of the CGNC chart, checked against the CGNC text. **The FEC:** for a fixture year, all 18 Avis 24 fields in order, debit and credit separate; every Avis 24 §2 criterion has its own test (gaps, a closed-period edit, a third open period, a missing document reference, an unbalanced entry, an unauthenticated poster, report headers). The file envelope (name, separator, encoding) is configurable and marked "to the DGI's spec when published". |
@@ -643,3 +696,15 @@ D4 leaves both as configurable details until they're published.
 - **The French FEC and DGFiP's checker,** until a French customer.
 - **Moroccan e-invoicing and the liasse fiscale EDI.** They wait for the decree (CGI art. 145-IX) and are usually the
   accountant's job.
+
+---
+
+## 10 · What the books do not do yet (said to owners on the books' page)
+
+Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/books` (`renderBooksNotYet`, the
+`books.notYet.*` keys). A line goes from both the day its limit is lifted.
+
+- **A payment is taken only in the invoice's own currency.** A payment in any other currency is refused.
+- **A bank statement in CSV is read in one layout only:** a header row naming Date and Amount (or Debit and Credit),
+  with Description and Currency where the bank gives them. OFX and CAMT.053 files are read as banks send them.
+- **A draft entry or a draft invoice cannot be edited:** discard it and draft it again.

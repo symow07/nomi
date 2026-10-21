@@ -138,16 +138,24 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
  * C1 (0183) — Nomi's confirmed orders not in the books yet, each with a draft to make; and the owner's choice of the
  * accounts every drafted entry uses (sales journal, receivable, sales; the exchange loss and gain of 0182).
  */
-export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean): string {
+export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean, c: Pick<EntryChoices, 'parties' | 'taxCodes'>): string {
+  const ready = accountsSet && c.parties.length > 0;
+  const choose = (o: OrderToEnter) => `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform">
+      <select name="party" required aria-label="${esc(t(locale, 'books.invoice.customer'))}"><option value=""></option>${c.parties.map((p) =>
+        `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select>
+      <select name="taxCode" aria-label="${esc(t(locale, 'books.entry.tax'))}"><option value=""></option>${c.taxCodes.map((x) =>
+        `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select>
+      <button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>`;
   return `<h1 class="page">${esc(t(locale, 'books.orders.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.orders.lede'))}</p>
     ${!accountsSet ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
+    ${accountsSet && c.parties.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.addCustomers'))}</span> <a class="deeper" href="/app/books/invoices/new#customer">${esc(t(locale, 'books.invoice.addCustomer'))}</a></p>` : ''}
     ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `<div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.document'))}</th>
         <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
       <tbody>${orders.map((o) => `<tr><td>${esc(show.dateYear(locale, new Date(`${o.confirmedOn}T12:00:00Z`)))}</td><td><bdi>${esc(o.reference)}</bdi></td>
         <td>${o.buyer ? `<bdi>${esc(o.buyer)}</bdi>` : ''}</td><td>${amount(locale, o.total as Decimal, o.currency)}</td>
-        <td>${accountsSet ? `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>` : ''}</td></tr>`).join('')}</tbody>
+        <td>${ready ? choose(o) : ''}</td></tr>`).join('')}</tbody>
     </table></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }

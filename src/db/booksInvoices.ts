@@ -29,8 +29,14 @@ export type InvoiceRow = {
   readonly id: string; readonly key: string | null; readonly party: string; readonly issueDate: string; readonly dueDate: string | null;
   readonly currency: string; readonly total: Decimal; readonly paid: Decimal; readonly status: InvoiceStatus; readonly label: string | null;
 };
+/** Who the invoice is to: once issued, as the database copied it then (0187) — never read again from the party. */
+export type BilledTo = {
+  readonly code: string; readonly name: string; readonly address: string | null; readonly country: string | null;
+  readonly ice: string | null; readonly taxNumber: string | null; readonly asIssued: boolean;
+};
 export type InvoiceView = InvoiceRow & {
   readonly entryId: string | null;
+  readonly billedTo: BilledTo;
   readonly lines: readonly { lineNo: number; label: string; quantity: string; unitPrice: string; account: string; taxCode: string | null; net: Decimal; tax: Decimal }[];
   readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string }[];
 };
@@ -45,7 +51,7 @@ export function statusOf(state: string, total: Decimal, paid: Decimal, due: stri
 export async function listInvoices(tx: Tx, businessId: string, today: string): Promise<InvoiceRow[]> {
   const rows = (await sql<{ id: string; year: number | null; number: number | null; party: string; issue_date: string; due_date: string | null;
     currency: string; total: string; paid: string; state: string; label: string | null }>`
-    select i.id::text as id, i.year, i.number, p.name as party, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
+    select i.id::text as id, i.year, i.number, coalesce(i.party_name, p.name) as party, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
            invoice_total(i.id)::text as total, invoice_paid(i.id)::text as paid, i.state, i.label
       from invoices i join parties p on p.id = i.party_id
      where i.business_id = ${businessId}::uuid and i.state <> 'discarded'
@@ -58,9 +64,18 @@ export async function listInvoices(tx: Tx, businessId: string, today: string): P
 export async function loadInvoice(tx: Tx, businessId: string, id: string, today: string): Promise<InvoiceView | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const r = (await sql<{ year: number | null; number: number | null; party: string; issue_date: string; due_date: string | null; currency: string;
-    total: string; paid: string; state: string; label: string | null; entry_id: string | null }>`
-    select i.year, i.number, p.name as party, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
-           invoice_total(i.id)::text as total, invoice_paid(i.id)::text as paid, i.state, i.label, i.entry_id::text as entry_id
+    total: string; paid: string; state: string; label: string | null; entry_id: string | null; as_issued: boolean;
+    b_code: string; b_address: string | null; b_country: string | null; b_ice: string | null; b_tax: string | null }>`
+    select i.year, i.number, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
+           invoice_total(i.id)::text as total, invoice_paid(i.id)::text as paid, i.state, i.label, i.entry_id::text as entry_id,
+           i.party_name is not null as as_issued,
+           -- issued: the copy, whole (0187); a draft: the party as it stands now, to be copied at issue
+           case when i.party_name is not null then i.party_name else p.name end as party,
+           case when i.party_name is not null then i.party_code else p.code end as b_code,
+           case when i.party_name is not null then i.party_address else p.address end as b_address,
+           case when i.party_name is not null then i.party_country else p.country end as b_country,
+           case when i.party_name is not null then i.party_ice else p.ice end as b_ice,
+           case when i.party_name is not null then i.party_tax_number else p.tax_number end as b_tax
       from invoices i join parties p on p.id = i.party_id where i.business_id = ${businessId}::uuid and i.id = ${id}::uuid`.execute(tx)).rows[0];
   if (!r) return null;
   const lines = (await sql<{ line_no: number; label: string; quantity: string; unit_price: string; account: string; tax_code: string | null; net: string; tax: string }>`
@@ -73,6 +88,7 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
   return {
     id, key: r.number === null ? null : invoiceKey(r.year!, r.number), party: r.party, issueDate: r.issue_date, dueDate: r.due_date,
     currency: r.currency, total: d(r.total), paid: d(r.paid), label: r.label, entryId: r.entry_id,
+    billedTo: { code: r.b_code, name: r.party, address: r.b_address, country: r.b_country, ice: r.b_ice, taxNumber: r.b_tax, asIssued: r.as_issued },
     status: statusOf(r.state, d(r.total), d(r.paid), r.due_date, today),
     lines: lines.map((l) => ({ lineNo: l.line_no, label: l.label, quantity: d(l.quantity), unitPrice: d(l.unit_price), account: l.account, taxCode: l.tax_code, net: d(l.net), tax: d(l.tax) })),
     payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id })),
@@ -81,6 +97,7 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
 
 export type InvoiceLineInput = { readonly label: string; readonly quantity: Decimal; readonly unitPrice: Decimal; readonly accountId: string; readonly taxCodeId: string | null };
 export type InvoiceInput = {
+  readonly sourceOrderId?: string;
   readonly partyId: string; readonly issueDate: string; readonly dueDate: string | null; readonly currency: string;
   readonly label: string | null; readonly lines: readonly InvoiceLineInput[];
 };
@@ -89,8 +106,9 @@ export type InvoiceInput = {
 export async function draftInvoice(tx: Tx, businessId: string, by: string, input: InvoiceInput): Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal> {
   try {
     await sql`savepoint draft_invoice`.execute(tx);
-    const id = (await sql<{ id: string }>`insert into invoices (business_id, party_id, issue_date, due_date, currency, label, created_by)
-      values (${businessId}::uuid, ${input.partyId}::uuid, ${input.issueDate}::date, ${input.dueDate}::date, ${input.currency}, ${input.label}, ${by})
+    const id = (await sql<{ id: string }>`insert into invoices (business_id, party_id, issue_date, due_date, currency, label, created_by, source_order_id)
+      values (${businessId}::uuid, ${input.partyId}::uuid, ${input.issueDate}::date, ${input.dueDate}::date, ${input.currency}, ${input.label}, ${by},
+              ${input.sourceOrderId ?? null}::uuid)
       returning id::text as id`.execute(tx)).rows[0]!.id;
     let n = 0;
     for (const l of input.lines) {

@@ -241,3 +241,15 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo', 
     <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
     <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
+
+/**
+ * D0 — WHAT THE BOOKS DO NOT DO YET, said where they are used, so a limit is disclosed and not discovered (the owner,
+ * 2026-10-22). Each line is a limit that holds today; one goes from here the day it is lifted.
+ */
+export function renderBooksNotYet(locale: Locale): string {
+  return `<div class="block" id="not-yet">
+      <h2>${esc(t(locale, 'books.notYet.title'))}</h2>
+      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts'] as const).map((k) =>
+        `<li class="row"><span>${esc(t(locale, k))}</span></li>`).join('')}</ul>
+    </div>`;
+}

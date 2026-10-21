@@ -5,9 +5,10 @@ import pg from 'pg';
 import { asTenant, purgeBusinesses, type Q } from './books-db.js';
 
 /**
- * C1 (Phase 5, item 3; 0183) — entries from Nomi's orders (PHASE-5.md §4: "entries from orders … balance"): a
- * confirmed order is drafted once, a debit on the receivable account and a credit on sales, on the day it was
- * confirmed; never one waiting or cancelled; never twice, not even at once. The owner's: the orders name buyers.
+ * D0 (0187; was C1's party-less entry) — a confirmed order goes into the books THROUGH AN INVOICE: drafted once for
+ * the customer the owner chooses, on the day it was confirmed; issued, it debits the receivable WITH THAT CUSTOMER,
+ * so what is owed is traced to who owes it. Never one waiting or cancelled; never twice, not even at once. The buyer's
+ * name is never written into the books. The owner's: the orders name buyers.
  */
 const DATABASE_URL = process.env['DATABASE_URL'];
 const ADMIN_URL = process.env['MIGRATE_DATABASE_URL'];
@@ -24,7 +25,7 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
   let tenant: pg.Client;
   let owner = '';
   let accountant = '';
-  let k: Record<'receivable' | 'sales' | 'loss' | 'gain' | 've', string>;
+  let k: Record<'receivable' | 'sales' | 'loss' | 'gain' | 've' | 'tva' | 'tax', string>;
   const orders: Record<'mad' | 'usd' | 'waiting' | 'cancelled' | 'later', string> = { mad: '', usd: '', waiting: '', cancelled: '', later: '' };
   const as = <T>(fn: (q: Q) => Promise<T>) => asTenant(tenant, BIZ, fn);
   const session = (r: { headers: Record<string, unknown> }) =>
@@ -58,7 +59,9 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
       const one = async (s: string, v: unknown[] = []) => (await q(s, v)).rows[0].id as string;
       const acc = (code: string, kind: string) => one(`insert into accounts (business_id, code, name, kind) values (current_business_id(), $1, $1, $2) returning id::text as id`, [code, kind]);
       const out = { receivable: await acc('3421', 'asset'), sales: await acc('7111', 'income'), loss: await acc('6331', 'expense'), gain: await acc('7331', 'income'),
-        ve: await one(`insert into journals (business_id, code, name, kind) values (current_business_id(), 'VE', 'Ventes', 'sales') returning id::text as id`) };
+        ve: await one(`insert into journals (business_id, code, name, kind) values (current_business_id(), 'VE', 'Ventes', 'sales') returning id::text as id`),
+        tva: await acc('4455', 'liability'), tax: '' };
+      out.tax = await one(`insert into tax_codes (business_id, code, label, rate, kind, account_id, valid_from) values (current_business_id(), 'TVA20', 'TVA 20 %', 20, 'collected', $1, '2026-01-01') returning id::text as id`, [out.tva]);
       await q(`insert into fiscal_years (business_id, starts_on, ends_on) values (current_business_id(), '2026-01-01', '2026-12-31')`);
       await q(`insert into owner_rates (business_id, from_currency, to_currency, rate, stated_at) values (current_business_id(), 'USD', 'MAD', 9.9765, '2026-04-01T09:00:00Z')`);
       return out;
@@ -105,36 +108,57 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(body).not.toContain(`ORD-4-${RUN}`);
   });
 
-  it('DRAFTED ONCE: receivable debit, sales credit, its day and its reference; it posts; asked again, already in', async () => {
-    const r = await post(`/app/books/orders/${orders.mad}/draft`);
-    expect(await notice(r)).toContain('Drafted from the order.');
-    const lines = await as((q) => q(`select e.entry_date::text as day, e.document_ref, a.code, l.currency, l.debit::text, l.credit::text
-      from journal_entries e join journal_lines l on l.entry_id = e.id join accounts a on a.id = l.account_id where e.source_order_id = $1 order by l.line_no`, [orders.mad]));
-    expect(lines.rows).toEqual([
-      { day: '2026-04-02', document_ref: `ORD-1-${RUN}`, code: '3421', currency: 'MAD', debit: '1200.50', credit: '0.00' },
-      { day: '2026-04-02', document_ref: `ORD-1-${RUN}`, code: '7111', currency: 'MAD', debit: '0.00', credit: '1200.50' }]);
-    expect((await page()).body).not.toContain(`ORD-1-${RUN}`);
-    expect(await notice(await post(`/app/books/orders/${orders.mad}/draft`))).toContain('That order is in the books already.');
-    const id = String(r.headers['location']).split('/').pop()!;
-    expect(await notice(await post(`/app/books/entries/${id}/post`))).toContain('Posted as VE-2026-1.');
+  it('with no customer in the books, nothing is offered: the customer comes first', async () => {
+    const body = (await page()).body;
+    expect(body).toContain('Add your customers to the books first.');
+    expect(body).not.toContain('/draft"');
+    expect(await notice(await post(`/app/books/orders/${orders.mad}/draft`))).toContain('Choose the customer.');
+    expect(await notice(await post('/app/books/parties', { code: 'C001', name: 'ATX Maroc', country: 'MA', ice: '001234567000089', address: '12 rue Ibn Battouta, Casablanca' })))
+      .toContain('The customer is added.');
+    expect((await page()).body).toContain(`action="/app/books/orders/${orders.mad}/draft"`);
   });
 
-  it('two drafts of one order at once: one entry, never two', async () => {
-    const both = await Promise.all([post(`/app/books/orders/${orders.usd}/draft`), post(`/app/books/orders/${orders.usd}/draft`)]);
+  let customer = '';
+  it('DRAFTED ONCE, AS AN INVOICE for the chosen customer, with the chosen tax; issued, the receivable names who owes it', async () => {
+    customer = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const r = await post(`/app/books/orders/${orders.mad}/draft`, { party: customer, taxCode: k.tax });
+    expect(await notice(r)).toContain('Drafted as an invoice. Check it, then issue it.');
+    const id = String(r.headers['location']).split('/').pop()!;
+    const inv = (await as((q) => q(`select i.issue_date::text as day, i.currency, i.source_order_id::text as o, l.label, l.net::text as net, l.tax::text as tax
+      from invoices i join invoice_lines l on l.invoice_id = i.id where i.id = $1`, [id]))).rows;
+    expect(inv).toEqual([{ day: '2026-04-02', currency: 'MAD', o: orders.mad, label: `ORD-1-${RUN}`, net: '1200.50', tax: '240.10' }]);
+    expect((await page()).body).not.toContain(`ORD-1-${RUN}`);
+    expect(await notice(await post(`/app/books/orders/${orders.mad}/draft`, { party: customer }))).toContain('That order is in the books already.');
+    expect(await notice(await post(`/app/books/invoices/${id}/issue`))).toContain('Issued as F-2026-0001');
+    const lines = await as((q) => q(`select a.code, p.code as party, l.debit::text, l.credit::text
+      from invoices i join journal_lines l on l.entry_id = i.entry_id join accounts a on a.id = l.account_id left join parties p on p.id = l.party_id
+     where i.id = $1 order by l.line_no`, [id]));
+    expect(lines.rows).toEqual([
+      { code: '3421', party: 'C001', debit: '1440.60', credit: '0.00' },
+      { code: '7111', party: null, debit: '0.00', credit: '1200.50' },
+      { code: '4455', party: null, debit: '0.00', credit: '240.10' }]);
+    // the buyer's name is shown to the owner on the page, and written nowhere in the books
+    const written = await as((q) => q(`select (select count(*) from journal_entries where label like '%Atlas Textiles%')::int
+      + (select count(*) from invoices where label like '%Atlas Textiles%' or party_name like '%Atlas Textiles%')::int
+      + (select count(*) from invoice_lines where label like '%Atlas Textiles%')::int as n`));
+    expect(written.rows[0].n).toBe(0);
+  });
+
+  it('two drafts of one order at once: one invoice, never two', async () => {
+    const both = await Promise.all([post(`/app/books/orders/${orders.usd}/draft`, { party: customer }), post(`/app/books/orders/${orders.usd}/draft`, { party: customer })]);
     expect(both.map((r) => r.statusCode)).toEqual([302, 302]);
-    const n = (await as((q) => q(`select count(*)::int as n from journal_entries where source_order_id = $1 and state <> 'discarded'`, [orders.usd]))).rows[0].n;
+    const n = (await as((q) => q(`select count(*)::int as n from invoices where source_order_id = $1 and state <> 'discarded'`, [orders.usd]))).rows[0].n;
     expect(n).toBe(1);
   });
 
-  it('a foreign order posts at the owner\'s rate; discarded, the order comes back to the list', async () => {
-    const id = (await as((q) => q(`select id::text as id from journal_entries where source_order_id = $1 and state = 'draft'`, [orders.usd]))).rows[0].id as string;
-    expect(await notice(await post(`/app/books/entries/${id}/post`))).toContain('Posted as VE-2026-2.');
-    const books = await as((q) => q(`select book_debit::text as d, book_credit::text as c from journal_lines where entry_id = $1 order by line_no`, [id]));
+  it('a foreign order is invoiced in its currency and posts at the owner\'s rate; discarded, the order comes back to the list', async () => {
+    const id = (await as((q) => q(`select id::text as id from invoices where source_order_id = $1 and state = 'draft'`, [orders.usd]))).rows[0].id as string;
+    expect(await notice(await post(`/app/books/invoices/${id}/issue`))).toContain('Issued as F-2026-0002');
+    const books = await as((q) => q(`select l.book_debit::text as d, l.book_credit::text as c from invoices i join journal_lines l on l.entry_id = i.entry_id where i.id = $1 order by l.line_no`, [id]));
     expect(books.rows).toEqual([{ d: '4788.72', c: '0.00' }, { d: '0.00', c: '4788.72' }]);
-    // a draft from an order, discarded: the order is not in the books, and is offered again
-    const drafted = await post(`/app/books/orders/${orders.later}/draft`);
+    const drafted = await post(`/app/books/orders/${orders.later}/draft`, { party: customer });
     expect((await page()).body).not.toContain(`ORD-5-${RUN}`);
-    await post(`/app/books/entries/${String(drafted.headers['location']).split('/').pop()}/discard`);
+    await post(`/app/books/invoices/${String(drafted.headers['location']).split('/').pop()}/discard`);
     expect((await page()).body).toContain(`ORD-5-${RUN}`);
   });
 

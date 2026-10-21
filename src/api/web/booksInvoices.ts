@@ -3,7 +3,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { addDecimal, signOf, subDecimal, type Decimal } from '../../core/types/decimal.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
-import type { InvoiceRow, InvoiceStatus, InvoiceView } from '../../db/booksInvoices.js';
+import type { BilledTo, InvoiceRow, InvoiceStatus, InvoiceView } from '../../db/booksInvoices.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -41,6 +41,15 @@ export type PaymentChoices = {
   readonly accounts: readonly { id: string; code: string; name: string }[];
 };
 
+/** D0 (0187) — who the invoice is to. Issued: the copy taken at issue, said as such; a draft: what will be copied. */
+function billedTo(locale: Locale, b: BilledTo): string {
+  const row = (label: MessageKey, value: string | null) => (value ? `<div class="row"><dt>${esc(t(locale, label))}</dt><dd><bdi>${esc(value)}</bdi></dd></div>` : '');
+  return `<h2>${esc(t(locale, 'books.invoice.billedTo'))}</h2>
+    <dl class="scard">${row('books.party.name', b.name)}${row('books.party.code', b.code)}${row('books.party.address', b.address)}${row('books.party.country', b.country)}${
+      row('books.party.ice', b.ice)}${row('books.party.taxNumber', b.taxNumber)}</dl>
+    <p class="caption muted">${esc(t(locale, b.asIssued ? 'books.invoice.partyAtIssue' : 'books.invoice.partyTaken'))}</p>`;
+}
+
 export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: PaymentChoices, today: string): string {
   const net = v.lines.reduce((s, l) => addDecimal(s, l.net), '0' as Decimal);
   const tax = v.lines.reduce((s, l) => addDecimal(s, l.tax), '0' as Decimal);
@@ -63,6 +72,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       </form></div>` : '';
   return `<h1 class="page"><bdi>${esc(v.key ?? t(locale, 'books.entry.state.draft'))}</bdi> · <bdi>${esc(v.party)}</bdi></h1>
     <p>${status(locale, v.status)}${v.entryId ? ` <a href="/app/books/entries/${esc(v.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a>` : ''}</p>
+    ${billedTo(locale, v.billedTo)}
     <p class="caption muted">${esc(t(locale, 'books.entry.date'))}: ${day(locale, v.issueDate)}${v.dueDate ? ` · ${esc(t(locale, 'books.invoice.due'))}: ${day(locale, v.dueDate)}` : ''}${
       v.label ? ` · <bdi>${esc(v.label)}</bdi>` : ''}</p>
     <div class="imp-table"><table>
@@ -126,6 +136,8 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         <label class="pq"><span>${esc(t(locale, 'books.party.name'))}</span><input name="name" required maxlength="200" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.country'))}</span><input name="country" maxlength="2" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.ice'))}</span><input name="ice" inputmode="numeric" maxlength="15" /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.party.taxNumber'))}</span><input name="taxNumber" maxlength="40" /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.party.address'))}</span><textarea name="address" maxlength="400" rows="3"></textarea></label>
         <button class="btn ghost" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
       </form>
     </div>`;

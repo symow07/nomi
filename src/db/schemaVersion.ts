@@ -435,7 +435,8 @@ import type { Db } from './client.js';
 // 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
 // 185 = reconciliation from statement files (0185): statement lines kept once, matches made and set aside by a person.
 // 186 = what an accountant may not do to the books, said by the database (0186): invoices, payments, statements, matches.
-export const REQUIRED_SCHEMA_VERSION = 186;
+// 187 = an issued invoice carries its customer as they were at issue; an order into the books goes through an invoice (0187).
+export const REQUIRED_SCHEMA_VERSION = 187;
 
 export type SchemaState = {
   readonly required: number;

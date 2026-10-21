@@ -227,7 +227,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
+import { renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
 import { odooKeyState } from '../../books/connectors/odoo.js';
@@ -238,7 +238,7 @@ import { writeBackOdoo, writeBackSheets, type WriteResult } from '../../books/wr
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
-import { booksAccountsOf, draftFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
+import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
 import { bankAccounts, importStatement, matchedLines, matchLine, openLines, unmatch } from '../../db/bankStatements.js';
@@ -2308,7 +2308,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'books.home.title'), active: 'settings',
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
-        personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}`,
+        personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
+        renderBooksNotYet(locale)}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2643,20 +2644,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const got = await withTenantTx(deps.db, bid, async (tx) => ({ orders: await ordersToEnter(tx, bid), a: await booksAccountsOf(tx, bid) }));
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ orders: await ordersToEnter(tx, bid), a: await booksAccountsOf(tx, bid), c: await entryChoices(tx, bid) }));
     const set = Boolean(got.a.salesJournalId && got.a.receivableAccountId && got.a.salesAccountId);
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.orders.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksOrders(locale, got.orders, set)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksOrders(locale, got.orders, set, got.c)}` }));
   });
   app.post('/app/books/orders/:id/draft', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const id = (req.params as { id: string }).id;
     if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
-    const out = await withTenantTx(deps.db, bid, (tx) => draftFromOrder(tx, bid, id, personOf(s).id));
-    if (out.kind === 'drafted') return flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.orderDrafted');
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const uuid = (k: string) => (typeof f[k] === 'string' && /^[0-9a-f-]{36}$/i.test(f[k] as string) ? (f[k] as string) : null);
+    const party = uuid('party');
+    const out = party === null ? { kind: 'refused' as const, reason: 'no_customer' as const, detail: null }
+      : await withTenantTx(deps.db, bid, (tx) => draftInvoiceFromOrder(tx, bid, id, party, uuid('taxCode'), personOf(s).id));
+    if (out.kind === 'drafted') return flashTo(reply, `/app/books/invoices/${out.id}`, 'books.flash.orderDrafted');
     const why = out.reason === 'accounts_not_set' ? t(localeOf(req), 'books.orders.setFirst')
-      : out.reason === 'not_an_order' ? t(localeOf(req), 'books.orders.alreadyIn') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
+      : out.reason === 'not_an_order' ? t(localeOf(req), 'books.orders.alreadyIn')
+      : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
     return flashTo(reply, '/app/books/orders', 'books.flash.entryRefused', { why });
   });
   app.post('/app/books/settings/accounts', async (req, reply) => {
@@ -2858,12 +2864,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const f = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
     const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), str('ice')];
-    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !/^[0-9]{15}$/.test(ice))) {
+    const [taxNumber, address] = [str('taxNumber'), str('address')];
+    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !/^[0-9]{15}$/.test(ice))
+        || taxNumber.length > 40 || address.length > 400) {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }
     try {
-      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice)
-        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null})`.execute(tx));
+      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address)
+        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null})`.execute(tx));
     } catch { return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused'); }
     return flashTo(reply, '/app/books/invoices/new', 'books.flash.partyAdded');
   });
