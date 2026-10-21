@@ -23,7 +23,7 @@ describe('the books of a Moroccan shop start with the advice', () => {
   it('in every language, a period, never a month', () => {
     const month = { en: /month/i, zh: /月/, ar: /شهر|أشهر/, es: /\bmes(es)?\b/i, fr: /\bmois\b/i } as const;
     for (const l of LOCALES) {
-      const said = ['books.morocco.title', 'books.morocco.when', 'books.morocco.rule'].map((k) => t(l, k as never)).join(' ');
+      const said = ['books.morocco.title', 'books.morocco.when', 'books.morocco.rule', 'books.morocco.systems'].map((k) => t(l, k as never)).join(' ');
       expect(said, l).not.toMatch(month[l as keyof typeof month]);
       expect(said, l).toMatch(/24/);
     }

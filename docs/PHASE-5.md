@@ -131,6 +131,13 @@ undeniable.
 | **Two roles only:** owner and not-owner (`OWNER_ONLY` is "a LIST, not a matrix", `src/core/conversation/people.ts`) | The accountant role (decision 12) is real work, scheduled in A5. |
 | **Every business table must be classified for erasure.** `customer_erasure_contract()` is re-created per new table; `customer_erasure_problems()` refuses to run while any is undecided | Every books table is classified the day it's made, under the new legal-retention action (§6). |
 
+**The best piece of design in this codebase, and never to be softened (the owner, 2026-10-22).** The buyer erasure
+follows only the links written into it (`customer_erasure_edges`), and it REFUSES to run, by name, while any table or
+link is unclassified (`customer_erasure_problems`). A new table therefore cannot silently escape erasure: someone has
+to decide what it means for a customer before anything is erased again. It has caught a missed table three or four
+times — most recently S2's `buyer_labels`, which only 0197 registered. A refusal from it is the system working; the
+fix is always to classify the table, never to loosen the check.
+
 **Also:**
 - An order holds one product, so an invoice with lines is a new document.
 - `nextOrderReference` (0162: gap-free per workspace per year) is the base for invoice numbering and for the FEC's
@@ -564,20 +571,28 @@ Each item is built and fully tested (§4) before the next one that depends on it
       and an entry inside them goes through;
     - a non-Moroccan workspace keeps the manual lock;
     - each rule, switched off, fails its own test.
-- **D11 · History, not in the books — PROPOSED, not built (the owner, 2026-10-22: "tell me rather than building it
-  quietly").**
-  - The idea: a shop joining in November keeps its January-to-October detail in sight. Detail read in that falls
-    outside the open periods is kept as RECORDS — viewable and exportable, never posted, never in the trial balance or
-    the FEC — and marked "history, not in the books".
-  - **Not a small piece:** about the size of D7.
-    - its own table, so the trial balance and the FEC cannot reach it by construction;
-    - the read-in routing entries outside the window there instead of to drafts, for every connector (workbook, Sheets,
-      Odoo, Xero, QuickBooks), with tests per connector;
-    - a page and an export, in five languages, marked as history;
-    - the accountant's view of it, checked at the database;
-    - its place at closure (kept with the books, or erased with the workspace: the owner's call);
-    - it depends on D10's window.
-  - Waits for the owner's go.
+- **D11 · History, not in the books — DEFERRED (the owner, 2026-10-22).**
+  - **Not built, and not to be built until there is evidence for it.** A parallel, ledger-shaped store for history is
+    a lot of surface for a system of record: a new table, five connectors changed, a page, an export, its own erasure,
+    retention and role rules — all to hold data already decided not to be in the books.
+  - **The need is "I want to look at what happened before", and the FILE answers it.** D10 keeps the source document
+    instead (below).
+  - **Trigger:** real owners turning out to need searchable pre-Nomi detail INSIDE Nomi, with evidence that somebody
+    wanted it.
+- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). Part of D10, since it needs
+  D10's open window.
+  - When an import brings entries outside the open window, its SOURCE DOCUMENT is kept as a document in A4's store,
+    with its retention date, marked "history, not in the books": the workbook, the statement file, the export.
+  - It inherits A4's erasure, retention, sealing and role rules. It goes with the books at closure like everything else
+    in that store, so there is no new decision about it.
+  - The owner opens and downloads it like any paper.
+  - What D10 needs for it:
+    - a mark on the document, set when it is kept (documents are never updated, G20);
+    - the workbook's and the statement's media types admitted where the store is written (the papers' page takes images
+      and PDFs; the database's check takes any media type);
+    - the read-in keeping the entries inside the window, the file kept for what fell outside.
+  - **Odoo, Xero and QuickBooks give no file, and need none:** the owner still has them, and their history has not
+    gone anywhere. The Moroccan start advice says so (`books.morocco.systems`).
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted

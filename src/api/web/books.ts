@@ -162,6 +162,7 @@ const moroccoStart = (locale: Locale): string => `<div class="block" id="morocco
     <h2>${esc(t(locale, 'books.morocco.title'))}</h2>
     <p>${esc(t(locale, 'books.morocco.when'))}</p>
     <p class="caption muted">${esc(t(locale, 'books.morocco.rule'))}</p>
+    <p class="caption muted">${esc(t(locale, 'books.morocco.systems'))}</p>
   </div>`;
 
 /** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
