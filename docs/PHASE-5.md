@@ -94,6 +94,14 @@ undeniable.
   - Likewise $5.10 less 15% (exactly 4.335) gives 4.33 instead of 4.34, and $5.48 less 12.5% (exactly 4.795) gives 4.79
     instead of 4.80.
   - On an order, that cent is multiplied by the quantity.
+- **Which way the error goes:** always down. All 9,358 wrong cents in the measurement are below the exact figure, none
+  above. **Nomi has been under-charging, on about one discounted quote in 75.**
+- **Stored amounts are already exact:** Postgres `numeric`, read by the driver as exact text and then turned into a float
+  by `Number(…)`. The defect is in the arithmetic between storage and the quote, not in what is stored.
+  - So A1's migration rewrites no stored value: quotes and orders already sent are what the buyer saw, and they stay.
+  - The migration notes record that from A1 on, the same inputs can quote a cent higher than before (the corrected
+    figure). Production has had zero turns since 2026-09-20, so nothing real is affected this time. In any other week
+    this would be a customer-facing change.
 - **Consequence:** A1 covers **the existing money path too:** quotes, orders, proposals, proformas, invoices, payments
   and the advisor's sums. It also includes a **migration of stored amounts** to the exact representation, and its
   million-step property test runs on quotes and orders, not only on ledger entries.
@@ -185,6 +193,13 @@ Each item is built and fully tested (§4) before the next one that depends on it
 - **C1 · Item 3 — journal entries:**
   - by hand, from Nomi's orders and invoices, and from what's read in;
   - numbered in sequence per journal, with no gaps (the Avis 24 criterion).
+  - **Strictly gap-free, as a legal requirement (Avis 24), not a preference:**
+    - The journal and invoice sequences are their own counters, never the order sequence (`nextOrderReference`), and
+      they inherit none of its paths.
+    - A number is taken only at posting, inside the posting transaction. A draft has no number.
+    - A rolled-back posting never existed, so it leaves no gap.
+    - Once posted, a number is permanent under any failure. The database refuses DELETE on posted entries and any
+      UPDATE of their number. Cancelling is a reversing entry with its own new number. No tool can release a number.
   - *Depends on A2–A5 and B5.*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
 - **C3 · Item 4 — reconciliation:**
