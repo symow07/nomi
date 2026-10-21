@@ -242,6 +242,9 @@ import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEnt
 import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
+import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
+import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
+import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
 import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
@@ -3768,6 +3771,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const withProof = {
       ...detail,
       proof: { ...detail.proof, url: detail.proof.token ? proofUrl(deps.publicBaseUrl, detail.proof.token) : null },
+      // S1 (0195) — the saved replies in use, for the reply box.
+      savedReplies: bid.ok ? (await withTenantTx(deps.db, bid.value, (tx) => listSavedReplies(tx, bid.value))).map((r) => ({ id: r.id, title: r.title })) : [],
       // Phase 2c — the proforma's link the same way.
       order: detail.order?.proforma?.token
         ? { ...detail.order, proforma: { ...detail.order.proforma, url: proformaUrl(deps.publicBaseUrl, detail.order.proforma.token) } }
@@ -4156,6 +4161,87 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'sent' && reopening) return flashTo(reply, conversationUrl(cid), 'inbox.flash.reopening');
     return takeoverFlash(reply, cid, r.outcome);
   });
+
+  /**
+   * S1 (Phase 5, item 18) — A SAVED REPLY PUT IN THE BOX. The reply form's second button: what is typed comes with it,
+   * and the saved words (the buyer's language where the reply has them) go after it, kept in the box as CC-24 keeps a
+   * reply (`owner_unsent_reply`). NOTHING IS SENT: the person reads, edits and sends with the box's own button, by the
+   * one way an owner's reply goes — the send window, the allowlist, a stop, a frozen workspace all apply there.
+   */
+  app.post('/app/inbox/:conversationId/saved-reply', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const body = (req.body ?? {}) as { text?: unknown; saved?: unknown };
+    const typed = typeof body.text === 'string' ? body.text.slice(0, 4000) : '';
+    const done = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const saved = await savedReplyOf(tx, bid.value, typeof body.saved === 'string' ? body.saved : '');
+      if (!saved || saved.archived) return false;
+      const words = savedReplyFor(saved.texts, await buyerLanguageOf(tx, bid.value, cid), localeOf(req));
+      if (!words) return false;
+      const there = (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${bid.value}::uuid and id = ${cid}::uuid`.execute(tx)).rows[0]!.n > 0;
+      if (!there) return false;
+      await keepUnsentReply(tx, bid.value, cid, boxWithSaved(typed, words.text));
+      return true;
+    });
+    return flashTo(reply, conversationUrl(cid), done ? 'savedReplies.flash.inserted' : 'savedReplies.flash.notInserted');
+  });
+
+  /**
+   * S1 — THE SAVED REPLIES, kept by whoever answers buyers (owner and staff; the accountant never reaches a page
+   * outside the books, and the database refuses them these rows, 0195).
+   */
+  const savedForm = (req: FastifyRequest) => {
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const text = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).slice(0, 4000) : '');
+    return { title: text('title').slice(0, 200), texts: savedReplyTexts(Object.fromEntries(SAVED_REPLY_LANGUAGES.map((l) => [l, text(`text_${l}`)]))) };
+  };
+  const savedWhy = (locale: Locale, reason: string) => t(locale, `savedReplies.refused.${reason}` as MessageKey);
+  app.get('/app/replies', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid.value, (tx) => listSavedReplies(tx, bid.value, { archived: true }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'savedReplies.title'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReplies(locale, rows)}` }));
+  });
+  app.post('/app/replies', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const f = savedForm(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => addSavedReply(tx, bid.value, personOf(s).id, f.title, f.texts));
+    return out.kind === 'added' ? flashTo(reply, '/app/replies', 'savedReplies.flash.added')
+      : flashTo(reply, '/app/replies#new-reply', 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
+  });
+  app.get('/app/replies/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const row = await withTenantTx(deps.db, bid.value, (tx) => savedReplyOf(tx, bid.value, (req.params as { id: string }).id));
+    if (!row) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: row.title, active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReply(locale, row)}` }));
+  });
+  app.post('/app/replies/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const f = savedForm(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => updateSavedReply(tx, bid.value, id, personOf(s).id, f.title, f.texts));
+    if (out.kind === 'refused' && out.reason === 'not_found') return reply.callNotFound();
+    return out.kind === 'saved' ? flashTo(reply, `/app/replies/${id}`, 'savedReplies.flash.saved')
+      : flashTo(reply, `/app/replies/${id}`, 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
+  });
+  for (const [path, archived] of [['archive', true], ['restore', false]] as const) {
+    app.post(`/app/replies/:id/${path}`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+      const id = (req.params as { id: string }).id;
+      const done = await withTenantTx(deps.db, bid.value, (tx) => setSavedReplyArchived(tx, bid.value, id, personOf(s).id, archived));
+      return flashTo(reply, `/app/replies/${id}`, done ? (archived ? 'savedReplies.flash.archived' : 'savedReplies.flash.restored') : 'savedReplies.flash.notRestored');
+    });
+  }
 
   /**
    * Phase 2d (0152) — the owner sends a product's photo in the conversation they hold: the same checks as their

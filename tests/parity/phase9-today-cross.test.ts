@@ -182,6 +182,8 @@ describe('Phase 9 · the shell', () => {
       ['/app/knowledge', '/app/settings/assistant', 'nav.employee'],
       // The advisor run — the assistant's settings are a row of Settings, and lead back to it.
       ['/app/settings/assistant', '/app/settings', 'nav.settings'],
+      // S1 — the saved replies lead back to Buyers.
+      ['/app/replies', '/app/inbox', 'nav.inbox'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));

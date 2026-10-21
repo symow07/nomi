@@ -259,6 +259,8 @@ export const RULES = Object.freeze({
   tax_codes: { do: 'unrelated' },
   parties: { do: 'unrelated' },
   custom_field_defs: { do: 'unrelated' },
+  // 0195 (S1) — the workspace's saved replies: words its people wrote to reuse, never a customer's.
+  saved_replies: { do: 'unrelated' },
   // 0172 (A2.4) — receipts of the owner's book downloads.
   books_exports: { do: 'unrelated' },
   // 0174 (A4) — the papers behind the books, and their sealed bytes.

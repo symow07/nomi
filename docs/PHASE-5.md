@@ -644,7 +644,18 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 
-- **S1 · Item 18 — canned replies.**
+- **S1 · Item 18 — canned replies.** *(built 2026-10-22, 0195: `/app/replies`, under Buyers.)*
+  - **A saved reply** is a title and its words in one or more of the five languages. Owner and staff keep them. The
+    accountant is refused by the route, and by the database, which shows them no row (0177's policy on the new
+    table, proven past the route guard).
+  - **It never sends.** In a conversation a person holds, the reply form has a second button that puts the chosen
+    saved reply in the box. The words come in the buyer's language where the reply has it, else the person's. They
+    go after what was typed, which travels with the same form, so nothing typed is lost.
+  - **The box then goes by the owner's reply, and only so:** sent where the window is open; refused and KEPT where
+    it is shut (CC-24); refused while the workspace is frozen, the box untouched.
+  - Archived, never deleted; one archived is never offered, and comes back only while no other one in use has its
+    title.
+  - Not yet: no placeholders (a buyer's name filled in) — the words are put in as written, for the person to change.
 - **S2 · Item 19 — labels.**
 - **S3 · Item 21 — round-robin assignment.**
 - **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the

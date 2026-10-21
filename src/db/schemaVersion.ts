@@ -443,7 +443,8 @@ import type { Db } from './client.js';
 // 192 = custom fields travel with the books: a connector's record kind 'field'; only a party's field is required (0192).
 // 193 = the shop's own Xero: its grant, its connection, its records, its taxes' start days (0193).
 // 194 = the shop's own QuickBooks Online: its grant, its connection, its records (0194).
-export const REQUIRED_SCHEMA_VERSION = 194;
+// 195 = saved replies: the words a workspace's people reuse when they answer a buyer (0195).
+export const REQUIRED_SCHEMA_VERSION = 195;
 
 export type SchemaState = {
   readonly required: number;

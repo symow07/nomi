@@ -674,6 +674,8 @@ export type ConversationDetail = {
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
+  /** S1 (0195) — the workspace's saved replies in use, offered in the reply box (titles only: the words are put in by the server). */
+  readonly savedReplies?: readonly { readonly id: string; readonly title: string }[];
   readonly ownership: ConversationOwnership;
   /** R2 (0106) — the owner marked this conversation "this is me testing": it counts toward nothing. */
   readonly ownerTesting?: boolean;
@@ -1606,7 +1608,8 @@ export function renderInboxList(
   // where the outreach area exists. Phase 9 of the warmth run (V1-166) — no
   // calendar door: the rail has Calendar on every width since phase 1, and on
   // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
-  const doors = outreachShown() ? `<div class="doors">${deeper('/app/contacts', t(locale, 'contacts.title'))}</div>` : '';
+  // S1 — and the saved replies a person answers with, kept here, under Buyers.
+  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}</div>`;
   const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
 
   if (data.conversations.length === 0) {
@@ -1911,12 +1914,30 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          ${savedReplyPick(d, locale)}
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         ${photoForm(d, locale)}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
+}
+
+/**
+ * S1 (Phase 5, item 18) — a saved reply put in the box: chosen here, and its words (in the buyer's language where it
+ * has them) placed after what is already in the box, by the server (`/saved-reply`, the same form: what was typed
+ * goes with it). It never sends: the person reads, edits, and sends with the box's own button. No saved reply yet:
+ * the door to make one.
+ */
+function savedReplyPick(d: ConversationDetail, locale: Locale): string {
+  const replies = d.savedReplies ?? [];
+  const door = `<a class="caption" href="/app/replies">${esc(t(locale, replies.length === 0 ? 'savedReplies.make' : 'savedReplies.manage'))}</a>`;
+  if (replies.length === 0) return `<p class="caption muted">${door}</p>`;
+  return `<div class="saved-pick">
+      <select name="saved" aria-label="${esc(t(locale, 'savedReplies.pick'))}">${replies.map((r) => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('')}</select>
+      <button class="btn ghost" type="submit" formaction="/app/inbox/${encodeURIComponent(d.conversationId)}/saved-reply" formnovalidate>${esc(t(locale, 'savedReplies.insert'))}</button>
+      ${door}
+    </div>`;
 }
 
 /**
