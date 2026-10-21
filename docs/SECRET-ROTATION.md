@@ -72,7 +72,7 @@ app opens tokens with it but never seals with it (`acceptRetiredKeys`,
    counts, never a token: how many are already under the new key, how many it
    re-sealed, and — by table and id — any that neither key opens (the app
    cannot open those either; the owner reconnects that account).
-   **Documents too (B0, 2026-10-22):** the ones in this database are re-sealed in
+   **Documents too (B0, 2026-10-21):** the ones in this database are re-sealed in
    the same transaction; a directory store's files (`DOCUMENT_STORES`) only
    where that directory is mounted. Run from the laptop, it names each such
    file as one it cannot read and writes none; run `node tools/rekey.mjs` inside the

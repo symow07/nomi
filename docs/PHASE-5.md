@@ -244,7 +244,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **item 14, the key-expiry reminder** (keys last at most three months).
   - *Depends on B1.*
 - **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.* *(built
-  2026-10-22, 0180: one read, `src/books/readIn.ts`, for the owner's button and the morning's job (`books.read`, 05:20
+  2026-10-21, 0180: one read, `src/books/readIn.ts`, for the owner's button and the morning's job (`books.read`, 05:20
   UTC, every connected system of a workspace whose books are shown — `books_connections_due()`). The same change is
   recorded once (`connector_records`); the cursor is the database's (`books_connections.cursor`), read again by a
   fresh process; a read refused for its problems moves no cursor. A connected system no read has reached for two
@@ -254,7 +254,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 - **C1 · Item 3 — journal entries:**
   - by hand, from Nomi's orders and invoices, and from what's read in;
-  - **Where the exchange difference goes (the owner's question, 2026-10-22; answered before C1).** Since A3 (0173) an
+  - **Where the exchange difference goes (the owner's question, 2026-10-21; answered before C1).** Since A3 (0173) an
     entry with a foreign line posts only if it balances in each foreign currency on its own AND in the books' currency
     after conversion. A remainder is refused (NB009, "add the exchange difference as a line"), never absorbed, rounded
     away or left as an imbalance. It posts only as its own line in the books' currency, visible in the books and the
@@ -275,7 +275,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - A rolled-back posting never existed, so it leaves no gap.
     - Once posted, a number is permanent under any failure. The database refuses DELETE on posted entries and any
       UPDATE of their number. Cancelling is a reversing entry with its own new number. No tool can release a number.
-    - **Checked against the order counter (2026-10-22, 0162 and `src/db/orderNumbers.ts`):**
+    - **Checked against the order counter (2026-10-21, 0162 and `src/db/orderNumbers.ts`):**
       - its one reclaim path is the rollback of the order's own transaction, which takes the count back with it;
       - the app role holds UPDATE on `order_numbers` and nothing stops the count going DOWN; a repeated number is
         stopped only by the unique index on orders.
@@ -374,7 +374,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - archiving with a certain date;
     - reports carrying the entity, the period, the date made, the software version and page numbers.
   - **Does any of it bind the SOFTWARE? No: there is no software certification, registration or attestation in
-    Morocco, in force or announced (checked 2026-10-22, primary sources). So it is not a launch gate.**
+    Morocco, in force or announced (checked 2026-10-21, primary sources). So it is not a launch gate.**
     - Avis 24's criteria bind the **taxpayer, through the software they keep their books in.** The text addresses the
       "systèmes informatisés" an entity uses. The vendor appears once, in 2.1 b, as the author of the technical note
       the entity keeps.
@@ -546,7 +546,7 @@ Parties, Invoices, Payments) and fixed columns.
       BEFORE closure completes**. It isn't an option to miss;
     - **if the export fails, closure doesn't finish**;
     - the deletion page says, in plain words, what we keep, for how long, why, and that they already have their copy.
-    - **Built in A2.4 (0172, 2026-10-22).** Closing refuses until a downloaded copy covers the last posting (a receipt
+    - **Built in A2.4 (0172, 2026-10-21).** Closing refuses until a downloaded copy covers the last posting (a receipt
       with its SHA-256 is written in the same transaction as the file). Then everything else is erased, and the books
       with their business row are HELD, switched off, until the legal date: 10 years from the end of the last fiscal
       year with a posting, for Morocco (CGI art. 211) and France (L123-22), the later of the readings. After that,
