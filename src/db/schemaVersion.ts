@@ -448,7 +448,9 @@ import type { Db } from './client.js';
 // 197 = a label on a buyer goes with the buyer: the customer erasure follows the new link (0197).
 // 198 = hand-offs in turn: the switch, who is in turn and away, and when each was last given one (0198).
 // 199 = the owner's decisions on answers people gave: taught or dismissed, by a digest of the question (0199).
-export const REQUIRED_SCHEMA_VERSION = 199;
+// 200 = an accountant's write refused by the database on the rest of the books: parties, accounts, journals, tax codes, entries and lines (0200).
+// 201 = staff get nothing of the books, said by the database: a team member's request sees and writes no row of them (0201).
+export const REQUIRED_SCHEMA_VERSION = 201;
 
 export type SchemaState = {
   readonly required: number;

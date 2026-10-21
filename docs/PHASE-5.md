@@ -698,6 +698,17 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **Found in D7, for the sweep:** the accountant's write is refused at the database on invoices, payments,
     statements, matches, credit notes, papers' readings, fiscal years and custom fields — but NOT on parties, accounts,
     journals, tax codes, or a draft entry and its lines. The routes refuse them all, and posting is refused (0175).
+  - **Closed in block S (0200, 2026-10-22):** 0186's `books_owner_acts` now stands on parties, accounts, journals, tax
+    codes, journal entries and journal lines too. `tests/integration/books-dz.test.ts` goes past every route guard: as
+    the accountant, each table is still in sight, and each insert, change and deletion is refused with the books'
+    reason; the owner's same write goes. Each table's guard is proven by dropping it alone.
+  - **Found and closed in block S (0201, 2026-10-22): staff had the books underneath.** Decision 12 gives staff nothing
+    of the books; the routes held it, but a request made as a member of the team read the chart of accounts and added
+    an account to it. 0201 adds a restrictive `not_for_staff` policy (`viewer_is_staff()`, from the person's own row) to
+    every one of the books' own tables: a team member's request sees no row of them and writes none. Left open, because
+    the sales side reads them too: the workspace row, the books' settings (the documents' residency), the documents
+    store and its blobs, and the owner's exchange rates. `books-dz.test.ts` walks the schema, so a new table of the
+    books must carry the policy or be named there with its reason; each part is proven by switching it off.
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 

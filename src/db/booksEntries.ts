@@ -21,7 +21,9 @@ export type EntryRefusal = {
 };
 const REASON_OF: Record<string, EntryRefusal['reason']> = {
   NB009: 'unbalanced', NB006: 'period', NB008: 'needs_document', NB014: 'no_rate', NB012: 'tax_not_in_force',
-  NB017: 'fx_accounts', NB016: 'accountant', NB005: 'not_a_draft', NB010: 'not_posted',
+  NB017: 'fx_accounts', NB016: 'accountant',
+  // DZ (0200) — an accountant's write to an entry or its lines, refused by the database whatever the route forgot.
+  NB021: 'accountant', NB005: 'not_a_draft', NB010: 'not_posted',
   // C2 (0184) — an issued invoice's rules, a payment's.
   NB018: 'invoice_locked', NB019: 'payment_refused',
 };
