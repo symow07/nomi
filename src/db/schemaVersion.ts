@@ -432,7 +432,8 @@ import type { Db } from './client.js';
 // 181 = a tax's start date is the owner's to confirm (0181): `tax_start_dates`, for taxes a system gave none.
 // 182 = where the exchange difference goes (0182): the two exchange accounts, and the marked line only on them.
 // 183 = an entry from a Nomi order, once (0183): the sales accounts in books_settings, `journal_entries.source_order_id`.
-export const REQUIRED_SCHEMA_VERSION = 183;
+// 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
+export const REQUIRED_SCHEMA_VERSION = 184;
 
 export type SchemaState = {
   readonly required: number;

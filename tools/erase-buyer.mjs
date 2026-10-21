@@ -270,6 +270,11 @@ export const RULES = Object.freeze({
   books_connections: { do: 'unrelated' },
   // 0181 (C0) — start dates the owner confirmed for taxes a system gave none.
   tax_start_dates: { do: 'unrelated' },
+  // 0184 (C2) — invoices and payments, made out to a party of the books (no buyer link yet).
+  invoice_counters: { do: 'unrelated' },
+  invoices: { do: 'unrelated' },
+  invoice_lines: { do: 'unrelated' },
+  invoice_payments: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

@@ -14,12 +14,14 @@ import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 export type EntryRefusal = {
   readonly kind: 'refused';
   readonly reason: 'unbalanced' | 'period' | 'needs_document' | 'no_rate' | 'tax_not_in_force' | 'fx_accounts'
-    | 'accountant' | 'not_a_draft' | 'not_posted' | 'no_fiscal_year' | 'other';
+    | 'accountant' | 'not_a_draft' | 'not_posted' | 'no_fiscal_year' | 'invoice_locked' | 'payment_refused' | 'other';
   readonly detail: string | null;
 };
 const REASON_OF: Record<string, EntryRefusal['reason']> = {
   NB009: 'unbalanced', NB006: 'period', NB008: 'needs_document', NB014: 'no_rate', NB012: 'tax_not_in_force',
   NB017: 'fx_accounts', NB016: 'accountant', NB005: 'not_a_draft', NB010: 'not_posted',
+  // C2 (0184) — an issued invoice's rules, a payment's.
+  NB018: 'invoice_locked', NB019: 'payment_refused',
 };
 /** The database's refusal as its reason; anything that is not one of the books' own refusals is thrown on. */
 export function refusalOf(e: unknown): EntryRefusal {
