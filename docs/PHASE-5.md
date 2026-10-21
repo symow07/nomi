@@ -192,12 +192,24 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage B — the connector layer
 
-- **B1 · Item 12 — one plug-in shape:**
+- **B1 · Item 12 — one plug-in shape:** *(built 2026-10-22: `src/core/books/connector.ts` (config, connect / refresh /
+  revoke with a closed list of refusal reasons, the mapping both ways, "changed since") over one interchange shape,
+  `src/core/books/interchange.ts` (keyed by codes and the source's own entry keys, never Nomi's ids; exact decimals);
+  one registry, `src/books/connectors/registry.ts`; the suite `tests/books-connectors/conformance.ts`, passed by the
+  workbook and by a test fake that keeps its own history.)*
   - each system provides a config, a mapper to and from A2, its sign-in (exchange, refresh, revoke), and "changed since";
   - all behind one registry;
   - a conformance suite every connector must pass.
   - *Depends on A2 and A5.*
-- **B2 · Excel by file (option A):**
+- **B2 · Excel by file (option A):** *(built 2026-10-22, 0178: the versioned Nomi workbook (a "Nomi" sheet, then
+  Accounts, Journals, Parties, Tax codes, Journal — one row per line), written and read by `src/net/xlsx.ts` with no
+  library; opened and saved by Microsoft Excel 16 in the test (`tests/books-connectors/fixtures/excel-saved.xlsx`,
+  its author and path removed). Found doing so: Excel writes 33.34 back as 33.340000000000003, so a number cell is
+  read at Excel's 15 significant digits, as text; and an amount with more decimals than its currency is refused,
+  never rounded by the column. The read-in (`src/db/booksInterchange.ts`) is one change or none; entries arrive as
+  DRAFTS; a posted entry or a chart record that differs from Nomi stops it, named by sheet, row and column; what each
+  source last said is kept in `connector_records`, so the same workbook twice changes nothing. Invoices and Payments
+  tabs come with C2. The workbook is not yet a receipt for closure — the books' CSV is.)*
   - the fixed Nomi workbook, imported and exported;
   - **it validates the interface on the easy case first:** no external dependency, so B1 is proven against something we
     fully control before it meets Odoo's sign-in, plans and expiring keys.

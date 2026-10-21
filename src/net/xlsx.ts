@@ -1,4 +1,4 @@
-import { inflateRawSync } from 'node:zlib';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 
 /**
  * EXT — AN EXCEL FILE (.xlsx), READ AS THE TABLE IT IS.
@@ -141,3 +141,134 @@ export function xlsxRows(b: Buffer): string[][] | null {
 /** The rows as CSV, every cell quoted: the table import reads it as it reads any export. */
 export const rowsAsCsv = (rows: readonly (readonly string[])[]): string =>
   rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+
+/**
+ * B2 (Phase 5) — A WORKBOOK OF SEVERAL NAMED SHEETS, read with each cell's kind and each row's own number: the Nomi
+ * workbook names a problem by its sheet, row and column, and a figure the spreadsheet holds as a NUMBER is never
+ * ambiguous ("1.125" typed as text may be a thousand; stored as a number it is one and an eighth). Same limits as
+ * above, per sheet.
+ */
+export type XlsxCell = { readonly text: string; readonly number: boolean };
+export type XlsxSheet = { readonly name: string; readonly rows: ReadonlyMap<number, readonly XlsxCell[]> };
+
+export function xlsxSheets(b: Buffer): { readonly sheets: readonly XlsxSheet[]; readonly date1904: boolean } | null {
+  if (!looksLikeXlsx(b)) return null;
+  const list = entries(b);
+  if (!list) return null;
+  const budget = { left: MAX_INFLATED };
+  const byName = new Map(list.map((e) => [e.name, e]));
+  const workbook = byName.get('xl/workbook.xml');
+  const rels = byName.get('xl/_rels/workbook.xml.rels');
+  if (!workbook || !rels) return null;
+  const wb = read(b, workbook, budget); const rl = read(b, rels, budget);
+  if (wb === null || rl === null) return null;
+  const targets = new Map<string, string>();
+  for (const m of rl.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+    const id = /\bId="([^"]+)"/.exec(m[1]!)?.[1]; const target = /\bTarget="([^"]+)"/.exec(m[1]!)?.[1];
+    if (id && target) targets.set(id, target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`);
+  }
+  const shared: string[] = [];
+  const sst = byName.get('xl/sharedStrings.xml');
+  if (sst) {
+    const xml = read(b, sst, budget);
+    if (xml === null) return null;
+    for (const m of xml.matchAll(/<si>([\s\S]*?)<\/si>/g)) shared.push(textOf(m[1]!));
+  }
+  const sheets: XlsxSheet[] = [];
+  for (const s of wb.matchAll(/<sheet\b([^>]*?)\/?>/g)) {
+    const name = unescapeXml(/\bname="([^"]*)"/.exec(s[1]!)?.[1] ?? '');
+    const rid = /\br:id="([^"]+)"/.exec(s[1]!)?.[1];
+    const entry = rid ? byName.get(targets.get(rid) ?? '') : undefined;
+    if (!entry) return null;
+    const xml = read(b, entry, budget);
+    if (xml === null) return null;
+    const rows = new Map<number, XlsxCell[]>();
+    for (const r of xml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>|<row\b([^>]*)\/>/g)) {
+      if (rows.size >= XLSX_MAX_ROWS) return null;
+      const n = Number(/\br="(\d+)"/.exec(r[1] ?? r[3] ?? '')?.[1] ?? rows.size + 1);
+      const row: XlsxCell[] = [];
+      for (const c of (r[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const attrs = c[1]!;
+        const ref = /\br="([A-Z]+)\d+"/.exec(attrs)?.[1];
+        const col = ref ? columnOf(ref) : row.length;
+        if (col >= XLSX_MAX_COLS) continue;
+        const type = /\bt="([a-zA-Z]+)"/.exec(attrs)?.[1] ?? 'n';
+        const body = c[2] ?? '';
+        const v = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1];
+        const cell: XlsxCell = type === 's' ? { text: (shared[Number(v)] ?? '').trim(), number: false }
+          : type === 'inlineStr' ? { text: textOf(body).trim(), number: false }
+          : type === 'str' || type === 'e' ? { text: unescapeXml(v ?? '').trim(), number: false }
+          : type === 'b' ? { text: v === '1' ? 'TRUE' : 'FALSE', number: false }
+          : { text: unescapeXml(v ?? '').trim(), number: v !== undefined };
+        while (row.length < col) row.push({ text: '', number: false });
+        row[col] = cell;
+      }
+      if (row.some((x) => x.text !== '')) rows.set(n, row);
+    }
+    sheets.push({ name, rows });
+  }
+  return { sheets, date1904: /<workbookPr\b[^>]*\bdate1904="(1|true)"/.test(wb) };
+}
+
+/** A cell to write: text, or a number given as its exact decimal text (never a float). */
+export type XlsxValue = string | { readonly number: string } | null;
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+const crc32 = (b: Buffer): number => {
+  let c = 0xffffffff;
+  for (const x of b) c = CRC_TABLE[(c ^ x) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+const escapeXml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  // characters XML 1.0 cannot carry at all
+  .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const columnName = (i: number): string => { let s = ''; let n = i + 1; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+
+/** A workbook of these sheets, in this order: the parts Excel, LibreOffice and Google Sheets need, and no more. */
+export function xlsxWrite(sheets: readonly { readonly name: string; readonly rows: readonly (readonly XlsxValue[])[] }[]): Buffer {
+  const sheetXml = (rows: readonly (readonly XlsxValue[])[]): string => {
+    const body = rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => {
+      const ref = `${columnName(j)}${i + 1}`;
+      if (v === null || v === '') return '';
+      if (typeof v === 'object') return `<c r="${ref}"><v>${escapeXml(v.number)}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(v)}</t></is></c>`;
+    }).join('')}</row>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+  };
+  const parts: [string, string][] = [
+    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${
+      sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${
+      sheets.map((s, i) => `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${
+      sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+    }<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+    ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s.rows)] as [string, string]),
+  ];
+  const locals: Buffer[] = []; const central: Buffer[] = []; let offset = 0;
+  for (const [name, text] of parts) {
+    const data = Buffer.from(text, 'utf8');
+    const packed = deflateRawSync(data);
+    const nameBuf = Buffer.from(name, 'utf8');
+    const crc = crc32(data);
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(8, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(packed.length, 18); local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    locals.push(local, nameBuf, packed);
+    const cen = Buffer.alloc(46); cen.writeUInt32LE(0x02014b50, 0); cen.writeUInt16LE(20, 4); cen.writeUInt16LE(20, 6); cen.writeUInt16LE(0x0800, 8);
+    cen.writeUInt16LE(8, 10); cen.writeUInt32LE(crc, 16); cen.writeUInt32LE(packed.length, 20); cen.writeUInt32LE(data.length, 24);
+    cen.writeUInt16LE(nameBuf.length, 28); cen.writeUInt32LE(offset, 42);
+    central.push(cen, nameBuf);
+    offset += 30 + nameBuf.length + packed.length;
+  }
+  const dir = Buffer.concat(central);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(parts.length, 8); end.writeUInt16LE(parts.length, 10);
+  end.writeUInt32LE(dir.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}

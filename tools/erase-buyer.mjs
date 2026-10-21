@@ -264,6 +264,8 @@ export const RULES = Object.freeze({
   // 0174 (A4) — the papers behind the books, and their sealed bytes.
   documents: { do: 'unrelated' },
   document_blobs: { do: 'unrelated' },
+  // 0178 (B2) — what a connected system last said of each books record: keys and digests.
+  connector_records: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

@@ -227,7 +227,10 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome } from './books.js';
+import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused } from './books.js';
+import { booksConnector } from '../../books/connectors/registry.js';
+import { readBooks, readInBooks } from '../../db/booksInterchange.js';
+import { configProblems } from '../../core/books/connector.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -2272,8 +2275,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.callNotFound();
     const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
+    // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
+    // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'books.home.title'), active: 'settings', bodyHtml: renderBooksHome(locale, personOf(s), holding),
+      title: t(locale, 'books.home.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding)}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2285,6 +2291,52 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/csv; charset=utf-8')
       .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
       .header('cache-control', 'no-store').send(file.csv);
+  });
+
+  /**
+   * B2 — THE NOMI WORKBOOK. Out: the books as the workbook (a copy, like the file above — the accountant's too). In: a
+   * workbook read back as ONE change or none (src/db/booksInterchange.ts), its entries as drafts for the owner to post.
+   * A file that is not the workbook says so; a workbook with problems is shown with every one, by sheet, row and
+   * column, and nothing is read in — the page answers 422 rather than moving on, because nothing changed.
+   */
+  const bookCurrencyOf = async (bid: BusinessId): Promise<string> =>
+    withTenantTx(deps.db, bid, async (tx) => (await sql<{ c: string }>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c);
+  app.get('/app/books/workbook.xlsx', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books', 'data.export.flash.tooMany');
+    const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
+    const books = await withTenantTx(deps.db, bid.value, (tx) => readBooks(tx, bid.value));
+    return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date()).replace(/\.csv$/, '.xlsx')}"`)
+      .header('cache-control', 'no-store').send(excel.fromBooks(books));
+  });
+  app.post('/app/books/workbook', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    let bytes: Buffer | null = null;
+    try {
+      const file = await req.file();
+      bytes = file ? await file.toBuffer() : null;
+    } catch { bytes = null; }
+    const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
+    const values = { workbook: bytes ?? undefined };
+    if (configProblems(excel.config, values).length > 0) return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    const opened = await excel.connect(values);
+    if (opened.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    const read = await excel.changedSince(opened.source, null);
+    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
+    if (read.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    if (read.problems.length > 0) return refuse(read.problems);
+    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where);
+    if (out.kind === 'refused') return refuse(out.problems);
+    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {
