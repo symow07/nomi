@@ -54,6 +54,13 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/closing/year', action: 'post' },
   // D3 — the accountant pack: a copy out, the accountant's too.
   { method: 'GET', url: '/app/books/pack.xlsx', action: 'export' },
+  // D6 — the books' papers: seen and taken by the accountant; kept, read and drafted from by the owner.
+  { method: 'GET', url: '/app/books/papers', action: 'see' },
+  { method: 'GET', url: '/app/books/papers/:id', action: 'see' },
+  { method: 'GET', url: '/app/books/papers/:id/file', action: 'export' },
+  { method: 'POST', url: '/app/books/papers', action: 'post' },
+  { method: 'POST', url: '/app/books/papers/:id/read', action: 'post' },
+  { method: 'POST', url: '/app/books/papers/:id/draft', action: 'post' },
   // D4 — the Moroccan FEC: the page the books' to see, each year's file a copy out (the accountant's too).
   { method: 'GET', url: '/app/books/fec', action: 'see' },
   { method: 'GET', url: '/app/books/fec/:file', action: 'export' },
@@ -116,6 +123,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     <p><a class="deeper" href="/app/books/trial-balance">${esc(t(locale, 'books.trial.title'))}</a></p>
     <p><a class="deeper" href="/app/books/closing">${esc(t(locale, 'books.close.title'))}</a></p>
     <p><a class="deeper" href="/app/books/fec">${esc(t(locale, 'books.fec.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/papers">${esc(t(locale, 'books.papers.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>

@@ -521,6 +521,23 @@ Each item is built and fully tested (§4) before the next one that depends on it
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
   alone. *Depends on A4 and C1.* 💰 (a model reads each document).
+  *(built 2026-10-22, 0191: `/app/books/papers`. 💰 — tested with a recorded reader; never run live without
+  asking (zero-spend mode).)*
+  - **A paper** (a photo, or a PDF where the provider reads documents) is kept sealed in the workspace's residency
+    (A4). Its bytes must say what its label says.
+  - **"Read it"** asks the model provider through its own port (`DocumentReader`, src/llm/ports.ts). It asks for what
+    is printed, as printed text, never computed. Each read is one of the day's photo reads, and refused when the
+    allowance is used.
+  - **The reading is kept as it came** (0191), with what Nomi's check found wrong (src/core/books/reading.ts):
+    - a figure that reads two ways (A1's rule);
+    - lines that do not add up to the total;
+    - no day, no number, or a currency the books do not keep.
+  - **From a reading with no problem, the owner drafts ONE entry**, choosing the journal, the supplier, the payable
+    account and every line's account and tax code. A purchase: lines debited, tax to its code's account, the
+    supplier credited the total. A DRAFT, posted by the owner like any other. The database refuses a draft from a
+    reading with problems, a second draft, and any change to what was read.
+  - The accountant sees and takes the papers, and reads or drafts nothing.
+  - The books' launch blocker for /privacy now also names the model provider reading the papers.
 - **D7 · Item 9 — custom categories and fields.** *Depends on C1.*
 - **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
 - **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).

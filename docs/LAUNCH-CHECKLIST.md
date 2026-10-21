@@ -78,7 +78,8 @@ That is acceptable only while nobody has the books. So, before
   leaves with their copy (PHASE-5.md §6). And `/privacy` names the shop's own
   systems the books can read from: Odoo (B4). Google Sheets is already held
   by D18, which stops the boot while `SHEETS_CLIENT_ID` is set and the privacy
-  page does not name it.
+  page does not name it. And it says that a receipt, invoice or bill the owner
+  asks Nomi to read is sent to the model provider, which reads it (D6).
 
 Enforced in `tools/books-area.mjs`: `--on` refuses while `BLOCKERS` names an
 item, and prints each one. Remove an item there in the commit that builds it.

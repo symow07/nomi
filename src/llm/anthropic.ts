@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
 import { parseFactsAnswer } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
 import { parseExtractorAnswer } from '../core/onboard/extract.js';
@@ -596,6 +596,47 @@ export function anthropicPageFactsReader(client: Anthropic, model: string = MODE
       const block = firstText(res.content);
       return {
         facts: parseFactsAnswer(block?.type === 'text' ? block.text : ''),
+        promptVersion: PROMPT_VERSION,
+        modelId: model,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+      };
+    },
+  };
+}
+
+/** D6 — a receipt, invoice or bill read for the books: what is printed, as printed (src/llm/ports.ts DocumentReader). */
+export function anthropicDocumentReader(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): DocumentReader {
+  const PROMPT_VERSION = 'books-document-1';
+  return {
+    async read({ base64, mediaType }) {
+      const pdf = mediaType === 'application/pdf';
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: pdf ? 6000 : 3000,
+        temperature: 0,
+        system:
+          'You read a receipt, an invoice or a bill for a business\'s accounts. Copy ONLY what is printed on it. ' +
+          'Every figure exactly as printed, as text, with its own separators — never computed, rounded, converted or completed. ' +
+          'A value that is not printed, or cannot be read, is an empty string: never guess it from the other figures. ' +
+          'The date as YYYY-MM-DD only if the printed date is unambiguous, else an empty string. The currency as its ISO code. ' +
+          'Reply with JSON only: {"kind":"invoice|receipt|bill|other","supplier":{"name":"","taxId":""},"number":"","date":"","currency":"",' +
+          '"lines":[{"label":"","net":"","taxRate":"","tax":""}],"totalNet":"","totalTax":"","total":""}. ' +
+          'If you cannot read the document at all, reply with exactly: UNREADABLE',
+        messages: [{
+          role: 'user',
+          content: [
+            pdf
+              ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+              : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'Read this document.' },
+          ],
+        }],
+      }, OWNER_READ_REQUEST);
+      const block = firstText(res.content);
+      return {
+        answer: block?.type === 'text' ? block.text : '',
+        cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
         modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },

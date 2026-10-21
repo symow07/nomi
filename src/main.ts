@@ -9,7 +9,7 @@ import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicPageTranscriber, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
+import { anthropicPageTranscriber, anthropicDocumentReader, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
 import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
@@ -850,6 +850,8 @@ export async function buildProduction(
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
   const pageTranscriber = anthropicPageTranscriber(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
+  // D6 — a receipt, invoice or bill read for the books, on the same provider (a draft at most, never posted).
+  const documentReader = anthropicDocumentReader(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — the closer reading of a list's lines, on the same provider.
   const catalogExtractor = anthropicCatalogExtractor(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — a page of her site read into facts she ticks.
@@ -894,6 +896,7 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
+      documentReader,
       // EXT — a PDF is offered only where the provider reads documents (Anthropic's does;
       // this installation's custom provider answered one with nothing, 2026-10-01).
       pdfReadable: llm.name === 'anthropic',

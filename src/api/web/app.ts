@@ -3,7 +3,7 @@ import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
-import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
+import { allowanceOf, allowanceUsed, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
 import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
@@ -23,7 +23,7 @@ import type { PendingQuestion } from '../../core/types/conversation.js';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
-import { withTenantTx, lockConversation, type Db } from '../../db/client.js';
+import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
 import { loadCustomerCard } from '../../db/customerCard.js';
 import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
@@ -206,7 +206,7 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
+import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes, ownName } from './advisor.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
@@ -247,6 +247,9 @@ import { xlsxWrite } from '../../net/xlsx.js';
 import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
 import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.js';
+import { renderPaper, renderPapers, type PaperChoices } from './booksPapers.js';
+import { draftFromReading, keepReading, listPapers, paperOf } from '../../db/booksDocuments.js';
+import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, discardCreditNote, draftCreditNote, issueCreditNote, loadCreditNote } from '../../db/booksCreditNotes.js';
@@ -488,6 +491,8 @@ export type WebDeps = {
    * keeps working.
    */
   readonly pageTranscriber?: PageTranscriber;
+  /** D6 — a receipt, invoice or bill read for the books; absent, the owner drafts by hand. */
+  readonly documentReader?: DocumentReader;
   /** EXT — the model extractor, for the lines a list's parser could not make a product of; absent: the button is not offered. */
   readonly catalogExtractor?: CatalogExtractor;
   /** EXT — a page of her site read into facts she ticks; absent: the form is not offered. */
@@ -3014,6 +3019,110 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       .header('content-disposition', `attachment; filename="accountant-pack-${got.period.from}-${got.period.to}.xlsx"`)
       .header('cache-control', 'no-store').send(file);
+  });
+  /**
+   * D6 (item 7; 0191) — THE BOOKS' PAPERS: kept sealed in the workspace's residency (A4), read on request where a reader
+   * is configured (each read one of the day's photo reads), and drafted from — once, by the owner, never posted here.
+   */
+  const PAPER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
+  type PaperType = (typeof PAPER_TYPES)[number];
+  const looksLike = (b: Buffer, mt: PaperType) => mt === 'application/pdf' ? b.subarray(0, 5).toString('latin1') === '%PDF-'
+    : mt === 'image/png' ? b.subarray(0, 4).toString('hex') === '89504e47' : mt === 'image/jpeg' ? b.subarray(0, 2).toString('hex') === 'ffd8'
+    : b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP';
+  app.get('/app/books/papers', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid, (tx) => listPapers(tx, bid));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderPapers(locale, personOf(s), rows, Boolean(deps.documents))}` }));
+  });
+  app.post('/app/books/papers', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    if (!deps.documents) return flashTo(reply, '/app/books/papers', 'books.flash.paperRefused');
+    let got: { bytes: Buffer; mt: string; name: string } | null = null;
+    try { const f = await req.file(); if (f) got = { bytes: await f.toBuffer(), mt: f.mimetype, name: f.filename || 'paper' }; } catch { got = null; }
+    const mt = got && (PAPER_TYPES as readonly string[]).includes(got.mt) ? (got.mt as PaperType) : null;
+    if (!got || !mt || got.bytes.length === 0 || !looksLike(got.bytes, mt)) return flashTo(reply, '/app/books/papers', 'books.flash.paperRefused');
+    const stored = await withTenantTx(deps.db, bid, (tx) => deps.documents!.put(tx, { businessId: bid, name: got!.name.slice(0, 200), mediaType: mt, bytes: got!.bytes, by: personOf(s).id }));
+    return flashTo(reply, `/app/books/papers/${stored.id}`, 'books.flash.paperKept');
+  });
+  const paperChoices = async (tx: Tx, bid: string): Promise<PaperChoices> => {
+    const c = await entryChoices(tx, bid);
+    const one = async (q: ReturnType<typeof sql<{ id: string }>>) => (await q.execute(tx)).rows[0]?.id ?? null;
+    return {
+      journals: c.journals, accounts: c.accounts,
+      parties: (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from parties where business_id = ${bid}::uuid
+        and is_active and kind in ('supplier', 'other') order by code`.execute(tx)).rows,
+      taxCodes: (await sql<{ id: string; code: string; label: string }>`select id::text as id, code, label from tax_codes where business_id = ${bid}::uuid
+        and kind = 'deductible' order by code`.execute(tx)).rows,
+      payableDefault: await one(sql<{ id: string }>`select id::text as id from accounts where business_id = ${bid}::uuid and code = '4411'`),
+      purchasesDefault: await one(sql<{ id: string }>`select id::text as id from journals where business_id = ${bid}::uuid and kind = 'purchases' order by code limit 1`),
+    };
+  };
+  app.get('/app/books/papers/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ p: await paperOf(tx, bid, (req.params as { id: string }).id), c: await paperChoices(tx, bid) }));
+    if (!got.p) return reply.callNotFound();
+    const canRead = got.p.mediaType !== 'application/pdf' || Boolean(deps.pdfReadable);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: got.p.name, active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderPaper(locale, personOf(s), got.p, got.c, { available: Boolean(deps.documentReader), canRead })}` }));
+  });
+  app.get('/app/books/papers/:id/file', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid || !deps.documents) return reply.callNotFound();
+    const doc = await withTenantTx(deps.db, bid, (tx) => deps.documents!.open(tx, (req.params as { id: string }).id));
+    if (!doc) return reply.callNotFound();
+    return reply.type(doc.mediaType).header('content-disposition', `attachment; filename="${doc.name.replace(/["\\\r\n]/g, '_')}"`)
+      .header('cache-control', 'no-store').send(doc.bytes);
+  });
+  app.post('/app/books/papers/:id/read', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const back = `/app/books/papers/${id}`;
+    if (!deps.documentReader || !deps.documents) return flashTo(reply, back, 'books.flash.paperNotRead', { why: t(localeOf(req), 'books.papers.noReader') });
+    const allowance = await withTenantTx(deps.db, bid, (tx) => allowanceOf(tx));
+    if (allowanceUsed(allowance) || allowance.photoReads >= PHOTO_READS_A_DAY) return flashTo(reply, back, 'books.flash.paperNotRead', { why: t(localeOf(req), 'books.papers.allowance') });
+    const doc = await withTenantTx(deps.db, bid, (tx) => deps.documents!.open(tx, id));
+    if (!doc || !(PAPER_TYPES as readonly string[]).includes(doc.mediaType)) return reply.callNotFound();
+    if (doc.mediaType === 'application/pdf' && !deps.pdfReadable) return flashTo(reply, back, 'books.flash.paperNotRead', { why: t(localeOf(req), 'books.papers.pdfNotRead') });
+    const read = await deps.documentReader.read({ base64: doc.bytes.toString('base64'), mediaType: doc.mediaType as PaperType });
+    await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, inputTokens: read.usage.inputTokens, outputTokens: read.usage.outputTokens }, { turn: false, photoReads: 1 });
+    const raw = read.cutOff ? null : parseReadingAnswer(read.answer);
+    const checked = raw ? checkReading(raw) : null;
+    await withTenantTx(deps.db, bid, (tx) => keepReading(tx, bid, id, personOf(s).id, {
+      outcome: read.cutOff ? 'cut_off' : checked ? 'read' : 'unreadable', reading: checked?.reading ?? null, problems: checked?.problems ?? [],
+      modelId: read.modelId, promptVersion: read.promptVersion }));
+    return flashTo(reply, back, checked && checked.problems.length === 0 ? 'books.flash.paperRead' : 'books.flash.paperReadProblems');
+  });
+  app.post('/app/books/papers/:id/draft', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const back = `/app/books/papers/${id}`;
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const uuid = (k: string) => (typeof f[k] === 'string' && /^[0-9a-f-]{36}$/i.test(f[k] as string) ? (f[k] as string) : null);
+    const out = await withTenantTx(deps.db, bid, async (tx) => {
+      const p = await paperOf(tx, bid, id);
+      const reading = p?.readings.find((r) => r.id === uuid('reading'));
+      if (!reading?.reading) return { kind: 'refused' as const, reason: 'not_draftable' as const, detail: null };
+      const lines = reading.reading.lines.map((_, i) => ({ accountId: uuid(`account${i}`), taxCodeId: uuid(`tax${i}`) }));
+      const [journal, party, payable] = [uuid('journal'), uuid('party'), uuid('payable')];
+      if (!journal || !party || !payable || lines.some((l) => !l.accountId)) return { kind: 'refused' as const, reason: 'choices' as const, detail: null };
+      return draftFromReading(tx, bid, reading.id, personOf(s).id, { journalId: journal, partyId: party, payableAccountId: payable,
+        lines: lines.map((l) => ({ accountId: l.accountId!, taxCodeId: l.taxCodeId })) });
+    });
+    if (out.kind === 'drafted') return flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.paperDrafted');
+    const locale = localeOf(req);
+    const why = out.reason === 'choices' ? t(locale, 'books.papers.chooseAll') : out.reason === 'not_draftable' ? t(locale, 'books.papers.notDraftable')
+      : out.reason === 'already_drafted' ? t(locale, 'books.papers.alreadyDrafted') : out.reason === 'tax_account' ? t(locale, 'books.papers.taxAccount', { n: out.detail ?? '' })
+      : entryRefusedWhy(locale, out as EntryRefusal);
+    return flashTo(reply, back, 'books.flash.paperNotDrafted', { why });
   });
   /** D4 (Avis 24) — the Moroccan FEC: each fiscal year's file, its numbering checked, its accounts against the CGNC. */
   app.get('/app/books/fec', async (req, reply) => {
