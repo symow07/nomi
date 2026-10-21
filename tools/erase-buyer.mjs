@@ -255,6 +255,10 @@ export const RULES = Object.freeze({
   journal_counters: { do: 'unrelated' },
   journal_entries: { do: 'unrelated' },
   journal_lines: { do: 'unrelated' },
+  // 0170 (A2.2) — tax codes, custom-field definitions, and parties (no buyer link yet; re-decided in A2.4).
+  tax_codes: { do: 'unrelated' },
+  parties: { do: 'unrelated' },
+  custom_field_defs: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.
