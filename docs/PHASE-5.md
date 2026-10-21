@@ -564,6 +564,27 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **To settle before building — what a « période » is.** The Avis does not define its length. The CGNC or the
     DGI's practice may (monthly VAT returns suggest a month; quarterly filers suggest otherwise). It will be checked
     against the text and asked, never assumed.
+    - **Checked 2026-10-22: NOT PINNED DOWN — to be asked of an accountant.** No text defines it.
+      - Avis 24 uses « période » six times and defines it nowhere; its §1 defines other terms.
+      - Loi 9-88 art. 7 defines only the exercice (twelve months).
+      - What only SUGGESTS a month:
+        - Loi 9-88 art. 3: the journals are centralised « une fois par mois » — but a natural person under 2 MDH may
+          centralise once a year.
+        - The CGNC: centralisation « au moins une fois par mois »; « récapitulations au moins mensuelles ».
+      - What argues against one fixed length:
+        - The CGNC allows interim statements « semestrielle, trimestrielle ou mensuelle ».
+        - VAT is filed monthly or quarterly by turnover (CGI art. 108). Nothing ties it to Avis 24.
+      - The DGI's note circulaire n° 737 cites Avis 24 and says nothing on periods. Professional commentary repeats
+        « deux périodes ouvertes » without a length.
+      - The official sites (finances.gov.ma, tax.gov.ma) did not answer, so the CGI and note 737 were read in
+        third-party copies.
+      - **The question for the accountant:** « Pour le principe d'irréversibilité de l'avis CNC n° 24 (annexe §2.3 d),
+        quelle durée de « période » un logiciel doit-il appliquer : le mois (centralisation mensuelle, loi 9-88 art. 3),
+        le trimestre pour un assujetti TVA trimestriel (CGI art. 108-II), ou une durée fixée par l'entreprise dans son
+        manuel comptable ? Un commerçant autorisé à centraliser une fois par exercice peut-il n'avoir qu'une période ?
+        Existe-t-il une position écrite du CNC, de la DGI ou de l'Ordre ? »
+      - D10 waits for the answer. The most natural reading is the month, and it is not to be picked without the
+        accountant.
   - **Done when:**
     - the opening entry is taken once and refused a second time;
     - the date and the person are recorded;
