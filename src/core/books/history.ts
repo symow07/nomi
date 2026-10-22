@@ -8,10 +8,13 @@
  */
 export type YearWindow = { readonly startsOn: string; readonly endsOn: string; readonly state: string };
 
+/** The calendar day after an ISO date (YYYY-MM-DD), by the calendar alone: no clock. */
 const nextDay = (iso: string): string => {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const last = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]!;
+  const [ny, nm, nd] = d < last ? [y, m, d + 1] : m < 12 ? [y, m + 1, 1] : [y + 1, 1, 1];
+  return `${String(ny).padStart(4, '0')}-${String(nm).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
 };
 
 /** The first day an entry can be written, or null when no open year has one (then nothing is history: all refused). */

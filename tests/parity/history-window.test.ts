@@ -22,6 +22,9 @@ describe('E3 · the open window, and what falls before it', () => {
     expect(firstOpenDay([year('2025-01-01', '2025-12-31'), year('2026-01-01', '2026-12-31')], '2025-12-31')).toBe('2026-01-01');
     // the last day of February in a leap year, and of a year
     expect(firstOpenDay([year('2028-01-01', '2028-12-31')], '2028-02-28')).toBe('2028-02-29');
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31')], '2026-02-28')).toBe('2026-03-01');
+    expect(firstOpenDay([year('2100-01-01', '2100-12-31')], '2100-02-28')).toBe('2100-03-01');   // not a leap year
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31'), year('2027-01-01', '2027-12-31')], '2026-12-31')).toBe('2027-01-01');
   });
 
   it('no open year: no window, so nothing is history — everything stays refused as before', () => {
