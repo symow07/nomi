@@ -76,6 +76,8 @@ describe('M47 · one distinction, and it is named in code', () => {
       'billing',
       // S5 (0199) — an answer a person gave becoming a taught answer.
       'answers_given',
+      // E2 (0206) — the business's ICE, IF and RC.
+      'business_identifiers',
     ]);
   });
 

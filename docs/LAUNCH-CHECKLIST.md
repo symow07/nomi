@@ -90,8 +90,14 @@ holds the tool and this list together.
 A Moroccan workspace's FEC (D4) is not finished, and a file the DGI rejects on
 its name is a file that does not work:
 
-- **The business's legal identifiers — ICE, IF and RC — held on its profile**,
-  shape-checked, and carried by the FEC.
+- ~~The business's legal identifiers — ICE, IF and RC — held on its profile,
+  shape-checked, and carried by the FEC.~~ **Done (E2, 0206, 2026-10-22):** held
+  on the business, given on its profile by the owner (`business_identifiers`),
+  and carried on every line of the FEC after the Avis's eighteen fields. Checked
+  only where an official source publishes a rule (PHASE-5.md, E2): the ICE's
+  15 positions (OMPIC; the ICE portal's guide). The IF has no published format and
+  is kept as typed; the RC is kept with its court (Code de commerce, art. 49 and
+  154), its number unchecked. The FEC page names any of the three still missing.
 - **The FEC named as the DGI requires.** Checked on 2026-10-22:
   - the Avis n° 24 sets no name and no envelope (Article 2 and point 3 name
     the file and its fields only);

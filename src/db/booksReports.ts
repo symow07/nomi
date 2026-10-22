@@ -3,7 +3,7 @@ import type { Tx } from './client.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import { trialBalance, type AccountKind, type TrialBalance } from '../core/books/trialBalance.js';
 import type { PackLine, PackTax, PackTaxAccount } from '../core/books/pack.js';
-import type { FecLine } from '../core/books/fec.js';
+import type { FecIdentity, FecLine } from '../core/books/fec.js';
 
 /**
  * D1 (Phase 5, item 1) — THE TRIAL BALANCE's figures, summed by the database from the posted lines' amounts in the
@@ -114,5 +114,9 @@ export async function fecData(tx: Tx, businessId: string, yearId: string) {
      where e.business_id = ${businessId}::uuid and e.fiscal_year_id = ${yearId}::uuid and e.state = 'posted'
        and left(a.code, 3) not in (select left(code, 3) from chart_template_accounts where template = 'cgnc-normal' and length(code) >= 3)
      order by a.code`.execute(tx)).rows;
-  return { year, lines, numbers, offChart };
+  // E2 (0206) — the business's own identifiers, carried on every line.
+  const id = (await sql<{ legal_ice: string | null; legal_if: string | null; legal_rc: string | null; legal_rc_court: string | null }>`
+    select legal_ice, legal_if, legal_rc, legal_rc_court from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0];
+  const identity: FecIdentity = { ice: id?.legal_ice ?? null, taxId: id?.legal_if ?? null, rc: id?.legal_rc ?? null, rcCourt: id?.legal_rc_court ?? null };
+  return { year, lines, numbers, offChart, identity };
 }

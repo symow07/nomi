@@ -454,7 +454,8 @@ import type { Db } from './client.js';
 // 203 = two more channels, the business's chat page and Telegram: the channel lists widened (0203).
 // 204 = one Telegram bot for every business: which business a chat writes to, by the start link it opened last (0204).
 // 205 = the owner's copy of their papers: an archive's receipt, and closure waiting for it (0205).
-export const REQUIRED_SCHEMA_VERSION = 205;
+// 206 = the business's own ICE, IF and RC with its court, on its profile and in its FEC (0206).
+export const REQUIRED_SCHEMA_VERSION = 206;
 
 export type SchemaState = {
   readonly required: number;

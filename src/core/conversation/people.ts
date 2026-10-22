@@ -103,6 +103,8 @@ export const OWNER_ONLY = [
   'billing',
   // S5 (0199) — what a person wrote to one buyer becoming what the assistant says to every buyer.
   'answers_given',
+  // E2 (0206) — the business's own ICE, IF and RC: the identity its books and its FEC carry.
+  'business_identifiers',
 ] as const;
 export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
 

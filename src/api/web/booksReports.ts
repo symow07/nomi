@@ -57,10 +57,16 @@ export type FecYearView = {
   readonly offChart: readonly { code: string; name: string }[];
 };
 
-export function renderFec(locale: Locale, years: readonly FecYearView[]): string {
+/** E2 (0206) — which of the business's identifiers the file still goes without, said with the door to where they are given. */
+export type FecIdentityGaps = readonly ('ice' | 'taxId' | 'rc')[];
+
+export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: FecIdentityGaps = []): string {
   const d = (iso: string) => esc(show.dateYear(locale, new Date(`${iso}T12:00:00Z`)));
+  const name = { ice: 'settings.ids.ice', taxId: 'settings.ids.if', rc: 'settings.ids.rc' } as const;
   return `<h1 class="page">${esc(t(locale, 'books.fec.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.fec.lede'))}</p>
+    ${gaps.length === 0 ? '' : `<p role="status"><span class="pill warn">${esc(t(locale, 'books.fec.identityMissing', { which: gaps.map((g) => t(locale, name[g])).join(' · ') }))}</span>
+      <a class="deeper" href="/app/settings/profile#identifiers">${esc(t(locale, 'settings.ids.title'))}</a></p>`}
     ${years.length === 0 ? `<p class="muted">${esc(t(locale, 'books.close.noYear'))}</p>` : years.map((y) => `<div class="block">
       <h2>${d(y.startsOn)} – ${d(y.endsOn)}</h2>
       <p>${y.state === 'open' ? `<span class="pill warn">${esc(t(locale, 'books.fec.open'))}</span>` : `<span class="pill ok">${esc(t(locale, 'books.close.year.closed'))}</span>`}</p>

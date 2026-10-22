@@ -161,7 +161,7 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
+import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -3209,18 +3209,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const years = await withTenantTx(deps.db, bid, async (tx) => {
+    const { years, gaps } = await withTenantTx(deps.db, bid, async (tx) => {
       const ys = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${bid}::uuid order by starts_on desc`.execute(tx)).rows;
+      // E2 (0206) — what the file goes without, said on the page: the ICE, the IF, the RC.
+      const id = (await sql<{ ice: string | null; tax: string | null; rc: string | null }>`select legal_ice as ice, legal_if as tax, legal_rc as rc
+        from businesses where id = ${bid}::uuid`.execute(tx)).rows[0];
+      const gaps = ([['ice', id?.ice], ['taxId', id?.tax], ['rc', id?.rc]] as const).filter(([, v]) => !v).map(([k]) => k);
       const out: FecYearView[] = [];
       for (const y of ys) {
         const f = await fecData(tx, bid, y.id);
         if (f) out.push({ id: y.id, startsOn: f.year.starts_on, endsOn: f.year.ends_on, state: f.year.state, lines: f.lines.length,
           numbering: numberingProblems(f.numbers), offChart: f.offChart });
       }
-      return out;
+      return { years: out, gaps };
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fec.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps)}` }));
   });
   app.get('/app/books/fec/:file', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3232,7 +3236,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!f) return reply.callNotFound();
     return reply.type('text/plain; charset=utf-8')
       .header('content-disposition', `attachment; filename="FEC-${f.year.starts_on}-${f.year.ends_on}.txt"`)
-      .header('cache-control', 'no-store').send(fecFile(f.lines));
+      .header('cache-control', 'no-store').send(fecFile(f.lines, f.identity));
   });
   /** D4 (0190) — the books started from the CGNC chart: what is missing added, nothing the owner has changed. */
   app.post('/app/books/chart/cgnc', async (req, reply) => {
@@ -7482,6 +7486,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
         ...(input.postalAddress !== undefined ? { postalAddress: input.postalAddress } : {}),
       }, r.errors, await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
+    }));
+  });
+
+  /**
+   * E2 (0206) — the business's ICE, IF and RC with its court: the owner's (the identity the books and the FEC carry).
+   * A refused field is said under it, with everything typed still in the form.
+   */
+  app.post('/app/settings/identifiers', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'business_identifiers', '/app/settings/profile#identifiers');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const input = { ice: String(b['ice'] ?? ''), taxId: String(b['tax_id'] ?? ''), rc: String(b['rc'] ?? ''), rcCourt: String(b['rc_court'] ?? '') };
+    const r = await saveIdentifiers(deps.db, s.businessId, input, personOf(s).id);
+    if (r.code === 'saved') return flashTo(reply, '/app/settings/profile#identifiers', 'settings.flash.identifiersSaved');
+    return reply.code(422).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settings.profile.title'), active: 'settings',
+      bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, saidFlash(locale, 'settings.flash.profileFix'), {}, {},
+        await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s), { draft: input, errors: r.errors }),
     }));
   });
 

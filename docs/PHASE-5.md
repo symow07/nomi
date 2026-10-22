@@ -561,10 +561,9 @@ Each item is built and fully tested (§4) before the next one that depends on it
           entered inside the two-period window;
         - mid-year, what came before comes in as one opening entry of balances — ask the accountant for them.
         - It says "period", as the Avis does, never "month": the Avis sets no length (see D10).
-      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the business's own identifiers
-        (ICE, IF, RC) are not held, and the DGI has published no name for the FEC file (checked 2026-10-22: the Avis,
-        CGI article 210, the DGI's 2025 report). `tools/books-area.mjs` refuses a Moroccan workspace until both are
-        built.
+      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the DGI has published no name
+        for the FEC file (checked 2026-10-22: the Avis, CGI article 210, the DGI's 2025 report). `tools/books-area.mjs`
+        refuses a Moroccan workspace until it is known. (The business's own ICE, IF and RC are held since E2, 0206.)
 - **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
   - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
     its own period. It is recorded with its date and who ran it.
@@ -932,6 +931,40 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - The zip writer the workbook used is now `src/net/zip.ts`, shared; the classic format only (65,535 files, 4 GiB),
     refused rather than written wrong past either.
   - `tools/books-area.mjs --on` no longer refuses for the papers. The public pages are still its blocker.
+- **E2 · The ICE, IF and RC on the business profile.** *(built 2026-10-22, 0206.)*
+  - Stored on the business (`legal_ice`, `legal_if`, `legal_rc`, `legal_rc_court`). The profile asks for them when the
+    business is in Morocco, and shows them wherever one is held. Only the owner gives them (`business_identifiers`);
+    staff see the values. Every line of the FEC carries them after the Avis's eighteen fields.
+  - **Each rule was checked against an official source first (read 2026-10-22). One is checked; two are not:**
+    - **ICE — CHECKED: fifteen positions.**
+      - OMPIC's page on the ICE (ompic.ma, read directly): « L'Identifiant Commun de l'Entreprise est composé de 15
+        positions : L'Entreprise (9 positions) Ses établissements (4 positions) Caractères de contrôle (2 positions) ».
+      - The ICE portal's guide (ice.gov.ma, Guide_ICE.pdf, p. 3) says the same, as read by the research pass. The
+        portal answered this session with a security check page, so I did not read it myself.
+      - Spaces as typed are taken out; the database holds the same rule.
+      - **Not checked, because no official text states it:**
+        - that the positions are digits. Every official example is, but they say "positions", never "chiffres";
+        - the check key. No official source publishes its computation. python-stdnum's mod 97 is not official, and
+          OMPIC's own example (123456789000057) fails it.
+    - **IF — NO FORMAT RULE.** No official source publishes one.
+      - The DGI's site (tax.gov.ma) answered 503 on every page, including form AAC139, so it was not read.
+      - The Simpl-IS EDI specification (finances.gov.ma) defines no length; its own examples are « 123 » and « 789456123 ».
+      - Kept as typed, trimmed. 40 characters is a storage bound, not a format.
+    - **RC — NO FORMAT RULE for the number; kept WITH ITS COURT.**
+      - The Code de commerce (the Ministry of Justice's consolidated text) asks for « le numéro et le lieu de son
+        immatriculation » (art. 49) and « le siège du tribunal où il est immatriculé » (art. 154). A number is a number
+        only at its court, so both are given or neither.
+      - Décret 2-96-906 art. 9 numbers the register continuously, even for natural persons and odd for legal ones.
+        That text was read in WIPO Lex's copy, not the BO. Décret 2-20-956 (2021, the electronic register) was not read.
+        So no rule on the number is assumed.
+  - **Found, not changed:** the books' PARTIES already check a party's ICE as `^[0-9]{15}$` (0170). That is stricter
+    than the sources, because "digits" is not stated. The connectors (Excel, Odoo, Xero, QuickBooks) and the parties
+    form apply the same digits rule. It is the owner's to keep or to loosen to the fifteen positions.
+  - **The FEC's four added columns are Nomi's naming** (`ICE`, `Identifiant_Fiscal`, `Num_RC`, `Tribunal_RC`, after the
+    eighteen, on every line). The Avis lists the fields « au minimum » (annex, point 3) and names none for the business
+    itself. They are in one place (`FEC_IDENTITY_FIELDS`) until the DGI publishes its own. The FEC page names any of
+    the three still missing, with a door to the profile.
+  - The FEC's FILE NAME stays blocking on the DGI (`MOROCCO_BLOCKERS` now holds only that).
 
 ### Dependencies at a glance
 
