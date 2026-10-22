@@ -790,6 +790,7 @@ function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | 
   return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p>
     <p><span class="pill${on ? ' ok' : ''}">${esc(t(locale, on ? k('on') : k('off')))}</span></p>
     ${on ? `<p>${esc(t(locale, k('share')))}</p><p class="issued"><span class="code" dir="ltr">${esc(p.url!)}</span></p>` : ''}
+    ${on && which === 'chat' ? `<p>${esc(t(locale, 'channels.chat.embed'))}</p><p class="issued"><span class="code" dir="ltr">${esc(`<script src="${p.url!}/widget.js" async></script>`)}</span></p>` : ''}
     ${control}`;
 }
 

@@ -10,6 +10,7 @@ import { esc, publicDocument } from './layout.js';
 import { parseCookies } from './session.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import * as show from './values.js';
+import { widgetScript } from '../../channels/web_chat/widget.js';
 
 /**
  * S7 (Phase 5, item 22) — THE BUSINESS'S CHAT PAGE: `/chat/<key>`, served by Nomi, which the business links to from
@@ -41,7 +42,18 @@ export type WebChatDeps = {
 
 const nonce = (): string => randomBytes(18).toString('base64url');
 
+/**
+ * The widget's visitor (S7, on the business's own site): its handle comes with the request — in the frame's address,
+ * and in the form — because a cookie inside another site's frame is a third-party cookie, which browsers refuse.
+ * The handle is kept in that site's own storage by the widget, and nowhere else.
+ */
+function embeddedOf(req: FastifyRequest): string | null {
+  const v = (req.query as { v?: unknown } | undefined)?.v ?? (req.body as { v?: unknown } | undefined)?.v;
+  return typeof v === 'string' && VISITOR.test(v) ? v : null;
+}
 function visitorOf(req: FastifyRequest): string | null {
+  const embedded = embeddedOf(req);
+  if (embedded) return embedded;
   const v = parseCookies(req.headers.cookie)[CHAT_COOKIE];
   return v && VISITOR.test(v) ? v : null;
 }
@@ -63,9 +75,9 @@ const CSS = `
   .chat-foot { margin-top:var(--space-24); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 `;
 
-function script(key: string, mark: string): string {
+function script(key: string, mark: string, embed: string | null): string {
   // Asks only this page's own mark; looks again when it moved, unless something is being typed.
-  return `<script>(function(){var m=${JSON.stringify(mark)},u=${JSON.stringify(`/chat/${key}/mark`)};
+  return `<script>(function(){var m=${JSON.stringify(mark)},u=${JSON.stringify(`/chat/${key}/mark${embed ? `?v=${embed}` : ''}`)};
 setInterval(function(){if(document.hidden)return;fetch(u,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.text():m}).then(function(n){
 var b=document.querySelector('textarea');if(n!==m&&(!b||!b.value.trim()))location.reload();}).catch(function(){});},${CHAT_EVERY_MS});})();</script>`;
 }
@@ -73,23 +85,27 @@ var b=document.querySelector('textarea');if(n!==m&&(!b||!b.value.trim()))locatio
 export function renderChatPage(o: {
   readonly locale: Locale; readonly key: string; readonly business: string; readonly lines: readonly ChatLine[];
   readonly mark: string; readonly now: Date; readonly notice?: 'off' | 'tooLong' | null;
+  /** The widget's visitor, when the page is inside the business's own site (no cookie: the handle travels). */
+  readonly embed?: string | null;
 }): string {
   const l = o.locale;
+  const embed = o.embed ?? null;
+  const self = `/chat/${esc(o.key)}${embed ? `?v=${esc(embed)}` : ''}`;
   const line = (x: ChatLine, i: number) => `<li class="chat-line${x.mine ? ' mine' : ''}"${i === o.lines.length - 1 ? ' id="latest"' : ''}><span class="chat-who">${esc(x.mine ? t(l, 'chat.you') : o.business)} · ${esc(show.when(l, x.at, o.now))}</span><bdi dir="auto">${esc(x.text)}</bdi></li>`;
   const notice = o.notice ? `<p role="alert">${esc(t(l, o.notice === 'off' ? 'chat.off' : 'chat.tooLong'))}</p>` : '';
   const body = `<h1>${esc(t(l, 'chat.title', { business: o.business }))}</h1>
     <p>${esc(t(l, 'chat.lede', { business: o.business }))}</p>
     ${o.lines.length ? `<ol class="chat-lines">${o.lines.map(line).join('')}</ol>` : `<p>${esc(t(l, 'chat.empty'))}</p>`}
-    <p><a href="/chat/${esc(o.key)}#latest">${esc(t(l, 'chat.refresh'))}</a></p>
+    <p><a href="${self}#latest">${esc(t(l, 'chat.refresh'))}</a></p>
     ${notice}
     <form class="chat-form" method="post" action="/chat/${esc(o.key)}">
-      <input type="hidden" name="n" value="${esc(nonce())}" />
+      <input type="hidden" name="n" value="${esc(nonce())}" />${embed ? `\n      <input type="hidden" name="v" value="${esc(embed)}" />` : ''}
       <label for="chat-text">${esc(t(l, 'chat.label'))}</label>
       <textarea id="chat-text" name="text" required maxlength="${MAX}" dir="auto"></textarea>
       <button type="submit">${esc(t(l, 'chat.send'))}</button>
     </form>
-    <p class="chat-foot">${esc(t(l, 'chat.kept', { business: o.business }))} <a href="/privacy">${esc(t(l, 'chat.privacy'))}</a></p>
-    ${script(o.key, o.mark)}`;
+    <p class="chat-foot">${esc(t(l, 'chat.kept', { business: o.business }))} <a href="/privacy"${embed ? ' target="_blank" rel="noopener"' : ''}>${esc(t(l, 'chat.privacy'))}</a></p>
+    ${script(o.key, o.mark, embed)}`;
   return publicDocument({ locale: l, title: t(l, 'chat.title', { business: o.business }), body, noindex: true, extraCss: CSS });
 }
 
@@ -102,11 +118,12 @@ export function mountWebChat(app: FastifyInstance, deps: WebChatDeps): void {
     const send = (status: number, html: string) => reply.code(status).type('text/html; charset=utf-8')
       .header('cache-control', 'no-store').header('referrer-policy', 'no-referrer').header('x-robots-tag', 'noindex, nofollow').send(html);
     if (!bid) return send(404, publicDocument({ locale, title: t(locale, 'chat.gone'), body: `<h1>${esc(t(locale, 'chat.gone'))}</h1>`, noindex: true }));
+    const embed = embeddedOf(req);
     const visitor = visitorOf(req) ?? giveVisitor(reply, key, deps);
     const { business, lines, mark } = await withTenantTx(deps.db, bid, async (tx) => ({
       business: await businessName(tx, bid), lines: await visitorLines(tx, bid, visitor), mark: await visitorMark(tx, bid, visitor),
     }));
-    return send(notice ? 422 : 200, renderChatPage({ locale, key, business, lines, mark, now: new Date(), notice }));
+    return send(notice ? 422 : 200, renderChatPage({ locale, key, business, lines, mark, now: new Date(), notice, embed }));
   };
 
   app.get('/chat/:key', async (req, reply) => page(req, reply));
@@ -135,6 +152,15 @@ export function mountWebChat(app: FastifyInstance, deps: WebChatDeps): void {
       occurredAt: new Date(), messageType: 'text', received: 'text', text, mediaId: null,
     });
     if (r === 'refused') return page(req, reply, 'off');
-    return reply.redirect(`/chat/${key}#latest`, 303);
+    const embed = embeddedOf(req);
+    return reply.redirect(`/chat/${key}${embed ? `?v=${embed}` : ''}#latest`, 303);
+  });
+
+  // The widget: one line on the business's own site draws a button that opens this page in a frame.
+  app.get('/chat/:key/widget.js', async (req, reply) => {
+    const key = (req.params as { key: string }).key;
+    if (!(await chatPageBusiness(deps.db, key))) return reply.code(404).header('cache-control', 'no-store').send('');
+    return reply.type('text/javascript; charset=utf-8').header('cache-control', 'public, max-age=300')
+      .send(widgetScript(key, t(deps.localeOf(req), 'chat.open')));
   });
 }

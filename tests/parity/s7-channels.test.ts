@@ -34,7 +34,7 @@ describe('S7 · the chat page', () => {
   });
   it('its three public routes are argued, and nothing else under /chat', () => {
     const chat = PUBLIC_ROUTES.filter((r) => r.url.startsWith('/chat'));
-    expect(chat.map((r) => `${r.method} ${r.url}`).sort()).toEqual(['GET /chat/:key', 'GET /chat/:key/mark', 'POST /chat/:key']);
+    expect(chat.map((r) => `${r.method} ${r.url}`).sort()).toEqual(['GET /chat/:key', 'GET /chat/:key/mark', 'GET /chat/:key/widget.js', 'POST /chat/:key']);
   });
 });
 

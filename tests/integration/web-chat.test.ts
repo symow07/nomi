@@ -152,6 +152,31 @@ d('S7 · the chat page, end to end (requires DATABASE_URL)', { timeout: 180_000 
     await q((tx) => sql`update businesses set assistant_stopped_at = null where id = ${BIZ}::uuid`.execute(tx));
   });
 
+  it('THE WIDGET: one script for the business\'s site, which opens this page in a frame; the framed visitor\'s handle travels with the request, never a cookie', async () => {
+    const js = await prod.app.inject({ method: 'GET', url: `/chat/${key}/widget.js` });
+    expect(js.statusCode).toBe(200);
+    expect(String(js.headers['content-type'])).toContain('text/javascript');
+    expect(js.body).toContain(JSON.stringify(key));
+    expect(js.body).toContain("localStorage");
+    expect(js.body).not.toMatch(/fetch\(|XMLHttpRequest|https?:\/\//);
+    const v = 'Fr4med-visitor_0123456789abcdefg';
+    expect(v).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    const first = await prod.app.inject({ method: 'GET', url: `/chat/${key}?v=${v}` });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['set-cookie']).toBeUndefined();
+    expect(first.body).toContain(`name="v" value="${v}"`);
+    const r = await prod.app.inject({ method: 'POST', url: `/chat/${key}`, headers: FORM,
+      payload: new URLSearchParams({ text: 'Framed hello', n: 'framed-nonce-0123456789ab', v }).toString() });
+    expect([r.statusCode, r.headers['location'], r.headers['set-cookie']]).toEqual([303, `/chat/${key}?v=${v}#latest`, undefined]);
+    await convOf('Framed hello');
+    expect((await prod.app.inject({ method: 'GET', url: `/chat/${key}?v=${v}` })).body).toContain('Framed hello');
+    // another browser, by its cookie, sees none of it; a handle of the wrong shape is no handle (the cookie is given)
+    expect(await pageOf(await visit())).not.toContain('Framed hello');
+    const bad = await prod.app.inject({ method: 'GET', url: `/chat/${key}?v=short` });
+    expect(String(bad.headers['set-cookie'] ?? '')).toContain('yf_chat=');
+    expect(bad.body).not.toContain('Framed hello');
+  });
+
   it('SWITCHED OFF: the page answers nobody, and takes nothing', async () => {
     const me = await visit();
     const { setChatPage } = await import('../../src/db/webChat.js');

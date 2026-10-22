@@ -595,6 +595,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
   { method: 'POST', url: '/chat/:key', why: 'S7 — a message to that page, stored once and queued like a webhook\'s; throttled per caller; refused while the page is off or the workspace frozen' },
+  { method: 'GET', url: '/chat/:key/widget.js', why: 'S7 — the chat button for the business\'s own site: the same script for every visitor of that page, naming only its key; it makes the visitor\'s handle in their own browser' },
   { method: 'GET', url: '/chat/:key/mark', why: 'S7 — the page\'s own newest-line mark, for this browser\'s conversation only: a number and an id, nothing said' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
