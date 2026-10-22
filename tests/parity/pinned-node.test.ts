@@ -40,15 +40,16 @@ describe('the verification set runs on the pinned Node, or not at all', () => {
   });
 
   it('the integration runners and pre-pilot ask before they do anything', () => {
+    // each file's first line of work, at the start of a line: the guard comes before it
     for (const [file, first] of [
-      ['tools/run-integration.mjs', 'mkdtempSync('],
-      ['tools/run-integration-isolated.mjs', 'spawnSync('],
-      ['tools/pre-pilot.mjs', 'const argv'],
+      ['tools/run-integration.mjs', '\nconst dir = mkdtempSync('],
+      ['tools/run-integration-isolated.mjs', '\nfor (const bin of ['],
+      ['tools/pre-pilot.mjs', '\nconst argv = '],
     ] as const) {
       const src = read(file);
-      const call = src.indexOf('requirePinnedNode(');
+      const call = src.indexOf('\nrequirePinnedNode(');
       expect(call, file).toBeGreaterThan(0);
-      expect(call, file).toBeLessThan(src.indexOf(first, src.indexOf('\n', src.lastIndexOf('import '))));
+      expect(src.indexOf(first), file).toBeGreaterThan(call);
     }
   });
 
