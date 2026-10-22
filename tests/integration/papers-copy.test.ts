@@ -100,6 +100,8 @@ d('E1 · the owner\'s copy of their papers (requires DATABASE_URL + MIGRATE_DATA
     const page = (await app.inject({ method: 'GET', url: '/app/settings/data', headers: { cookie } })).body;
     expect(page).toContain('id="papers"');
     expect(page).toContain('href="/app/settings/data/papers.zip"');
+    // no file kept as history here, so nothing is said about keeping one longer (history-kept.test.ts says it)
+    expect(page).not.toContain('Files imported as history');
     expect(page).toContain('3 papers are kept here');
   });
 

@@ -206,6 +206,14 @@ d('E3 · imported history, kept as a document and never in the books (requires D
     expect(fec).not.toMatch(/Facture 2025-118|Facture 2026-007/);
   });
 
+  it('THE DATA PAGE SAYS IT IS KEPT LONGER, in plain words: a file kept whole, until its newest entry\'s date (the owner, 2026-10-23)', async () => {
+    const data = (await get('/app/settings/data')).body;
+    expect(data).toContain('id="papers"');
+    expect(data).toContain('Files imported as history are kept whole, until the date their newest entry requires. A file cannot be split, so its older entries are kept longer than their own date would need');
+    // its own date: the file's newest entry is 2026-02-15, so all of it waits for 2036, h-1's 2025 included
+    expect((await one(`select keep_until::text as k from documents where id = $1`, [docId])).k).toBe('2036-12-31');
+  });
+
   it('ERASURE REACHES IT: the papers copy carries it, marked; closure holds it to its date; the retention tool takes it after', async () => {
     const { closeWorkspace } = await import('../../src/api/web/erasure.js');
     const ownerId = (await one(`select id::text as id from people where business_id = $1 and is_owner`, [BIZ])).id;

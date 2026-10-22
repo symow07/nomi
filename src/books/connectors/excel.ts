@@ -7,6 +7,7 @@ import {
   type BooksData, type BooksEntry, type BooksField, type BooksLine, type BooksProblem, type BooksProblemReason, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
 import { refused, type BooksConnector, type Grant, type Located } from '../../core/books/connector.js';
+import { iceAsTyped, isIce } from '../../core/books/identifiers.js';
 
 /**
  * B2 (Phase 5, §5 option A) — THE NOMI WORKBOOK, BY FILE. The first connector, because it has no outside party at all:
@@ -234,11 +235,12 @@ export function sheetsToBooks(
     const name = need('parties', r.n, 'Name', r.get('Name'));
     const k = kind('parties', r.n, 'Kind', r.get('Kind'), PARTY_KINDS);
     const country = text(r.get('Country'));
-    const ice = text(r.get('ICE'));
-    if (ice !== null && !/^[0-9]{15}$/.test(ice)) at('parties', r.n, 'ICE', 'bad_ice');
+    const typed = text(r.get('ICE'));
+    const ice = typed === null ? null : iceAsTyped(typed);
+    if (ice !== null && !isIce(ice)) at('parties', r.n, 'ICE', 'bad_ice');
     const taxNumber = text(r.get('Tax number'));
     const custom = customOf('parties', r.n, 'party', headsOf.get('parties') ?? [], r.get);
-    if (c && name && k && !seen('party', c, 'parties', r.n, 'Code') && (ice === null || /^[0-9]{15}$/.test(ice))) {
+    if (c && name && k && !seen('party', c, 'parties', r.n, 'Code') && (ice === null || isIce(ice))) {
       parties.push({ code: c, name, kind: k, country, ice, taxNumber, ...(custom ? { custom } : {}) });
     }
   }

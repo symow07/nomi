@@ -96,6 +96,8 @@ export const BOOKS_PROBLEMS = [
   'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'entry_fields_differ', 'too_many_decimals',
   // against what Nomi already holds (the read-in, B2/B5)
   'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed', 'tax_before_known',
+  // E3 — an entry dated before these books, where it cannot be left where it is (Sheets)
+  'before_books',
   // D7 — custom values against their fields
   'unknown_field', 'bad_field_value', 'required_field', 'required_not_party', 'bad_field', 'retired_field',
 ] as const;

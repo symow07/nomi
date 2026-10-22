@@ -1,6 +1,7 @@
 import { readStoreAddress } from '../../core/onboard/storeAddress.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
+import { iceOrNull } from '../../core/books/identifiers.js';
 import {
   booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
@@ -169,7 +170,7 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     parties.push(withValues({
       code, name: str(p['name']) ?? code,
       kind: (num(p['customer_rank']) ?? '0') !== '0' ? 'customer' : (num(p['supplier_rank']) ?? '0') !== '0' ? 'supplier' : 'other',
-      country: str(p['country_code']), ice: registry && /^[0-9]{15}$/.test(registry) ? registry : null, taxNumber: str(p['vat']),
+      country: str(p['country_code']), ice: iceOrNull(registry), taxNumber: str(p['vat']),
     }, readMark(str(p['comment'])).custom));
     note('party', code, 'res.partner', id);
   }

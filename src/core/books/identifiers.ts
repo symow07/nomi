@@ -9,6 +9,9 @@
  *     of the number found.
  *
  * The lengths are the database's storage bounds (0206), not formats.
+ *
+ * The ICE's rule is ONE rule, for the business and for every party in its books (0208): `iceAsTyped` and `isIce` are
+ * what the profile, the parties form, the workbook and every connector check, and the database holds the same.
  */
 export type IdentifiersInput = { readonly ice: string; readonly taxId: string; readonly rc: string; readonly rcCourt: string };
 export type Identifiers = { readonly ice: string | null; readonly taxId: string | null; readonly rc: string | null; readonly rcCourt: string | null };
@@ -16,15 +19,25 @@ export type IdentifierField = 'ice' | 'taxId' | 'rc' | 'rcCourt';
 export type IdentifierError = 'iceLength' | 'tooLong' | 'rcNeedsCourt' | 'courtNeedsRc';
 
 export const ICE_POSITIONS = 15;
+
+/** An ICE as it is kept: the spaces it was typed with taken out. */
+export const iceAsTyped = (raw: string): string => raw.replace(/\s+/g, '');
+/** Fifteen positions, none a space (OMPIC) — nothing more is checked. */
+export const isIce = (ice: string): boolean => [...ice].length === ICE_POSITIONS && !/\s/.test(ice);
+/** A connected system's registry field, kept as the party's ICE only when it is one. */
+export const iceOrNull = (raw: string | null): string | null => {
+  const ice = raw === null ? '' : iceAsTyped(raw);
+  return isIce(ice) ? ice : null;
+};
 const BOUND: Record<IdentifierField, number> = { ice: ICE_POSITIONS, taxId: 40, rc: 40, rcCourt: 80 };
 
 /** Every bad field at once. Empty clears a field. */
 export function validateIdentifiers(input: IdentifiersInput):
   { readonly ok: true; readonly value: Identifiers } | { readonly ok: false; readonly errors: Partial<Record<IdentifierField, IdentifierError>> } {
   const errors: Partial<Record<IdentifierField, IdentifierError>> = {};
-  const ice = input.ice.replace(/\s+/g, '');
+  const ice = iceAsTyped(input.ice);
   const [taxId, rc, rcCourt] = [input.taxId.trim(), input.rc.trim(), input.rcCourt.trim()];
-  if (ice !== '' && [...ice].length !== ICE_POSITIONS) errors.ice = 'iceLength';
+  if (ice !== '' && !isIce(ice)) errors.ice = 'iceLength';
   if (taxId.length > BOUND.taxId) errors.taxId = 'tooLong';
   if (rc.length > BOUND.rc) errors.rc = 'tooLong';
   if (rcCourt.length > BOUND.rcCourt) errors.rcCourt = 'tooLong';

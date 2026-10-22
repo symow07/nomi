@@ -132,6 +132,26 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
     expect(await notice(again)).toContain('Read in: 0 new, 0 replaced, 4 already here.');
   });
 
+  it('ENTRIES FROM BEFORE THESE BOOKS are refused here, as E3 decided, and the page says how many and why (the owner, 2026-10-23)', async () => {
+    const c = await connection();
+    const line = (row: number, key: string, date: string, account: string, debit: string, credit: string) =>
+      [key, 'VE', date, `Facture ${key}`, '', '', 'posted', account, '', '', 'MAD', debit, credit, '']
+        .forEach((v, i) => { if (v !== '') google.type(c.settings.spreadsheetId, 'Journal', row, i + 1, v); });
+    // two entries from 2025, before the books' only year (2026), as a shop would paste them from its old system
+    line(2, 'old-1', '2025-03-04', '3421', '900', ''); line(3, 'old-1', '2025-03-04', '7111', '', '900');
+    line(4, 'old-2', '2025-11-20', '3421', '450', ''); line(5, 'old-2', '2025-11-20', '7111', '', '450');
+    const r = await app.inject({ method: 'POST', url: '/app/books/sheets/read', headers: { cookie: owner } });
+    expect(r.statusCode).toBe(422);
+    // the count and the reason first, in the same words as the systems that leave them where they are
+    expect(r.body).toMatch(/2 of these entries are dated before these books, which begin on [^.]*2026\. Entries from before these books are never copied into them\./);
+    expect(r.body).toContain('Odoo, Xero and QuickBooks keep such entries where they are; in Google Sheets they cannot stay unread');
+    expect(r.body).toContain('Take those rows out of the spreadsheet, then read it in again.');
+    // each row says why: before these books, not "no fiscal year"
+    expect(r.body.split('Dated before these books begin: not copied into them.').length - 1).toBe(2);
+    expect(r.body).not.toContain('No fiscal year covers this date.');
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries`))).rows[0].n).toBe(0);
+  });
+
   it('A REVOKED GRANT reads as "connect again" — never as empty books — and the page says so', async () => {
     const before = (await as((q) => q(`select count(*)::int as n from parties`))).rows[0].n;
     google.revoke();

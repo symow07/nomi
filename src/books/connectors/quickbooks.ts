@@ -1,5 +1,6 @@
 import { OAUTH_TIMEOUT_MS, type OAuthFetch } from '../../connectors/oauth.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
+import { iceOrNull } from '../../core/books/identifiers.js';
 import {
   booksProblems, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksParty, type BooksProblem, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
@@ -168,7 +169,7 @@ export function qboToBooks(raw: QboRaw, bookCurrency: string): { data: BooksData
     const ice = textOf(m['i']); const custom = valuesOf(m['c']);
     partyOf.set(`Customer:${id}`, code);
     parties.push({ code, name: str(c['DisplayName']) ?? code, kind: textOf(m['o']) === '1' ? 'other' : 'customer', country: country(c),
-      ice: ice && /^[0-9]{15}$/.test(ice) ? ice : null, taxNumber: null, ...(custom ? { custom } : {}) });
+      ice: iceOrNull(ice ?? null), taxNumber: null, ...(custom ? { custom } : {}) });
     note('party', code, 'Customer', id);
   }
   for (const v of raw.vendors) {

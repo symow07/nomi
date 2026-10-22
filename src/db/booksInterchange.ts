@@ -36,7 +36,8 @@ const withoutState = (content: string): string => canonical({ ...(JSON.parse(con
 
 /** Thrown to roll the read-in back: a problem found after something was written. */
 class ReadInRefused extends Error {
-  constructor(readonly problems: readonly BooksProblem[], readonly undatedTaxes?: readonly { code: string; label: string }[]) { super('books: read-in refused'); }
+  constructor(readonly problems: readonly BooksProblem[], readonly undatedTaxes?: readonly { code: string; label: string }[],
+    readonly beforeBooks?: BeforeBooks) { super('books: read-in refused'); }
 }
 const dec = (v: string | null): Decimal | null => (v === null ? null : parseDecimal(v));
 /** A line's side: the ledger keeps the empty side as 0 (0169: one side each); the books' shape leaves it empty. */
@@ -109,6 +110,8 @@ export type HistoryRule =
   | { readonly kind: 'keep_file'; readonly store: DocumentStores; readonly name: string; readonly mediaType: string; readonly bytes: Buffer }
   | { readonly kind: 'left_there' };
 export type HistoryOutcome = { readonly entries: number; readonly through: string; readonly documentId: string | null; readonly alreadyKept: boolean };
+/** E3 — a refused read's entries dated before these books, counted, and the day the books begin: said, never left unsaid. */
+export type BeforeBooks = { readonly entries: number; readonly opensOn: string };
 
 export type ApplyOutcome =
   | { readonly kind: 'applied'; readonly added: number; readonly replaced: number; readonly unchanged: number;
@@ -116,7 +119,9 @@ export type ApplyOutcome =
       readonly history: HistoryOutcome | null }
   | { readonly kind: 'refused'; readonly problems: readonly BooksProblem[];
       /** C0 — the taxes its source gave no start date, when an entry before Nomi's day for them stopped the read: the owner's to date. */
-      readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[] };
+      readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[];
+      /** E3 — under `refuse`, the entries the other rules would have set apart as history. */
+      readonly beforeBooks?: BeforeBooks };
 
 /**
  * Read `data` in from `system`, as one change or none: its own tenant transaction, rolled back on any problem — found
@@ -131,7 +136,7 @@ export async function readInBooks(
   try {
     return await withTenantTx(db, businessId, async (tx) => {
       const out = await applyBooks(tx, businessId, by, system, data, where, history.kind !== 'refuse');
-      if (out.kind === 'refused') throw new ReadInRefused(out.problems, out.undatedTaxes);
+      if (out.kind === 'refused') throw new ReadInRefused(out.problems, out.undatedTaxes, out.beforeBooks);
       if (out.history === null || history.kind !== 'keep_file') return out;
       // E3 — the file kept, in the same transaction as the read: a read refused keeps nothing. The same file kept
       // twice is one document.
@@ -143,7 +148,9 @@ export async function readInBooks(
       return { ...out, history: { ...out.history, documentId: id, alreadyKept: had !== null } };
     });
   } catch (e) {
-    if (e instanceof ReadInRefused) return { kind: 'refused', problems: e.problems, ...(e.undatedTaxes ? { undatedTaxes: e.undatedTaxes } : {}) };
+    if (e instanceof ReadInRefused) {
+      return { kind: 'refused', problems: e.problems, ...(e.undatedTaxes ? { undatedTaxes: e.undatedTaxes } : {}), ...(e.beforeBooks ? { beforeBooks: e.beforeBooks } : {}) };
+    }
     throw e;
   }
 }
@@ -166,10 +173,13 @@ async function applyBooks(
   const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
   // E3 (0207) — an entry NEW to Nomi and dated before the open window is history, not in the books: set apart here,
   // before anything is checked or written, so nothing of it reaches an entry. An entry Nomi already holds, or read in
-  // before, is never history: a change to it is checked as always (and refused where its period is closed).
+  // before, is never history: a change to it is checked as always (and refused where its period is closed). Where
+  // they cannot be set apart (`refuse`: Sheets), the same entries are refused for that reason, and counted.
   const opensOn = firstOpenDay(years.map((y) => ({ startsOn: y.starts_on, endsOn: y.ends_on, state: y.state })), lock);
-  const apart = !setHistoryApart ? [] : given.entries.filter((e) =>
+  const before = given.entries.filter((e) =>
     isHistory(e.date, opensOn) && !held.has(`entry:${e.key}`) && !last.get(`entry:${e.key}`)?.nomi_id);
+  const refusedBefore = new Set(setHistoryApart ? [] : before.map((e) => e.key));
+  const apart = setHistoryApart ? before : [];
   const setApart = new Set(apart);
   const data: BooksData = apart.length === 0 ? given : { ...given, entries: given.entries.filter((e) => !setApart.has(e)) };
   const history = apart.length === 0 ? null
@@ -266,6 +276,7 @@ async function applyBooks(
       const from = l.taxCode === null ? undefined : undatedFrom.get(l.taxCode);
       if (from !== undefined && e.date < from) at('entry', e.key, 'Tax code', 'tax_before_known', i);
     });
+    if (refusedBefore.has(e.key)) { at('entry', e.key, 'Date', 'before_books'); continue; }
     const y = years.find((f) => f.starts_on <= e.date && e.date <= f.ends_on);
     if (!y) { at('entry', e.key, 'Date', 'no_fiscal_year'); continue; }
     if (y.state !== 'open' || (lock !== null && e.date <= lock)) { at('entry', e.key, 'Date', 'period_closed'); continue; }
@@ -273,7 +284,9 @@ async function applyBooks(
   }
   if (problems.length > 0) {
     const asked = problems.some((p) => p.reason === 'tax_before_known');
-    return { kind: 'refused', problems, ...(asked ? { undatedTaxes: data.taxCodes.filter((t) => t.validFrom === null).map((t) => ({ code: t.code, label: t.label })) } : {}) };
+    const old = problems.filter((p) => p.reason === 'before_books').length;
+    return { kind: 'refused', problems, ...(asked ? { undatedTaxes: data.taxCodes.filter((t) => t.validFrom === null).map((t) => ({ code: t.code, label: t.label })) } : {}),
+      ...(old > 0 && opensOn !== null ? { beforeBooks: { entries: old, opensOn } } : {}) };
   }
 
   // Write: the chart and the rest first (parents before children), then the entries.
