@@ -41,7 +41,7 @@ import { type Result, ok, err } from '../types/result.js';
  * with no adapter behind it would be a row promising something no code can do,
  * which is the exact failure this registry exists to prevent.
  */
-export const OUTREACH_CHANNELS = ['email', 'whatsapp', 'instagram', 'messenger'] as const;
+export const OUTREACH_CHANNELS = ['email', 'whatsapp', 'instagram', 'messenger', 'web_chat', 'telegram'] as const;
 export type OutreachChannel = (typeof OUTREACH_CHANNELS)[number];
 
 /** What the API structurally permits for a message the buyer did not invite. */
@@ -158,6 +158,22 @@ export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapabilit
     // a conversation the buyer started, which is a different thing entirely.
     replyWindowHours: 24,
     instead: ['click_to_whatsapp', 'buyer_writes_first'],
+  },
+  // S7 (Phase 5, item 22) — the business's own chat page on Nomi. The buyer comes to it; nothing is ever written to
+  // someone who has not. No window (a visitor reads the page when they come back), no price, and no receipt beyond
+  // the page itself: waiting for one would only delay the answer.
+  web_chat: {
+    availableHere: true, channel: 'web_chat', coldInitiate: 'never', requires: [],
+    replyWindowHours: null, instead: ['click_to_whatsapp', 'buyer_writes_first'],
+    deliveryReceipts: false,
+  },
+  // S7 — Nomi's Telegram bot, reached through the business's own start link. A bot may answer anyone who wrote to it,
+  // with no window and no price per message; it may never write first (Telegram's rule as well as ours). Telegram
+  // tells a bot nothing about delivery.
+  telegram: {
+    availableHere: true, channel: 'telegram', coldInitiate: 'never', requires: [],
+    replyWindowHours: null, instead: ['click_to_whatsapp', 'buyer_writes_first'],
+    deliveryReceipts: false,
   },
 };
 

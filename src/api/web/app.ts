@@ -242,6 +242,20 @@ import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEnt
 import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
+import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
+import { renderLabels } from './labels.js';
+import { rotationOf, setPersonTurn, setRotationOn } from '../../db/rotation.js';
+import { answerSuggestions, dismissSuggestion, teachSuggestion } from '../../db/answerSuggestions.js';
+import { renderAnswerSuggestions } from './answerSuggestions.js';
+import { latestSurveyAnswers, setSurveysOn, surveyFacts } from '../../db/surveys.js';
+import { renderSurveys } from './surveys.js';
+import { mountWebChat, type WebChatDeps } from './webChat.js';
+import { chatPageKey, setChatPage } from '../../db/webChat.js';
+import { setTelegram, telegramCode } from '../../db/telegram.js';
+import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
+import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
+import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
+import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
 import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
@@ -273,7 +287,7 @@ import { markLedgerMailed } from '../../db/erasureMail.js';
 
 /** The ids of ledger lines, as the erasure returned them. */
 const ledgerIds = (lines: readonly Record<string, unknown>[]): string[] => lines.map((l) => String(l['id'] ?? '')).filter((x) => x !== '');
-import { dayKey, addDays } from '../../core/owner/i18n/format.js';
+import { dayKey, addDays, dayStart } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, selfServeCount, loginOfPerson, setPassword,
@@ -424,6 +438,10 @@ export type WebDeps = {
    */
   readonly connectableNumber?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
+  /** S7 — the business's chat page (/chat/:key): its message, stored once and queued as a webhook's. Absent: no chat pages here. */
+  readonly chatIngest?: WebChatDeps['ingest'];
+  /** S7 — Nomi's Telegram bot, where this host has it (its public name, for each business's start link). */
+  readonly telegramBot?: { readonly username: string };
   /**
    * The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)).
    * 0080 — `asks`: the question the reply asks, stamped when it leaves.
@@ -575,6 +593,10 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
+  { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
+  { method: 'POST', url: '/chat/:key', why: 'S7 — a message to that page, stored once and queued like a webhook\'s; throttled per caller; refused while the page is off or the workspace frozen' },
+  { method: 'GET', url: '/chat/:key/widget.js', why: 'S7 — the chat button for the business\'s own site: the same script for every visitor of that page, naming only its key; it makes the visitor\'s handle in their own browser' },
+  { method: 'GET', url: '/chat/:key/mark', why: 'S7 — the page\'s own newest-line mark, for this browser\'s conversation only: a number and an id, nothing said' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
@@ -1306,6 +1328,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * turn every unsubscribe link into a 414 in production while the tests that
    * set it stayed green. A query string has no such cap and no such footgun.
    */
+  // S7 (Phase 5, item 22) — the business's chat page, where the composition gives it a way in (the messaging path).
+  if (deps.chatIngest) mountWebChat(app, { db: deps.db, writeCookie, ingest: deps.chatIngest, localeOf });
+
   app.get('/u', async (req, reply) => {
     const token = String((req.query as { t?: string }).t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
@@ -2309,6 +2334,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(file.csv);
   });
 
+  /** The owner, 2026-10-22 — a Moroccan workspace is told how its books are best started (Avis n° 24). */
+  const businessInMorocco = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
+    sql<{ c: string | null }>`select country as c from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]?.c === 'MA';
   // A5 — the books' home, and the copy from it: the owner's and the accountant's (the guard above decides who).
   app.get('/app/books', async (req, reply) => {
     const s = sessionOf(req);
@@ -2335,7 +2363,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks })}${
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks }, { morocco: await businessInMorocco(bid.value) })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
         personOf(s).isOwner ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
@@ -3710,11 +3738,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown };
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown; label?: unknown };
     const requested = query.filter;
     // The warmth run, phase 4 — two lenses on one list, the lens in the address.
     const lens = lensOf(query.lens);
-    const ask = { q: query.q, after: query.after, before: query.before, lens };
+    const ask = { q: query.q, after: query.after, before: query.before, lens, label: query.label };
     const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
     // "Mine" was team machinery (the owner ruled it out): its old address leads
     // to the closest lens — the whole list, where a customer a person here
@@ -3736,7 +3764,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
       // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' }))) } : {}),
+      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '', label: data.label?.id ?? null }))) } : {}),
     }));
   });
 
@@ -3768,6 +3796,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const withProof = {
       ...detail,
       proof: { ...detail.proof, url: detail.proof.token ? proofUrl(deps.publicBaseUrl, detail.proof.token) : null },
+      // S1 (0195) — the saved replies in use, for the reply box.
+      savedReplies: bid.ok ? (await withTenantTx(deps.db, bid.value, (tx) => listSavedReplies(tx, bid.value))).map((r) => ({ id: r.id, title: r.title })) : [],
       // Phase 2c — the proforma's link the same way.
       order: detail.order?.proforma?.token
         ? { ...detail.order, proforma: { ...detail.order.proforma, url: proformaUrl(deps.publicBaseUrl, detail.order.proforma.token) } }
@@ -3782,7 +3812,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const people = await loadPeople(deps.db, s.businessId);
     // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
     const list = await loadInboxList(deps.db, s.businessId, 'all', me);
-    const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
+    const customer = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => {
+      const panel = await loadCustomerPanel(tx, conversationId);
+      // S2 (0196) — the buyer's labels, and the workspace's to pick from.
+      return panel ? { ...panel, labels: await labelsOf(tx, bid.value, panel.clientId), allLabels: (await listLabels(tx, bid.value)).map((l) => l.name) } : null;
+    }) : null;
     // The warmth run, phase 5 — the catch-up strip over the messages: their face, what they bought, where things stand.
     const catchUp = customer && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCatchUp(tx, customer, conversationId, now)) : null;
     const today = dayKey(now, workspaceZone());
@@ -4158,6 +4192,158 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * S1 (Phase 5, item 18) — A SAVED REPLY PUT IN THE BOX. The reply form's second button: what is typed comes with it,
+   * and the saved words (the buyer's language where the reply has them) go after it, kept in the box as CC-24 keeps a
+   * reply (`owner_unsent_reply`). NOTHING IS SENT: the person reads, edits and sends with the box's own button, by the
+   * one way an owner's reply goes — the send window, the allowlist, a stop, a frozen workspace all apply there.
+   */
+  app.post('/app/inbox/:conversationId/saved-reply', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const body = (req.body ?? {}) as { text?: unknown; saved?: unknown };
+    const typed = typeof body.text === 'string' ? body.text.slice(0, 4000) : '';
+    const done = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const saved = await savedReplyOf(tx, bid.value, typeof body.saved === 'string' ? body.saved : '');
+      if (!saved || saved.archived) return false;
+      const words = savedReplyFor(saved.texts, await buyerLanguageOf(tx, bid.value, cid), localeOf(req));
+      if (!words) return false;
+      const there = (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${bid.value}::uuid and id = ${cid}::uuid`.execute(tx)).rows[0]!.n > 0;
+      if (!there) return false;
+      await keepUnsentReply(tx, bid.value, cid, boxWithSaved(typed, words.text));
+      return true;
+    });
+    return flashTo(reply, conversationUrl(cid), done ? 'savedReplies.flash.inserted' : 'savedReplies.flash.notInserted');
+  });
+
+  /**
+   * S2 (Phase 5, item 19; 0196) — LABELS ON BUYERS, put on and taken off from the buyer's panel, kept on their own page
+   * (renamed, archived, in use again). Owner and staff; the accountant never reaches a page outside the books, and the
+   * database refuses them these rows. Back to the conversation the panel was beside.
+   */
+  const labelBack = (req: FastifyRequest): string => {
+    const b = (req.body as { back?: unknown } | undefined)?.back;
+    return typeof b === 'string' && UUID.test(b) ? `${conversationUrl(b).replace(/#.*$/, '')}#labels` : '/app/inbox';
+  };
+  app.post('/app/buyers/:clientId/labels', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/inbox');
+    const locale = localeOf(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => putLabel(tx, bid.value, (req.params as { clientId: string }).clientId,
+      (req.body as { name?: unknown } | undefined)?.name, personOf(s).id));
+    if (out.kind === 'refused') return flashTo(reply, labelBack(req), 'labels.flash.refused', { why: t(locale, `labels.refused.${out.reason}` as MessageKey) });
+    return flashTo(reply, labelBack(req), out.kind === 'put' ? 'labels.flash.put' : 'labels.flash.already', { name: out.name });
+  });
+  app.post('/app/buyers/:clientId/labels/:labelId/off', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/inbox');
+    const { clientId, labelId } = req.params as { clientId: string; labelId: string };
+    const done = await withTenantTx(deps.db, bid.value, (tx) => takeOffLabel(tx, bid.value, clientId, labelId, personOf(s).id));
+    return flashTo(reply, labelBack(req), done ? 'labels.flash.off' : 'labels.flash.notOn');
+  });
+  /**
+   * S6 (Phase 5, item 20; 0202) — HOW DID WE DO? The page under Buyers; the switch is the owner's: it lets the assistant
+   * write to buyers on its own, which is going live (rule 11).
+   */
+  app.get('/app/surveys', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const now = new Date();
+    const [facts, answers] = await withTenantTx(deps.db, bid.value, async (tx) => [await surveyFacts(tx, bid.value, now), await latestSurveyAnswers(tx, bid.value)] as const);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'surveys.title'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSurveys(locale, facts, answers, personOf(s), now)}` }));
+  });
+  app.post('/app/surveys', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/surveys'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/surveys');
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setSurveysOn(tx, bid.value, on));
+    return flashTo(reply, '/app/surveys', on ? 'surveys.flash.on' : 'surveys.flash.off');
+  });
+  app.get('/app/labels', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid.value, (tx) => listLabels(tx, bid.value, { archived: true }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'labels.pageTitle'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderLabels(locale, rows)}` }));
+  });
+  app.post('/app/labels/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const out = await withTenantTx(deps.db, bid.value, (tx) => renameLabel(tx, bid.value, (req.params as { id: string }).id,
+      (req.body as { name?: unknown } | undefined)?.name));
+    if (out.kind === 'refused' && out.reason === 'not_found') return reply.callNotFound();
+    return out.kind === 'renamed' ? flashTo(reply, '/app/labels', 'labels.flash.renamed')
+      : flashTo(reply, '/app/labels', 'labels.flash.refused', { why: t(localeOf(req), `labels.refused.${out.reason}` as MessageKey) });
+  });
+  for (const [path, archived] of [['archive', true], ['restore', false]] as const) {
+    app.post(`/app/labels/:id/${path}`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+      const done = await withTenantTx(deps.db, bid.value, (tx) => setLabelArchived(tx, bid.value, (req.params as { id: string }).id, personOf(s).id, archived));
+      return flashTo(reply, '/app/labels', done ? (archived ? 'labels.flash.archived' : 'labels.flash.restored') : 'labels.flash.notRestored');
+    });
+  }
+
+  /**
+   * S1 — THE SAVED REPLIES, kept by whoever answers buyers (owner and staff; the accountant never reaches a page
+   * outside the books, and the database refuses them these rows, 0195).
+   */
+  const savedForm = (req: FastifyRequest) => {
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const text = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).slice(0, 4000) : '');
+    return { title: text('title').slice(0, 200), texts: savedReplyTexts(Object.fromEntries(SAVED_REPLY_LANGUAGES.map((l) => [l, text(`text_${l}`)]))) };
+  };
+  const savedWhy = (locale: Locale, reason: string) => t(locale, `savedReplies.refused.${reason}` as MessageKey);
+  app.get('/app/replies', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid.value, (tx) => listSavedReplies(tx, bid.value, { archived: true }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'savedReplies.title'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReplies(locale, rows)}` }));
+  });
+  app.post('/app/replies', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const f = savedForm(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => addSavedReply(tx, bid.value, personOf(s).id, f.title, f.texts));
+    return out.kind === 'added' ? flashTo(reply, '/app/replies', 'savedReplies.flash.added')
+      : flashTo(reply, '/app/replies#new-reply', 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
+  });
+  app.get('/app/replies/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const row = await withTenantTx(deps.db, bid.value, (tx) => savedReplyOf(tx, bid.value, (req.params as { id: string }).id));
+    if (!row) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: row.title, active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReply(locale, row)}` }));
+  });
+  app.post('/app/replies/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const f = savedForm(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => updateSavedReply(tx, bid.value, id, personOf(s).id, f.title, f.texts));
+    if (out.kind === 'refused' && out.reason === 'not_found') return reply.callNotFound();
+    return out.kind === 'saved' ? flashTo(reply, `/app/replies/${id}`, 'savedReplies.flash.saved')
+      : flashTo(reply, `/app/replies/${id}`, 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
+  });
+  for (const [path, archived] of [['archive', true], ['restore', false]] as const) {
+    app.post(`/app/replies/:id/${path}`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+      const id = (req.params as { id: string }).id;
+      const done = await withTenantTx(deps.db, bid.value, (tx) => setSavedReplyArchived(tx, bid.value, id, personOf(s).id, archived));
+      return flashTo(reply, `/app/replies/${id}`, done ? (archived ? 'savedReplies.flash.archived' : 'savedReplies.flash.restored') : 'savedReplies.flash.notRestored');
+    });
+  }
+
+  /**
    * Phase 2d (0152) — the owner sends a product's photo in the conversation they hold: the same checks as their
    * words (`ownerSendWindow`), and inside WhatsApp's 24 hours only — the reopening template carries no picture.
    */
@@ -4482,9 +4668,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         ...(kind === 'instagram' && !own.hasInstagram ? { noInstagram: true } : {}),
       } : {}),
     });
+    // S7 — the chat page: offered where this host serves chat pages, connected while it is on.
+    const b = parseBusinessId(businessId);
+    const chatOn = b.ok && deps.chatIngest ? (await withTenantTx(deps.db, b.value, (tx) => chatPageKey(tx, b.value))) !== null : false;
+    const tgOn = b.ok && deps.telegramBot ? (await withTenantTx(deps.db, b.value, (tx) => telegramCode(tx, b.value))) !== null : false;
     return new Map<OutreachChannel, InboundLink>([
       ['instagram', inboundLink('instagram', hostChannels(businessId).instagram !== null, linked.instagram)],
       ['messenger', inboundLink('messenger', hostChannels(businessId).messenger !== null, linked.messenger)],
+      ['web_chat', { configured: deps.chatIngest !== undefined, connected: chatOn }],
+      ['telegram', { configured: deps.telegramBot !== undefined, connected: tgOn }],
     ]);
   };
 
@@ -4529,6 +4721,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!sessionOf(req)) return reply.redirect('/login');
     return reply.redirect(CHANNELS_HOME);
   });
+  // S7 — the chat page on or off: the owner's, since it lets the assistant answer there (going live, rule 11).
+  app.post('/app/channels/chat', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('chat')); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.chatIngest) return reply.redirect(channelScreenHref('chat'));
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setChatPage(tx, bid.value, on, personOf(s).id));
+    facts.evict(s.businessId);
+    return flashTo(reply, channelScreenHref('chat'), on ? 'channels.chat.flash.on' : 'channels.chat.flash.off');
+  });
+  // S7 — Telegram on or off for this business: the owner's, the same way.
+  app.post('/app/channels/telegram', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('telegram')); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.telegramBot) return reply.redirect(channelScreenHref('telegram'));
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setTelegram(tx, bid.value, on, personOf(s).id));
+    facts.evict(s.businessId);
+    return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
+  });
   for (const screen of CHANNEL_SCREENS) {
     app.get(channelScreenHref(screen), async (req, reply) => {
       const s = sessionOf(req);
@@ -4554,12 +4764,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }) : null;
       // CH1 — each step of connecting a Page, on Instagram and Messenger's screen.
       const yours = screen === 'meta' ? await yourAccountsFor(s.businessId) : null;
+      // S7 — the chat page's address while it is on.
+      const chatKey = screen === 'chat' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => chatPageKey(tx, bid.value)) : null;
+      const tgCode = screen === 'telegram' && bid.ok && deps.telegramBot ? await withTenantTx(deps.db, bid.value, (tx) => telegramCode(tx, bid.value)) : null;
       const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: channelScreenTitle(locale, screen), active: 'channels',
         bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
           ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
           inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
+          chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
+          telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null },
         }),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
@@ -6265,6 +6480,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, `/app/orders/${encodeURIComponent(id)}`, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey);
   });
 
+  const teamBid = (raw: string): BusinessId | null => { const b = parseBusinessId(raw); return b.ok ? b.value : null; };
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
   // since G9a the page too, not only the form's POST.
   app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
@@ -6277,9 +6493,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       people: await loadPeople(deps.db, sess.businessId), justIssued,
       assistants: await loadAssistants(deps.db, sess.businessId),
       business: businessName(),
+      // S3 (0198) — hand-offs in turn.
+      ...(teamBid(sess.businessId) ? { rotation: await withTenantTx(deps.db, teamBid(sess.businessId)!, (tx) => rotationOf(tx, teamBid(sess.businessId)!)) } : {}),
     }, locale,
       takeFlash(req, reply));
   }));
+
+  /** S3 (0198) — hand-offs in turn, on or off, and one person's place in it: the owner's (`people`). */
+  app.post('/app/settings/people/turn', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people#turn');
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect('/app/settings/people');
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid, (tx) => setRotationOn(tx, bid, on));
+    return flashTo(reply, '/app/settings/people#turn', on ? 'turn.flash.on' : 'turn.flash.off');
+  });
+  app.post('/app/settings/people/:id/turn', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people#turn');
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect('/app/settings/people');
+    const f = (req.body ?? {}) as { inTurn?: unknown; awayUntil?: unknown };
+    const day = typeof f.awayUntil === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.awayUntil) ? f.awayUntil : '';
+    // Away until the END of that day, in the workspace's own day; an empty box is "here".
+    const awayUntil = day ? dayStart(addDays(day, 1), workspaceZone()) : null;
+    const done = await withTenantTx(deps.db, bid, (tx) => setPersonTurn(tx, bid, (req.params as { id: string }).id, { inRotation: f.inTurn === '1', awayUntil }));
+    return flashTo(reply, '/app/settings/people#turn', done ? 'turn.flash.saved' : 'turn.flash.notSaved');
+  });
 
   app.post('/app/settings/people', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
@@ -7228,10 +7467,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const prefill = typeof (req.query as { teach?: string } | undefined)?.teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
+    // S5 — the answers people gave, offered to the owner (read, never stored; only the owner's decision is).
+    const kb = parseBusinessId(s.businessId);
+    const given = kb.ok ? await withTenantTx(deps.db, kb.value, (tx) => answerSuggestions(tx, kb.value, new Date(), FAQ_ANSWER_MIN_RELEVANCE)) : [];
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     // Phase 9 (V1-358) — what to do first; the period's counts last.
     // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
-    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply))
+      + renderAnswerSuggestions(locale, given, personOf(s), new Date()) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
@@ -7304,6 +7547,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 5 — Knowledge itself says what was done now, so a business-wide fact's notice lands there too.
   const kBack = (reply: FastifyReply, _req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
     flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge', `knowledge.flash.${code}` as MessageKey);
+  /**
+   * S5 (Phase 5, item 17; 0199) — an answer a person gave, taught or set aside. The owner's alone: nothing a person
+   * wrote to one buyer becomes what the assistant says to every buyer unless the owner says so. Teach writes a
+   * business-wide taught answer in the words left in the form, and decides the question in the same transaction.
+   */
+  const givenBody = (req: FastifyRequest) => {
+    const b = (req.body ?? {}) as { question?: unknown; label?: unknown; content?: unknown };
+    const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    return { question: str(b.question), label: str(b.label), content: str(b.content) };
+  };
+  app.post('/app/knowledge/answers/teach', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const b = givenBody(req);
+    const r = await withTenantTx(deps.db, bid.value, (tx) => teachSuggestion(tx, bid.value, { ...b, actor: personOf(s).id }));
+    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+  });
+  app.post('/app/knowledge/answers/dismiss', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const r = await withTenantTx(deps.db, bid.value, (tx) => dismissSuggestion(tx, bid.value, givenBody(req).question, personOf(s).id));
+    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+  });
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };

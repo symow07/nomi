@@ -182,6 +182,7 @@ export function renderCustomerPanel(
         ${facts ? `<p class="pn-facts">${facts}</p>` : ''}
         ${since ? `<p class="pn-facts">${since}</p>` : ''}
       </header>
+      ${labelsBlock(p, locale, conversationId)}
       ${block('panel.askedAbout', asked)}
       ${block('panel.prices', prices)}
       ${block('panel.promised', promises)}
@@ -191,6 +192,27 @@ export function renderCustomerPanel(
       ${/* The fix wave (w4-whole-13) — the panel IS "About this customer" (its door's words); its door onward is the full page. */ ''}${
         deeper(`/app/conversations/${encodeURIComponent(conversationId)}`, t(locale, 'panel.fileDoor'))}
     </aside>`;
+}
+
+/**
+ * S2 (Phase 5, item 19) — the labels on this buyer: each taken off by its own button; a label put on by its name (the
+ * ones in use offered as the box is typed in; a new name makes a new label). Owner and staff; the buyer's, erased with
+ * them.
+ */
+function labelsBlock(p: CustomerPanel, locale: Locale, conversationId: string): string {
+  const client = encodeURIComponent(p.clientId);
+  const back = `<input type="hidden" name="back" value="${esc(conversationId)}" />`;
+  const on = (p.labels ?? []).map((l) => `<li class="label-on"><bdi>${esc(l.name)}</bdi>
+      <form method="post" action="/app/buyers/${client}/labels/${encodeURIComponent(l.id)}/off" class="inline">${back}
+        <button class="btn ghost small" type="submit" aria-label="${esc(t(locale, 'labels.takeOff', { name: l.name }))}">×</button></form></li>`).join('');
+  const list = `labels-${client}`;
+  return `<section class="pn-block" id="labels"><h3>${esc(t(locale, 'labels.title'))}</h3>
+      ${on ? `<ul class="chips">${on}</ul>` : `<p class="muted small">${esc(t(locale, 'labels.none'))}</p>`}
+      <form method="post" action="/app/buyers/${client}/labels" class="inline label-add">${back}
+        <input name="name" maxlength="40" required list="${list}" aria-label="${esc(t(locale, 'labels.add'))}" placeholder="${esc(t(locale, 'labels.placeholder'))}" dir="auto" />
+        <datalist id="${list}">${(p.allLabels ?? []).map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+        <button class="btn ghost" type="submit">${esc(t(locale, 'labels.add'))}</button>
+      </form></section>`;
 }
 
 /** A language's name in the owner's language; the code if unknown. */

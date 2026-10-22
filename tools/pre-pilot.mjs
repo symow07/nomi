@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * The pre-pilot walkthrough — the twelve things a buyer can do on day one,
+ * The pre-pilot walkthrough — the fourteen things a buyer can do on day one,
  * driven through the REAL production composition before a real number is
  * connected. Not a CI gate: a rehearsal, run before this pilot and every
  * future one.
  *
- * WHY IT EXISTS. Every one of the twelve below has unit and integration tests.
+ * WHY IT EXISTS. Every one of the fourteen below has unit and integration tests.
  * What no test does is watch them happen in sequence, in one running app, with
  * the real webhook ingress, the real worker, the real send gate and the owner's
  * own screens — the shape the factory will actually meet. A defect that only
@@ -24,7 +24,7 @@
  * webhook, never the pre-seeded conversations: those have no `client_channels`
  * row, so a draft approved on one reports "sent" while nothing is queued.
  *
- *   node tools/pre-pilot.mjs                  scripted models, all twelve
+ *   node tools/pre-pilot.mjs                  scripted models, all fourteen
  *   node tools/pre-pilot.mjs --live           the real model writes the replies
  *   node tools/pre-pilot.mjs --only 5,6,7     just those scenarios
  *   node tools/pre-pilot.mjs --keep           leave the app running afterwards
@@ -152,6 +152,17 @@ const approve = async (conv, draftId) => {
 };
 
 const ok = (cond, msg) => { if (!cond) throw new Error(msg); };
+
+/* S7 — the two channels with no simulator of their own: the chat page is Nomi's, and Telegram's API is recorded. */
+const TG_SECRET = `pre-pilot-telegram-${randomBytes(6).toString('hex')}`;
+const telegramSent = [];
+let chatKey = '';
+let startCode = '';
+let tgUpdate = 1;
+const tgChat = 600_000_000 + (parseInt(NS.slice(0, 6), 16) % 300_000_000);
+const telegram = (chat, text) => post('/webhook/telegram', JSON.stringify({
+  update_id: ++tgUpdate, message: { message_id: tgUpdate, date: Math.floor(Date.now() / 1000), chat: { id: chat, type: 'private' }, from: { id: chat, first_name: 'Rehearsal' }, text },
+}), { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': TG_SECRET });
 
 /* ── the scripted model ──────────────────────────────────────────────────── */
 
@@ -315,6 +326,10 @@ async function setup() {
   process.env.PILOT_BUSINESS_ID = BIZ;
   process.env.OWNER_ACCESS_CODE = CODE;
   delete process.env.NODE_ENV;                       // a Secure cookie never comes back over http
+  // S7 — Nomi's Telegram bot, as the environment would carry it (rehearsal values), with Telegram's API a recorder.
+  Object.assign(process.env, {
+    TELEGRAM_BOT_TOKEN: '7000000001:AAprepilot-token-not-real_0123456', TELEGRAM_WEBHOOK_SECRET: TG_SECRET, TELEGRAM_BOT_USERNAME: 'NomiPrePilotBot',
+  });
   const { buildProduction } = await import('../dist/main.js');
   const media = { baseUrl: SIM_MEDIA_BASE, apiKey: 'sim', fetchImpl: sim.mediaFetch };
   const prod = await buildProduction({
@@ -339,6 +354,10 @@ async function setup() {
     // override; production has no way to pass it.
     autonomyReleased: () => true,
     media: { transcriber: scriptedTranscriber, audio: whatsappAudioFetcher(media), image: whatsappMediaFetcher(media) },
+    telegramFetch: async (url, init) => {
+      telegramSent.push({ method: url.split('/').at(-1), body: JSON.parse(init.body) });
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: { message_id: 7000 + telegramSent.length } }) };
+    },
     // --live leaves the analyzer and the writer to the real model; the picture
     // and the voice are stand-in bytes either way, so those stay scripted.
     // Scenarios 8 and 9 still force their reply text: you cannot reliably ask a
@@ -377,6 +396,14 @@ async function setup() {
     content: 'Yes — we print your logo, and our catalogue lists every colour we stock.',
   });
 
+  step('turning on her chat page and Telegram, as she would on Where customers reach you');
+  // S7 — through the owner's own switches, so the rehearsal proves the routes as well as the channels.
+  await form('/app/channels/chat', { on: '1' });
+  await form('/app/channels/telegram', { on: '1' });
+  chatKey = (await one(`select external_ref as k from channel_credentials where business_id=$1 and channel='web_chat' and is_active`, [BIZ]))?.k ?? '';
+  startCode = (await one(`select external_ref as k from channel_credentials where business_id=$1 and channel='telegram' and is_active`, [BIZ]))?.k ?? '';
+  ok(chatKey && startCode, 'her chat page or her Telegram link was not made');
+
   return { prod, sim };
 }
 
@@ -401,7 +428,7 @@ function startReceipts(sim) {
   }, 300);
 }
 
-/* ── the twelve ──────────────────────────────────────────────────────────── */
+/* ── the fourteen (S7 added the chat page and Telegram) ──────────────────────────────────────────────────────────── */
 
 const scenarios = [
   {
@@ -681,6 +708,44 @@ const scenarios = [
       const page = await get(`/app/inbox/${conv}`);
       ok(page.body.includes('canvas bags'), 'his message is not on her timeline');
       return { conv, note: 'recorded, shown, no model call' };
+    },
+  },
+  {
+    n: 13, title: 'on her chat page a visitor asks for a price, and the answer appears on that page',
+    async run() {
+      // Scenario 9's reply failed its checks twice, which withdrew sending alone in English until she chooses her
+      // level again (0163) — as the owner would after reading why, she chooses it again here.
+      ok((await form('/app/settings/assistant/autonomy', { level: 'sells' })).status === 302, 'her level could not be chosen again');
+      const open = await fetch(`${BASE}/chat/${chatKey}`, { redirect: 'manual' });
+      ok(open.status === 200, 'her chat page did not open');
+      const visitor = String(open.headers.get('set-cookie') ?? '').split(';')[0];
+      ok(visitor.startsWith('yf_chat='), 'the page gave the visitor no handle');
+      const sent = await fetch(`${BASE}/chat/${chatKey}`, { method: 'POST', redirect: 'manual',
+        headers: { cookie: visitor, 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ text: 'Price for 500 canvas tote bags?', n: `pp${NS}chatnonce000` }).toString() });
+      ok(sent.status === 303, 'the page did not take the message');
+      const page = await until(async () => {
+        const html = await (await fetch(`${BASE}/chat/${chatKey}`, { headers: { cookie: visitor } })).text();
+        return html.includes('per piece') ? html : undefined;
+      }, 'the answer on her chat page');
+      ok(page.includes('500 canvas tote bags'), 'his question is not on the page');
+      const others = await (await fetch(`${BASE}/chat/${chatKey}`)).text();
+      ok(!others.includes('500 canvas tote bags'), 'another visitor sees his conversation');
+      return { note: 'answered on the page, seen by him alone' };
+    },
+  },
+  {
+    n: 14, title: 'on Telegram a buyer opens her start link and asks for a price, and the answer comes back in that chat',
+    async run() {
+      ok((await telegram(tgChat, `/start ${startCode}`)).status === 200, 'Telegram\'s webhook refused the start');
+      await telegram(tgChat, 'Price for 500 canvas tote bags?');
+      const answer = await until(async () => telegramSent.find((s) => s.method === 'sendMessage' && s.body.chat_id === String(tgChat)), 'the answer on Telegram');
+      ok(String(answer.body.text).includes('per piece'), 'the answer is not the quote');
+      const stranger = await telegram(tgChat + 1, 'Price for 500 canvas tote bags?');
+      ok(stranger.status === 200, 'Telegram\'s webhook refused an update');
+      await sleep(2000);
+      ok(!telegramSent.some((s) => s.body.chat_id === String(tgChat + 1)), 'a chat that opened no link was answered');
+      return { note: 'started, answered in the chat; a chat with no link, nobody' };
     },
   },
 ];

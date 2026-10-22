@@ -81,10 +81,83 @@ That is acceptable only while nobody has the books. So, before
   page does not name it; Xero (D8) and QuickBooks (D9) the same way, by `XERO_CLIENT_ID` and `QBO_CLIENT_ID`. And it says that a receipt, invoice or bill the owner
   asks Nomi to read is sent to the model provider, which reads it (D6).
 
-Enforced in `tools/books-area.mjs`: `--on` refuses while `BLOCKERS` names an
-item, and prints each one. Remove an item there in the commit that builds it.
-`tests/parity/books-launch-blockers.test.ts` holds the tool and this list
-together.
+Enforced in `tools/books-area.mjs`: `--on` refuses while `BLOCKERS`
+(`tools/lib/books-blockers.mjs`) names an item, and prints each one. Remove an
+item there in the commit that builds it. `tests/parity/books-launch-blockers.test.ts`
+holds the tool and this list together.
+
+## Before the books are switched on for a MOROCCAN workspace — BLOCKING (the owner, 2026-10-22)
+
+A Moroccan workspace's FEC (D4) is not finished, and a file the DGI rejects on
+its name is a file that does not work:
+
+- **The business's legal identifiers — ICE, IF and RC — held on its profile**,
+  shape-checked, and carried by the FEC.
+- **The FEC named as the DGI requires.** Checked on 2026-10-22:
+  - the Avis n° 24 sets no name and no envelope (Article 2 and point 3 name
+    the file and its fields only);
+  - the CGI 2026, article 210, asks for "une copie du fichier des écritures
+    comptables établi selon un format électronique", with no name;
+  - the DGI's 2025 activity report says its system for receiving FECs
+    electronically is built, and publishes no specification;
+  - the DGI's EDI specification (cahier des charges du mode EDI) lets its XML
+    files be named freely — those are declarations, not the FEC, so that rule
+    is not assumed here either.
+
+  So the name is NOT known. It is not inferred from the French convention
+  (SIREN + "FEC" + closing date). It waits for the DGI's own text, or the
+  owner's accountant's confirmation of what the DGI accepts.
+
+Enforced in `tools/books-area.mjs`: for a workspace whose country is Morocco,
+`--on` refuses while `MOROCCO_BLOCKERS` (`tools/lib/books-blockers.mjs`) names
+an item.
+
+## Start early — lead-time items (the owner, 2026-10-22)
+
+These cost nothing to begin and can each turn a ready product into a wait of
+weeks. They start well before the deploy that needs them:
+
+- **Intuit's App Assessment Questionnaire (QuickBooks, D9).** Production keys
+  appear ("Show Credentials") only after Intuit approves the questionnaire, and
+  the app details it needs: EULA and privacy URLs, host domain, launch,
+  disconnect and connect/reconnect URLs, categories, regulated industries,
+  hosting regions (developer.intuit.com, "Publish your app"). It can be
+  reviewed and sent back for changes. Submit it as soon as the privacy page
+  names Intuit.
+- **Xero (D8): no review before production on the Starter tier**, as Xero's
+  documentation stands (2026-10-22):
+  - new apps default to Starter: 5 connections, no payment method;
+  - certification is required only from the Plus tier (more than 50
+    connections) and for an App Store listing;
+  - limits that apply meanwhile: an organisation may connect at most five
+    uncertified apps, and Starter allows 1,000 API calls a day per
+    organisation;
+  - the only step is accepting Xero's Developer Platform Terms (updated
+    2 March 2026) when the app is made.
+
+  Confirm on the day the app is created; nothing here needs starting early.
+- **Xero's real ceiling, before certification** (the owner, 2026-10-22): 1,000 API calls a day per organisation,
+  and at most five uncertified apps per organisation. That is a scaling limit, not a launch one. It decides when
+  certification stops being optional:
+  - a busy organisation's reads (the morning read, the owner's "Read it in", writing back) near 1,000 a day;
+  - more than 50 connections (Core's ceiling) means the Plus tier, which requires certification.
+
+## Phase 5 S — before these reach a buyer (2026-10-22)
+
+Built and switched off by design; each waits on a person, not on code:
+
+- **Surveys (S6):** nobody is asked anything until the sentence is signed in its language
+  (`src/core/conversation/survey.ts`, `SIGNED`): the owner signs the English, a native reader each of the others,
+  named in the commit. Then the owner switches surveys on (`/app/surveys`).
+- **Strict mode (S4):** in force in no language until a native reader signs a set (`src/core/conversation/strict.ts`,
+  `SIGNED`; the starter sets are `PROPOSED`). Telling the writer the set needs the live model check: ask first.
+- **Telegram (S7):** the owner creates Nomi's bot with @BotFather and pastes `TELEGRAM_BOT_TOKEN`,
+  `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_BOT_USERNAME` into Railway (docs/env-checklist.md). After the deploy, run
+  `railway run --service nomi -- node tools/telegram-webhook.mjs` once, then `--check`. Each business then turns it
+  on and shares its start link.
+- **The chat page (S7):** nothing to set up; each business turns it on and shares its address or the widget's line.
+- **D10 (Morocco):** waits for an accountant's answer on what a « période » is (PHASE-5.md, D10: the question is
+  written there, in French).
 
 ## Somebody hears when it breaks (CC-10)
 

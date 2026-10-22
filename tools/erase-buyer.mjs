@@ -259,6 +259,15 @@ export const RULES = Object.freeze({
   tax_codes: { do: 'unrelated' },
   parties: { do: 'unrelated' },
   custom_field_defs: { do: 'unrelated' },
+  // 0195 (S1) — the workspace's saved replies: words its people wrote to reuse, never a customer's.
+  saved_replies: { do: 'unrelated' },
+  // 0196 (S2) — the workspace's labels are its own words; a label on a buyer is the buyer's, erased with them.
+  labels: { do: 'unrelated' },
+  buyer_labels: { do: 'erase' },
+  // 0199 (S5) — the owner's decisions on answers people gave: a digest of the question, never a buyer's words.
+  answer_decisions: { do: 'unrelated' },
+  // 0202 (S6) — what a buyer was asked after an order, and their answer: theirs, erased with them.
+  survey_asks: { do: 'erase' },
   // 0172 (A2.4) — receipts of the owner's book downloads.
   books_exports: { do: 'unrelated' },
   // 0174 (A4) — the papers behind the books, and their sealed bytes.

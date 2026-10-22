@@ -49,6 +49,9 @@ export type CustomerPanel = {
   readonly promised: readonly { readonly said: string; readonly dueOn: string; readonly byAssistant: boolean; readonly conversationId: string }[];
   readonly orders: readonly { readonly id: string; readonly reference: string; readonly status: string; readonly at: Date }[];
   readonly activity: readonly PanelActivity[];
+  /** S2 (0196) — the labels on this buyer, and the workspace's labels in use to put on them. */
+  readonly labels?: readonly { readonly id: string; readonly name: string }[];
+  readonly allLabels?: readonly string[];
 };
 
 const ACTIVITY_SHOWN = 6;

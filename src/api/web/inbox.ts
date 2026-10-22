@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
 import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { isLabelId, listLabels } from '../../db/labels.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { loadCurrentRate } from './settings.js';
@@ -186,6 +187,9 @@ export type InboxList = {
   readonly conversations: readonly ConversationSummary[];
   /** A — the search, as it was matched (trimmed); absent or '' when there is none. */
   readonly query?: string;
+  /** S2 (0196) — the workspace's labels in use, and the one the list is narrowed to. */
+  readonly labels?: readonly { readonly id: string; readonly name: string; readonly buyers: number }[];
+  readonly label?: { readonly id: string; readonly name: string } | null;
   /**
    * A — where this page sits in the whole list the tab and the search hold.
    * Absent on a list built before A: one page, nothing either side.
@@ -228,6 +232,8 @@ export type InboxAsk = {
   readonly lens?: unknown;
   /** Phase 4 — read the "needs attention" band too (the first page of the whole list only). */
   readonly attention?: boolean;
+  /** S2 — a label's id: only the buyers carrying it. */
+  readonly label?: unknown;
 };
 
 /**
@@ -249,7 +255,9 @@ export async function loadInboxList(
   if (!bid.ok) return { filter, lens, waitingCount: 0, blockedCount: 0, conversations: [], query: q };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before });
+    const labels = (await listLabels(tx, bid.value)).map((l) => ({ id: l.id, name: l.name, buyers: l.buyers }));
+    const label = isLabelId(ask.label) ? (labels.find((l) => l.id === ask.label) ?? null) : null;
+    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before, label: label?.id ?? null });
     const rows = page.ids.length === 0 ? [] : (await sql<{
       id: string; client_id: string; buyer: string | null; country: string | null; channel: string;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -351,6 +359,7 @@ export async function loadInboxList(
       deletionCount: counts.deletion,
       channels: counts.channels,
       query: q,
+      labels, label: label ? { id: label.id, name: label.name } : null,
       page: { from: page.from, to: page.to, total: page.total, next: page.next, prev: page.prev },
     };
   });
@@ -661,7 +670,7 @@ export type ConversationDetail = {
      * no signed-off sentence saying who is answering: unread (es, fr) or none
      * at all. The card names the language and why.
      */
-    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn'; readonly language: string }
+    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; readonly language: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
       | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
@@ -674,6 +683,8 @@ export type ConversationDetail = {
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
+  /** S1 (0195) — the workspace's saved replies in use, offered in the reply box (titles only: the words are put in by the server). */
+  readonly savedReplies?: readonly { readonly id: string; readonly title: string }[];
   readonly ownership: ConversationOwnership;
   /** R2 (0106) — the owner marked this conversation "this is me testing": it counts toward nothing. */
   readonly ownerTesting?: boolean;
@@ -1208,13 +1219,13 @@ export function needsWhy(
 export const perPiece = (locale: Locale, m: Money): string => `${show.money(locale, m)}/${t(locale, 'product.unit.pc')}`;
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
-function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn'; language: string }
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
   | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language } = v as { reason?: unknown; language?: unknown };
   if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
   if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new'
-    && reason !== 'language_withdrawn') || typeof language !== 'string') return null;
+    && reason !== 'language_withdrawn' && reason !== 'strict_unapproved') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
 }
 
@@ -1253,6 +1264,8 @@ const asksSomething = (text: string | null | undefined): boolean => typeof text 
 export const buyersHref = (o: {
   readonly filter?: InboxFilter | undefined; readonly lens?: BuyersLens | undefined; readonly q?: string;
   readonly after?: string | null; readonly before?: string | null;
+  /** S2 — a label's id. */
+  readonly label?: string | null | undefined;
 }): string => {
   const typed = (v: string): string => v
     .replace(/[%&+#=]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
@@ -1261,6 +1274,7 @@ export const buyersHref = (o: {
     o.filter && o.filter !== 'all' ? `filter=${o.filter}` : '',
     o.lens === 'value' ? 'lens=value' : '',
     o.q ? `q=${typed(o.q)}` : '',
+    o.label ? `label=${o.label}` : '',
     o.after ? `after=${o.after}` : '',
     o.before ? `before=${o.before}` : '',
   ].filter(Boolean);
@@ -1593,6 +1607,13 @@ export function renderInboxList(
   ].filter(Boolean);
   const filters = chips.length ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${chips.join('')}${
     narrowed ? `<a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>` : ''}</nav>` : '';
+  // S2 (0196) — the labels in use, each a narrowing of the list (with the tab and the search kept); the one chosen marked.
+  const chosen = data.label ?? null;
+  const labelRow = (data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).length === 0 ? ''
+    : `<nav class="tabs labels" aria-label="${esc(t(locale, 'labels.filterLabel'))}">${(data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).map((l) => {
+      const on = l.id === chosen?.id;
+      return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ filter, lens, q, label: on ? null : l.id }))}"><bdi>${esc(l.name)}</bdi>${count(l.buyers)}</a>`;
+    }).join('')}${chosen ? `<a class="clear" href="${esc(buyersHref({ filter, lens, q }))}">${esc(t(locale, 'labels.clear'))}</a>` : ''}</nav>`;
   // Phase 9 of the warmth run (w4-customers-07) — under a narrowing the list is the narrowing's: no lens shown
   // selected beside it, and no caption describing a list that is not on the page. "See all customers" leads back.
   const lensBar = narrowed ? `<div class="lensbar">${filters}</div>`
@@ -1606,8 +1627,9 @@ export function renderInboxList(
   // where the outreach area exists. Phase 9 of the warmth run (V1-166) — no
   // calendar door: the rail has Calendar on every width since phase 1, and on
   // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
-  const doors = outreachShown() ? `<div class="doors">${deeper('/app/contacts', t(locale, 'contacts.title'))}</div>` : '';
-  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
+  // S1 — and the saved replies a person answers with, kept here, under Buyers.
+  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/surveys', t(locale, 'surveys.title'))}</div>`;
+  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}${labelRow}`;
 
   if (data.conversations.length === 0) {
     const all = esc(buyersHref({ lens }));
@@ -1911,12 +1933,30 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          ${savedReplyPick(d, locale)}
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         ${photoForm(d, locale)}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
+}
+
+/**
+ * S1 (Phase 5, item 18) — a saved reply put in the box: chosen here, and its words (in the buyer's language where it
+ * has them) placed after what is already in the box, by the server (`/saved-reply`, the same form: what was typed
+ * goes with it). It never sends: the person reads, edits, and sends with the box's own button. No saved reply yet:
+ * the door to make one.
+ */
+function savedReplyPick(d: ConversationDetail, locale: Locale): string {
+  const replies = d.savedReplies ?? [];
+  const door = `<a class="caption" href="/app/replies">${esc(t(locale, replies.length === 0 ? 'savedReplies.make' : 'savedReplies.manage'))}</a>`;
+  if (replies.length === 0) return `<p class="caption muted">${door}</p>`;
+  return `<div class="saved-pick">
+      <select name="saved" aria-label="${esc(t(locale, 'savedReplies.pick'))}">${replies.map((r) => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('')}</select>
+      <button class="btn ghost" type="submit" formaction="/app/inbox/${encodeURIComponent(d.conversationId)}/saved-reply" formnovalidate>${esc(t(locale, 'savedReplies.insert'))}</button>
+      ${door}
+    </div>`;
 }
 
 /**

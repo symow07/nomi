@@ -14,6 +14,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
 import * as show from './values.js';
+import type { RotationView } from '../../db/rotation.js';
 
 /**
  * M47 — the people who can log in, and the codes that let them.
@@ -115,6 +116,8 @@ export type PeopleView = {
   readonly assistants?: readonly Assistant[];
   /** The business's own name — a person called by it is asked for a real one. */
   readonly business?: string | null;
+  /** S3 (0198) — hand-offs in turn: the switch, and each person's place in it. */
+  readonly rotation?: RotationView;
 };
 
 /**
@@ -324,6 +327,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         ])}
       </form>
     </section>
+    ${v.rotation ? renderRotationSection(v.rotation, locale, now) : ''}
     ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}
     ${/* Phase 9 (V1-518) — what only the owner may do is a list to read, not rows that look tappable. */ ''}<section class="block">
       <h2>${esc(t(locale, 'people.ownerOnly.title'))}</h2>
@@ -331,5 +335,32 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       <ul class="owner-only">${OWNER_ONLY.map((a) =>
         `<li>${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.rest'))}</p>
+    </section>`;
+}
+
+/**
+ * S3 (Phase 5, item 21) — HAND-OFFS IN TURN, the owner's: on or off; for each person (never the accountant), in turn
+ * or not, and away until a day (skipped until then). The next hand-off goes to whoever in turn has waited longest.
+ */
+function renderRotationSection(r: RotationView, locale: Locale, now: Date): string {
+  const day = (d: Date | null) => (d === null ? '' : d.toISOString().slice(0, 10));
+  const rows = r.people.filter((p) => !p.accountant).map((p) => {
+    const away = p.awayUntil !== null && p.awayUntil.getTime() > now.getTime();
+    return `<li class="row"><form method="post" action="/app/settings/people/${esc(p.id)}/turn" class="inline turn">
+        <span class="person"><bdi>${esc(p.name)}</bdi>${away ? ` <span class="pill warn">${esc(t(locale, 'turn.awayUntil', { date: show.date(locale, p.awayUntil!) }))}</span>` : ''}
+          ${p.lastGivenAt ? `<span class="caption muted">${esc(t(locale, 'turn.lastGiven', { when: show.when(locale, p.lastGivenAt, now) }))}</span>` : ''}</span>
+        <label class="chkbox"><input type="checkbox" name="inTurn" value="1"${p.inRotation ? ' checked' : ''} /> ${esc(t(locale, 'turn.inTurn'))}</label>
+        <label><span class="caption">${esc(t(locale, 'turn.away'))}</span> <input type="date" name="awayUntil" value="${esc(day(away ? p.awayUntil : null))}" /></label>
+        <button class="btn ghost" type="submit">${esc(t(locale, 'turn.save'))}</button></form></li>`;
+  }).join('');
+  return `<section class="block" id="turn">
+      <h2>${esc(t(locale, 'turn.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'turn.explain'))}</p>
+      <form method="post" action="/app/settings/people/turn" class="inline">
+        <input type="hidden" name="on" value="${r.on ? '0' : '1'}" />
+        <span class="pill${r.on ? ' stop' : ''}">${esc(t(locale, r.on ? 'turn.isOn' : 'turn.isOff'))}</span>
+        <button class="btn${r.on ? ' ghost' : ''}" type="submit">${esc(t(locale, r.on ? 'turn.switchOff' : 'turn.switchOn'))}</button></form>
+      <ul class="rows team">${rows}</ul>
+      <p class="caption muted">${esc(t(locale, 'turn.rules'))}</p>
     </section>`;
 }

@@ -19,10 +19,11 @@ const run = (args: string[]) => {
   });
   return { code: r.status, err: r.stderr };
 };
-const blockers = (): string[] => {
-  const body = /const BLOCKERS = \[([\s\S]*?)\];/.exec(read('tools/books-area.mjs'))?.[1] ?? '';
+const listed = (name: string): string[] => {
+  const body = new RegExp(`export const ${name} = \\[([\\s\\S]*?)\\];`).exec(read('tools/lib/books-blockers.mjs'))?.[1] ?? '';
   return [...body.matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]!.replace(/\\'/g, "'"));
 };
+const blockers = (): string[] => listed('BLOCKERS');
 
 describe('the books are switched on for nobody while a launch blocker stands', () => {
   it('--on refuses before connecting, names every blocker, and changes nothing', () => {
@@ -46,6 +47,23 @@ describe('the books are switched on for nobody while a launch blocker stands', (
     expect(section).toMatch(/The public pages describe the books/);
     expect(list[0]).toMatch(/copy of their papers/);
     expect(list[1]).toMatch(/public pages/);
+  });
+
+  it('MOROCCO: its FEC is not finished while the ICE, IF and RC are not held and the file is not named as the DGI requires', async () => {
+    const { blockersFor, MOROCCO_BLOCKERS } = await import(new URL('../../tools/lib/books-blockers.mjs', import.meta.url).href) as { blockersFor: (c: string | null) => string[]; MOROCCO_BLOCKERS: string[] };
+    expect(MOROCCO_BLOCKERS).toEqual(listed('MOROCCO_BLOCKERS'));
+    expect(blockersFor('MA')).toEqual([...blockers(), ...MOROCCO_BLOCKERS]);
+    expect(blockersFor('ma')).toEqual(blockersFor('MA'));
+    expect(blockersFor('FR')).toEqual(blockers());
+    expect(blockersFor(null)).toEqual(blockers());
+    expect(MOROCCO_BLOCKERS[0]).toMatch(/ICE, IF and RC/);
+    // the tool reads the workspace's country and refuses a Moroccan one with these, once connected
+    expect(read('tools/books-area.mjs')).toMatch(/const owed = blockersFor\(biz\.country\);\s+if \(want === true && owed\.length > 0\)/);
+    // and names them already in the refusal everyone gets today
+    expect(run(['--business', BIZ, '--on']).err).toContain(MOROCCO_BLOCKERS[0]);
+    const section = /## Before the books are switched on for a MOROCCAN workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
+    expect(section).toMatch(/ICE, IF and RC/);
+    expect(section).toContain('tools/lib/books-blockers.mjs');
   });
 
   it('the refusal it rests on is real: a workspace holding papers does not close (0174)', () => {

@@ -108,6 +108,8 @@ export type LegalFacts = {
   readonly transcriber?: Processor | null;
   readonly botCheck?: Processor | null;
   readonly advisorHistory?: boolean;
+  /** S7 — Nomi's Telegram bot is on here: Telegram carries those buyers' messages, and is named. */
+  readonly telegram?: boolean;
 };
 
 /**
@@ -197,11 +199,13 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     ${/* w4-public-01 — since 0123 an Instagram or Messenger customer's profile photo is kept
          (client_faces, src/worker/faces.ts): its own line, so the list above stays the owner's words. */ ''}
     <p>${esc(t(l, 'legal.privacy.kept.photo'))}</p>
+    ${/* S7 — the chat page: what it keeps, and its one cookie. */ ''}<p>${esc(t(l, 'legal.privacy.kept.chat'))}</p>
     ${section('legal.privacy.why.title', 'legal.privacy.why.body')}
     <h2>${esc(t(l, 'legal.privacy.who.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.who.body'))}</p>
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
+      ${facts.telegram ? `<li>${esc(t(l, 'legal.privacy.who.telegram'))}</li>` : ''}
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
       ${facts.fallback ? `<li>${esc(t(l, 'legal.privacy.who.aiFallback', { processor: processorLabel(facts.fallback, l), primary: facts.processor.name }))}</li>` : ''}
       ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live.

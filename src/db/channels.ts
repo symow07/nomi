@@ -67,8 +67,9 @@ export function channelStore(
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
                origin, sending_since, kind, media_url, channel, subject, asks, notice, approved,
-               -- C4.b — released by a follow-up schedule rather than a person.
-               exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id) as automated
+               -- C4.b — released by a follow-up schedule rather than a person; S6 (0202) — or a survey the sweep asked.
+               (exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id)
+                or exists (select 1 from survey_asks sa where sa.outbound_id = outbound_messages.id)) as automated
           from outbound_messages
          where conversation_id = ${conversationId}
            and (next_retry_at is null or next_retry_at <= now())
@@ -505,7 +506,7 @@ export async function ensureConversation(
   businessId: BusinessId,
   identity: string,
   profileName: string | null,
-  channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' = 'whatsapp',
+  channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' | 'web_chat' | 'telegram' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
   const existing = await sql<{ client_id: string; display_name: string | null }>`
     select cc.client_id, cl.display_name from client_channels cc

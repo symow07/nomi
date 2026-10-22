@@ -28,6 +28,7 @@ import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { addressesInGender } from '../core/safety/address.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
+import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
 import { OPT_OUT_REPLIES, asksOnlyOffAList, optOutLanguage } from '../core/safety/optOut.js';
 import type { Notice } from '../core/channel/sendGate.js';
@@ -92,6 +93,11 @@ export type TurnPorts = {
    * that 404s in front of a buyer.
    */
   publicBaseUrl?: string | null;
+  /**
+   * S4 — tests only: sentence sets as if a reader had signed them. Production never passes it: a set is signed in
+   * src/core/conversation/strict.ts, by name, in the commit that names the reader.
+   */
+  strict?: StrictSigned;
 };
 
 export type TurnRequest = {
@@ -1486,7 +1492,24 @@ export async function commitTurn(
       : null;
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);
+    /*
+     * S4 — STRICT MODE PER LANGUAGE. In a language whose reader signed a sentence set — the customer's, or (G8) the
+     * reply's own — a reply goes alone only when it is made, end to end, of those sentences, their blanks filled by
+     * this turn's own facts (core/conversation/strict.ts). In force nowhere today: no set is signed. The line that
+     * answers a stop is not held here: it must reach the buyer, and it is Nomi's fixed sentence.
+     */
+    const strictLanguage = !speaksAlone || !released || stopLine ? null
+      : strictSetFor(languageHead(language), ports.strict) ? languageHead(language)
+      : replyDiffers && strictSetFor(languageHead(replyIn!), ports.strict) ? languageHead(replyIn!) : null;
+    const strictOk = strictLanguage === null || await (async () => {
+      const who = await tenant.conversations.speaker(req.conversationId);
+      const product = r.decision.product ? await tenant.catalog.product(r.decision.product.productId) : null;
+      return onlySignedSentences(reply, strictSetFor(strictLanguage, ports.strict)!, {
+        product: product?.name ?? null, business: who?.business.name ?? null, name: who?.name ?? null,
+      });
+    })();
+    const strictWithheld = strictOk ? null : { reason: 'strict_unapproved' as const, language: strictLanguage! };
+    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);
     /** What the card and the timeline say about the language, when that is why it waits. */
     /** The language that held it: the customer's, or (G8) the reply's own. */
     const heldBy = language !== UNDETERMINED && tenant.autonomy.released(language) && replyDiffers ? replyIn! : language;
@@ -1507,14 +1530,14 @@ export async function commitTurn(
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
         ...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld
-          ? languageWithheld : { reason: named ? 'no_assistant_name' : 'assistant_not_named' }),
+          ? languageWithheld : strictWithheld ? strictWithheld : { reason: named ? 'no_assistant_name' : 'assistant_not_named' }),
       });
     }
     // Blocker 2 (2026-10-14) — the same reason, for the trust checks (`TurnEffects.heldBack`); or the operator's
     // force-draft switch, when it alone turned a reply that would have gone alone into a draft.
     heldBack = speaksAlone && !mayDisclose
       ? (!earned ? 'not_earned' : !vetted ? 'first_quote' : languageWithheld
-        ? languageWithheld.reason : named ? 'no_assistant_name' : 'assistant_not_named')
+        ? languageWithheld.reason : strictWithheld ? strictWithheld.reason : named ? 'no_assistant_name' : 'assistant_not_named')
       : mode === 'draft' && speaksAlone && !(r.hold && !stopLine) && switches.forceDraft.includes(capability) ? 'ops_force_draft' : null;
 
     const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
@@ -1662,7 +1685,8 @@ export async function commitTurn(
         // has no signed-off sentence saying who is answering: the card says so.
         ...(speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
           : speaksAlone && !vetted ? { withheld: { reason: 'first_quote' } }
-          : speaksAlone && languageWithheld ? { withheld: languageWithheld } : {}),
+          : speaksAlone && languageWithheld ? { withheld: languageWithheld }
+          : speaksAlone && strictWithheld ? { withheld: strictWithheld } : {}),
       });
 
       /*

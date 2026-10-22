@@ -131,6 +131,13 @@ undeniable.
 | **Two roles only:** owner and not-owner (`OWNER_ONLY` is "a LIST, not a matrix", `src/core/conversation/people.ts`) | The accountant role (decision 12) is real work, scheduled in A5. |
 | **Every business table must be classified for erasure.** `customer_erasure_contract()` is re-created per new table; `customer_erasure_problems()` refuses to run while any is undecided | Every books table is classified the day it's made, under the new legal-retention action (§6). |
 
+**The best piece of design in this codebase, and never to be softened (the owner, 2026-10-22).** The buyer erasure
+follows only the links written into it (`customer_erasure_edges`), and it REFUSES to run, by name, while any table or
+link is unclassified (`customer_erasure_problems`). A new table therefore cannot silently escape erasure: someone has
+to decide what it means for a customer before anything is erased again. It has caught a missed table three or four
+times — most recently S2's `buyer_labels`, which only 0197 registered. A refusal from it is the system working; the
+fix is always to classify the table, never to loosen the check.
+
 **Also:**
 - An order holds one product, so an invoice with lines is a new document.
 - `nextOrderReference` (0162: gap-free per workspace per year) is the base for invoice numbering and for the FEC's
@@ -513,10 +520,100 @@ Each item is built and fully tested (§4) before the next one that depends on it
         date moved by hand (D2).
       - Enforcing the Avis literally refuses a posting dated before last month. That includes history read in from
         a workbook, Sheets or Odoo.
-      - The owner decides: keep the lock as the owner's tool, or make it automatic for Moroccan workspaces (with
-        history read in before the books are opened).
-    - Not yet: the business's own identifiers (ICE, IF, RC) are not held, so the FEC's file name carries the years
-      only.
+      - **Does the Avis set an opening entry apart from ordinary postings? (the owner's question, 2026-10-22).** Yes, but
+        narrowly. 2.3 d goes on: « La période dédicacée dans laquelle s'enregistrent les écritures de clôture de
+        l'exercice précédent et l'écriture d'ouverture sont les seules périodes qui puissent en sus être ouvertes. »
+        - So the OPENING ENTRY ("l'écriture d'ouverture", singular) is named, and its period may be open beyond the
+          two current ones.
+        - The text names nothing for bringing a company's past entries in one by one: no "migration" and no
+          "reprise".
+        - It says only, in its preliminary definitions (point 1), that « chaque donnée entrée dans le système de
+          traitement par transmission d'un autre système de traitement, doit être appuyée d'une pièce justificative
+          probante ».
+      - **What follows:** the lock stays MANUAL — the owner's tool, as now (D2) — and nothing becomes automatic for
+        Moroccan workspaces until the owner chooses.
+        - The distinction the text makes supports an explicit, one-time OPENING mode per workspace, recorded with its
+          date and who ran it, and the two-period rule automatic after it.
+        - But what the text allows in that mode is an opening entry (the balances at the start), not the shop's
+          detailed history.
+        - Detailed history from earlier months of the current year falls under the two-period rule as written.
+        - The owner's to choose: an opening mode that takes the opening entry only, with history kept as balances, or
+          one that also takes the year's detailed entries.
+      - **DECIDED (the owner, 2026-10-22): THE OPENING ENTRY ONLY — balances at the start date, nothing more.**
+        - The text names « l'écriture d'ouverture », singular; taking the year's detailed entries goes beyond it.
+        - The reason is the asymmetry. Too strict costs a shop some convenience at onboarding. Too loose puts entries
+          in the ledger that the rules say should not be there, found by an inspector rather than by us. A system of
+          record survives an audit on the text, not on our reading of it.
+        - Built as **D10** (below). Until then the lock stays manual.
+      - **The advice an accountant would give**, now on the books' home of a Moroccan workspace (`books.morocco.*`),
+        not only in the code's constraints:
+        - start at a fiscal year's first day: the opening balances are then last year's close, and the whole year is
+          entered inside the two-period window;
+        - mid-year, what came before comes in as one opening entry of balances — ask the accountant for them.
+        - It says "period", as the Avis does, never "month": the Avis sets no length (see D10).
+      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the business's own identifiers
+        (ICE, IF, RC) are not held, and the DGI has published no name for the FEC file (checked 2026-10-22: the Avis,
+        CGI article 210, the DGI's 2025 report). `tools/books-area.mjs` refuses a Moroccan workspace until both are
+        built.
+- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
+  - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
+    its own period. It is recorded with its date and who ran it.
+  - **After it, for a Moroccan workspace, the two-period rule applies automatically:** only the current and the
+    previous period are open for entries, besides the opening entry's period and the previous year's closing period
+    (2.3 d). The lock stops being a manual tool there.
+  - **To settle before building — what a « période » is.** The Avis does not define its length. The CGNC or the
+    DGI's practice may (monthly VAT returns suggest a month; quarterly filers suggest otherwise). It will be checked
+    against the text and asked, never assumed.
+    - **Checked 2026-10-22: NOT PINNED DOWN — to be asked of an accountant.** No text defines it.
+      - Avis 24 uses « période » six times and defines it nowhere; its §1 defines other terms.
+      - Loi 9-88 art. 7 defines only the exercice (twelve months).
+      - What only SUGGESTS a month:
+        - Loi 9-88 art. 3: the journals are centralised « une fois par mois » — but a natural person under 2 MDH may
+          centralise once a year.
+        - The CGNC: centralisation « au moins une fois par mois »; « récapitulations au moins mensuelles ».
+      - What argues against one fixed length:
+        - The CGNC allows interim statements « semestrielle, trimestrielle ou mensuelle ».
+        - VAT is filed monthly or quarterly by turnover (CGI art. 108). Nothing ties it to Avis 24.
+      - The DGI's note circulaire n° 737 cites Avis 24 and says nothing on periods. Professional commentary repeats
+        « deux périodes ouvertes » without a length.
+      - The official sites (finances.gov.ma, tax.gov.ma) did not answer, so the CGI and note 737 were read in
+        third-party copies.
+      - **The question for the accountant:** « Pour le principe d'irréversibilité de l'avis CNC n° 24 (annexe §2.3 d),
+        quelle durée de « période » un logiciel doit-il appliquer : le mois (centralisation mensuelle, loi 9-88 art. 3),
+        le trimestre pour un assujetti TVA trimestriel (CGI art. 108-II), ou une durée fixée par l'entreprise dans son
+        manuel comptable ? Un commerçant autorisé à centraliser une fois par exercice peut-il n'avoir qu'une période ?
+        Existe-t-il une position écrite du CNC, de la DGI ou de l'Ordre ? »
+      - D10 waits for the answer. The most natural reading is the month, and it is not to be picked without the
+        accountant.
+  - **Done when:**
+    - the opening entry is taken once and refused a second time;
+    - the date and the person are recorded;
+    - for a Moroccan workspace, an entry dated outside the open periods is refused BY THE DATABASE, with its reason,
+      and an entry inside them goes through;
+    - a non-Moroccan workspace keeps the manual lock;
+    - each rule, switched off, fails its own test.
+- **D11 · History, not in the books — DEFERRED (the owner, 2026-10-22).**
+  - **Not built, and not to be built until there is evidence for it.** A parallel, ledger-shaped store for history is
+    a lot of surface for a system of record: a new table, five connectors changed, a page, an export, its own erasure,
+    retention and role rules — all to hold data already decided not to be in the books.
+  - **The need is "I want to look at what happened before", and the FILE answers it.** D10 keeps the source document
+    instead (below).
+  - **Trigger:** real owners turning out to need searchable pre-Nomi detail INSIDE Nomi, with evidence that somebody
+    wanted it.
+- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). Part of D10, since it needs
+  D10's open window.
+  - When an import brings entries outside the open window, its SOURCE DOCUMENT is kept as a document in A4's store,
+    with its retention date, marked "history, not in the books": the workbook, the statement file, the export.
+  - It inherits A4's erasure, retention, sealing and role rules. It goes with the books at closure like everything else
+    in that store, so there is no new decision about it.
+  - The owner opens and downloads it like any paper.
+  - What D10 needs for it:
+    - a mark on the document, set when it is kept (documents are never updated, G20);
+    - the workbook's and the statement's media types admitted where the store is written (the papers' page takes images
+      and PDFs; the database's check takes any media type);
+    - the read-in keeping the entries inside the window, the file kept for what fell outside.
+  - **Odoo, Xero and QuickBooks give no file, and need none:** the owner still has them, and their history has not
+    gone anywhere. The Moroccan start advice says so (`books.morocco.systems`).
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
@@ -608,7 +705,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
       (required there, refused in the US). A conflict waits: already there (or 6140), an account or a party QuickBooks
       lacks, books in another currency than the company's, a number longer than 21, QuickBooks' own refusal. A
       subscription that ended (6190) is said for what it is.
-- **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
+- **DZ · The role check, in EVERY block — and a final confirmation** (the owner, 2026-10-22; at first a closing sweep).
+  - Each block's done-criteria (§4) now include it: a new table means the accountant and staff are checked AT THE
+    DATABASE, with a test that goes past the route guard.
+  - DZ stays as the final confirmation that nothing was missed, not the first time anyone looks.
+  - The gaps already found (below: block C's and D's own tables) are closed within block S, each with its test past the
+    route guard, before block S's PR merges.
   - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
     statements).
   - Before Phase 5 closes, **every role restriction is checked at the database, not the page:**
@@ -617,21 +719,172 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **Found in D7, for the sweep:** the accountant's write is refused at the database on invoices, payments,
     statements, matches, credit notes, papers' readings, fiscal years and custom fields — but NOT on parties, accounts,
     journals, tax codes, or a draft entry and its lines. The routes refuse them all, and posting is refused (0175).
+  - **Closed in block S (0200, 2026-10-22):** 0186's `books_owner_acts` now stands on parties, accounts, journals, tax
+    codes, journal entries and journal lines too. `tests/integration/books-dz.test.ts` goes past every route guard: as
+    the accountant, each table is still in sight, and each insert, change and deletion is refused with the books'
+    reason; the owner's same write goes. Each table's guard is proven by dropping it alone.
+  - **Found and closed in block S (0201, 2026-10-22): staff had the books underneath.** Decision 12 gives staff nothing
+    of the books; the routes held it, but a request made as a member of the team read the chart of accounts and added
+    an account to it. 0201 adds a restrictive `not_for_staff` policy (`viewer_is_staff()`, from the person's own row) to
+    every one of the books' own tables: a team member's request sees no row of them and writes none. Left open, because
+    the sales side reads them too: the workspace row, the books' settings (the documents' residency), the documents
+    store and its blobs, and the owner's exchange rates. `books-dz.test.ts` walks the schema, so a new table of the
+    books must carry the policy or be named there with its reason; each part is proven by switching it off.
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 
-- **S1 · Item 18 — canned replies.**
-- **S2 · Item 19 — labels.**
-- **S3 · Item 21 — round-robin assignment.**
-- **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
-  Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's
-  sentence set is signed.
-- **S5 · Item 17 — FAQ learning** from the owner's own replies; a dismissed suggestion never returns. Free by word
-  matching; 💰 with embeddings.
-- **S6 · Item 20 — satisfaction surveys,** only where they're free: inside WhatsApp's 24-hour window, and on channels with
-  no per-message cost.
+- **S1 · Item 18 — canned replies.** *(built 2026-10-22, 0195: `/app/replies`, under Buyers.)*
+  - **A saved reply** is a title and its words in one or more of the five languages. Owner and staff keep them. The
+    accountant is refused by the route, and by the database, which shows them no row (0177's policy on the new
+    table, proven past the route guard).
+  - **It never sends.** In a conversation a person holds, the reply form has a second button that puts the chosen
+    saved reply in the box. The words come in the buyer's language where the reply has it, else the person's. They
+    go after what was typed, which travels with the same form, so nothing typed is lost.
+  - **The box then goes by the owner's reply, and only so:** sent where the window is open; refused and KEPT where
+    it is shut (CC-24); refused while the workspace is frozen, the box untouched.
+  - Archived, never deleted; one archived is never offered, and comes back only while no other one in use has its
+    title.
+  - **No placeholders, by decision (the owner, 2026-10-22).** A placeholder that silently fails sends a buyer
+    "Hi {name}". The words are put in as written, for the person to read and change. This is not a gap to fill
+    later.
+- **S2 · Item 19 — labels.** *(built 2026-10-22, 0196–0197: `/app/labels`, under Buyers.)*
+  - **A label** is the workspace's own word, one line of at most 40 characters, the same whatever its capitals. It is
+    put on a buyer from their panel, by name: the label in use of that name, or a new one.
+  - **On Buyers:** each label in use narrows the list (with the tab and the search kept), and the search finds a buyer
+    by a label they carry.
+  - **Decision 5 holds:** a label is NOT drawn on the Buyers row (name, last message, time). It shows above the list as
+    a narrowing, and on the buyer's panel.
+  - **Erased with the buyer:** `buyer_labels` is in the erasure contract and its links (0197 wraps 0151's erasure). The
+    real tool run (erase-buyer.test.ts) finds the erased buyer's label gone, and the next buyer's label and the label
+    itself kept.
+  - Taken off, the row stays marked; put on again is a new row. Archived, a label narrows nothing and no search finds
+    it. Nothing is deleted.
+  - Owner and staff. The accountant is refused by the route, and by the database, which shows them neither table
+    (checked past the route guard: DZ, in this block).
+- **S3 · Item 21 — round-robin assignment.** *(built 2026-10-22, 0198: the team page's "In turn" section.)*
+  - **The owner switches it on** and says who is in turn and who is away until a date, on the
+    team page, which is the owner's alone. An accountant is never in turn: the page offers no box, and the database
+    refuses it.
+  - **Who is next:** among those in turn and not away, the one who has waited longest since they were last given
+    one; never given one comes first; ties go to whoever joined first. Waiting longest, not fewest given, keeps it
+    fair across an absence: back from away, a person is next once, not given everything they missed. A seeded
+    property test (`tests/rotation.property.test.ts`, 2,000 runs a property) holds fairness to within one, the
+    skipping of anyone away, the return without a burst, and that the answer never depends on the rows' order.
+  - **When:** after a hand-off commits, before its alert is queued. The next in turn holds the conversation as if
+    they had taken it, and their turn moves only when they are given one. The alert still goes as before.
+  - **The owner's override wins:** the turn gives only a conversation that still waits for anyone. One a person
+    holds, or the owner has handed on, is never taken, then or later.
+  - **Nobody in turn, or the turn off:** the hand-off waits for anyone, exactly as before S3.
+  - **Claude's calls, reported:** a hand-off a deletion request made is never given in turn — it stays the owner's,
+    since recording the request is the owner's alone (checked twice: the worker skips it, and the database step
+    refuses any conversation whose buyer has a deletion request waiting; each check proven by switching it off).
+    A hand-off made while the assistant is stopped or silenced is given in turn like any other: those buyers wait
+    for a person, and the turn only says which one. A failure of the turn never stops the hand-off's alert.
+- **S4 · Item 16 — strict mode per language.** *(the code built 2026-10-22; in force in no language.)* **Gated on a
+  person:** a native reviewer per language, exactly as the Arabic disclosure is (decision 15). It switches on per
+  language only when that language's sentence set is signed.
+  - **What it does:** in a strict language — the customer's, or (G8) the reply's own — a reply goes alone only when it
+    is made, end to end, of signed sentences. Their blanks are filled only by this turn's facts: the product's name as
+    the catalogue has it, the business's and the assistant's names, a whole number, an amount, one to three digits.
+    Anything else waits for the owner as a draft, with its own reason (`autonomy_withheld: strict_unapproved`, and the
+    line on the draft card). It only ever takes the right to send alone away.
+  - **Where:** `src/core/conversation/strict.ts` and the one send decision (`commitTurn`). `PROPOSED` is the starter set
+    in five languages, for a reader to read. `SIGNED` is empty: until a reader signs a set — the exact sentences, the
+    reader named, in the same commit — nothing changes anywhere.
+  - **The done-criterion's 500 turns** (`tests/pipeline/strict-mode.test.ts`): through the real send decision, with
+    English signed for the test. A seeded generator writes signed sentences, the same with one thing changed, free
+    text, and mixtures. An oracle written separately from the check finds that nothing but signed sentences ever left
+    alone, and the approved replies went word for word. The control is the same 500 without strict mode, which send
+    the unapproved replies alone. Each part of the check is proven by switching it off.
+  - **Claude's calls, reported:**
+    - The line that answers a stop is not held by strict mode: it must reach the buyer, and it is Nomi's fixed sentence.
+    - The disclosure in front of a first reply is checked by its own signature, not here.
+    - The figures in a blank are the numeral guard's, as in every reply.
+    - **Not built:** telling the writer the signed sentences, so it composes from them. That changes the analysis and
+      writing prompts, which needs the live model check, and live checks wait for the owner's word (zero-spend). Until
+      then a strict language would draft nearly every reply.
+- **S5 · Item 17 — FAQ learning.** *(built 2026-10-22, 0199: "Answers people gave" on the knowledge page.)*
+  - **Only people's words.** Two kinds of reply are read: one a person typed in a conversation they held (or in the
+    channel's own app), paired with the buyer's last message before it; and a draft a person rewrote before it went,
+    paired with that turn's words. The assistant's words — sent alone, or approved as written — are never read. Neither
+    is the reopening template that goes in a person's place, nor a test conversation.
+  - **Word matching, free.** One suggestion per question: the same words, whatever their order, capitals, accents,
+    punctuation or a plural "s"; Chinese by pairs of characters; Arabic without its marks or article. It shows how many
+    asked, the newest wording, and the newest answer. Fewer than two words that matter is no question. A request for
+    a person or for a buyer's data to go, and an answer promising deletion, are never offered.
+  - **Nothing becomes an answer without the owner.** Teach and Set aside are the owner's alone (`answers_given`,
+    added to OWNER_ONLY). Teach writes a business-wide taught answer in the words the owner leaves in the form, and
+    decides the question in the same transaction. Staff see what is offered, and that the owner decides.
+  - **A dismissed one never returns.** The test sets a question aside, has another buyer ask it again in other
+    capitals and order, has a person answer it again — and it is not offered. A question the assistant would already
+    answer from what it was taught (the turn's own test) is not offered either.
+  - **Claude's calls, reported:**
+    - The suggestions are READ from replies already kept, never stored. They go with a buyer's messages when the buyer
+      is erased.
+    - Only the owner's decision is stored (`answer_decisions`): a SHA-256 digest of the question's folded words, never
+      the words. The decision therefore outlives the buyers who asked, and the erasure classes it as unrelated.
+    - A decision is final: no change, no deletion. Setting aside has no Undo; it asks first.
+    - Deciding is owner-only, even though staff may teach a fact by hand, because the item's criterion says "without
+      the owner".
+    - Read from the last 90 days; at most 12 shown, the most asked first.
+  - The accountant is refused by the route, and by the database, which shows them no decision and takes none (DZ,
+    in this block).
+- **S6 · Item 20 — satisfaction surveys.** *(built 2026-10-22, 0202: `/app/surveys`, under Buyers.)*
+  - **One question, after an order the owner confirmed:** how it went, from 1 to 5. Off until the owner switches it
+    on (`messaging_activation`: it lets the assistant write to buyers alone). Ten minutes after the order, so the
+    confirmation goes first; the minute's sweep asks it.
+  - **Only where free:** a chat channel (WhatsApp, Instagram, Messenger) inside the buyer's 24 hours, with an hour to
+    spare. The row is the assistant's automated message, so the send gate holds it as it holds a follow-up: never as a
+    template; never while stopped or silenced; never after a stop request, or in a language without a signed
+    disclosure. Otherwise it is set aside, with why (off, held by a person, not a chat channel, not free, unsigned, no
+    name for the disclosure it would need), and nothing is queued.
+  - **Signed sentences only, like the disclosure:** `src/core/conversation/survey.ts` holds the sentence in five
+    languages and a `SIGNED` table, empty today. A language is asked only when its reader signed that exact text,
+    named, in the same commit. **Until the owner signs the English one and native readers sign the rest, no buyer is
+    asked anything, whatever the switch says.**
+  - **Answers are stored and erasable:** a message that is ONLY a score (any of the digits buyers type, "/5", 分, the
+    word for stars, or 1 to 5 stars), within 24 hours of the question, is the answer: kept once, on the timeline, and
+    answered by nobody. It is checked after the hold, so a stopped assistant's buyer still reaches a person. Anything
+    more ("5 more bags please") is an ordinary message. `survey_asks` is erased with the buyer (contract, links,
+    `erase_customer_rows`; the real tool run finds it gone and the next buyer's kept).
+  - **Claude's calls, reported:**
+    - The moment is the owner's order confirmation, the only place a conversation closes today.
+    - E-mail is free, but it is left out: a letter needs a subject, which would also need signing.
+    - A score answers nobody: no thank-you, which would be another sentence to sign.
+    - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
 - **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
-  TikTok wait for revenue.
+  TikTok wait for revenue. *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
+  widget, the page first; one Nomi bot for every business; S7 stays in block S.)*
+  - **The chat page** (`/chat/<key>`, `src/api/web/webChat.ts`):
+    - The owner turns it on (owner only: going live) on Where customers reach you › Chat page, and shares the address.
+    - A visitor's message is stored once (a form sent twice is one message) and queued like a webhook's. It is answered
+      through the one turn and send gate, and shown on that page to that browser only (`yf_chat`, the page's path).
+    - Off, it answers nobody and takes nothing. A frozen workspace takes nothing either.
+    - It arrives complete, works without its script, and its script asks only the page's own mark.
+  - **The widget** (`/chat/<key>/widget.js`): one line on the business's own site draws a button that opens the page
+    in a frame. The visitor's handle is made in their browser and kept in that site's storage. It travels with the
+    request — never a Nomi cookie on another site, which browsers refuse anyway.
+  - **Telegram, one Nomi bot for every business:**
+    - Each business turns it on and shares `t.me/<bot>?start=<code>`. `/start <code>` ties the chat to that business
+      and is not itself a message.
+    - A chat writes to the business it started last, while that business has it on (`telegram_route`, 0204). A chat
+      that started none, a bad code, or a business switched off: nobody.
+    - An update without the webhook's secret is refused before it is read.
+    - Photos, voice notes and files are named and handed to a person, never opened (Telegram's media download is not
+      built).
+  - **D18:** Telegram is named on the privacy page (`legal.privacy.who.telegram`, five languages; `recipients.ts`
+    named). The chat page's keeping, its cookie and the widget's handle are said there (`legal.privacy.kept.chat`).
+  - **Simulator and pre-pilot:** scenarios 13 (the chat page) and 14 (Telegram) on the scripted pre-pilot, now 14/14.
+    Telegram's API is a recorder; the chat page needs none, since it is Nomi's own.
+  - **The send-path guards** are the ones every channel shares, proven on these two: the owner's Stop (the buyer
+    handed to a person, the owner's own reply still goes), the disclosure on the first message nobody approved, a
+    person holding the conversation, the numeral guard.
+  - **Not yet, the owner's:** creating the bot with @BotFather, pasting its three settings into Railway, and running
+    `tools/telegram-webhook.mjs` — then "Telegram live on deploy day" (zero-spend: no deploy until the owner says).
+  - **Claude's calls, reported:**
+    - The chat page and Telegram exist only on the messaging path (an installation with no channel at all has neither).
+    - `/start` gets no reply until the buyer writes: a welcome would be another sentence to sign.
+    - The bot is not the team-alerts bot. `TELEGRAM_BOT_TOKEN` is the one bot; no alert goes by Telegram yet.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.
 
 ### Dependencies at a glance
@@ -658,6 +911,9 @@ S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed u
 - every owner-facing line exists in en / zh / ar / es / fr, Arabic follows the no-gender rule, and the zh / ar lines are
   listed for native review;
 - a negative control: the item's key rule, switched off, fails its own tests;
+- **every new table: what the accountant and staff may read and write, checked AT THE DATABASE**, with a test that
+  goes past the route guard (`tests/integration/books-viewer.test.ts` is the model); a route guard alone is never the
+  check (the owner, 2026-10-22: DZ in every block);
 - merged through `tools/gated-merge.sh`.
 
 **Anything that needs a paid service:** built, tested against the vendor's sandbox, proven live on deploy day (decision 9).

@@ -126,7 +126,8 @@ describe('M39 · the registry states what the APIs permit', () => {
   });
 
   it('WeChat is absent until it has an adapter behind it', () => {
-    expect([...OUTREACH_CHANNELS]).toEqual(['email', 'whatsapp', 'instagram', 'messenger']);
+    // S7 (2026-10-22) — the chat page and Telegram joined, each with its adapter (src/channels/web_chat, telegram).
+    expect([...OUTREACH_CHANNELS]).toEqual(['email', 'whatsapp', 'instagram', 'messenger', 'web_chat', 'telegram']);
   });
 });
 

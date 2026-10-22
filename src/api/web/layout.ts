@@ -128,6 +128,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
+  // S1 (0195) — the saved replies a person answers buyers with: kept under Buyers.
+  { hub: '/app/inbox', routes: ['/app/replies', '/app/labels', '/app/surveys'] },
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: [ASSISTANT_HOME, '/app/business', '/app/settings/setup'] },
@@ -2885,6 +2887,10 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   // The advisor run — the assistant's settings are a row of Settings.
   [ASSISTANT_HOME]: { href: '/app/settings', label: 'nav.settings' },
   '/app/settings/people': { href: '/app/settings/setup', label: 'nav.setup' },
+  // S1 — the saved replies lead back to Buyers.
+  '/app/replies': { href: '/app/inbox', label: 'nav.inbox' },
+  '/app/labels': { href: '/app/inbox', label: 'nav.inbox' },
+  '/app/surveys': { href: '/app/inbox', label: 'nav.inbox' },
   '/app/guide': { href: '/app/settings/setup', label: 'nav.setup' },
   '/app/onboarding': { href: '/app/settings/setup', label: 'nav.setup' },
   // THE WARMTH RUN — Settings' two rows lead back to it.

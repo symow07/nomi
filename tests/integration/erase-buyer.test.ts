@@ -118,6 +118,10 @@ const D = { client: id(85), cc: id(86), c: id(87), m: id(88) };
 const C = { client: id(90), c: id(91), m: id(92), s: id(93), ct: id(94), cn: id(95), sup: id(96), pl: id(97), req: id(98), au: '', job: '' };
 /** The same person as A recorded a second time in A's business — by e-mail. Erased with A (D3, 0139). */
 const Y = { client: id(100) };
+/** S2 (0196) — a label of the workspace's, on A and on B: A's goes with A, B's stays, the label stays. */
+const LB = { label: id(110), onA: id(111), onB: id(112) };
+/** S6 (0202) — a survey asked of A after an order, answered; one asked of B: A's goes with A, B's stays. */
+const SV = { onA: id(113), onB: id(114) };
 
 /** A key as the snapshot prints it: the row's primary key, `row(...)::text`. */
 const k = (...v: (string | number)[]) => `(${v.join(',')})`;
@@ -365,6 +369,12 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       await ins('clients', { id: B.client, business_id: B1, display_name: `Bilal${RUN}`, phone: PHONE_B, email: EMAIL_B });
       await ins('client_channels', { id: B.cc, client_id: B.client, channel: 'whatsapp', channel_user_id: PHONE_B });
       await ins('conversations', { id: B.c, business_id: B1, client_id: B.client, channel: 'whatsapp' });
+      await ins('labels', { id: LB.label, business_id: B1, name: 'Wholesale', created_by: 'owner' });
+      await ins('buyer_labels', { id: LB.onA, business_id: B1, client_id: A.client, label_id: LB.label, added_by: 'owner' });
+      await ins('buyer_labels', { id: LB.onB, business_id: B1, client_id: B.client, label_id: LB.label, added_by: 'owner' });
+      await ins('survey_asks', { id: SV.onA, business_id: B1, client_id: A.client, conversation_id: A.c1, due_at: '2026-10-01T10:00:00Z',
+        state: 'answered', outbound_id: A.o1, asked_at: '2026-10-01T10:00:00Z', language: 'en', score: 5, answer_text: '5', answered_at: '2026-10-01T10:05:00Z' });
+      await ins('survey_asks', { id: SV.onB, business_id: B1, client_id: B.client, conversation_id: B.c, due_at: '2026-10-01T10:00:00Z' });
       await ins('messages', { id: B.m, conversation_id: B.c, external_id: `wamid.B1in.${RUN}`, direction: 'inbound', text_content: 'B here' });
       await ins('conversation_state', { id: B.s, conversation_id: B.c });
       await ins('shadow.turn_decisions', { message_id: `shadow-b-${RUN}`, conversation_id: B.c, business_id: B1, svc_decision: J({ reply: 'Hello B' }) }, 'message_id');
@@ -640,6 +650,10 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       `handoffs:${k(A.ho)}`,
       `sample_requests:${k(A.sr)}`,
       `deletion_asks:${k(A.ask)}`,
+      // S2 (0196) — the label on them is theirs; the label itself, and B's, stay.
+      `buyer_labels:${k(LB.onA)}`,
+      // S6 (0202) — the survey asked of them, and their answer; B's stays.
+      `survey_asks:${k(SV.onA)}`,
       ...[A.o1, A.o2, A.o3].map((x) => `outbound_messages:${k(x)}`),
       `outbound_transitions:${k(A.tr1)}`,
       `deliveries:${k(A.dl)}`,

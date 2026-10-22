@@ -9,6 +9,7 @@ import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capabilit
 import { AUTONOMY_LEVELS, levelOf, isAutonomyLevel, type AutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
+import { STRICT_LOCALES, STRICT_SIGNED, proposedSentences } from '../../core/conversation/strict.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, claimName, languageDisplay, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
@@ -577,6 +578,18 @@ function holdLine(e: EmployeeProfile, locale: Locale, hold: AloneHold | null): s
   return '';
 }
 
+/**
+ * S4 — strict mode: in which languages only signed sentences go alone. None until a native reader signs a set; the
+ * line says so, and how many sentences each set has to read. Only while something goes alone at all.
+ */
+function strictLine(locale: Locale, hold: AloneHold | null): string {
+  if (hold !== null || !autonomyReleased()) return '';
+  const strict = STRICT_LOCALES.filter((l) => STRICT_SIGNED[l] !== undefined);
+  return `<p class="small">${esc(strict.length === 0
+    ? t(locale, 'autonomy.strict.none', { n: String(proposedSentences('en').length) })
+    : t(locale, 'autonomy.strict.some', { list: formatList(locale, strict.map((l) => languageName(locale, l))) }))}</p>`;
+}
+
 /** 2026-09-30 — per language: which customers get replies sent alone, and which always wait. Only while something goes alone at all. */
 function languagesLine(locale: Locale, hold: AloneHold | null): string {
   return hold === null && autonomyReleased() && disclosureAwaitingReview().length ? `<p class="small">${esc(t(locale, 'autonomy.languages', {
@@ -657,7 +670,7 @@ function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): strin
       </form>`}
       ${inForce}
       ${withdrawnRows(e, locale)}
-      ${languagesLine(locale, st.hold)}
+      ${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}
       ${stopHere(e, locale, viewer)}
       ${more}
     </section>`;
@@ -814,7 +827,7 @@ export function renderEmployeeScreen(
       return `${back2}<div class="block">
         <p>${esc(t(locale, 'autonomy.intro'))}</p>
         ${st.hold ? `<p>${esc(st.heldWhy)}</p>` : ''}
-        ${languagesLine(locale, st.hold)}
+        ${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}
         <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
         ${chosenBlock(e, locale)}
         ${e.ramp ? rampBlock(e.ramp, locale) : ''}

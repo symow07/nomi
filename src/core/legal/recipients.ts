@@ -48,7 +48,8 @@ export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
   { id: 'xero', name: 'Xero', switchedOnBy: (env) => set(env, 'XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'), named: false },
   { id: 'intuit', name: 'Intuit (QuickBooks)', switchedOnBy: (env) => set(env, 'QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'), named: false },
   { id: 'documentReader', name: 'the model that reads receipts, invoices and bills', switchedOnBy: (env) => set(env, 'DOCUMENT_READER_API_KEY'), named: false },
-  { id: 'telegram', name: 'Telegram', switchedOnBy: (env) => set(env, 'TELEGRAM_BOT_TOKEN'), named: false },
+  // S7 (2026-10-22) — Nomi's one Telegram bot carries buyers' messages: named on the privacy page in every language.
+  { id: 'telegram', name: 'Telegram', switchedOnBy: (env) => set(env, 'TELEGRAM_BOT_TOKEN'), named: { key: 'legal.privacy.who.telegram' } },
 ];
 
 /** What the boot refuses: each service switched on that the privacy page does not name. */

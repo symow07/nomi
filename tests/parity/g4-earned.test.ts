@@ -58,7 +58,8 @@ describe('G4 · the rule, where it is decided', () => {
     // R3 — and the product's first quote, beside it.
     // LG — and the language's first five, beside it.
     // 0163 — and not withdrawn in this language.
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);');
+    // S4 (2026-10-22) — strict mode joined the conditions: where a language is strict, only signed sentences.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);');
     expect(turn).toContain("...(!earned ? { reason: 'not_earned' } :");
   });
   it('the one function answers for the caller only, from the workspace that pays, and no outside a tenant', () => {

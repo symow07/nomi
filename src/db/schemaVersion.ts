@@ -443,7 +443,17 @@ import type { Db } from './client.js';
 // 192 = custom fields travel with the books: a connector's record kind 'field'; only a party's field is required (0192).
 // 193 = the shop's own Xero: its grant, its connection, its records, its taxes' start days (0193).
 // 194 = the shop's own QuickBooks Online: its grant, its connection, its records (0194).
-export const REQUIRED_SCHEMA_VERSION = 194;
+// 195 = saved replies: the words a workspace's people reuse when they answer a buyer (0195).
+// 196 = labels on buyers: the workspace's own words to sort its buyers by, erased with the buyer (0196).
+// 197 = a label on a buyer goes with the buyer: the customer erasure follows the new link (0197).
+// 198 = hand-offs in turn: the switch, who is in turn and away, and when each was last given one (0198).
+// 199 = the owner's decisions on answers people gave: taught or dismissed, by a digest of the question (0199).
+// 200 = an accountant's write refused by the database on the rest of the books: parties, accounts, journals, tax codes, entries and lines (0200).
+// 201 = staff get nothing of the books, said by the database: a team member's request sees and writes no row of them (0201).
+// 202 = how did we do? one question after an order, asked only where free; the answer kept and erasable (0202).
+// 203 = two more channels, the business's chat page and Telegram: the channel lists widened (0203).
+// 204 = one Telegram bot for every business: which business a chat writes to, by the start link it opened last (0204).
+export const REQUIRED_SCHEMA_VERSION = 204;
 
 export type SchemaState = {
   readonly required: number;
