@@ -71,6 +71,10 @@ import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
+import { webChatAdapter } from './channels/web_chat/adapter.js';
+import { telegramFrom, type TelegramFetch } from './channels/telegram/adapter.js';
+import { START_CODE, telegramRoute } from './db/telegram.js';
+import type { ChannelEvent, InboundMessageEvent } from './channels/whatsapp/parse.js';
 import { sendDueSurveys, surveyBusinessesDue } from './db/surveys.js';
 import type { SurveySigned } from './core/conversation/survey.js';
 import { deliverOwnerAlert, sendAlert, lateUrgentAlert } from './pipeline/notify.js';
@@ -522,6 +526,8 @@ export async function buildProduction(
      * signed in src/core/conversation/survey.ts, by name, in the commit that names the reader.
      */
     surveySigned?: SurveySigned;
+    /** S7 — tests only: Telegram's Bot API, instead of the network. */
+    telegramFetch?: TelegramFetch;
     /** CH3 — tests only: how long an echo waits before it is read (production: ECHO_SETTLE_SECONDS). */
     echoSettleSeconds?: number;
     /** G5b — tests only: the push service, instead of the network. */
@@ -804,10 +810,17 @@ export async function buildProduction(
       }
       : {};
 
+  /**
+   * S7 — Telegram: Nomi's one bot for every business (the owner's choice, 2026-10-22), from the environment, and only
+   * while the privacy page names Telegram (D18). A business turns it on and shares its own start link.
+   */
+  const telegramBot = recipientNamed('telegram') ? telegramFrom(process.env, overrides?.telegramFetch) : null;
+
   const whatsappHere = overrides?.adapter !== undefined || cfg.provider !== 'disabled';
   const channelsHere: readonly string[] = [
     ...(whatsappHere ? ['whatsapp'] : []),
     ...Object.keys(socialIngress),
+    ...(telegramBot ? ['telegram'] : []),
   ];
 
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
@@ -844,6 +857,8 @@ export async function buildProduction(
   const legalFacts = {
     processor: aiProcessor(llm.baseURL), hosting: HOSTING,
     ...(fallbackSwitchedOn(process.env, fallbackLlm) && fallbackLlm ? { fallback: aiProcessor(fallbackLlm.baseURL) } : {}),
+    // S7 — Telegram, while Nomi's bot is on here (named whenever it is: recipients.ts).
+    ...((process.env['TELEGRAM_BOT_TOKEN'] ?? '').trim() ? { telegram: true } : {}),
   };
   console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
   // The owner's decision at the Phase 4 gate (2026-10-14): the legal pages name who runs Nomi before any real business
@@ -899,10 +914,14 @@ export async function buildProduction(
     keys: vapid,
     fetch: overrides?.pushFetch ?? ((url: string, init: { method: string; headers: Record<string, string>; body: Buffer; signal?: AbortSignal }) => fetch(url, init)),
   } : null;
+  /** S7 — the chat page's way in, set once the ingress exists (messaging path only; deployment mode has none). */
+  let ingestWebChat: ((e: InboundMessageEvent) => Promise<'new' | 'duplicate' | 'refused'>) | null = null;
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,
       pageTranscriber,
+      ...(ingestWebChat ? { chatIngest: ingestWebChat } : {}),
+      ...(telegramBot && ingestWebChat ? { telegramBot: { username: telegramBot.username } } : {}),
       documentReader,
       // EXT — a PDF is offered only where the provider reads documents (Anthropic's does;
       // this installation's custom provider answered one with nothing, 2026-10-01).
@@ -1343,7 +1362,9 @@ export async function buildProduction(
         })),
     });
     const byChannel: Record<string, ChannelAdapter | undefined> = {
-      ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaAdaptersFor(businessId, metaAccount),
+      // S7 — the chat page: accepted here, written to the conversation by the send path, read on the page.
+      ...(adapter ? { [adapter.kind]: adapter } : {}), email, web_chat: webChatAdapter(), ...(telegramBot ? { telegram: telegramBot.adapter } : {}),
+      ...metaAdaptersFor(businessId, metaAccount),
       ...waAdaptersFor(businessId, waAccount),
       ...(waAccount === null && installationNumber !== null && waNumber !== installationNumber ? { whatsapp: undefined } : {}),
     };
@@ -1743,7 +1764,7 @@ export async function buildProduction(
   // adapter's for every channel, which on a 360dialog installation would have
   // recorded an Instagram message as theirs.
   const inboundAdapters: Record<string, ChannelAdapter> = Object.fromEntries(
-    [...(adapter ? [adapter] : []), ...Object.values(socialIngress)].map((a) => [a.kind, a]),
+    [...(adapter ? [adapter] : []), ...Object.values(socialIngress), ...(telegramBot ? [telegramBot.adapter] : [])].map((a) => [a.kind, a]),
   );
   const providerOf: Record<string, string> = Object.fromEntries(
     Object.values(inboundAdapters).map((a) => [a.kind, a.provider]),
@@ -1771,18 +1792,8 @@ export async function buildProduction(
     return ask ? ask(e.waId) : null;
   };
 
-  const app = buildIngressApp({
-    ...(adapter ? { adapter } : {}),
-    verifyToken: cfg.WEBHOOK_VERIFY_TOKEN,
-    logger: overrides?.logger ?? true,
-    // C9 — one path per channel, so a payload delivered to the wrong one is a
-    // 401 rather than a message parsed into the wrong conversation.
-    also: [
-      ...(socialIngress.instagram ? [{ path: '/webhook/instagram', adapter: socialIngress.instagram }] : []),
-      ...(socialIngress.messenger ? [{ path: '/webhook/messenger', adapter: socialIngress.messenger }] : []),
-    ],
-
-    persistEvent: async (e, rawPayload, channel) => {
+  // The stored-once gate and the turn's queue, for every channel's events (the webhooks, and S7's chat page).
+  const persistEvent = async (e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
       // D4 (2026-10-12) — a frozen workspace (its subscription lapsed) receives nothing: the event is
@@ -1803,9 +1814,9 @@ export async function buildProduction(
         `.execute(tx);
         return r.rows.length > 0 ? 'new' : 'duplicate';
       });
-    },
+    };
 
-    onNewEvent: async (e, channel) => {
+  const onNewEvent = async (e: ChannelEvent, channel: string): Promise<void> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return;
 
@@ -1861,7 +1872,59 @@ export async function buildProduction(
             { singletonKey: r.conversationId });
         }
       }
-    },
+    };
+
+  /**
+   * S7 — the chat page's message: stored once and queued exactly as a webhook's. A page switched off, or a frozen
+   * workspace, takes nothing (`persistEvent` answers 'duplicate' for both, as it does a webhook's).
+   */
+  ingestWebChat = async (e: InboundMessageEvent): Promise<'new' | 'duplicate' | 'refused'> => {
+    const page = await resolveTenant(e.phoneNumberId, 'web_chat');
+    if (!page || await withTenantTx(db, page, (tx) => billingHeld(tx))) return 'refused';
+    const r = await persistEvent(e, { text: e.text }, 'web_chat');
+    if (r === 'new') await onNewEvent(e, 'web_chat');
+    return r;
+  };
+
+  /**
+   * S7 — which business a Telegram message is for. "/start <code>" (the business's own link) ties the chat to that
+   * business — a handle there, and the newest, so it is the one written to — and is not itself a message. Anything
+   * else goes to the business the chat started last, while it has Telegram on; a chat that started none, to nobody.
+   */
+  const routeTelegram = async (e: InboundMessageEvent): Promise<ChannelEvent | null> => {
+    const text = (e.text ?? '').trim();
+    const start = /^\/start(?:@\w+)?(?:\s+(\S+))?$/.exec(text);
+    if (start) {
+      const code = start[1] && START_CODE.test(start[1]) ? start[1] : null;
+      const bid = code ? await resolveTenant(code, 'telegram') : null;
+      if (bid && !(await withTenantTx(db, bid, (tx) => billingHeld(tx)))) {
+        await withTenantTx(db, bid, async (tx) => {
+          await ensureConversation(tx, bid, e.waId, e.profileName, 'telegram');
+          await sql`update client_channels set last_inbound_at = ${e.occurredAt} where channel = 'telegram' and channel_user_id = ${e.waId}`.execute(tx);
+        });
+      }
+      return null;
+    }
+    const code = await telegramRoute(db, e.waId);
+    return code ? { ...e, phoneNumberId: code } : null;
+  };
+
+  const app = buildIngressApp({
+    ...(adapter ? { adapter } : {}),
+    verifyToken: cfg.WEBHOOK_VERIFY_TOKEN,
+    logger: overrides?.logger ?? true,
+    // C9 — one path per channel, so a payload delivered to the wrong one is a
+    // 401 rather than a message parsed into the wrong conversation.
+    also: [
+      ...(socialIngress.instagram ? [{ path: '/webhook/instagram', adapter: socialIngress.instagram }] : []),
+      ...(socialIngress.messenger ? [{ path: '/webhook/messenger', adapter: socialIngress.messenger }] : []),
+      // S7 — Telegram signs with the secret its webhook was set with, in its own header.
+      ...(telegramBot ? [{ path: '/webhook/telegram', adapter: telegramBot.adapter, signatureHeader: 'x-telegram-bot-api-secret-token' }] : []),
+    ],
+    route: async (e, channel) => (channel === 'telegram' && e.kind === 'message' ? routeTelegram(e) : e),
+
+    persistEvent,
+    onNewEvent,
   });
 
   // /health's `provider` is WhatsApp's, as it always was: 'disabled' here means

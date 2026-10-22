@@ -743,15 +743,16 @@ export type InboundLink = {
  * notice sent there still lands; every action lands on the screen of its
  * control.
  */
-export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts';
-export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts'];
+export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts' | 'chat' | 'telegram';
+export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts', 'chat', 'telegram'];
 export const CHANNELS_HOME = '/app/business/channels';
 export const channelScreenHref = (s: ChannelScreen): string => `/app/channels/${s}`;
 /** The screen a channel's own controls are on. */
 export const screenOfChannel = (c: OutreachChannel): ChannelScreen =>
-  c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : 'whatsapp';
+  c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : c === 'web_chat' ? 'chat' : c === 'telegram' ? 'telegram' : 'whatsapp';
 const CHANNEL_SCREEN_TITLE: Readonly<Record<ChannelScreen, MessageKey>> = {
   whatsapp: 'reach.channel.whatsapp', meta: 'meta.panel.title', email: 'reach.channel.email', alerts: 'channels.alerts.title',
+  chat: 'reach.channel.web_chat', telegram: 'reach.channel.telegram',
 };
 /** Each screen's heading — the home's row for it says the same words, and so does the tab. */
 export const channelScreenTitle = (locale: Locale, s: ChannelScreen): string => t(locale, CHANNEL_SCREEN_TITLE[s]);
@@ -766,7 +767,31 @@ export type ChannelScreenParts = {
   readonly yourAccountsHtml?: string;
   /** CH4 — where Nomi stands with Meta, the same for every workspace. */
   readonly metaReview?: MetaReview | null;
+  /** S7 — the business's chat page: its address while it is on (null: off), and whether this host can serve one. */
+  readonly chatPage?: { readonly url: string | null; readonly served: boolean };
+  /** S7 — Telegram: the business's start link while it is on (null: off), and whether this host has the bot. */
+  readonly telegram?: { readonly url: string | null; readonly served: boolean };
 };
+
+/**
+ * S7 — the chat page's screen, and Telegram's: what it is, whether it answers, the address to share while it does, and
+ * the owner's switch (it lets the assistant answer there: going live, rule 11). Staff see the same and that the owner
+ * decides. Where the host cannot serve it (no messaging path; for Telegram, no bot), it says so and offers nothing.
+ */
+function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | null; readonly served: boolean }, which: 'chat' | 'telegram'): string {
+  const k = (s: string) => `channels.${which}.${s}` as MessageKey;
+  const name = assistantName(locale);
+  if (!p.served) return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p><p>${esc(t(locale, k('notHere')))}</p>`;
+  const on = p.url !== null;
+  const control = viewer.isOwner
+    ? `<form method="post" action="/app/channels/${which}" class="inline"><input type="hidden" name="on" value="${on ? '0' : '1'}" />
+        <button class="btn${on ? ' ghost' : ' send'}" type="submit"${on ? ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, k('offAsk')))}"` : ''}>${esc(t(locale, on ? k('turnOff') : k('turnOn')))}</button></form>`
+    : `<p class="caption">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+  return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p>
+    <p><span class="pill${on ? ' ok' : ''}">${esc(t(locale, on ? k('on') : k('off')))}</span></p>
+    ${on ? `<p>${esc(t(locale, k('share')))}</p><p class="issued"><span class="code" dir="ltr">${esc(p.url!)}</span></p>` : ''}
+    ${control}`;
+}
 
 /** The WhatsApp connection: where it stands, the number and its name, what to do, and writing after 24 hours. */
 function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer): string {
@@ -934,6 +959,8 @@ export function renderChannelScreen(
     case 'email': return body(`${parts.accountsHtml ?? ''}${reach('email')}`);
     case 'meta': return body(metaScreen(locale, viewer, parts));
     case 'alerts': return body(alertsScreen(data, locale, viewer));
+    case 'chat': return body(chatScreen(locale, viewer, parts.chatPage ?? { url: null, served: false }, 'chat'));
+    case 'telegram': return body(chatScreen(locale, viewer, parts.telegram ?? { url: null, served: false }, 'telegram'));
   }
 }
 

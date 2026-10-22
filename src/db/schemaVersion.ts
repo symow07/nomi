@@ -452,7 +452,8 @@ import type { Db } from './client.js';
 // 201 = staff get nothing of the books, said by the database: a team member's request sees and writes no row of them (0201).
 // 202 = how did we do? one question after an order, asked only where free; the answer kept and erasable (0202).
 // 203 = two more channels, the business's chat page and Telegram: the channel lists widened (0203).
-export const REQUIRED_SCHEMA_VERSION = 203;
+// 204 = one Telegram bot for every business: which business a chat writes to, by the start link it opened last (0204).
+export const REQUIRED_SCHEMA_VERSION = 204;
 
 export type SchemaState = {
   readonly required: number;

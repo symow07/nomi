@@ -157,6 +157,10 @@ export const COOKIES: readonly NomiCookie[] = [
     reason: 'A team member\'s access code, shown to the owner once right after it is made (people.ts ISSUED_TTL_MS).',
   },
   {
+    name: 'yf_chat', purpose: 'legal.privacy.cookies.for.chat', lifetimeSec: 180 * 24 * 3600, class: 'necessary',
+    reason: 'S7 — the chat page\'s visitor handle (webChat.ts CHAT_COOKIE), on that page\'s path only: without it the page cannot show this browser its own conversation, or keep it from anyone else.',
+  },
+  {
     name: 'yf_oauth', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of a mailbox connection in progress (Google or Microsoft), checked when the provider sends the person back.',
   },

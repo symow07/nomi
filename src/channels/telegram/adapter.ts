@@ -111,3 +111,19 @@ export function telegramAdapter(cfg: {
     sendMedia: async (to, media: OutboundMedia) => call('sendPhoto', { chat_id: to, photo: media.url, ...(media.caption ? { caption: media.caption.slice(0, 1024) } : {}) }, to),
   };
 }
+
+/**
+ * Nomi's one bot, from the installation's environment (pasted into Railway by the owner, never typed anywhere else):
+ * `TELEGRAM_BOT_TOKEN`, the secret its webhook was set with (`TELEGRAM_WEBHOOK_SECRET`, `tools/telegram-webhook.mjs`)
+ * and its public name (`TELEGRAM_BOT_USERNAME`, for the start links). All three, or no Telegram here; and none at all
+ * while the privacy page does not name Telegram (D18: `named` is checked by the caller).
+ */
+export function telegramFrom(env: Readonly<Record<string, string | undefined>>, fetchImpl?: TelegramFetch):
+  { readonly adapter: ChannelAdapter; readonly username: string } | null {
+  const token = (env['TELEGRAM_BOT_TOKEN'] ?? '').trim();
+  const secret = (env['TELEGRAM_WEBHOOK_SECRET'] ?? '').trim();
+  const username = (env['TELEGRAM_BOT_USERNAME'] ?? '').trim().replace(/^@/, '');
+  const botId = /^(\d{5,}):[\w-]{20,}$/.exec(token)?.[1];
+  if (!botId || !/^[A-Za-z0-9_-]{16,256}$/.test(secret) || !/^[A-Za-z][A-Za-z0-9_]{3,31}bot$/i.test(username)) return null;
+  return { adapter: telegramAdapter({ botId, token, secretToken: secret, ...(fetchImpl ? { fetchImpl } : {}) }), username };
+}

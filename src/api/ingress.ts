@@ -32,7 +32,17 @@ export type IngressDeps = {
    * path is then a 401 from the wrong adapter instead of a message quietly
    * parsed into the wrong channel's conversation.
    */
-  readonly also?: readonly { readonly path: string; readonly adapter: ChannelAdapter }[];
+  readonly also?: readonly {
+    readonly path: string; readonly adapter: ChannelAdapter;
+    /** S7 — the header the channel signs with, when it is not Meta's (Telegram: its webhook's secret). */
+    readonly signatureHeader?: string;
+  }[];
+  /**
+   * S7 — which business an event is for, when the account it arrived on does not say (one Telegram bot for every
+   * business): the event re-addressed to that business's account, or null — nobody's, acknowledged and dropped.
+   * Asked before anything is stored. Absent: every event is addressed already.
+   */
+  route?(e: ChannelEvent, channel: string): Promise<ChannelEvent | null>;
   /** Insert into channel_events keyed on e.dedupKey (NOT eventId — statuses
    * share their message's wamid); 'duplicate' = key hit = already seen. */
   persistEvent(e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'>;
@@ -58,7 +68,7 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
   // event id. WhatsApp's payloads also carry STATUSES; those are events of the
   // same parse, and `persistEvent` records them by kind.
   if (deps.adapter) mountChannel(app, '/webhook/whatsapp', deps.adapter, deps, now);
-  for (const mount of deps.also ?? []) mountChannel(app, mount.path, mount.adapter, deps, now);
+  for (const mount of deps.also ?? []) mountChannel(app, mount.path, mount.adapter, deps, now, mount.signatureHeader);
 
   return app;
 }
@@ -73,7 +83,7 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
  */
 function mountChannel(
   app: FastifyInstance, path: string, adapter: ChannelAdapter,
-  deps: IngressDeps, now: () => Date,
+  deps: IngressDeps, now: () => Date, signatureHeader = 'x-hub-signature-256',
 ): void {
   app.get(path, async (request, reply) => {
     const q = request.query as Record<string, string | undefined>;
@@ -85,7 +95,7 @@ function mountChannel(
 
   app.post(path, async (request, reply) => {
     const rawBody = typeof request.body === 'string' ? request.body : '';
-    const signature = request.headers['x-hub-signature-256'];
+    const signature = request.headers[signatureHeader];
     if (!adapter.verifyWebhook(rawBody, typeof signature === 'string' ? signature : undefined)) {
       return reply.code(401).send({ ok: false });
     }
@@ -96,8 +106,10 @@ function mountChannel(
       return reply.code(200).send({ ok: true, received: 0 });
     }
     let received = 0;
-    for (const event of adapter.parseWebhook(payload)) {
-      if (isStaleEvent(event.occurredAt, now())) continue;
+    for (const parsed of adapter.parseWebhook(payload)) {
+      if (isStaleEvent(parsed.occurredAt, now())) continue;
+      const event = deps.route ? await deps.route(parsed, adapter.kind) : parsed;
+      if (!event) continue;
       // The channel travels with the event so the store writes it on the row:
       // two channels share this handler and a conversation belongs to one.
       const outcome = await deps.persistEvent(event, payload, adapter.kind);

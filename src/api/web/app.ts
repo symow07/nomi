@@ -249,6 +249,9 @@ import { answerSuggestions, dismissSuggestion, teachSuggestion } from '../../db/
 import { renderAnswerSuggestions } from './answerSuggestions.js';
 import { latestSurveyAnswers, setSurveysOn, surveyFacts } from '../../db/surveys.js';
 import { renderSurveys } from './surveys.js';
+import { mountWebChat, type WebChatDeps } from './webChat.js';
+import { chatPageKey, setChatPage } from '../../db/webChat.js';
+import { setTelegram, telegramCode } from '../../db/telegram.js';
 import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
@@ -435,6 +438,10 @@ export type WebDeps = {
    */
   readonly connectableNumber?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
+  /** S7 — the business's chat page (/chat/:key): its message, stored once and queued as a webhook's. Absent: no chat pages here. */
+  readonly chatIngest?: WebChatDeps['ingest'];
+  /** S7 — Nomi's Telegram bot, where this host has it (its public name, for each business's start link). */
+  readonly telegramBot?: { readonly username: string };
   /**
    * The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)).
    * 0080 — `asks`: the question the reply asks, stamped when it leaves.
@@ -586,6 +593,9 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
+  { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
+  { method: 'POST', url: '/chat/:key', why: 'S7 — a message to that page, stored once and queued like a webhook\'s; throttled per caller; refused while the page is off or the workspace frozen' },
+  { method: 'GET', url: '/chat/:key/mark', why: 'S7 — the page\'s own newest-line mark, for this browser\'s conversation only: a number and an id, nothing said' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
@@ -1317,6 +1327,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * turn every unsubscribe link into a 414 in production while the tests that
    * set it stayed green. A query string has no such cap and no such footgun.
    */
+  // S7 (Phase 5, item 22) — the business's chat page, where the composition gives it a way in (the messaging path).
+  if (deps.chatIngest) mountWebChat(app, { db: deps.db, writeCookie, ingest: deps.chatIngest, localeOf });
+
   app.get('/u', async (req, reply) => {
     const token = String((req.query as { t?: string }).t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
@@ -4654,9 +4667,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         ...(kind === 'instagram' && !own.hasInstagram ? { noInstagram: true } : {}),
       } : {}),
     });
+    // S7 — the chat page: offered where this host serves chat pages, connected while it is on.
+    const b = parseBusinessId(businessId);
+    const chatOn = b.ok && deps.chatIngest ? (await withTenantTx(deps.db, b.value, (tx) => chatPageKey(tx, b.value))) !== null : false;
+    const tgOn = b.ok && deps.telegramBot ? (await withTenantTx(deps.db, b.value, (tx) => telegramCode(tx, b.value))) !== null : false;
     return new Map<OutreachChannel, InboundLink>([
       ['instagram', inboundLink('instagram', hostChannels(businessId).instagram !== null, linked.instagram)],
       ['messenger', inboundLink('messenger', hostChannels(businessId).messenger !== null, linked.messenger)],
+      ['web_chat', { configured: deps.chatIngest !== undefined, connected: chatOn }],
+      ['telegram', { configured: deps.telegramBot !== undefined, connected: tgOn }],
     ]);
   };
 
@@ -4701,6 +4720,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!sessionOf(req)) return reply.redirect('/login');
     return reply.redirect(CHANNELS_HOME);
   });
+  // S7 — the chat page on or off: the owner's, since it lets the assistant answer there (going live, rule 11).
+  app.post('/app/channels/chat', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('chat')); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.chatIngest) return reply.redirect(channelScreenHref('chat'));
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setChatPage(tx, bid.value, on, personOf(s).id));
+    facts.evict(s.businessId);
+    return flashTo(reply, channelScreenHref('chat'), on ? 'channels.chat.flash.on' : 'channels.chat.flash.off');
+  });
+  // S7 — Telegram on or off for this business: the owner's, the same way.
+  app.post('/app/channels/telegram', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('telegram')); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.telegramBot) return reply.redirect(channelScreenHref('telegram'));
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid.value, (tx) => setTelegram(tx, bid.value, on, personOf(s).id));
+    facts.evict(s.businessId);
+    return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
+  });
   for (const screen of CHANNEL_SCREENS) {
     app.get(channelScreenHref(screen), async (req, reply) => {
       const s = sessionOf(req);
@@ -4726,12 +4763,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }) : null;
       // CH1 — each step of connecting a Page, on Instagram and Messenger's screen.
       const yours = screen === 'meta' ? await yourAccountsFor(s.businessId) : null;
+      // S7 — the chat page's address while it is on.
+      const chatKey = screen === 'chat' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => chatPageKey(tx, bid.value)) : null;
+      const tgCode = screen === 'telegram' && bid.ok && deps.telegramBot ? await withTenantTx(deps.db, bid.value, (tx) => telegramCode(tx, bid.value)) : null;
       const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: channelScreenTitle(locale, screen), active: 'channels',
         bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
           ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
           inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
+          chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
+          telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null },
         }),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),

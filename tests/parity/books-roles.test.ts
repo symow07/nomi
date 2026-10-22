@@ -30,7 +30,8 @@ describe('A5 · D18: the books\' processors stop the boot until the privacy page
   it('each, switched on, is refused by name', () => {
     for (const [env, name] of [
       [{ SHEETS_CLIENT_ID: 'x' }, 'Google (Sheets)'], [{ XERO_CLIENT_ID: 'x' }, 'Xero'], [{ QBO_CLIENT_ID: 'x' }, 'Intuit (QuickBooks)'],
-      [{ DOCUMENT_READER_API_KEY: 'x' }, 'reads receipts'], [{ TELEGRAM_BOT_TOKEN: 'x' }, 'Telegram'],
+      // S7 (2026-10-22) — Telegram left the list: the privacy page names it now (recipients.ts).
+      [{ DOCUMENT_READER_API_KEY: 'x' }, 'reads receipts'],
     ] as const) {
       const p = unnamedRecipientProblems(env);
       expect(p, name).toHaveLength(1);

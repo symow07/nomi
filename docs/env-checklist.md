@@ -77,6 +77,7 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 | `RAILWAY_GIT_REPO_OWNER` / `RAILWAY_GIT_REPO_NAME` | Injected by Railway. 0167 — the repository whose `main` the deploy alarm compares with the commit this process runs (`RAILWAY_GIT_COMMIT_SHA`). Never set by hand; absent (local, a hand upload), the alarm is off and the boot says so. |
 | `META_TEMPLATE_NAMES` | Comma-separated names of message templates Meta has **actually approved**. Empty (the default) means a conversation older than 24 hours goes back to the owner instead of being re-opened. Nothing in the product calls Meta to check this — an operator records what was granted. |
 | `D360_API_KEY` · `D360_BASE_URL` · `WEBHOOK_SECRET` | Required only when the provider is `360dialog`. |
+| `TELEGRAM_BOT_TOKEN` · `TELEGRAM_WEBHOOK_SECRET` · `TELEGRAM_BOT_USERNAME` | S7 — Nomi's one Telegram bot, for every business (the owner's choice, 2026-10-22). All three or none: the token from @BotFather (the owner creates the bot), a secret of 16 or more letters, digits, `_` or `-` that Telegram echoes on every update, and the bot's name ending in `bot`. After setting them, run `railway run --service nomi -- node tools/telegram-webhook.mjs` once to point the bot at `/webhook/telegram`. Each business then turns Telegram on and shares its own start link. Telegram is named on the privacy page (D18). |
 
 ## Hearing voice notes and seeing photos
 
