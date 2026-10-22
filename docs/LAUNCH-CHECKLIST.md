@@ -142,6 +142,23 @@ weeks. They start well before the deploy that needs them:
   - a busy organisation's reads (the morning read, the owner's "Read it in", writing back) near 1,000 a day;
   - more than 50 connections (Core's ceiling) means the Plus tier, which requires certification.
 
+## Phase 5 S — before these reach a buyer (2026-10-22)
+
+Built and switched off by design; each waits on a person, not on code:
+
+- **Surveys (S6):** nobody is asked anything until the sentence is signed in its language
+  (`src/core/conversation/survey.ts`, `SIGNED`): the owner signs the English, a native reader each of the others,
+  named in the commit. Then the owner switches surveys on (`/app/surveys`).
+- **Strict mode (S4):** in force in no language until a native reader signs a set (`src/core/conversation/strict.ts`,
+  `SIGNED`; the starter sets are `PROPOSED`). Telling the writer the set needs the live model check: ask first.
+- **Telegram (S7):** the owner creates Nomi's bot with @BotFather and pastes `TELEGRAM_BOT_TOKEN`,
+  `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_BOT_USERNAME` into Railway (docs/env-checklist.md). After the deploy, run
+  `railway run --service nomi -- node tools/telegram-webhook.mjs` once, then `--check`. Each business then turns it
+  on and shares its start link.
+- **The chat page (S7):** nothing to set up; each business turns it on and shares its address or the widget's line.
+- **D10 (Morocco):** waits for an accountant's answer on what a « période » is (PHASE-5.md, D10: the question is
+  written there, in French).
+
 ## Somebody hears when it breaks (CC-10)
 
 - `HEALTH_PING_URL` is set on the `nomi` service and the Healthchecks.io

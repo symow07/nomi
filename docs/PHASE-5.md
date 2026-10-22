@@ -853,7 +853,38 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - A score answers nobody: no thank-you, which would be another sentence to sign.
     - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
 - **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
-  TikTok wait for revenue.
+  TikTok wait for revenue. *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
+  widget, the page first; one Nomi bot for every business; S7 stays in block S.)*
+  - **The chat page** (`/chat/<key>`, `src/api/web/webChat.ts`):
+    - The owner turns it on (owner only: going live) on Where customers reach you › Chat page, and shares the address.
+    - A visitor's message is stored once (a form sent twice is one message) and queued like a webhook's. It is answered
+      through the one turn and send gate, and shown on that page to that browser only (`yf_chat`, the page's path).
+    - Off, it answers nobody and takes nothing. A frozen workspace takes nothing either.
+    - It arrives complete, works without its script, and its script asks only the page's own mark.
+  - **The widget** (`/chat/<key>/widget.js`): one line on the business's own site draws a button that opens the page
+    in a frame. The visitor's handle is made in their browser and kept in that site's storage. It travels with the
+    request — never a Nomi cookie on another site, which browsers refuse anyway.
+  - **Telegram, one Nomi bot for every business:**
+    - Each business turns it on and shares `t.me/<bot>?start=<code>`. `/start <code>` ties the chat to that business
+      and is not itself a message.
+    - A chat writes to the business it started last, while that business has it on (`telegram_route`, 0204). A chat
+      that started none, a bad code, or a business switched off: nobody.
+    - An update without the webhook's secret is refused before it is read.
+    - Photos, voice notes and files are named and handed to a person, never opened (Telegram's media download is not
+      built).
+  - **D18:** Telegram is named on the privacy page (`legal.privacy.who.telegram`, five languages; `recipients.ts`
+    named). The chat page's keeping, its cookie and the widget's handle are said there (`legal.privacy.kept.chat`).
+  - **Simulator and pre-pilot:** scenarios 13 (the chat page) and 14 (Telegram) on the scripted pre-pilot, now 14/14.
+    Telegram's API is a recorder; the chat page needs none, since it is Nomi's own.
+  - **The send-path guards** are the ones every channel shares, proven on these two: the owner's Stop (the buyer
+    handed to a person, the owner's own reply still goes), the disclosure on the first message nobody approved, a
+    person holding the conversation, the numeral guard.
+  - **Not yet, the owner's:** creating the bot with @BotFather, pasting its three settings into Railway, and running
+    `tools/telegram-webhook.mjs` — then "Telegram live on deploy day" (zero-spend: no deploy until the owner says).
+  - **Claude's calls, reported:**
+    - The chat page and Telegram exist only on the messaging path (an installation with no channel at all has neither).
+    - `/start` gets no reply until the buyer writes: a welcome would be another sentence to sign.
+    - The bot is not the team-alerts bot. `TELEGRAM_BOT_TOKEN` is the one bot; no alert goes by Telegram yet.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.
 
 ### Dependencies at a glance
