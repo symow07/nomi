@@ -38,15 +38,15 @@ describe('the books are switched on for nobody while a launch blocker stands', (
     expect(run(['--business', BIZ, '--off']).code).not.toBe(3);
   });
 
-  it('the tool and the checklist are one list: the papers and the public pages', () => {
+  it('the tool and the checklist are one list: the public pages (E1, 2026-10-22, built the papers copy, and it left)', () => {
     const list = blockers();
-    expect(list).toHaveLength(2);
+    expect(list).toHaveLength(1);
     const section = /## Before the books are switched on for ANY workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
     expect(section).toContain('tools/books-area.mjs');
-    expect(section).toMatch(/The owner's copy of their papers, and closure of a workspace holding\s+papers/);
+    expect(section).not.toMatch(/The owner's copy of their papers, and closure of a workspace holding\s+papers\.\*\*/);
     expect(section).toMatch(/The public pages describe the books/);
-    expect(list[0]).toMatch(/copy of their papers/);
-    expect(list[1]).toMatch(/public pages/);
+    expect(list[0]).toMatch(/public pages/);
+    expect(list.some((x) => /copy of their papers/.test(x))).toBe(false);
   });
 
   it('MOROCCO: its FEC is not finished while the ICE, IF and RC are not held and the file is not named as the DGI requires', async () => {
@@ -66,7 +66,9 @@ describe('the books are switched on for nobody while a launch blocker stands', (
     expect(section).toContain('tools/lib/books-blockers.mjs');
   });
 
-  it('the refusal it rests on is real: a workspace holding papers does not close (0174)', () => {
-    expect(read('migrations/0174_documents.sql')).toMatch(/NE011/);
+  it('what replaced it is real: a workspace holding papers closes only once the owner\'s own copy holds every one (0205)', () => {
+    const m = read('migrations/0205_papers_copy.sql');
+    expect(m).toMatch(/and not papers_export_covers\(p_business\) then\s+raise exception[\s\S]{0,300}?using errcode = 'NE012'/);
+    expect(m).toMatch(/x\.made_by = 'owner' or exists \(select 1 from people p where p\.id::text = x\.made_by and p\.is_owner\)/);
   });
 });

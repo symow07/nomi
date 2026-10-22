@@ -914,6 +914,25 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - The bot is not the team-alerts bot. `TELEGRAM_BOT_TOKEN` is the one bot; no alert goes by Telegram yet.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.
 
+### Stage E — the unblocked remainder (the owner, 2026-10-22)
+
+- **E1 · The owner's copy of their papers — the launch blocker.** *(built 2026-10-22, 0205.)*
+  - The owner downloads every paper in one archive (`/app/settings/data/papers.zip`, owner only), with `index.csv`
+    listing each file: its name, type, size, SHA-256, when and by whom it was added, the entry it backs, and until
+    when it is kept. Each paper is opened from its sealed store and its fingerprint checked, then written into the
+    archive under a numbered, safe name (two papers of one name are two files; a name with a slash makes no folder).
+  - **Closure waits for the OWNER's own copy of every paper** (`papers_export_covers`, NE012): a receipt of the owner's
+    holding at least as many papers as there are and reaching the newest one. An accountant's download does not count;
+    a paper added after the copy makes it old again.
+  - **Made whole or not at all:** a paper that cannot be opened stops the archive in its transaction, so no receipt is
+    written and closure still waits. The page then says nothing was recorded.
+  - The data page shows the papers (how many, the last copy, whether it holds them all) beside the books.
+  - The receipt is a `books_exports` row of kind 'papers_zip' (no new table). `books_export_covers` now reads only the
+    books' own kind.
+  - The zip writer the workbook used is now `src/net/zip.ts`, shared; the classic format only (65,535 files, 4 GiB),
+    refused rather than written wrong past either.
+  - `tools/books-area.mjs --on` no longer refuses for the papers. The public pages are still its blocker.
+
 ### Dependencies at a glance
 
 ```

@@ -7,7 +7,6 @@
  * the business's legal identifiers are not held and the file's name is not the one the DGI requires.
  */
 export const BLOCKERS = [
-  'the owner\'s copy of their papers, and closure of a workspace holding papers (a workspace with documents cannot close yet)',
   'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy; and /privacy names the shop\'s own systems the books read from (Odoo; Google Sheets is held at boot by D18), and that the model provider reads a receipt or bill when the owner asks it to (D6)',
 ];
 

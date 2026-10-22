@@ -250,6 +250,7 @@ import { renderAnswerSuggestions } from './answerSuggestions.js';
 import { latestSurveyAnswers, setSurveysOn, surveyFacts } from '../../db/surveys.js';
 import { renderSurveys } from './surveys.js';
 import { mountWebChat, type WebChatDeps } from './webChat.js';
+import { makePapersArchive } from '../../db/papersCopy.js';
 import { chatPageKey, setChatPage } from '../../db/webChat.js';
 import { setTelegram, telegramCode } from '../../db/telegram.js';
 import { GREETING_LOCALES, greetingText, type GreetingLocale } from '../../core/conversation/greeting.js';
@@ -2335,6 +2336,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(file.csv);
   });
 
+  /**
+   * E1 (0205) — THE OWNER'S COPY OF THEIR PAPERS: every paper in one archive, with its index. The owner's alone, like
+   * the books copy: it is what a closing workspace waits for. Made whole or not at all: a paper that cannot be opened
+   * stops it, no receipt is written, and the page says so.
+   */
+  app.get('/app/settings/data/papers.zip', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
+    if (!s) return reply;
+    if (!deps.documents) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
+    }
+    const made = await makePapersArchive(deps.db, s.businessId, personOf(s).id, deps.documents, show.csvDialectFor(localeOf(req)))
+      .catch(() => 'failed' as const);
+    if (made === 'failed') return flashTo(reply, '/app/settings/data#papers', 'data.flash.papersFailed');
+    if (!made) return reply.callNotFound();
+    return reply
+      .type('application/zip')
+      .header('content-disposition', `attachment; filename="papers-${new Date().toISOString().slice(0, 10)}.zip"`)
+      .header('cache-control', 'no-store')
+      .send(made.file);
+  });
+
   /** The owner, 2026-10-22 — a Moroccan workspace is told how its books are best started (Avis n° 24). */
   const businessInMorocco = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
     sql<{ c: string | null }>`select country as c from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]?.c === 'MA';
@@ -3621,7 +3645,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome !== 'closed') {
       return flashTo(reply, '/app/settings/data#close', ({
         name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
-        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst', papers_first: 'data.flash.papersFirst',
       } as const)[r.outcome]);
     }
     facts.evict(s.businessId);

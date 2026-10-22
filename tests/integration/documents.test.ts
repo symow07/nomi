@@ -127,11 +127,11 @@ d('A4 · documents: sealed, kept to their date, where the residency says (requir
     await expect(tenant(HOME, (tx) => store.open(tx, doc.id))).rejects.toThrow();
   });
 
-  it('a workspace holding papers does not close until they are downloaded — and nothing is erased', async () => {
+  it('a workspace holding papers does not close until the owner has downloaded them — and nothing is erased (E1: its own reason)', async () => {
     const erasure = await import('../../src/api/web/erasure.js');
     const OWNER = `a4a40000-0000-4000-8000-${RUN}00aa`;
     await admin.query(`insert into people (id, business_id, name, is_owner) values ($1, $2, 'Mei', true)`, [OWNER, AWAY]);
-    expect(await erasure.closeWorkspace(db, AWAY, `Docs ma ${RUN}`, OWNER)).toEqual({ outcome: 'books_first' });
+    expect(await erasure.closeWorkspace(db, AWAY, `Docs ma ${RUN}`, OWNER)).toEqual({ outcome: 'papers_first' });
     expect((await admin.query(`select count(*)::int as n from documents where business_id = $1`, [AWAY])).rows[0].n).toBeGreaterThan(0);
     expect((await admin.query(`select is_active from businesses where id = $1`, [AWAY])).rows[0].is_active).toBe(true);
   });

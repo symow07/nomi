@@ -1,4 +1,5 @@
-import { deflateRawSync, inflateRawSync } from 'node:zlib';
+import { inflateRawSync } from 'node:zlib';
+import { zipWrite } from './zip.js';
 
 /**
  * EXT — AN EXCEL FILE (.xlsx), READ AS THE TABLE IT IS.
@@ -213,16 +214,6 @@ export function xlsxSheets(b: Buffer): { readonly sheets: readonly XlsxSheet[]; 
 /** A cell to write: text, or a number given as its exact decimal text (never a float). */
 export type XlsxValue = string | { readonly number: string } | null;
 
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
-  return t;
-})();
-const crc32 = (b: Buffer): number => {
-  let c = 0xffffffff;
-  for (const x of b) c = CRC_TABLE[(c ^ x) & 0xff]! ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-};
 const escapeXml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   // characters XML 1.0 cannot carry at all
   .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
@@ -261,24 +252,5 @@ export function xlsxWrite(sheets: readonly { readonly name: string; readonly row
     ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
     ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s.rows, s.print)] as [string, string]),
   ];
-  const locals: Buffer[] = []; const central: Buffer[] = []; let offset = 0;
-  for (const [name, text] of parts) {
-    const data = Buffer.from(text, 'utf8');
-    const packed = deflateRawSync(data);
-    const nameBuf = Buffer.from(name, 'utf8');
-    const crc = crc32(data);
-    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
-    local.writeUInt16LE(8, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(packed.length, 18); local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(nameBuf.length, 26);
-    locals.push(local, nameBuf, packed);
-    const cen = Buffer.alloc(46); cen.writeUInt32LE(0x02014b50, 0); cen.writeUInt16LE(20, 4); cen.writeUInt16LE(20, 6); cen.writeUInt16LE(0x0800, 8);
-    cen.writeUInt16LE(8, 10); cen.writeUInt32LE(crc, 16); cen.writeUInt32LE(packed.length, 20); cen.writeUInt32LE(data.length, 24);
-    cen.writeUInt16LE(nameBuf.length, 28); cen.writeUInt32LE(offset, 42);
-    central.push(cen, nameBuf);
-    offset += 30 + nameBuf.length + packed.length;
-  }
-  const dir = Buffer.concat(central);
-  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(parts.length, 8); end.writeUInt16LE(parts.length, 10);
-  end.writeUInt32LE(dir.length, 12); end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locals, dir, end]);
+  return zipWrite(parts.map(([name, text]) => ({ name, data: Buffer.from(text, 'utf8') })));
 }
