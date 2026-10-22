@@ -40,7 +40,7 @@ export function renderPapers(locale: Locale, viewer: Who, rows: readonly PaperRo
       <button class="btn" type="submit">${esc(t(locale, 'books.papers.keep'))}</button></form>` : ''}
     ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.papers.none'))}</p>` : `<ul class="rows">${rows.map((r) => `<li class="row">
       <span><a href="/app/books/papers/${esc(r.id)}"><bdi>${esc(r.name)}</bdi></a> · <span class="caption muted">${esc(show.dateYear(locale, new Date(`${r.addedOn}T12:00:00Z`)))}</span></span>
-      <span>${r.draftedEntryId ? `<span class="pill ok">${esc(t(locale, 'books.papers.drafted'))}</span>`
+      <span>${r.historyThrough ? `<span class="pill">${esc(t(locale, 'books.papers.history'))}</span>` : r.draftedEntryId ? `<span class="pill ok">${esc(t(locale, 'books.papers.drafted'))}</span>`
         : r.lastOutcome === null ? '' : r.lastOutcome !== 'read' || r.lastProblems > 0 ? `<span class="pill warn">${esc(t(locale, 'books.papers.needsLook'))}</span>`
         : `<span class="pill">${esc(t(locale, 'books.papers.readOk'))}</span>`}</span></li>`).join('')}</ul>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
@@ -54,7 +54,8 @@ export type PaperChoices = {
   readonly payableDefault: string | null; readonly purchasesDefault: string | null;
 };
 
-export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: string; mediaType: string; readings: readonly ReadingRow[] },
+export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: string; mediaType: string; readings: readonly ReadingRow[];
+  keepUntil?: string; history?: { readonly entries: number; readonly through: string } | null },
   c: PaperChoices, reader: { readonly available: boolean; readonly canRead: boolean }): string {
   const last = p.readings[0] ?? null;
   const pick = (name: string, rows: readonly { id: string; code: string; name: string }[], chosen: string | null, label: string) =>
@@ -89,10 +90,16 @@ export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: 
   const read = !owner(viewer) ? '' : !reader.available ? `<p class="caption muted">${esc(t(locale, 'books.papers.noReader'))}</p>`
     : !reader.canRead ? `<p class="caption muted">${esc(t(locale, 'books.papers.pdfNotRead'))}</p>`
     : `<form method="post" action="/app/books/papers/${esc(p.id)}/read" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, last ? 'books.papers.readAgain' : 'books.papers.read'))}</button></form>`;
+  // E3 (0207) — an import's source file kept as history: said for what it is, downloaded like any paper, never read
+  // into an entry (the database refuses it too).
+  const history = p.history ? `<p role="status"><span class="pill">${esc(t(locale, 'books.papers.history'))}</span></p>
+    <p>${esc(t(locale, 'books.papers.historyExplain', { n: p.history.entries, through: show.dateYear(locale, new Date(`${p.history.through}T12:00:00Z`)) }))}</p>
+    ${p.keepUntil ? `<p class="caption muted">${esc(t(locale, 'books.papers.keptUntil', { date: show.dateYear(locale, new Date(`${p.keepUntil}T12:00:00Z`)) }))}</p>` : ''}` : '';
   return `<h1 class="page"><bdi>${esc(p.name)}</bdi></h1>
+    ${history}
     <ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.papers.original'))}</span>
       <a class="dl-get" href="/app/books/papers/${esc(p.id)}/file" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul>
-    ${read}${reading}${drafted}${form}
+    ${p.history ? '' : `${read}${reading}${drafted}${form}`}
     <p><a class="deeper" href="/app/books/papers">${esc(t(locale, 'books.papers.title'))}</a></p>`;
 }
 

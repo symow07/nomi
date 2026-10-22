@@ -175,7 +175,8 @@ const silentLine = (locale: Locale, system: string, since: Date | null | undefin
  * read, the key's reminder (item 14), a way to read it in, and a disconnect that asks first.
  */
 function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string {
-  const head = `<h2>${esc(t(locale, 'books.odoo.title'))}</h2><p>${esc(t(locale, 'books.odoo.explain'))}</p>`;
+  const head = `<h2>${esc(t(locale, 'books.odoo.title'))}</h2><p>${esc(t(locale, 'books.odoo.explain'))}</p>
+    <p class="caption muted">${esc(t(locale, 'books.systems.history', { system: 'Odoo' }))}</p>`;
   if (!o.offered) return '';
   const c = o.connection;
   const form = `<form method="post" action="/app/books/odoo/connect" class="pform">
@@ -222,7 +223,8 @@ export const xeroWhy = (locale: Locale, reason: string): string => ledgerWhy(loc
  */
 function ledgerBlock(locale: Locale, system: Ledger, x: NonNullable<BooksSystems['xero']>): string {
   const key = (k: string) => `books.${system}.${k}` as MessageKey;
-  const head = `<h2>${esc(t(locale, key('title')))}</h2><p>${esc(t(locale, key('explain')))}</p>`;
+  const head = `<h2>${esc(t(locale, key('title')))}</h2><p>${esc(t(locale, key('explain')))}</p>
+    <p class="caption muted">${esc(t(locale, 'books.systems.history', { system: LEDGER_NAME[system] }))}</p>`;
   if (!x.offered) return `<div class="block" id="${system}">${head}<p class="caption muted">${esc(t(locale, key('notSetUp')))}</p></div>`;
   const c = x.connection;
   const connect = (k: MessageKey) => `<p><a class="deeper" href="/app/books/${system}/start">${esc(t(locale, k))}</a></p>`;
@@ -288,7 +290,8 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
           <input type="file" name="workbook" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required /></label>
         <button class="btn" type="submit">${esc(t(locale, 'books.workbook.send'))}</button>
       </form>
-      <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>` : '';
+      <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>
+      <p class="caption muted">${esc(t(locale, 'books.workbook.history'))}</p>` : '';
   return `<div class="block" id="workbook">
       <h2>${esc(t(locale, 'books.workbook.title'))}</h2>
       <p>${esc(t(locale, 'books.workbook.explain'))}</p>

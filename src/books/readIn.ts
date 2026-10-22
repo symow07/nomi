@@ -33,7 +33,9 @@ export type ReadDeps = {
 };
 
 export type ReadResult =
-  | { readonly kind: 'read'; readonly added: number; readonly replaced: number; readonly unchanged: number }
+  | { readonly kind: 'read'; readonly added: number; readonly replaced: number; readonly unchanged: number;
+      /** E3 — entries dated before the books' open window, left where they are (Odoo, Xero, QuickBooks); 0 for Sheets. */
+      readonly leftThere: number }
   | { readonly kind: 'refused'; readonly reason: ConnectRefusalReason }
   | { readonly kind: 'problems'; readonly problems: readonly BooksProblem[]; readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[] };
 
@@ -87,13 +89,17 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     read = { ...read, data: { ...read.data, entries: read.data.entries.filter((e) => !sent.names.has(e.key) && !sent.refs.has(e.label) && !sent.refs.has(e.key)) } };
   }
   if (read.problems.length > 0) { await note({ ok: true, cursor: conn.cursor }); return { kind: 'problems', problems: read.problems }; }
-  const out = await readInBooks(deps.db, bid.value, by, system, read.data, read.where);
+  // E3 (0207) — what Odoo, Xero and QuickBooks hold from before these books stays there: the owner still has it, and
+  // nothing of it is copied. Sheets is Nomi's own spreadsheet, written back to: an entry before the window there
+  // stays a problem to fix, never a row left unread.
+  const out = await readInBooks(deps.db, bid.value, by, system, read.data, read.where,
+    system === 'sheets' ? { kind: 'refuse' } : { kind: 'left_there' });
   if (out.kind === 'refused') {
     await note({ ok: true, cursor: conn.cursor });
     return { kind: 'problems', problems: out.problems, ...(out.undatedTaxes ? { undatedTaxes: out.undatedTaxes } : {}) };
   }
   await note({ ok: true, cursor: read.cursor });
-  return { kind: 'read', added: out.added, replaced: out.replaced, unchanged: out.unchanged };
+  return { kind: 'read', added: out.added, replaced: out.replaced, unchanged: out.unchanged, leftThere: out.history?.entries ?? 0 };
 }
 
 /** B5 — a connected system is SILENT when no read has worked for two days (Nomi reads each one every morning). */

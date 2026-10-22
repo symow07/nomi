@@ -111,6 +111,18 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
     expect(await notice(await post('/app/books/odoo/read'))).toMatch(/Read in: 0 new, 0 replaced, \d+ already here\./);
   });
 
+  it('E3 (0207) — WHAT ODOO HOLDS FROM BEFORE THESE BOOKS STAYS THERE: read, not copied, not refused, and the page says so', async () => {
+    expect(await home()).toContain('What Odoo holds from before these books stays there, where it always was');
+    const before = (await as((q) => q(`select count(*)::int as n from journal_entries`))).rows[0].n;
+    const old = { ...SAMPLE_BOOKS.entries[0]!, key: 'VE-2025-9', date: '2025-11-03', label: 'Facture F-2025-0309', documentRef: 'F-2025-0309', documentDate: '2025-11-03' };
+    odoo.publish({ ...SAMPLE_BOOKS, entries: [...SAMPLE_BOOKS.entries, old] });
+    const said = await notice(await post('/app/books/odoo/read'));
+    expect(said).toContain('Entries dated before these books stay in Odoo (1): nothing of them was copied.');
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries`))).rows[0].n).toBe(before);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where label = 'Facture F-2025-0309'`))).rows[0].n).toBe(0);
+    expect((await admin.query(`select count(*)::int as n from documents where business_id = $1`, [BIZ])).rows[0].n).toBe(0);   // no file: nothing kept
+  });
+
   it('ITEM 14: 80 days into a key\'s life, the page asks for a new one', async () => {
     expect(await home()).not.toContain('Key ends soon');
     await admin.query(`update books_connections set connected_at = now() - interval '80 days' where business_id = $1 and system = 'odoo'`, [BIZ]);

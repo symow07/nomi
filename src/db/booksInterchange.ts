@@ -8,6 +8,8 @@ import {
   fieldKey, type BooksData, type BooksEntry, type BooksField, type BooksProblem, type BooksProblemReason, type BooksRecord, type CustomValues, type RecordKind,
 } from '../core/books/interchange.js';
 import type { BooksSystem } from '../core/books/connector.js';
+import { firstOpenDay, isHistory } from '../core/books/history.js';
+import type { DocumentStores } from './documents.js';
 
 /**
  * B2 / B5 (Phase 5; items 12 and 13, part 1) — THE BOOKS IN AND OUT OF NOMI'S LEDGER, in the one shape every connector
@@ -97,8 +99,21 @@ export async function fieldsOf(tx: Tx, businessId: string): Promise<BooksField[]
     .map((f) => ({ appliesTo: f.applies_to, key: f.key, label: f.label, kind: f.kind, choices: f.choices, required: f.required, ...(f.is_active ? {} : { retired: true as const }) }));
 }
 
+/**
+ * E3 (0207) — what to do with entries dated before the books' open window: `refuse` them (as always; Sheets), keep the
+ * SOURCE FILE as history in A4's store (the workbook), or leave them where they are (Odoo, Xero, QuickBooks: the
+ * owner still has them there). Either way they never enter the books, and are not remembered as read.
+ */
+export type HistoryRule =
+  | { readonly kind: 'refuse' }
+  | { readonly kind: 'keep_file'; readonly store: DocumentStores; readonly name: string; readonly mediaType: string; readonly bytes: Buffer }
+  | { readonly kind: 'left_there' };
+export type HistoryOutcome = { readonly entries: number; readonly through: string; readonly documentId: string | null; readonly alreadyKept: boolean };
+
 export type ApplyOutcome =
-  | { readonly kind: 'applied'; readonly added: number; readonly replaced: number; readonly unchanged: number }
+  | { readonly kind: 'applied'; readonly added: number; readonly replaced: number; readonly unchanged: number;
+      /** E3 — the entries before the window, not in the books; null when there were none. */
+      readonly history: HistoryOutcome | null }
   | { readonly kind: 'refused'; readonly problems: readonly BooksProblem[];
       /** C0 — the taxes its source gave no start date, when an entry before Nomi's day for them stopped the read: the owner's to date. */
       readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[] };
@@ -111,12 +126,21 @@ export type ApplyOutcome =
 export async function readInBooks(
   db: Db, businessId: BusinessId, by: string, system: BooksSystem, data: BooksData,
   where: (kind: RecordKind, key: string, line?: number) => { readonly sheet: string; readonly row: number },
+  history: HistoryRule = { kind: 'refuse' },
 ): Promise<ApplyOutcome> {
   try {
     return await withTenantTx(db, businessId, async (tx) => {
-      const out = await applyBooks(tx, businessId, by, system, data, where);
+      const out = await applyBooks(tx, businessId, by, system, data, where, history.kind !== 'refuse');
       if (out.kind === 'refused') throw new ReadInRefused(out.problems, out.undatedTaxes);
-      return out;
+      if (out.history === null || history.kind !== 'keep_file') return out;
+      // E3 — the file kept, in the same transaction as the read: a read refused keeps nothing. The same file kept
+      // twice is one document.
+      const sha = createHash('sha256').update(history.bytes).digest('hex');
+      const had = (await sql<{ id: string }>`select id::text as id from documents where business_id = ${businessId}::uuid
+        and sha256 = ${sha} and history_entries is not null`.execute(tx)).rows[0]?.id ?? null;
+      const id = had ?? (await history.store.put(tx, { businessId, name: history.name, mediaType: history.mediaType, bytes: history.bytes, by,
+        history: { entries: out.history.entries, through: out.history.through } })).id;
+      return { ...out, history: { ...out.history, documentId: id, alreadyKept: had !== null } };
     });
   } catch (e) {
     if (e instanceof ReadInRefused) return { kind: 'refused', problems: e.problems, ...(e.undatedTaxes ? { undatedTaxes: e.undatedTaxes } : {}) };
@@ -125,8 +149,9 @@ export async function readInBooks(
 }
 
 async function applyBooks(
-  tx: Tx, businessId: string, by: string, system: BooksSystem, data: BooksData,
+  tx: Tx, businessId: string, by: string, system: BooksSystem, given: BooksData,
   where: (kind: RecordKind, key: string, line?: number) => { readonly sheet: string; readonly row: number },
+  setHistoryApart: boolean,
 ): Promise<ApplyOutcome> {
   const problems: BooksProblem[] = [];
   const at = (kind: RecordKind, key: string, column: string, reason: BooksProblemReason, line?: number) =>
@@ -136,6 +161,19 @@ async function applyBooks(
   const last = new Map((await sql<{ kind: RecordKind; key: string; digest: string; nomi_id: string | null }>`
     select kind, key, digest, nomi_id::text as nomi_id from connector_records
      where business_id = ${businessId}::uuid and system = ${system}`.execute(tx)).rows.map((r) => [`${r.kind}:${r.key}`, r]));
+  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: string }>`
+    select id::text as id, starts_on::text as starts_on, ends_on::text as ends_on, state from fiscal_years where business_id = ${businessId}::uuid`.execute(tx)).rows;
+  const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
+  // E3 (0207) — an entry NEW to Nomi and dated before the open window is history, not in the books: set apart here,
+  // before anything is checked or written, so nothing of it reaches an entry. An entry Nomi already holds, or read in
+  // before, is never history: a change to it is checked as always (and refused where its period is closed).
+  const opensOn = firstOpenDay(years.map((y) => ({ startsOn: y.starts_on, endsOn: y.ends_on, state: y.state })), lock);
+  const apart = !setHistoryApart ? [] : given.entries.filter((e) =>
+    isHistory(e.date, opensOn) && !held.has(`entry:${e.key}`) && !last.get(`entry:${e.key}`)?.nomi_id);
+  const setApart = new Set(apart);
+  const data: BooksData = apart.length === 0 ? given : { ...given, entries: given.entries.filter((e) => !setApart.has(e)) };
+  const history = apart.length === 0 ? null
+    : { entries: apart.length, through: apart.map((e) => e.date).sort().pop()!, documentId: null, alreadyKept: false };
   const bookCurrency = (await sql<{ c: string }>`select books_currency(${businessId}::uuid) as c`.execute(tx)).rows[0]!.c;
 
   // References: what the books name must exist, here or in Nomi.
@@ -209,9 +247,6 @@ async function applyBooks(
 
   // Each entry to write needs an open year and a day the lock date has not closed.
   const entries = new Map(data.entries.map((e) => [e.key, e]));
-  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: string }>`
-    select id::text as id, starts_on::text as starts_on, ends_on::text as ends_on, state from fiscal_years where business_id = ${businessId}::uuid`.execute(tx)).rows;
-  const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
   const yearOf = new Map<string, string>();
   // A tax whose start its source never gave counts from the day it was first read (today, if it is new now): an entry
   // before that day cannot use it — said for what it is, not as an unknown tax.
@@ -319,7 +354,7 @@ async function applyBooks(
       values (${businessId}::uuid, ${system}, ${p.record.kind}, ${p.record.key}, ${digest(p.record.content)}, ${nomiId}::uuid)
       on conflict (business_id, system, kind, key) do update set digest = excluded.digest, nomi_id = coalesce(excluded.nomi_id, connector_records.nomi_id), read_at = now()`.execute(tx);
   }
-  return { kind: 'applied', added, replaced, unchanged };
+  return { kind: 'applied', added, replaced, unchanged, history };
 }
 
 /**

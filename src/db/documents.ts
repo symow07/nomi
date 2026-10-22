@@ -55,7 +55,9 @@ type OpenedDocument = { readonly name: string; readonly mediaType: string; reado
 export type DocumentStores = {
   /** Store one document in the calling workspace's residency, inside the caller's tenant transaction. */
   put(tx: Tx, input: { readonly businessId: string; readonly entryId?: string | null; readonly name: string;
-    readonly mediaType: string; readonly bytes: Buffer; readonly by: string }): Promise<StoredDocument>;
+    readonly mediaType: string; readonly bytes: Buffer; readonly by: string;
+    /** E3 (0207) — an import's source file kept as history, not in the books: how many entries it held, the newest's date. */
+    readonly history?: { readonly entries: number; readonly through: string } }): Promise<StoredDocument>;
   /** One document of the calling workspace, opened; null when there is none (another workspace's included). */
   open(tx: Tx, documentId: string): Promise<OpenedDocument | null>;
 };
@@ -85,9 +87,11 @@ export function documentStoresFrom(env: Record<string, string | undefined>, cred
       const sha256 = createHash('sha256').update(input.bytes).digest('hex');
       const sealed = sealDocument(input.bytes, current, input.businessId, id);
       const row = (await sql<{ keep_until: string }>`
-        insert into documents (id, business_id, entry_id, name, media_type, bytes, sha256, residency, store, key_version, created_by)
+        insert into documents (id, business_id, entry_id, name, media_type, bytes, sha256, residency, store, key_version, created_by,
+                               history_entries, history_through)
         values (${id}::uuid, ${input.businessId}::uuid, ${input.entryId ?? null}, ${input.name}, ${input.mediaType},
-                ${input.bytes.length}, ${sha256}, ${residency}, ${spec.kind}, ${current.version}, ${input.by})
+                ${input.bytes.length}, ${sha256}, ${residency}, ${spec.kind}, ${current.version}, ${input.by},
+                ${input.history?.entries ?? null}, ${input.history?.through ?? null}::date)
         returning keep_until::text`.execute(tx)).rows[0]!;
       if (spec.kind === 'database') {
         await sql`insert into document_blobs (document_id, business_id, sealed) values (${id}::uuid, ${input.businessId}::uuid, ${sealed})`.execute(tx);

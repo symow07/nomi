@@ -609,8 +609,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     instead (below).
   - **Trigger:** real owners turning out to need searchable pre-Nomi detail INSIDE Nomi, with evidence that somebody
     wanted it.
-- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). Part of D10, since it needs
-  D10's open window.
+- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). *(Built as E3, 0207, on
+  today's window — the open years and the lock date; D10's periods narrow that window in one place.)*
   - When an import brings entries outside the open window, its SOURCE DOCUMENT is kept as a document in A4's store,
     with its retention date, marked "history, not in the books": the workbook, the statement file, the export.
   - It inherits A4's erasure, retention, sealing and role rules. It goes with the books at closure like everything else
@@ -965,6 +965,33 @@ Each item is built and fully tested (§4) before the next one that depends on it
     itself. They are in one place (`FEC_IDENTITY_FIELDS`) until the DGI publishes its own. The FEC page names any of
     the three still missing, with a door to the profile.
   - The FEC's FILE NAME stays blocking on the DGI (`MOROCCO_BLOCKERS` now holds only that).
+- **E3 · Imported history as a document — the small replacement for D11.** *(built 2026-10-22, 0207.)*
+  - **The window is today's, in one place** (`firstOpenDay`, src/core/books/history.ts): the earliest open fiscal
+    year's first day, or the day after the lock date where the lock reaches into it. D10's open periods, when built,
+    narrow it there, and nothing else changes.
+  - **An entry is history when it is NEW to Nomi and dated before the window.** An entry Nomi already holds, or read
+    in before, is never history: a change to it is checked as always, and refused where its period is closed. An entry
+    after the window with no year to hold it is still refused. History entries are set apart before anything is
+    checked or written, and are not remembered as read (`connector_records`).
+  - **The workbook:** the entries inside the window go in as drafts, as always. The FILE is kept in A4's store as a
+    document marked "history, not in the books" (`documents.history_entries`, `history_through`; no new table). It is
+    kept until the end of the year of its newest entry plus the law's years, and it is sealed, in the workspace's
+    residency, read by the same roles, held and erased with the papers (closure, then `tools/books-retention.mjs`) and
+    listed in the papers copy (`history_through` in its index). The owner lands on it after the read.
+    - The database keeps it out of the books: never an entry's paper (`documents_history_shape`), never read into a
+      draft (`document_readings_not_history`, NB030). The same file kept twice is one document.
+    - A read refused for another problem keeps nothing. Without a store for papers, the workbook refuses as before.
+  - **Odoo, Xero, QuickBooks:** no file, and none needed. What they hold from before these books stays there and is
+    not copied; the read goes on, and says how many it left (`books.flash.readLeftThere`). Each one's block on the
+    books' page says so (`books.systems.history`). **Found while building it:** before E3, a first read of a shop
+    with ANY entry before Nomi's open years was refused whole (Odoo reads every move on its first read), so these
+    connections could not start for a shop with history.
+  - **Claude's calls, for the owner:**
+    - Google Sheets keeps refusing such entries. It is Nomi's own spreadsheet, written back to, and an entry left
+      unread there would block every write-back as "your edits".
+    - A bank statement is not history: it brings lines, not entries. Every line is read in for matching, whatever its
+      date, since it can match a posted entry of a closed year.
+    - Retention runs from the newest entry's year, the law's date for those entries' papers.
 
 ### Dependencies at a glance
 

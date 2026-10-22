@@ -14,11 +14,14 @@ import { draftEntry, type DraftLine, type EntryRefusal } from './booksEntries.js
 export type PaperRow = {
   readonly id: string; readonly name: string; readonly mediaType: string; readonly bytes: number; readonly addedOn: string;
   readonly entryId: string | null; readonly lastOutcome: string | null; readonly lastProblems: number; readonly draftedEntryId: string | null;
+  /** E3 (0207) — an import's source file kept as history, not in the books: the newest date it holds; null for a paper. */
+  readonly historyThrough: string | null;
 };
 
 export async function listPapers(tx: Tx, businessId: string): Promise<PaperRow[]> {
   return (await sql<PaperRow>`
     select d.id::text as id, d.name, d.media_type as "mediaType", d.bytes, d.created_at::date::text as "addedOn", d.entry_id::text as "entryId",
+           d.history_through::text as "historyThrough",
            r.outcome as "lastOutcome", coalesce(jsonb_array_length(r.problems), 0) as "lastProblems",
            (select entry_id::text from document_readings x where x.document_id = d.id and x.entry_id is not null limit 1) as "draftedEntryId"
       from documents d
@@ -34,8 +37,11 @@ export type ReadingRow = {
 
 export async function paperOf(tx: Tx, businessId: string, id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const d = (await sql<{ id: string; name: string; media_type: string; bytes: number; entry_id: string | null }>`
-    select id::text as id, name, media_type, bytes, entry_id::text as entry_id from documents where business_id = ${businessId}::uuid and id = ${id}::uuid`
+  const d = (await sql<{ id: string; name: string; media_type: string; bytes: number; entry_id: string | null;
+    history_entries: number | null; history_through: string | null; keep_until: string }>`
+    select id::text as id, name, media_type, bytes, entry_id::text as entry_id, history_entries, history_through::text as history_through,
+           keep_until::text as keep_until
+      from documents where business_id = ${businessId}::uuid and id = ${id}::uuid`
     .execute(tx)).rows[0];
   if (!d) return null;
   const readings = (await sql<{ id: string; read_at: string; outcome: ReadingRow['outcome']; model_id: string; reading: CheckedReading | null;
@@ -43,7 +49,8 @@ export async function paperOf(tx: Tx, businessId: string, id: string) {
     select id::text as id, to_json(read_at) #>> '{}' as read_at, outcome, model_id, reading, problems, entry_id::text as entry_id
       from document_readings where business_id = ${businessId}::uuid and document_id = ${id}::uuid order by read_at desc`.execute(tx)).rows
     .map((r): ReadingRow => ({ id: r.id, readAt: r.read_at, outcome: r.outcome, modelId: r.model_id, reading: r.reading, problems: r.problems, entryId: r.entry_id }));
-  return { id: d.id, name: d.name, mediaType: d.media_type, bytes: d.bytes, entryId: d.entry_id, readings };
+  return { id: d.id, name: d.name, mediaType: d.media_type, bytes: d.bytes, entryId: d.entry_id, readings, keepUntil: d.keep_until,
+    history: d.history_entries === null ? null : { entries: d.history_entries, through: d.history_through! } };
 }
 
 export async function keepReading(tx: Tx, businessId: string, documentId: string, by: string, r: {

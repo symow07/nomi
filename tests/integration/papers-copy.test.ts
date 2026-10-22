@@ -117,7 +117,7 @@ d('E1 · the owner\'s copy of their papers (requires DATABASE_URL + MIGRATE_DATA
     const files = unzip(r.rawPayload);
     expect(files[0]!.name).toBe('index.csv');
     const [head, ...rows] = csvRows(files[0]!.data.toString('utf8'));
-    expect(head).toEqual(['#', 'file', 'name', 'type', 'bytes', 'sha256', 'added', 'added_by', 'entry', 'keep_until']);
+    expect(head).toEqual(['#', 'file', 'name', 'type', 'bytes', 'sha256', 'added', 'added_by', 'entry', 'keep_until', 'history_through']);
     expect(rows).toHaveLength(3);
     const papers = files.slice(1);
     expect(papers.map((f) => f.name)).toEqual(rows.map((x) => x[1]));

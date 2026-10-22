@@ -16,7 +16,8 @@ import type { DocumentStores } from './documents.js';
  * 'papers_zip') records who made it, how many papers it holds and the newest one's time — what closure reads
  * (`papers_export_covers`): the OWNER's copy of every paper.
  */
-export const PAPERS_INDEX_HEADER = ['#', 'file', 'name', 'type', 'bytes', 'sha256', 'added', 'added_by', 'entry', 'keep_until'] as const;
+// E3 (0207) — `history_through`: an import's source file kept as history, NOT IN THE BOOKS — the newest date it holds.
+export const PAPERS_INDEX_HEADER = ['#', 'file', 'name', 'type', 'bytes', 'sha256', 'added', 'added_by', 'entry', 'keep_until', 'history_through'] as const;
 
 export type PapersArchive = { readonly file: Buffer; readonly papers: number; readonly sha256: string };
 
@@ -31,10 +32,10 @@ export async function makePapersArchive(db: Db, businessIdRaw: string, actor: st
   return withTenantTx(db, bid.value, async (tx) => {
     const rows = (await sql<{
       id: string; name: string; media_type: string; bytes: number; sha256: string; created_at: string; created_by: string;
-      entry: string | null; keep_until: string | null; newest: string;
+      entry: string | null; keep_until: string | null; history_through: string | null; newest: string;
     }>`select d.id::text as id, d.name, d.media_type, d.bytes, d.sha256, d.created_at::text, d.created_by,
               case when e.id is null then null else coalesce(j.code || ' ' || e.number::text, e.label) end as entry,
-              d.keep_until::text, (max(d.created_at) over ())::text as newest
+              d.keep_until::text, d.history_through::text, (max(d.created_at) over ())::text as newest
          from documents d
          left join journal_entries e on e.id = d.entry_id
          left join journals j on j.id = e.journal_id
@@ -47,7 +48,7 @@ export async function makePapersArchive(db: Db, businessIdRaw: string, actor: st
       if (!opened) throw new Error(`papers: ${r.id} could not be opened; no copy was made`);
       const file = fileName(i + 1, r.name);
       files.push({ name: file, data: opened.bytes });
-      index.push([String(i + 1), file, r.name, r.media_type, String(r.bytes), r.sha256, r.created_at, r.created_by, r.entry ?? '', r.keep_until ?? '']);
+      index.push([String(i + 1), file, r.name, r.media_type, String(r.bytes), r.sha256, r.created_at, r.created_by, r.entry ?? '', r.keep_until ?? '', r.history_through ?? '']);
     }
     files.unshift({ name: 'index.csv', data: Buffer.from(csvFile(PAPERS_INDEX_HEADER, index, dialect), 'utf8') });
     const file = zipWrite(files);

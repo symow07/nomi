@@ -2433,9 +2433,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
     let bytes: Buffer | null = null;
+    let fileName = 'workbook.xlsx';
     try {
       const file = await req.file();
       bytes = file ? await file.toBuffer() : null;
+      if (file?.filename) fileName = file.filename.slice(0, 200);
     } catch { bytes = null; }
     const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
     const values = { workbook: bytes ?? undefined };
@@ -2447,9 +2449,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
     if (read.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
     if (read.problems.length > 0) return refuse(read.problems);
-    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where);
+    // E3 (0207) — entries dated before the books' open window are history, not in the books: the workbook itself is
+    // kept with the papers, marked so. Without a store for papers, they stay a problem to fix, as before.
+    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where, deps.documents
+      ? { kind: 'keep_file', store: deps.documents, name: fileName, mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes: bytes! }
+      : { kind: 'refuse' });
     if (out.kind === 'refused') return refuse(out.problems);
-    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+    const counts = { added: out.added, replaced: out.replaced, unchanged: out.unchanged };
+    if (out.history?.documentId) return flashTo(reply, `/app/books/papers/${out.history.documentId}`, 'books.flash.workbookReadHistory', { ...counts, history: out.history.entries });
+    return flashTo(reply, '/app/books', 'books.flash.workbookRead', counts);
   });
 
   /**
@@ -2507,9 +2515,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
   const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
     odoo: { post: deps.odooPost ?? publicPost, today: todayIso }, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}) });
+  const SYSTEM_NAME = { sheets: 'Google Sheets', odoo: 'Odoo', xero: 'Xero', quickbooks: 'QuickBooks' } as const;
   const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero' | 'quickbooks', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
     const locale = localeOf(req);
-    if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
+    if (r.kind === 'read') {
+      const counts = { added: r.added, replaced: r.replaced, unchanged: r.unchanged };
+      return r.leftThere > 0
+        ? flashTo(reply, '/app/books', 'books.flash.readLeftThere', { ...counts, history: r.leftThere, system: SYSTEM_NAME[system] })
+        : flashTo(reply, '/app/books', 'books.flash.workbookRead', counts);
+    }
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
