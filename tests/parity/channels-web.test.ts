@@ -87,7 +87,9 @@ describe('M9.4 · channel center (localized)', () => {
 
   it('coming-soon channels shown honestly, never as connected; each name whole (w4-business-assistant-09, -16)', () => {
     const foot = channelsFoot('en');
-    for (const c of ['Telegram', 'WeCom', 'RED']) expect(foot).toContain(`<bdi>${c}</bdi>`);
+    for (const c of ['WeCom', 'RED']) expect(foot).toContain(`<bdi>${c}</bdi>`);
+    // S7 — Telegram is answered now, so it is not "coming"
+    expect(foot).not.toContain('<bdi>Telegram</bdi>');
     expect(foot).not.toContain('Instagram');
     expect(everyScreen(connected, 'en', null)).not.toMatch(/Instagram[^<]*Connected/);
     expect(channelsFoot('zh')).toContain('企业微信'); // WeCom localized in zh

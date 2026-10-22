@@ -415,7 +415,8 @@ export const channelFlash = (code: ChannelFlash): MessageKey =>
 const COMING_SOON: readonly MessageKey[] = [
   // G1 — the two sign-up asks about that Nomi cannot answer on yet. Phase 9 —
   // each is a word in the reader's language, like its siblings (微信 beside 企业微信).
-  'channel.platform.tiktok', 'channel.platform.wechat', 'channel.platform.telegram',
+  // S7 — Telegram left the list: it is answered now.
+  'channel.platform.tiktok', 'channel.platform.wechat',
   'channel.platform.wecom', 'channel.platform.rednote',
 ];
 
