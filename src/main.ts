@@ -74,6 +74,9 @@ import { runDueSteps } from './outbound/sequences.js';
 import { webChatAdapter } from './channels/web_chat/adapter.js';
 import { telegramFrom, type TelegramFetch } from './channels/telegram/adapter.js';
 import { START_CODE, telegramRoute } from './db/telegram.js';
+import { GREETING_SIGNED, greetingFor, type GreetingSigned } from './core/conversation/greeting.js';
+import { autonomyReleasedFor, disclosureFor, withDisclosure } from './core/conversation/disclosure.js';
+import { assistantNameOfConversation } from './db/assistants.js';
 import type { ChannelEvent, InboundMessageEvent } from './channels/whatsapp/parse.js';
 import { sendDueSurveys, surveyBusinessesDue } from './db/surveys.js';
 import type { SurveySigned } from './core/conversation/survey.js';
@@ -528,6 +531,9 @@ export async function buildProduction(
     surveySigned?: SurveySigned;
     /** S7 — tests only: Telegram's Bot API, instead of the network. */
     telegramFetch?: TelegramFetch;
+    /** S7 — tests only: the /start greeting, and (S6) the survey's thank-you, as if their readers had signed them. */
+    greetingSigned?: GreetingSigned;
+    surveyThanksSigned?: SurveySigned;
     /** CH3 — tests only: how long an echo waits before it is read (production: ECHO_SETTLE_SECONDS). */
     echoSettleSeconds?: number;
     /** G5b — tests only: the push service, instead of the network. */
@@ -598,7 +604,10 @@ export async function buildProduction(
     // CC-10 — whoever runs this installation hears of its errors.
     PILOT_BUSINESS_ID: process.env['PILOT_BUSINESS_ID'] ?? DEMO_PILOT_BUSINESS_ID,
   }, mediaPorts, overrides?.models ?? {},
-    overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {});
+    {
+      ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
+      ...(overrides?.surveyThanksSigned ? { surveyThanksSigned: overrides.surveyThanksSigned } : {}),
+    });
 
   // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
   // tenant isolation. Every RLS policy targets nomi_app; a superuser or
@@ -1890,6 +1899,11 @@ export async function buildProduction(
    * S7 — which business a Telegram message is for. "/start <code>" (the business's own link) ties the chat to that
    * business — a handle there, and the newest, so it is the one written to — and is not itself a message. Anything
    * else goes to the business the chat started last, while it has Telegram on; a chat that started none, to nobody.
+   *
+   * The start is answered by the greeting where its sentence is signed in the buyer's language (greeting.ts), with
+   * the AI disclosure in front — the first message nobody approved (rule 3) — and through the send gate like any of
+   * the assistant's messages. Unsigned, or with no assistant's name to disclose, nothing is said: a known gap waiting
+   * on the signature, not a decision.
    */
   const routeTelegram = async (e: InboundMessageEvent): Promise<ChannelEvent | null> => {
     const text = (e.text ?? '').trim();
@@ -1898,10 +1912,21 @@ export async function buildProduction(
       const code = start[1] && START_CODE.test(start[1]) ? start[1] : null;
       const bid = code ? await resolveTenant(code, 'telegram') : null;
       if (bid && !(await withTenantTx(db, bid, (tx) => billingHeld(tx)))) {
-        await withTenantTx(db, bid, async (tx) => {
-          await ensureConversation(tx, bid, e.waId, e.profileName, 'telegram');
+        const greeted = await withTenantTx(db, bid, async (tx) => {
+          const conv = await ensureConversation(tx, bid, e.waId, e.profileName, 'telegram');
           await sql`update client_channels set last_inbound_at = ${e.occurredAt} where channel = 'telegram' and channel_user_id = ${e.waId}`.execute(tx);
+          const facts = (await sql<{ name: string; disclosed: boolean }>`select b.name, c.ai_disclosure_delivered_at is not null as disclosed
+            from conversations c join businesses b on b.id = c.business_id where c.id = ${conv.conversationId}::uuid`.execute(tx)).rows[0];
+          const hello = facts ? greetingFor(e.language, facts.name, overrides?.greetingSigned ?? GREETING_SIGNED) : null;
+          // …and only in a language whose disclosure a reader signed: nothing automated reaches a buyer otherwise (0153).
+          if (!hello || !facts || !autonomyReleasedFor(hello.locale)) return null;
+          const disclosure = facts.disclosed ? null
+            : disclosureFor({ detected: hello.locale, name: await assistantNameOfConversation(tx, bid, conv.conversationId), business: facts.name });
+          if (!facts.disclosed && !disclosure) return null;
+          const body = disclosure ? withDisclosure(disclosure, hello.text) : hello.text;
+          return (await enqueueOutboundRow(tx, bid, conv.conversationId, body, 'employee')) !== null ? conv.conversationId : null;
         });
+        if (greeted) await boss.send(QUEUES.outbound, { businessId: bid, conversationId: greeted }, { singletonKey: greeted });
       }
       return null;
     }

@@ -52,10 +52,10 @@ d('S7 · Telegram, one bot for every business (requires DATABASE_URL)', { timeou
       await new Promise((r) => setTimeout(r, 200));
     }
   };
-  const post = (chat: number, text: string, secret = SECRET) => prod.app.inject({
+  const post = (chat: number, text: string, secret = SECRET, language?: string) => prod.app.inject({
     method: 'POST', url: '/webhook/telegram',
     headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': secret },
-    payload: JSON.stringify({ update_id: ++update, message: { message_id: ++msg, date: Math.floor(Date.now() / 1000), chat: { id: chat, type: 'private' }, from: { id: chat, first_name: 'Amal' }, text } }),
+    payload: JSON.stringify({ update_id: ++update, message: { message_id: ++msg, date: Math.floor(Date.now() / 1000), chat: { id: chat, type: 'private' }, from: { id: chat, first_name: 'Amal', ...(language ? { language_code: language } : {}) }, text } }),
   });
   const handles = (biz: string, chat: number) => q(biz, (tx) => sql<{ n: number }>`select count(*)::int as n from client_channels
     where channel = 'telegram' and channel_user_id = ${String(chat)}`.execute(tx).then((r) => r.rows[0]!.n));
@@ -96,6 +96,8 @@ d('S7 · Telegram, one bot for every business (requires DATABASE_URL)', { timeou
       WEBHOOK_VERIFY_TOKEN: 'tg-verify-token-xxx', CREDENTIAL_KEY: 'e'.repeat(64), PORT: 0,
     }, {
       adapter: sim.adapter, logger: false, models: { analyzer, replyWriter }, autonomyReleased: () => true,
+      // as if the greeting's English reader had signed (production: none signed — silence, the known gap)
+      greetingSigned: { en: (await import('../../src/core/conversation/greeting.js')).greetingText('en') },
       telegramFetch: async (url, init) => {
         const method = url.split('/').at(-1)!;
         sent.push({ method, body: JSON.parse(init.body) as Record<string, unknown> });
@@ -127,6 +129,16 @@ d('S7 · Telegram, one bot for every business (requires DATABASE_URL)', { timeou
     const reply = await until(async () => sent.find((s) => s.method === 'sendMessage' && s.body['chat_id'] === String(C(777))), 'the answer, to the chat');
     expect(String(reply.body['text'])).toContain('Yes, we make tote bags — which size are you looking for?');
     expect(String(reply.body['text'])).toContain('AI assistant');       // the first message nobody approved says so (rule 3)
+  });
+
+  it('THE START IS GREETED where its sentence is signed in the buyer\'s language, with the disclosure first; elsewhere, nothing', async () => {
+    await post(C(555), `/start ${code.A}`, SECRET, 'en');
+    const hello = await until(async () => sent.find((s) => s.method === 'sendMessage' && s.body['chat_id'] === String(C(555))), 'the greeting');
+    expect(String(hello.body['text'])).toMatch(/AI assistant[\s\S]*\n\nWelcome to Atlas Bags on Telegram\./);
+    await post(C(556), `/start ${code.A}`, SECRET, 'fr');
+    await post(C(557), `/start ${code.A}`);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(sent.some((s) => s.body['chat_id'] === String(C(556)) || s.body['chat_id'] === String(C(557)))).toBe(false);
   });
 
   it('A CHAT THAT STARTED TWO writes to the one it started last; one that started none, and a bad code, to nobody', async () => {

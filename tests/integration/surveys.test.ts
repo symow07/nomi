@@ -155,10 +155,10 @@ d('S6 · how did we do? asked only where free (requires DATABASE_URL)', () => {
     const b = await buyer();
     await sweep();
     const answer = (text: string, at = new Date()) => tx((x) => recordSurveyAnswer(x, BIZ as never, b.conv, { text, messageId: `wamid.${RUN}.${text.length}`, now: at }));
-    expect(await answer('5 more pieces please')).toBe(false);
-    expect(await answer('5', new Date(Date.now() + 25 * 3_600_000))).toBe(false);
-    expect(await answer(' ⭐⭐⭐⭐ ')).toBe(true);
-    expect(await answer('5')).toBe(false);                    // answered already: a second score is an ordinary message
+    expect(await answer('5 more pieces please')).toBeNull();
+    expect(await answer('5', new Date(Date.now() + 25 * 3_600_000))).toBeNull();
+    expect(await answer(' ⭐⭐⭐⭐ ')).toEqual({ language: 'en', business: 'Atlas Bags' });
+    expect(await answer('5')).toBeNull();                     // answered already: a second score is an ordinary message
     const kept = await tx((x) => sql<{ state: string; score: number; answer_text: string }>`
       select state, score, answer_text from survey_asks where conversation_id = ${b.conv}::uuid`.execute(x).then((r) => r.rows[0]!));
     expect(kept).toEqual({ state: 'answered', score: 4, answer_text: '⭐⭐⭐⭐' });
@@ -206,10 +206,15 @@ d('S6 · the answer, through the real worker (requires DATABASE_URL)', { timeout
     await withTenantTx(setup, BIZ2 as never, async (t) => {
       await sql`insert into businesses (id, name, engine, surveys_on, batch_debounce_ms, batch_max_window_ms)
                 values (${BIZ2}, 'Survey Answers', 'service', true, 300, 1000) on conflict (id) do nothing`.execute(t);
-      await sql`insert into channels (business_id, kind, status, display_phone, connected_at)
-                values (${BIZ2}, 'whatsapp', 'connected', '+86 579****0079', now())`.execute(t);
+      // live: the channel switched on, so what the assistant sends may leave
+      await sql`insert into channels (business_id, kind, status, display_phone, connected_at, activated_at, pilot_mode)
+                values (${BIZ2}, 'whatsapp', 'connected', '+86 579****0079', now(), now(), false)`.execute(t);
       await sql`insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
                 values (${BIZ2}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')`.execute(t);
+      // a chosen name, so the disclosure a thank-you may need can be said
+      await sql`insert into assistants (business_id, name, is_default) values (${BIZ2}, 'Lily', true)`.execute(t);
+      await sql`insert into onboarding_state (business_id, assistant_named_at) values (${BIZ2}, now())
+                on conflict (business_id) do update set assistant_named_at = now()`.execute(t);
     });
     await setup.destroy();
     process.env['PILOT_BUSINESS_ID'] = BIZ2;
@@ -222,10 +227,12 @@ d('S6 · the answer, through the real worker (requires DATABASE_URL)', { timeout
     };
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
-      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: sim.phoneNumberId,
       META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real', META_GRAPH_API_VERSION: 'v23.0',
       WEBHOOK_VERIFY_TOKEN: 'srv-verify-token-xx', CREDENTIAL_KEY: 'c'.repeat(64), PORT: 0,
-    }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter } });
+    }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter },
+      // as if the thank-you's reader had signed the English (production: none signed — silence, the known gap)
+      surveyThanksSigned: { en: (await import('../../src/core/conversation/survey.js')).surveyThanksText('en') } });
   }, 60_000);
   afterAll(async () => {
     if (prod) {
@@ -250,6 +257,11 @@ d('S6 · the answer, through the real worker (requires DATABASE_URL)', { timeout
       .execute(x).then((r) => r.rows[0]?.score ?? undefined))) ?? undefined, 'the answer');
     expect(answered).toBe(5);
     await recorded('5');
+    // thanked, in one line, in the language it was asked in — and by the send path, not by a turn
+    const thanked = await until(async () => (await q((x) => sql<{ body: string }>`select body from outbound_messages
+      where conversation_id = ${conv}::uuid and status = 'sent' and body like '%Thank you — that helps%'`.execute(x).then((r) => r.rows[0]?.body))) ?? undefined, 'the thank-you');
+    // the first message nobody approved in this conversation, so the disclosure comes first (rule 3)
+    expect(thanked).toMatch(/AI assistant[\s\S]*\n\nThank you — that helps Survey Answers\.$/);
     await say('5 more bags please');
     await recorded('5 more bags please');
     await until(async () => ((await turns()) > before ? true : undefined), 'the turn for the order');

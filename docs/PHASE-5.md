@@ -1,8 +1,18 @@
-# Phase 5 — the full map (planning only, a stop-gate)
+# Phase 5 — the full map
 
-Written for the owner. First version 2026-10-21 (#373). This version records **the owner's answers of 2026-10-21**:
-the build order approved with the four changes, the ten questions answered, and the Moroccan FEC checked against
-Morocco's own sources. Nothing here is built. It is the plan; the owner's approval starts the build.
+> **STATUS, 2026-10-22: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
+> Blocks A, B, C, D and S are built, tested and merged (#375–#379; schema 204). What remains is not code:
+> 1. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
+> 2. **native signatures on four sentence sets**, read in one pass: the survey question, the survey's thank-you, the
+>    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
+> 3. **a deploy** — production is on #353 (zero-spend), and Telegram's bot, its settings and its webhook come with it.
+> Nothing new starts until the accountant's answer or the signatures arrive (the owner, 2026-10-22).
+
+The history below is the plan as it was approved, then each block as it was built.
+
+Written for the owner. First version 2026-10-21 (#373). It recorded **the owner's answers of 2026-10-21**: the build
+order approved with the four changes, the ten questions answered, and the Moroccan FEC checked against Morocco's own
+sources. Since then it has been built, block by block; each block's record is below.
 
 It rests on four readings:
 
@@ -723,7 +733,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     codes, journal entries and journal lines too. `tests/integration/books-dz.test.ts` goes past every route guard: as
     the accountant, each table is still in sight, and each insert, change and deletion is refused with the books'
     reason; the owner's same write goes. Each table's guard is proven by dropping it alone.
-  - **Found and closed in block S (0201, 2026-10-22): staff had the books underneath.** Decision 12 gives staff nothing
+  - **Found and closed in block S (0201, 2026-10-22): staff had the books underneath** — the finding the per-block
+    database role check was made for, in the first block after the rule (the owner, 2026-10-22). Decision 12 gives staff nothing
     of the books; the routes held it, but a request made as a member of the team read the chart of accounts and added
     an account to it. 0201 adds a restrictive `not_for_staff` policy (`viewer_is_staff()`, from the person's own row) to
     every one of the books' own tables: a team member's request sees no row of them and writes none. Left open, because
@@ -780,7 +791,13 @@ Each item is built and fully tested (§4) before the next one that depends on it
     refuses any conversation whose buyer has a deletion request waiting; each check proven by switching it off).
     A hand-off made while the assistant is stopped or silenced is given in turn like any other: those buyers wait
     for a person, and the turn only says which one. A failure of the turn never stops the hand-off's alert.
-- **S4 · Item 16 — strict mode per language.** *(the code built 2026-10-22; in force in no language.)* **Gated on a
+- **S4 · Item 16 — strict mode per language.** *(the code built 2026-10-22; in force in no language.)*
+  **BUILT, NOT USABLE until the prompt knows which sentences are signed** (the owner, 2026-10-22). Switched on today, a
+  strict language would hold nearly every reply as a draft: the writer does not yet know the signed sentences, so it
+  rarely writes one exactly. That is the safe direction, so it stays as it is — but nobody should switch it on
+  expecting the behaviour designed here. Teaching the writer the set changes the prompts and needs the live model
+  check, which costs balance: not run. The owner approves a bounded run, with a stated number of calls, when there is
+  budget. **Gated on a
   person:** a native reviewer per language, exactly as the Arabic disclosure is (decision 15). It switches on per
   language only when that language's sentence set is signed.
   - **What it does:** in a strict language — the customer's, or (G8) the reply's own — a reply goes alone only when it
@@ -824,8 +841,10 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - Only the owner's decision is stored (`answer_decisions`): a SHA-256 digest of the question's folded words, never
       the words. The decision therefore outlives the buyers who asked, and the erasure classes it as unrelated.
     - A decision is final: no change, no deletion. Setting aside has no Undo; it asks first.
-    - Deciding is owner-only, even though staff may teach a fact by hand, because the item's criterion says "without
-      the owner".
+    - Deciding is owner-only, even though staff may teach a fact by hand (the owner, 2026-10-22: the call stands, for a
+      reason). Approving a suggested answer is accepting something the MODEL put in front of you — wording drawn from
+      one conversation, to be said to every buyer. Typing a fact is a person asserting something they know. Those are
+      not the same act, so it is no inconsistency that staff may do one and not the other.
     - Read from the last 90 days; at most 12 shown, the most asked first.
   - The accountant is refused by the route, and by the database, which shows them no decision and takes none (DZ,
     in this block).
@@ -850,7 +869,11 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **Claude's calls, reported:**
     - The moment is the owner's order confirmation, the only place a conversation closes today.
     - E-mail is free, but it is left out: a letter needs a subject, which would also need signing.
-    - A score answers nobody: no thank-you, which would be another sentence to sign.
+    - **A score is thanked in one line — once that line is signed (the owner, 2026-10-22: silence is the wrong answer
+      to someone who has just done you a favour).** The thank-you is written in five languages (survey.ts, `THANKS`) and
+      sent where it is signed, in the language the question was asked in, with the disclosure in front where that
+      conversation has not had it (the answer often opens a new one after the order). **Until signed, the answer is
+      met by silence: a KNOWN GAP, with its fix built and waiting on the signature — not a decision.**
     - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
 - **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
   TikTok wait for revenue. *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
@@ -883,7 +906,11 @@ Each item is built and fully tested (§4) before the next one that depends on it
     `tools/telegram-webhook.mjs` — then "Telegram live on deploy day" (zero-spend: no deploy until the owner says).
   - **Claude's calls, reported:**
     - The chat page and Telegram exist only on the messaging path (an installation with no channel at all has neither).
-    - `/start` gets no reply until the buyer writes: a welcome would be another sentence to sign.
+    - **A /start is greeted — once the greeting is signed (the owner, 2026-10-22: a buyer who hears nothing thinks it is
+      broken).** The greeting is written in five languages (greeting.ts) and sent in the buyer's Telegram language
+      where it is signed and that language's disclosure is signed too, with the AI disclosure in front: it is the
+      conversation's first automated message. **Until signed, a /start is met by silence: a KNOWN GAP, with its fix built
+      and waiting on the signature — not a decision.**
     - The bot is not the team-alerts bot. `TELEGRAM_BOT_TOKEN` is the one bot; no alert goes by Telegram yet.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.
 

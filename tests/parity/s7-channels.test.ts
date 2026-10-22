@@ -76,3 +76,18 @@ describe('S7 · Telegram', () => {
       .toBeLessThan(ingress.indexOf('const outcome = await deps.persistEvent(event, payload, adapter.kind);'));
   });
 });
+
+describe('S7 and S6 · the two sentences that answer a /start and a score (the owner, 2026-10-22)', () => {
+  it('NOT SIGNED YET: a /start and a survey answer are met by silence until their readers sign — a known gap, in every language', async () => {
+    const { GREETING_SIGNED, GREETING_LOCALES, greetingFor, greetingText } = await import('../../src/core/conversation/greeting.js');
+    const { SURVEY_THANKS_SIGNED, SURVEY_LOCALES, surveyThanksFor, surveyThanksText } = await import('../../src/core/conversation/survey.js');
+    expect(GREETING_SIGNED).toEqual({});
+    expect(SURVEY_THANKS_SIGNED).toEqual({});
+    for (const l of GREETING_LOCALES) { expect(greetingFor(l, 'Atlas'), l).toBeNull(); expect(greetingText(l), l).toContain('{business}'); }
+    for (const l of SURVEY_LOCALES) { expect(surveyThanksFor(l, 'Atlas'), l).toBeNull(); expect(surveyThanksText(l), l).toContain('{business}'); }
+    // signed, each is said in its own language only, the business named
+    expect(greetingFor('en-GB', 'Atlas', { en: greetingText('en') })?.text).toBe('Welcome to Atlas on Telegram. Write your question here, and you will get an answer.');
+    expect(greetingFor('fr', 'Atlas', { en: greetingText('en') })).toBeNull();
+    expect(surveyThanksFor('zh', 'Atlas', { zh: surveyThanksText('zh') })?.text).toBe('谢谢您的评价，这对Atlas很有帮助。');
+  });
+});

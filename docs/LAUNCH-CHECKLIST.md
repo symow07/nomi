@@ -146,11 +146,15 @@ weeks. They start well before the deploy that needs them:
 
 Built and switched off by design; each waits on a person, not on code:
 
-- **Surveys (S6):** nobody is asked anything until the sentence is signed in its language
-  (`src/core/conversation/survey.ts`, `SIGNED`): the owner signs the English, a native reader each of the others,
-  named in the commit. Then the owner switches surveys on (`/app/surveys`).
-- **Strict mode (S4):** in force in no language until a native reader signs a set (`src/core/conversation/strict.ts`,
-  `SIGNED`; the starter sets are `PROPOSED`). Telling the writer the set needs the live model check: ask first.
+- **Four sentence sets, signed in ONE pass** (the owner signs the English, a native reader each of the others, named in
+  the commit that writes them into `SIGNED`):
+  1. the survey question (`src/core/conversation/survey.ts`, `TEXT`);
+  2. the survey's thank-you (`survey.ts`, `THANKS`) — until signed, an answer is met by silence (a known gap);
+  3. the Telegram /start greeting (`src/core/conversation/greeting.ts`) — until signed, a /start is met by silence;
+  4. strict mode's starters (`src/core/conversation/strict.ts`, `PROPOSED`).
+  Then the owner switches surveys on (`/app/surveys`).
+- **Strict mode (S4) is built and NOT USABLE** until the writer is taught the signed sentences: that needs a bounded
+  live model run, which the owner approves with a call count when there is budget.
 - **Telegram (S7):** the owner creates Nomi's bot with @BotFather and pastes `TELEGRAM_BOT_TOKEN`,
   `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_BOT_USERNAME` into Railway (docs/env-checklist.md). After the deploy, run
   `railway run --service nomi -- node tools/telegram-webhook.mjs` once, then `--check`. Each business then turns it

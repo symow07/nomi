@@ -40,6 +40,8 @@ export type InboundMessageEvent = {
    * Page's own token, and matched to a product.
    */
   readonly postId?: string | null;
+  /** S7 — the buyer's own language, where the platform says (Telegram's `language_code`): which signed greeting fits. */
+  readonly language?: string | null;
 };
 
 export type StatusEvent = {

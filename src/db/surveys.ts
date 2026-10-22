@@ -85,19 +85,23 @@ export async function sendDueSurveys(tx: Tx, businessId: BusinessId, now: Date, 
   return queued;
 }
 
-/** Is this buyer's message their answer to a survey? Kept if so (and nothing answers it). */
+/**
+ * Is this buyer's message their answer to a survey? Kept if so: the language the question was asked in, and the
+ * business's name, for the thank-you (sent only where its sentence is signed); null when it is no answer.
+ */
 export async function recordSurveyAnswer(tx: Tx, businessId: BusinessId, conversationId: string, o: {
   readonly text: string; readonly messageId: string | null; readonly now: Date;
-}): Promise<boolean> {
+}): Promise<{ readonly language: string | null; readonly business: string } | null> {
   const score = surveyScore(o.text);
-  if (score === null) return false;
-  const r = await sql`update survey_asks s set state = 'answered', score = ${score}, answer_text = ${o.text.trim().slice(0, 500)},
+  if (score === null) return null;
+  const r = await sql<{ language: string | null; business: string }>`update survey_asks s set state = 'answered', score = ${score}, answer_text = ${o.text.trim().slice(0, 500)},
       answered_at = ${o.now}, answer_message_id = ${o.messageId}
     where s.id = (select a.id from survey_asks a join conversations c on c.client_id = a.client_id
                    where c.id = ${conversationId}::uuid and a.business_id = ${businessId}::uuid and a.state = 'sent'
                      and a.asked_at > ${new Date(o.now.getTime() - SURVEY_ANSWER_MS)}
-                   order by a.asked_at desc limit 1)`.execute(tx);
-  return (r.numAffectedRows ?? 0n) > 0n;
+                   order by a.asked_at desc limit 1)
+    returning s.language, (select b.name from businesses b where b.id = s.business_id) as business`.execute(tx);
+  return r.rows[0] ?? null;
 }
 
 export type SurveyFacts = { readonly on: boolean; readonly business: string; readonly asked: number; readonly answered: number; readonly average: number | null };

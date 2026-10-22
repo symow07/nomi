@@ -3,6 +3,9 @@ import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
 import { giveToNextInTurn } from '../db/rotation.js';
 import { recordSurveyAnswer } from '../db/surveys.js';
+import { SURVEY_THANKS_SIGNED, surveyThanksFor, type SurveySigned } from '../core/conversation/survey.js';
+import { autonomyReleasedFor, disclosureFor, withDisclosure } from '../core/conversation/disclosure.js';
+import { assistantNameOfConversation } from '../db/assistants.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { decideBatch } from '../core/conversation/batching.js';
@@ -24,7 +27,7 @@ import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { matchCaption, postLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
 import { catalogueNames } from '../db/productAliases.js';
-import { pilotFactsFor } from '../db/channels.js';
+import { enqueueOutboundRow, pilotFactsFor } from '../db/channels.js';
 import { turnHold, HOLD_REASON } from '../db/assistantStop.js';
 import { practiceOf, conversationExists } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
@@ -104,7 +107,11 @@ export async function startWorker(
    * native review, so it can prove what she does once autonomy is allowed.
    * Production passes nothing and reads DISCLOSURE_NATIVE_REVIEW.
    */
-  rehearsal: { autonomyReleased?: () => boolean } = {},
+  rehearsal: {
+    autonomyReleased?: () => boolean;
+    /** S6 — tests only: the survey's thank-you as if its reader had signed it (production reads survey.ts). */
+    surveyThanksSigned?: SurveySigned;
+  } = {},
 ) {
   const db = createDb(env.DATABASE_URL);
   const boss = await startBoss(env.DATABASE_URL);
@@ -603,17 +610,33 @@ export async function startWorker(
      * ── S6 (0202) · A SCORE, AFTER A SURVEY ────────────────────────────────
      *
      * Asked how it went after an order, the buyer answered with only a number from 1 to 5 within their 24 hours:
-     * that is their answer. It is on the timeline and kept, and nothing answers it — no turn, no model, no reply.
-     * Anything more than the score ("5 more please") is an ordinary message and goes on below.
+     * that is their answer. It is on the timeline and kept — no turn, no model — and it is thanked in one line, in
+     * the language the question was asked in, where that line is signed (survey.ts); unsigned, nothing is said: a
+     * known gap waiting on the signature. Anything more than the score ("5 more please") is an ordinary message.
      */
     if ((job.data.messageType ?? 'text') === 'text' && job.data.text) {
       const answered = await withTenantTx(db, businessId.value, async (tx) => {
         await lockConversation(tx, conversationId.value);
-        if (!(await recordSurveyAnswer(tx, businessId.value, conversationId.value, { text: job.data.text, messageId: job.data.messageId, now: new Date() }))) return false;
+        const answer = await recordSurveyAnswer(tx, businessId.value, conversationId.value, { text: job.data.text, messageId: job.data.messageId, now: new Date() });
+        if (!answer) return null;
         await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
-        return true;
+        // The thank-you goes the assistant's way: through the send gate, which holds it while stopped, silenced or held;
+        // only in a language whose disclosure is signed, and with the disclosure in front where this conversation has
+        // not had it (rule 3: after an order the answer often opens a new one).
+        const thanks = surveyThanksFor(answer.language, answer.business, rehearsal.surveyThanksSigned ?? SURVEY_THANKS_SIGNED);
+        if (!thanks || !autonomyReleasedFor(thanks.locale)) return { queued: false };
+        const told = (await sql<{ at: Date | null }>`select ai_disclosure_delivered_at as at from conversations where id = ${conversationId.value}::uuid`
+          .execute(tx)).rows[0]?.at ?? null;
+        const disclosure = told ? null
+          : disclosureFor({ detected: thanks.locale, name: await assistantNameOfConversation(tx, businessId.value, conversationId.value), business: answer.business });
+        if (!told && !disclosure) return { queued: false };
+        const body = disclosure ? withDisclosure(disclosure, thanks.text) : thanks.text;
+        return { queued: (await enqueueOutboundRow(tx, businessId.value, conversationId.value, body, 'employee')) !== null };
       });
-      if (answered) return;
+      if (answered) {
+        if (answered.queued) await boss.send(QUEUES.outbound, { businessId: businessId.value, conversationId: conversationId.value }, { singletonKey: conversationId.value });
+        return;
+      }
     }
 
     // M34 — a voice note is heard BEFORE the turn, outside the tenant
