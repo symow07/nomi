@@ -16123,9 +16123,10 @@ Reviewer (per language): ______  Date: ______
 
 ## 2026-10-23 — Phase 5 E, the owner's review — one ICE rule, Sheets says how many, retention said (not a gate)
 
-- **The keys (5 new, in each of zh, ar, es and fr; 3 changed):**
+- **The keys (6 new, in each of zh, ar, es and fr; 3 changed):**
   - new: `books.workbook.refused.beforeBooks`, `books.workbook.refused.beforeBooks.sheets|workbook`, `books.problem.before_books`: a refused read's entries dated before these books, counted, with the reason; `data.papers.history`: on Your data, that a file kept as history is kept whole until its newest entry's date;
-  - changed: `books.party.ice`, `books.problem.bad_ice`, `books.flash.partyRefused` say 15 positions, not 15 digits (zh 位, es «posiciones», fr «positions»; Arabic already said خانة and is unchanged).
+  - new: `books.problem.ice_not_morocco`: an ICE on a party whose country is not MA;
+  - changed: `books.party.ice`, `books.problem.bad_ice`, `books.flash.partyRefused` say 15 positions, not 15 digits (zh 位, es «posiciones», fr «à 15 positions»; Arabic already said خانة), and the refusal says the ICE is only for a customer in Morocco (MA).
 - **Where the words differ, and why:**
   - "entries" stays 分录 / القيود / «asientos» / «écritures», as in `books.flash.readLeftThere`, so the same reason reads in the same words;
   - Arabic asks with «يُرجى» and a verbal noun (نقل، إعادة الاستيراد), addressing nobody in a gender; French says «une ligne non lue» so no pronoun stands for Nomi.

@@ -1,6 +1,6 @@
 import { OAUTH_TIMEOUT_MS, type OAuthFetch } from '../../connectors/oauth.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
-import { iceOrNull } from '../../core/books/identifiers.js';
+import { partyIce } from '../../core/books/identifiers.js';
 import {
   booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksParty, type BooksProblem,
   type BooksTaxCode, type CustomValues, type RecordKind,
@@ -187,7 +187,7 @@ export function xeroToBooks(raw: XeroRaw, bookCurrency: string): { data: BooksDa
     const country = (Array.isArray(c['Addresses']) ? (c['Addresses'] as Record<string, unknown>[]) : []).map((x) => str(x['Country'])).find((x) => x && /^[A-Z]{2}$/.test(x)) ?? null;
     parties.push({ code, name: str(c['Name']) ?? code,
       kind: c['IsCustomer'] === true ? 'customer' : c['IsSupplier'] === true ? 'supplier' : 'other',
-      country, ice: iceOrNull(registry), taxNumber: str(c['TaxNumber']) });
+      country, ice: partyIce(country, registry), taxNumber: str(c['TaxNumber']) });
     note('party', code, 'Contact');
   }
   // Xero posts every tax to the organisation's own tax account: "GST / VAT", SystemAccount "GST" (Accounting API types).

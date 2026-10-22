@@ -98,7 +98,7 @@ its name is a file that does not work:
   and carried on every line of the FEC after the Avis's eighteen fields. Checked
   only where an official source publishes a rule (PHASE-5.md, E2): the ICE's
   15 positions (OMPIC; the ICE portal's guide), and a party's ICE by the same
-  rule (0208). The IF has no published format and is kept as typed; the RC is
+  rule, only for a party in Morocco (0208). The IF has no published format and is kept as typed; the RC is
   kept with its court (Code de commerce, art. 49 and 154), its number unchecked:
   no rule because no source, not "no rule yet". The FEC page names any of the
   three still missing.

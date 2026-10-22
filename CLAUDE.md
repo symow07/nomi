@@ -127,8 +127,14 @@ branch had taken to 0167 (#364's first run): two tests failed that were not
 defects. **CI never had this problem** (a fresh Postgres per job) — do not
 "fix" CI for it.
 
-Run all of it on **Node 22** — production and CI use it (`.nvmrc`); this
-Mac's default `node` is newer (`PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"`).
+Run all of it on **Node 22** — production (Railpack reads `.nvmrc`: #353 was
+built on 22.23.3) and CI use it. This Mac's default `node` is 26:
+`PATH="$HOME/.nvm/versions/node/v22.23.4/bin:$PATH"` (installed 2026-10-23;
+22.23.2 left this Mac on 2026-10-07, and a PATH to a missing folder falls
+through silently). **The runners now refuse any other Node** — `npm run check`,
+`npm run trust`, both integration runners and `pre-pilot` stop with
+"NOT RUN … .nvmrc pins 22" (`tools/lib/pinned-node.mjs`). `build` and `start`
+are not guarded: Railway runs those.
 #129 passed locally on Node 26 with `Intl.DurationFormat` and failed on CI.
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`

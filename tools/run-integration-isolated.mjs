@@ -37,6 +37,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { requirePinnedNode } from './lib/pinned-node.mjs';
+
+requirePinnedNode('run-integration-isolated');
 
 const say = (m) => console.log(`  · ${m}`);
 const fail = (m) => { console.error(`\n  ✗ isolated integration: ${m}`); return 1; };

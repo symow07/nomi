@@ -966,9 +966,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     own defect. A party's ICE is now checked exactly as the business's: spaces as typed taken out, then fifteen
     positions, none a space. It is one rule in one place (`iceAsTyped`, `isIce`, `iceOrNull` in
     src/core/books/identifiers.ts), and the database holds it (`parties_ice_shape`, the same check as
-    `businesses_legal_ice_shape`). In a connector the rule also decides whether a registry field (Odoo's
-    `company_registry`, Xero's `CompanyNumber`) is an ICE at all. A fifteen-position value there that is not an ICE
-    would now be read as one; before, only fifteen digits were.
+    `businesses_legal_ice_shape`). In a connector, a registry field (Odoo's `company_registry`, Xero's
+    `CompanyNumber`) is an ICE only for a party in Morocco (review item 1 below).
   - **The FEC's four added columns are Nomi's naming** (`ICE`, `Identifiant_Fiscal`, `Num_RC`, `Tribunal_RC`, after the
     eighteen, on every line). The Avis lists the fields « au minimum » (annex, point 3) and names none for the business
     itself. They are in one place (`FEC_IDENTITY_FIELDS`) until the DGI publishes its own. The FEC page names any of
@@ -1003,7 +1002,13 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - Retention runs from the newest entry's year, the law's date for those entries' papers.
 - **The owner's review of block E (2026-10-23): approved, with these changes and records.** *(built 2026-10-23, 0208.)*
   1. **A party's ICE is fifteen positions, like the business's** (E2 above). OMPIC says « 15 positions », not 15
-     digits, and one identifier keeps one rule.
+     digits, and one identifier keeps one rule. **And only a party in Morocco has one** (the owner's question on #382:
+     was it gated on the party's country? It was not, under 0170's digits rule either). A connected system's
+     registry field (Odoo `company_registry`, Xero `CompanyNumber`, QuickBooks' mark) is read as an ICE only when the
+     party's country is MA (`partyIce`). Anyone else's registry number stays in that system and is not copied:
+     the books have no field for another country's registry number. The workbook, Sheets and the parties form refuse
+     an ICE on a party not in Morocco (`ice_not_morocco`). The database holds it (`parties_ice_morocco`, NOT VALID: it
+     binds every row written from now on, and a row an earlier rule let in cannot stop a deploy).
   2. **Google Sheets: the refusal stays, and now says how many and why.** Odoo, Xero and QuickBooks say how many
      entries they left. Sheets said nothing of the kind, so an owner's old rows would seem not to arrive. In Sheets,
      the entries the others would leave where they are now get their own reason, `before_books` ("Dated before these

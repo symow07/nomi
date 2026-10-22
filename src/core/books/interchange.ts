@@ -93,7 +93,7 @@ export type BooksRecord = { readonly kind: RecordKind; readonly key: string; rea
 export const BOOKS_PROBLEMS = [
   'missing_sheet', 'missing_column', 'required', 'not_a_date', 'not_an_amount', 'ambiguous_amount', 'unknown_kind',
   'bad_code', 'duplicate', 'unknown_account', 'unknown_journal', 'unknown_party', 'unknown_tax_code',
-  'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'entry_fields_differ', 'too_many_decimals',
+  'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'ice_not_morocco', 'entry_fields_differ', 'too_many_decimals',
   // against what Nomi already holds (the read-in, B2/B5)
   'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed', 'tax_before_known',
   // E3 — an entry dated before these books, where it cannot be left where it is (Sheets)

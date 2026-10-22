@@ -279,7 +279,7 @@ import { readStatement } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
-import { iceAsTyped, isIce } from '../../core/books/identifiers.js';
+import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -3383,7 +3383,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyFieldRefused',
         { why: t(locale, wrong.why === 'required_field' ? 'books.fields.problem.required' : 'books.fields.problem.value', { label: wrong.label }) });
     }
-    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !isIce(ice))
+    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && (!isIce(ice) || country !== ICE_COUNTRY))
         || taxNumber.length > 40 || address.length > 400) {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }
