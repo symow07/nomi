@@ -80,6 +80,8 @@ d('M35 · every route that is not deliberately public refuses a stranger', () =>
       // from the app under test is dead documentation: the check below would
       // pass while nothing ever probed the real thing.
       emailWebhookSecret: 'an-email-webhook-shared-secret',
+      // S7 — the chat page, mounted on purpose for the same reason; this one takes nothing.
+      chatIngest: async () => 'refused' as const,
       resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }),
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
