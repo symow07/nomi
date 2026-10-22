@@ -21,7 +21,6 @@ export const FEC_FIELDS = [
  */
 export const FEC_IDENTITY_FIELDS = ['ICE', 'Identifiant_Fiscal', 'Num_RC', 'Tribunal_RC'] as const;
 export type FecIdentity = { readonly ice: string | null; readonly taxId: string | null; readonly rc: string | null; readonly rcCourt: string | null };
-export const NO_IDENTITY: FecIdentity = { ice: null, taxId: null, rc: null, rcCourt: null };
 
 /**
  * The file around the fields — NOT set by Avis 24, so a choice of Nomi's until the DGI publishes its own: UTF-8, one

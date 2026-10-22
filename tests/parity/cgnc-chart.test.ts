@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FEC_FIELDS, FEC_IDENTITY_FIELDS, NO_IDENTITY, fecFile, numberingProblems, type FecLine } from '../../src/core/books/fec.js';
+import { FEC_FIELDS, FEC_IDENTITY_FIELDS, fecFile, numberingProblems, type FecLine } from '../../src/core/books/fec.js';
+
+const NO_IDENTITY = { ice: null, taxId: null, rc: null, rcCourt: null };
 import type { Decimal } from '../../src/core/types/decimal.js';
 
 /**
