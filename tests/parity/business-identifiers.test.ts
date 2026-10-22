@@ -97,7 +97,7 @@ describe('0208 · a party\'s ICE is checked as the business\'s', () => {
       new RegExp(`${column} is null or ${column} ~ '([^']+)'`).exec(readFileSync(`${ROOT}migrations/${file}`, 'utf8'))?.[1];
     expect(shape('0208_party_ice_positions.sql', 'ice')).toBe('^[^[:space:]]{15}$');
     expect(shape('0208_party_ice_positions.sql', 'ice')).toBe(shape('0206_business_identifiers.sql', 'legal_ice'));
-    expect(readFileSync(`${ROOT}migrations/0208_party_ice_positions.sql`, 'utf8')).toMatch(/parties_ice_morocco check \(ice is null or country = 'MA'\)/);
+    expect(readFileSync(`${ROOT}migrations/0208_party_ice_positions.sql`, 'utf8')).toMatch(/parties_ice_morocco check \(ice is null or country is not distinct from 'MA'\)/);
   });
 
   it('no digits-only ICE check is left anywhere in the code', () => {

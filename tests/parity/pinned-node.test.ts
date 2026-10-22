@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+// @ts-expect-error — the operator tools, plain JS on purpose.
 import { pinnedNodeProblem } from '../../tools/lib/pinned-node.mjs';
 
 /**
