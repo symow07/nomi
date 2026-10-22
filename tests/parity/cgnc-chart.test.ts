@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FEC_FIELDS, fecFile, numberingProblems, type FecLine } from '../../src/core/books/fec.js';
+import { FEC_FIELDS, FEC_IDENTITY_FIELDS, fecFile, numberingProblems, type FecLine } from '../../src/core/books/fec.js';
+
+const NO_IDENTITY = { ice: null, taxId: null, rc: null, rcCourt: null };
 import type { Decimal } from '../../src/core/types/decimal.js';
 
 /**
@@ -62,13 +64,21 @@ describe('D4 · the Moroccan FEC (CNC Avis n° 24, annex 3)', () => {
 
   it('a line: its party as the auxiliary account, amounts to the cent, dates as AAAAMMJJ, the currency only where foreign; no field carries the separator', () => {
     const file = fecFile([line(), line({ accountCode: '7111', accountName: 'Ventes de marchandises au Maroc', partyCode: null, partyName: null, debit: d('0'),
-      credit: d('1440.6'), foreign: { amount: d('-144.06'), currency: 'EUR' } })]);
+      credit: d('1440.6'), foreign: { amount: d('-144.06'), currency: 'EUR' } })], NO_IDENTITY);
     const [head, a, b] = file.split('\r\n');
-    expect(head).toBe(FEC_FIELDS.join('|'));
+    expect(head).toBe([...FEC_FIELDS, ...FEC_IDENTITY_FIELDS].join('|'));
     expect(a!.split('|')).toEqual(['VE', 'Ventes', '1', '20260402', '3421', 'Clients', 'C001', 'Atlas Fils', 'F-2026-0001', '20260402', 'Facture F-2026-0001',
-      '1440.60', '0.00', '', '', '20260403', '', '']);
-    expect(b!.split('|').slice(11)).toEqual(['0.00', '1440.60', '', '', '20260403', '-144.06', 'EUR']);
+      '1440.60', '0.00', '', '', '20260403', '', '', '', '', '', '']);
+    expect(b!.split('|').slice(11, 18)).toEqual(['0.00', '1440.60', '', '', '20260403', '-144.06', 'EUR']);
     expect(file.endsWith('\r\n')).toBe(true);
+  });
+
+  it('E2 (0206) — the business\'s ICE, IF, RC and its court after the eighteen, on every line; the eighteen untouched', () => {
+    const file = fecFile([line(), line()], { ice: '001234567000089', taxId: '40123456', rc: '123 456', rcCourt: 'Tribunal de commerce | Casablanca' });
+    const [head, a, b] = file.split('\r\n');
+    expect(head!.split('|').slice(0, 18)).toEqual([...FEC_FIELDS]);
+    expect(head!.split('|').slice(18)).toEqual(['ICE', 'Identifiant_Fiscal', 'Num_RC', 'Tribunal_RC']);
+    for (const l of [a!, b!]) expect(l.split('|').slice(18)).toEqual(['001234567000089', '40123456', '123 456', 'Tribunal de commerce Casablanca']);
   });
 
   it('the check program (annex 2.2 b) finds a gap and a repeat, journal by journal', () => {

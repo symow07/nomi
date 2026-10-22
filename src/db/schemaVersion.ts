@@ -453,7 +453,10 @@ import type { Db } from './client.js';
 // 202 = how did we do? one question after an order, asked only where free; the answer kept and erasable (0202).
 // 203 = two more channels, the business's chat page and Telegram: the channel lists widened (0203).
 // 204 = one Telegram bot for every business: which business a chat writes to, by the start link it opened last (0204).
-export const REQUIRED_SCHEMA_VERSION = 204;
+// 205 = the owner's copy of their papers: an archive's receipt, and closure waiting for it (0205).
+// 206 = the business's own ICE, IF and RC with its court, on its profile and in its FEC (0206).
+// 207 = imported history kept as a document, marked "history, not in the books" (0207).
+export const REQUIRED_SCHEMA_VERSION = 207;
 
 export type SchemaState = {
   readonly required: number;

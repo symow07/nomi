@@ -24,6 +24,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
   let tenant: pg.Client;
   let owner = '';
   let accountant = '';
+  let staff = '';
   let year = '';
   const as = <T>(fn: (q: Q) => Promise<T>) => asTenant(tenant, BIZ, fn);
   const session = (r: { headers: Record<string, unknown> }) =>
@@ -60,6 +61,9 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     const acct = await addPerson(db, BIZ, SECRET, `Accountant ${RUN}`, 'accountant');
     if (acct.code !== 'added') throw new Error('fixture');
     accountant = session(await login(acct.accessCode));
+    const team = await addPerson(db, BIZ, SECRET, `Staff ${RUN}`, 'team');
+    if (team.code !== 'added') throw new Error('fixture');
+    staff = session(await login(team.accessCode));
   });
   afterAll(async () => { await app?.close(); await db?.destroy(); await tenant?.end(); await purgeBusinesses(admin, [BIZ], 'books-morocco-test'); await admin?.end(); });
 
@@ -108,14 +112,61 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));
     expect(lines[0]).toEqual(['Code_Journal', 'Libelle_Journal', 'Num_Ecriture', 'Date_Ecriture', 'Num_Compte', 'Libelle_Compte', 'Num_Compte_Aux',
       'Libelle_Compte_Aux', 'Ref_Piece', 'Date_Piece', 'Libelle_Ecriture', 'Montant_Debit', 'Montant_Credit', 'Lettrage_Ecriture', 'Date_Lettrage',
-      'Date_Validation', 'Montant_Devise', 'Id_devise']);
+      'Date_Validation', 'Montant_Devise', 'Id_devise', 'ICE', 'Identifiant_Fiscal', 'Num_RC', 'Tribunal_RC']);
     expect(lines.length).toBe(10);
-    expect(lines.every((l) => l.length === 18)).toBe(true);
+    expect(lines.every((l) => l.length === 22)).toBe(true);
+    // E2 — none given yet: the four are empty, and the page says what the file goes without
+    expect(lines.slice(1).every((l) => l.slice(18).join('') === '')).toBe(true);
+    expect(page).toContain('The file goes without: ICE (Identifiant Commun de l’Entreprise) · IF (identifiant fiscal) · RC number (registre du commerce)');
     expect(lines[1]!.slice(0, 13)).toEqual(['VE', 'Ventes', '1', '20260302', '3421', 'Clients', '', '', 'F-2026-0001', '20260302', 'Pièce F-2026-0001', '1200.00', '0.00']);
     // the foreign line: in the books' currency, and its own amount and currency
     const eur = lines.find((l) => l[4] === '7113')!;
     expect([eur[11], eur[12], eur[16], eur[17]]).toEqual(['0.00', '1080.00', '-100.00', 'EUR']);
     // the accountant takes the same file
     expect((await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: accountant } })).body).toBe(r.body);
+  });
+
+  it('E2 · THE ICE, IF AND RC: given by the owner on the profile, checked only where a source sets a rule, carried on every line of the FEC', async () => {
+    const form = (fields: Record<string, string>, who = owner) => app.inject({ method: 'POST', url: '/app/settings/identifiers',
+      payload: new URLSearchParams(fields).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
+    const stored = async () => (await admin.query(`select legal_ice, legal_if, legal_rc, legal_rc_court from businesses where id = $1`, [BIZ])).rows[0];
+    // shown on the profile, a Moroccan business's, empty
+    const profile = (await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: owner } })).body;
+    expect(profile).toContain('id="identifiers"');
+    expect(profile).toContain('action="/app/settings/identifiers"');
+    // staff see them and change nothing; nor does the accountant
+    const seen = (await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: staff } })).body;
+    expect(seen).toContain('id="identifiers"');
+    expect(seen).not.toContain('action="/app/settings/identifiers"');
+    for (const who of [staff, accountant]) {
+      const tried = await form({ ice: '001234567000089', tax_id: '1', rc: '1', rc_court: 'Rabat' }, who);
+      expect(tried.statusCode).toBe(302);
+    }
+    expect(await notice(await form({ ice: '001234567000089', tax_id: '1', rc: '1', rc_court: 'Rabat' }, staff))).toContain('Only the owner');
+    expect(await stored()).toEqual({ legal_ice: null, legal_if: null, legal_rc: null, legal_rc_court: null });
+    // fourteen positions refused, said under the field, everything typed still there, nothing stored
+    const bad = await form({ ice: '00123456700008', tax_id: '40123456', rc: '123456', rc_court: '' });
+    expect(bad.statusCode).toBe(422);
+    expect(bad.body).toContain('An ICE has 15 positions.');
+    expect(bad.body).toContain('Give the court too: an RC number goes with its court.');
+    expect(bad.body).toContain('value="00123456700008"');
+    expect(bad.body).toContain('value="40123456"');
+    expect(await stored()).toEqual({ legal_ice: null, legal_if: null, legal_rc: null, legal_rc_court: null });
+    // the database holds the ICE's rule itself
+    await expect(admin.query(`update businesses set legal_ice = '0012345670000' where id = $1`, [BIZ])).rejects.toThrow(/businesses_legal_ice_shape/);
+    await expect(admin.query(`update businesses set legal_rc = '1' where id = $1`, [BIZ])).rejects.toThrow(/businesses_legal_rc_bound/);
+    // saved: spaces out of the ICE, the IF and the RC as typed
+    expect(await notice(await form({ ice: '001234567 0000 89', tax_id: ' 40 123 456 ', rc: '123456', rc_court: 'Tribunal de commerce de Casablanca' }))).toContain('Identifiers saved.');
+    expect(await stored()).toEqual({ legal_ice: '001234567000089', legal_if: '40 123 456', legal_rc: '123456', legal_rc_court: 'Tribunal de commerce de Casablanca' });
+    expect((await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: staff } })).body).toContain('001234567000089');
+    // the FEC carries them on every line, the eighteen untouched; the page no longer says anything is missing
+    const r = await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } });
+    const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));
+    expect(lines.slice(1).every((l) => l.slice(18).join('|') === '001234567000089|40 123 456|123456|Tribunal de commerce de Casablanca')).toBe(true);
+    expect(lines[1]!.slice(0, 13)).toEqual(['VE', 'Ventes', '1', '20260302', '3421', 'Clients', '', '', 'F-2026-0001', '20260302', 'Pièce F-2026-0001', '1200.00', '0.00']);
+    expect((await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body).not.toContain('The file goes without');
+    // what changed is audited by name, never by value
+    const audit = (await admin.query(`select detail from channel_audit where business_id = $1 and action = 'update_profile' order by id desc limit 1`, [BIZ])).rows[0].detail;
+    expect(audit).toEqual({ fields: ['legal_ice', 'legal_if', 'legal_rc', 'legal_rc_court'] });
   });
 });

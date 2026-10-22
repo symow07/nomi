@@ -15,6 +15,14 @@ export const FEC_FIELDS = [
 ] as const;
 
 /**
+ * E2 (0206) — THE BUSINESS'S OWN IDENTIFIERS, after the eighteen, on every line: its ICE, its IF, its RC and the
+ * court that holds it. The Avis lists the fields a FEC holds « au minimum » and names none for the business itself;
+ * these names are Nomi's, in this one place, until the DGI publishes its own. Empty where the owner has not given one.
+ */
+export const FEC_IDENTITY_FIELDS = ['ICE', 'Identifiant_Fiscal', 'Num_RC', 'Tribunal_RC'] as const;
+export type FecIdentity = { readonly ice: string | null; readonly taxId: string | null; readonly rc: string | null; readonly rcCourt: string | null };
+
+/**
  * The file around the fields — NOT set by Avis 24, so a choice of Nomi's until the DGI publishes its own: UTF-8, one
  * header line of the field names, `|` between fields (a character no field of Nomi's carries once cleaned), dates
  * as AAAAMMJJ, amounts with a full stop and two decimals, lines ended by CR LF.
@@ -38,14 +46,15 @@ const amount = (d: Decimal) => {
   return `${String(d).startsWith('-') ? '-' : ''}${i}.${(f + '00').slice(0, 2)}`;
 };
 
-export function fecFile(lines: readonly FecLine[]): string {
+export function fecFile(lines: readonly FecLine[], identity: FecIdentity): string {
   const e = FEC_ENVELOPE;
+  const who = [identity.ice, identity.taxId, identity.rc, identity.rcCourt];
   const rows = lines.map((l) => [
     l.journalCode, l.journalName, String(l.number), day(l.entryDate), l.accountCode, l.accountName, l.partyCode, l.partyName,
     l.documentRef, day(l.documentDate), l.label, amount(l.debit), amount(l.credit), '', '', day(l.validatedOn),
-    l.foreign ? amount(l.foreign.amount) : '', l.foreign ? l.foreign.currency : '',
+    l.foreign ? amount(l.foreign.amount) : '', l.foreign ? l.foreign.currency : '', ...who,
   ].map(field).join(e.separator));
-  return [FEC_FIELDS.join(e.separator), ...rows].join(e.lineEnd) + e.lineEnd;
+  return [[...FEC_FIELDS, ...FEC_IDENTITY_FIELDS].join(e.separator), ...rows].join(e.lineEnd) + e.lineEnd;
 }
 
 /**

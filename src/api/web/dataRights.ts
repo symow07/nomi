@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
 import { booksHoldingTx, type BooksHolding } from '../../db/booksExport.js';
+import { papersHoldingTx, type PapersHolding } from '../../db/papersCopy.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { t, tn } from './say.js';
 
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, exportFileName, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
@@ -84,6 +85,8 @@ export type DataRightsView = {
   readonly closable?: boolean;
   /** A2.4 (0172) — the workspace's books: kept at closure until the legal date, downloaded first. Absent: none. */
   readonly books?: BooksHolding | null;
+  /** E1 (0205) — the papers kept, and whether the owner's own copy holds them all; null when there are none. */
+  readonly papers?: PapersHolding | null;
 };
 
 type RequestRow = {
@@ -119,6 +122,7 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        limit 100`.execute(tx);
     const asks = await waitingAsks(tx, bid.value);
     const books = await booksHoldingTx(tx, bid.value);
+    const papers = await papersHoldingTx(tx, bid.value);
     // The warmth pass — every customer named on this page is drawn with their face.
     const photos = await faceVersions(tx, [...b.rows.map((x) => x.client_id), ...asks.map((a) => a.clientId)].filter((x): x is string => !!x));
     return {
@@ -128,6 +132,7 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
       asks,
       photos,
       books: books.hasBooks ? books : null,
+      papers: papers.papers > 0 ? papers : null,
     };
   });
 }
@@ -410,6 +415,7 @@ export function renderDataRights(
     ${advisor}
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
     ${booksSection(v.books ?? null, locale, viewer)}
+    ${papersSection(v.papers ?? null, locale, viewer)}
     <section class="block" id="close">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
       <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>
@@ -439,6 +445,27 @@ function booksSection(b: BooksHolding | null, locale: Locale, viewer: Viewer): s
       <ul class="scard dl-files"><li class="row">
         <span>${esc(t(locale, 'data.books.title'))}</span>
         <a class="dl-get" href="/app/settings/data/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
+      </li></ul>
+    </section>`;
+}
+
+/**
+ * E1 (0205) — the papers kept, and the owner's copy of them: every paper in one archive with its index. Shown only to
+ * the owner of a workspace holding papers. Closing is refused until the owner's own copy holds every one, and this is
+ * where they read why, before pressing the button.
+ */
+function papersSection(p: PapersHolding | null, locale: Locale, viewer: Viewer): string {
+  if (!p || p.papers === 0 || !viewer.isOwner) return '';
+  const copy = p.lastCopyAt ? `<p class="muted">${esc(t(locale, 'data.papers.lastCopy', { date: show.dateYear(locale, p.lastCopyAt) }))}</p>` : '';
+  const state = p.copyCoversAll ? `<p><span class="pill ok">${esc(t(locale, 'data.papers.copyAll'))}</span></p>`
+    : `<p><span class="pill warn">${esc(t(locale, p.lastCopyAt ? 'data.papers.copyOld' : 'data.papers.noCopy'))}</span></p>`;
+  return `<section class="block" id="papers">
+      <h2>${esc(t(locale, 'data.papers.title'))}</h2>
+      <p class="lede">${esc(tn(locale, 'data.papers.lead', p.papers))}</p>
+      ${state}${copy}
+      <ul class="scard dl-files"><li class="row">
+        <span>${esc(t(locale, 'data.papers.title'))}</span>
+        <a class="dl-get" href="/app/settings/data/papers.zip" download>${icon('download')}<span>${esc(t(locale, 'data.papers.download'))}</span></a>
       </li></ul>
     </section>`;
 }

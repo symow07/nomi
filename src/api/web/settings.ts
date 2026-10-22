@@ -29,6 +29,7 @@ import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import { validateIdentifiers, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
 import * as show from './values.js';
 
 /**
@@ -143,6 +144,11 @@ export type BusinessProfile = {
    * (a business with no catalogue), so the page draws no row for it.
    */
   readonly whatYouSell?: { readonly category: ProductCategory | null } | null;
+  /**
+   * E2 (0206) — the business's own ICE, IF and RC with its court, as its books and its FEC carry them. Asked of a
+   * business in Morocco, and shown wherever one is held. Absent where neither.
+   */
+  readonly identifiers?: Identifiers | null;
 };
 
 /** How you sell's question about what the business sells (HS_BASE in howYouSell.ts, which reads this file). */
@@ -162,8 +168,10 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       contact_email: string | null; contact_phone: string | null; languages_served: string[] | null;
       kind: string | null; prices_to_owner: boolean | null; product_category: string | null;
       postal_address: string | null; outreach_area: boolean | null;
+      country: string | null; legal_ice: string | null; legal_if: string | null; legal_rc: string | null; legal_rc_court: string | null;
     }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served,
-              kind, prices_to_owner, product_category, postal_address, outreach_area
+              kind, prices_to_owner, product_category, postal_address, outreach_area,
+              country, legal_ice, legal_if, legal_rc, legal_rc_court
          from businesses where id = ${bid.value}`.execute(tx)).rows[0] ?? null;
     if (!b) return empty;
 
@@ -175,8 +183,70 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       languagesServed: b.languages_served ?? [],
       postalAddress: b.postal_address, outreachArea: b.outreach_area === true,
       whatYouSell: asked ? { category: b.product_category && isProductCategory(b.product_category) ? b.product_category : null } : null,
+      identifiers: b.country === 'MA' || b.legal_ice || b.legal_if || b.legal_rc
+        ? { ice: b.legal_ice, taxId: b.legal_if, rc: b.legal_rc, rcCourt: b.legal_rc_court } : null,
     };
   });
+}
+
+/**
+ * E2 (0206) — the business's identifiers saved: validated where an official source sets a rule (src/core/books/
+ * identifiers.ts), the names of the fields that changed written to the audit, never their values.
+ */
+export async function saveIdentifiers(
+  db: Db, businessIdRaw: string, input: IdentifiersInput, actor: string,
+): Promise<{ code: 'saved' } | { code: 'invalid'; errors: Partial<Record<IdentifierField, IdentifierError>> }> {
+  const v = validateIdentifiers(input);
+  if (!v.ok) return { code: 'invalid', errors: v.errors };
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'invalid', errors: {} };
+  await withTenantTx(db, bid.value, async (tx) => {
+    const cur = (await sql<{ legal_ice: string | null; legal_if: string | null; legal_rc: string | null; legal_rc_court: string | null }>`
+      select legal_ice, legal_if, legal_rc, legal_rc_court from businesses where id = ${bid.value}`.execute(tx)).rows[0];
+    await sql`update businesses set legal_ice = ${v.value.ice}, legal_if = ${v.value.taxId}, legal_rc = ${v.value.rc}, legal_rc_court = ${v.value.rcCourt}
+      where id = ${bid.value}`.execute(tx);
+    const changed = cur ? ([['legal_ice', cur.legal_ice, v.value.ice], ['legal_if', cur.legal_if, v.value.taxId], ['legal_rc', cur.legal_rc, v.value.rc],
+      ['legal_rc_court', cur.legal_rc_court, v.value.rcCourt]] as const).filter(([, a, b]) => (a ?? '') !== (b ?? '')).map(([k]) => k) : [];
+    await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'update_profile', ${actor}, ${JSON.stringify({ fields: changed })}::jsonb)`.execute(tx);
+  });
+  return { code: 'saved' };
+}
+
+/**
+ * E2 — the identifiers' card: its own form and save, the owner's (`business_identifiers`); anyone else sees the
+ * values and that the owner decides. What was typed stays in the form when a field is refused.
+ */
+function identifiersCard(
+  ids: Identifiers, locale: Locale, viewer: Viewer,
+  draft: IdentifiersInput | null, errors: Partial<Record<IdentifierField, IdentifierError>>,
+): string {
+  const rows: [IdentifierField, string, MessageKey, MessageKey | null][] = [
+    ['ice', 'ice', 'settings.ids.ice', 'settings.ids.iceWhy'],
+    ['taxId', 'tax_id', 'settings.ids.if', 'settings.ids.ifWhy'],
+    ['rc', 'rc', 'settings.ids.rc', 'settings.ids.rcWhy'],
+    ['rcCourt', 'rc_court', 'settings.ids.rcCourt', null],
+  ];
+  const stored = (f: IdentifierField) => ids[f] ?? '';
+  if (!viewer.isOwner) {
+    return rowsCard(t(locale, 'settings.ids.title'), [
+      ...rows.map(([f, , label]) => fieldRow({ label: t(locale, label),
+        control: `<span class="fr-value">${stored(f) ? `<bdi dir="ltr">${esc(stored(f))}</bdi>` : `<span class="muted">${esc(t(locale, 'settings.ids.none'))}</span>`}</span>` })),
+    ], 'identifiers') + ownerDecides(locale);
+  }
+  const err = (f: IdentifierField) => {
+    const e = errors[f];
+    return e ? `<span class="fielderr" role="alert" id="ids-${f}-err">${esc(t(locale, `settings.ids.err.${e}` as MessageKey, { n: ICE_POSITIONS }))}</span>` : undefined;
+  };
+  return `<form method="post" action="/app/settings/identifiers" class="sform">
+    ${rowsCard(t(locale, 'settings.ids.title'), [
+      ...rows.map(([f, name, label, why]) => fieldRow({ label: t(locale, label), forId: `ids-${name}`, error: err(f),
+        ...(why ? { desc: t(locale, why) } : {}),
+        control: `<input id="ids-${name}" name="${name}" dir="ltr" value="${esc(draft ? draft[f] : stored(f))}"${errors[f] ? ` aria-invalid="true" aria-describedby="ids-${f}-err"` : ''} />` })),
+      `<p class="caption muted">${esc(t(locale, 'settings.ids.sources'))}</p>`,
+      cardActs(`<button class="btn" type="submit">${esc(t(locale, 'settings.ids.save'))}</button>`),
+    ], 'identifiers')}
+  </form>`;
 }
 
 const langsSql = (langs: readonly string[]) =>
@@ -533,6 +603,7 @@ export function renderProfile(
   zone: ZoneChoice | null = null,
   currency: CurrencyChoice | null = null,
   viewer: Viewer = OWNER_VIEW,
+  ids: { readonly draft?: IdentifiersInput; readonly errors?: Partial<Record<IdentifierField, IdentifierError>> } = {},
 ): string {
   // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
   // owner typed is lost when one field is wrong.
@@ -608,7 +679,8 @@ export function renderProfile(
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
     ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
-    ${form}`;
+    ${form}
+    ${p.identifiers ? identifiersCard(p.identifiers, locale, viewer, ids.draft ?? null, ids.errors ?? {}) : ''}`;
 }
 
 

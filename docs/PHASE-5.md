@@ -561,10 +561,9 @@ Each item is built and fully tested (§4) before the next one that depends on it
           entered inside the two-period window;
         - mid-year, what came before comes in as one opening entry of balances — ask the accountant for them.
         - It says "period", as the Avis does, never "month": the Avis sets no length (see D10).
-      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the business's own identifiers
-        (ICE, IF, RC) are not held, and the DGI has published no name for the FEC file (checked 2026-10-22: the Avis,
-        CGI article 210, the DGI's 2025 report). `tools/books-area.mjs` refuses a Moroccan workspace until both are
-        built.
+      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the DGI has published no name
+        for the FEC file (checked 2026-10-22: the Avis, CGI article 210, the DGI's 2025 report). `tools/books-area.mjs`
+        refuses a Moroccan workspace until it is known. (The business's own ICE, IF and RC are held since E2, 0206.)
 - **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
   - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
     its own period. It is recorded with its date and who ran it.
@@ -610,8 +609,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     instead (below).
   - **Trigger:** real owners turning out to need searchable pre-Nomi detail INSIDE Nomi, with evidence that somebody
     wanted it.
-- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). Part of D10, since it needs
-  D10's open window.
+- **D10's small version of it — the source file, kept as history** (the owner, 2026-10-22). *(Built as E3, 0207, on
+  today's window — the open years and the lock date; D10's periods narrow that window in one place.)*
   - When an import brings entries outside the open window, its SOURCE DOCUMENT is kept as a document in A4's store,
     with its retention date, marked "history, not in the books": the workbook, the statement file, the export.
   - It inherits A4's erasure, retention, sealing and role rules. It goes with the books at closure like everything else
@@ -913,6 +912,86 @@ Each item is built and fully tested (§4) before the next one that depends on it
       and waiting on the signature — not a decision.**
     - The bot is not the team-alerts bot. `TELEGRAM_BOT_TOKEN` is the one bot; no alert goes by Telegram yet.
 - **S8 · Item 23 — simulated-buyer testing** — parked with the money.
+
+### Stage E — the unblocked remainder (the owner, 2026-10-22)
+
+- **E1 · The owner's copy of their papers — the launch blocker.** *(built 2026-10-22, 0205.)*
+  - The owner downloads every paper in one archive (`/app/settings/data/papers.zip`, owner only), with `index.csv`
+    listing each file: its name, type, size, SHA-256, when and by whom it was added, the entry it backs, and until
+    when it is kept. Each paper is opened from its sealed store and its fingerprint checked, then written into the
+    archive under a numbered, safe name (two papers of one name are two files; a name with a slash makes no folder).
+  - **Closure waits for the OWNER's own copy of every paper** (`papers_export_covers`, NE012): a receipt of the owner's
+    holding at least as many papers as there are and reaching the newest one. An accountant's download does not count;
+    a paper added after the copy makes it old again.
+  - **Made whole or not at all:** a paper that cannot be opened stops the archive in its transaction, so no receipt is
+    written and closure still waits. The page then says nothing was recorded.
+  - The data page shows the papers (how many, the last copy, whether it holds them all) beside the books.
+  - The receipt is a `books_exports` row of kind 'papers_zip' (no new table). `books_export_covers` now reads only the
+    books' own kind.
+  - The zip writer the workbook used is now `src/net/zip.ts`, shared; the classic format only (65,535 files, 4 GiB),
+    refused rather than written wrong past either.
+  - `tools/books-area.mjs --on` no longer refuses for the papers. The public pages are still its blocker.
+- **E2 · The ICE, IF and RC on the business profile.** *(built 2026-10-22, 0206.)*
+  - Stored on the business (`legal_ice`, `legal_if`, `legal_rc`, `legal_rc_court`). The profile asks for them when the
+    business is in Morocco, and shows them wherever one is held. Only the owner gives them (`business_identifiers`);
+    staff see the values. Every line of the FEC carries them after the Avis's eighteen fields.
+  - **Each rule was checked against an official source first (read 2026-10-22). One is checked; two are not:**
+    - **ICE — CHECKED: fifteen positions.**
+      - OMPIC's page on the ICE (ompic.ma, read directly): « L'Identifiant Commun de l'Entreprise est composé de 15
+        positions : L'Entreprise (9 positions) Ses établissements (4 positions) Caractères de contrôle (2 positions) ».
+      - The ICE portal's guide (ice.gov.ma, Guide_ICE.pdf, p. 3) says the same, as read by the research pass. The
+        portal answered this session with a security check page, so I did not read it myself.
+      - Spaces as typed are taken out; the database holds the same rule.
+      - **Not checked, because no official text states it:**
+        - that the positions are digits. Every official example is, but they say "positions", never "chiffres";
+        - the check key. No official source publishes its computation. python-stdnum's mod 97 is not official, and
+          OMPIC's own example (123456789000057) fails it.
+    - **IF — NO FORMAT RULE.** No official source publishes one.
+      - The DGI's site (tax.gov.ma) answered 503 on every page, including form AAC139, so it was not read.
+      - The Simpl-IS EDI specification (finances.gov.ma) defines no length; its own examples are « 123 » and « 789456123 ».
+      - Kept as typed, trimmed. 40 characters is a storage bound, not a format.
+    - **RC — NO FORMAT RULE for the number; kept WITH ITS COURT.**
+      - The Code de commerce (the Ministry of Justice's consolidated text) asks for « le numéro et le lieu de son
+        immatriculation » (art. 49) and « le siège du tribunal où il est immatriculé » (art. 154). A number is a number
+        only at its court, so both are given or neither.
+      - Décret 2-96-906 art. 9 numbers the register continuously, even for natural persons and odd for legal ones.
+        That text was read in WIPO Lex's copy, not the BO. Décret 2-20-956 (2021, the electronic register) was not read.
+        So no rule on the number is assumed.
+  - **Found, not changed:** the books' PARTIES already check a party's ICE as `^[0-9]{15}$` (0170). That is stricter
+    than the sources, because "digits" is not stated. The connectors (Excel, Odoo, Xero, QuickBooks) and the parties
+    form apply the same digits rule. It is the owner's to keep or to loosen to the fifteen positions.
+  - **The FEC's four added columns are Nomi's naming** (`ICE`, `Identifiant_Fiscal`, `Num_RC`, `Tribunal_RC`, after the
+    eighteen, on every line). The Avis lists the fields « au minimum » (annex, point 3) and names none for the business
+    itself. They are in one place (`FEC_IDENTITY_FIELDS`) until the DGI publishes its own. The FEC page names any of
+    the three still missing, with a door to the profile.
+  - The FEC's FILE NAME stays blocking on the DGI (`MOROCCO_BLOCKERS` now holds only that).
+- **E3 · Imported history as a document — the small replacement for D11.** *(built 2026-10-22, 0207.)*
+  - **The window is today's, in one place** (`firstOpenDay`, src/core/books/history.ts): the earliest open fiscal
+    year's first day, or the day after the lock date where the lock reaches into it. D10's open periods, when built,
+    narrow it there, and nothing else changes.
+  - **An entry is history when it is NEW to Nomi and dated before the window.** An entry Nomi already holds, or read
+    in before, is never history: a change to it is checked as always, and refused where its period is closed. An entry
+    after the window with no year to hold it is still refused. History entries are set apart before anything is
+    checked or written, and are not remembered as read (`connector_records`).
+  - **The workbook:** the entries inside the window go in as drafts, as always. The FILE is kept in A4's store as a
+    document marked "history, not in the books" (`documents.history_entries`, `history_through`; no new table). It is
+    kept until the end of the year of its newest entry plus the law's years, and it is sealed, in the workspace's
+    residency, read by the same roles, held and erased with the papers (closure, then `tools/books-retention.mjs`) and
+    listed in the papers copy (`history_through` in its index). The owner lands on it after the read.
+    - The database keeps it out of the books: never an entry's paper (`documents_history_shape`), never read into a
+      draft (`document_readings_not_history`, NB030). The same file kept twice is one document.
+    - A read refused for another problem keeps nothing. Without a store for papers, the workbook refuses as before.
+  - **Odoo, Xero, QuickBooks:** no file, and none needed. What they hold from before these books stays there and is
+    not copied; the read goes on, and says how many it left (`books.flash.readLeftThere`). Each one's block on the
+    books' page says so (`books.systems.history`). **Found while building it:** before E3, a first read of a shop
+    with ANY entry before Nomi's open years was refused whole (Odoo reads every move on its first read), so these
+    connections could not start for a shop with history.
+  - **Claude's calls, for the owner:**
+    - Google Sheets keeps refusing such entries. It is Nomi's own spreadsheet, written back to, and an entry left
+      unread there would block every write-back as "your edits".
+    - A bank statement is not history: it brings lines, not entries. Every line is read in for matching, whatever its
+      date, since it can match a posted entry of a closed year.
+    - Retention runs from the newest entry's year, the law's date for those entries' papers.
 
 ### Dependencies at a glance
 

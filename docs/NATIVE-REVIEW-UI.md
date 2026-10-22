@@ -16108,3 +16108,15 @@ Reviewer (per language): ______  Date: ______
 The owner signs the English of each; a native reader each of the others.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 E — the papers copy, the business's identifiers, imported history (not a gate)
+
+- **The keys (39 new, in each of zh, ar, es and fr; none changed):**
+  - `data.papers.*`, `data.flash.papersFirst|papersFailed`: the owner's copy of their papers, on Your data;
+  - `settings.ids.*`, `settings.flash.identifiersSaved`, `people.ownerOnly.business_identifiers`, `books.fec.identityMissing`: the ICE, IF and RC on the profile, and the FEC page's line when one is missing;
+  - `books.papers.history|historyExplain|keptUntil`, `books.workbook.history`, `books.systems.history`, `books.flash.workbookReadHistory|readLeftThere`: imported history, kept as a file and never in the books.
+- **Where the words differ, and why:**
+  - the ICE and the IF keep the names Morocco's own texts give them, in French, in every language (ICE（企业通用识别号）, «المعرّف الموحد للمقاولة», «identificador común de la empresa»); the RC is «registre du commerce», «السجل التجاري», 商业登记, «registro mercantil»;
+  - "history, not in the books" is 历史资料，不在账簿里 / «سجل سابق، ليس في الدفاتر» / «Historial, fuera de los libros» / «Historique, hors des livres»;
+  - Chinese says 所属法院 for "its court" (no 它); French names the IF and «ces écritures» where a pronoun would stand; Spanish says «ese archivo» and «ninguno» for the same reason.
+- **Check:** that «المعرّف الموحد للمقاولة» is how a Moroccan owner names the ICE; that 历史资料 reads as kept for reference, not as deleted; that «Absent du fichier : …» reads naturally as the FEC page's line for a missing identifier.

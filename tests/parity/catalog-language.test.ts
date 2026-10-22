@@ -172,7 +172,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // D3 — the accountant pack's sheet and column: Journal, Base.
       'books.pack.sheet.journal', 'books.pack.col.base',
       // D7 — a custom field's kind: Date.
-      'books.fields.kind.date']),
+      'books.fields.kind.date',
+      // E2 — the ICE and the IF under the names Morocco's own texts give them, in French in every locale's original.
+      'settings.ids.ice', 'settings.ids.if']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
     es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.entry.total', 'books.pack.col.base']),
     // B4 — Odoo is the product's own name, in every script.

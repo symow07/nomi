@@ -38,35 +38,42 @@ describe('the books are switched on for nobody while a launch blocker stands', (
     expect(run(['--business', BIZ, '--off']).code).not.toBe(3);
   });
 
-  it('the tool and the checklist are one list: the papers and the public pages', () => {
+  it('the tool and the checklist are one list: the public pages (E1, 2026-10-22, built the papers copy, and it left)', () => {
     const list = blockers();
-    expect(list).toHaveLength(2);
+    expect(list).toHaveLength(1);
     const section = /## Before the books are switched on for ANY workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
     expect(section).toContain('tools/books-area.mjs');
-    expect(section).toMatch(/The owner's copy of their papers, and closure of a workspace holding\s+papers/);
+    expect(section).not.toMatch(/The owner's copy of their papers, and closure of a workspace holding\s+papers\.\*\*/);
     expect(section).toMatch(/The public pages describe the books/);
-    expect(list[0]).toMatch(/copy of their papers/);
-    expect(list[1]).toMatch(/public pages/);
+    expect(list[0]).toMatch(/public pages/);
+    expect(list.some((x) => /copy of their papers/.test(x))).toBe(false);
   });
 
-  it('MOROCCO: its FEC is not finished while the ICE, IF and RC are not held and the file is not named as the DGI requires', async () => {
+  it('MOROCCO: its FEC is not finished while the file is not named as the DGI requires (the ICE, IF and RC left with E2, 0206)', async () => {
     const { blockersFor, MOROCCO_BLOCKERS } = await import(new URL('../../tools/lib/books-blockers.mjs', import.meta.url).href) as { blockersFor: (c: string | null) => string[]; MOROCCO_BLOCKERS: string[] };
     expect(MOROCCO_BLOCKERS).toEqual(listed('MOROCCO_BLOCKERS'));
     expect(blockersFor('MA')).toEqual([...blockers(), ...MOROCCO_BLOCKERS]);
     expect(blockersFor('ma')).toEqual(blockersFor('MA'));
     expect(blockersFor('FR')).toEqual(blockers());
     expect(blockersFor(null)).toEqual(blockers());
-    expect(MOROCCO_BLOCKERS[0]).toMatch(/ICE, IF and RC/);
+    expect(MOROCCO_BLOCKERS).toHaveLength(1);
+    expect(MOROCCO_BLOCKERS[0]).toMatch(/named as the DGI requires/);
+    expect(MOROCCO_BLOCKERS.some((x) => /ICE|IF and RC/.test(x))).toBe(false);
     // the tool reads the workspace's country and refuses a Moroccan one with these, once connected
     expect(read('tools/books-area.mjs')).toMatch(/const owed = blockersFor\(biz\.country\);\s+if \(want === true && owed\.length > 0\)/);
     // and names them already in the refusal everyone gets today
     expect(run(['--business', BIZ, '--on']).err).toContain(MOROCCO_BLOCKERS[0]);
     const section = /## Before the books are switched on for a MOROCCAN workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
-    expect(section).toMatch(/ICE, IF and RC/);
+    expect(section).toMatch(/~~The business's legal identifiers — ICE, IF and RC — held on its profile,[\s\S]*?~~ \*\*Done \(E2, 0206/);
+    expect(section).toMatch(/\*\*The FEC named as the DGI requires\.\*\*/);
     expect(section).toContain('tools/lib/books-blockers.mjs');
+    // and what replaced it is real: the three stored, the ICE's fifteen positions held by the database itself
+    expect(read('migrations/0206_business_identifiers.sql')).toMatch(/legal_ice ~ '\^\[\^\[:space:\]\]\{15\}\$'/);
   });
 
-  it('the refusal it rests on is real: a workspace holding papers does not close (0174)', () => {
-    expect(read('migrations/0174_documents.sql')).toMatch(/NE011/);
+  it('what replaced it is real: a workspace holding papers closes only once the owner\'s own copy holds every one (0205)', () => {
+    const m = read('migrations/0205_papers_copy.sql');
+    expect(m).toMatch(/and not papers_export_covers\(p_business\) then\s+raise exception[\s\S]{0,300}?using errcode = 'NE012'/);
+    expect(m).toMatch(/x\.made_by = 'owner' or exists \(select 1 from people p where p\.id::text = x\.made_by and p\.is_owner\)/);
   });
 });

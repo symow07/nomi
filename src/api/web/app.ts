@@ -161,7 +161,7 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
+import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -250,6 +250,7 @@ import { renderAnswerSuggestions } from './answerSuggestions.js';
 import { latestSurveyAnswers, setSurveysOn, surveyFacts } from '../../db/surveys.js';
 import { renderSurveys } from './surveys.js';
 import { mountWebChat, type WebChatDeps } from './webChat.js';
+import { makePapersArchive } from '../../db/papersCopy.js';
 import { chatPageKey, setChatPage } from '../../db/webChat.js';
 import { setTelegram, telegramCode } from '../../db/telegram.js';
 import { GREETING_LOCALES, greetingText, type GreetingLocale } from '../../core/conversation/greeting.js';
@@ -2335,6 +2336,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(file.csv);
   });
 
+  /**
+   * E1 (0205) — THE OWNER'S COPY OF THEIR PAPERS: every paper in one archive, with its index. The owner's alone, like
+   * the books copy: it is what a closing workspace waits for. Made whole or not at all: a paper that cannot be opened
+   * stops it, no receipt is written, and the page says so.
+   */
+  app.get('/app/settings/data/papers.zip', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
+    if (!s) return reply;
+    // An installation with no papers store cannot open a paper: said as a copy not made, nothing recorded.
+    if (!deps.documents) return flashTo(reply, '/app/settings/data#papers', 'data.flash.papersFailed');
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
+    }
+    const made = await makePapersArchive(deps.db, s.businessId, personOf(s).id, deps.documents, show.csvDialectFor(localeOf(req)))
+      .catch(() => 'failed' as const);
+    if (made === 'failed') return flashTo(reply, '/app/settings/data#papers', 'data.flash.papersFailed');
+    if (!made) return reply.callNotFound();
+    return reply
+      .type('application/zip')
+      .header('content-disposition', `attachment; filename="papers-${new Date().toISOString().slice(0, 10)}.zip"`)
+      .header('cache-control', 'no-store')
+      .send(made.file);
+  });
+
   /** The owner, 2026-10-22 — a Moroccan workspace is told how its books are best started (Avis n° 24). */
   const businessInMorocco = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
     sql<{ c: string | null }>`select country as c from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]?.c === 'MA';
@@ -2409,9 +2434,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
     let bytes: Buffer | null = null;
+    let fileName = 'workbook.xlsx';
     try {
       const file = await req.file();
       bytes = file ? await file.toBuffer() : null;
+      if (file?.filename) fileName = file.filename.slice(0, 200);
     } catch { bytes = null; }
     const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
     const values = { workbook: bytes ?? undefined };
@@ -2423,9 +2450,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
     if (read.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
     if (read.problems.length > 0) return refuse(read.problems);
-    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where);
+    // E3 (0207) — entries dated before the books' open window are history, not in the books: the workbook itself is
+    // kept with the papers, marked so. Without a store for papers, they stay a problem to fix, as before.
+    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where, deps.documents
+      ? { kind: 'keep_file', store: deps.documents, name: fileName, mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes: bytes! }
+      : { kind: 'refuse' });
     if (out.kind === 'refused') return refuse(out.problems);
-    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+    const counts = { added: out.added, replaced: out.replaced, unchanged: out.unchanged };
+    if (out.history?.documentId) return flashTo(reply, `/app/books/papers/${out.history.documentId}`, 'books.flash.workbookReadHistory', { ...counts, history: out.history.entries });
+    return flashTo(reply, '/app/books', 'books.flash.workbookRead', counts);
   });
 
   /**
@@ -2483,9 +2516,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
   const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
     odoo: { post: deps.odooPost ?? publicPost, today: todayIso }, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}) });
+  const SYSTEM_NAME = { sheets: 'Google Sheets', odoo: 'Odoo', xero: 'Xero', quickbooks: 'QuickBooks' } as const;
   const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo' | 'xero' | 'quickbooks', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
     const locale = localeOf(req);
-    if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
+    if (r.kind === 'read') {
+      const counts = { added: r.added, replaced: r.replaced, unchanged: r.unchanged };
+      return r.leftThere > 0
+        ? flashTo(reply, '/app/books', 'books.flash.readLeftThere', { ...counts, history: r.leftThere, system: SYSTEM_NAME[system] })
+        : flashTo(reply, '/app/books', 'books.flash.workbookRead', counts);
+    }
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
@@ -3185,18 +3224,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const years = await withTenantTx(deps.db, bid, async (tx) => {
+    const { years, gaps } = await withTenantTx(deps.db, bid, async (tx) => {
       const ys = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${bid}::uuid order by starts_on desc`.execute(tx)).rows;
+      // E2 (0206) — what the file goes without, said on the page: the ICE, the IF, the RC.
+      const id = (await sql<{ ice: string | null; tax: string | null; rc: string | null }>`select legal_ice as ice, legal_if as tax, legal_rc as rc
+        from businesses where id = ${bid}::uuid`.execute(tx)).rows[0];
+      const gaps = ([['ice', id?.ice], ['taxId', id?.tax], ['rc', id?.rc]] as const).filter(([, v]) => !v).map(([k]) => k);
       const out: FecYearView[] = [];
       for (const y of ys) {
         const f = await fecData(tx, bid, y.id);
         if (f) out.push({ id: y.id, startsOn: f.year.starts_on, endsOn: f.year.ends_on, state: f.year.state, lines: f.lines.length,
           numbering: numberingProblems(f.numbers), offChart: f.offChart });
       }
-      return out;
+      return { years: out, gaps };
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fec.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps)}` }));
   });
   app.get('/app/books/fec/:file', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3208,7 +3251,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!f) return reply.callNotFound();
     return reply.type('text/plain; charset=utf-8')
       .header('content-disposition', `attachment; filename="FEC-${f.year.starts_on}-${f.year.ends_on}.txt"`)
-      .header('cache-control', 'no-store').send(fecFile(f.lines));
+      .header('cache-control', 'no-store').send(fecFile(f.lines, f.identity));
   });
   /** D4 (0190) — the books started from the CGNC chart: what is missing added, nothing the owner has changed. */
   app.post('/app/books/chart/cgnc', async (req, reply) => {
@@ -3621,7 +3664,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome !== 'closed') {
       return flashTo(reply, '/app/settings/data#close', ({
         name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
-        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst', papers_first: 'data.flash.papersFirst',
       } as const)[r.outcome]);
     }
     facts.evict(s.businessId);
@@ -7458,6 +7501,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
         ...(input.postalAddress !== undefined ? { postalAddress: input.postalAddress } : {}),
       }, r.errors, await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
+    }));
+  });
+
+  /**
+   * E2 (0206) — the business's ICE, IF and RC with its court: the owner's (the identity the books and the FEC carry).
+   * A refused field is said under it, with everything typed still in the form.
+   */
+  app.post('/app/settings/identifiers', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'business_identifiers', '/app/settings/profile#identifiers');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const input = { ice: String(b['ice'] ?? ''), taxId: String(b['tax_id'] ?? ''), rc: String(b['rc'] ?? ''), rcCourt: String(b['rc_court'] ?? '') };
+    const r = await saveIdentifiers(deps.db, s.businessId, input, personOf(s).id);
+    if (r.code === 'saved') return flashTo(reply, '/app/settings/profile#identifiers', 'settings.flash.identifiersSaved');
+    return reply.code(422).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settings.profile.title'), active: 'settings',
+      bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, saidFlash(locale, 'settings.flash.profileFix'), {}, {},
+        await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s), { draft: input, errors: r.errors }),
     }));
   });
 
