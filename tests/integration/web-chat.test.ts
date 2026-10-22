@@ -120,6 +120,10 @@ d('S7 · the chat page, end to end (requires DATABASE_URL)', { timeout: 180_000 
     await say(me, 'Price for 500 pieces?', 'same-nonce-0123456789abcdef');
     await say(me, 'Price for 500 pieces?', 'same-nonce-0123456789abcdef');
     await convOf('Price for 500 pieces?');
+    // every job of this business's done, so a second message would have been written by now
+    const { QUEUES } = await import('../../src/queue/boss.js');
+    await until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job where name = ${QUEUES.inbound}
+      and data->>'businessId' = ${BIZ} and state in ('created', 'retry', 'active')`.execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'the inbound queue');
     expect(await said('Price for 500 pieces?')).toBe(1);
     const other = await visit();
     const theirs = await pageOf(other);

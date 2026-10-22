@@ -713,6 +713,9 @@ const scenarios = [
   {
     n: 13, title: 'on her chat page a visitor asks for a price, and the answer appears on that page',
     async run() {
+      // Scenario 9's reply failed its checks twice, which withdrew sending alone in English until she chooses her
+      // level again (0163) — as the owner would after reading why, she chooses it again here.
+      ok((await form('/app/settings/assistant/autonomy', { level: 'sells' })).status === 302, 'her level could not be chosen again');
       const open = await fetch(`${BASE}/chat/${chatKey}`, { redirect: 'manual' });
       ok(open.status === 200, 'her chat page did not open');
       const visitor = String(open.headers.get('set-cookie') ?? '').split(';')[0];
