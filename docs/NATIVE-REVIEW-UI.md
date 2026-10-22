@@ -16100,8 +16100,11 @@ Reviewer (per language): ______  Date: ______
   - "average answer", never "score": a number is never a judgment of how well the assistant works.
 - **Check:** that 轮流 reads as sharing hand-offs among people, not as the buyer being passed around; that «تصنيف» is the word a shop owner uses for a tag on a customer; that the chat page's Arabic addresses the buyer in no gender («للكتابة هنا…», «الرسالة المرسلة» for "You"); that Nomi's bot reads as "Nomi's Telegram account" (Nomi 的 Telegram 账号 — 机器人 is kept out of owner copy).
 
-**THE TWO BUYER-FACING SETS — A GATE, each language on its own (nothing is sent in a language until its reader signs it in the code):**
-- **The survey sentence** (`src/core/conversation/survey.ts`, `TEXT`, five languages): one question after an order, "how did we do, 1 to 5". The owner signs the English; a native reader each of the others. Arabic addresses the buyer in no gender («يكفي الرد برقم…»).
+**THE FOUR BUYER-FACING SETS — A GATE, each language on its own, signed in ONE pass (nothing is sent in a language until its reader signs it in the code):**
+- **The survey question** (`src/core/conversation/survey.ts`, `TEXT`, five languages): one question after an order, "how did we do, 1 to 5". Arabic addresses the buyer in no gender («يكفي الرد برقم…»).
+- **The survey's thank-you** (`survey.ts`, `THANKS`): one line after a score. Until signed, an answer is met by silence.
+- **The Telegram /start greeting** (`src/core/conversation/greeting.ts`): sent after the AI disclosure, the conversation's first automated message. Arabic greets in no gender and no plural («أهلًا وسهلًا…»); Spanish welcomes without an agreeing adjective («Te damos la bienvenida»). Until signed, a /start is met by silence.
 - **Strict mode's starter sets** (`src/core/conversation/strict.ts`, `PROPOSED`, nine sentences in each of five languages): only these, signed, may go alone in a strict language. A reader may change any of them; the set signed is what is in force.
+The owner signs the English of each; a native reader each of the others.
 
 Reviewer (per language): ______  Date: ______

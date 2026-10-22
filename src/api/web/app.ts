@@ -252,6 +252,7 @@ import { renderSurveys } from './surveys.js';
 import { mountWebChat, type WebChatDeps } from './webChat.js';
 import { chatPageKey, setChatPage } from '../../db/webChat.js';
 import { setTelegram, telegramCode } from '../../db/telegram.js';
+import { GREETING_LOCALES, greetingText, type GreetingLocale } from '../../core/conversation/greeting.js';
 import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
@@ -4767,6 +4768,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // S7 — the chat page's address while it is on.
       const chatKey = screen === 'chat' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => chatPageKey(tx, bid.value)) : null;
       const tgCode = screen === 'telegram' && bid.ok && deps.telegramBot ? await withTenantTx(deps.db, bid.value, (tx) => telegramCode(tx, bid.value)) : null;
+      // the greeting a /start gets, word for word, for whoever signs it (greeting.ts)
+      const tgName = screen === 'telegram' && bid.ok ? (await withTenantTx(deps.db, bid.value, (tx) => sql<{ name: string }>`select name from businesses where id = ${bid.value}::uuid`.execute(tx))).rows[0]?.name ?? '' : '';
+      const tgGreeting = greetingText((GREETING_LOCALES as readonly string[]).includes(locale) ? locale as GreetingLocale : 'en').split('{business}').join(tgName || '…');
       const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: channelScreenTitle(locale, screen), active: 'channels',
@@ -4774,7 +4778,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
           inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
-          telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null },
+          telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
         }),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),

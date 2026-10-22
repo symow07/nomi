@@ -770,7 +770,7 @@ export type ChannelScreenParts = {
   /** S7 — the business's chat page: its address while it is on (null: off), and whether this host can serve one. */
   readonly chatPage?: { readonly url: string | null; readonly served: boolean };
   /** S7 — Telegram: the business's start link while it is on (null: off), and whether this host has the bot. */
-  readonly telegram?: { readonly url: string | null; readonly served: boolean };
+  readonly telegram?: { readonly url: string | null; readonly served: boolean; readonly greeting?: string };
 };
 
 /**
@@ -778,7 +778,7 @@ export type ChannelScreenParts = {
  * the owner's switch (it lets the assistant answer there: going live, rule 11). Staff see the same and that the owner
  * decides. Where the host cannot serve it (no messaging path; for Telegram, no bot), it says so and offers nothing.
  */
-function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | null; readonly served: boolean }, which: 'chat' | 'telegram'): string {
+function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | null; readonly served: boolean; readonly greeting?: string }, which: 'chat' | 'telegram'): string {
   const k = (s: string) => `channels.${which}.${s}` as MessageKey;
   const name = assistantName(locale);
   if (!p.served) return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p><p>${esc(t(locale, k('notHere')))}</p>`;
@@ -790,6 +790,7 @@ function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | 
   return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p>
     <p><span class="pill${on ? ' ok' : ''}">${esc(t(locale, on ? k('on') : k('off')))}</span></p>
     ${on ? `<p>${esc(t(locale, k('share')))}</p><p class="issued"><span class="code" dir="ltr">${esc(p.url!)}</span></p>` : ''}
+    ${which === 'telegram' && p.greeting ? `<p class="caption">${esc(t(locale, 'channels.telegram.greetingWritten'))}</p><blockquote dir="auto">${esc(p.greeting)}</blockquote>` : ''}
     ${on && which === 'chat' ? `<p>${esc(t(locale, 'channels.chat.embed'))}</p><p class="issued"><span class="code" dir="ltr">${esc(`<script src="${p.url!}/widget.js" async></script>`)}</span></p>` : ''}
     ${control}`;
 }

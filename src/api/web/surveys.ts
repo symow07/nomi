@@ -1,7 +1,7 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import type { Viewer } from '../../core/conversation/people.js';
-import { SURVEY_LOCALES, SURVEY_SIGNED, surveyText, type SurveyLocale } from '../../core/conversation/survey.js';
+import { SURVEY_LOCALES, SURVEY_SIGNED, surveyText, surveyThanksText, type SurveyLocale } from '../../core/conversation/survey.js';
 import type { SurveyAnswer, SurveyFacts } from '../../db/surveys.js';
 import { t, tn } from './say.js';
 import { conversationUrl, esc } from './layout.js';
@@ -14,6 +14,7 @@ import * as show from './values.js';
  * same, and that the owner decides.
  */
 export function renderSurveys(locale: Locale, f: SurveyFacts, answers: readonly SurveyAnswer[], viewer: Viewer, now: Date): string {
+  const own: SurveyLocale = (SURVEY_LOCALES as readonly string[]).includes(locale) ? locale as SurveyLocale : 'en';
   const ready = SURVEY_LOCALES.filter((l) => SURVEY_SIGNED[l] !== undefined);
   const waiting = SURVEY_LOCALES.filter((l) => SURVEY_SIGNED[l] === undefined);
   const names = (ls: readonly string[]) => formatList(locale, ls.map((l) => languageName(locale, l)));
@@ -36,6 +37,8 @@ export function renderSurveys(locale: Locale, f: SurveyFacts, answers: readonly 
     <div class="block"><p><span class="pill${f.on ? ' ok' : ''}">${esc(t(locale, f.on ? 'surveys.on' : 'surveys.off'))}</span></p>
       <p class="fdesc">${esc(languages)}</p>
       <p class="caption">${esc(t(locale, 'surveys.asWritten'))}</p>
-      <blockquote dir="auto">${esc(surveyText((SURVEY_LOCALES as readonly string[]).includes(locale) ? locale as SurveyLocale : 'en').split('{business}').join(f.business || '…'))}</blockquote>${control}</div>
+      <blockquote dir="auto">${esc(surveyText(own).split('{business}').join(f.business || '…'))}</blockquote>
+      <p class="caption">${esc(t(locale, 'surveys.thanksWritten'))}</p>
+      <blockquote dir="auto">${esc(surveyThanksText(own).split('{business}').join(f.business || '…'))}</blockquote>${control}</div>
     <div class="block"><h2>${esc(t(locale, 'surveys.lastNinety'))}</h2>${counts}${latest}</div>`;
 }

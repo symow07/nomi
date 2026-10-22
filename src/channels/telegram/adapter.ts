@@ -22,7 +22,7 @@ export type TelegramFetch = (url: string, init: { method: 'POST'; headers: Recor
 export const TELEGRAM_TEXT_MAX = 4096;
 const API = 'https://api.telegram.org';
 
-type TgUser = { readonly id?: number; readonly first_name?: string; readonly last_name?: string; readonly username?: string };
+type TgUser = { readonly id?: number; readonly first_name?: string; readonly last_name?: string; readonly username?: string; readonly language_code?: string };
 type TgMessage = {
   readonly message_id?: number; readonly date?: number; readonly from?: TgUser;
   readonly chat?: { readonly id?: number; readonly type?: string };
@@ -61,6 +61,7 @@ export function parseTelegramUpdate(botId: string, payload: unknown): ChannelEve
       received,
       text: typeof m.text === 'string' ? m.text : typeof m.caption === 'string' ? m.caption : null,
       mediaId: null,
+      language: typeof m.from?.language_code === 'string' ? m.from.language_code : null,
     }];
   } catch {
     return [];

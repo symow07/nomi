@@ -94,3 +94,24 @@ export function surveyScore(text: string): 1 | 2 | 3 | 4 | 5 | null {
   if (/^[.,]?\p{N}/u.test(rest)) return null;
   return AFTER.test(rest) ? (n as 1 | 2 | 3 | 4 | 5) : null;
 }
+
+/**
+ * The thank-you for an answer (the owner, 2026-10-22: a buyer who answered and heard nothing thinks it broke). Held
+ * like the question: sent in a language only once its reader signed this exact sentence; until then the answer is
+ * kept and nothing is said — a known gap, waiting on that signature, not a decision.
+ */
+const THANKS: Readonly<Record<SurveyLocale, string>> = {
+  en: 'Thank you — that helps {business}.',
+  zh: '谢谢您的评价，这对{business}很有帮助。',
+  ar: 'شكرًا على التقييم، فهو مفيد لـ{business}.',
+  es: 'Gracias, eso ayuda a {business}.',
+  fr: 'Merci, cela aide {business}.',
+};
+const THANKS_SIGNED: Readonly<Partial<Record<SurveyLocale, { readonly text: string; readonly by: string }>>> = {};
+export const SURVEY_THANKS_SIGNED: SurveySigned = Object.freeze(Object.fromEntries(
+  SURVEY_LOCALES.flatMap((l) => (THANKS_SIGNED[l]?.text === THANKS[l] ? [[l, THANKS[l]]] : []))) as SurveySigned);
+/** The thank-you as written, for its reader (and the tests). */
+export const surveyThanksText = (l: SurveyLocale): string => THANKS[l];
+/** The thank-you in the language the question was asked in, or null: not signed there. */
+export const surveyThanksFor = (language: string | null | undefined, business: string, signed: SurveySigned = SURVEY_THANKS_SIGNED) =>
+  surveyFor(language, business, signed);
