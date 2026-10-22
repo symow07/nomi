@@ -16078,16 +16078,19 @@ Reviewer (per language): ______  Date: ______
 
 Reviewer (per language): ______  Date: ______
 
-## 2026-10-22 — Phase 5 S — saved replies, labels, hand-offs in turn, answers people gave, surveys, strict mode (owner copy not a gate; TWO BUYER-FACING SETS ARE)
+## 2026-10-22 — Phase 5 S — saved replies, labels, hand-offs in turn, answers people gave, surveys, strict mode, the chat page and Telegram (owner copy not a gate; TWO BUYER-FACING SETS ARE)
 
-- **The keys (133 new, in each of zh, ar, es and fr; none changed):**
+- **The keys (174 new, in each of zh, ar, es and fr; none changed):**
   - `savedReplies.*`: saved replies, put in the reply box;
   - `labels.*`: labels on buyers, a narrowing of Buyers;
   - `turn.*`: hand-offs in turn, on the team page (who is in turn, who is away until when);
   - `knowledge.given.*` and `people.ownerOnly.answers_given`: answers people gave, taught or set aside;
   - `surveys.*`: the survey page;
   - `autonomy.strict.*` and `inbox.draft.held.strict_unapproved`: strict mode;
-  - `books.morocco.*`: the advice for a Moroccan workspace's books.
+  - `books.morocco.*`: the advice for a Moroccan workspace's books;
+  - `chat.*`: **the chat page itself, which the BUYER reads** (its title, the form, what is kept, the widget's button);
+  - `channels.chat.*`, `channels.telegram.*`, `conv.channel.web_chat|telegram`, `reach.channel.web_chat|telegram`: the owner's screens and the channels' names;
+  - `legal.privacy.who.telegram`, `legal.privacy.kept.chat`, `legal.privacy.cookies.for.chat`: the privacy page's new lines (the buyer reads these too).
 - **Where the words differ, and why:**
   - a label is 标签 / «تصنيف» / «Etiqueta» / «Étiquette»; taken off, never deleted;
   - "in turn" is 轮流 / «بالتناوب» / «Por turnos» / «À tour de rôle»; Arabic opens with the verbal noun «عند تحويل {name}…» so no verb agrees with the name;
@@ -16095,7 +16098,7 @@ Reviewer (per language): ______  Date: ______
   - the survey's French title is «Votre avis, après une commande»: «Comment cela s'est-il passé ?» puts an «il» where the pronoun guard allows none;
   - a reader is named by the review, never the person: «su revisión», never «revisor»;
   - "average answer", never "score": a number is never a judgment of how well the assistant works.
-- **Check:** that 轮流 reads as sharing hand-offs among people, not as the buyer being passed around; that «تصنيف» is the word a shop owner uses for a tag on a customer.
+- **Check:** that 轮流 reads as sharing hand-offs among people, not as the buyer being passed around; that «تصنيف» is the word a shop owner uses for a tag on a customer; that the chat page's Arabic addresses the buyer in no gender («للكتابة هنا…», «الرسالة المرسلة» for "You"); that Nomi's bot reads as "Nomi's Telegram account" (Nomi 的 Telegram 账号 — 机器人 is kept out of owner copy).
 
 **THE TWO BUYER-FACING SETS — A GATE, each language on its own (nothing is sent in a language until its reader signs it in the code):**
 - **The survey sentence** (`src/core/conversation/survey.ts`, `TEXT`, five languages): one question after an order, "how did we do, 1 to 5". The owner signs the English; a native reader each of the others. Arabic addresses the buyer in no gender («يكفي الرد برقم…»).
