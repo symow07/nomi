@@ -2344,7 +2344,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/data/papers.zip', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
     if (!s) return reply;
-    if (!deps.documents) return reply.callNotFound();
+    // An installation with no papers store cannot open a paper: said as a copy not made, nothing recorded.
+    if (!deps.documents) return flashTo(reply, '/app/settings/data#papers', 'data.flash.papersFailed');
     if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
       return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
     }

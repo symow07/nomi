@@ -94,7 +94,8 @@ d('B5 · reading changes (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { time
 
   it('A READ REFUSED FOR ITS PROBLEMS moves no cursor: the same entries are read again once fixed', async () => {
     const stored = (await as((q) => q(`select cursor from books_connections where system = 'odoo'`))).rows[0].cursor as string;
-    odoo.publish({ ...SAMPLE_BOOKS, entries: [...SAMPLE_BOOKS.entries, { ...SAMPLE_BOOKS.entries[1]!, key: 'AC-2026-9', date: '2025-06-01' }] });
+    // An entry after every fiscal year: a problem to fix. (One BEFORE the books is history since E3, 0207: left in Odoo.)
+    odoo.publish({ ...SAMPLE_BOOKS, entries: [...SAMPLE_BOOKS.entries, { ...SAMPLE_BOOKS.entries[1]!, key: 'AC-2027-9', date: '2027-06-01' }] });
     expect(await read.readConnectedSystem(deps(), BIZ, 'odoo', 'owner')).toMatchObject({ kind: 'problems' });
     expect((await as((q) => q(`select cursor from books_connections where system = 'odoo'`))).rows[0].cursor).toBe(stored);
   });
