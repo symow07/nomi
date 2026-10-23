@@ -74,10 +74,13 @@ is social media as the sales channel, not manufacturing.
 - The GitHub repo is **public**: never commit tokens, invite links or personal
   data.
 
-**No claim about a named competitor** (the owner, 2026-10-23)
-- Never write a compliance claim, positive or negative, verified or not, about a named vendor or competitor in this
-  public repository. If a point is worth making, make it about Nomi ("Avis 24 limits open current periods; Nomi
-  enforces it"), and nothing about who does not.
+**No compliance or quality claim about a named vendor** (the owner, 2026-10-23, refined 2026-10-24)
+- Never write a compliance or quality claim about a named vendor or competitor in this public repository, verified or
+  not. If a point is worth making, make it about Nomi ("Avis 24 limits open current periods; Nomi enforces it").
+- Facts we verified ourselves, against a source we can read (code, an official page), ARE kept — in the private notes
+  outside the repo (the owner's `nomi-private` folder, as the isolation sweep's report since #366), with their
+  sources. In public, say only the part about us (e.g. "no existing open-source Moroccan FEC export was available to
+  reuse"). No vendor named in public; nothing lost in private.
 
 **Asking first** (the owner, 2026-10-23)
 - Ask before anything that **costs money, touches production, or sends data**

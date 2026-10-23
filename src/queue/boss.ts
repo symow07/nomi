@@ -66,6 +66,8 @@ export const QUEUES = {
    * books' page.
    */
   booksRead: 'books.read',
+  // D10 (0211) — every hour, Avis 24's periods kept on each Moroccan workspace's locks
+  booksPeriods: 'books.periods',
   /**
    * CC-02a — the once-a-day look at deletion requests: is any open one within
    * seven days of its thirty, or past them? Only the question and the

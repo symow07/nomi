@@ -214,9 +214,11 @@ d('A2.1 · the ledger\'s rules are the database\'s (requires DATABASE_URL + MIGR
   });
 
   it('a LOCKED day, a day outside the year, a CLOSED year: nothing is drafted or posted there', async () => {
-    // the first posting made the settings row (A3: it fixes the books' currency); the lock date is set on it
-    // (an operator's write: the app moves the lock only through D2's functions, 0189 — tests/integration/books-close.test.ts)
-    const lockTo = (day: string | null) => admin.query(`update books_settings set lock_date = $2 where business_id = $1`, [BIZ, day]);
+    // each year's own lock (0211), set by an operator's write: the app moves a lock only through D2's and D10's
+    // functions (tests/integration/books-close.test.ts, books-periods.test.ts)
+    const lockTo = (day: string | null) => (day === null
+      ? admin.query(`update fiscal_years set lock_date = null where business_id = $1 and state = 'open'`, [BIZ])
+      : admin.query(`update fiscal_years set lock_date = $2 where business_id = $1 and $2::date between starts_on and ends_on`, [BIZ, day]));
     await lockTo('2026-01-31');
     expect(await refused(BIZ, (q) => draft(q, { date: '2026-01-15', label: 'In January', lines: sale('1.00') }))).toMatch(/on or before the lock date 2026-01-31/);
     expect(await refused(BIZ, (q) => draft(q, { date: '2027-01-02', label: 'Next year', lines: sale('1.00') }))).toMatch(/outside fiscal year 2026-01-01 to 2026-12-31/);

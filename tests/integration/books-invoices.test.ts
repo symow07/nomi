@@ -84,11 +84,11 @@ d('C2 · invoices and payments (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
   });
 
   it('NO GAP: a refused issue takes no number — the next is F-2026-0002', async () => {
-    await admin.query(`update books_settings set lock_date = '2026-04-30' where business_id = $1`, [BIZ]);   // an operator's write (0189)
+    await admin.query(`update fiscal_years set lock_date = '2026-04-30' where business_id = $1 and '2026-04-30' between starts_on and ends_on`, [BIZ]);   // an operator's write; the year's own lock (0211)
     const locked = await draft('MAD', [['2', '10', false]], '2026-04-15');
     if (locked.kind !== 'drafted') throw new Error(locked.reason);
     expect(await issue(locked.id)).toMatchObject({ kind: 'refused' });
-    await admin.query(`update books_settings set lock_date = null where business_id = $1`, [BIZ]);
+    await admin.query(`update fiscal_years set lock_date = null where business_id = $1`, [BIZ]);
     const next = await draft('MAD', [['2', '10', false]], '2026-05-15');
     if (next.kind !== 'drafted') throw new Error(next.reason);
     expect(await issue(next.id)).toMatchObject({ kind: 'issued', key: 'F-2026-0002' });

@@ -91,14 +91,20 @@ the twelve Intuit items one by one.
 - **R4, built:** QuickBooks' realmID sealed; access tokens used until they end; a 401 refreshed once; endpoints from
   the discovery document; each call logged with its intuit_tid; `no-store` and HSTS; Intuit's disconnect URL.
 - **The owner's answers (2026-10-23), and where each stands:**
-  1. **Build D10, on the lock date, with a books-start date; imports exempt.** STOPPED before building, as the owner
-     asked for exactly this case: ONE lock date cannot hold §2.3 d)'s four periods at a year-end (PHASE-5.md, R1,
-     "Why one lock date is not enough"). Waiting on the owner's choice of the three options there.
+  1. **Build D10, on the lock date, with a books-start date; imports exempt.** Stopped once: ONE lock date cannot hold
+     §2.3 d)'s four periods at a year-end. The owner chose option A (2026-10-24): **built (0211)**. A lock per fiscal
+     year is the one write predicate; the ceiling is a rule on the set of locks, kept hourly and checked on
+     reopening; the books start once. PHASE-5.md R1 has it, with the named February-2027 test.
   2. **Spain: all three forms; anything else warns, never refuses.** Built.
   3. **The two link pages stay as they are.** Recorded in INTUIT-QUESTIONNAIRE.md §R item 9, with what each link
      does: the sign-in link is single-use and expires; the unsubscribe link is neither, by design.
-  4. **The named-vendor claim is dropped**, and the rule is standing: no compliance claim about a named competitor in
-     this public repo (CLAUDE.md §2). R2's record names no vendor either.
+  4. **The named-vendor claim is dropped**, and the rule is standing, as refined on 2026-10-24: no compliance or
+     quality claim about a named vendor in the public repo (CLAUDE.md §2). Facts we verified ourselves go to the private
+     notes with their sources (`nomi-private/VENDOR-NOTES-FEC-2026-10-23.md`: Odoo's `l10n_ma` manifest read directly —
+     LGPL-3, no FEC export). In public, only the part about us.
+  - **Found on the way:** the private folder is now at `~/Desktop/Projects/Active/nomi-backup-system/nomi-private/`
+    (moved 2026-10-22). This file, docs/A1-EXACT-MONEY.md and the memory still say `~/nomi-private/`. The backups are
+    there.
   5. **The questionnaire, read from Codat's public guide, written in our own words** (INTUIT-QUESTIONNAIRE.md §Q).
      Merchanter's page is screenshots this session could not read, so no disagreement could be checked.
   6. **Intuit's sandbox (item 12) is the owner's, and stays the one blocker.** The fake's round trip does not stand

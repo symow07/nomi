@@ -2,20 +2,28 @@ import { sql } from 'kysely';
 import type { Tx } from './client.js';
 
 /**
- * D2 (Phase 5, item 6; 0189) — CLOSING THE BOOKS. The rules are the database's (`books_lock_to`, `books_reopen_to`,
+ * D2 (Phase 5, item 6; 0189) — CLOSING THE BOOKS. The rules are the database's (`books_lock_to`, `books_reopen_year`,
  * `books_close_year`, `books_close_checklist`): a lock only forward and only with the checklist clear; a reopening
  * the owner's, with a reason, recorded; a year closed by one entry in the closing journal, then never again written
  * in; at most two years open. This file asks, and turns a refusal into its reason.
+ *
+ * D10 (0211) — EACH FISCAL YEAR HAS ITS OWN LOCK, the one thing that decides what can be written; the books start
+ * once (`books_start`: the day and the period length); and, for a Moroccan workspace, Avis 24's two current periods
+ * are kept on the set of locks (`books_period_floors`, `books_roll_periods`, run by the worker every hour).
  */
 export const CHECKLIST = ['draft_entries', 'draft_invoices', 'draft_credit_notes', 'unmatched_statement_lines'] as const;
 export type ChecklistItem = (typeof CHECKLIST)[number];
-export type FiscalYear = { readonly id: string; readonly startsOn: string; readonly endsOn: string; readonly state: 'open' | 'closed' };
-export type LockEvent = { readonly action: 'lock' | 'reopen' | 'close'; readonly fromDate: string | null; readonly toDate: string | null;
+export type FiscalYear = { readonly id: string; readonly startsOn: string; readonly endsOn: string; readonly state: 'open' | 'closed';
+  /** D10 — the year's own lock: everything on or before it, in this year, is closed. */
+  readonly lockDate: string | null };
+export type BooksStart = { readonly day: string; readonly length: 'month' | 'quarter'; readonly by: string; readonly at: string };
+export type LockEvent = { readonly action: 'lock' | 'reopen' | 'close' | 'start' | 'period'; readonly fromDate: string | null; readonly toDate: string | null;
   readonly reason: string | null; readonly by: string; readonly at: string };
 
 export type CloseRefusal = { readonly kind: 'refused'; readonly reason:
   | 'not_clear' | 'backwards' | 'future' | 'not_owner' | 'no_reason' | 'not_back' | 'not_open' | 'not_ended'
-  | 'not_closing_journal' | 'not_equity' | 'overlap' | 'two_open' | 'bad_year' | 'other'; readonly detail: string | null };
+  | 'not_closing_journal' | 'not_equity' | 'overlap' | 'two_open' | 'bad_year' | 'started' | 'ceiling' | 'before_start' | 'no_open_year' | 'other';
+  readonly detail: string | null };
 
 function closeRefusalOf(e: unknown): CloseRefusal {
   const code = String((e as { code?: unknown } | null)?.code ?? '');
@@ -28,7 +36,11 @@ function closeRefusalOf(e: unknown): CloseRefusal {
     if (/moves only forward/.test(m)) return r('backwards', /locked to (\S+) already/.exec(m)?.[1] ?? null);
     if (/today at the latest/.test(m)) return r('future');
     if (/says why/.test(m)) return r('no_reason');
-    if (/moves the lock back/.test(m)) return r('not_back');
+    if (/moves the (year's )?lock back/.test(m)) return r('not_back');
+    if (/started on (\S+) already/.test(m)) return r('started', /started on (\S+) already/.exec(m)?.[1] ?? null);
+    if (/two current periods open at most/.test(m)) return r('ceiling', /locked to (\S+) at least/.exec(m)?.[1] ?? null);
+    if (/nothing before it reopens/.test(m)) return r('before_start', /start on (\S+);/.exec(m)?.[1] ?? null);
+    if (/in no open fiscal year|inside an open fiscal year/.test(m)) return r('no_open_year');
     if (/not open/.test(m)) return r('not_open');
     if (/once it has ended/.test(m)) return r('not_ended', /\((\S+)\)/.exec(m)?.[1] ?? null);
     return r('other');
@@ -54,17 +66,22 @@ async function attempt<T>(tx: Tx, name: string, fn: () => Promise<T>): Promise<T
 }
 
 export async function closeState(tx: Tx, businessId: string) {
-  const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
-  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: FiscalYear['state'] }>`select id::text as id, starts_on::text as starts_on,
-    ends_on::text as ends_on, state from fiscal_years where business_id = ${businessId}::uuid order by starts_on desc`.execute(tx)).rows
-    .map((y): FiscalYear => ({ id: y.id, startsOn: y.starts_on, endsOn: y.ends_on, state: y.state }));
+  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: FiscalYear['state']; lock_date: string | null }>`select id::text as id,
+    starts_on::text as starts_on, ends_on::text as ends_on, state, lock_date::text as lock_date from fiscal_years where business_id = ${businessId}::uuid
+    order by starts_on desc`.execute(tx)).rows
+    .map((y): FiscalYear => ({ id: y.id, startsOn: y.starts_on, endsOn: y.ends_on, state: y.state, lockDate: y.lock_date }));
+  const st = (await sql<{ day: string | null; length: BooksStart['length']; by: string | null; at: string | null; country: string | null }>`
+    select s.books_start::text as day, coalesce(s.period_length, 'month') as length, s.books_started_by as by, to_json(s.books_started_at) #>> '{}' as at, b.country
+      from businesses b left join books_settings s on s.business_id = b.id where b.id = ${businessId}::uuid`.execute(tx)).rows[0];
+  const start: BooksStart | null = st?.day ? { day: st.day, length: st.length, by: st.by ?? '', at: st.at ?? '' } : null;
+  const morocco = st?.country === 'MA';
   const history = (await sql<{ action: LockEvent['action']; from_date: string | null; to_date: string | null; reason: string | null; by_person: string; at: string }>`
     select action, from_date::text as from_date, to_date::text as to_date, reason, by_person, to_json(at) #>> '{}' as at from period_locks
      where business_id = ${businessId}::uuid order by at desc limit 50`.execute(tx)).rows
     .map((h): LockEvent => ({ action: h.action, fromDate: h.from_date, toDate: h.to_date, reason: h.reason, by: h.by_person, at: h.at }));
   const q = <T>(s: ReturnType<typeof sql<T>>) => s.execute(tx).then((r) => r.rows);
   return {
-    lock, years, history,
+    years, history, start, morocco,
     equity: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from accounts where business_id = ${businessId}::uuid
       and kind = 'equity' and is_active order by code`),
     closingJournals: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals where business_id = ${businessId}::uuid
@@ -79,8 +96,13 @@ export async function checklistFor(tx: Tx, businessId: string, day: string): Pro
 export const lockTo = (tx: Tx, businessId: string, day: string, by: string) =>
   attempt(tx, 'lock_to', async () => { await sql`select books_lock_to(${day}::date, ${by})`.execute(tx); return { kind: 'done' as const }; });
 
-export const reopenTo = (tx: Tx, businessId: string, day: string | null, by: string, reason: string) =>
-  attempt(tx, 'reopen_to', async () => { await sql`select books_reopen_to(${day}::date, ${by}, ${reason})`.execute(tx); return { kind: 'done' as const }; });
+/** D10 — a year's lock moved back (or lifted): the owner's, with a reason; never below the start, nor past Avis 24's ceiling. */
+export const reopenTo = (tx: Tx, businessId: string, yearId: string, day: string | null, by: string, reason: string) =>
+  attempt(tx, 'reopen_to', async () => { await sql`select books_reopen_year(${yearId}::uuid, ${day}::date, ${by}, ${reason})`.execute(tx); return { kind: 'done' as const }; });
+
+/** D10 — the books begin: once, the day and the period length, by the owner. */
+export const startBooks = (tx: Tx, businessId: string, day: string, length: 'month' | 'quarter', by: string) =>
+  attempt(tx, 'books_start', async () => { await sql`select books_start(${day}::date, ${length}, ${by})`.execute(tx); return { kind: 'done' as const }; });
 
 export const closeYear = (tx: Tx, businessId: string, p: { readonly yearId: string; readonly resultAccountId: string; readonly journalId: string;
   readonly by: string; readonly label: string; readonly ref: string }) =>

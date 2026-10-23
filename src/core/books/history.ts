@@ -1,12 +1,12 @@
 /**
  * E3 (Phase 5; 0207) — WHERE THE BOOKS' OPEN WINDOW BEGINS, and so what an import holds that is HISTORY, NOT IN THE
- * BOOKS: an entry dated before the first day an entry can be written. That day is the earliest open fiscal year's
- * first day, or the day after the lock date where the lock reaches into it. (D10's open periods, when built, narrow
- * the window here, in one place.)
+ * BOOKS: an entry dated before the first day an entry can be written. That day is the earliest day any open fiscal
+ * year can take: its first day, or the day after ITS OWN lock where the lock reaches into it (D10, 0211: a lock per
+ * year; the books' start and Avis 24's periods both move those locks, so they narrow the window here, in one place).
  *
  * Entries after the window with no year to hold them are not history: they stay refused, as before.
  */
-export type YearWindow = { readonly startsOn: string; readonly endsOn: string; readonly state: string };
+export type YearWindow = { readonly startsOn: string; readonly endsOn: string; readonly state: string; readonly lockDate: string | null };
 
 /** The calendar day after an ISO date (YYYY-MM-DD), by the calendar alone: no clock. */
 const nextDay = (iso: string): string => {
@@ -18,13 +18,13 @@ const nextDay = (iso: string): string => {
 };
 
 /** The first day an entry can be written, or null when no open year has one (then nothing is history: all refused). */
-export function firstOpenDay(years: readonly YearWindow[], lock: string | null): string | null {
-  const after = lock === null ? null : nextDay(lock);
+export function firstOpenDay(years: readonly YearWindow[]): string | null {
   const days: string[] = [];
   for (const y of years) {
     if (y.state !== 'open') continue;
+    const after = y.lockDate === null ? null : nextDay(y.lockDate);
     const day = after !== null && after > y.startsOn ? after : y.startsOn;
-    if (day <= y.endsOn) days.push(day);   // a year the lock covers whole opens nothing
+    if (day <= y.endsOn) days.push(day);   // a year its lock covers whole opens nothing
   }
   return days.sort()[0] ?? null;
 }

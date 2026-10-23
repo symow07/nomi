@@ -565,7 +565,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
       - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the DGI has published no name
         for the FEC file (checked 2026-10-22: the Avis, CGI article 210, the DGI's 2025 report). `tools/books-area.mjs`
         refuses a Moroccan workspace until it is known. (The business's own ICE, IF and RC are held since E2, 0206.)
-- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
+- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *(built 2026-10-24, 0211, option A: see
+  Stage R, R1.)*
   - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
     its own period. It is recorded with its date and who ran it.
   - **After it, for a Moroccan workspace, the two-period rule applies automatically:** only the current and the
@@ -1083,6 +1084,34 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
       rule beside the lock, which the owner ruled out.
     - **C: one lock date, strict.** The previous year must be closed before the current year's third period opens.
       It meets the Avis's "two current periods", but blocks the year-end above.
+  - **BUILT: option A (the owner, 2026-10-24; 0211).**
+    - **A lock per fiscal year** (`fiscal_years.lock_date`); the workspace-wide one is gone. **ONE predicate decides a
+      write:** an entry's date after its own year's lock (`books_day_writable`: the year open, the day inside it, after
+      its lock). It reads no period, no calendar day and no start, and nothing else grants or denies a write. Its one
+      exception is unchanged from D2: inside `books_close_year`, the year's own closing entry.
+    - **§2.3 d) is a rule on the SET of locks** (`books_period_floors`). On the workspace's local day, for a Moroccan
+      workspace whose books have started, it gives the lowest each open year's lock may be: the exercice in
+      progress keeps its current period and the one before; an earlier open year keeps only its last period (the
+      closing period); the opening entry's day sits inside the first of those. Three things use it:
+      - the worker raises a lock below its floor every hour (`books_roll_periods`, recorded as the periods' doing,
+        `period_locks` action `period`);
+      - a reopening that would go below one is refused (`books_reopen_year`);
+      - a page can ask what is out of line (`books_period_problems`).
+      None of them refuses a write.
+    - **The two invariants agree.** 0169 keeps at most two years open, and the floors name at most those two years;
+      a test walks two years of days to hold it.
+    - **The books' start, once** (`books_start`, by the owner, with the period length, month or quarter, MONTHLY by
+      default). Its year's lock goes to the day before; a reopening never goes below it. Everything earlier is
+      history: E3's window opens at the day after each year's own lock (`firstOpenDay`), so an import's entries
+      before it are set apart, kept as the file, never in the books.
+    - **Imports are exempt, and visibly so:** history never reaches the books (so never the FEC); an import inside the
+      window arrives as drafts the owner posts.
+    - **A workspace outside Morocco** keeps the manual lock: no floors, whatever the day.
+    - **The named test** (`tests/integration/books-periods.test.ts`, "FEBRUARY 2027"): on 15 February 2027, January and
+      February 2027 and December 2026 are open together; on 1 March 2027, January 2027 closes and December 2026 stays
+      open. Every day in those tests is named, so they do not depend on the day they run.
+    - **Not built:** a journal of its own for the opening entry. The opening entry is any entry dated the start day,
+      written before that period closes.
   - **Imports and the FEC (rule c), checked:** the FEC's eighteen fields have none that says "imported" (annex 3:
     the journal, the entry's number and date, the account, the auxiliary account, the document, the label, the
     amounts, the lettrage, the validation date, the currency). None is invented. Nothing needs one: history set apart
@@ -1093,8 +1122,9 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
   - **No official Moroccan FEC file name exists.** Checked 2026-10-22 (D4) against the Avis, CGI art. 210 and the DGI's
     2025 report. And *reported*: the Avis 24 annex ends at "Id devise"; its full text has no "nom du fichier",
     "extension", ".txt", ".csv", "séparateur", "encodage" or "ICE"; the DGI's Rapport d'activité 2025 (p. 97) calls
-    the e-reception system « achevés » and publishes no specification. (What other software does is not recorded
-    here: no claim about a named vendor in this repository — CLAUDE.md §2.)
+    the e-reception system « achevés » and publishes no specification.
+  - **No existing open-source Moroccan FEC export was available to reuse** (verified against its source, 2026-10-24),
+    so Nomi builds its own from the Avis. The vendor notes behind this are kept outside the repository (CLAUDE.md §2).
   - **What Nomi does:** a DEFAULT, `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal year's last day),
     configurable per workspace by its owner on the FEC page (`books_settings.fec_filename`; letters, digits, dots,
     dashes, underscores, and only the two placeholders, checked by the app and the database).

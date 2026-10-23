@@ -265,7 +265,7 @@ import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENA
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
-import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
+import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
 import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.js';
 import { renderPaper, renderPapers, type PaperChoices } from './booksPapers.js';
@@ -3054,8 +3054,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req); const str = closeForm(req);
     const day = str('day') === '' ? null : str('day');
     if (day !== null && !isDayStr(day)) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
-    const out = await withTenantTx(deps.db, bid, (tx) => reopenTo(tx, bid, day, personOf(s).id, str('reason').slice(0, 300)));
+    if (!/^[0-9a-f-]{36}$/i.test(str('year'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.close.refused.not_open') });
+    // D10 — the year's own lock, moved back; the database refuses it below the start or past Avis 24's ceiling
+    const out = await withTenantTx(deps.db, bid, (tx) => reopenTo(tx, bid, str('year'), day, personOf(s).id, str('reason').slice(0, 300)));
     return closeBack(reply, out, 'books.flash.reopened', {}, locale);
+  });
+  /** D10 (0211) — the books begin: once, the day and the period length, the owner's (the database's rule). */
+  app.post('/app/books/closing/start', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    if (!isDayStr(str('day'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
+    const length = str('length') === 'quarter' ? 'quarter' : 'month';
+    const out = await withTenantTx(deps.db, bid, (tx) => startBooks(tx, bid, str('day'), length, personOf(s).id));
+    return closeBack(reply, out, 'books.flash.booksStarted', { day: show.dateYear(locale, new Date(`${str('day')}T12:00:00Z`)) }, locale);
   });
   app.post('/app/books/closing/open-year', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

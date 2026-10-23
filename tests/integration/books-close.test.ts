@@ -107,27 +107,30 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     expect(await refused((q) => q(`select books_lock_to('2026-03-31', 'owner')`))).toMatch(/checklist is not clear for 2026-03-31 — draft_entries: 1/);
     await as((q) => q(`update journal_entries set state = 'discarded' where id = $1`, [draft]));
     expect(await notice(await post('/app/books/closing/lock', { day: '2026-03-31' }))).toContain('The books are locked up to');
-    expect(await page()).toMatch(/The books are locked up to [^:]+: nothing dated on or before that day is posted\./);
+    // D10 (0211): the lock is the year's own, said year by year
+    expect(await page()).toMatch(/2026 – [^<]*2026: locked up to [^<]*2026</);
+    expect((await admin.query(`select starts_on::text as s, lock_date::text as l from fiscal_years where business_id = $1 order by starts_on`, [BIZ])).rows)
+      .toEqual([{ s: '2025-01-01', l: null }, { s: '2026-01-01', l: '2026-03-31' }]);
   });
 
   it('A LOCKED PERIOD REFUSES POSTINGS, WITH THE REASON; the lock moves only forward, never by a plain write', async () => {
     expect(await refused((q) => q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by)
       values (current_business_id(), $1, $2, '2026-03-20', 'Late', 'owner')`, [k.ve, k.fy2026]))).toMatch(/2026-03-20 is on or before the lock date 2026-03-31/);
-    expect(await refused((q) => q(`update books_settings set lock_date = '2026-01-31'`))).toMatch(/the lock date moves only by locking/);
-    expect(await refused((q) => q(`select set_config('nomi.closing', 'on', true); update books_settings set lock_date = null`))).toMatch(/the lock date moves only by locking/);
+    expect(await refused((q) => q(`update fiscal_years set lock_date = '2026-01-31' where id = $1`, [k.fy2026]))).toMatch(/a lock date moves only by locking/);
+    expect(await refused((q) => q(`select set_config('nomi.closing', 'on', true); update fiscal_years set lock_date = null where id = $1`, [k.fy2026]))).toMatch(/a lock date moves only by locking/);
     expect(await notice(await post('/app/books/closing/lock', { day: '2026-02-28' }))).toContain('a lock moves only forward');
     expect(await notice(await post('/app/books/closing/lock', { day: '2099-01-31' }))).toContain('today at the latest');
   });
 
   it('REOPENING IS THE OWNER\'S, WITH A REASON, AND RECORDED — staff and the accountant are refused by the database', async () => {
-    expect(await notice(await post('/app/books/closing/reopen', { day: '2026-02-28', reason: '' }))).toContain('A reopening says why.');
+    expect(await notice(await post('/app/books/closing/reopen', { year: k.fy2026, day: '2026-02-28', reason: '' }))).toContain('A reopening says why.');
     for (const who of [staffId, accountantId]) {
-      await expect(asWho(who, async (t) => { const { sql } = await import('kysely'); await sql`select books_reopen_to('2026-02-28', 'x', 'because')`.execute(t); }))
+      await expect(asWho(who, async (t) => { const { sql } = await import('kysely'); await sql`select books_reopen_year(${k.fy2026}::uuid, '2026-02-28', 'x', 'because')`.execute(t); }))
         .rejects.toThrow(/reopening the books is the owner's/);
       await expect(asWho(who, async (t) => { const { sql } = await import('kysely'); await sql`select books_lock_to('2026-04-30', 'x')`.execute(t); }))
         .rejects.toThrow(/locking the books is the owner's/);
     }
-    expect(await notice(await post('/app/books/closing/reopen', { day: '2026-02-28', reason: 'A supplier bill for March arrived late' }))).toContain('Reopened, and recorded with its reason.');
+    expect(await notice(await post('/app/books/closing/reopen', { year: k.fy2026, day: '2026-02-28', reason: 'A supplier bill for March arrived late' }))).toContain('Reopened, and recorded with its reason.');
     const history = (await as((q) => q(`select action, from_date::text as f, to_date::text as t, reason from period_locks order by at`))).rows;
     expect(history).toEqual([
       { action: 'lock', f: null, t: '2026-03-31', reason: null },
@@ -164,8 +167,10 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     expect(tb.rows.find((r) => r.kind === 'earlier_result')).toBeUndefined();
     expect(tb.rows.find((r) => r.code === '1191')?.opening).toEqual({ debit: '0', credit: '700' });
     expect(tb.balanced).toBe(true);
-    // the period history says it; and the closed year's lock went to its last day first
-    expect((await as((q) => q(`select action from period_locks order by at`))).rows.map((r) => r.action)).toEqual(['lock', 'reopen', 'close']);
+    // the period history says it; and the closed year's OWN lock went to its last day first (0211: 2026's lock
+    // never reached into 2025)
+    expect((await as((q) => q(`select action from period_locks order by at`))).rows.map((r) => r.action)).toEqual(['lock', 'reopen', 'lock', 'close']);
+    expect((await admin.query(`select lock_date::text as l from fiscal_years where id = $1`, [k.fy2025])).rows[0].l).toBe('2025-12-31');
   });
 
   it('THE ACCOUNTANT sees the page and its checklist, and locks, reopens and closes nothing', async () => {

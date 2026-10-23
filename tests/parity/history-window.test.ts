@@ -8,28 +8,33 @@ import { firstOpenDay, isHistory } from '../../src/core/books/history.js';
  * dated before the first day an entry can be written. One rule, in one place (src/core/books/history.ts).
  */
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const year = (startsOn: string, endsOn: string, state = 'open') => ({ startsOn, endsOn, state });
+const year = (startsOn: string, endsOn: string, state = 'open', lockDate: string | null = null) => ({ startsOn, endsOn, state, lockDate });
 
 describe('E3 · the open window, and what falls before it', () => {
   it('the earliest open year\'s first day, without a lock', () => {
-    expect(firstOpenDay([year('2026-01-01', '2026-12-31'), year('2025-01-01', '2025-12-31')], null)).toBe('2025-01-01');
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31'), year('2025-01-01', '2025-12-31')])).toBe('2025-01-01');
+  });
+
+  it('D10 (0211): each year\'s OWN lock — the earlier year\'s open closing period opens the window, whatever the later year\'s lock', () => {
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31', 'open', '2026-11-30'), year('2027-01-01', '2027-12-31', 'open', '2027-01-31')])).toBe('2026-12-01');
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31', 'open', '2026-12-31'), year('2027-01-01', '2027-12-31', 'open', '2027-01-31')])).toBe('2027-02-01');
   });
 
   it('a closed year opens nothing; the lock moves the first day to the day after it', () => {
-    expect(firstOpenDay([year('2025-01-01', '2025-12-31', 'closed'), year('2026-01-01', '2026-12-31')], null)).toBe('2026-01-01');
-    expect(firstOpenDay([year('2026-01-01', '2026-12-31')], '2026-03-31')).toBe('2026-04-01');
+    expect(firstOpenDay([year('2025-01-01', '2025-12-31', 'closed'), year('2026-01-01', '2026-12-31')])).toBe('2026-01-01');
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31', 'open', '2026-03-31')])).toBe('2026-04-01');
     // a lock that covers a whole open year: the next year opens the window
-    expect(firstOpenDay([year('2025-01-01', '2025-12-31'), year('2026-01-01', '2026-12-31')], '2025-12-31')).toBe('2026-01-01');
+    expect(firstOpenDay([year('2025-01-01', '2025-12-31', 'open', '2025-12-31'), year('2026-01-01', '2026-12-31')])).toBe('2026-01-01');
     // the last day of February in a leap year, and of a year
-    expect(firstOpenDay([year('2028-01-01', '2028-12-31')], '2028-02-28')).toBe('2028-02-29');
-    expect(firstOpenDay([year('2026-01-01', '2026-12-31')], '2026-02-28')).toBe('2026-03-01');
-    expect(firstOpenDay([year('2100-01-01', '2100-12-31')], '2100-02-28')).toBe('2100-03-01');   // not a leap year
-    expect(firstOpenDay([year('2026-01-01', '2026-12-31'), year('2027-01-01', '2027-12-31')], '2026-12-31')).toBe('2027-01-01');
+    expect(firstOpenDay([year('2028-01-01', '2028-12-31', 'open', '2028-02-28')])).toBe('2028-02-29');
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31', 'open', '2026-02-28')])).toBe('2026-03-01');
+    expect(firstOpenDay([year('2100-01-01', '2100-12-31', 'open', '2100-02-28')])).toBe('2100-03-01');   // not a leap year
+    expect(firstOpenDay([year('2026-01-01', '2026-12-31', 'open', '2026-12-31'), year('2027-01-01', '2027-12-31')])).toBe('2027-01-01');
   });
 
   it('no open year: no window, so nothing is history — everything stays refused as before', () => {
-    expect(firstOpenDay([], null)).toBeNull();
-    expect(firstOpenDay([year('2025-01-01', '2025-12-31', 'closed')], null)).toBeNull();
+    expect(firstOpenDay([])).toBeNull();
+    expect(firstOpenDay([year('2025-01-01', '2025-12-31', 'closed')])).toBeNull();
     expect(isHistory('1999-01-01', null)).toBe(false);
   });
 
