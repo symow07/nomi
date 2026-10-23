@@ -16140,8 +16140,8 @@ Reviewer (per language): ______  Date: ______
 
 ## 2026-10-23 — Phase 5 R — the FEC's file name, a party's registry number, Intuit's disconnect page (not a gate)
 
-- **The keys (29 new and 1 changed, in each of zh, ar, es and fr):**
-  - new: `books.fec.filename.*`, `books.flash.fecFilenameSaved|fecFilenameRefused` (the FEC's file name, Nomi's default); `books.party.registry*`, `books.party.siret|registro|registryConfirm`, `books.flash.partyRegistryRefused|partyRegistryCheck`, `books.registry.problem.*`, `books.registry.check.*` (a party's registry number); `books.flash.quickbooksDisconnectedThere` (Intuit's disconnect URL);
+- **The keys (30 new and 1 changed, in each of zh, ar, es and fr):**
+  - new: `books.fec.filename.*`, `books.flash.fecFilenameSaved|fecFilenameRefused` (the FEC's file name, Nomi's default); `books.party.registry*`, `books.party.siret|registro|registryConfirm`, `books.flash.partyRegistryRefused|partyRegistryCheck`, `books.registry.problem.*`, `books.registry.check.*` (a party's registry number; `nif_shape` warns on a NIF of none of the three forms); `books.flash.quickbooksDisconnectedThere` (Intuit's disconnect URL);
   - changed: `books.notYet.registry` now says the connectors do not carry the number (the field exists).
 - **Where the words differ, and why:**
   - the note on the file name is a default, never a rule, in every language («convention … par défaut», «predeterminada», «默认», «الافتراضية»), and its tests forbid «obligatoire», «officiel», «oficial», 官方, «رسمي» and the like;

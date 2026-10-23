@@ -124,10 +124,9 @@ an item. **Since R2 it names none:** nothing in this section blocks any more.
 - ~~**A party registry-number field.**~~ **Built (R3, 0210, 2026-10-23)** for France (SIREN, SIRET), the United
   Kingdom (company number) and every other country (kept as typed), with Spain's Registro Mercantil entry; copied
   onto invoices and credit notes at issue (PHASE-5.md, R3).
-- **Spain's NIF rule — still BLOCKING for a shop selling to Spanish companies.** The brief's entity-only shape would
-  refuse a sole trader's (DNI) or a foreign resident's (NIE) NIF, so Spain holds only "nine capitals and digits"
-  until the owner decides. `tools/books-area.mjs` cannot know whom a shop sells to: the operator's to check before
-  `--on`. Ask the owner.
+- ~~**Spain's NIF rule.**~~ **Decided and built (the owner, 2026-10-23):** all three forms (an entity's, a person's,
+  a foreign resident's NIE) pass; any other nine capitals and digits warn, never refuse. Nothing in this section
+  blocks any more.
 - **Not blocking, said on the books' page (`books.notYet.registry`):** no connector carries the registry number yet.
 
 ## Start early — lead-time items (the owner, 2026-10-22)

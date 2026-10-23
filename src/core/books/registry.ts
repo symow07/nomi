@@ -6,12 +6,14 @@
  *       FR  SIREN, nine digits ("9 chiffres"); SIRET optional, fourteen digits, its first nine the SIREN.
  *       GB  Companies House number: eight digits, or two capitals and six digits — any two capitals (the official
  *           list of prefixes is incomplete); a number typed shorter than eight is zero-padded (1234567 → 01234567).
- *       ES  the NIF: nine characters, capitals and digits. Its finer shape waits on the owner (PHASE-5.md, R3): the
- *           entity form alone would refuse a sole trader's NIF.
+ *       ES  the NIF: nine characters, capitals and digits — and NEVER refused for its form beyond that (the owner,
+ *           2026-10-23): an entity's (a letter, 7 digits, a control), a person's (8 digits, a letter: an autónomo
+ *           invoices under it) and a foreign resident's NIE (X/Y/Z, 7 digits, a letter) pass silently; any other nine
+ *           warn, so a reform that turns the digits alphanumeric degrades to a warning, never a refused customer.
  *       elsewhere: kept as typed — no rule because no source.
  *   · SOFT (a warning the owner may override, never a refusal): a check NO issuing authority publishes.
  *       FR  the Luhn sum over the SIREN's nine digits (INSEE states only "9 chiffres"; La Poste's numbers break it).
- *       ES  the control character of an entity's NIF (Orden EHA/451/2008, Decreto 2423/1975, RD 1065/2007 say only
+ *       ES  a NIF of none of the three forms; and the control character of an entity's NIF (Orden EHA/451/2008, Decreto 2423/1975, RD 1065/2007 say only
  *           "un carácter de control", with no formula).
  *       GB  none: the number has no check digit, and none is invented.
  *   · ACROSS FIELDS (refused): a French VAT number present ends with the SIREN; a Spanish one is ES and the NIF.
@@ -24,7 +26,11 @@ export type RegistryInput = {
 export type Registry = { readonly registry: string | null; readonly siret: string | null; readonly registro: string | null };
 export type RegistryError = 'registry_shape' | 'siret_shape' | 'siret_not_siren' | 'siret_not_fr' | 'registro_not_es' | 'registro_long'
   | 'vat_not_siren' | 'vat_not_nif' | 'registry_long';
-export type RegistryWarning = 'siren_check' | 'nif_check';
+export type RegistryWarning = 'siren_check' | 'nif_shape' | 'nif_check';
+
+/** The three forms a Spanish NIF takes today: an entity's, a person's, a foreign resident's (NIE). */
+const NIF_FORMS = [/^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$/, /^\d{8}[A-Z]$/, /^[XYZ]\d{7}[A-Z]$/] as const;
+export const nifForm = (nif: string): boolean => NIF_FORMS.some((f) => f.test(nif));
 
 /** As kept: spaces out, capitals (a registry number never holds a space or a small letter in these three countries). */
 const squeeze = (s: string): string => s.replace(/\s+/g, '').toUpperCase();
@@ -90,6 +96,7 @@ export function checkRegistry(input: RegistryInput):
   }
   if (errors.length > 0) return { ok: false, errors };
   if (country === 'FR' && registry !== '' && !sirenLooksRight(registry)) warnings.push('siren_check');
+  if (country === 'ES' && registry !== '' && !nifForm(registry)) warnings.push('nif_shape');
   if (country === 'ES' && registry !== '' && nifLooksRight(registry) === false) warnings.push('nif_check');
   const nz = (s: string) => (s === '' ? null : s);
   return { ok: true, value: { registry: nz(registry), siret: nz(siret), registro: nz(registro) }, warnings };

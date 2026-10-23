@@ -42,10 +42,18 @@ describe('R3 · France: the SIREN, and the SIRET beside it', () => {
 });
 
 describe('R3 · Spain: the NIF, and the Registro Mercantil entry', () => {
-  it('nine capitals and digits, normalised; the finer shape waits on the owner — a sole trader\'s NIF is not refused', () => {
-    expect(check({ country: 'ES', registry: 'b12345674' })).toMatchObject({ ok: true, value: { registry: 'B12345674' } });
-    expect(check({ country: 'ES', registry: '12345678Z' }).ok).toBe(true);    // a sole trader's (DNI) NIF
-    expect(check({ country: 'ES', registry: 'X1234567L' }).ok).toBe(true);    // a foreign resident's (NIE)
+  it('ALL THREE FORMS pass silently: a company\'s, a person\'s (an autónomo invoices under it), a foreign resident\'s NIE', () => {
+    expect(check({ country: 'ES', registry: 'b12345674' })).toEqual({ ok: true, value: { registry: 'B12345674', siret: null, registro: null }, warnings: [] });
+    expect(check({ country: 'ES', registry: '12345678Z' })).toMatchObject({ ok: true, warnings: [] });
+    expect(check({ country: 'ES', registry: 'x1234567l' })).toMatchObject({ ok: true, value: { registry: 'X1234567L' }, warnings: [] });
+  });
+
+  it('any other nine capitals and digits are KEPT with a warning, never refused (a reform must not refuse a customer)', () => {
+    for (const odd of ['K1234567A', 'B12C4567D', '1234567AB', 'ZZZZZZZZZ']) {
+      const r = check({ country: 'ES', registry: odd });
+      expect(r.ok, odd).toBe(true);
+      expect(r.ok && r.warnings, odd).toContain('nif_shape');
+    }
     for (const bad of ['B1234567', 'B123456745', 'B-1234567']) expect(check({ country: 'ES', registry: bad }), bad).toEqual({ ok: false, errors: ['registry_shape'] });
   });
 

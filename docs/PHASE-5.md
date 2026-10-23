@@ -1059,15 +1059,42 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
     workspace. That rule would refuse entries the integration suite posts today (Moroccan workspaces with entries
     from January to May 2026), and history read in from a workbook, Sheets or Odoo. The brief says to stop on a rule
     that breaks existing tests, so it is held for the owner (PROGRESS.md, "Block R").
-  - **Not written here: the Sage X3 claim** ("12 monthly periods, 20 open, so non-compliant as shipped"). It names a
-    vendor in a public repository, and this session could not check it. Held for the owner's source.
+  - **The owner's answer (2026-10-23): build D10 — forward-only, ON the lock date.** Three rules: periods are built on
+    the lock date and never beside it (closing a period sets the lock; the lock stays the single source of truth);
+    each workspace gets a books-start date, before which everything is history and no period rule applies; imports
+    are exempt, and visibly so. If building on the one lock date turns out impossible, stop before building two.
+  - **Why one lock date is not enough — STOPPED here, as the owner asked (2026-10-24).** The lock is one date for
+    the whole workspace: everything on or before it is closed (`books_settings.lock_date`, checked in one place,
+    `books_day_writable`, 0189). §2.3 d) lets the previous exercice's closing period stay open beside the current
+    exercice's two. One date cannot express that once the current exercice passes its second period. Monthly
+    periods, 2026 not yet closed, 2027 begun:
+    - in February 2027 the Avis allows January and February 2027 (the two current periods) and December 2026 (the
+      closing period) open together;
+    - to open March 2027, January 2027 must close: the lock moves to 31 January 2027, and that closes all of 2026,
+      December included;
+    - so with one date, either December 2026 stays open and 2027 is stuck at January–February until 2026 is closed,
+      or December closes before its year is closed. The first is exactly the over-strict year-end the four-period
+      reading exists to avoid.
+    The three ways out, for the owner:
+    - **A (recommended): a lock date for each fiscal year.** Still the only thing that decides what can be written,
+      just kept per exercice. Closing a period moves its own year's lock; closing a year sets that year's lock to its
+      last day. Two years' locks cover different days, so they cannot disagree. D2's functions are re-made per year.
+    - **B: one lock date, plus the previous year's last period as an exception** for closing entries. This is a second
+      rule beside the lock, which the owner ruled out.
+    - **C: one lock date, strict.** The previous year must be closed before the current year's third period opens.
+      It meets the Avis's "two current periods", but blocks the year-end above.
+  - **Imports and the FEC (rule c), checked:** the FEC's eighteen fields have none that says "imported" (annex 3:
+    the journal, the entry's number and date, the account, the auxiliary account, the document, the label, the
+    amounts, the lettrage, the validation date, the currency). None is invented. Nothing needs one: history set apart
+    by E3 is not in the books at all, so it never reaches the FEC; an imported entry inside the window is a draft the
+    owner posts, an ordinary entry from then on. The document store keeps the source file, so the distinction stays
+    in the data (`documents.history_entries`, 0207).
 - **R2 · The FEC's file name.** *(built 2026-10-23, 0209.)*
   - **No official Moroccan FEC file name exists.** Checked 2026-10-22 (D4) against the Avis, CGI art. 210 and the DGI's
     2025 report. And *reported*: the Avis 24 annex ends at "Id devise"; its full text has no "nom du fichier",
     "extension", ".txt", ".csv", "séparateur", "encodage" or "ICE"; the DGI's Rapport d'activité 2025 (p. 97) calls
-    the e-reception system « achevés » and publishes no specification; Odoo's `l10n_ma` has no FEC export in any
-    version (only France's `l10n_fr_fec`); EBP Maroc's help centre gives France's SIREN-based rule; Efatora (UTF-8
-    with a BOM, `|`, 18 columns) names no file.
+    the e-reception system « achevés » and publishes no specification. (What other software does is not recorded
+    here: no claim about a named vendor in this repository — CLAUDE.md §2.)
   - **What Nomi does:** a DEFAULT, `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal year's last day),
     configurable per workspace by its owner on the FEC page (`books_settings.fec_filename`; letters, digits, dots,
     dashes, underscores, and only the two placeholders, checked by the app and the database).
@@ -1092,10 +1119,12 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
     prefix list: Companies House's own forum records FE, OE, PC and SG missing from its URI guide). A shorter numeric
     entry is zero-padded (1234567 → 01234567). Input is normalised first (spaces out, capitals). Any other country:
     kept as typed — no rule because no source.
-  - **Spain, held:** the brief's rule `^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$` is the form of an ENTITY's NIF. A Spanish
-    sole trader (autónomo) invoices under a NIF of the DNI's form (8 digits and a letter), and a foreign resident
-    under an NIE (X/Y/Z, 7 digits, a letter). As a hard rule it would refuse those customers. So until the owner
-    decides, Spain holds only the shape every NIF shares: nine capitals and digits.
+  - **Spain: all three forms, and never a hard block beyond nine characters** (the owner, 2026-10-23). An entity's NIF
+    (a letter, 7 digits, a control), a person's (8 digits and a letter: an autónomo is a paying business customer and
+    invoices under it) and a foreign resident's NIE (X/Y/Z, 7 digits, a letter) pass silently. Any other nine
+    capitals and digits are KEPT with a warning (`nif_shape`), never refused: a reform against number exhaustion that
+    turned the digits alphanumeric would then degrade to a warning, not refuse real customers. Fewer or more than nine
+    is refused (app and database).
   - **SOFT, a warning the owner overrides, never a refusal:** the SIREN's Luhn sum (INSEE publishes only "9
     chiffres"; La Poste is a known exception) and an entity NIF's control character (Orden EHA/451/2008 art. 2(c),
     Decreto 2423/1975 art. tercero and RD 1065/2007 art. 22.1(c) say only « un carácter de control »). The form asks

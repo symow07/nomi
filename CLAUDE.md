@@ -74,6 +74,11 @@ is social media as the sales channel, not manufacturing.
 - The GitHub repo is **public**: never commit tokens, invite links or personal
   data.
 
+**No claim about a named competitor** (the owner, 2026-10-23)
+- Never write a compliance claim, positive or negative, verified or not, about a named vendor or competitor in this
+  public repository. If a point is worth making, make it about Nomi ("Avis 24 limits open current periods; Nomi
+  enforces it"), and nothing about who does not.
+
 **Asking first** (the owner, 2026-10-23)
 - Ask before anything that **costs money, touches production, or sends data**
   to an outside service. Local dev tooling on this Mac (a Node version, a

@@ -90,18 +90,30 @@ the twelve Intuit items one by one.
   nobody publishes only warn.
 - **R4, built:** QuickBooks' realmID sealed; access tokens used until they end; a 401 refreshed once; endpoints from
   the discovery document; each call logged with its intuit_tid; `no-store` and HSTS; Intuit's disconnect URL.
-- **Held for the owner:**
-  1. R1's period rule: it IS D10, and it would refuse entries the tests post today. The four-period reading and the
-     monthly default are recorded, not enforced.
-  2. Spain's NIF: entity-only, or also DNI and NIE?
-  3. A 302 for `/login/set-password?t=` and `/u?t=`: they send `no-referrer` today.
-  4. R1(d)'s Sage X3 claim: a named vendor in a public repo, unchecked here.
-  5. The questionnaire's verbatim questions: Codat's transcription, to be pasted or read.
-  6. Intuit's sandbox round trip (item 12): an account the owner creates.
-- **Found, not fixed:** connecting QuickBooks (or Xero) again WHILE connected archives the old grant here but does not
-  revoke it at Intuit, so that refresh token stays live there until it expires (100 days). Found by R4's reconnect
-  test. The disconnect button does revoke. The fix is small (revoke the old grant when a new one replaces it), but it
-  is a change to how the connectors connect, left for later.
+- **The owner's answers (2026-10-23), and where each stands:**
+  1. **Build D10, on the lock date, with a books-start date; imports exempt.** STOPPED before building, as the owner
+     asked for exactly this case: ONE lock date cannot hold §2.3 d)'s four periods at a year-end (PHASE-5.md, R1,
+     "Why one lock date is not enough"). Waiting on the owner's choice of the three options there.
+  2. **Spain: all three forms; anything else warns, never refuses.** Built.
+  3. **The two link pages stay as they are.** Recorded in INTUIT-QUESTIONNAIRE.md §R item 9, with what each link
+     does: the sign-in link is single-use and expires; the unsubscribe link is neither, by design.
+  4. **The named-vendor claim is dropped**, and the rule is standing: no compliance claim about a named competitor in
+     this public repo (CLAUDE.md §2). R2's record names no vendor either.
+  5. **The questionnaire, read from Codat's public guide, written in our own words** (INTUIT-QUESTIONNAIRE.md §Q).
+     Merchanter's page is screenshots this session could not read, so no disagreement could be checked.
+  6. **Intuit's sandbox (item 12) is the owner's, and stays the one blocker.** The fake's round trip does not stand
+     in for it.
+- **THE NEXT BLOCK, first item (the owner, 2026-10-23) — the stale grant.** Connecting QuickBooks or Xero again
+  WHILE connected archives the old grant here but does not revoke it at Intuit or Xero. Its refresh token stays live
+  there for up to 100 days: a credential that outlives the owner's intent, the same shape as the isolation sweep.
+  Found by R4's reconnect test. The rule:
+  - revoke the old grant BEFORE storing the new one;
+  - if revocation fails, store the new one anyway (the owner must not be locked out), record the stale grant for a
+    retry, and say so. Never leave a live credential nobody knows about;
+  - the same for Xero;
+  - a test for each: reconnecting while connected revokes; a revocation that fails is recorded and shown, not
+    swallowed.
+  Kept here until it is closed.
 
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 

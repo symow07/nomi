@@ -12,7 +12,8 @@
 --   · FR  SIREN, nine digits ("9 chiffres", INSEE); SIRET fourteen digits, its first nine the SIREN.
 --   · GB  Companies House number: eight digits, or two capitals and six digits. Any two capitals (the official
 --         list of prefixes is incomplete). No check digit exists.
---   · ES  the NIF: nine characters, capitals and digits — its finer shape waits on the owner (docs/PHASE-5.md, R3).
+--   · ES  the NIF: nine characters, capitals and digits, and nothing finer refused: an entity's, a person's and a
+--         foreign resident's (NIE) forms pass; any other nine only warn (the app), so a reform never refuses a customer.
 --   · elsewhere: kept as typed, trimmed, at most 40 characters — no rule because no source.
 --   · a French VAT number present ends with the SIREN; a Spanish one is ES and the NIF. Nothing ties a UK VAT number
 --     to a company number. A missing VAT number is never wrong.
