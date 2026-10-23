@@ -117,7 +117,8 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     expect(await refused((q) => q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by)
       values (current_business_id(), $1, $2, '2026-03-20', 'Late', 'owner')`, [k.ve, k.fy2026]))).toMatch(/2026-03-20 is on or before the lock date 2026-03-31/);
     expect(await refused((q) => q(`update fiscal_years set lock_date = '2026-01-31' where id = $1`, [k.fy2026]))).toMatch(/a lock date moves only by locking/);
-    expect(await refused((q) => q(`select set_config('nomi.closing', 'on', true); update fiscal_years set lock_date = null where id = $1`, [k.fy2026]))).toMatch(/a lock date moves only by locking/);
+    expect(await refused(async (q) => { await q(`select set_config('nomi.closing', 'on', true)`); await q(`update fiscal_years set lock_date = null where id = $1`, [k.fy2026]); }))
+      .toMatch(/a lock date moves only by locking/);
     expect(await notice(await post('/app/books/closing/lock', { day: '2026-02-28' }))).toContain('a lock moves only forward');
     expect(await notice(await post('/app/books/closing/lock', { day: '2099-01-31' }))).toContain('today at the latest');
   });
