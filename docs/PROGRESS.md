@@ -70,6 +70,15 @@ owner's answer is the rule below.
 - **The deploy is ONE decision, made once,** when the $5 is paid. Before it, the pre-deploy checklist runs
   (`docs/LAUNCH-CHECKLIST.md`, CLAUDE.md §2: a backup younger than the day, then `/health` and `schema_version`).
 
+**4 · One sitting for the native readers, four gates (2026-10-23).** `docs/NATIVE-REVIEW-UI.md` ends with one section
+that shows, per language (zh, ar, es, fr), every sentence of the four sets that wait on a native reader: the front page
+(`site.reel.*`), strict mode's starters, the Telegram /start greeting, and the survey's question and thank-you. One reader
+can sign all four in one pass. Presentation only: no gate merged, no flag reused, nothing sent changes.
+`REEL_NATIVE_REVIEW` gates the front page alone. The three customer-facing sets keep their word-for-word gates (the
+owner's rule of 2026-10-11). The section says that the front page's English yes does NOT cover the English
+customer-facing sentences, which are still unsigned. `tests/parity/native-review-sitting.test.ts` holds the section to
+the code's exact words (one changed letter fails it) and holds that only the front page reads the flag.
+
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 
 `docs/PHASE-5.md`: the owner's decisions (no "version one"; Westlake is a test workspace; connectors Odoo / Sheets /
