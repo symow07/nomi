@@ -58,7 +58,7 @@ describe('R4 · transport hygiene, as served', () => {
     const src = readFileSync(`${ROOT}src/api/web/app.ts`, 'utf8');
     const callbacks = [...src.matchAll(/app\.get\('(\/app\/[^']*callback)'[\s\S]*?\n {2}\}\);/g)];
     expect(callbacks.map((m) => m[1]).sort()).toEqual(expect.arrayContaining(['/app/books/quickbooks/callback', '/app/books/sheets/callback', '/app/books/xero/callback']));
-    for (const [body, url] of callbacks.map((m) => [m[0], m[1]] as const)) {
+    for (const [body, url] of callbacks.map((m) => [m[0], m[1]!] as const)) {
       const pages = [...body.matchAll(/type\('text\/html[^\n]*/g)].map((x) => x[0]);
       for (const line of pages) expect(line, url).toContain(".header('referrer-policy', 'no-referrer')");
       // the two that draw a picker (Meta's Pages, WhatsApp's numbers) after the code is spent; every other redirects

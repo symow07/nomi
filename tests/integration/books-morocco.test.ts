@@ -170,6 +170,31 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     expect(audit).toEqual({ fields: ['legal_ice', 'legal_if', 'legal_rc', 'legal_rc_court'] });
   });
 
+  it('R2 · THE FEC\'S FILE NAME: Nomi\'s default from the ICE and the year\'s end, changed by the owner only, never called required', async () => {
+    const name = async () => String((await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } })).headers['content-disposition']);
+    const set = (pattern: string, who = owner) => app.inject({ method: 'POST', url: '/app/books/fec/filename',
+      payload: new URLSearchParams({ pattern }).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
+    const pattern = async () => (await admin.query(`select fec_filename from books_settings where business_id = $1`, [BIZ])).rows[0]?.fec_filename ?? null;
+    // the ICE given in E2's test above, and the year's last day
+    expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
+    const fec = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body;
+    expect(fec).toContain("Nomi&#39;s default filename convention. Your accountant may ask for a different one — you can change it here.");
+    expect(fec).toContain('001234567000089FEC20261231.txt');
+    expect(fec).toContain('action="/app/books/fec/filename"');
+    expect(fec).not.toMatch(/required|official|DGI-compliant/i);
+    // staff and the accountant read it, change nothing
+    const seen = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: accountant } })).body;
+    expect(seen).not.toContain('action="/app/books/fec/filename"');
+    for (const who of [staff, accountant]) await set('{ICE}.txt', who);
+    expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
+    // the owner's own, and a bad one refused with nothing changed
+    expect(await notice(await set('FEC_{ICE}_{YYYYMMDD}.txt'))).toContain('File name saved: FEC_{ICE}_{YYYYMMDD}.txt.');
+    expect(await name()).toBe('attachment; filename="FEC_001234567000089_20261231.txt"');
+    expect(await notice(await set('../{SIREN}.txt'))).toContain('That file name was not saved.');
+    expect(await pattern()).toBe('FEC_{ICE}_{YYYYMMDD}.txt');
+    await expect(admin.query(`update books_settings set fec_filename = '../x.txt' where business_id = $1`, [BIZ])).rejects.toThrow(/books_settings_fec_filename_shape/);
+  });
+
   it('0208 · ONE RULE FOR THE ICE: a party\'s is fifteen positions, checked as the business\'s, only for a party in Morocco, by the form and the database alike', async () => {
     const party = (fields: Record<string, string>) => app.inject({ method: 'POST', url: '/app/books/parties',
       payload: new URLSearchParams(fields).toString(), headers: { cookie: owner, 'content-type': 'application/x-www-form-urlencoded' } });

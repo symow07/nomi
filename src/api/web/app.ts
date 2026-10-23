@@ -261,7 +261,7 @@ import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } f
 import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
-import { fecFile, numberingProblems } from '../../core/books/fec.js';
+import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENAME_DEFAULT } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
@@ -3232,27 +3232,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : entryRefusedWhy(locale, out as EntryRefusal);
     return flashTo(reply, back, 'books.flash.paperNotDrafted', { why });
   });
+  /** R2 (0209) — the workspace's FEC file-name pattern; Nomi's default where none is set (no books_settings row yet). */
+  const fecPatternOf = async (tx: Tx, bid: BusinessId): Promise<string> =>
+    (await sql<{ p: string }>`select fec_filename as p from books_settings where business_id = ${bid}::uuid`.execute(tx)).rows[0]?.p ?? FEC_FILENAME_DEFAULT;
   /** D4 (Avis 24) — the Moroccan FEC: each fiscal year's file, its numbering checked, its accounts against the CGNC. */
   app.get('/app/books/fec', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const { years, gaps } = await withTenantTx(deps.db, bid, async (tx) => {
+    const { years, gaps, file } = await withTenantTx(deps.db, bid, async (tx) => {
       const ys = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${bid}::uuid order by starts_on desc`.execute(tx)).rows;
       // E2 (0206) — what the file goes without, said on the page: the ICE, the IF, the RC.
       const id = (await sql<{ ice: string | null; tax: string | null; rc: string | null }>`select legal_ice as ice, legal_if as tax, legal_rc as rc
         from businesses where id = ${bid}::uuid`.execute(tx)).rows[0];
       const gaps = ([['ice', id?.ice], ['taxId', id?.tax], ['rc', id?.rc]] as const).filter(([, v]) => !v).map(([k]) => k);
+      const pattern = await fecPatternOf(tx, bid);
       const out: FecYearView[] = [];
       for (const y of ys) {
         const f = await fecData(tx, bid, y.id);
         if (f) out.push({ id: y.id, startsOn: f.year.starts_on, endsOn: f.year.ends_on, state: f.year.state, lines: f.lines.length,
           numbering: numberingProblems(f.numbers), offChart: f.offChart });
       }
-      return { years: out, gaps };
+      return { years: out, gaps, file: { pattern, ice: id?.ice ?? null, canChange: personOf(s).isOwner } };
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fec.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps, file)}` }));
+  });
+  /** R2 (0209) — the FEC's file name: Nomi's default, changed by the owner (`business_identifiers`), checked twice. */
+  app.post('/app/books/fec/filename', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'business_identifiers', '/app/books/fec#file-name'); if (!s) return reply;
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const raw = (req.body as { pattern?: unknown } | undefined)?.pattern;
+    const pattern = typeof raw === 'string' ? raw.trim() : '';
+    const tokens = { ice: '{ICE}', date: '{YYYYMMDD}' };
+    if (fecFileNameProblem(pattern) !== null) return flashTo(reply, '/app/books/fec#file-name', 'books.flash.fecFilenameRefused', tokens);
+    await withTenantTx(deps.db, bid, (tx) => sql`insert into books_settings (business_id, fec_filename) values (${bid}::uuid, ${pattern})
+      on conflict (business_id) do update set fec_filename = excluded.fec_filename, updated_at = now()`.execute(tx));
+    return flashTo(reply, '/app/books/fec#file-name', 'books.flash.fecFilenameSaved', { name: pattern });
   });
   app.get('/app/books/fec/:file', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3263,7 +3279,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const f = await withTenantTx(deps.db, bid, (tx) => fecData(tx, bid, m[1]!));
     if (!f) return reply.callNotFound();
     return reply.type('text/plain; charset=utf-8')
-      .header('content-disposition', `attachment; filename="FEC-${f.year.starts_on}-${f.year.ends_on}.txt"`)
+      // R2 (0209) — Nomi's default name, or the workspace's own: never presented as the DGI's (none is published)
+      .header('content-disposition', `attachment; filename="${fecFileName(await withTenantTx(deps.db, bid, (tx) => fecPatternOf(tx, bid)), { ice: f.identity.ice, closesOn: f.year.ends_on })}"`)
       .header('cache-control', 'no-store').send(fecFile(f.lines, f.identity));
   });
   /** D4 (0190) — the books started from the CGNC chart: what is missing added, nothing the owner has changed. */
