@@ -15953,6 +15953,9 @@ language's flag in the same commit that records its reviewer here, and `tests/pa
 Chinese, Arabic, Spanish or French visitor must never land on a first screen that is half English. This list
 already waits on the zh/ar/es/fr legal and advisor lines above; read the reel with them.
 
+**Its words, line by line, are in the one-sitting section (2026-10-23, at the end of this file)**, beside the three
+customer-facing sets, so one reader signs all four in one pass. This flag gates the front page only.
+
 - **The keys:** every `site.reel.*` line, the headline, the four beats, the made-up shop's conversation, the
   captions, "Coming". The customer's first reply quotes the disclosure (`src/core/conversation/disclosure.ts`) word
   for word; its zh/ar/es/fr wording is already waiting for its own native review, which gates autonomy.
@@ -16107,6 +16110,9 @@ Reviewer (per language): ______  Date: ______
 - **Strict mode's starter sets** (`src/core/conversation/strict.ts`, `PROPOSED`, nine sentences in each of five languages): only these, signed, may go alone in a strict language. A reader may change any of them; the set signed is what is in force.
 The owner signs the English of each; a native reader each of the others.
 
+**Their exact sentences, with the front page's, are in the one-sitting section (2026-10-23, at the end of this file).**
+The front page's English yes does not cover them: they are unsigned in every language.
+
 Reviewer (per language): ______  Date: ______
 
 ## 2026-10-22 — Phase 5 E — the papers copy, the business's identifiers, imported history (not a gate)
@@ -16131,3 +16137,342 @@ Reviewer (per language): ______  Date: ______
   - "entries" stays 分录 / القيود / «asientos» / «écritures», as in `books.flash.readLeftThere`, so the same reason reads in the same words;
   - Arabic asks with «يُرجى» and a verbal noun (نقل، إعادة الاستيراد), addressing nobody in a gender; French says «une ligne non lue» so no pronoun stands for Nomi.
 - **Check:** that 15 位 reads as fifteen positions (not digits) to a Chinese reader; that «مؤرَّخ قبل بداية هذه الدفاتر» reads naturally as a row's reason; that the 2019-to-2024 example reads plainly in each language.
+
+## 2026-10-23 — ONE SITTING: the four sets that wait on a native reader, side by side (zh, ar, es, fr) — FOUR GATES
+
+**Presentation only.** This section puts, for each language, every sentence of the four sets that wait on its native
+reader in one place, so one reader can sign all four in one sitting. **It merges no gate and changes nothing that is
+sent.** Each set keeps its own gate, exactly as before (the owner, 2026-10-23):
+
+1. **The front page** (`site.reel.*`, `src/api/web/siteReel.ts`): `REEL_NATIVE_REVIEW` is a per-language yes/no for
+   the site's first screen at `/` and NOTHING ELSE reads it. Flip the language's flag in the same commit that records
+   its reviewer here.
+2. **Strict mode's starters** (`src/core/conversation/strict.ts`, `PROPOSED` → `SIGNED`).
+3. **The Telegram /start greeting** (`src/core/conversation/greeting.ts`, `TEXT` → `SIGNED`).
+4. **The survey: its question and its thank-you** (`src/core/conversation/survey.ts`, `TEXT` → `SIGNED`, `THANKS` →
+   `THANKS_SIGNED`).
+
+Sets 2 to 4 are the customer-facing ones, gated **word for word** (the owner's rule of 2026-10-11, as `disclosure.ts`):
+a language goes live only once a named reader signs that exact sentence in the code, in the commit that records it
+here. Change one letter and the language goes dark again until it is signed again. A reader may change a sentence;
+what is signed is what is in force.
+
+> **English: the front page's yes does NOT cover the English customer-facing sentences.** `REEL_NATIVE_REVIEW.en` is
+> true because the owner read the front page. The English starters, /start greeting, survey question and thank-you are
+> **still unsigned**, and nothing of them is sent until the owner signs them in the code (below, last). A yes for the
+> front page is never a yes for anything sent to a customer.
+
+The sentences below are the code's own, character for character.
+`tests/parity/native-review-sitting.test.ts` fails when the code and this section differ, so what a reader signs here
+is what is sent. Placeholders in braces (`{business}`, `{product}`, `{price}` …) are filled by Nomi and are not
+translated.
+
+### zh — 中文
+
+**The front page** (`site.reel.*`, 37 lines; `REEL_NATIVE_REVIEW.zh` = no):
+
+| key | text |
+|---|---|
+| `site.reel.title` | 回答、议价、成交，都能做。最后拍板的永远是你。 |
+| `site.reel.lead` | Nomi 给你的生意配一位由你命名的销售助手。客户在 WhatsApp、Instagram、Messenger 或电子邮件上来消息时，你的助手按你自己的产品和价格回答，在你设定的范围内谈好价格，再把订单交给你确认——什么时间都可以。 |
+| `site.reel.note` | 凡是带价格的回复都要等你点一下，直到你的助手积累了很多被你原样发出的回复。没有你确认，任何订单都不会成立。 |
+| `site.reel.label` | 一段正在进行的对话 |
+| `site.reel.example` | 示例——虚构的店铺 |
+| `site.reel.coming` | 即将推出 |
+| `site.reel.answers.title` | 回答 |
+| `site.reel.answers.line` | 半夜来的问题马上有回答，内容都来自你教过的东西。 |
+| `site.reel.negotiates.title` | 议价 |
+| `site.reel.negotiates.line` | 按数量算出价格，绝不低于你的底价，并等你点一下。 |
+| `site.reel.closes.title` | 成交 |
+| `site.reel.closes.line` | 客户说好，你点一下确认，形式发票就可以发出了。 |
+| `site.reel.books.title` | 记账 |
+| `site.reel.books.line` | 每一笔订单和付款，都在一个地方。 |
+| `site.reel.late` | 深夜 |
+| `site.reel.s1.asks` | 你好！帆布托特包有藏青色吗？ |
+| `site.reel.s1.answers` | 有的，帆布托特包有藏青色，现在有货。你需要多少个？ |
+| `site.reel.s1.caption` | 马上回答，而且第一条回复就说明了是谁在回答。 |
+| `site.reel.s2.asks` | 我店里要，{qty}。价格能再优惠一点吗？ |
+| `site.reel.s2.by` | 回复草稿 |
+| `site.reel.s2.waits` | 等你确认 |
+| `site.reel.s2.sent` | 已发送 |
+| `site.reel.s2.reply` | {qty}的话，单价可以降到{now}。 |
+| `site.reel.s2.each` | 每件 |
+| `site.reel.s2.send` | 发送 |
+| `site.reel.s2.caption` | 绝不低于你设定的最低价。 |
+| `site.reel.s3.asks` | 好的，请确认订单。 |
+| `site.reel.s3.order` | 订单 · 藏青色帆布托特包 |
+| `site.reel.s3.confirm` | 确认 |
+| `site.reel.s3.confirmed` | 已确认 |
+| `site.reel.s3.proforma` | 形式发票 · 可以发送 |
+| `site.reel.s3.caption` | 你说确认才确认。形式发票已经准备好。 |
+| `site.reel.s4.title` | 你的账本 |
+| `site.reel.s4.confirmed` | 订单已确认 · 帆布托特包 |
+| `site.reel.s4.deposit` | 已请求定金 |
+| `site.reel.s4.paid` | 已付款 |
+| `site.reel.s4.caption` | 记账——即将推出。 |
+
+**Strict mode's starters** (`strict.ts`, `PROPOSED.zh`, 9 sentences):
+
+1. 您好，感谢您的留言。
+2. 请问您对哪款产品感兴趣？
+3. 请问您需要多少件？
+4. {product}{qty}件的价格是每件{price}。
+5. {product}的起订量是{qty}件。
+6. {product}可以在{days}天内备好。
+7. 我们可以寄送{product}的样品。
+8. 我们团队的同事会尽快回复您。
+9. 谢谢！
+
+**The Telegram /start greeting** (`greeting.ts`):
+
+> 欢迎通过 Telegram 联系{business}。请在这里留下您的问题，我们会回复您。
+
+**The survey's question** (`survey.ts`, `TEXT`):
+
+> 感谢您在{business}下单。您对这次的服务满意吗？请回复 1（很差）到 5（很好）之间的数字。
+
+**The survey's thank-you** (`survey.ts`, `THANKS`):
+
+> 谢谢您的评价，这对{business}很有帮助。
+
+Reviewer (zh): ______  Date: ______  Signed: front page ☐ · starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
+
+### ar — العربية
+
+**The front page** (`site.reel.*`, 37 lines; `REEL_NATIVE_REVIEW.ar` = no):
+
+| key | text |
+|---|---|
+| `site.reel.title` | إجابة، وتفاوض، وإتمام للبيع. والكلمة الأخيرة لك. |
+| `site.reel.lead` | مع Nomi، مساعد مبيعات لنشاطك التجاري باسم من اختيارك. عند وصول رسالة من عميل على واتساب أو إنستغرام أو ماسنجر أو البريد الإلكتروني، تأتي الإجابة من منتجاتك وأسعارك، ويُحسم الاتفاق ضمن الحدود المحددة، ثم يصلك الطلب لتأكيده، في أي ساعة. |
+| `site.reel.note` | كل ما فيه سعر ينتظر نقرة منك، إلى أن يتكوّن سجل طويل من الردود المُرسلة دون تعديل. ولا يُؤكَّد أي طلب دون موافقتك. |
+| `site.reel.label` | محادثة كما تجري |
+| `site.reel.example` | مثال — متجر من الخيال |
+| `site.reel.coming` | قريبًا |
+| `site.reel.answers.title` | الإجابة |
+| `site.reel.answers.line` | سؤال في منتصف الليل يُجاب فورًا، مما عُلِّم من قبل. |
+| `site.reel.negotiates.title` | التفاوض |
+| `site.reel.negotiates.line` | يُحسب السعر حسب الكمية، ولا ينزل أبدًا عن أدنى سعر محدد، وينتظر نقرة منك. |
+| `site.reel.closes.title` | إتمام البيع |
+| `site.reel.closes.line` | عند موافقة العميل، يُؤكَّد الطلب بنقرة واحدة، وتصبح الفاتورة المبدئية جاهزة للإرسال. |
+| `site.reel.books.title` | مسك الدفاتر |
+| `site.reel.books.line` | كل طلب وكل دفعة، في مكان واحد. |
+| `site.reel.late` | في وقت متأخر من الليل |
+| `site.reel.s1.asks` | مرحبًا! هل حقيبة الكانفاس متوفرة باللون الكحلي؟ |
+| `site.reel.s1.answers` | نعم، حقيبة الكانفاس متوفرة باللون الكحلي الآن. ما الكمية المطلوبة؟ |
+| `site.reel.s1.caption` | إجابة فورية، والرد الأول يذكر من يجيب. |
+| `site.reel.s2.asks` | لمتجري، {qty}. هل من سعر أفضل؟ |
+| `site.reel.s2.by` | مسودة الرد |
+| `site.reel.s2.waits` | بانتظار موافقتك |
+| `site.reel.s2.sent` | أُرسل |
+| `site.reel.s2.reply` | لكمية {qty} ينخفض السعر إلى {now}. |
+| `site.reel.s2.each` | للقطعة |
+| `site.reel.s2.send` | إرسال |
+| `site.reel.s2.caption` | لا نزول أبدًا عن أدنى سعر محدد. |
+| `site.reel.s3.asks` | ممتاز، يُرجى تأكيد الطلب. |
+| `site.reel.s3.order` | طلب · حقائب كانفاس كحلية |
+| `site.reel.s3.confirm` | تأكيد |
+| `site.reel.s3.confirmed` | تم التأكيد |
+| `site.reel.s3.proforma` | فاتورة مبدئية · جاهزة للإرسال |
+| `site.reel.s3.caption` | التأكيد عند موافقتك. والفاتورة المبدئية جاهزة. |
+| `site.reel.s4.title` | دفاترك |
+| `site.reel.s4.confirmed` | طلب مؤكد · حقائب كانفاس |
+| `site.reel.s4.deposit` | طُلب العربون |
+| `site.reel.s4.paid` | مدفوع |
+| `site.reel.s4.caption` | مسك الدفاتر — قريبًا. |
+
+**Strict mode's starters** (`strict.ts`, `PROPOSED.ar`, 9 sentences):
+
+1. مرحبًا، شكرًا على الرسالة.
+2. ما المنتج المطلوب؟
+3. كم عدد القطع المطلوبة؟
+4. سعر {product} هو {price} للقطعة عند طلب {qty} قطعة.
+5. الحد الأدنى للطلب من {product} هو {qty} قطعة.
+6. يمكن تجهيز {product} خلال {days} يومًا.
+7. يمكن إرسال عينة من {product}.
+8. سيصل الرد من أحد أفراد فريقنا في أقرب وقت ممكن.
+9. شكرًا!
+
+**The Telegram /start greeting** (`greeting.ts`):
+
+> أهلًا وسهلًا في {business} على تيليغرام. يكفي كتابة السؤال هنا ليصل الرد.
+
+**The survey's question** (`survey.ts`, `TEXT`):
+
+> شكرًا على الطلب من {business}. ما تقييم التجربة معنا؟ يكفي الرد برقم من 1 (ضعيف) إلى 5 (ممتاز).
+
+**The survey's thank-you** (`survey.ts`, `THANKS`):
+
+> شكرًا على التقييم، فهو مفيد لـ{business}.
+
+Reviewer (ar): ______  Date: ______  Signed: front page ☐ · starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
+
+### es — Español
+
+**The front page** (`site.reel.*`, 37 lines; `REEL_NATIVE_REVIEW.es` = no):
+
+| key | text |
+|---|---|
+| `site.reel.title` | Responde. Negocia. Cierra. La última palabra es tuya. |
+| `site.reel.lead` | Nomi da a tu negocio un asistente de ventas con el nombre que tú elijas. Cuando un cliente escribe por WhatsApp, Instagram, Messenger o correo electrónico, tu asistente responde con tus propios productos y precios, cierra el trato dentro de los límites que fijas y te trae el pedido para que lo confirmes, a cualquier hora. |
+| `site.reel.note` | Todo lo que lleva un precio espera tu toque hasta que tu asistente tenga un largo historial de respuestas que enviaste sin cambios. Ningún pedido se confirma sin ti. |
+| `site.reel.label` | Una conversación, tal como ocurre |
+| `site.reel.example` | Ejemplo: una tienda inventada |
+| `site.reel.coming` | Próximamente |
+| `site.reel.answers.title` | Responde |
+| `site.reel.answers.line` | Una pregunta a medianoche recibe respuesta al momento, con lo que enseñaste. |
+| `site.reel.negotiates.title` | Negocia |
+| `site.reel.negotiates.line` | El precio se calcula según la cantidad, nunca por debajo de tu mínimo, y espera tu toque. |
+| `site.reel.closes.title` | Cierra |
+| `site.reel.closes.line` | El cliente dice que sí, confirmas con un toque y la proforma queda lista para enviar. |
+| `site.reel.books.title` | Lleva las cuentas |
+| `site.reel.books.line` | Cada pedido y cada pago, en un solo lugar. |
+| `site.reel.late` | De madrugada |
+| `site.reel.s1.asks` | ¡Hola! ¿Tienen la bolsa de lona en azul marino? |
+| `site.reel.s1.answers` | Sí, la bolsa de lona viene en azul marino y hay existencias. ¿Cuántas quieres? |
+| `site.reel.s1.caption` | Respuesta al momento, y la primera dice qué está respondiendo. |
+| `site.reel.s2.asks` | Son {qty} para mi tienda. ¿Me mejoras el precio? |
+| `site.reel.s2.by` | Borrador de respuesta |
+| `site.reel.s2.waits` | Espera tu visto bueno |
+| `site.reel.s2.sent` | Enviada |
+| `site.reel.s2.reply` | Para {qty}, el precio baja a {now} por pieza. |
+| `site.reel.s2.each` | por pieza |
+| `site.reel.s2.send` | Enviar |
+| `site.reel.s2.caption` | Nunca por debajo del precio mínimo que fijaste. |
+| `site.reel.s3.asks` | Perfecto, confirma el pedido, por favor. |
+| `site.reel.s3.order` | Pedido · bolsas de lona, azul marino |
+| `site.reel.s3.confirm` | Confirmar |
+| `site.reel.s3.confirmed` | Confirmado |
+| `site.reel.s3.proforma` | Factura proforma · lista para enviar |
+| `site.reel.s3.caption` | Se confirma cuando tú lo dices. La proforma está lista. |
+| `site.reel.s4.title` | Tus cuentas |
+| `site.reel.s4.confirmed` | Pedido confirmado · bolsas de lona |
+| `site.reel.s4.deposit` | Anticipo solicitado |
+| `site.reel.s4.paid` | Pagado |
+| `site.reel.s4.caption` | Lleva las cuentas: próximamente. |
+
+**Strict mode's starters** (`strict.ts`, `PROPOSED.es`, 9 sentences):
+
+1. Hola, gracias por tu mensaje.
+2. ¿Qué producto te interesa?
+3. ¿Cuántas piezas necesitas?
+4. El precio de {product} es {price} por pieza para {qty} piezas.
+5. El pedido mínimo de {product} es de {qty} piezas.
+6. {product} puede estar listo en {days} días.
+7. Podemos enviar una muestra de {product}.
+8. Una persona de nuestro equipo responderá lo antes posible.
+9. ¡Gracias!
+
+**The Telegram /start greeting** (`greeting.ts`):
+
+> Te damos la bienvenida a {business} en Telegram. Escribe aquí tu pregunta y recibirás respuesta.
+
+**The survey's question** (`survey.ts`, `TEXT`):
+
+> Gracias por tu pedido a {business}. ¿Qué tal lo hicimos? Responde con un número del 1 (mal) al 5 (excelente).
+
+**The survey's thank-you** (`survey.ts`, `THANKS`):
+
+> Gracias, eso ayuda a {business}.
+
+Reviewer (es): ______  Date: ______  Signed: front page ☐ · starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
+
+### fr — Français
+
+**The front page** (`site.reel.*`, 37 lines; `REEL_NATIVE_REVIEW.fr` = no):
+
+| key | text |
+|---|---|
+| `site.reel.title` | Répondre. Négocier. Conclure. Le dernier mot vous revient. |
+| `site.reel.lead` | Nomi donne à votre entreprise un assistant commercial dont vous choisissez le nom. Quand un client écrit sur WhatsApp, Instagram, Messenger ou par e-mail, votre assistant répond à partir de vos produits et de vos prix, négocie dans les limites que vous fixez et vous apporte la commande à confirmer, à toute heure. |
+| `site.reel.note` | Tout ce qui comporte un prix attend votre validation, jusqu’à ce que votre assistant ait un long historique de réponses envoyées telles quelles. Aucune commande n’est confirmée sans vous. |
+| `site.reel.label` | Une conversation, en direct |
+| `site.reel.example` | Exemple — une boutique imaginaire |
+| `site.reel.coming` | Bientôt |
+| `site.reel.answers.title` | Répond |
+| `site.reel.answers.line` | Une question à minuit reçoit une réponse aussitôt, à partir de ce que vous avez appris à votre assistant. |
+| `site.reel.negotiates.title` | Négocie |
+| `site.reel.negotiates.line` | Le prix est calculé selon la quantité, jamais sous votre minimum, et attend votre validation. |
+| `site.reel.closes.title` | Conclut |
+| `site.reel.closes.line` | Le client dit oui, vous confirmez d’un geste, et la facture pro forma est prête à partir. |
+| `site.reel.books.title` | Tient les comptes |
+| `site.reel.books.line` | Chaque commande et chaque paiement, au même endroit. |
+| `site.reel.late` | Tard dans la nuit |
+| `site.reel.s1.asks` | Bonjour ! Vous avez le cabas en toile en bleu marine ? |
+| `site.reel.s1.answers` | Oui, le cabas en toile existe en bleu marine, en stock. Combien en voulez-vous ? |
+| `site.reel.s1.caption` | Une réponse aussitôt — et la première dit ce qui répond. |
+| `site.reel.s2.asks` | Pour ma boutique, {qty}. Vous pouvez faire un meilleur prix ? |
+| `site.reel.s2.by` | Brouillon de réponse |
+| `site.reel.s2.waits` | Attend votre accord |
+| `site.reel.s2.sent` | Envoyée |
+| `site.reel.s2.reply` | Pour {qty}, le prix descend à {now} la pièce. |
+| `site.reel.s2.each` | la pièce |
+| `site.reel.s2.send` | Envoyer |
+| `site.reel.s2.caption` | Jamais sous le prix minimum que vous avez fixé. |
+| `site.reel.s3.asks` | Parfait, merci de confirmer la commande. |
+| `site.reel.s3.order` | Commande · cabas en toile, bleu marine |
+| `site.reel.s3.confirm` | Confirmer |
+| `site.reel.s3.confirmed` | Confirmée |
+| `site.reel.s3.proforma` | Facture pro forma · prête à envoyer |
+| `site.reel.s3.caption` | Confirmée quand vous le dites. La pro forma est prête. |
+| `site.reel.s4.title` | Vos comptes |
+| `site.reel.s4.confirmed` | Commande confirmée · cabas en toile |
+| `site.reel.s4.deposit` | Acompte demandé |
+| `site.reel.s4.paid` | Payé |
+| `site.reel.s4.caption` | Tenir les comptes : bientôt. |
+
+**Strict mode's starters** (`strict.ts`, `PROPOSED.fr`, 9 sentences):
+
+1. Bonjour, merci pour votre message.
+2. Quel produit vous intéresse ?
+3. Combien de pièces vous faut-il ?
+4. Le prix de {product} est de {price} la pièce pour {qty} pièces.
+5. La commande minimum pour {product} est de {qty} pièces.
+6. {product} peut être prêt en {days} jours.
+7. Nous pouvons envoyer un échantillon de {product}.
+8. Une personne de notre équipe va répondre dès que possible.
+9. Merci !
+
+**The Telegram /start greeting** (`greeting.ts`):
+
+> Bienvenue chez {business} sur Telegram. Écrivez votre question ici : une réponse vous sera donnée.
+
+**The survey's question** (`survey.ts`, `TEXT`):
+
+> Merci pour votre commande chez {business}. Votre avis nous intéresse : répondez par un chiffre de 1 (mauvais) à 5 (excellent).
+
+**The survey's thank-you** (`survey.ts`, `THANKS`):
+
+> Merci, cela aide {business}.
+
+Reviewer (fr): ______  Date: ______  Signed: front page ☐ · starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
+
+### en — English (the owner signs; the front page's yes does not cover these)
+
+The front page's English is read (`REEL_NATIVE_REVIEW.en` = yes) and is not repeated here. These four are unsigned:
+
+**Strict mode's starters** (`strict.ts`, `PROPOSED.en`, 9 sentences):
+
+1. Hello, thank you for your message.
+2. Which product are you interested in?
+3. How many pieces do you need?
+4. The price of {product} is {price} per piece for {qty} pieces.
+5. The minimum order for {product} is {qty} pieces.
+6. {product} can be ready in {days} days.
+7. We can send a sample of {product}.
+8. Someone from our team will reply as soon as possible.
+9. Thank you!
+
+**The Telegram /start greeting** (`greeting.ts`):
+
+> Welcome to {business} on Telegram. Write your question here, and you will get an answer.
+
+**The survey's question** (`survey.ts`, `TEXT`):
+
+> Thank you for your order with {business}. How did we do? Reply with a number from 1 (poor) to 5 (excellent).
+
+**The survey's thank-you** (`survey.ts`, `THANKS`):
+
+> Thank you — that helps {business}.
+
+Signed by the owner: ______  Date: ______  Signed: starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
