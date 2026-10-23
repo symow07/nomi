@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
  * rclone.sh maps "BK:<path>" to that folder), step 5 of backup/run.sh lifted
  * out and run, and tools/backup.sh and tools/fetch-backup.sh run end to end
  * in a temporary HOME with stand-ins for pg, rclone, age and railway. Every
- * write goes under the system's temporary directory; the real ~/nomi-backups
+ * write goes under the system's temporary directory; the real ~/nomi-private/backups
  * and the real bucket are never touched, and no Railway command runs (the
  * stand-in refuses anything but `bucket credentials`, and HOME holds no
  * Railway login).
@@ -480,11 +480,11 @@ describe('backup/run.sh — step 5 and the ending, lifted out and run', SHELL, (
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A laptop: a temporary HOME with ~/nomi-backups and the age key in it. */
+/** A laptop: a temporary HOME with ~/nomi-private/backups and the age key in it. */
 const laptop = () => {
   const home = fresh('home');
-  const dest = join(home, 'nomi-backups');
-  mkdirSync(dest);
+  const dest = join(home, 'nomi-private', 'backups');
+  mkdirSync(dest, { recursive: true });
   writeFileSync(join(dest, 'age-key.txt'), 'AGE-SECRET-KEY-TEST-ONLY\n');
   mkdirSync(join(home, 'tmp'));
   return { home, dest };
@@ -500,6 +500,17 @@ const runBackup = (home: string, extra: Record<string, string> = {}): Ran => ran
 }));
 
 const pairsIn = (dest: string) => readdirSync(dest).filter((n) => n.startsWith('nomi-backup-')).sort();
+
+describe('the laptop’s folder is the private one, outside iCloud (the owner, 2026-10-24)', () => {
+  it('every laptop tool defaults to ~/nomi-private/backups, and none to the Desktop, Documents or iCloud Drive', () => {
+    for (const f of ['tools/backup.sh', 'tools/fetch-backup.sh']) {
+      const sh = readFileSync(join(ROOT, f), 'utf8');
+      expect(sh, f).toMatch(/DEST="\$\{1:-(\$\{BACKUP_DIR:-)?\$HOME\/nomi-private\/backups\}/);
+      expect(sh, f).not.toMatch(/Desktop|Documents|Mobile Documents|CloudDocs|\$HOME\/nomi-backups/);
+    }
+    expect(readFileSync(join(ROOT, 'tools/fetch-backup.sh'), 'utf8')).toContain('KEY="${AGE_KEY:-$HOME/nomi-private/backups/age-key.txt}"');
+  });
+});
 
 describe('the laptop — tools/backup.sh, end to end, in a temporary HOME', () => {
   it('at the end of a good run, pairs older than 180 days go; the new pair, undated folders, a link and the key stay', () => {

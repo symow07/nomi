@@ -45,15 +45,17 @@ leaves nothing that could be mistaken for a backup.
 MIGRATE_DATABASE_URL='<admin url>' \
 AGE_RECIPIENT='age1w3k5nun9q7j9vk02dv0mzjj6au0agcevd2henjp9depakzftypeqxn39kt' \
 RAILWAY_BUCKET='nomi-backups' \
-  bash tools/backup.sh ~/nomi-backups
+  bash tools/backup.sh ~/nomi-private/backups
 ```
 
-It writes `~/nomi-backups/nomi-backup-<UTC>/` containing `roles-<ts>.sql`,
+The laptop's folder is `~/nomi-private/backups/` (since 2026-10-24; before, `~/nomi-backups/`): it holds
+production's data and the age key, so it stays in the home folder, never on the Desktop, in Documents or in
+iCloud Drive, which sync to Apple's servers. It writes `~/nomi-private/backups/nomi-backup-<UTC>/` containing `roles-<ts>.sql`,
 `nomi-<ts>.dump` and a `MANIFEST.txt` carrying sizes, sha256 of both, the server
 version, the runtime role name, and the schema version the pair was taken at.
 Then it encrypts all three with `age` and uploads only the ciphertext, to the
 bucket root as `nomi-backup-<UTC>/`. Last, and only if everything before it
-succeeded, it prunes `~/nomi-backups`: pairs there older than 180 days go
+succeeded, it prunes `~/nomi-private/backups`: pairs there older than 180 days go
 (`KEEP_ALL=1` keeps them) — see [How long copies are kept](#how-long-copies-are-kept).
 
 | | |
@@ -83,7 +85,7 @@ pilot's data ever justifies it, the fix is one off-platform bucket and a change
 to `RAILWAY_BUCKET`.
 
 **The age private key is the single point of failure.** It lives at
-`~/nomi-backups/age-key.txt` (mode 600) and must also be in the password
+`~/nomi-private/backups/age-key.txt` (mode 600) and must also be in the password
 manager. Every uploaded backup is unreadable without it — a laptop failure that
 takes the key with it turns the entire bucket into noise. The key must never be
 stored in the bucket it protects.
@@ -128,11 +130,11 @@ it cannot prove is that the *encrypted copy in the bucket* opens with the key
 you hold — the key is deliberately not on Railway. So, **monthly**:
 
 ```bash
-bash tools/fetch-backup.sh              # newest daily/ pair → ~/nomi-backups/<name>/, decrypted
-bash tools/verify-restore.sh ~/nomi-backups/<name>   # must say 4/4
+bash tools/fetch-backup.sh              # newest daily/ pair → ~/nomi-private/backups/<name>/, decrypted
+bash tools/verify-restore.sh ~/nomi-private/backups/<name>   # must say 4/4
 ```
 
-`fetch-backup.sh` also prunes `~/nomi-backups` when it is done, on the same
+`fetch-backup.sh` also prunes `~/nomi-private/backups` when it is done, on the same
 180-day rule as `tools/backup.sh` — the drill is what normally keeps that
 folder pruned.
 
@@ -153,7 +155,7 @@ both. Owner's decision, 2026-09-27: dailies 60 days, manual pairs 180 days.
 |---|---|---|---|---|
 | Daily | bucket `nomi-backups`, `daily/nomi-backup-<UTC>/` (three `.age` objects) | `backup/run.sh`, 03:00 UTC | `backup/run.sh` step 5, every run | **60 days** |
 | Manual, in the bucket | bucket root, `nomi-backup-<UTC>/` (three `.age` objects) | `tools/backup.sh` with `RAILWAY_BUCKET` | `backup/run.sh` step 5, every run | **180 days**, the newest included (D11) |
-| On the laptop | `~/nomi-backups/nomi-backup-<UTC>/`, plaintext plus `encrypted/` — the manual pairs and the dailies the drill fetched | `tools/backup.sh`, `tools/fetch-backup.sh` | the same two tools, at the end of a run that succeeded | **180 days**, only when one of these tools runs |
+| On the laptop | `~/nomi-private/backups/nomi-backup-<UTC>/`, plaintext plus `encrypted/` — the manual pairs and the dailies the drill fetched | `tools/backup.sh`, `tools/fetch-backup.sh` | the same two tools, at the end of a run that succeeded | **180 days**, only when one of these tools runs |
 | PITR (WAL and base backups) | the bucket Railway's pgBackRest writes to | Railway | Railway's own retention | **about four weeks**: the last 4 weekly full backups (Railway's documentation, checked 2026-10-12) |
 | Railway volume backups | Railway | Railway | none scheduled (`railway postgres pitr schedule list`, 2026-10-12) | one manual, below |
 
@@ -245,8 +247,8 @@ default.
 If the artifacts came from the bucket, decrypt them first:
 
 ```bash
-age -d -i ~/nomi-backups/age-key.txt -o roles-<date>.sql roles-<date>.sql.age
-age -d -i ~/nomi-backups/age-key.txt -o nomi-<date>.dump nomi-<date>.dump.age
+age -d -i ~/nomi-private/backups/age-key.txt -o roles-<date>.sql roles-<date>.sql.age
+age -d -i ~/nomi-private/backups/age-key.txt -o nomi-<date>.dump nomi-<date>.dump.age
 ```
 
 ```bash
@@ -325,7 +327,7 @@ cluster it builds and destroys itself. It never takes a URL, so it cannot reach
 production even by accident.
 
 ```bash
-bash tools/verify-restore.sh ~/nomi-backups/nomi-backup-<ts>
+bash tools/verify-restore.sh ~/nomi-private/backups/nomi-backup-<ts>
 ```
 
 It runs the four checks below and exits non-zero unless all four pass. Run it on

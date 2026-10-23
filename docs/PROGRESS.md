@@ -102,9 +102,11 @@ the twelve Intuit items one by one.
      quality claim about a named vendor in the public repo (CLAUDE.md §2). Facts we verified ourselves go to the private
      notes with their sources (`nomi-private/VENDOR-NOTES-FEC-2026-10-23.md`: Odoo's `l10n_ma` manifest read directly —
      LGPL-3, no FEC export). In public, only the part about us.
-  - **Found on the way:** the private folder is now at `~/Desktop/Projects/Active/nomi-backup-system/nomi-private/`
-    (moved 2026-10-22). This file, docs/A1-EXACT-MONEY.md and the memory still say `~/nomi-private/`. The backups are
-    there.
+  - **Found on the way:** the private folder had moved to the Desktop (`nomi-backup-system/`, 2026-10-22), which
+    iCloud syncs. **Moved back to `~/nomi-private/` (the owner, 2026-10-24),** with the laptop's backups and the age
+    key (`~/nomi-private/backups/`; 102 files, checksums equal before and after; two identical encrypted copies in
+    `duplicates-to-review/`). Nothing of it is left on the Desktop or in iCloud Drive. The laptop tools default there
+    (`tools/backup.sh`, `fetch-backup.sh`; a test holds it).
   5. **The questionnaire, read from Codat's public guide, written in our own words** (INTUIT-QUESTIONNAIRE.md §Q).
      Merchanter's page is screenshots this session could not read, so no disagreement could be checked.
   6. **Intuit's sandbox (item 12) is the owner's, and stays the one blocker.** The fake's round trip does not stand

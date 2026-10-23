@@ -49,7 +49,7 @@
 set -uo pipefail
 
 ATTEMPTS="${ATTEMPTS:-4}"
-DEST="${1:-${BACKUP_DIR:-$HOME/nomi-backups}}"
+DEST="${1:-${BACKUP_DIR:-$HOME/nomi-private/backups}}"
 
 # The retention rule is read, never required: a missing copy of it costs the
 # prune at the end, never the backup.
