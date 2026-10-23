@@ -1274,3 +1274,8 @@ Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/bo
 - **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
 - **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
   with nothing given back, is not a credit note yet.
+- **A party outside Morocco has no company registry number** (the owner, 2026-10-23, #382). Its tax or VAT number is
+  carried (`parties.tax_number`, read from Odoo's `vat` and Xero's `TaxNumber`) and shown on an invoice. Its
+  company registry number is not: SIREN, a Registro Mercantil or Companies House number. Only a Moroccan party has an
+  ICE, so another country's registry number stays in the system it came from. An invoice to such a company would
+  normally show it. A launch blocker for shops selling to companies outside Morocco (LAUNCH-CHECKLIST.md).

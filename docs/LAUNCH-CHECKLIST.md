@@ -121,6 +121,14 @@ Enforced in `tools/books-area.mjs`: for a workspace whose country is Morocco,
 `--on` refuses while `MOROCCO_BLOCKERS` (`tools/lib/books-blockers.mjs`) names
 an item.
 
+
+## Before the books are switched on for a shop selling to companies OUTSIDE Morocco — BLOCKING (the owner, 2026-10-23)
+
+- **A party registry-number field.** A customer or supplier outside Morocco has a field for its tax or VAT number
+  (`parties.tax_number`, shown on invoices), not for its company registry number (SIREN, a Registro Mercantil or
+  Companies House number). That number is not carried, and an invoice to such a company would normally show it.
+  Only a Moroccan party has an ICE (0208). `tools/books-area.mjs` cannot know whom a shop sells to, so this one is the
+  operator's to check before `--on`: ask the owner. Said to owners on the books' page (`books.notYet.registry`).
 ## Start early — lead-time items (the owner, 2026-10-22)
 
 These cost nothing to begin and can each turn a ready product into a wait of

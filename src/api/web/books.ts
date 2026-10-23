@@ -364,7 +364,7 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' |
 export function renderBooksNotYet(locale: Locale): string {
   return `<div class="block" id="not-yet">
       <h2>${esc(t(locale, 'books.notYet.title'))}</h2>
-      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price'] as const).map((k) =>
+      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price', 'books.notYet.registry'] as const).map((k) =>
         `<li class="row"><span>${esc(t(locale, k))}</span></li>`).join('')}</ul>
     </div>`;
 }

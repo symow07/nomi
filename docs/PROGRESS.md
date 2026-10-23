@@ -56,7 +56,19 @@ under "Decided" below.
 
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
-auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was not merged: the owner decides.
+auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was held for the owner. The
+owner's answer is the rule below.
+
+**THE RULE: while deploys are stalled, a merge is not a deploy decision (the owner, 2026-10-23).**
+- 28 merges already sit between production and main (#354–#381, 0161 through 0207). A deploy that fired unexpectedly
+  would carry all of them, whether or not one more PR is among them. Holding a PR lowers that exposure by nothing.
+  The risk is "a deploy happens at all", and it is the same either way.
+- Production has served no turn since 2026-09-20, so a surprise deploy reaches no customer. Two verified local
+  backups exist (`~/nomi-private/backups/`).
+- **So merges to main need no Railway check while deploys are stalled.** Merge on green through
+  `tools/gated-merge.sh`, as always, and skip the PR flow's "poll Railway until SUCCESS, curl /health" steps.
+- **The deploy is ONE decision, made once,** when the $5 is paid. Before it, the pre-deploy checklist runs
+  (`docs/LAUNCH-CHECKLIST.md`, CLAUDE.md §2: a backup younger than the day, then `/health` and `schema_version`).
 
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 
