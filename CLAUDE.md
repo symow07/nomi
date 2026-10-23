@@ -74,6 +74,13 @@ is social media as the sales channel, not manufacturing.
 - The GitHub repo is **public**: never commit tokens, invite links or personal
   data.
 
+**Asking first** (the owner, 2026-10-23)
+- Ask before anything that **costs money, touches production, or sends data**
+  to an outside service. Local dev tooling on this Mac (a Node version, a
+  package for the checkout, a local database) needs no permission round-trip:
+  install it, then say so. The zero-spend rule and production safety are what
+  the asking protects, and a local install touches neither.
+
 **Destructive actions**
 - You do not permanently delete things. Move them (e.g. to the scratchpad)
   and let the user delete. This includes iCloud `* 2.ts` duplicates and stale
@@ -127,8 +134,14 @@ branch had taken to 0167 (#364's first run): two tests failed that were not
 defects. **CI never had this problem** (a fresh Postgres per job) — do not
 "fix" CI for it.
 
-Run all of it on **Node 22** — production and CI use it (`.nvmrc`); this
-Mac's default `node` is newer (`PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"`).
+Run all of it on **Node 22** — production (Railpack reads `.nvmrc`: #353 was
+built on 22.23.3) and CI use it. This Mac's default `node` is 26:
+`PATH="$HOME/.nvm/versions/node/v22.23.4/bin:$PATH"` (installed 2026-10-23;
+22.23.2 left this Mac on 2026-10-07, and a PATH to a missing folder falls
+through silently). **The runners now refuse any other Node** — `npm run check`,
+`npm run trust`, both integration runners and `pre-pilot` stop with
+"NOT RUN … .nvmrc pins 22" (`tools/lib/pinned-node.mjs`). `build` and `start`
+are not guarded: Railway runs those.
 #129 passed locally on Node 26 with `Intl.DurationFormat` and failed on CI.
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
@@ -157,7 +170,10 @@ If integration goes flaky there, suspect leftover state before suspecting code
 **PR flow:** branch from current `origin/main` → `gh pr create` →
 `tools/gated-merge.sh N <head sha>` → poll
 `railway deployment list --service nomi --json` until the merge commit is
-`SUCCESS` → `curl https://app.nomidoes.com/health`. Gate chained steps with
+`SUCCESS` → `curl https://app.nomidoes.com/health`. **While deploys are stalled
+(production on #353), stop after the merge: no Railway check, and a merge is not
+a deploy decision** (the owner, 2026-10-23; PROGRESS.md "Block E's review"). The
+one deploy is decided once, and the pre-deploy checklist runs before it. Gate chained steps with
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
 

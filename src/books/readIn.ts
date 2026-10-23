@@ -4,7 +4,7 @@ import { parseBusinessId } from '../core/types/ids.js';
 import type { BooksProblem } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
 import { loadConnection, noteRead, rotateGrant, type ConnectedSystem } from '../db/booksConnections.js';
-import { readInBooks } from '../db/booksInterchange.js';
+import { readInBooks, type BeforeBooks } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
@@ -37,7 +37,9 @@ export type ReadResult =
       /** E3 — entries dated before the books' open window, left where they are (Odoo, Xero, QuickBooks); 0 for Sheets. */
       readonly leftThere: number }
   | { readonly kind: 'refused'; readonly reason: ConnectRefusalReason }
-  | { readonly kind: 'problems'; readonly problems: readonly BooksProblem[]; readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[] };
+  | { readonly kind: 'problems'; readonly problems: readonly BooksProblem[]; readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[];
+      /** E3 — Sheets: the entries dated before these books that stopped the read, counted. */
+      readonly beforeBooks?: BeforeBooks };
 
 export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string, system: ConnectedSystem, by: string): Promise<ReadResult> {
   const bid = parseBusinessId(businessIdRaw);
@@ -91,12 +93,12 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
   if (read.problems.length > 0) { await note({ ok: true, cursor: conn.cursor }); return { kind: 'problems', problems: read.problems }; }
   // E3 (0207) — what Odoo, Xero and QuickBooks hold from before these books stays there: the owner still has it, and
   // nothing of it is copied. Sheets is Nomi's own spreadsheet, written back to: an entry before the window there
-  // stays a problem to fix, never a row left unread.
+  // stays a problem to fix, never a row left unread — and the refusal says how many, and why (the owner, 2026-10-23).
   const out = await readInBooks(deps.db, bid.value, by, system, read.data, read.where,
     system === 'sheets' ? { kind: 'refuse' } : { kind: 'left_there' });
   if (out.kind === 'refused') {
     await note({ ok: true, cursor: conn.cursor });
-    return { kind: 'problems', problems: out.problems, ...(out.undatedTaxes ? { undatedTaxes: out.undatedTaxes } : {}) };
+    return { kind: 'problems', problems: out.problems, ...(out.undatedTaxes ? { undatedTaxes: out.undatedTaxes } : {}), ...(out.beforeBooks ? { beforeBooks: out.beforeBooks } : {}) };
   }
   await note({ ok: true, cursor: read.cursor });
   return { kind: 'read', added: out.added, replaced: out.replaced, unchanged: out.unchanged, leftThere: out.history?.entries ?? 0 };

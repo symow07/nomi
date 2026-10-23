@@ -169,4 +169,34 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     const audit = (await admin.query(`select detail from channel_audit where business_id = $1 and action = 'update_profile' order by id desc limit 1`, [BIZ])).rows[0].detail;
     expect(audit).toEqual({ fields: ['legal_ice', 'legal_if', 'legal_rc', 'legal_rc_court'] });
   });
+
+  it('0208 · ONE RULE FOR THE ICE: a party\'s is fifteen positions, checked as the business\'s, only for a party in Morocco, by the form and the database alike', async () => {
+    const party = (fields: Record<string, string>) => app.inject({ method: 'POST', url: '/app/books/parties',
+      payload: new URLSearchParams(fields).toString(), headers: { cookie: owner, 'content-type': 'application/x-www-form-urlencoded' } });
+    const iceOf = async (code: string) => (await admin.query(`select ice from parties where business_id = $1 and code = $2`, [BIZ, code])).rows[0]?.ice ?? null;
+    // the database says the two rules in the same words
+    const rule = async (table: string, name: string) => (await admin.query(`select pg_get_constraintdef(oid) as d from pg_constraint
+      where conrelid = $1::regclass and conname = $2`, [table, name])).rows[0]?.d as string;
+    expect(await rule('parties', 'parties_ice_shape')).toBe((await rule('businesses', 'businesses_legal_ice_shape')).replaceAll('legal_ice', 'ice'));
+    // a position that is not a digit is no longer refused (no official text says digits); spaces as typed come out
+    expect(await notice(await party({ code: 'C0208', name: 'Atlas Négoce', country: 'MA', ice: '123456789 00A 057' }))).toContain('The customer is added.');
+    expect(await iceOf('C0208')).toBe('12345678900A057');
+    // fourteen positions refused, and the refusal says positions, not digits
+    const short = await notice(await party({ code: 'C0209', name: 'Short', country: 'MA', ice: '12345678900005' }));
+    expect(short).toContain('an ICE of 15 positions');
+    expect(await iceOf('C0209')).toBeNull();
+    await expect(admin.query(`insert into parties (business_id, kind, code, name, country, ice) values ($1, 'customer', 'C0210', 'Spaced', 'MA', '12345678900005 ')`, [BIZ]))
+      .rejects.toThrow(/parties_ice_shape/);
+    await expect(admin.query(`insert into parties (business_id, kind, code, name, country, ice) values ($1, 'customer', 'C0211', 'Long', 'MA', '1234567890000571')`, [BIZ]))
+      .rejects.toThrow(/parties_ice_shape/);
+    // only a party in Morocco has an ICE: a Spanish company's fifteen characters are refused by the form and the database
+    const spanish = await notice(await party({ code: 'C0212', name: 'Textiles Ibéricos SL', country: 'ES', ice: 'B12345678901234' }));
+    expect(spanish).toContain('only for a customer in Morocco (MA)');
+    expect(await iceOf('C0212')).toBeNull();
+    expect(await notice(await party({ code: 'C0213', name: 'Textiles Ibéricos SL', country: 'ES' }))).toContain('The customer is added.');
+    await expect(admin.query(`insert into parties (business_id, kind, code, name, country, ice) values ($1, 'customer', 'C0214', 'Spain', 'ES', '123456789000057')`, [BIZ]))
+      .rejects.toThrow(/parties_ice_morocco/);
+    await expect(admin.query(`insert into parties (business_id, kind, code, name, ice) values ($1, 'customer', 'C0215', 'Nowhere', '123456789000057')`, [BIZ]))
+      .rejects.toThrow(/parties_ice_morocco/);
+  });
 });

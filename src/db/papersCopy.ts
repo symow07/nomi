@@ -59,13 +59,17 @@ export async function makePapersArchive(db: Db, businessIdRaw: string, actor: st
   });
 }
 
-/** What the owner's data page says about their papers: how many, and whether the owner's own copy holds them all. */
-export type PapersHolding = { readonly papers: number; readonly lastCopyAt: Date | null; readonly copyCoversAll: boolean };
+/**
+ * What the owner's data page says about their papers: how many, whether the owner's own copy holds them all, and how
+ * many are imported files kept as history (E3), whose retention runs from their newest entry — said there in words.
+ */
+export type PapersHolding = { readonly papers: number; readonly lastCopyAt: Date | null; readonly copyCoversAll: boolean; readonly history: number };
 
 export async function papersHoldingTx(tx: Tx, businessId: BusinessId): Promise<PapersHolding> {
-  const r = (await sql<{ papers: number; last: Date | null; covers: boolean }>`
+  const r = (await sql<{ papers: number; last: Date | null; covers: boolean; history: number }>`
     select (select count(*)::int from documents where business_id = ${businessId}::uuid) as papers,
+           (select count(*)::int from documents where business_id = ${businessId}::uuid and history_entries is not null) as history,
            (select max(made_at) from books_exports where business_id = ${businessId}::uuid and kind = 'papers_zip') as last,
            papers_export_covers(${businessId}::uuid) as covers`.execute(tx)).rows[0]!;
-  return { papers: r.papers, lastCopyAt: r.last, copyCoversAll: r.covers };
+  return { papers: r.papers, lastCopyAt: r.last, copyCoversAll: r.covers, history: r.history };
 }

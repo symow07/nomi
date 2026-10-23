@@ -25,7 +25,9 @@ import { readFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { toolClient } from './lib/db.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { requirePinnedNode } from './lib/pinned-node.mjs';
 
+requirePinnedNode('run-integration');
 const dir = mkdtempSync(join(tmpdir(), 'nomi-int-'));
 const out = join(dir, 'results.json');
 

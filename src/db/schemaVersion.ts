@@ -456,7 +456,8 @@ import type { Db } from './client.js';
 // 205 = the owner's copy of their papers: an archive's receipt, and closure waiting for it (0205).
 // 206 = the business's own ICE, IF and RC with its court, on its profile and in its FEC (0206).
 // 207 = imported history kept as a document, marked "history, not in the books" (0207).
-export const REQUIRED_SCHEMA_VERSION = 207;
+// 208 = one rule for the ICE: a party's is fifteen positions, as the business's, and only a party in Morocco has one (0208).
+export const REQUIRED_SCHEMA_VERSION = 208;
 
 export type SchemaState = {
   readonly required: number;

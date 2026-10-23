@@ -452,7 +452,8 @@ function booksSection(b: BooksHolding | null, locale: Locale, viewer: Viewer): s
 /**
  * E1 (0205) — the papers kept, and the owner's copy of them: every paper in one archive with its index. Shown only to
  * the owner of a workspace holding papers. Closing is refused until the owner's own copy holds every one, and this is
- * where they read why, before pressing the button.
+ * where they read why, before pressing the button. Where files are kept as history (E3), it says in plain words that
+ * a file is kept whole until its newest entry's date, so its older entries outlast their own (the owner, 2026-10-23).
  */
 function papersSection(p: PapersHolding | null, locale: Locale, viewer: Viewer): string {
   if (!p || p.papers === 0 || !viewer.isOwner) return '';
@@ -462,6 +463,7 @@ function papersSection(p: PapersHolding | null, locale: Locale, viewer: Viewer):
   return `<section class="block" id="papers">
       <h2>${esc(t(locale, 'data.papers.title'))}</h2>
       <p class="lede">${esc(tn(locale, 'data.papers.lead', p.papers))}</p>
+      ${p.history > 0 ? `<p>${esc(t(locale, 'data.papers.history'))}</p>` : ''}
       ${state}${copy}
       <ul class="scard dl-files"><li class="row">
         <span>${esc(t(locale, 'data.papers.title'))}</span>

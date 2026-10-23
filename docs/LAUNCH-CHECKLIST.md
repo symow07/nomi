@@ -74,7 +74,9 @@ So, before `tools/books-area.mjs --on` runs for anyone:
   download does not count, and a paper added later makes the copy old again.
 - **The public pages describe the books.** `/privacy` and `/data-deletion` say
   what is kept when a workspace closes, for how long, why, and that the owner
-  leaves with their copy (PHASE-5.md §6). And `/privacy` names the shop's own
+  leaves with their copy (PHASE-5.md §6), including that an imported file kept
+  as history is kept whole until its newest entry's date, so its older entries
+  outlast their own (the owner, 2026-10-23; Your data already says it). And `/privacy` names the shop's own
   systems the books can read from: Odoo (B4). Google Sheets is already held
   by D18, which stops the boot while `SHEETS_CLIENT_ID` is set and the privacy
   page does not name it; Xero (D8) and QuickBooks (D9) the same way, by `XERO_CLIENT_ID` and `QBO_CLIENT_ID`. And it says that a receipt, invoice or bill the owner
@@ -95,9 +97,11 @@ its name is a file that does not work:
   on the business, given on its profile by the owner (`business_identifiers`),
   and carried on every line of the FEC after the Avis's eighteen fields. Checked
   only where an official source publishes a rule (PHASE-5.md, E2): the ICE's
-  15 positions (OMPIC; the ICE portal's guide). The IF has no published format and
-  is kept as typed; the RC is kept with its court (Code de commerce, art. 49 and
-  154), its number unchecked. The FEC page names any of the three still missing.
+  15 positions (OMPIC; the ICE portal's guide), and a party's ICE by the same
+  rule, only for a party in Morocco (0208). The IF has no published format and is kept as typed; the RC is
+  kept with its court (Code de commerce, art. 49 and 154), its number unchecked:
+  no rule because no source, not "no rule yet". The FEC page names any of the
+  three still missing.
 - **The FEC named as the DGI requires.** Checked on 2026-10-22:
   - the Avis n° 24 sets no name and no envelope (Article 2 and point 3 name
     the file and its fields only);
@@ -117,6 +121,14 @@ Enforced in `tools/books-area.mjs`: for a workspace whose country is Morocco,
 `--on` refuses while `MOROCCO_BLOCKERS` (`tools/lib/books-blockers.mjs`) names
 an item.
 
+
+## Before the books are switched on for a shop selling to companies OUTSIDE Morocco — BLOCKING (the owner, 2026-10-23)
+
+- **A party registry-number field.** A customer or supplier outside Morocco has a field for its tax or VAT number
+  (`parties.tax_number`, shown on invoices), not for its company registry number (SIREN, a Registro Mercantil or
+  Companies House number). That number is not carried, and an invoice to such a company would normally show it.
+  Only a Moroccan party has an ICE (0208). `tools/books-area.mjs` cannot know whom a shop sells to, so this one is the
+  operator's to check before `--on`: ask the owner. Said to owners on the books' page (`books.notYet.registry`).
 ## Start early — lead-time items (the owner, 2026-10-22)
 
 These cost nothing to begin and can each turn a ready product into a wait of

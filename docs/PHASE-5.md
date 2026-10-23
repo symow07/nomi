@@ -1,7 +1,8 @@
 # Phase 5 — the full map
 
-> **STATUS, 2026-10-22: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
-> Blocks A, B, C, D and S are built, tested and merged (#375–#379; schema 204). What remains is not code:
+> **STATUS, 2026-10-23: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
+> Blocks A, B, C, D, S and E are built, tested and merged (#375–#381, and E's review changes; schema 208). Nothing is
+> left to build (the owner, 2026-10-23). What remains is not code:
 > 1. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
 > 2. **native signatures on four sentence sets**, read in one pass: the survey question, the survey's thank-you, the
 >    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
@@ -946,20 +947,27 @@ Each item is built and fully tested (§4) before the next one that depends on it
         - that the positions are digits. Every official example is, but they say "positions", never "chiffres";
         - the check key. No official source publishes its computation. python-stdnum's mod 97 is not official, and
           OMPIC's own example (123456789000057) fails it.
-    - **IF — NO FORMAT RULE.** No official source publishes one.
+    - **IF — NO FORMAT RULE, because no official source publishes one.** This is "no rule because no source", not
+      "no rule yet": nothing waits to be added. A rule is added only if an official text is found that states one.
       - The DGI's site (tax.gov.ma) answered 503 on every page, including form AAC139, so it was not read.
       - The Simpl-IS EDI specification (finances.gov.ma) defines no length; its own examples are « 123 » and « 789456123 ».
       - Kept as typed, trimmed. 40 characters is a storage bound, not a format.
-    - **RC — NO FORMAT RULE for the number; kept WITH ITS COURT.**
+    - **RC — NO FORMAT RULE for the number, because no official source publishes one (again: no source, not "not
+      yet"); kept WITH ITS COURT.**
       - The Code de commerce (the Ministry of Justice's consolidated text) asks for « le numéro et le lieu de son
         immatriculation » (art. 49) and « le siège du tribunal où il est immatriculé » (art. 154). A number is a number
         only at its court, so both are given or neither.
       - Décret 2-96-906 art. 9 numbers the register continuously, even for natural persons and odd for legal ones.
         That text was read in WIPO Lex's copy, not the BO. Décret 2-20-956 (2021, the electronic register) was not read.
         So no rule on the number is assumed.
-  - **Found, not changed:** the books' PARTIES already check a party's ICE as `^[0-9]{15}$` (0170). That is stricter
-    than the sources, because "digits" is not stated. The connectors (Excel, Odoo, Xero, QuickBooks) and the parties
-    form apply the same digits rule. It is the owner's to keep or to loosen to the fifteen positions.
+  - **Found while building it, then changed (0208, the owner, 2026-10-23):** the books' PARTIES checked a party's
+    ICE as `^[0-9]{15}$` (0170), stricter than the sources, since "digits" is not stated. The connectors (Excel,
+    Odoo, Xero, QuickBooks) and the parties form applied the same digits rule. Two rules for one identifier was its
+    own defect. A party's ICE is now checked exactly as the business's: spaces as typed taken out, then fifteen
+    positions, none a space. It is one rule in one place (`iceAsTyped`, `isIce`, `iceOrNull` in
+    src/core/books/identifiers.ts), and the database holds it (`parties_ice_shape`, the same check as
+    `businesses_legal_ice_shape`). In a connector, a registry field (Odoo's `company_registry`, Xero's
+    `CompanyNumber`) is an ICE only for a party in Morocco (review item 1 below).
   - **The FEC's four added columns are Nomi's naming** (`ICE`, `Identifiant_Fiscal`, `Num_RC`, `Tribunal_RC`, after the
     eighteen, on every line). The Avis lists the fields « au minimum » (annex, point 3) and names none for the business
     itself. They are in one place (`FEC_IDENTITY_FIELDS`) until the DGI publishes its own. The FEC page names any of
@@ -992,6 +1000,37 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - A bank statement is not history: it brings lines, not entries. Every line is read in for matching, whatever its
       date, since it can match a posted entry of a closed year.
     - Retention runs from the newest entry's year, the law's date for those entries' papers.
+- **The owner's review of block E (2026-10-23): approved, with these changes and records.** *(built 2026-10-23, 0208.)*
+  1. **A party's ICE is fifteen positions, like the business's** (E2 above). OMPIC says « 15 positions », not 15
+     digits, and one identifier keeps one rule. **And only a party in Morocco has one** (the owner's question on #382:
+     was it gated on the party's country? It was not, under 0170's digits rule either). A connected system's
+     registry field (Odoo `company_registry`, Xero `CompanyNumber`, QuickBooks' mark) is read as an ICE only when the
+     party's country is MA (`partyIce`). Anyone else's registry number stays in that system and is not copied:
+     the books have no field for another country's registry number. The workbook, Sheets and the parties form refuse
+     an ICE on a party not in Morocco (`ice_not_morocco`). The database holds it (`parties_ice_morocco`, NOT VALID: it
+     binds every row written from now on, and a row an earlier rule let in cannot stop a deploy).
+  2. **Google Sheets: the refusal stays, and now says how many and why.** Odoo, Xero and QuickBooks say how many
+     entries they left. Sheets said nothing of the kind, so an owner's old rows would seem not to arrive. In Sheets,
+     the entries the others would leave where they are now get their own reason, `before_books` ("Dated before these
+     books begin: not copied into them"), instead of "no fiscal year" or "closed period". The refused page leads with
+     the count, the day the books begin, the same reason the others give, why Sheets cannot leave them unread (Nomi
+     writes the spreadsheet back), and what to do: take those rows out and read again. A workbook read without a
+     papers store refuses the same way, and says so.
+  3. **A bank statement is not history.** Agreed, for the reason given: a statement line can still match a posted
+     entry of a closed year.
+  4. **Retention from the newest entry: approved, and said on Your data.** A file running from 2019 to 2024 keeps its
+     2019 rows until the 2024 rows' date: longer than their own duty requires. A file cannot be split, and keeping it
+     longer is the safe direction. Nomi promises not to keep things longer than it must, so the papers section of
+     Your data (`/app/settings/data`, beside "Close this workspace") says it in plain words wherever a file is kept as
+     history (`data.papers.history`). The public pages' description of the books, still a launch blocker
+     (LAUNCH-CHECKLIST.md), must say the same when it is written.
+  5. **The E3 finding was the one that mattered.** Before it, the first read from Odoo, Xero or QuickBooks was
+     refused whole for any shop with a single entry dated before Nomi's years, which is every real business. Found
+     while building E3, not from a customer.
+  6. **IF and RC kept as typed: no rule because no source.** Nothing official publishes either format, and the DGI's
+     site returned 503 on every page. This is a decision, not a gap (E2 above).
+  - **After this: nothing is left to build** (the owner's order). The queue: the accountant's answer and the
+    signatures, the spend and a deploy, and the owner's own reading of the Intuit file (INTUIT-QUESTIONNAIRE.md).
 
 ### Dependencies at a glance
 
@@ -1235,3 +1274,8 @@ Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/bo
 - **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
 - **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
   with nothing given back, is not a credit note yet.
+- **A party outside Morocco has no company registry number** (the owner, 2026-10-23, #382). Its tax or VAT number is
+  carried (`parties.tax_number`, read from Odoo's `vat` and Xero's `TaxNumber`) and shown on an invoice. Its
+  company registry number is not: SIREN, a Registro Mercantil or Companies House number. Only a Moroccan party has an
+  ICE, so another country's registry number stays in the system it came from. An invoice to such a company would
+  normally show it. A launch blocker for shops selling to companies outside Morocco (LAUNCH-CHECKLIST.md).

@@ -16120,3 +16120,14 @@ Reviewer (per language): ______  Date: ______
   - "history, not in the books" is 历史资料，不在账簿里 / «سجل سابق، ليس في الدفاتر» / «Historial, fuera de los libros» / «Historique, hors des livres»;
   - Chinese says 所属法院 for "its court" (no 它); French names the IF and «ces écritures» where a pronoun would stand; Spanish says «ese archivo» and «ninguno» for the same reason.
 - **Check:** that «المعرّف الموحد للمقاولة» is how a Moroccan owner names the ICE; that 历史资料 reads as kept for reference, not as deleted; that «Absent du fichier : …» reads naturally as the FEC page's line for a missing identifier.
+
+## 2026-10-23 — Phase 5 E, the owner's review — one ICE rule, Sheets says how many, retention said (not a gate)
+
+- **The keys (7 new, in each of zh, ar, es and fr; 3 changed):**
+  - new: `books.workbook.refused.beforeBooks`, `books.workbook.refused.beforeBooks.sheets|workbook`, `books.problem.before_books`: a refused read's entries dated before these books, counted, with the reason; `data.papers.history`: on Your data, that a file kept as history is kept whole until its newest entry's date;
+  - new: `books.problem.ice_not_morocco`: an ICE on a party whose country is not MA; `books.notYet.registry`: on the books' page, that a party outside Morocco has a tax or VAT number but no company registry number (Arabic says «الرقم الضريبي» and «في الفاتورة» so nothing agrees with the customer);
+  - changed: `books.party.ice`, `books.problem.bad_ice`, `books.flash.partyRefused` say 15 positions, not 15 digits (zh 位, es «posiciones», fr «à 15 positions»; Arabic already said خانة), and the refusal says the ICE is only for a customer in Morocco (MA).
+- **Where the words differ, and why:**
+  - "entries" stays 分录 / القيود / «asientos» / «écritures», as in `books.flash.readLeftThere`, so the same reason reads in the same words;
+  - Arabic asks with «يُرجى» and a verbal noun (نقل، إعادة الاستيراد), addressing nobody in a gender; French says «une ligne non lue» so no pronoun stands for Nomi.
+- **Check:** that 15 位 reads as fifteen positions (not digits) to a Chinese reader; that «مؤرَّخ قبل بداية هذه الدفاتر» reads naturally as a row's reason; that the 2019-to-2024 example reads plainly in each language.

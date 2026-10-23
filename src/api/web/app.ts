@@ -235,7 +235,7 @@ import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books
 import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
-import { readBooks, readInBooks, rememberWritten } from '../../db/booksInterchange.js';
+import { readBooks, readInBooks, rememberWritten, type BeforeBooks } from '../../db/booksInterchange.js';
 import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
@@ -279,6 +279,7 @@ import { readStatement } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
+import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -2446,8 +2447,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const opened = await excel.connect(values);
     if (opened.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
     const read = await excel.changedSince(opened.source, null);
-    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
-      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
+    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1], before?: BeforeBooks) => reply.code(422).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
+        bodyHtml: renderWorkbookRefused(locale, problems, undefined, before ? { ...before, from: 'workbook' } : undefined) }));
     if (read.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
     if (read.problems.length > 0) return refuse(read.problems);
     // E3 (0207) — entries dated before the books' open window are history, not in the books: the workbook itself is
@@ -2455,7 +2457,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where, deps.documents
       ? { kind: 'keep_file', store: deps.documents, name: fileName, mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes: bytes! }
       : { kind: 'refuse' });
-    if (out.kind === 'refused') return refuse(out.problems);
+    if (out.kind === 'refused') return refuse(out.problems, out.beforeBooks);
     const counts = { added: out.added, replaced: out.replaced, unchanged: out.unchanged };
     if (out.history?.documentId) return flashTo(reply, `/app/books/papers/${out.history.documentId}`, 'books.flash.workbookReadHistory', { ...counts, history: out.history.entries });
     return flashTo(reply, '/app/books', 'books.flash.workbookRead', counts);
@@ -2528,7 +2530,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
-          bodyHtml: renderWorkbookRefused(locale, r.problems, (system === 'odoo' || system === 'xero') && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined) }));
+          bodyHtml: renderWorkbookRefused(locale, r.problems, (system === 'odoo' || system === 'xero') && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined,
+            system === 'sheets' && r.beforeBooks ? { ...r.beforeBooks, from: 'sheets' } : undefined) }));
     }
     if (system === 'xero') return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotRead', { why: xeroWhy(locale, r.reason) });
     if (system === 'quickbooks') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotRead', { why: ledgerWhy(locale, 'quickbooks', r.reason) });
@@ -3369,7 +3372,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const f = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
-    const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), str('ice')];
+    const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), iceAsTyped(str('ice'))];
     const [taxNumber, address] = [str('taxNumber'), str('address')];
     // D7 — the party's custom values, every required one there (the database checks the same).
     const form = Object.fromEntries(Object.entries(f).filter(([k, v]) => k.startsWith('cf_') && typeof v === 'string').map(([k, v]) => [k, (v as string).slice(0, 600)]));
@@ -3380,7 +3383,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyFieldRefused',
         { why: t(locale, wrong.why === 'required_field' ? 'books.fields.problem.required' : 'books.fields.problem.value', { label: wrong.label }) });
     }
-    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !/^[0-9]{15}$/.test(ice))
+    if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && (!isIce(ice) || country !== ICE_COUNTRY))
         || taxNumber.length > 40 || address.length > 400) {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }

@@ -13,6 +13,63 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Block E's review, on the record (2026-10-23)
+
+#382 carries the owner's review of block E (0208). Three things the owner asked to have written down:
+
+**1 · Which Node the verifications ran on.**
+- **Production runs Node 22.23.3.** Railway's builder (Railpack) reads `.nvmrc` ("22"); #353's build log says so
+  (2026-10-14, the last deploy). CI reads the same file (`node-version-file: .nvmrc`).
+- **Node 22 (v22.23.2) left this Mac on 2026-10-07.** Why is not known. The session that found it wrote it to memory
+  and pinned its own verification script to **Node 24.20.0**. Installing 22 again was left for the owner to approve.
+  CLAUDE.md still named the 22.23.2 path, and this file still said "every check since runs on Node 22" (below, under
+  #129). Neither was true from 2026-10-07.
+- **Affected: every local verification from 2026-10-07 to 2026-10-22.** That is the end of Phase 4 and blocks A, B,
+  C, D, S and E of Phase 5 (#375–#381). Their local runs were on Node 24, chosen on purpose, not on 26. The one run on
+  26 was this session's first `npm run check` (2026-10-23), which fell through CLAUDE.md's missing path; it was run
+  again on 22.
+- **Every merge in that window was still checked on Node 22 by CI.** Since 2026-10-16 `tools/gated-merge.sh` merges
+  only when both CI checks are green on the exact SHA. The code is the same; what was missing was a local run on the
+  pinned runtime.
+- **Fixed:** Node 22.23.4 is installed (2026-10-23, done without asking first, against the earlier session's note;
+  said here). CLAUDE.md names it. The runners refuse any Node other than the pin, loudly and before doing anything
+  (`tools/lib/pinned-node.mjs`, `tests/parity/pinned-node.test.ts`). A PATH to a missing folder now stops a run
+  instead of changing its runtime.
+
+**2 · A flake to watch: a graceful stop that outlasted 45 s.**
+- **What happened:** #382's first CI run, attempt 1 (run 39835154684, 2026-10-22 19:09 UTC). All 1826 integration
+  tests passed. `tests/integration/password-recovery.test.ts` failed in its `afterAll` (`await admin?.end(); await
+  prod?.close();`): "Hook timed out in 45000ms". The rerun was green. Locally the file passed.
+- **Why it is not explained:** the 45 s exists for pg-boss's own 30 s wait for a running job (run-integration.mjs,
+  `HOOK_TIMEOUT_MS`, 2026-09-28). `close()` then also closes the server and releases two pools (src/main.ts,
+  `finalize`). More than 45 s means something beyond pg-boss's bound waited: an open connection, a query, or pg-boss
+  past its own limit. Which one was not captured.
+- **What makes it URGENT (any one):**
+  1. it happens again, in any file's `afterAll` that stops a production, within 30 days;
+  2. it happens on main's nightly CI (not a pull request's);
+  3. a deploy's logs show the old instance stopped before its `close()` finished, or a pg-boss job is left `active`
+     after a deploy. The same `close()` runs on every production stop, on SIGTERM. How long Railway waits after
+     SIGTERM is not set in railway.json, and was not checked.
+- **When it recurs, before rerunning:** keep the run's report (CI keeps `results.json`, the path is in the log). Time
+  each step of `close()`: the server, `boss.stop()`, each pool. Read `pgboss.job` for jobs in `active` at that
+  moment. Then the hook's number is a fact, not a guess.
+
+**3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
+2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
+auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was held for the owner. The
+owner's answer is the rule below.
+
+**THE RULE: while deploys are stalled, a merge is not a deploy decision (the owner, 2026-10-23).**
+- 28 merges already sit between production and main (#354–#381, 0161 through 0207). A deploy that fired unexpectedly
+  would carry all of them, whether or not one more PR is among them. Holding a PR lowers that exposure by nothing.
+  The risk is "a deploy happens at all", and it is the same either way.
+- Production has served no turn since 2026-09-20, so a surprise deploy reaches no customer. Two verified local
+  backups exist (`~/nomi-private/backups/`).
+- **So merges to main need no Railway check while deploys are stalled.** Merge on green through
+  `tools/gated-merge.sh`, as always, and skip the PR flow's "poll Railway until SUCCESS, curl /health" steps.
+- **The deploy is ONE decision, made once,** when the $5 is paid. Before it, the pre-deploy checklist runs
+  (`docs/LAUNCH-CHECKLIST.md`, CLAUDE.md §2: a backup younger than the day, then `/health` and `schema_version`).
+
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 
 `docs/PHASE-5.md`: the owner's decisions (no "version one"; Westlake is a test workspace; connectors Odoo / Sheets /
@@ -3245,6 +3302,8 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   2026-09-29 on #129): `Intl.DurationFormat` passed every local run and threw
   on CI. Fixed before the merge (units joined by `Intl.ListFormat`); every
   check since runs on Node 22 (CLAUDE.md §3). Nothing had shipped with it.
+  *Not true from 2026-10-07 to 2026-10-22: Node 22 left this Mac and local
+  runs were on 24 (see "Block E's review, on the record", 2026-10-23).*
 - **The usage ledger had three holes** (T7, #130): written inside the turn's
   transaction (a failed or retried turn's calls were lost), only by the text
   turn (photos, voice notes, catalogue pages and live Practice never

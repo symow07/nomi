@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { validateIdentifiers } from '../../src/core/books/identifiers.js';
+import { validateIdentifiers, iceAsTyped, isIce, partyIce } from '../../src/core/books/identifiers.js';
+import { excelConnector } from '../../src/books/connectors/excel.js';
+import { SAMPLE_BOOKS } from '../books-connectors/sample.js';
 
 /**
  * E2 (Phase 5; 0206) — the business's ICE, IF and RC: a rule only where an official source publishes one. The ICE's
@@ -47,5 +49,63 @@ describe('E2 · the business\'s identifiers, checked only where a source sets a 
     expect(m).toMatch(/legal_ice is null or legal_ice ~ '\^\[\^\[:space:\]\]\{15\}\$'/);
     expect(m).toMatch(/\(legal_rc is null\) = \(legal_rc_court is null\)/);
     expect(m).not.toMatch(/legal_if ~|legal_rc ~/);
+  });
+});
+
+/**
+ * 0208 (the owner, 2026-10-23) — ONE RULE FOR ONE IDENTIFIER. A party's ICE was fifteen digits (0170) while the
+ * business's was fifteen positions (0206); a party's is now the business's, at what the source says.
+ */
+describe('0208 · a party\'s ICE is checked as the business\'s', () => {
+  it('the rule: spaces as typed out, then fifteen positions, none a space; a letter is not refused', () => {
+    expect(iceAsTyped(' 123456789 0000 57 ')).toBe('123456789000057');
+    expect(isIce('12345678900A057')).toBe(true);
+    expect(isIce('12345678900005')).toBe(false);
+    expect(isIce('1234567890000571')).toBe(false);
+    expect(isIce('12345678900005 ')).toBe(false);
+  });
+
+  it('a connected system\'s registry field is the party\'s ICE only for a party in Morocco, and only when it is one', () => {
+    expect(partyIce('MA', '123456789 00A 057')).toBe('12345678900A057');
+    expect(partyIce('MA', 'RC 12345')).toBeNull();
+    expect(partyIce('MA', '')).toBeNull();
+    expect(partyIce('MA', null)).toBeNull();
+    // a Spanish or French company's fifteen-character registry number is not an ICE, nor one with no country
+    expect(partyIce('ES', 'B12345678901234')).toBeNull();
+    expect(partyIce('FR', '123456789000057')).toBeNull();
+    expect(partyIce(null, '123456789000057')).toBeNull();
+  });
+
+  it('every connector reads a party\'s ICE through that one door, with the party\'s own country', () => {
+    for (const c of ['odoo', 'xero', 'quickbooks']) {
+      const src = readFileSync(`${ROOT}src/books/connectors/${c}.ts`, 'utf8');
+      expect(src, c).toMatch(/ice: partyIce\((str\(p\['country_code'\]\)|country|country\(c\)), /);
+    }
+  });
+
+  it('the workbook (and so Sheets): an ICE on a party not in Morocco is refused, said for what it is', () => {
+    const excel = excelConnector('MAD');
+    const atlas = SAMPLE_BOOKS.parties[0]!;
+    const books = { ...SAMPLE_BOOKS, parties: [atlas, { ...atlas, code: 'C900', name: 'Textiles Ibéricos SL', country: 'ES', ice: 'B12345678901234' }] };
+    const read = excel.toBooks(excel.fromBooks(books));
+    expect(read.problems.map((p) => [p.sheet, p.column, p.reason])).toEqual([['Parties', 'ICE', 'ice_not_morocco']]);
+    expect(read.data.parties.map((p) => p.code)).toEqual(['C001']);
+  });
+
+  it('the database: the parties\' check is the business\'s, word for word', () => {
+    const shape = (file: string, column: string) =>
+      new RegExp(`${column} is null or ${column} ~ '([^']+)'`).exec(readFileSync(`${ROOT}migrations/${file}`, 'utf8'))?.[1];
+    expect(shape('0208_party_ice_positions.sql', 'ice')).toBe('^[^[:space:]]{15}$');
+    expect(shape('0208_party_ice_positions.sql', 'ice')).toBe(shape('0206_business_identifiers.sql', 'legal_ice'));
+    expect(readFileSync(`${ROOT}migrations/0208_party_ice_positions.sql`, 'utf8')).toMatch(/parties_ice_morocco check \(ice is null or country is not distinct from 'MA'\)/);
+  });
+
+  it('no digits-only ICE check is left anywhere in the code', () => {
+    const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+      const p = `${dir}/${f}`;
+      return statSync(p).isDirectory() ? files(p) : p.endsWith('.ts') ? [p] : [];
+    });
+    const left = files(`${ROOT}src`).filter((f) => readFileSync(f, 'utf8').includes('[0-9]{15}'));
+    expect(left).toEqual([]);
   });
 });

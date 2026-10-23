@@ -3,6 +3,7 @@ import { booksMay, type BooksAction, type Viewer } from '../../core/conversation
 import type { BooksProblem } from '../../core/books/interchange.js';
 import type { BooksConnection } from '../../db/booksConnections.js';
 import type { BooksHolding } from '../../db/booksExport.js';
+import type { BeforeBooks } from '../../db/booksInterchange.js';
 import { t } from './say.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc } from './layout.js';
@@ -304,10 +305,16 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
 
 /** B2 — a workbook that was not read in, and every reason: the sheet, the row, the column, and what is wrong there. */
 export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[],
-  undated?: { readonly system: 'odoo' | 'xero'; readonly taxes: readonly { readonly code: string; readonly label: string }[] }): string {
+  undated?: { readonly system: 'odoo' | 'xero'; readonly taxes: readonly { readonly code: string; readonly label: string }[] },
+  before?: BeforeBooks & { readonly from: 'sheets' | 'workbook' }): string {
   const shown = problems.slice(0, 200);
+  // E3 — entries dated before these books, where they cannot be left where they are: how many, and why, before the
+  // rows, as Odoo, Xero and QuickBooks say how many they left (the owner, 2026-10-23).
+  const old = before ? `<p>${esc(t(locale, 'books.workbook.refused.beforeBooks', { n: show.count(locale, before.entries),
+    date: show.dateYear(locale, new Date(`${before.opensOn}T12:00:00Z`)) }))} ${esc(t(locale, `books.workbook.refused.beforeBooks.${before.from}`))}</p>` : '';
   return `<h1 class="page">${esc(t(locale, 'books.workbook.refused.title'))}</h1>
     <p class="lede" role="alert">${esc(t(locale, 'books.workbook.refused.explain', { n: problems.length }))}</p>
+    ${old}
     <div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.workbook.col.sheet'))}</th><th scope="col">${esc(t(locale, 'books.workbook.col.row'))}</th>
         <th scope="col">${esc(t(locale, 'books.workbook.col.column'))}</th><th scope="col">${esc(t(locale, 'books.workbook.col.what'))}</th></tr></thead>
@@ -357,7 +364,7 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' |
 export function renderBooksNotYet(locale: Locale): string {
   return `<div class="block" id="not-yet">
       <h2>${esc(t(locale, 'books.notYet.title'))}</h2>
-      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price'] as const).map((k) =>
+      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price', 'books.notYet.registry'] as const).map((k) =>
         `<li class="row"><span>${esc(t(locale, k))}</span></li>`).join('')}</ul>
     </div>`;
 }
