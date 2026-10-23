@@ -35,18 +35,23 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/odoo/connect', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/read', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
-  // D8 — the shop's own Xero: connecting, reading in, writing back and disconnecting, the owner's.
+  // D8 — the shop's own Xero: connecting, reading in, writing back and disconnecting, the owner's; 0212 — connecting
+  // again (the old grant given back first) and trying a stale grant again, the owner's too.
   { method: 'GET', url: '/app/books/xero/start', action: 'post' },
   { method: 'GET', url: '/app/books/xero/callback', action: 'post' },
   { method: 'POST', url: '/app/books/xero/read', action: 'post' },
   { method: 'POST', url: '/app/books/xero/write', action: 'post' },
   { method: 'POST', url: '/app/books/xero/disconnect', action: 'post' },
+  { method: 'POST', url: '/app/books/xero/again', action: 'post' },
+  { method: 'POST', url: '/app/books/xero/stale', action: 'post' },
   // D9 — the shop's own QuickBooks, likewise.
   { method: 'GET', url: '/app/books/quickbooks/start', action: 'post' },
   { method: 'GET', url: '/app/books/quickbooks/callback', action: 'post' },
   { method: 'POST', url: '/app/books/quickbooks/read', action: 'post' },
   { method: 'POST', url: '/app/books/quickbooks/write', action: 'post' },
   { method: 'POST', url: '/app/books/quickbooks/disconnect', action: 'post' },
+  { method: 'POST', url: '/app/books/quickbooks/again', action: 'post' },
+  { method: 'POST', url: '/app/books/quickbooks/stale', action: 'post' },
   // C0 — the day a tax took effect, where its system gave none: the owner's.
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
   // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
@@ -125,8 +130,9 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
 export type BooksSystems = {
   readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
   readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null; readonly silent?: Date | null };
-  readonly xero?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
-  readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
+  /** 0212 — `stale`: when each grant Nomi no longer uses, and the system has not confirmed given back, was set aside. */
+  readonly xero?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
+  readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
 };
 
 export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems, o: { readonly morocco?: boolean } = {}): string {
@@ -226,16 +232,22 @@ function ledgerBlock(locale: Locale, system: Ledger, x: NonNullable<BooksSystems
   const key = (k: string) => `books.${system}.${k}` as MessageKey;
   const head = `<h2>${esc(t(locale, key('title')))}</h2><p>${esc(t(locale, key('explain')))}</p>
     <p class="caption muted">${esc(t(locale, 'books.systems.history', { system: LEDGER_NAME[system] }))}</p>`;
-  if (!x.offered) return `<div class="block" id="${system}">${head}<p class="caption muted">${esc(t(locale, key('notSetUp')))}</p></div>`;
+  // 0212 — a grant still open there that Nomi no longer uses: said in every state, with a way to try again now
+  const stale = (x.stale ?? []).length === 0 ? '' : `<p role="status"><span class="pill warn">${esc(t(locale, 'books.stale.pill'))}</span> ${esc(t(locale, 'books.stale.line', { system: LEDGER_NAME[system], date: show.dateYear(locale, x.stale![0]!) }))}</p>
+      <form method="post" action="/app/books/${system}/stale" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.stale.retry'))}</button></form>`;
+  if (!x.offered) return `<div class="block" id="${system}">${head}<p class="caption muted">${esc(t(locale, key('notSetUp')))}</p>${stale}</div>`;
   const c = x.connection;
   const connect = (k: MessageKey) => `<p><a class="deeper" href="/app/books/${system}/start">${esc(t(locale, k))}</a></p>`;
-  if (!c || c.state === 'disconnected') return `<div class="block" id="${system}">${head}${connect(key('connect'))}</div>`;
+  if (!c || c.state === 'disconnected') return `<div class="block" id="${system}">${head}${stale}${connect(key('connect'))}</div>`;
   if (c.state !== 'connected') {
+    // a grant still held is given back first (a button: it changes something before the consent page opens)
+    const again = c.grant ? `<form method="post" action="/app/books/${system}/again" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.again'))}</button></form>`
+      : connect('books.sheets.again');
     return `<div class="block" id="${system}">${head}
       <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(ledgerWhy(locale, system, c.reason ?? 'revoked'))}</p>
-      ${connect('books.sheets.again')}</div>`;
+      ${stale}${again}</div>`;
   }
-  return `<div class="block" id="${system}">${head}
+  return `<div class="block" id="${system}">${head}${stale}
       <p><bdi>${esc(c.settings['tenantName'] ?? c.settings['companyName'] ?? '')}</bdi></p>
       ${silentLine(locale, LEDGER_NAME[system], x.silent)}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}

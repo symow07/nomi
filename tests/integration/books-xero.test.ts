@@ -168,4 +168,98 @@ d('D8 · the shop\'s own Xero (requires DATABASE_URL + MIGRATE_DATABASE_URL)', {
     expect(kept.rows[0].live).toBe(0);
     expect(kept.rows[0].n).toBeGreaterThan(3);
   });
+
+  /** 0212 — the old grants of this workspace's Xero, as the table holds them. */
+  const grants = async () => (await admin.query(`select archived_at is null as live, stale_since is not null as stale, revoked_at is not null as revoked,
+      revoke_tries as tries from connector_credentials where business_id = $1 and connector = 'xero' and (stale_since is not null or revoked_at is not null)
+     order by created_at`, [BIZ])).rows as { live: boolean; stale: boolean; revoked: boolean; tries: number }[];
+  /** Into "Needs connecting again", where the page offers connecting again (Xero let the organisation go; it comes back). */
+  const needsAgain = async () => {
+    xero.disconnect();
+    expect(await notice(await press('/app/books/xero/read'))).toContain('Xero no longer lets Nomi into the organisation');
+    xero.organisations(['Westlake Canvas Co.']);
+  };
+
+  it('0212 — CONNECTING AGAIN gives the old grant back at Xero FIRST, before the consent page; nothing is left open there', async () => {
+    const c = await connectXero();
+    expect(await notice(await c.back(xero.code()))).toContain('Xero is connected to Westlake Canvas Co.');
+    await needsAgain();
+    const old = (await held())!.grant!.secret;
+    expect(xero.liveRefresh()).toEqual([old]);
+    // the page's "Connect again" is a button (a POST): a link anyone could open must not end a connection
+    const page = await home();
+    expect(page).toContain('action="/app/books/xero/again"');
+    expect(page).not.toContain('href="/app/books/xero/start"');
+    const again = await press('/app/books/xero/again');
+    expect([again.statusCode, again.headers['location']]).toEqual([302, '/app/books/xero/start']);
+    expect(xero.liveRefresh(), 'given back before the consent').toEqual([]);
+    expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect((await grants()).at(-1)).toEqual({ live: false, stale: false, revoked: true, tries: 1 });
+    // the GET that starts the consent gives nothing back (a link must not): only the POST above does
+    const next = await connectXero();
+    expect(await notice(await next.back(xero.code()))).toContain('Xero is connected to Westlake Canvas Co.');
+    expect(xero.liveRefresh()).toEqual([(await held())!.grant!.secret]);
+    expect(await home()).not.toContain('Still open there');
+  });
+
+  it('0212 — A REVOCATION XERO DOES NOT CONFIRM: connecting goes on (never locked out), and the old grant is kept track of, shown, and tried again', async () => {
+    await needsAgain();
+    const old = (await held())!.grant!.secret;
+    xero.revokeDown();
+    const again = await press('/app/books/xero/again');
+    expect(again.headers['location']).toBe('/app/books/xero/start');
+    expect(await held(), 'still the grant in use: nothing taken from the owner').toMatchObject({ state: 'connect_again', grant: { secret: old } });
+    const c = await connectXero();
+    expect(await notice(await c.back(xero.code()))).toContain('Xero has not confirmed that the earlier connection ended; Nomi tries again every hour.');
+    const now = (await held())!.grant!.secret;
+    expect([...xero.liveRefresh()].sort()).toEqual([old, now].sort());
+    expect((await grants()).at(-1)).toEqual({ live: false, stale: true, revoked: false, tries: 1 });
+    const page = await home();
+    expect(page).toContain('Still open there');
+    expect(page).toContain('An earlier Xero connection may still be open there');
+    expect(page).toContain('action="/app/books/xero/stale"');
+    // the worker's round finds it (ids only, across workspaces)
+    const due = (await tenant.query(`select business_id::text as id from stale_grant_workspaces()`)).rows.map((r) => r.id);
+    expect(due).toContain(BIZ);
+    // tried again while Xero still does not answer: said, counted, kept
+    expect(await notice(await press('/app/books/xero/stale'))).toContain('Xero has not confirmed it yet. Nomi tries again every hour.');
+    expect((await grants()).at(-1)).toEqual({ live: false, stale: true, revoked: false, tries: 2 });
+    // and when it answers: given back, the live grant untouched
+    xero.revokeDown(false);
+    expect(await notice(await press('/app/books/xero/stale'))).toContain('Xero confirmed that the earlier connection has ended.');
+    expect(xero.liveRefresh()).toEqual([(await held())!.grant!.secret]);
+    expect((await grants()).at(-1)).toMatchObject({ stale: true, revoked: true });
+    expect(await home()).not.toContain('Still open there');
+    expect((await tenant.query(`select business_id::text as id from stale_grant_workspaces()`)).rows.map((r) => r.id)).not.toContain(BIZ);
+  });
+
+  it('0212 — DISCONNECTING while Xero does not answer: disconnected here, said, and given back by the hourly round', async () => {
+    xero.revokeDown();
+    expect(await notice(await press('/app/books/xero/disconnect'))).toContain('Disconnected here. Xero has not confirmed that Nomi');
+    expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect(xero.liveRefresh()).toHaveLength(1);
+    expect(await home()).toContain('Still open there');
+    xero.revokeDown(false);
+    // the worker's own function, as its hourly job calls it
+    const { retryStaleGrants } = await import('../../src/books/staleGrants.js');
+    const r = await retryStaleGrants({ db, credentialKey: KEY, xero: { client: XERO_CLIENT, fetch: xero.fetch } }, BIZ, 'nomi');
+    expect(r).toEqual({ givenBack: 1, left: 0, endedLive: [] });
+    expect(xero.liveRefresh()).toEqual([]);
+    expect(await home()).not.toContain('Still open there');
+  });
+
+  it('0212 — A STALE GRANT GIVEN BACK THAT ENDS THE LIVE ONE TOO (Xero: every connection the person made): the page asks to connect again', async () => {
+    // reaching the consent by its GET while connected (no POST first): the old grant is replaced, never given back
+    // after the new consent by the callback — it could end the new one — so it is stale
+    const first = await connectXero();
+    expect(await notice(await first.back(xero.code()))).toContain('Xero is connected');
+    const direct = await connectXero();
+    expect(await notice(await direct.back(xero.code()))).toContain('Xero has not confirmed that the earlier connection ended');
+    expect(xero.liveRefresh()).toHaveLength(2);
+    xero.revokeEndsEverything();
+    expect(await notice(await press('/app/books/xero/stale'))).toContain('Xero confirmed that the earlier connection has ended, and ended this one with it. Connect again once more.');
+    expect(xero.liveRefresh()).toEqual([]);
+    expect(await held()).toMatchObject({ state: 'connect_again', reason: 'revoked' });
+    expect(await home()).not.toContain('Still open there');
+  });
 });

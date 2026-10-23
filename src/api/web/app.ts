@@ -234,7 +234,8 @@ import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
 import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
-import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
+import { disconnectSystem, loadConnection, noteRead, saveConnection, staleGrants } from '../../db/booksConnections.js';
+import { giveBackFirst, retryStaleGrants } from '../../books/staleGrants.js';
 import { readBooks, readInBooks, rememberWritten, type BeforeBooks } from '../../db/booksInterchange.js';
 import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
@@ -2393,10 +2394,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       key: odooConn && odooConn.state === 'connected' ? odooKeyState(odooConn.connectedAt.slice(0, 10), odooConn.keyExpiresOn, todayIso()) : null };
     // D8 — the shop's own Xero, where this installation has its client.
     const xeroConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero')) : null;
-    const xero = { offered: xeroReady(), connection: xeroConn, silent: xeroConn ? silentSince(xeroConn, new Date()) : null };
+    // 0212 — a grant Nomi no longer uses that its system has not confirmed given back, said under its system.
+    const stale = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => staleGrants(tx, null, bid.value)) : [];
+    const staleOf = (system: 'xero' | 'quickbooks') => stale.filter((g) => g.system === system).map((g) => g.staleSince);
+    const xero = { offered: xeroReady(), connection: xeroConn, silent: xeroConn ? silentSince(xeroConn, new Date()) : null, stale: staleOf('xero') };
     // D9 — the shop's own QuickBooks, likewise.
     const qboConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks')) : null;
-    const quickbooks = { offered: qboReady(), connection: qboConn, silent: qboConn ? silentSince(qboConn, new Date()) : null };
+    const quickbooks = { offered: qboReady(), connection: qboConn, silent: qboConn ? silentSince(qboConn, new Date()) : null, stale: staleOf('quickbooks') };
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
@@ -3467,6 +3471,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * in, sending posted entries and disconnecting as for Odoo; every Xero call rotates the grant first
    * (src/books/connectors/xero.ts).
    */
+  /**
+   * 0212 — CONNECTING AGAIN, and a STALE GRANT tried again (src/books/staleGrants.ts). "Connect again" is a POST: it
+   * gives the grant held back first, then goes to the consent page — never the GET that starts it, which any link
+   * could open. Not confirmed, it goes on all the same (the owner is never locked out) and the callback says so.
+   */
+  const grantDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}) });
+  function ledgerAgain(system: 'xero' | 'quickbooks', ready: () => boolean): void {
+    const notOffered = system === 'xero' ? 'books.flash.xeroNotOffered' : 'books.flash.quickbooksNotOffered';
+    app.post(`/app/books/${system}/again`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      if (!ready()) return flashTo(reply, `/app/books#${system}`, notOffered);
+      await giveBackFirst(grantDeps(), s.businessId, system, personOf(s).id);
+      return reply.redirect(`/app/books/${system}/start`);
+    });
+    app.post(`/app/books/${system}/stale`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      if (!ready()) return flashTo(reply, `/app/books#${system}`, notOffered);
+      const r = await retryStaleGrants(grantDeps(), s.businessId, personOf(s).id, system);
+      const name = system === 'xero' ? 'Xero' : 'QuickBooks';
+      if (r.endedLive.length > 0) return flashTo(reply, `/app/books#${system}`, 'books.flash.staleEndedConnectAgain', { system: name });
+      return flashTo(reply, `/app/books#${system}`, r.left > 0 ? 'books.flash.staleNotYet' : 'books.flash.staleEnded', { system: name });
+    });
+  }
   const XERO_COOKIE = 'yf_xero_oauth';
   const xeroRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/xero/callback`;
   function xeroReady(): boolean { return Boolean(deps.xeroClient && deps.publicBaseUrl && deps.credentialKey); }
@@ -3494,10 +3521,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     const connected = await xeroConnector(xeroDeps(), await bookCurrencyOf(bid.value)).connect({ code: q.code.slice(0, 2048), redirectUri: xeroRedirect() });
     if (connected.kind === 'refused') return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotConnected', { why: xeroWhy(locale, connected.reason) });
-    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+    const saved = await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
       businessId: bid.value, system: 'xero', secret: connected.grant!.secret, by: personOf(s).id,
       settings: { tenantId: connected.source.tenantId, tenantName: connected.source.tenantName ?? '' },
     }));
+    // 0212 — an old grant this replaced that Xero had not confirmed given back: said, and tried again every hour
+    if (saved.stale) return flashTo(reply, '/app/books#xero', 'books.flash.connectedStale', { system: 'Xero', org: connected.source.tenantName ?? '' });
     return flashTo(reply, '/app/books#xero', 'books.flash.xeroConnected', { org: connected.source.tenantName ?? '' });
   });
   app.post('/app/books/xero/read', async (req, reply) => {
@@ -3515,11 +3544,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#xero', 'books.flash.xeroNotOffered');
     const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero'));
-    // Revoking the refresh token removes Nomi's connection in Xero too.
-    if (conn?.grant && xeroReady()) await xeroConnector(xeroDeps(), 'MAD').revoke(conn.grant);
-    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'xero', personOf(s).id));
+    // Revoking the refresh token removes Nomi's connection in Xero too. 0212 — not confirmed (or Xero not offered here
+    // any more, so nothing could ask), the grant is a stale one: said, and tried again every hour.
+    const gaveBack = !conn?.grant ? undefined : xeroReady() ? await xeroConnector(xeroDeps(), 'MAD').revoke(conn.grant) : 'not_given_back' as const;
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'xero', personOf(s).id, gaveBack));
+    if (gaveBack === 'not_given_back') return flashTo(reply, '/app/books#xero', 'books.flash.disconnectedStale', { system: 'Xero' });
     return flashTo(reply, '/app/books#xero', 'books.flash.xeroDisconnected');
   });
+  ledgerAgain('xero', xeroReady);
   /**
    * D9 — THE SHOP'S OWN QUICKBOOKS ONLINE. Connecting goes to Intuit's own page; back here come the code and the
    * company's realmId, the code is exchanged, the company checked, the grant sealed. Reading in, sending posted entries
@@ -3557,11 +3589,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     const connected = await qboConnector(qboDeps(), await bookCurrencyOf(bid.value)).connect({ code: q.code.slice(0, 512), realmId: q.realmId.slice(0, 30), redirectUri: qboRedirect() });
     if (connected.kind === 'refused') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(locale, 'quickbooks', connected.reason) });
-    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+    const saved = await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
       businessId: bid.value, system: 'quickbooks', secret: connected.grant!.secret, by: personOf(s).id,
       // R4 (item 1) — the realmId is sealed with the grant; the settings hold only the company's name, for the page.
       settings: { companyName: connected.source.companyName ?? '' },
     }));
+    if (saved.stale) return flashTo(reply, '/app/books#quickbooks', 'books.flash.connectedStale', { system: 'QuickBooks', org: connected.source.companyName ?? '' });
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksConnected', { org: connected.source.companyName ?? '' });
   });
   app.post('/app/books/quickbooks/read', async (req, reply) => {
@@ -3579,11 +3612,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
     const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks'));
-    // Revoking the refresh token ends Nomi's connection to the company at Intuit too.
-    if (conn?.grant && qboReady()) await qboConnector(qboDeps(), 'MAD').revoke(conn.grant);
-    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'quickbooks', personOf(s).id));
+    // Revoking the refresh token ends Nomi's connection to the company at Intuit too (0212: or it is a stale grant).
+    const gaveBack = !conn?.grant ? undefined : qboReady() ? await qboConnector(qboDeps(), 'MAD').revoke(conn.grant) : 'not_given_back' as const;
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'quickbooks', personOf(s).id, gaveBack));
+    if (gaveBack === 'not_given_back') return flashTo(reply, '/app/books#quickbooks', 'books.flash.disconnectedStale', { system: 'QuickBooks' });
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnected');
   });
+  ledgerAgain('quickbooks', qboReady);
   /**
    * R4 (item 10) — Intuit's DISCONNECT URL: where QuickBooks sends an owner who disconnected Nomi there. It says what
    * that means and changes NOTHING here: a link anyone can open must not disconnect anybody. The next read sees the

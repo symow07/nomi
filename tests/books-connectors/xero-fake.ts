@@ -30,6 +30,11 @@ export type XeroFake = {
   readonly calls: string[];
   /** The refresh tokens Xero would still honour. */
   readonly liveRefresh: () => readonly string[];
+  /** 0212 — the revocation endpoint does not answer (503) — or, with `false`, answers again. */
+  revokeDown(down?: boolean): void;
+  /** 0212 — revoking a refresh token ends EVERY connection the person made (Xero's own words, devblog 2020-08), not
+   * only the consent it came from — the case a stale grant given back must catch. */
+  revokeEndsEverything(): void;
 };
 
 export const XERO_CLIENT = { clientId: 'nomi-xero-test-client', clientSecret: 'xero-test-secret' };
@@ -57,6 +62,7 @@ export function xeroFake(): XeroFake {
   const idempotent = new Map<string, { body: string; answer: { status: number; body: unknown } }>();
   const calls: string[] = [];
   let tokenNo = 0;
+  let revokeIsDown = false; let revokeEndsAll = false;
 
   const issue = (event: string) => {
     const a = jwt({ client_id: XERO_CLIENT.clientId, authentication_event_id: event, scope: ['offline_access'], exp: Math.floor(clock / 1000) + 1800, n: ++tokenNo });
@@ -74,7 +80,9 @@ export function xeroFake(): XeroFake {
       if (h['Authorization'] !== `Basic ${Buffer.from(`${XERO_CLIENT.clientId}:${XERO_CLIENT.clientSecret}`).toString('base64')}`) return answer(400, { error: 'invalid_client' });
       const form = new URLSearchParams(init.body ?? '');
       if (u.pathname === '/connect/revocation') {
+        if (revokeIsDown) return answer(503, 'Service Unavailable');
         const t = form.get('token') ?? '';
+        if (revokeEndsAll && refreshLive.has(t)) { refreshLive = new Set(); access.clear(); return answer(200, ''); }
         // the connections made with this grant end: its tokens, from the same consent, stop working
         const event = eventOfRefresh.get(t);
         if (refreshLive.has(t) && event) {
@@ -165,5 +173,7 @@ export function xeroFake(): XeroFake {
     disconnect() { orgs = []; },
     systemAccount(code) { system.add(code); },
     liveRefresh: () => [...refreshLive],
+    revokeDown(down = true) { revokeIsDown = down; },
+    revokeEndsEverything() { revokeEndsAll = true; },
   };
 }

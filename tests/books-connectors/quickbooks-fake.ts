@@ -35,6 +35,8 @@ export type QboFake = {
   discoveryDown(): void;
   readonly created: { readonly body: Record<string, unknown>; readonly requestId: string | null }[];
   readonly liveRefresh: () => readonly string[];
+  /** 0212 — the revocation endpoint does not answer (503) — or, with `false`, answers again. */
+  revokeDown(down?: boolean): void;
   readonly calls: string[];
   readonly realmId: string;
 };
@@ -74,7 +76,7 @@ export function qboFake(): QboFake {
   const codes = new Map<string, string>();
   let day = 0; const issuedOn = new Map<string, number>();
   let lapsed = false;
-  let refreshRefused = false; let discoveryAnswers = true;
+  let refreshRefused = false; let discoveryAnswers = true; let revokeIsDown = false;
   const created: QboFake['created'] = [];
   const requests = new Map<string, { status: number; body: unknown }>();
   const calls: string[] = [];
@@ -97,6 +99,7 @@ export function qboFake(): QboFake {
     if (u.host === 'oauth.platform.intuit.com' || u.host === 'developer.api.intuit.com') {
       if (h['Authorization'] !== `Basic ${Buffer.from(`${QBO_CLIENT.clientId}:${QBO_CLIENT.clientSecret}`).toString('base64')}`) return answer(401, { error: 'invalid_client' });
       if (u.pathname === '/v2/oauth2/tokens/revoke') {
+        if (revokeIsDown) return answer(503, 'Service Unavailable');
         const t = (JSON.parse(init.body ?? '{}') as { token?: string }).token ?? '';
         const family = refreshLive.get(t);
         if (!family) return answer(400, { error: 'invalid_token' });
@@ -190,5 +193,6 @@ export function qboFake(): QboFake {
     refuseRefresh() { refreshRefused = true; },
     discoveryDown() { discoveryAnswers = false; },
     liveRefresh: () => [...refreshLive.keys()],
+    revokeDown(down = true) { revokeIsDown = down; },
   };
 }

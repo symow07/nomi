@@ -77,6 +77,25 @@ export function configProblems(config: ConnectorConfig, values: ConfigValues): s
 /** What a sign-in leaves to keep: the secret part is sealed by the caller (connector_credentials), never held here. */
 export type Grant = { readonly secret: string; readonly expiresAt: string | null };
 
+/**
+ * How a grant given back went: `given_back` when the system confirmed it (or said the token is no longer one it
+ * honours — nothing live is left either way); `nothing_held` when the system holds nothing to give back (a file; a key
+ * the owner deletes there); `not_given_back` when it could not be confirmed (no answer, an error, the client refused) —
+ * a credential still live there, which the caller keeps track of (src/books/staleGrants.ts).
+ */
+export type RevokeOutcome = 'given_back' | 'nothing_held' | 'not_given_back';
+/** A revocation endpoint's answer, read as RFC 7009 has it: 200 is done, and so is a token it no longer knows. */
+export function revokeAnswer(a: { readonly status: number; readonly text: string } | null): RevokeOutcome {
+  if (!a) return 'not_given_back';
+  if (a.status === 200) return 'given_back';
+  if (a.status === 400) {
+    let error: unknown = null;
+    try { error = (JSON.parse(a.text) as { error?: unknown }).error; } catch { /* not JSON: not a known answer */ }
+    if (error === 'invalid_token' || error === 'invalid_grant') return 'given_back';
+  }
+  return 'not_given_back';
+}
+
 export type Connected<S> = { readonly kind: 'connected'; readonly source: S; readonly grant: Grant | null };
 
 /** Where a record is in its source (a workbook's sheet and row; a system's model and id), for a problem found later. */
@@ -94,8 +113,8 @@ export interface BooksConnector<Source, Raw> {
   connect(values: ConfigValues): Promise<Connected<Source> | ConnectRefusal>;
   /** A grant renewed, or the reason it cannot be (revoked, expired). A system that holds nothing returns it as it is. */
   refresh(grant: Grant): Promise<Grant | ConnectRefusal>;
-  /** The grant given back to the system. Nothing to do for one that holds nothing. */
-  revoke(grant: Grant): Promise<void>;
+  /** The grant given back to the system, and whether the system said so. Nothing to do for one that holds nothing. */
+  revoke(grant: Grant): Promise<RevokeOutcome>;
   /** The mapping, both ways: the system's own form to the books, and the books to it. */
   toBooks(raw: Raw): { readonly data: BooksData; readonly problems: readonly BooksProblem[]; readonly where: Located };
   fromBooks(data: BooksData): Raw;

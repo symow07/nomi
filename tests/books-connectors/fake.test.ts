@@ -23,7 +23,7 @@ const fake: BooksConnector<{ readonly data: BooksData }, string> = {
     return { kind: 'connected', source: { data: remote.data }, grant: { secret: 'right-key', expiresAt: '2027-01-01' } };
   },
   async refresh(grant: Grant) { return grant; },
-  async revoke() {},
+  async revoke() { return 'nothing_held' as const; },
   toBooks: (raw) => ({ data: JSON.parse(raw) as BooksData, problems: [], where: () => ({ sheet: '', row: 0 }) }),
   fromBooks: (d) => canonical(d),
   async changedSince(source, cursor) {

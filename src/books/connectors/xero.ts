@@ -1,5 +1,5 @@
 import { OAUTH_TIMEOUT_MS, type OAuthFetch } from '../../connectors/oauth.js';
-import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
+import { refused, revokeAnswer, type BooksConnector, type ConnectRefusal, type Grant, type RevokeOutcome, type Located } from '../../core/books/connector.js';
 import { partyIce } from '../../core/books/identifiers.js';
 import {
   booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksParty, type BooksProblem,
@@ -115,9 +115,9 @@ function authEventOf(accessToken: string): string | null {
 }
 
 /** A refresh token given back: Xero removes the app's connections the owner made with it. */
-async function revokeToken(deps: XeroDeps, token: string): Promise<void> {
-  await call(deps, REVOKE, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ token }).toString() });
+async function revokeToken(deps: XeroDeps, token: string): Promise<RevokeOutcome> {
+  return revokeAnswer(await call(deps, REVOKE, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ token }).toString() }));
 }
 
 /** Where the owner is sent to let Nomi in, and choose the organisation. */
@@ -341,7 +341,7 @@ export function xeroConnector(deps: XeroDeps, bookCurrency: string): BooksConnec
       const r = await xeroAccess(deps, grant);
       return 'kind' in r ? r : r.grant;
     },
-    async revoke(grant: Grant) { await revokeToken(deps, grant.secret); },
+    async revoke(grant: Grant) { return revokeToken(deps, grant.secret); },
     toBooks: (raw) => xeroToBooks(raw, bookCurrency),
     fromBooks: (d) => booksToXero(d, bookCurrency),
     async changedSince(source, cursor) {

@@ -333,7 +333,7 @@ export function odooConnector(post: PublicPost, bookCurrency: string, today: () 
       // A key is not refreshed: it lasts until its own expiry, then a new one is made in Odoo (item 14).
       return grant.expiresAt !== null && grant.expiresAt <= today() ? refused('key_expired') : grant;
     },
-    async revoke() { /* the key is the owner's to delete in Odoo (Preferences → Account Security); Nomi forgets it */ },
+    async revoke() { return 'nothing_held' as const; /* the key is the owner's to delete in Odoo (Preferences → Account Security); Nomi forgets it */ },
     toBooks: (raw) => odooToBooks(raw, bookCurrency),
     fromBooks: (d) => booksToOdoo(d, bookCurrency),
     async changedSince(source, cursor) {

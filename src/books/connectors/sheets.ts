@@ -1,5 +1,5 @@
 import { endpointFor, refreshAccessToken, OAUTH_TIMEOUT_MS, type OAuthClient, type OAuthFetch } from '../../connectors/oauth.js';
-import { refused, type BooksConnector, type ConnectRefusal, type Grant } from '../../core/books/connector.js';
+import { refused, revokeAnswer, type BooksConnector, type ConnectRefusal, type Grant } from '../../core/books/connector.js';
 import type { BooksData } from '../../core/books/interchange.js';
 import type { XlsxCell, XlsxSheet, XlsxValue } from '../../net/xlsx.js';
 import { SHEETS, isTheNomiWorkbook, sheetsToBooks, workbookSheets } from './excel.js';
@@ -166,8 +166,8 @@ export function sheetsConnector(deps: SheetsDeps, bookCurrency: string): BooksCo
       return grant;
     },
     async revoke(grant: Grant) {
-      await call(deps, REVOKE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ token: grant.secret }).toString() });
+      return revokeAnswer(await call(deps, REVOKE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: grant.secret }).toString() }));
     },
     toBooks: (raw) => sheetsToBooks({ sheets: raw, date1904: false }, bookCurrency),
     fromBooks: (d) => workbookSheets(d).map((s) => ({ name: s.name, rows: new Map(s.rows.map((r, i) => [i + 1, r.map((c): XlsxCell =>
