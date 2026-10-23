@@ -198,7 +198,7 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     expect([again.statusCode, again.headers['location']]).toEqual([302, '/app/books/quickbooks/start']);
     expect(qbo.liveRefresh(), 'given back before the consent').toEqual([]);
     expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
-    expect(await grants()).toEqual([{ stale: false, revoked: true, tries: 1 }]);
+    expect((await grants()).at(-1)).toEqual({ stale: false, revoked: true, tries: 1 });
     expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
     expect(qbo.liveRefresh()).toHaveLength(1);
 

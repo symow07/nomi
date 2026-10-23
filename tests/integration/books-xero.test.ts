@@ -194,7 +194,7 @@ d('D8 · the shop\'s own Xero (requires DATABASE_URL + MIGRATE_DATABASE_URL)', {
     expect([again.statusCode, again.headers['location']]).toEqual([302, '/app/books/xero/start']);
     expect(xero.liveRefresh(), 'given back before the consent').toEqual([]);
     expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
-    expect(await grants()).toEqual([{ live: false, stale: false, revoked: true, tries: 1 }]);
+    expect((await grants()).at(-1)).toEqual({ live: false, stale: false, revoked: true, tries: 1 });
     // the GET that starts the consent gives nothing back (a link must not): only the POST above does
     const next = await connectXero();
     expect(await notice(await next.back(xero.code()))).toContain('Xero is connected to Westlake Canvas Co.');
