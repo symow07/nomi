@@ -60,7 +60,7 @@ service).
 - **Monthly, on the laptop**: `bash tools/fetch-backup.sh` pulls the newest
   daily pair and decrypts it; `bash tools/verify-restore.sh <dir>` must say
   4/4. This is the only proof that the *encrypted, uploaded* copy is usable
-  with the key you hold. The fetch then prunes `~/nomi-backups` on the same
+  with the key you hold. The fetch then prunes `~/nomi-private/backups` on the same
   180-day rule as `tools/backup.sh`; those two are the only things that ever
   prune the laptop's copies.
 - **If it stops running**: the app checks `backup_runs` daily at 06:30 UTC and,

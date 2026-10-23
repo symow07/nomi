@@ -234,7 +234,7 @@ _retention_delete_remote() {
 
 # prune_local <dir> <keep-days> <now-epoch> [<just-made>] [--dry-run]
 #
-# The laptop's folder (~/nomi-backups unless told otherwise): its
+# The laptop's folder (~/nomi-private/backups unless told otherwise): its
 # nomi-backup-<UTC> directories are the pairs — the manual ones, and the
 # dailies the monthly drill fetched. Only real directories directly inside
 # <dir> are looked at; a symbolic link is never followed and never removed.

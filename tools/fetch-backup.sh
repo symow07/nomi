@@ -2,12 +2,12 @@
 # fetch-backup.sh — pull the newest SCHEDULED backup from the bucket and decrypt
 # it, so the monthly drill on the laptop is one command:
 #
-#   bash tools/fetch-backup.sh            # newest daily/ pair → ~/nomi-backups/<name>/
-#   bash tools/verify-restore.sh ~/nomi-backups/<name>
+#   bash tools/fetch-backup.sh            # newest daily/ pair → ~/nomi-private/backups/<name>/
+#   bash tools/verify-restore.sh ~/nomi-private/backups/<name>
 #
 # This is the one check the job cannot do for itself: that the ENCRYPTED copy
 # in the bucket opens with the private key you hold. The key stays here
-# (~/nomi-backups/age-key.txt), never on Railway. Credentials come from
+# (~/nomi-private/backups/age-key.txt), never on Railway. Credentials come from
 # `railway bucket credentials` into rclone's environment — nothing on a
 # command line, nothing on disk.
 #
@@ -22,10 +22,10 @@
 set -uo pipefail
 
 BUCKET_NAME="${RAILWAY_BUCKET:-nomi-backups}"
-DEST="${1:-$HOME/nomi-backups}"
+DEST="${1:-$HOME/nomi-private/backups}"
 RETENTION_OK=""
 if [ -r "$(dirname "$0")/../backup/retention.sh" ] && . "$(dirname "$0")/../backup/retention.sh"; then RETENTION_OK=1; fi
-KEY="${AGE_KEY:-$HOME/nomi-backups/age-key.txt}"
+KEY="${AGE_KEY:-$HOME/nomi-private/backups/age-key.txt}"
 [ -f "$KEY" ] || { echo "age key not found at $KEY" >&2; exit 2; }
 command -v rclone >/dev/null || { echo "rclone not installed (brew install rclone)" >&2; exit 2; }
 command -v age >/dev/null || { echo "age not installed (brew install age)" >&2; exit 2; }

@@ -2,7 +2,7 @@
 # verify-restore.sh — prove a backup pair actually restores. An untested backup
 # is a belief, not a backup.
 #
-#   bash tools/verify-restore.sh ~/nomi-backups/nomi-backup-<ts>
+#   bash tools/verify-restore.sh ~/nomi-private/backups/nomi-backup-<ts>
 #
 # Builds a THROWAWAY PostgreSQL cluster in a temp directory, restores the pair
 # into it roles-first, and runs the four checks that were run against production
