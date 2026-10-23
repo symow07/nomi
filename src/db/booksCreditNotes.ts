@@ -168,7 +168,8 @@ export async function loadCreditNote(tx: Tx, businessId: string, id: string): Pr
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const r = (await sql<{ year: number | null; number: number | null; state: CreditNoteView['state']; issue_date: string; reason: string; currency: string;
     invoice_id: string; i_year: number; i_number: number; entry_id: string | null; total: string; as_issued: boolean;
-    b_code: string; b_name: string; b_address: string | null; b_country: string | null; b_ice: string | null; b_tax: string | null }>`
+    b_code: string; b_name: string; b_address: string | null; b_country: string | null; b_ice: string | null; b_tax: string | null;
+    b_registry: string | null; b_siret: string | null; b_registro: string | null }>`
     select c.year, c.number, c.state, c.issue_date::text as issue_date, c.reason, c.currency, c.invoice_id::text as invoice_id,
            i.year as i_year, i.number as i_number, c.entry_id::text as entry_id, credit_note_total(c.id)::text as total, c.party_name is not null as as_issued,
            -- issued: its own copy; a draft: the invoice's copy, which it will take at issue
@@ -176,7 +177,10 @@ export async function loadCreditNote(tx: Tx, businessId: string, id: string): Pr
            case when c.party_name is not null then c.party_address else i.party_address end as b_address,
            case when c.party_name is not null then c.party_country else i.party_country end as b_country,
            case when c.party_name is not null then c.party_ice else i.party_ice end as b_ice,
-           case when c.party_name is not null then c.party_tax_number else i.party_tax_number end as b_tax
+           case when c.party_name is not null then c.party_tax_number else i.party_tax_number end as b_tax,
+           case when c.party_name is not null then c.party_registry_number else i.party_registry_number end as b_registry,
+           case when c.party_name is not null then c.party_siret else i.party_siret end as b_siret,
+           case when c.party_name is not null then c.party_registro_mercantil else i.party_registro_mercantil end as b_registro
       from credit_notes c join invoices i on i.id = c.invoice_id
      where c.business_id = ${businessId}::uuid and c.id = ${id}::uuid`.execute(tx)).rows[0];
   if (!r) return null;
@@ -187,7 +191,8 @@ export async function loadCreditNote(tx: Tx, businessId: string, id: string): Pr
   return {
     id, key: r.number === null ? null : creditNoteKey(r.year!, r.number), state: r.state, issueDate: r.issue_date, reason: r.reason, currency: r.currency,
     invoiceId: r.invoice_id, invoiceKey: invoiceKey(r.i_year, r.i_number), entryId: r.entry_id, total: d(r.total),
-    billedTo: { code: r.b_code, name: r.b_name, address: r.b_address, country: r.b_country, ice: r.b_ice, taxNumber: r.b_tax, asIssued: r.as_issued },
+    billedTo: { code: r.b_code, name: r.b_name, address: r.b_address, country: r.b_country, ice: r.b_ice, taxNumber: r.b_tax, asIssued: r.as_issued,
+      registry: r.b_registry, siret: r.b_siret, registro: r.b_registro },
     lines: lines.map((l) => ({ invoiceLineNo: l.invoice_line_no, label: l.label, quantity: d(l.quantity), net: d(l.net), tax: d(l.tax) })),
   };
 }

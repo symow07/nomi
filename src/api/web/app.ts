@@ -280,6 +280,7 @@ import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
+import { checkRegistry } from '../../core/books/registry.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -3401,6 +3402,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
     const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), iceAsTyped(str('ice'))];
     const [taxNumber, address] = [str('taxNumber'), str('address')];
+    // R3 (0210) — the company registry number, country by country: hard rules refused, a doubtful check asked again
+    const reg = checkRegistry({ country: country || null, registry: str('registry'), siret: str('siret'), registro: str('registro'), taxNumber });
+    {
+      const locale = localeOf(req);
+      if (!reg.ok) return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRegistryRefused',
+        { why: reg.errors.map((e) => t(locale, `books.registry.problem.${e}` as MessageKey)).join(' ') });
+      if (reg.warnings.length > 0 && str('registryConfirmed') !== '1') return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRegistryCheck',
+        { why: reg.warnings.map((w) => t(locale, `books.registry.check.${w}` as MessageKey)).join(' ') });
+    }
     // D7 — the party's custom values, every required one there (the database checks the same).
     const form = Object.fromEntries(Object.entries(f).filter(([k, v]) => k.startsWith('cf_') && typeof v === 'string').map(([k, v]) => [k, (v as string).slice(0, 600)]));
     const custom = customFromForm((await withTenantTx(deps.db, bid, (tx) => fieldsOf(tx, bid))).filter((x) => !x.retired), 'party', form, 'cf_party_');
@@ -3415,8 +3425,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }
     try {
-      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address, custom)
-        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null}, ${JSON.stringify(custom.values)}::jsonb)`.execute(tx));
+      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address, custom, registry_number, siret, registro_mercantil)
+        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null}, ${JSON.stringify(custom.values)}::jsonb,
+                ${reg.value.registry}, ${reg.value.siret}, ${reg.value.registro})`.execute(tx));
     } catch { return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused'); }
     return flashTo(reply, '/app/books/invoices/new', 'books.flash.partyAdded');
   });

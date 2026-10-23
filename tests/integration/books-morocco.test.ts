@@ -178,7 +178,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     // the ICE given in E2's test above, and the year's last day
     expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
     const fec = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body;
-    expect(fec).toContain("Nomi&#39;s default filename convention. Your accountant may ask for a different one — you can change it here.");
+    expect(fec).toContain("Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.");
     expect(fec).toContain('001234567000089FEC20261231.txt');
     expect(fec).toContain('action="/app/books/fec/filename"');
     expect(fec).not.toMatch(/required|official|DGI-compliant/i);

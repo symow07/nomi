@@ -79,6 +79,26 @@ owner's rule of 2026-10-11). The section says that the front page's English yes 
 customer-facing sentences, which are still unsigned. `tests/parity/native-review-sitting.test.ts` holds the section to
 the code's exact words (one changed letter fails it) and holds that only the front page reads the flag.
 
+## Block R — the research acted on (2026-10-23): in review, with items held for the owner
+
+One PR (`phase5-R`, schema 210). PHASE-5.md "Stage R" has the record and the sources; INTUIT-QUESTIONNAIRE.md §R has
+the twelve Intuit items one by one.
+- **R2, built (0209):** the FEC's file name is Nomi's default `{ICE}FEC{YYYYMMDD}.txt`, the owner's to change, said as
+  a default. The Moroccan launch blocker is closed.
+- **R3, built (0210):** a party's company registry number (SIREN and SIRET, the UK company number, anything elsewhere,
+  Spain's Registro Mercantil entry), snapshotted on invoices and credit notes. Hard shapes refused; checksums
+  nobody publishes only warn.
+- **R4, built:** QuickBooks' realmID sealed; access tokens used until they end; a 401 refreshed once; endpoints from
+  the discovery document; each call logged with its intuit_tid; `no-store` and HSTS; Intuit's disconnect URL.
+- **Held for the owner:**
+  1. R1's period rule: it IS D10, and it would refuse entries the tests post today. The four-period reading and the
+     monthly default are recorded, not enforced.
+  2. Spain's NIF: entity-only, or also DNI and NIE?
+  3. A 302 for `/login/set-password?t=` and `/u?t=`: they send `no-referrer` today.
+  4. R1(d)'s Sage X3 claim: a named vendor in a public repo, unchecked here.
+  5. The questionnaire's verbatim questions: Codat's transcription, to be pasted or read.
+  6. Intuit's sandbox round trip (item 12): an account the owner creates.
+
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 
 `docs/PHASE-5.md`: the owner's decisions (no "version one"; Westlake is a test workspace; connectors Odoo / Sheets /

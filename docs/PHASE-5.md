@@ -1,8 +1,8 @@
 # Phase 5 — the full map
 
 > **STATUS, 2026-10-23: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
-> Blocks A, B, C, D, S and E are built, tested and merged (#375–#381, and E's review changes; schema 208). Nothing is
-> left to build (the owner, 2026-10-23). What remains is not code:
+> Blocks A, B, C, D, S and E are built, tested and merged (#375–#382; schema 208). Block R (the research acted on,
+> 0209–0210) is in review; its held items wait on the owner (Stage R below). What remains is not code:
 > 1. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
 > 2. **native signatures on four sentence sets**, read in one pass: the survey question, the survey's thank-you, the
 >    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
@@ -1032,6 +1032,88 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **After this: nothing is left to build** (the owner's order). The queue: the accountant's answer and the
     signatures, the spend and a deploy, and the owner's own reading of the Intuit file (INTUIT-QUESTIONNAIRE.md).
 
+### Stage R — acting on the research (the owner, 2026-10-23)
+
+The research behind these four items is the owner's, given in the block's brief. Where this session did not re-read a
+source, the claim is marked *reported* (the owner's research), as §0's convention asks.
+
+- **R1 · What a « période » is (D10's open question).** *Recorded, NOT built: the enforcement waits on the owner.*
+  - **No Moroccan source defines it** (*reported*, consistent with D10's own reading of 2026-10-22). Avis 24 §2.3 d)
+    uses the word and never defines it; "mois", "mensuel" and "trimestr*" appear nowhere in the Avis. Loi 9-88 art. 3
+    fixes CENTRALISATION once a month (once a year for art. 1 al. 5's small traders). That is a different thing.
+  - **The only text that defines the word is French** (*reported*): BOFiP BOI-BIC-DECLA-30-10-20-40 §140, « On définit
+    la période comme un intervalle de temps durant lequel des écritures sont enregistrées de manière chronologique, en
+    vue de leur centralisation (mois ou trimestre par exemple), afin d'établir des situations intermédiaires en cours
+    d'exercice comptable. » Its "par exemple" leaves the length open on purpose.
+  - **The owner's choice:** a per-workspace length, monthly or quarterly, MONTHLY by default. It is the one length that
+    lines up with Loi 9-88's monthly centralisation for a Moroccan workspace. It is a default, not a rule the law sets.
+  - **The four-period reading (2.3 d, literally):** the Avis limits « périodes COURANTES » to two, « la période en
+    cours et la période précédente », and then says the period of the previous year's closing entries and the period
+    of the opening entry « sont les seules périodes qui puissent en sus être ouvertes ». So at most FOUR periods are
+    open: two current ones in the exercice, the previous year's closing period, and the opening entry's period.
+    Counting all four as two would block a legitimate year-end.
+  - **What the code does today, checked:** it has NO periods. It holds "at most two open fiscal YEARS" (0169) and a
+    lock date the owner moves by hand (D2). That is not a two-period rule, and at a year-end it blocks nothing: the
+    year being closed and the new year are two years. So there is nothing over-strict to fix. Building the period rule
+    IS building D10: the opening mode, and an entry outside the open periods refused by the database for a Moroccan
+    workspace. That rule would refuse entries the integration suite posts today (Moroccan workspaces with entries
+    from January to May 2026), and history read in from a workbook, Sheets or Odoo. The brief says to stop on a rule
+    that breaks existing tests, so it is held for the owner (PROGRESS.md, "Block R").
+  - **Not written here: the Sage X3 claim** ("12 monthly periods, 20 open, so non-compliant as shipped"). It names a
+    vendor in a public repository, and this session could not check it. Held for the owner's source.
+- **R2 · The FEC's file name.** *(built 2026-10-23, 0209.)*
+  - **No official Moroccan FEC file name exists.** Checked 2026-10-22 (D4) against the Avis, CGI art. 210 and the DGI's
+    2025 report. And *reported*: the Avis 24 annex ends at "Id devise"; its full text has no "nom du fichier",
+    "extension", ".txt", ".csv", "séparateur", "encodage" or "ICE"; the DGI's Rapport d'activité 2025 (p. 97) calls
+    the e-reception system « achevés » and publishes no specification; Odoo's `l10n_ma` has no FEC export in any
+    version (only France's `l10n_fr_fec`); EBP Maroc's help centre gives France's SIREN-based rule; Efatora (UTF-8
+    with a BOM, `|`, 18 columns) names no file.
+  - **What Nomi does:** a DEFAULT, `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal year's last day),
+    configurable per workspace by its owner on the FEC page (`books_settings.fec_filename`; letters, digits, dots,
+    dashes, underscores, and only the two placeholders, checked by the app and the database).
+  - **The words on the page, exactly, so they cannot drift:** "Nomi's default filename convention. Your accountant may
+    ask for a different one — you can change it here." Never "required", "official" or "DGI-compliant"
+    (`tests/parity/fec-filename.test.ts` holds both).
+  - **Do not "fix" it to a name read on a blog.** If the DGI publishes a name, it becomes the default here, and stays
+    changeable.
+  - **ICE: fifteen positions, ALREADY** (0208, Block E's review): not fifteen digits, and only for a party in Morocco.
+  - The LAUNCH-CHECKLIST line is struck. The Moroccan section now blocks nothing (`MOROCCO_BLOCKERS` is empty).
+- **R3 · A party's company registry number.** *(built 2026-10-23, 0210.)*
+  - **What was missing:** the books carried a party's VAT number (`tax_number`, from Odoo's `vat` and Xero's
+    `TaxNumber`, printed on invoices), never its company registry number.
+  - **Now:** `parties.registry_number`, country-scoped, with `siret` (France, optional) and `registro_mercantil`
+    (Spain: Registro / Tomo / Folio / Hoja, free text by nature, RRM art. 3; Spanish invoices carry it beside the NIF,
+    Código de Comercio art. 24.1). All three are copied onto an invoice at issue and onto its credit notes, frozen
+    with the rest (0187's rule). A party is not a buyer, so a buyer's erasure never reaches them.
+  - **HARD, refused (app and database; `src/core/books/registry.ts`):** France, the SIREN, nine digits; SIRET fourteen,
+    its first nine the SIREN. UK, the Companies House number: eight digits, or ANY two capitals and six digits (no
+    prefix list: Companies House's own forum records FE, OE, PC and SG missing from its URI guide). A shorter numeric
+    entry is zero-padded (1234567 → 01234567). Input is normalised first (spaces out, capitals). Any other country:
+    kept as typed — no rule because no source.
+  - **Spain, held:** the brief's rule `^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$` is the form of an ENTITY's NIF. A Spanish
+    sole trader (autónomo) invoices under a NIF of the DNI's form (8 digits and a letter), and a foreign resident
+    under an NIE (X/Y/Z, 7 digits, a letter). As a hard rule it would refuse those customers. So until the owner
+    decides, Spain holds only the shape every NIF shares: nine capitals and digits.
+  - **SOFT, a warning the owner overrides, never a refusal:** the SIREN's Luhn sum (INSEE publishes only "9
+    chiffres"; La Poste is a known exception) and an entity NIF's control character (Orden EHA/451/2008 art. 2(c),
+    Decreto 2423/1975 art. tercero and RD 1065/2007 art. 22.1(c) say only « un carácter de control »). The form asks
+    again with "this looks like a typo"; a tick keeps it. The UK number has no check digit, and none is invented.
+  - **ACROSS FIELDS, refused:** a French VAT number present ends with the SIREN; a Spanish one is ES + the NIF. NOTHING
+    ties a UK VAT number to the company number. A missing VAT number is never wrong: a French company under the
+    threshold, or a Spanish one outside the Registro de Operadores Intracomunitarios, has none.
+  - **NOTHING DERIVED:** no VAT key computed from a SIREN, no control character "fixed", no VAT number from a CRN. No
+    lookup gates anything; none is called.
+  - **The Spanish field is labelled NIF.** CIF was repealed by RD 1065/2007 (in force 2008-01-01); "CIF" appears only
+    as a hint.
+  - **France: two official pages disagree** (*reported*): service-public F32135 says the SIRET goes on invoices, F31808
+    says the SIREN. Nomi stores the SIREN as THE registry identifier (the legal « numéro unique d'identification »),
+    takes the SIRET as optional, and prints what the customer gave.
+  - **Not yet:** no connector carries the number (the workbook, Sheets, Odoo's `company_registry`, Xero's
+    `CompanyNumber`, QuickBooks). Parties have no edit page, so a customer read in from one has none. Said on the
+    books' page (`books.notYet.registry`).
+- **R4 · Intuit's App Assessment — the code made TRUE before the owner answers.** *(built 2026-10-23; nothing
+  submitted.)* Item by item, with files, in docs/INTUIT-QUESTIONNAIRE.md §0.
+
 ### Dependencies at a glance
 
 ```
@@ -1274,8 +1356,6 @@ Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/bo
 - **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
 - **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
   with nothing given back, is not a credit note yet.
-- **A party outside Morocco has no company registry number** (the owner, 2026-10-23, #382). Its tax or VAT number is
-  carried (`parties.tax_number`, read from Odoo's `vat` and Xero's `TaxNumber`) and shown on an invoice. Its
-  company registry number is not: SIREN, a Registro Mercantil or Companies House number. Only a Moroccan party has an
-  ICE, so another country's registry number stays in the system it came from. An invoice to such a company would
-  normally show it. A launch blocker for shops selling to companies outside Morocco (LAUNCH-CHECKLIST.md).
+- **A company registry number travels in no connector** (since R3, 0210, the field exists: SIREN, NIF, company
+  number). It is given when a customer is added in Nomi. The workbook, Sheets, Odoo, Xero and QuickBooks do not carry
+  it, and a party read in from one has none.

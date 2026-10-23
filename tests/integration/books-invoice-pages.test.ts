@@ -113,4 +113,37 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect([tried.statusCode, tried.headers['location']]).toEqual([302, '/app/books']);
     expect((await as((q) => q(`select count(*)::int as n from parties`))).rows[0].n).toBe(1);
   });
+
+  it('R3 (0210) · a French customer\'s SIREN, SIRET and VAT, checked; the issued invoice keeps its copy whatever the party becomes', async () => {
+    // a doubtful SIREN (its check sum fails, which INSEE does not publish) is asked again, never refused
+    const doubt = await notice(await post('/app/books/parties', { code: 'C101', name: 'Société Douteuse', country: 'FR', registry: '123456789' }));
+    expect(doubt).toContain('That customer was not added yet: this SIREN looks like a typo');
+    expect((await as((q) => q(`select count(*)::int as n from parties where code = 'C101'`))).rows[0].n).toBe(0);
+    expect(await notice(await post('/app/books/parties', { code: 'C101', name: 'Société Douteuse', country: 'FR', registry: '123456789', registryConfirmed: '1' })))
+      .toContain('The customer is added.');
+    // a shape that is wrong, and a VAT number that is not the SIREN's, are refused
+    expect(await notice(await post('/app/books/parties', { code: 'C102', name: 'X', country: 'FR', registry: '12345' }))).toContain("not in its country's form");
+    expect(await notice(await post('/app/books/parties', { code: 'C102', name: 'X', country: 'FR', registry: '732829320', taxNumber: 'FR44552100554' })))
+      .toContain('a French VAT number ends with the company');
+    // the real one: SIREN, SIRET and VAT together
+    expect(await notice(await post('/app/books/parties', { code: 'C100', name: 'Toiles de Lyon SAS', country: 'FR', registry: '732 829 320',
+      siret: '73282932000074', taxNumber: 'FR44732829320' }))).toContain('The customer is added.');
+    const party = (await as((q) => q(`select id::text as id, registry_number, siret from parties where code = 'C100'`))).rows[0];
+    expect(party).toMatchObject({ registry_number: '732829320', siret: '73282932000074' });
+    const made = await post('/app/books/invoices', { party: party.id, issueDate: '2026-05-04', dueDate: '', currency: 'MAD', label: 'Commande Lyon',
+      label0: 'Sacs en toile', quantity0: '2', price0: '50', tax0: k.tax, account0: k.sales });
+    const inv = String(made.headers['location']).split('/').pop()!;
+    expect(await notice(await post(`/app/books/invoices/${inv}/issue`))).toContain('Issued as F-2026-0002');
+    const issued = (await get(`/app/books/invoices/${inv}`)).body;
+    expect(issued).toContain('<dt>SIREN</dt><dd><bdi>732829320</bdi></dd>');
+    expect(issued).toContain('<bdi>73282932000074</bdi>');
+    // the party changes later: the issued invoice does not
+    await admin.query(`update parties set registry_number = '552100554', siret = null, tax_number = null where id = $1`, [party.id]);
+    const after = (await get(`/app/books/invoices/${inv}`)).body;
+    expect(after).toContain('<dd><bdi>732829320</bdi></dd>');
+    expect(after).not.toContain('552100554');
+    // and the database holds the rules itself
+    await expect(admin.query(`update parties set registry_number = 'ABC' where id = $1`, [party.id])).rejects.toThrow(/parties_registry_shape/);
+    await expect(admin.query(`update parties set siret = '55210055400099', tax_number = 'FR11999999999' where id = $1`, [party.id])).rejects.toThrow(/parties_siret_shape|parties_vat_matches_registry/);
+  });
 });

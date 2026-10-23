@@ -38,6 +38,8 @@ export type InvoiceRow = {
 export type BilledTo = {
   readonly code: string; readonly name: string; readonly address: string | null; readonly country: string | null;
   readonly ice: string | null; readonly taxNumber: string | null; readonly asIssued: boolean;
+  /** R3 (0210) — the company registry number, the SIRET (France) and the Registro Mercantil entry (Spain). */
+  readonly registry: string | null; readonly siret: string | null; readonly registro: string | null;
 };
 export type InvoiceView = InvoiceRow & {
   readonly entryId: string | null;
@@ -77,7 +79,8 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const r = (await sql<{ year: number | null; number: number | null; party: string; issue_date: string; due_date: string | null; currency: string;
     total: string; credited: string; paid: string; state: string; label: string | null; entry_id: string | null; as_issued: boolean;
-    b_code: string; b_address: string | null; b_country: string | null; b_ice: string | null; b_tax: string | null }>`
+    b_code: string; b_address: string | null; b_country: string | null; b_ice: string | null; b_tax: string | null;
+    b_registry: string | null; b_siret: string | null; b_registro: string | null }>`
     select i.year, i.number, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
            invoice_total(i.id)::text as total, invoice_credited(i.id)::text as credited, invoice_paid(i.id)::text as paid, i.state, i.label,
            i.entry_id::text as entry_id, i.party_name is not null as as_issued,
@@ -87,7 +90,10 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
            case when i.party_name is not null then i.party_address else p.address end as b_address,
            case when i.party_name is not null then i.party_country else p.country end as b_country,
            case when i.party_name is not null then i.party_ice else p.ice end as b_ice,
-           case when i.party_name is not null then i.party_tax_number else p.tax_number end as b_tax
+           case when i.party_name is not null then i.party_tax_number else p.tax_number end as b_tax,
+           case when i.party_name is not null then i.party_registry_number else p.registry_number end as b_registry,
+           case when i.party_name is not null then i.party_siret else p.siret end as b_siret,
+           case when i.party_name is not null then i.party_registro_mercantil else p.registro_mercantil end as b_registro
       from invoices i join parties p on p.id = i.party_id where i.business_id = ${businessId}::uuid and i.id = ${id}::uuid`.execute(tx)).rows[0];
   if (!r) return null;
   const lines = (await sql<{ line_no: number; label: string; quantity: string; unit_price: string; account: string; tax_code: string | null; net: string; tax: string }>`
@@ -100,7 +106,8 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
   return {
     id, key: r.number === null ? null : invoiceKey(r.year!, r.number), party: r.party, issueDate: r.issue_date, dueDate: r.due_date,
     currency: r.currency, total: d(r.total), paid: d(r.paid), label: r.label, entryId: r.entry_id,
-    billedTo: { code: r.b_code, name: r.party, address: r.b_address, country: r.b_country, ice: r.b_ice, taxNumber: r.b_tax, asIssued: r.as_issued },
+    billedTo: { code: r.b_code, name: r.party, address: r.b_address, country: r.b_country, ice: r.b_ice, taxNumber: r.b_tax, asIssued: r.as_issued,
+      registry: r.b_registry, siret: r.b_siret, registro: r.b_registro },
     credited: d(r.credited), status: statusOf(r.state, d(r.total), d(r.credited), d(r.paid), r.due_date, today),
     lines: lines.map((l) => ({ lineNo: l.line_no, label: l.label, quantity: d(l.quantity), unitPrice: d(l.unit_price), account: l.account, taxCode: l.tax_code, net: d(l.net), tax: d(l.tax) })),
     payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund' })),
