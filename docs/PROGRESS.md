@@ -101,7 +101,7 @@ the twelve Intuit items one by one.
 - **Found, not fixed:** connecting QuickBooks (or Xero) again WHILE connected archives the old grant here but does not
   revoke it at Intuit, so that refresh token stays live there until it expires (100 days). Found by R4's reconnect
   test. The disconnect button does revoke. The fix is small (revoke the old grant when a new one replaces it), but it
-  is a send-side change for later.
+  is a change to how the connectors connect, left for later.
 
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 
