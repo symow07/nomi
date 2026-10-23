@@ -29,6 +29,24 @@ export type FecIdentity = { readonly ice: string | null; readonly taxId: string 
  */
 export const FEC_ENVELOPE = { separator: '|', lineEnd: '\r\n', dateFormat: 'AAAAMMJJ', decimal: '.' } as const;
 
+/**
+ * R2 (0209; the owner, 2026-10-23) — THE FILE'S NAME IS NOMI'S DEFAULT, NOT A RULE. No official Moroccan FEC file
+ * name exists (docs/PHASE-5.md, R2): this is the business's ICE, "FEC" and the fiscal year's last day, and each
+ * workspace may set its own. Never call it required, official or the DGI's.
+ */
+export const FEC_FILENAME_DEFAULT = '{ICE}FEC{YYYYMMDD}.txt';
+const FEC_FILENAME_TOKENS = ['{ICE}', '{YYYYMMDD}'] as const;
+/** Why a pattern cannot be a file name, or null: the characters the database holds, and only the two placeholders. */
+export function fecFileNameProblem(pattern: string): 'shape' | 'placeholder' | null {
+  if (!/^[A-Za-z0-9_{}-][A-Za-z0-9_.{}-]{0,79}$/.test(pattern)) return 'shape';
+  const rest = FEC_FILENAME_TOKENS.reduce((s, tok) => s.split(tok).join(''), pattern);
+  return /[{}]/.test(rest) ? 'placeholder' : null;
+}
+/** The year's file name from the workspace's pattern: the ICE (none given: nothing) and the year's last day. */
+export function fecFileName(pattern: string, o: { readonly ice: string | null; readonly closesOn: string }): string {
+  return pattern.split('{ICE}').join(o.ice ?? '').split('{YYYYMMDD}').join(o.closesOn.replace(/-/g, ''));
+}
+
 export type FecLine = {
   readonly journalCode: string; readonly journalName: string; readonly number: number; readonly entryDate: string;
   readonly accountCode: string; readonly accountName: string; readonly partyCode: string | null; readonly partyName: string | null;

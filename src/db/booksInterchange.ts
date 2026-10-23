@@ -168,14 +168,14 @@ async function applyBooks(
   const last = new Map((await sql<{ kind: RecordKind; key: string; digest: string; nomi_id: string | null }>`
     select kind, key, digest, nomi_id::text as nomi_id from connector_records
      where business_id = ${businessId}::uuid and system = ${system}`.execute(tx)).rows.map((r) => [`${r.kind}:${r.key}`, r]));
-  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: string }>`
-    select id::text as id, starts_on::text as starts_on, ends_on::text as ends_on, state from fiscal_years where business_id = ${businessId}::uuid`.execute(tx)).rows;
-  const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
+  // D10 (0211) — each year's own lock: the one thing that decides whether a day can be written
+  const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: string; lock_date: string | null }>`
+    select id::text as id, starts_on::text as starts_on, ends_on::text as ends_on, state, lock_date::text as lock_date from fiscal_years where business_id = ${businessId}::uuid`.execute(tx)).rows;
   // E3 (0207) — an entry NEW to Nomi and dated before the open window is history, not in the books: set apart here,
   // before anything is checked or written, so nothing of it reaches an entry. An entry Nomi already holds, or read in
   // before, is never history: a change to it is checked as always (and refused where its period is closed). Where
   // they cannot be set apart (`refuse`: Sheets), the same entries are refused for that reason, and counted.
-  const opensOn = firstOpenDay(years.map((y) => ({ startsOn: y.starts_on, endsOn: y.ends_on, state: y.state })), lock);
+  const opensOn = firstOpenDay(years.map((y) => ({ startsOn: y.starts_on, endsOn: y.ends_on, state: y.state, lockDate: y.lock_date })));
   const before = given.entries.filter((e) =>
     isHistory(e.date, opensOn) && !held.has(`entry:${e.key}`) && !last.get(`entry:${e.key}`)?.nomi_id);
   const refusedBefore = new Set(setHistoryApart ? [] : before.map((e) => e.key));
@@ -279,7 +279,7 @@ async function applyBooks(
     if (refusedBefore.has(e.key)) { at('entry', e.key, 'Date', 'before_books'); continue; }
     const y = years.find((f) => f.starts_on <= e.date && e.date <= f.ends_on);
     if (!y) { at('entry', e.key, 'Date', 'no_fiscal_year'); continue; }
-    if (y.state !== 'open' || (lock !== null && e.date <= lock)) { at('entry', e.key, 'Date', 'period_closed'); continue; }
+    if (y.state !== 'open' || (y.lock_date !== null && e.date <= y.lock_date)) { at('entry', e.key, 'Date', 'period_closed'); continue; }
     yearOf.set(e.key, y.id);
   }
   if (problems.length > 0) {

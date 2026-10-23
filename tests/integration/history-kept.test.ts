@@ -98,7 +98,7 @@ d('E3 · imported history, kept as a document and never in the books (requires D
       return fy;
     });
     // The books open on 2026-04-01: the year is 2026, locked to the end of March.
-    await admin.query(`update books_settings set lock_date = '2026-03-31' where business_id = $1`, [BIZ]);
+    await admin.query(`update fiscal_years set lock_date = '2026-03-31' where business_id = $1 and '2026-03-31' between starts_on and ends_on`, [BIZ]);
     const { createDb } = await import('../../src/db/client.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
     const { documentStoresFrom } = await import('../../src/db/documents.js');

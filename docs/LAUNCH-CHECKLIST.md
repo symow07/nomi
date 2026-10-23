@@ -102,33 +102,33 @@ its name is a file that does not work:
   kept with its court (Code de commerce, art. 49 and 154), its number unchecked:
   no rule because no source, not "no rule yet". The FEC page names any of the
   three still missing.
-- **The FEC named as the DGI requires.** Checked on 2026-10-22:
-  - the Avis n° 24 sets no name and no envelope (Article 2 and point 3 name
-    the file and its fields only);
-  - the CGI 2026, article 210, asks for "une copie du fichier des écritures
-    comptables établi selon un format électronique", with no name;
-  - the DGI's 2025 activity report says its system for receiving FECs
-    electronically is built, and publishes no specification;
-  - the DGI's EDI specification (cahier des charges du mode EDI) lets its XML
-    files be named freely — those are declarations, not the FEC, so that rule
-    is not assumed here either.
-
-  So the name is NOT known. It is not inferred from the French convention
-  (SIREN + "FEC" + closing date). It waits for the DGI's own text, or the
-  owner's accountant's confirmation of what the DGI accepts.
+- ~~**The FEC named as the DGI requires.**~~ **Closed (R2, 0209, 2026-10-23):
+  no official name exists, so the name is a configurable default.** Checked on
+  2026-10-22 and again for R2: the Avis n° 24 annex ends at "Id devise" and sets
+  no name, extension, separator or encoding; CGI art. 210 asks for "une copie du
+  fichier des écritures comptables" with no name; the DGI's 2025 activity report
+  says its reception system is built and publishes no specification. Nomi's
+  default is `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal
+  year's last day), and each workspace's owner can change it on the FEC page,
+  which says, word for word: "Nomi's default filename convention. Your
+  accountant may ask for a different one — you can change it here." Never
+  "required", "official" or "DGI-compliant" (PHASE-5.md, R2).
 
 Enforced in `tools/books-area.mjs`: for a workspace whose country is Morocco,
 `--on` refuses while `MOROCCO_BLOCKERS` (`tools/lib/books-blockers.mjs`) names
-an item.
+an item. **Since R2 it names none:** nothing in this section blocks any more.
 
 
 ## Before the books are switched on for a shop selling to companies OUTSIDE Morocco — BLOCKING (the owner, 2026-10-23)
 
-- **A party registry-number field.** A customer or supplier outside Morocco has a field for its tax or VAT number
-  (`parties.tax_number`, shown on invoices), not for its company registry number (SIREN, a Registro Mercantil or
-  Companies House number). That number is not carried, and an invoice to such a company would normally show it.
-  Only a Moroccan party has an ICE (0208). `tools/books-area.mjs` cannot know whom a shop sells to, so this one is the
-  operator's to check before `--on`: ask the owner. Said to owners on the books' page (`books.notYet.registry`).
+- ~~**A party registry-number field.**~~ **Built (R3, 0210, 2026-10-23)** for France (SIREN, SIRET), the United
+  Kingdom (company number) and every other country (kept as typed), with Spain's Registro Mercantil entry; copied
+  onto invoices and credit notes at issue (PHASE-5.md, R3).
+- ~~**Spain's NIF rule.**~~ **Decided and built (the owner, 2026-10-23):** all three forms (an entity's, a person's,
+  a foreign resident's NIE) pass; any other nine capitals and digits warn, never refuse. Nothing in this section
+  blocks any more.
+- **Not blocking, said on the books' page (`books.notYet.registry`):** no connector carries the registry number yet.
+
 ## Start early — lead-time items (the owner, 2026-10-22)
 
 These cost nothing to begin and can each turn a ready product into a wait of

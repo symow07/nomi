@@ -457,7 +457,10 @@ import type { Db } from './client.js';
 // 206 = the business's own ICE, IF and RC with its court, on its profile and in its FEC (0206).
 // 207 = imported history kept as a document, marked "history, not in the books" (0207).
 // 208 = one rule for the ICE: a party's is fifteen positions, as the business's, and only a party in Morocco has one (0208).
-export const REQUIRED_SCHEMA_VERSION = 208;
+// 209 = the FEC's file name: Nomi's default, the workspace's to change (0209).
+// 210 = a party's company registry number, the SIRET and the Registro Mercantil entry, copied onto invoices (0210).
+// 211 = a lock date for each fiscal year; the books' start; Avis 24's periods kept on the set of locks (0211).
+export const REQUIRED_SCHEMA_VERSION = 211;
 
 export type SchemaState = {
   readonly required: number;

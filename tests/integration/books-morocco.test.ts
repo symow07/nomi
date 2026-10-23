@@ -108,7 +108,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     expect(page).toContain('The FEC of this year (9 lines)');
     const r = await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } });
     expect(r.statusCode).toBe(200);
-    expect(String(r.headers['content-disposition'])).toContain('FEC-2026-01-01-2026-12-31.txt');
+    expect(String(r.headers['content-disposition'])).toContain('FEC20261231.txt');
     const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));
     expect(lines[0]).toEqual(['Code_Journal', 'Libelle_Journal', 'Num_Ecriture', 'Date_Ecriture', 'Num_Compte', 'Libelle_Compte', 'Num_Compte_Aux',
       'Libelle_Compte_Aux', 'Ref_Piece', 'Date_Piece', 'Libelle_Ecriture', 'Montant_Debit', 'Montant_Credit', 'Lettrage_Ecriture', 'Date_Lettrage',
@@ -168,6 +168,34 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     // what changed is audited by name, never by value
     const audit = (await admin.query(`select detail from channel_audit where business_id = $1 and action = 'update_profile' order by id desc limit 1`, [BIZ])).rows[0].detail;
     expect(audit).toEqual({ fields: ['legal_ice', 'legal_if', 'legal_rc', 'legal_rc_court'] });
+  });
+
+  it('R2 · THE FEC\'S FILE NAME: Nomi\'s default from the ICE and the year\'s end, changed by the owner only, never called required', async () => {
+    const name = async () => String((await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } })).headers['content-disposition']);
+    const set = (pattern: string, who = owner) => app.inject({ method: 'POST', url: '/app/books/fec/filename',
+      payload: new URLSearchParams({ pattern }).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
+    const pattern = async () => (await admin.query(`select fec_filename from books_settings where business_id = $1`, [BIZ])).rows[0]?.fec_filename ?? null;
+    // the ICE given in E2's test above, and the year's last day
+    expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
+    const fec = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body;
+    expect(fec).toContain("Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.");
+    expect(fec).toContain('001234567000089FEC20261231.txt');
+    expect(fec).toContain('action="/app/books/fec/filename"');
+    // the block's own words, tags aside (the input's `required` attribute is HTML, not a claim)
+    const block = (/<div class="block" id="file-name">[\s\S]*?<\/div>/.exec(fec)?.[0] ?? '').replace(/<[^>]*>/g, ' ');
+    expect(block).toContain('default filename convention');
+    expect(block).not.toMatch(/required|official|DGI-compliant/i);
+    // staff and the accountant read it, change nothing
+    const seen = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: accountant } })).body;
+    expect(seen).not.toContain('action="/app/books/fec/filename"');
+    for (const who of [staff, accountant]) await set('{ICE}.txt', who);
+    expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
+    // the owner's own, and a bad one refused with nothing changed
+    expect(await notice(await set('FEC_{ICE}_{YYYYMMDD}.txt'))).toContain('File name saved: FEC_{ICE}_{YYYYMMDD}.txt.');
+    expect(await name()).toBe('attachment; filename="FEC_001234567000089_20261231.txt"');
+    expect(await notice(await set('../{SIREN}.txt'))).toContain('That file name was not saved.');
+    expect(await pattern()).toBe('FEC_{ICE}_{YYYYMMDD}.txt');
+    await expect(admin.query(`update books_settings set fec_filename = '../x.txt' where business_id = $1`, [BIZ])).rejects.toThrow(/books_settings_fec_filename_shape/);
   });
 
   it('0208 · ONE RULE FOR THE ICE: a party\'s is fifteen positions, checked as the business\'s, only for a party in Morocco, by the form and the database alike', async () => {

@@ -9,7 +9,7 @@ import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
 import { xeroAccess, type XeroDeps } from './connectors/xero.js';
-import { qboAccess, type QboDeps } from './connectors/quickbooks.js';
+import { qboWithAccess, type QboDeps } from './connectors/quickbooks.js';
 import { sentTo } from './writeBack.js';
 
 /**
@@ -67,15 +67,16 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     read = await booksConnector('xero', { bookCurrency, xero: deps.xero })!
       .changedSince({ accessToken: access.accessToken, tenantId: conn.settings['tenantId'] }, conn.cursor);
   } else if (system === 'quickbooks') {
-    if (!deps.quickbooks || !conn.settings['realmId']) return { kind: 'refused', reason: 'source_missing' };
-    // Intuit's refresh token changes every 24 hours: the one it returns is kept before anything is read with it.
-    const access = await qboAccess(deps.quickbooks, conn.grant);
-    if ('kind' in access) return refuse(access.reason);
-    if (access.grant.secret !== conn.grant.secret) {
-      await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', access.grant.secret, by));
-    }
-    read = await booksConnector('quickbooks', { bookCurrency, quickbooks: deps.quickbooks })!
-      .changedSince({ accessToken: access.accessToken, realmId: conn.settings['realmId'] }, conn.cursor);
+    if (!deps.quickbooks) return { kind: 'refused', reason: 'source_missing' };
+    // R4 — the access token used again while good (refreshed only near its end, or once on a 401); whatever grant
+    // Intuit returns (its refresh token changes every 24 hours) kept before anything is read with it. The realmId is
+    // in the sealed grant, never in the connection's settings.
+    const qbo = deps.quickbooks;
+    const got = await qboWithAccess(qbo, conn.grant,
+      (g) => withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', g.secret, by)),
+      (source) => booksConnector('quickbooks', { bookCurrency, quickbooks: qbo })!.changedSince(source, conn.cursor));
+    if (got.kind === 'refused') return refuse(got.reason);
+    read = got;
   } else {
     if (!deps.odoo) return { kind: 'refused', reason: 'unreachable' };
     const odoo = booksConnector('odoo', { bookCurrency, odoo: deps.odoo })!;

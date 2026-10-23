@@ -1,8 +1,8 @@
 # Phase 5 — the full map
 
 > **STATUS, 2026-10-23: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
-> Blocks A, B, C, D, S and E are built, tested and merged (#375–#381, and E's review changes; schema 208). Nothing is
-> left to build (the owner, 2026-10-23). What remains is not code:
+> Blocks A, B, C, D, S and E are built, tested and merged (#375–#382; schema 208). Block R (the research acted on,
+> 0209–0210) is in review; its held items wait on the owner (Stage R below). What remains is not code:
 > 1. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
 > 2. **native signatures on four sentence sets**, read in one pass: the survey question, the survey's thank-you, the
 >    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
@@ -565,7 +565,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
       - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the DGI has published no name
         for the FEC file (checked 2026-10-22: the Avis, CGI article 210, the DGI's 2025 report). `tools/books-area.mjs`
         refuses a Moroccan workspace until it is known. (The business's own ICE, IF and RC are held since E2, 0206.)
-- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *Not built yet.*
+- **D10 · The opening mode, and the two periods after it** (the owner, 2026-10-22). *(built 2026-10-24, 0211, option A: see
+  Stage R, R1.)*
   - **A one-time opening mode per workspace** takes the opening balances, as ONE opening entry at the start date, in
     its own period. It is recorded with its date and who ran it.
   - **After it, for a Moroccan workspace, the two-period rule applies automatically:** only the current and the
@@ -1032,6 +1033,148 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **After this: nothing is left to build** (the owner's order). The queue: the accountant's answer and the
     signatures, the spend and a deploy, and the owner's own reading of the Intuit file (INTUIT-QUESTIONNAIRE.md).
 
+### Stage R — acting on the research (the owner, 2026-10-23)
+
+The research behind these four items is the owner's, given in the block's brief. Where this session did not re-read a
+source, the claim is marked *reported* (the owner's research), as §0's convention asks.
+
+- **R1 · What a « période » is (D10's open question).** *Recorded, NOT built: the enforcement waits on the owner.*
+  - **No Moroccan source defines it** (*reported*, consistent with D10's own reading of 2026-10-22). Avis 24 §2.3 d)
+    uses the word and never defines it; "mois", "mensuel" and "trimestr*" appear nowhere in the Avis. Loi 9-88 art. 3
+    fixes CENTRALISATION once a month (once a year for art. 1 al. 5's small traders). That is a different thing.
+  - **The only text that defines the word is French** (*reported*): BOFiP BOI-BIC-DECLA-30-10-20-40 §140, « On définit
+    la période comme un intervalle de temps durant lequel des écritures sont enregistrées de manière chronologique, en
+    vue de leur centralisation (mois ou trimestre par exemple), afin d'établir des situations intermédiaires en cours
+    d'exercice comptable. » Its "par exemple" leaves the length open on purpose.
+  - **The owner's choice:** a per-workspace length, monthly or quarterly, MONTHLY by default. It is the one length that
+    lines up with Loi 9-88's monthly centralisation for a Moroccan workspace. It is a default, not a rule the law sets.
+  - **The four-period reading (2.3 d, literally):** the Avis limits « périodes COURANTES » to two, « la période en
+    cours et la période précédente », and then says the period of the previous year's closing entries and the period
+    of the opening entry « sont les seules périodes qui puissent en sus être ouvertes ». So at most FOUR periods are
+    open: two current ones in the exercice, the previous year's closing period, and the opening entry's period.
+    Counting all four as two would block a legitimate year-end.
+  - **What the code does today, checked:** it has NO periods. It holds "at most two open fiscal YEARS" (0169) and a
+    lock date the owner moves by hand (D2). That is not a two-period rule, and at a year-end it blocks nothing: the
+    year being closed and the new year are two years. So there is nothing over-strict to fix. Building the period rule
+    IS building D10: the opening mode, and an entry outside the open periods refused by the database for a Moroccan
+    workspace. That rule would refuse entries the integration suite posts today (Moroccan workspaces with entries
+    from January to May 2026), and history read in from a workbook, Sheets or Odoo. The brief says to stop on a rule
+    that breaks existing tests, so it is held for the owner (PROGRESS.md, "Block R").
+  - **The owner's answer (2026-10-23): build D10 — forward-only, ON the lock date.** Three rules: periods are built on
+    the lock date and never beside it (closing a period sets the lock; the lock stays the single source of truth);
+    each workspace gets a books-start date, before which everything is history and no period rule applies; imports
+    are exempt, and visibly so. If building on the one lock date turns out impossible, stop before building two.
+  - **Why one lock date is not enough — STOPPED here, as the owner asked (2026-10-24).** The lock is one date for
+    the whole workspace: everything on or before it is closed (`books_settings.lock_date`, checked in one place,
+    `books_day_writable`, 0189). §2.3 d) lets the previous exercice's closing period stay open beside the current
+    exercice's two. One date cannot express that once the current exercice passes its second period. Monthly
+    periods, 2026 not yet closed, 2027 begun:
+    - in February 2027 the Avis allows January and February 2027 (the two current periods) and December 2026 (the
+      closing period) open together;
+    - to open March 2027, January 2027 must close: the lock moves to 31 January 2027, and that closes all of 2026,
+      December included;
+    - so with one date, either December 2026 stays open and 2027 is stuck at January–February until 2026 is closed,
+      or December closes before its year is closed. The first is exactly the over-strict year-end the four-period
+      reading exists to avoid.
+    The three ways out, for the owner:
+    - **A (recommended): a lock date for each fiscal year.** Still the only thing that decides what can be written,
+      just kept per exercice. Closing a period moves its own year's lock; closing a year sets that year's lock to its
+      last day. Two years' locks cover different days, so they cannot disagree. D2's functions are re-made per year.
+    - **B: one lock date, plus the previous year's last period as an exception** for closing entries. This is a second
+      rule beside the lock, which the owner ruled out.
+    - **C: one lock date, strict.** The previous year must be closed before the current year's third period opens.
+      It meets the Avis's "two current periods", but blocks the year-end above.
+  - **BUILT: option A (the owner, 2026-10-24; 0211).**
+    - **A lock per fiscal year** (`fiscal_years.lock_date`); the workspace-wide one is gone. **ONE predicate decides a
+      write:** an entry's date after its own year's lock (`books_day_writable`: the year open, the day inside it, after
+      its lock). It reads no period, no calendar day and no start, and nothing else grants or denies a write. Its one
+      exception is unchanged from D2: inside `books_close_year`, the year's own closing entry.
+    - **§2.3 d) is a rule on the SET of locks** (`books_period_floors`). On the workspace's local day, for a Moroccan
+      workspace whose books have started, it gives the lowest each open year's lock may be: the exercice in
+      progress keeps its current period and the one before; an earlier open year keeps only its last period (the
+      closing period); the opening entry's day sits inside the first of those. Three things use it:
+      - the worker raises a lock below its floor every hour (`books_roll_periods`, recorded as the periods' doing,
+        `period_locks` action `period`);
+      - a reopening that would go below one is refused (`books_reopen_year`);
+      - a page can ask what is out of line (`books_period_problems`).
+      None of them refuses a write.
+    - **The two invariants agree.** 0169 keeps at most two years open, and the floors name at most those two years;
+      a test walks two years of days to hold it.
+    - **The books' start, once** (`books_start`, by the owner, with the period length, month or quarter, MONTHLY by
+      default). Its year's lock goes to the day before; a reopening never goes below it. Everything earlier is
+      history: E3's window opens at the day after each year's own lock (`firstOpenDay`), so an import's entries
+      before it are set apart, kept as the file, never in the books.
+    - **Imports are exempt, and visibly so:** history never reaches the books (so never the FEC); an import inside the
+      window arrives as drafts the owner posts.
+    - **A workspace outside Morocco** keeps the manual lock: no floors, whatever the day.
+    - **The named test** (`tests/integration/books-periods.test.ts`, "FEBRUARY 2027"): on 15 February 2027, January and
+      February 2027 and December 2026 are open together; on 1 March 2027, January 2027 closes and December 2026 stays
+      open. Every day in those tests is named, so they do not depend on the day they run.
+    - **Not built:** a journal of its own for the opening entry. The opening entry is any entry dated the start day,
+      written before that period closes.
+  - **Imports and the FEC (rule c), checked:** the FEC's eighteen fields have none that says "imported" (annex 3:
+    the journal, the entry's number and date, the account, the auxiliary account, the document, the label, the
+    amounts, the lettrage, the validation date, the currency). None is invented. Nothing needs one: history set apart
+    by E3 is not in the books at all, so it never reaches the FEC; an imported entry inside the window is a draft the
+    owner posts, an ordinary entry from then on. The document store keeps the source file, so the distinction stays
+    in the data (`documents.history_entries`, 0207).
+- **R2 · The FEC's file name.** *(built 2026-10-23, 0209.)*
+  - **No official Moroccan FEC file name exists.** Checked 2026-10-22 (D4) against the Avis, CGI art. 210 and the DGI's
+    2025 report. And *reported*: the Avis 24 annex ends at "Id devise"; its full text has no "nom du fichier",
+    "extension", ".txt", ".csv", "séparateur", "encodage" or "ICE"; the DGI's Rapport d'activité 2025 (p. 97) calls
+    the e-reception system « achevés » and publishes no specification.
+  - **No existing open-source Moroccan FEC export was available to reuse** (verified against its source, 2026-10-24),
+    so Nomi builds its own from the Avis. The vendor notes behind this are kept outside the repository (CLAUDE.md §2).
+  - **What Nomi does:** a DEFAULT, `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal year's last day),
+    configurable per workspace by its owner on the FEC page (`books_settings.fec_filename`; letters, digits, dots,
+    dashes, underscores, and only the two placeholders, checked by the app and the database).
+  - **The words on the page, exactly, so they cannot drift** (`tests/parity/fec-filename.test.ts` holds both; never
+    "required", "official" or "DGI-compliant"):
+
+    > Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.
+
+  - **Do not "fix" it to a name read on a blog.** If the DGI publishes a name, it becomes the default here, and stays
+    changeable.
+  - **ICE: fifteen positions, ALREADY** (0208, Block E's review): not fifteen digits, and only for a party in Morocco.
+  - The LAUNCH-CHECKLIST line is struck. The Moroccan section now blocks nothing (`MOROCCO_BLOCKERS` is empty).
+- **R3 · A party's company registry number.** *(built 2026-10-23, 0210.)*
+  - **What was missing:** the books carried a party's VAT number (`tax_number`, from Odoo's `vat` and Xero's
+    `TaxNumber`, printed on invoices), never its company registry number.
+  - **Now:** `parties.registry_number`, country-scoped, with `siret` (France, optional) and `registro_mercantil`
+    (Spain: Registro / Tomo / Folio / Hoja, free text by nature, RRM art. 3; Spanish invoices carry it beside the NIF,
+    Código de Comercio art. 24.1). All three are copied onto an invoice at issue and onto its credit notes, frozen
+    with the rest (0187's rule). A party is not a buyer, so a buyer's erasure never reaches them.
+  - **HARD, refused (app and database; `src/core/books/registry.ts`):** France, the SIREN, nine digits; SIRET fourteen,
+    its first nine the SIREN. UK, the Companies House number: eight digits, or ANY two capitals and six digits (no
+    prefix list: Companies House's own forum records FE, OE, PC and SG missing from its URI guide). A shorter numeric
+    entry is zero-padded (1234567 → 01234567). Input is normalised first (spaces out, capitals). Any other country:
+    kept as typed — no rule because no source.
+  - **Spain: all three forms, and never a hard block beyond nine characters** (the owner, 2026-10-23). An entity's NIF
+    (a letter, 7 digits, a control), a person's (8 digits and a letter: an autónomo is a paying business customer and
+    invoices under it) and a foreign resident's NIE (X/Y/Z, 7 digits, a letter) pass silently. Any other nine
+    capitals and digits are KEPT with a warning (`nif_shape`), never refused: a reform against number exhaustion that
+    turned the digits alphanumeric would then degrade to a warning, not refuse real customers. Fewer or more than nine
+    is refused (app and database).
+  - **SOFT, a warning the owner overrides, never a refusal:** the SIREN's Luhn sum (INSEE publishes only "9
+    chiffres"; La Poste is a known exception) and an entity NIF's control character (Orden EHA/451/2008 art. 2(c),
+    Decreto 2423/1975 art. tercero and RD 1065/2007 art. 22.1(c) say only « un carácter de control »). The form asks
+    again with "this looks like a typo"; a tick keeps it. The UK number has no check digit, and none is invented.
+  - **ACROSS FIELDS, refused:** a French VAT number present ends with the SIREN; a Spanish one is ES + the NIF. NOTHING
+    ties a UK VAT number to the company number. A missing VAT number is never wrong: a French company under the
+    threshold, or a Spanish one outside the Registro de Operadores Intracomunitarios, has none.
+  - **NOTHING DERIVED:** no VAT key computed from a SIREN, no control character "fixed", no VAT number from a CRN. No
+    lookup gates anything; none is called.
+  - **The Spanish field is labelled NIF.** CIF was repealed by RD 1065/2007 (in force 2008-01-01); "CIF" appears only
+    as a hint.
+  - **France: two official pages disagree** (*reported*): service-public F32135 says the SIRET goes on invoices, F31808
+    says the SIREN. Nomi stores the SIREN as THE registry identifier (the legal « numéro unique d'identification »),
+    takes the SIRET as optional, and prints what the customer gave.
+  - **Not yet:** no connector carries the number (the workbook, Sheets, Odoo's `company_registry`, Xero's
+    `CompanyNumber`, QuickBooks). Parties have no edit page, so a customer read in from one has none. Said on the
+    books' page (`books.notYet.registry`).
+- **R4 · Intuit's App Assessment — the code made TRUE before the owner answers.** *(built 2026-10-23; nothing
+  submitted.)* Item by item, with files, in docs/INTUIT-QUESTIONNAIRE.md §0.
+
 ### Dependencies at a glance
 
 ```
@@ -1274,8 +1417,6 @@ Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/bo
 - **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
 - **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
   with nothing given back, is not a credit note yet.
-- **A party outside Morocco has no company registry number** (the owner, 2026-10-23, #382). Its tax or VAT number is
-  carried (`parties.tax_number`, read from Odoo's `vat` and Xero's `TaxNumber`) and shown on an invoice. Its
-  company registry number is not: SIREN, a Registro Mercantil or Companies House number. Only a Moroccan party has an
-  ICE, so another country's registry number stays in the system it came from. An invoice to such a company would
-  normally show it. A launch blocker for shops selling to companies outside Morocco (LAUNCH-CHECKLIST.md).
+- **A company registry number travels in no connector** (since R3, 0210, the field exists: SIREN, NIF, company
+  number). It is given when a customer is added in Nomi. The workbook, Sheets, Odoo, Xero and QuickBooks do not carry
+  it, and a party read in from one has none.

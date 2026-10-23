@@ -51,7 +51,7 @@ export type OAuthFetch = (url: string, init: {
   headers: Record<string, string>;
   body?: string;
   signal?: AbortSignal;
-}) => Promise<{ status: number; text(): Promise<string> }>;
+}) => Promise<{ status: number; text(): Promise<string>; readonly headers?: { get(name: string): string | null } }>;
 
 export const OAUTH_TIMEOUT_MS = 15_000;
 

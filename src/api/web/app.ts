@@ -228,7 +228,7 @@ import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
 import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
-import { qboAuthorizeUrl, qboConnector, type QboClient } from '../../books/connectors/quickbooks.js';
+import { qboAuthorizeUrl, qboConnector, type QboCall, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
@@ -261,11 +261,11 @@ import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } f
 import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
-import { fecFile, numberingProblems } from '../../core/books/fec.js';
+import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENAME_DEFAULT } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
-import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
+import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
 import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.js';
 import { renderPaper, renderPapers, type PaperChoices } from './booksPapers.js';
@@ -280,6 +280,7 @@ import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
+import { checkRegistry } from '../../core/books/registry.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -779,6 +780,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const liveness = makeLivenessCache();
   const PERSON_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /**
+   * R4 (Intuit's App Assessment, item 9) — NOTHING IS KEPT BY A BROWSER OR A PROXY unless its route says so: an
+   * answer without its own cache-control is `no-store` (never merely no-cache or private). Where the deployment is
+   * served over HTTPS (secure cookies), browsers are told to keep to it (HSTS, a year; subdomains not claimed).
+   */
+  app.addHook('onSend', async (_req, reply, payload) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    if (deps.secureCookie && !reply.hasHeader('strict-transport-security')) reply.header('strict-transport-security', 'max-age=31536000');
+    return payload;
+  });
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/app')) return;
     const s = sessionOf(req);
@@ -3043,8 +3054,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req); const str = closeForm(req);
     const day = str('day') === '' ? null : str('day');
     if (day !== null && !isDayStr(day)) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
-    const out = await withTenantTx(deps.db, bid, (tx) => reopenTo(tx, bid, day, personOf(s).id, str('reason').slice(0, 300)));
+    if (!/^[0-9a-f-]{36}$/i.test(str('year'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.close.refused.not_open') });
+    // D10 — the year's own lock, moved back; the database refuses it below the start or past Avis 24's ceiling
+    const out = await withTenantTx(deps.db, bid, (tx) => reopenTo(tx, bid, str('year'), day, personOf(s).id, str('reason').slice(0, 300)));
     return closeBack(reply, out, 'books.flash.reopened', {}, locale);
+  });
+  /** D10 (0211) — the books begin: once, the day and the period length, the owner's (the database's rule). */
+  app.post('/app/books/closing/start', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    if (!isDayStr(str('day'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
+    const length = str('length') === 'quarter' ? 'quarter' : 'month';
+    const out = await withTenantTx(deps.db, bid, (tx) => startBooks(tx, bid, str('day'), length, personOf(s).id));
+    return closeBack(reply, out, 'books.flash.booksStarted', { day: show.dateYear(locale, new Date(`${str('day')}T12:00:00Z`)) }, locale);
   });
   app.post('/app/books/closing/open-year', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3222,27 +3245,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : entryRefusedWhy(locale, out as EntryRefusal);
     return flashTo(reply, back, 'books.flash.paperNotDrafted', { why });
   });
+  /** R2 (0209) — the workspace's FEC file-name pattern; Nomi's default where none is set (no books_settings row yet). */
+  const fecPatternOf = async (tx: Tx, bid: BusinessId): Promise<string> =>
+    (await sql<{ p: string }>`select fec_filename as p from books_settings where business_id = ${bid}::uuid`.execute(tx)).rows[0]?.p ?? FEC_FILENAME_DEFAULT;
   /** D4 (Avis 24) — the Moroccan FEC: each fiscal year's file, its numbering checked, its accounts against the CGNC. */
   app.get('/app/books/fec', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const { years, gaps } = await withTenantTx(deps.db, bid, async (tx) => {
+    const { years, gaps, file } = await withTenantTx(deps.db, bid, async (tx) => {
       const ys = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${bid}::uuid order by starts_on desc`.execute(tx)).rows;
       // E2 (0206) — what the file goes without, said on the page: the ICE, the IF, the RC.
       const id = (await sql<{ ice: string | null; tax: string | null; rc: string | null }>`select legal_ice as ice, legal_if as tax, legal_rc as rc
         from businesses where id = ${bid}::uuid`.execute(tx)).rows[0];
       const gaps = ([['ice', id?.ice], ['taxId', id?.tax], ['rc', id?.rc]] as const).filter(([, v]) => !v).map(([k]) => k);
+      const pattern = await fecPatternOf(tx, bid);
       const out: FecYearView[] = [];
       for (const y of ys) {
         const f = await fecData(tx, bid, y.id);
         if (f) out.push({ id: y.id, startsOn: f.year.starts_on, endsOn: f.year.ends_on, state: f.year.state, lines: f.lines.length,
           numbering: numberingProblems(f.numbers), offChart: f.offChart });
       }
-      return { years: out, gaps };
+      return { years: out, gaps, file: { pattern, ice: id?.ice ?? null, canChange: personOf(s).isOwner } };
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fec.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years, gaps, file)}` }));
+  });
+  /** R2 (0209) — the FEC's file name: Nomi's default, changed by the owner (`business_identifiers`), checked twice. */
+  app.post('/app/books/fec/filename', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'business_identifiers', '/app/books/fec#file-name'); if (!s) return reply;
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const raw = (req.body as { pattern?: unknown } | undefined)?.pattern;
+    const pattern = typeof raw === 'string' ? raw.trim() : '';
+    const tokens = { ice: '{ICE}', date: '{YYYYMMDD}' };
+    if (fecFileNameProblem(pattern) !== null) return flashTo(reply, '/app/books/fec#file-name', 'books.flash.fecFilenameRefused', tokens);
+    await withTenantTx(deps.db, bid, (tx) => sql`insert into books_settings (business_id, fec_filename) values (${bid}::uuid, ${pattern})
+      on conflict (business_id) do update set fec_filename = excluded.fec_filename, updated_at = now()`.execute(tx));
+    return flashTo(reply, '/app/books/fec#file-name', 'books.flash.fecFilenameSaved', { name: pattern });
   });
   app.get('/app/books/fec/:file', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3253,7 +3292,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const f = await withTenantTx(deps.db, bid, (tx) => fecData(tx, bid, m[1]!));
     if (!f) return reply.callNotFound();
     return reply.type('text/plain; charset=utf-8')
-      .header('content-disposition', `attachment; filename="FEC-${f.year.starts_on}-${f.year.ends_on}.txt"`)
+      // R2 (0209) — Nomi's default name, or the workspace's own: never presented as the DGI's (none is published)
+      .header('content-disposition', `attachment; filename="${fecFileName(await withTenantTx(deps.db, bid, (tx) => fecPatternOf(tx, bid)), { ice: f.identity.ice, closesOn: f.year.ends_on })}"`)
       .header('cache-control', 'no-store').send(fecFile(f.lines, f.identity));
   });
   /** D4 (0190) — the books started from the CGNC chart: what is missing added, nothing the owner has changed. */
@@ -3374,6 +3414,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
     const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), iceAsTyped(str('ice'))];
     const [taxNumber, address] = [str('taxNumber'), str('address')];
+    // R3 (0210) — the company registry number, country by country: hard rules refused, a doubtful check asked again
+    const reg = checkRegistry({ country: country || null, registry: str('registry'), siret: str('siret'), registro: str('registro'), taxNumber });
+    {
+      const locale = localeOf(req);
+      if (!reg.ok) return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRegistryRefused',
+        { why: reg.errors.map((e) => t(locale, `books.registry.problem.${e}` as MessageKey)).join(' ') });
+      if (reg.warnings.length > 0 && str('registryConfirmed') !== '1') return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRegistryCheck',
+        { why: reg.warnings.map((w) => t(locale, `books.registry.check.${w}` as MessageKey)).join(' ') });
+    }
     // D7 — the party's custom values, every required one there (the database checks the same).
     const form = Object.fromEntries(Object.entries(f).filter(([k, v]) => k.startsWith('cf_') && typeof v === 'string').map(([k, v]) => [k, (v as string).slice(0, 600)]));
     const custom = customFromForm((await withTenantTx(deps.db, bid, (tx) => fieldsOf(tx, bid))).filter((x) => !x.retired), 'party', form, 'cf_party_');
@@ -3388,8 +3437,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }
     try {
-      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address, custom)
-        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null}, ${JSON.stringify(custom.values)}::jsonb)`.execute(tx));
+      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address, custom, registry_number, siret, registro_mercantil)
+        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null}, ${JSON.stringify(custom.values)}::jsonb,
+                ${reg.value.registry}, ${reg.value.siret}, ${reg.value.registro})`.execute(tx));
     } catch { return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused'); }
     return flashTo(reply, '/app/books/invoices/new', 'books.flash.partyAdded');
   });
@@ -3478,7 +3528,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const QBO_COOKIE = 'yf_qbo_oauth';
   const qboRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/quickbooks/callback`;
   function qboReady(): boolean { return Boolean(deps.qboClient && deps.publicBaseUrl && deps.credentialKey); }
-  const qboDeps = () => ({ client: deps.qboClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  // R4 (items 5, 6) — each call to Intuit is logged with what it was, its status, Intuit's error code and its
+  // intuit_tid: never a payload, a token, the realm or QuickBooks' data (src/books/connectors/quickbooks.ts, QboCall).
+  const qboDeps = () => ({ client: deps.qboClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch),
+    log: (c: QboCall) => (c.status !== null && c.status < 300 && c.error === null ? app.log.debug({ intuit: c }, 'quickbooks call') : app.log.warn({ intuit: c }, 'quickbooks call')) });
   app.get('/app/books/quickbooks/start', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     if (!qboReady()) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
@@ -3486,7 +3539,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // The signed state (provider and verifier unused: Intuit's web flow has a client secret, and no PKCE).
     writeCookie(reply, QBO_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier: '', nonce, personId: personOf(s).id }, Date.now()),
       { path: '/app/books/quickbooks', maxAgeSec: 600 });
-    return reply.redirect(qboAuthorizeUrl(deps.qboClient!, { redirectUri: qboRedirect(), state: nonce }));
+    const to = await qboAuthorizeUrl(qboDeps(), { redirectUri: qboRedirect(), state: nonce });
+    if (typeof to !== 'string') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(localeOf(req), 'quickbooks', to.reason) });
+    return reply.redirect(to);
   });
   app.get('/app/books/quickbooks/callback', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3504,7 +3559,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (connected.kind === 'refused') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(locale, 'quickbooks', connected.reason) });
     await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
       businessId: bid.value, system: 'quickbooks', secret: connected.grant!.secret, by: personOf(s).id,
-      settings: { realmId: connected.source.realmId, companyName: connected.source.companyName ?? '' },
+      // R4 (item 1) — the realmId is sealed with the grant; the settings hold only the company's name, for the page.
+      settings: { companyName: connected.source.companyName ?? '' },
     }));
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksConnected', { org: connected.source.companyName ?? '' });
   });
@@ -3527,6 +3583,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (conn?.grant && qboReady()) await qboConnector(qboDeps(), 'MAD').revoke(conn.grant);
     await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'quickbooks', personOf(s).id));
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnected');
+  });
+  /**
+   * R4 (item 10) — Intuit's DISCONNECT URL: where QuickBooks sends an owner who disconnected Nomi there. It says what
+   * that means and changes NOTHING here: a link anyone can open must not disconnect anybody. The next read sees the
+   * grant refused and asks to connect again.
+   */
+  app.get('/app/books/quickbooks/disconnected', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnectedThere');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {
@@ -6877,7 +6942,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'choose') {
       const carried = mintMetaState(deps.sessionSecret,
         { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: r.tokenCiphertext }, Date.now());
-      return reply.type('text/html; charset=utf-8').send(page(req, {
+      // R4 (item 9) — the one callback that draws a page (the Pages to choose from): its address still holds Meta's
+      // code (spent above, single-use), so it never leaves in a Referer.
+      return reply.type('text/html; charset=utf-8').header('referrer-policy', 'no-referrer').send(page(req, {
         title: t(locale, 'connect.meta.choose.title'), active: 'channels',
         bodyHtml: renderMetaPagePicker(r.pages, carried, locale),
       }));
@@ -6966,7 +7033,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'choose') {
       const carried = mintMetaState(deps.sessionSecret,
         { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: r.tokenCiphertext }, Date.now());
-      return reply.type('text/html; charset=utf-8').send(page(req, {
+      // R4 (item 9) — as Meta's Page picker: the address still holds the spent code, so it never leaves in a Referer.
+      return reply.type('text/html; charset=utf-8').header('referrer-policy', 'no-referrer').send(page(req, {
         title: t(locale, 'connect.wa.choose.title'), active: 'channels',
         bodyHtml: renderWhatsAppNumberPicker(r.numbers, carried, r.wabaId, locale),
       }));

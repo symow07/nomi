@@ -3,6 +3,7 @@ import type { Decimal } from '../../core/types/decimal.js';
 import { moneyFromRow } from '../../core/types/money.js';
 import type { Sides, TrialBalance } from '../../core/books/trialBalance.js';
 import type { Period } from '../../db/booksReports.js';
+import { FEC_FILENAME_DEFAULT, fecFileName } from '../../core/books/fec.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -60,7 +61,28 @@ export type FecYearView = {
 /** E2 (0206) — which of the business's identifiers the file still goes without, said with the door to where they are given. */
 export type FecIdentityGaps = readonly ('ice' | 'taxId' | 'rc')[];
 
-export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: FecIdentityGaps = []): string {
+/**
+ * R2 (0209) — the file's name: Nomi's default convention, the workspace's to change. Said as a default, in the words
+ * docs/PHASE-5.md records (`books.fec.filename.note`) — never "required", "official" or the DGI's. Changed by the
+ * owner only (`business_identifiers`); anyone else reads it.
+ */
+export type FecFileNaming = { readonly pattern: string; readonly ice: string | null; readonly canChange: boolean };
+
+function fecFileNaming(locale: Locale, f: FecFileNaming): string {
+  const tokens = { ice: '{ICE}', date: '{YYYYMMDD}' };
+  return `<div class="block" id="file-name">
+      <h2>${esc(t(locale, 'books.fec.filename.label'))}</h2>
+      <p>${esc(t(locale, 'books.fec.filename.note'))}</p>
+      ${f.canChange ? `<form method="post" action="/app/books/fec/filename" class="pform">
+        <label class="pq"><span>${esc(t(locale, 'books.fec.filename.label'))}</span><input name="pattern" value="${esc(f.pattern)}" maxlength="80" dir="ltr" required /></label>
+        <p class="caption muted">${esc(t(locale, 'books.fec.filename.help', tokens))}</p>
+        <button class="btn" type="submit">${esc(t(locale, 'books.fec.filename.save'))}</button></form>`
+        : `<p><bdi dir="ltr">${esc(f.pattern)}</bdi></p><p class="caption muted">${esc(t(locale, 'books.fec.filename.help', tokens))}</p>`}
+    </div>`;
+}
+
+export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: FecIdentityGaps = [],
+  file: FecFileNaming = { pattern: FEC_FILENAME_DEFAULT, ice: null, canChange: false }): string {
   const d = (iso: string) => esc(show.dateYear(locale, new Date(`${iso}T12:00:00Z`)));
   const name = { ice: 'settings.ids.ice', taxId: 'settings.ids.if', rc: 'settings.ids.rc' } as const;
   return `<h1 class="page">${esc(t(locale, 'books.fec.title'))}</h1>
@@ -74,9 +96,11 @@ export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: F
         : y.numbering.map((n) => `<span class="pill stop">${esc(t(locale, 'books.fec.numberingBad', { journal: n.journal, missing: n.missing.join(', ') || '—', repeated: n.repeated.join(', ') || '—' }))}</span>`).join(' ')}</p>
       ${y.offChart.length === 0 ? '' : `<p role="alert">${esc(t(locale, 'books.fec.offChart'))}</p><ul class="rows">${y.offChart.map((a) =>
         `<li class="row"><span><bdi>${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi></span></li>`).join('')}</ul>`}
-      ${y.lines === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `<ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.fec.file', { n: y.lines }))}</span>
+      ${y.lines === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `<ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.fec.file', { n: y.lines }))}
+        · <bdi dir="ltr">${esc(fecFileName(file.pattern, { ice: file.ice, closesOn: y.endsOn }))}</bdi></span>
         <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul>`}
     </div>`).join('')}
+    ${fecFileNaming(locale, file)}
     <p class="caption muted">${esc(t(locale, 'books.fec.envelope'))}</p>
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }

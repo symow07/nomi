@@ -16138,6 +16138,17 @@ Reviewer (per language): ______  Date: ______
   - Arabic asks with «يُرجى» and a verbal noun (نقل، إعادة الاستيراد), addressing nobody in a gender; French says «une ligne non lue» so no pronoun stands for Nomi.
 - **Check:** that 15 位 reads as fifteen positions (not digits) to a Chinese reader; that «مؤرَّخ قبل بداية هذه الدفاتر» reads naturally as a row's reason; that the 2019-to-2024 example reads plainly in each language.
 
+## 2026-10-23 — Phase 5 R — the FEC's file name, a party's registry number, Intuit's disconnect page (not a gate)
+
+- **The keys (30 new and 1 changed, in each of zh, ar, es and fr):**
+  - new: `books.fec.filename.*`, `books.flash.fecFilenameSaved|fecFilenameRefused` (the FEC's file name, Nomi's default); `books.party.registry*`, `books.party.siret|registro|registryConfirm`, `books.flash.partyRegistryRefused|partyRegistryCheck`, `books.registry.problem.*`, `books.registry.check.*` (a party's registry number; `nif_shape` warns on a NIF of none of the three forms); `books.flash.quickbooksDisconnectedThere` (Intuit's disconnect URL);
+  - changed: `books.notYet.registry` now says the connectors do not carry the number (the field exists).
+- **Where the words differ, and why:**
+  - the note on the file name is a default, never a rule, in every language («convention … par défaut», «predeterminada», «默认», «الافتراضية»), and its tests forbid «obligatoire», «officiel», «oficial», 官方, «رسمي» and the like;
+  - SIREN, SIRET, NIF and Registro Mercantil stay in their own language's form everywhere; "CIF" appears only as the hint «(once called CIF)»;
+  - Arabic asks with «يُرجى» and a verbal noun throughout, and the warning «يبدو … خطأً مطبعيًا» addresses nobody.
+- **Check:** that «convention de nom de fichier par défaut» reads as Nomi's own habit, not a French rule; that 公司注册号 reads as a company's registration number, not a tax number.
+
 ## 2026-10-23 — ONE SITTING: the four sets that wait on a native reader, side by side (zh, ar, es, fr) — FOUR GATES
 
 **Presentation only.** This section puts, for each language, every sentence of the four sets that wait on its native

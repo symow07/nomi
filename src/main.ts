@@ -104,6 +104,7 @@ import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
+import type { QboCall } from './books/connectors/quickbooks.js';
 import { publicPost } from './net/publicFetch.js';
 
 /**
@@ -1183,9 +1184,21 @@ export async function buildProduction(
         ...(recipientNamed('googleSheets') && sheetsId && sheetsSecret ? { sheets: { client: { clientId: sheetsId, clientSecret: sheetsSecret }, fetch: oauthFetch } } : {}),
         odoo: { post: publicPost, today: () => new Date().toISOString().slice(0, 10) },
         ...(recipientNamed('xero') && xeroId && xeroSecret ? { xero: { client: { clientId: xeroId, clientSecret: xeroSecret }, fetch: oauthFetch } } : {}),
-        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch } } : {}),
+        // R4 — a call to Intuit that did not go well is logged with its op, status, error code and intuit_tid, and nothing else
+        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch,
+          log: (c: QboCall) => { if (c.status === null || c.status >= 300 || c.error !== null) console.warn(`[books] quickbooks call ${JSON.stringify(c)}`); } } } : {}),
       });
       if (t.read + t.refused + t.problems > 0) console.log(`[books] morning read: ${t.read} read, ${t.refused} refused, ${t.problems} with problems`);
+    });
+    // D10 (0211) — AVIS 24's PERIODS, kept on the set of locks: every hour, each Moroccan workspace whose books have
+    // started has any year's lock below its floor raised to it (a period that has just begun closes the oldest). It
+    // decides no write: the one predicate stays each year's own lock (books_day_writable).
+    await boss.schedule(QUEUES.booksPeriods, '7 * * * *', {});
+    await boss.work(QUEUES.booksPeriods, async () => {
+      const due = (await sql<{ business_id: string }>`select business_id::text as business_id from books_period_workspaces()`.execute(db)).rows;
+      let moved = 0;
+      for (const d of due) moved += (await sql<{ n: number }>`select books_roll_periods(${d.business_id}::uuid) as n`.execute(db)).rows[0]?.n ?? 0;
+      if (moved > 0) console.log(`[books] periods: ${moved} lock(s) moved on to keep two current periods open`);
     });
     // D1 (0137) — a sign-up never finished is not kept: its form and address go an hour after its code
     // expired. In both modes: sign-up runs with no channel configured, too.

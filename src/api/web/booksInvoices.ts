@@ -6,6 +6,7 @@ import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { owedOn, type BilledTo, type InvoiceRow, type InvoiceStatus, type InvoiceView } from '../../db/booksInvoices.js';
 import type { CreditableLine, CreditNoteView } from '../../db/booksCreditNotes.js';
 import { customInputs } from './booksFields.js';
+import { registryLabelKey } from '../../core/books/registry.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -48,7 +49,8 @@ function billedTo(locale: Locale, b: BilledTo): string {
   const row = (label: MessageKey, value: string | null) => (value ? `<div class="row"><dt>${esc(t(locale, label))}</dt><dd><bdi>${esc(value)}</bdi></dd></div>` : '');
   return `<h2>${esc(t(locale, 'books.invoice.billedTo'))}</h2>
     <dl class="scard">${row('books.party.name', b.name)}${row('books.party.code', b.code)}${row('books.party.address', b.address)}${row('books.party.country', b.country)}${
-      row('books.party.ice', b.ice)}${row('books.party.taxNumber', b.taxNumber)}</dl>
+      row('books.party.ice', b.ice)}${row('books.party.taxNumber', b.taxNumber)}${
+      row(registryLabelKey(b.country), b.registry)}${row('books.party.siret', b.siret)}${row('books.party.registro', b.registro)}</dl>
     <p class="caption muted">${esc(t(locale, b.asIssued ? 'books.invoice.partyAtIssue' : 'books.invoice.partyTaken'))}</p>`;
 }
 
@@ -156,8 +158,13 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         <label class="pq"><span>${esc(t(locale, 'books.party.code'))}</span><input name="code" required maxlength="20" pattern="[0-9A-Za-z][0-9A-Za-z.\\-]{0,19}" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.name'))}</span><input name="name" required maxlength="200" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.country'))}</span><input name="country" maxlength="2" /></label>
-        <label class="pq"><span>${esc(t(locale, 'books.party.ice'))}</span><input name="ice" inputmode="numeric" maxlength="15" /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.party.ice'))}</span><input name="ice" maxlength="20" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.taxNumber'))}</span><input name="taxNumber" maxlength="40" /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.party.registry'))}</span><input name="registry" maxlength="40" /></label>
+        <p class="caption muted">${esc(t(locale, 'books.party.registryHelp'))}</p>
+        <label class="pq"><span>${esc(t(locale, 'books.party.siret'))}</span><input name="siret" inputmode="numeric" maxlength="20" /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.party.registro'))}</span><input name="registro" maxlength="200" /></label>
+        <label class="pq"><span><input type="checkbox" name="registryConfirmed" value="1" /> ${esc(t(locale, 'books.party.registryConfirm'))}</span></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.address'))}</span><textarea name="address" maxlength="400" rows="3"></textarea></label>
         ${customInputs(locale, c.fields ?? [], 'party', PARTY_CUSTOM, {})}
         <button class="btn ghost" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
