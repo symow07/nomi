@@ -174,12 +174,15 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // D7 — a custom field's kind: Date.
       'books.fields.kind.date',
       // E2 — the ICE and the IF under the names Morocco's own texts give them, in French in every locale's original.
-      'settings.ids.ice', 'settings.ids.if']),
+      'settings.ids.ice', 'settings.ids.if',
+      // R3 — the SIREN and the NIF, named as France and Spain name them, in every locale.
+      'books.party.registry.fr', 'books.party.registry.es']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
-    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.entry.total', 'books.pack.col.base']),
+    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.entry.total', 'books.pack.col.base',
+      'books.party.registry.fr', 'books.party.registry.es']),
     // B4 — Odoo is the product's own name, in every script.
-    zh: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title']),
-    ar: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title']),
+    zh: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.party.registry.fr', 'books.party.registry.es']),
+    ar: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.party.registry.fr', 'books.party.registry.es']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])

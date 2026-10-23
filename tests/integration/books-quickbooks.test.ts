@@ -160,11 +160,16 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
       return app.inject({ method: 'GET', url: `/app/books/quickbooks/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(nonce)}&realmId=${realmId}`,
         headers: { cookie: `${owner}; ${st}` } });
     };
+    // connected since the first test: disconnect, connect, disconnect, connect again — each grant given back at Intuit
+    expect(await notice(await press('/app/books/quickbooks/disconnect'))).toContain('Disconnected.');
+    expect(qbo.liveRefresh()).toEqual([]);
     expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
     expect(await held()).toMatchObject({ state: 'connected' });
     expect(await notice(await press('/app/books/quickbooks/disconnect'))).toContain('Disconnected.');
     expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect(qbo.liveRefresh()).toEqual([]);
     expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
+    expect(qbo.liveRefresh()).toHaveLength(1);
     expect(await held()).toMatchObject({ state: 'connected' });
     // Intuit's Disconnect URL: where QuickBooks sends an owner who disconnected Nomi there. It says so, and changes
     // nothing here (a link anyone could open must not disconnect anybody).

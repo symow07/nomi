@@ -108,7 +108,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     expect(page).toContain('The FEC of this year (9 lines)');
     const r = await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } });
     expect(r.statusCode).toBe(200);
-    expect(String(r.headers['content-disposition'])).toContain('FEC-2026-01-01-2026-12-31.txt');
+    expect(String(r.headers['content-disposition'])).toContain('FEC20261231.txt');
     const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));
     expect(lines[0]).toEqual(['Code_Journal', 'Libelle_Journal', 'Num_Ecriture', 'Date_Ecriture', 'Num_Compte', 'Libelle_Compte', 'Num_Compte_Aux',
       'Libelle_Compte_Aux', 'Ref_Piece', 'Date_Piece', 'Libelle_Ecriture', 'Montant_Debit', 'Montant_Credit', 'Lettrage_Ecriture', 'Date_Lettrage',
@@ -181,7 +181,10 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     expect(fec).toContain("Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.");
     expect(fec).toContain('001234567000089FEC20261231.txt');
     expect(fec).toContain('action="/app/books/fec/filename"');
-    expect(fec).not.toMatch(/required|official|DGI-compliant/i);
+    // the block's own words, tags aside (the input's `required` attribute is HTML, not a claim)
+    const block = (/<div class="block" id="file-name">[\s\S]*?<\/div>/.exec(fec)?.[0] ?? '').replace(/<[^>]*>/g, ' ');
+    expect(block).toContain('default filename convention');
+    expect(block).not.toMatch(/required|official|DGI-compliant/i);
     // staff and the accountant read it, change nothing
     const seen = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: accountant } })).body;
     expect(seen).not.toContain('action="/app/books/fec/filename"');

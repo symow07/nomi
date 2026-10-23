@@ -1071,9 +1071,11 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
   - **What Nomi does:** a DEFAULT, `{ICE}FEC{YYYYMMDD}.txt` (the business's ICE, "FEC", the fiscal year's last day),
     configurable per workspace by its owner on the FEC page (`books_settings.fec_filename`; letters, digits, dots,
     dashes, underscores, and only the two placeholders, checked by the app and the database).
-  - **The words on the page, exactly, so they cannot drift:** "Nomi's default filename convention. Your accountant may
-    ask for a different one — you can change it here." Never "required", "official" or "DGI-compliant"
-    (`tests/parity/fec-filename.test.ts` holds both).
+  - **The words on the page, exactly, so they cannot drift** (`tests/parity/fec-filename.test.ts` holds both; never
+    "required", "official" or "DGI-compliant"):
+
+    > Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.
+
   - **Do not "fix" it to a name read on a blog.** If the DGI publishes a name, it becomes the default here, and stays
     changeable.
   - **ICE: fifteen positions, ALREADY** (0208, Block E's review): not fifteen digits, and only for a party in Morocco.
