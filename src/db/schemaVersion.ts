@@ -460,7 +460,8 @@ import type { Db } from './client.js';
 // 209 = the FEC's file name: Nomi's default, the workspace's to change (0209).
 // 210 = a party's company registry number, the SIRET and the Registro Mercantil entry, copied onto invoices (0210).
 // 211 = a lock date for each fiscal year; the books' start; Avis 24's periods kept on the set of locks (0211).
-export const REQUIRED_SCHEMA_VERSION = 211;
+// 212 = a QuickBooks or Xero grant Nomi no longer uses, kept track of until its system confirms it given back (0212).
+export const REQUIRED_SCHEMA_VERSION = 212;
 
 export type SchemaState = {
   readonly required: number;

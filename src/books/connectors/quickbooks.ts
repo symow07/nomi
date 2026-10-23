@@ -1,5 +1,5 @@
 import { OAUTH_TIMEOUT_MS, type OAuthFetch } from '../../connectors/oauth.js';
-import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
+import { refused, revokeAnswer, type BooksConnector, type ConnectRefusal, type Grant, type RevokeOutcome, type Located } from '../../core/books/connector.js';
 import { partyIce } from '../../core/books/identifiers.js';
 import {
   booksProblems, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksParty, type BooksProblem, type CustomValues, type RecordKind,
@@ -156,10 +156,10 @@ async function tokens(deps: QboDeps, body: Record<string, string>): Promise<Toke
   const expiresIn = typeof j['expires_in'] === 'number' && j['expires_in'] > 0 ? j['expires_in'] : 3600;
   return { access: j['access_token'], refresh: j['refresh_token'], expiresIn };
 }
-async function revokeToken(deps: QboDeps, token: string): Promise<void> {
-  const at = await endpoints(deps); if ('kind' in at) return;
-  await call(deps, 'revoke', at.revoke, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ token }) });
+async function revokeToken(deps: QboDeps, token: string): Promise<RevokeOutcome> {
+  const at = await endpoints(deps); if ('kind' in at) return 'not_given_back';
+  return revokeAnswer(await call(deps, 'revoke', at.revoke, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ token }) }));
 }
 
 /** Where the owner is sent to connect the company: Intuit's authorize endpoint, from its discovery document. */
@@ -404,7 +404,8 @@ export function qboConnector(deps: QboDeps, bookCurrency: string): BooksConnecto
       const r = await qboAccess(deps, grant, { force: true });
       return 'kind' in r ? r : r.grant;
     },
-    async revoke(grant: Grant) { const g = openGrant(grant); if (g) await revokeToken(deps, g.r); },
+    // a grant that does not open holds no token Nomi could give back
+    async revoke(grant: Grant) { const g = openGrant(grant); return g ? revokeToken(deps, g.r) : 'nothing_held'; },
     toBooks: (raw) => qboToBooks(raw, bookCurrency),
     fromBooks: (d) => booksToQbo(d, bookCurrency),
     async changedSince(source, cursor) {

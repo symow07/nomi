@@ -181,6 +181,58 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     expect([stranger.statusCode, stranger.headers['location']]).toEqual([302, '/login']);
   });
 
+  it('0212 — CONNECTING AGAIN gives the old grant back at Intuit FIRST; a revocation Intuit does not confirm is kept, shown, tried again', async () => {
+    const connect = async () => {
+      const start = await app.inject({ method: 'GET', url: '/app/books/quickbooks/start', headers: { cookie: owner } });
+      const st = cookiesOf(start).find((c) => c.startsWith('yf_qbo_oauth='))!;
+      const nonce = new URL(String(start.headers['location'])).searchParams.get('state')!;
+      const { code, realmId } = qbo.code();
+      return app.inject({ method: 'GET', url: `/app/books/quickbooks/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(nonce)}&realmId=${realmId}`,
+        headers: { cookie: `${owner}; ${st}` } });
+    };
+    const grants = async () => (await admin.query(`select stale_since is not null as stale, revoked_at is not null as revoked, revoke_tries as tries
+      from connector_credentials where business_id = $1 and connector = 'quickbooks' and (stale_since is not null or revoked_at is not null) order by created_at`, [BIZ])).rows;
+    // connected since the test before: connecting again gives the grant back before the consent page opens
+    expect(qbo.liveRefresh()).toHaveLength(1);
+    const again = await press('/app/books/quickbooks/again');
+    expect([again.statusCode, again.headers['location']]).toEqual([302, '/app/books/quickbooks/start']);
+    expect(qbo.liveRefresh(), 'given back before the consent').toEqual([]);
+    expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect(await grants()).toEqual([{ stale: false, revoked: true, tries: 1 }]);
+    expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
+    expect(qbo.liveRefresh()).toHaveLength(1);
+
+    // Intuit does not answer the revocation: connecting goes on (the owner is never locked out), the old grant is stale
+    qbo.revokeDown();
+    const old = JSON.parse((await held())!.grant!.secret).r as string;
+    await press('/app/books/quickbooks/again');
+    expect(await held()).toMatchObject({ state: 'connected' });
+    expect(await notice(await connect())).toContain('QuickBooks has not confirmed that the earlier connection ended; Nomi tries again every hour.');
+    expect(qbo.liveRefresh()).toContain(old);
+    expect((await grants()).at(-1)).toEqual({ stale: true, revoked: false, tries: 1 });
+    expect(await home()).toContain('An earlier QuickBooks connection may still be open there');
+    expect(await notice(await press('/app/books/quickbooks/stale'))).toContain('QuickBooks has not confirmed it yet.');
+    qbo.revokeDown(false);
+    expect(await notice(await press('/app/books/quickbooks/stale'))).toContain('QuickBooks confirmed that the earlier connection has ended.');
+    expect(qbo.liveRefresh()).not.toContain(old);
+    expect(qbo.liveRefresh(), 'the live grant still works, and is the one held').toEqual([JSON.parse((await held())!.grant!.secret).r]);
+    expect(await home()).not.toContain('Still open there');
+
+    // disconnecting while Intuit does not answer: disconnected here, said, kept, given back when it answers
+    qbo.revokeDown();
+    expect(await notice(await press('/app/books/quickbooks/disconnect'))).toContain('Disconnected here. QuickBooks has not confirmed that Nomi');
+    expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect(qbo.liveRefresh()).toHaveLength(1);
+    qbo.revokeDown(false);
+    expect(await notice(await press('/app/books/quickbooks/stale'))).toContain('QuickBooks confirmed that the earlier connection has ended.');
+    expect(qbo.liveRefresh()).toEqual([]);
+    expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
+    // the accountant reaches none of it: refused, and nothing given back
+    const theirs = await app.inject({ method: 'POST', url: '/app/books/quickbooks/again', headers: { cookie: accountant } });
+    expect(theirs.headers['location']).toBe('/app/books');
+    expect(qbo.liveRefresh()).toHaveLength(1);
+  });
+
   it('A SUBSCRIPTION THAT ENDED: said for what it is; disconnecting gives the access back', async () => {
     qbo.lapse();
     expect(await notice(await press('/app/books/quickbooks/read'))).toContain('QuickBooks no longer lets Nomi into the company');

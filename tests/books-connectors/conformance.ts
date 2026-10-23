@@ -67,7 +67,8 @@ export function conformance<S, R>(fx: ConformanceFixture<S, R>): void {
       expect(r.grant).not.toBeNull();
       const again = await c.refresh(r.grant!);
       expect('kind' in again ? again.reason : 'renewed').toBe('renewed');
-      await c.revoke(r.grant!);
+      // 0212 — what giving it back did is said: a grant from OAuth confirmed given back; a key or a file holds nothing
+      expect(await c.revoke(r.grant!)).toBe(c.config.signIn === 'oauth' ? 'given_back' : 'nothing_held');
     });
 
     it('CHANGED SINCE: first everything; read again, nothing; one record changed, that record and no other', async () => {

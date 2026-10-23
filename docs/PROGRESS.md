@@ -122,6 +122,32 @@ the twelve Intuit items one by one.
   - a test for each: reconnecting while connected revokes; a revocation that fails is recorded and shown, not
     swallowed.
   Kept here until it is closed.
+  - **Closed (0212, 2026-10-24).** Built:
+    - **Connect again** is a POST (`/app/books/{xero,quickbooks}/again`). It gives the old grant back first, then opens
+      the consent page.
+    - **Revoke first, never after:** Xero's revocation "removes all their connections" (Xero devblog, Aug 2020) and
+      Intuit's disconnects the company. Given back after the new consent, it could end the new grant.
+    - **The callback never revokes** (a parity test holds it). A grant it replaces that was not given back is
+      `stale_since`.
+    - **Disconnect:** a revocation that was not confirmed (no answer, an error, the client not offered here any more)
+      is stale too. Before, it was archived and forgotten.
+    - **A stale grant** is shown on the books' page ("Still open there", "Try again now"), tried again every hour
+      (`books.stale-grants`, `stale_grant_workspaces()`) and counted. It stops after 100 days.
+    - **After a stale grant is given back,** the live grant is refreshed at once. If that is refused, the page asks to
+      connect again (Xero's case, in the fake).
+    - **Tests:** `tests/parity/stale-grants.test.ts`; `books-quickbooks` and `books-xero` integration, one each for:
+      connect again revokes first; a refusal is kept, shown, tried again and given back; disconnect; the hourly round;
+      a revocation that ended the live grant.
+  - **Found, not fixed:**
+    - **Google Sheets** has the same shape (connecting again leaves the old refresh token live at Google). Google's
+      revocation ends the whole grant, so the same POST-first order would apply. Not done: the brief named QuickBooks
+      and Xero.
+    - **Odoo's old key stays live in Odoo** after connecting again with a new one. It is the owner's to delete there
+      (the key is theirs, `revoke` holds nothing).
+    - **Refused after the code exchange:** a token the connector gives straight back (the organisation check failed)
+      is not tracked if that revocation also fails.
+    - **Vendor behaviour is read, not seen.** Xero's from its devblog; Intuit's "disconnects the company" not read on
+      Intuit's own page. Both wait for the sandboxes (item 12).
 
 ## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
 

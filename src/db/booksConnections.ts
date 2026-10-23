@@ -1,13 +1,16 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { credentialFingerprint, decryptSecret, encryptSecret } from '../security/credentials.js';
-import type { ConnectRefusalReason, Grant } from '../core/books/connector.js';
+import type { ConnectRefusalReason, Grant, RevokeOutcome } from '../core/books/connector.js';
 
 /**
  * B3–B5 (Phase 5; 0179) — THE SHOP'S SYSTEMS THE BOOKS ARE CONNECTED TO. One row per system (`books_connections`):
  * where, the grant (sealed in `connector_credentials` with CREDENTIAL_KEY, like every token — tools/rekey.mjs knows
  * the column), and how the last read went. Nothing here is ever deleted: a new grant archives the old, a disconnect
  * archives the grant and says so.
+ *
+ * 0212 — A STALE GRANT: one Nomi no longer uses that the system has not confirmed given back (QuickBooks, Xero). Its
+ * row says so (`stale_since`), the books' page shows it, and src/books/staleGrants.ts tries again every hour.
  */
 export type ConnectedSystem = 'sheets' | 'odoo' | 'xero' | 'quickbooks';
 export type BooksConnection = {
@@ -25,13 +28,22 @@ export type BooksConnection = {
   readonly grant: Grant | null;
 };
 
-/** Connect (or connect again): the grant sealed, the old one archived, the connection's row set to connected. */
+/** The systems whose grants are given back at the system, and kept track of until they are (0212). */
+const GIVES_BACK: ReadonlySet<ConnectedSystem> = new Set(['xero', 'quickbooks']);
+
+/**
+ * Connect (or connect again): the grant sealed, the old one archived, the connection's row set to connected. An old
+ * QuickBooks or Xero grant still held here was NOT given back first (src/books/staleGrants.ts gives it back before the
+ * consent, and the callback never does — it could end the new grant too): it is archived as stale, and `stale` says so.
+ */
 export async function saveConnection(tx: Tx, credentialKey: Buffer, input: {
   readonly businessId: string; readonly system: ConnectedSystem; readonly secret: string; readonly by: string;
   readonly settings: Readonly<Record<string, string>>; readonly keyExpiresOn?: string | null;
-}): Promise<void> {
-  await sql`update connector_credentials set archived_at = now(), archived_by = ${input.by}
-    where business_id = ${input.businessId}::uuid and connector = ${input.system} and archived_at is null`.execute(tx);
+}): Promise<{ readonly stale: boolean }> {
+  const old = await sql<{ id: string; stale: boolean }>`update connector_credentials set archived_at = now(), archived_by = ${input.by},
+      stale_since = case when ${GIVES_BACK.has(input.system)} and revoked_at is null then now() end
+    where business_id = ${input.businessId}::uuid and connector = ${input.system} and archived_at is null
+    returning id::text as id, stale_since is not null as stale`.execute(tx);
   const id = (await sql<{ id: string }>`insert into connector_credentials (business_id, connector, secret_ciphertext, fingerprint, created_by)
     values (${input.businessId}::uuid, ${input.system}, ${encryptSecret(input.secret, credentialKey)}, ${credentialFingerprint(input.secret)}, ${input.by})
     returning id::text as id`.execute(tx)).rows[0]!.id;
@@ -41,6 +53,7 @@ export async function saveConnection(tx: Tx, credentialKey: Buffer, input: {
     on conflict (business_id, system) do update set state = 'connected', reason = null, settings = excluded.settings,
       credential_id = excluded.credential_id, key_expires_on = excluded.key_expires_on, cursor = null,
       connected_at = now(), connected_by = excluded.connected_by`.execute(tx);
+  return { stale: old.rows.some((r) => r.stale) };
 }
 
 /**
@@ -92,10 +105,48 @@ export async function noteRead(tx: Tx, businessId: string, system: ConnectedSyst
     where business_id = ${businessId}::uuid and system = ${system}`.execute(tx);
 }
 
-/** Disconnect: the grant archived (never deleted), the row says so. */
-export async function disconnectSystem(tx: Tx, businessId: string, system: ConnectedSystem, by: string): Promise<void> {
-  await sql`update connector_credentials set archived_at = now(), archived_by = ${by}
+/**
+ * Disconnect: the grant archived (never deleted), the row says so. `gaveBack` is how giving it back at the system went:
+ * confirmed, the row says when; not confirmed (QuickBooks, Xero), it is a stale grant from now on.
+ */
+export async function disconnectSystem(tx: Tx, businessId: string, system: ConnectedSystem, by: string, gaveBack?: RevokeOutcome): Promise<void> {
+  const done = gaveBack === 'given_back'; const stale = gaveBack === 'not_given_back' && GIVES_BACK.has(system);
+  await sql`update connector_credentials set archived_at = now(), archived_by = ${by},
+      revoked_at = case when ${done} then now() end, stale_since = case when ${stale} then now() end,
+      revoke_tries = revoke_tries + ${gaveBack === undefined || gaveBack === 'nothing_held' ? 0 : 1}
     where business_id = ${businessId}::uuid and connector = ${system} and archived_at is null`.execute(tx);
   await sql`update books_connections set state = 'disconnected', reason = null, credential_id = null
     where business_id = ${businessId}::uuid and system = ${system}`.execute(tx);
+}
+
+/** A grant still in use that the system did not confirm given back (connecting again goes on: the owner is not locked out). */
+export async function noteGiveBackTried(tx: Tx, businessId: string, system: ConnectedSystem): Promise<void> {
+  await sql`update connector_credentials set revoke_tries = revoke_tries + 1
+    where business_id = ${businessId}::uuid and connector = ${system} and archived_at is null`.execute(tx);
+}
+
+export type StaleGrant = {
+  readonly id: string; readonly system: 'xero' | 'quickbooks'; readonly staleSince: Date; readonly tries: number;
+  /** The grant, opened — null when it no longer opens with this installation's key (nothing can give it back then). */
+  readonly grant: Grant | null;
+};
+/** This workspace's stale grants, oldest first: archived, not confirmed given back, and young enough to live there (0212). */
+export async function staleGrants(tx: Tx, credentialKey: Buffer | null, businessId: string): Promise<StaleGrant[]> {
+  const rows = (await sql<{ id: string; connector: 'xero' | 'quickbooks'; stale_since: Date; revoke_tries: number; secret: string }>`
+    select id::text as id, connector, stale_since, revoke_tries, secret_ciphertext as secret from connector_credentials
+     where business_id = ${businessId}::uuid and archived_at is not null and stale_since is not null and revoked_at is null
+       and connector in ('xero', 'quickbooks') and created_at > now() - interval '100 days'
+     order by stale_since, id`.execute(tx)).rows;
+  return rows.map((r) => {
+    let grant: Grant | null = null;
+    if (credentialKey) { try { grant = { secret: decryptSecret(r.secret, credentialKey).plain, expiresAt: null }; } catch { grant = null; } }
+    return { id: r.id, system: r.connector, staleSince: new Date(r.stale_since), tries: r.revoke_tries, grant };
+  });
+}
+
+/** One more try at giving a stale grant back: confirmed, it is done; not, it is counted. */
+export async function noteStaleTried(tx: Tx, id: string, outcome: RevokeOutcome): Promise<void> {
+  await sql`update connector_credentials set revoke_tries = revoke_tries + 1,
+      revoked_at = case when ${outcome === 'given_back'} then now() else revoked_at end
+    where id = ${id}::uuid and stale_since is not null and revoked_at is null`.execute(tx);
 }

@@ -384,7 +384,7 @@ export function excelConnector(bookCurrency: string): BooksConnector<ExcelSource
       return { kind: 'connected', source: { bytes }, grant: null };
     },
     async refresh(grant: Grant) { return grant; },
-    async revoke() { /* nothing is held */ },
+    async revoke() { return 'nothing_held' as const; },
     toBooks: (raw) => workbookToBooks(raw, bookCurrency),
     fromBooks: booksToWorkbook,
     async changedSince(source) {

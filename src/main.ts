@@ -104,6 +104,7 @@ import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
+import { retryStaleGrants } from './books/staleGrants.js';
 import type { QboCall } from './books/connectors/quickbooks.js';
 import { publicPost } from './net/publicFetch.js';
 
@@ -1199,6 +1200,23 @@ export async function buildProduction(
       let moved = 0;
       for (const d of due) moved += (await sql<{ n: number }>`select books_roll_periods(${d.business_id}::uuid) as n`.execute(db)).rows[0]?.n ?? 0;
       if (moved > 0) console.log(`[books] periods: ${moved} lock(s) moved on to keep two current periods open`);
+    });
+    // 0212 — THE STALE GRANT: every hour, each QuickBooks or Xero grant Nomi no longer uses that its system has not
+    // confirmed given back is given back again (src/books/staleGrants.ts), until it is, or its life there is over.
+    await boss.schedule(QUEUES.booksStaleGrants, '37 * * * *', {});
+    await boss.work(QUEUES.booksStaleGrants, async () => {
+      const xeroId = process.env['XERO_CLIENT_ID']?.trim(); const xeroSecret = process.env['XERO_CLIENT_SECRET']?.trim();
+      const qboId = process.env['QBO_CLIENT_ID']?.trim(); const qboSecret = process.env['QBO_CLIENT_SECRET']?.trim();
+      const grantDeps = { db, credentialKey,
+        ...(recipientNamed('xero') && xeroId && xeroSecret ? { xero: { client: { clientId: xeroId, clientSecret: xeroSecret }, fetch: oauthFetch } } : {}),
+        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch } } : {}) };
+      const due = (await sql<{ business_id: string }>`select business_id::text as business_id from stale_grant_workspaces()`.execute(db)).rows;
+      let given = 0; let left = 0; let ended = 0;
+      for (const d of due) {
+        const r = await retryStaleGrants(grantDeps, d.business_id, 'nomi');
+        given += r.givenBack; left += r.left; ended += r.endedLive.length;
+      }
+      if (due.length > 0) console.log(`[books] stale grants: ${given} given back, ${left} still open there, ${ended} live connection(s) ended with one`);
     });
     // D1 (0137) — a sign-up never finished is not kept: its form and address go an hour after its code
     // expired. In both modes: sign-up runs with no channel configured, too.
