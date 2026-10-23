@@ -11,7 +11,7 @@ import { booksConnector } from './connectors/registry.js';
 import { rewriteSpreadsheet, sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
 import { sendEntriesToOdoo, type OdooEntryOut, type OdooWriteConflict } from './connectors/odoo.js';
 import { sendEntriesToXero, xeroAccess, type XeroDeps, type XeroEntryOut, type XeroWriteConflict } from './connectors/xero.js';
-import { qboAccess, sendEntriesToQbo, type QboDeps, type QboWriteConflict } from './connectors/quickbooks.js';
+import { qboWithAccess, sendEntriesToQbo, type QboDeps, type QboWriteConflict } from './connectors/quickbooks.js';
 
 /**
  * C4 (Phase 5; item 13, part 2) — WRITING BACK, NEVER OVER ANYTHING. Nomi's books are the record (decision 10), and a
@@ -178,18 +178,20 @@ export async function writeBackQuickbooks(deps: WriteDeps, businessIdRaw: string
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !deps.quickbooks) return { kind: 'refused', reason: 'source_missing' };
   const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'quickbooks'));
-  const realmId = conn?.settings['realmId'];
-  if (!conn || conn.state === 'disconnected' || !conn.grant || !realmId) return { kind: 'refused', reason: 'revoked' };
-  const access = await qboAccess(deps.quickbooks, conn.grant);
-  if ('kind' in access) return { kind: 'refused', reason: access.reason };
-  if (access.grant.secret !== conn.grant.secret) {
-    await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', access.grant.secret, by));
-  }
+  if (!conn || conn.state === 'disconnected' || !conn.grant) return { kind: 'refused', reason: 'revoked' };
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
   const entries = await postedNotSent(deps.db, bid.value, 'quickbooks');
   if (entries.length === 0) return { kind: 'written', count: 0 };
-  const sent = await sendEntriesToQbo(deps.quickbooks, { accessToken: access.accessToken, realmId }, book, entries);
-  if ('kind' in sent) return { kind: 'refused', reason: sent.reason };
+  // R4 — as the read: the access token used again while good, refreshed once on a 401, the grant kept first.
+  const qbo = deps.quickbooks;
+  const got = await qboWithAccess(qbo, conn.grant,
+    (g) => withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', g.secret, by)),
+    async (source) => {
+      const r = await sendEntriesToQbo(qbo, source, book, entries);
+      return 'kind' in r ? r : { kind: 'sent' as const, ...r };
+    });
+  if (got.kind === 'refused') return { kind: 'refused', reason: got.reason };
+  const sent = got;
   await withTenantTx(deps.db, bid.value, async (tx) => {
     for (const s of sent.written) {
       const e = entries.find((x) => x.key === s.key)!;

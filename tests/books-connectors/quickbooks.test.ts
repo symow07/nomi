@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { qboAccess, qboAuthorizeUrl, qboConnector, sendEntriesToQbo, QBO_JOURNAL } from '../../src/books/connectors/quickbooks.js';
+import { qboAccess, qboAuthorizeUrl, qboConnector, qboWithAccess, sendEntriesToQbo, QBO_JOURNAL, type QboCall, type QboDeps } from '../../src/books/connectors/quickbooks.js';
+import type { Grant } from '../../src/core/books/connector.js';
 import { recordsOf, type BooksData } from '../../src/core/books/interchange.js';
 import type { Decimal } from '../../src/core/types/decimal.js';
 import { conformance } from './conformance.js';
@@ -43,16 +44,25 @@ conformance({
 });
 
 const fresh = () => { const f = qboFake(); f.publish(SAMPLE_BOOKS); return { f, c: qboConnector({ client: QBO_CLIENT, fetch: f.fetch }, 'MAD') }; };
-const connected = async () => {
-  const { f, c } = fresh();
+const connected = async (o: { now?: () => number; log?: (c: QboCall) => void } = {}) => {
+  const { f } = fresh();
+  const deps: QboDeps = { client: QBO_CLIENT, fetch: f.fetch, ...o };
+  const c = qboConnector(deps, 'MAD');
   const r = await c.connect({ ...f.code(), redirectUri: REDIRECT });
   if (r.kind !== 'connected') throw new Error(`fixture: ${r.reason}`);
-  return { f, c, r, deps: { client: QBO_CLIENT, fetch: f.fetch } };
+  return { f, c, r, deps };
 };
+/** The refresh token inside a sealed grant (the grant is the refresh token, the realm and the access token together). */
+const refreshOf = (g: Grant) => (JSON.parse(g.secret) as { r: string }).r;
+const tokenCalls = (calls: readonly string[]) => calls.filter((x) => x === 'POST oauth.platform.intuit.com/oauth2/v1/tokens/bearer').length;
 
 describe('D9 · signing in to QuickBooks', () => {
-  it('Intuit\'s page asks for the accounting scope, and nothing more', () => {
-    const u = new URL(qboAuthorizeUrl(QBO_CLIENT, { redirectUri: REDIRECT, state: 'n0nce' }));
+  it('Intuit\'s page asks for the accounting scope, and nothing more — at the address its discovery document gives', async () => {
+    const { f } = fresh();
+    const to = await qboAuthorizeUrl({ client: QBO_CLIENT, fetch: f.fetch }, { redirectUri: REDIRECT, state: 'n0nce' });
+    if (typeof to !== 'string') throw new Error('fixture');
+    const u = new URL(to);
+    expect(f.calls[0]).toBe('GET developer.api.intuit.com/.well-known/openid_configuration');
     expect(`${u.origin}${u.pathname}`).toBe('https://appcenter.intuit.com/connect/oauth2');
     expect(Object.fromEntries(u.searchParams)).toEqual({ client_id: QBO_CLIENT.clientId, response_type: 'code', scope: 'com.intuit.quickbooks.accounting', redirect_uri: REDIRECT, state: 'n0nce' });
   });
@@ -68,16 +78,18 @@ describe('D9 · signing in to QuickBooks', () => {
   });
 
   it('the refresh token stays the same within a day and CHANGES after; the one before is then refused — so the returned one is kept', async () => {
-    const { f, r, c, deps } = await connected();
-    const same = await qboAccess(deps, r.grant!);
+    let now = Date.parse('2026-10-23T09:00:00Z');
+    const { f, r, c, deps } = await connected({ now: () => now });
+    const same = await qboAccess(deps, r.grant!, { force: true });
     if ('kind' in same) throw new Error('fixture');
-    expect(same.grant.secret).toBe(r.grant!.secret);
-    f.nextDay();
+    expect(refreshOf(same.grant)).toBe(refreshOf(r.grant!));
+    f.nextDay(); now += 25 * 3600 * 1000;
     const next = await qboAccess(deps, r.grant!);
     if ('kind' in next) throw new Error('fixture');
-    expect(next.grant.secret).not.toBe(r.grant!.secret);
+    expect(next.fresh).toBe(true);
+    expect(refreshOf(next.grant)).not.toBe(refreshOf(r.grant!));
     expect(await c.refresh(r.grant!)).toEqual({ kind: 'refused', reason: 'revoked', retryable: false });
-    expect(f.liveRefresh()).toEqual([next.grant.secret]);
+    expect(f.liveRefresh()).toEqual([refreshOf(next.grant)]);
   });
 
   it('refusals by status and Fault code, never Intuit\'s words: an unknown token, a subscription that ended, Intuit not answering', async () => {
@@ -89,6 +101,84 @@ describe('D9 · signing in to QuickBooks', () => {
     expect(f.liveRefresh()).toEqual([]);
     const silent = qboConnector({ client: QBO_CLIENT, fetch: async () => { throw new Error('offline'); } }, 'MAD');
     expect(await silent.connect({ code: 'x', realmId: '1', redirectUri: REDIRECT })).toEqual({ kind: 'refused', reason: 'unreachable', retryable: true });
+  });
+});
+
+/**
+ * R4 — what Intuit's App Assessment asks of the sign-in, each held here against the fake: the access token used again
+ * until it ends (never refreshed per call); an expired access token, an expired refresh token and invalid_grant each
+ * handled; the realmId sealed with the grant; the endpoints from the discovery document; each call logged with its
+ * intuit_tid and error code, and nothing else.
+ */
+describe('R4 · the sign-in Intuit assesses', () => {
+  const read = (c: ReturnType<typeof qboConnector>) => (s: Parameters<typeof c.changedSince>[0]) => c.changedSince(s, null);
+
+  it('the access token is used again while it is good: two reads within the hour refresh nothing', async () => {
+    const { f, r, c, deps } = await connected();
+    const before = tokenCalls(f.calls);
+    const kept: Grant[] = [];
+    for (let i = 0; i < 2; i++) expect(await qboWithAccess(deps, r.grant!, async (g) => { kept.push(g); }, read(c))).toMatchObject({ kind: 'read' });
+    expect(tokenCalls(f.calls)).toBe(before);
+    expect(kept).toEqual([]);
+  });
+
+  it('near its end (five minutes or less), the access token is refreshed before the call, and the new grant kept first', async () => {
+    const at = Date.parse('2026-10-23T09:00:00Z');
+    let now = at;
+    const { f, r, c, deps } = await connected({ now: () => now });
+    now = at + 56 * 60 * 1000;
+    const kept: Grant[] = [];
+    expect(await qboWithAccess(deps, r.grant!, async (g) => { kept.push(g); }, read(c))).toMatchObject({ kind: 'read' });
+    expect(tokenCalls(f.calls)).toBe(2);   // the code's exchange, then this refresh
+    expect(kept).toHaveLength(1);
+  });
+
+  it('AN EXPIRED ACCESS TOKEN: the 401 is refreshed ONCE and the read retried once, the new grant kept', async () => {
+    const { f, r, c, deps } = await connected();
+    f.expireAccess();
+    const kept: Grant[] = [];
+    expect(await qboWithAccess(deps, r.grant!, async (g) => { kept.push(g); }, read(c))).toMatchObject({ kind: 'read' });
+    expect(tokenCalls(f.calls)).toBe(2);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('AN EXPIRED REFRESH TOKEN, AND invalid_grant: nothing is read, and the owner is asked to connect again', async () => {
+    const { f, r, c, deps } = await connected();
+    f.expireAccess(); f.refuseRefresh();
+    const kept: Grant[] = [];
+    expect(await qboWithAccess(deps, r.grant!, async (g) => { kept.push(g); }, read(c))).toMatchObject({ kind: 'refused', reason: 'revoked' });
+    expect(kept).toEqual([]);
+    expect(await c.refresh(r.grant!)).toMatchObject({ kind: 'refused', reason: 'revoked' });
+  });
+
+  it('the realmId is sealed with the grant: the grant is the refresh token, the realm and the access token, together', async () => {
+    const { f, r } = await connected();
+    expect(JSON.parse(r.grant!.secret)).toMatchObject({ r: expect.any(String), realm: f.realmId, a: expect.any(String), ae: expect.any(Number) });
+    expect(await qboAccess({ client: QBO_CLIENT, fetch: f.fetch }, { secret: 'not-a-grant', expiresAt: null })).toMatchObject({ kind: 'refused', reason: 'revoked' });
+  });
+
+  it('the endpoints come from the discovery document; when it does not answer, nothing is sent anywhere', async () => {
+    const { f } = fresh();
+    f.discoveryDown();
+    const c = qboConnector({ client: QBO_CLIENT, fetch: f.fetch }, 'MAD');
+    expect(await c.connect({ ...f.code(), redirectUri: REDIRECT })).toMatchObject({ kind: 'refused', reason: 'unreachable' });
+    expect(f.calls).toEqual(['GET developer.api.intuit.com/.well-known/openid_configuration']);
+    expect(await qboAuthorizeUrl({ client: QBO_CLIENT, fetch: f.fetch }, { redirectUri: REDIRECT, state: 's' })).toMatchObject({ kind: 'refused' });
+  });
+
+  it('every call is logged with what it was, its status, Intuit\'s error code and its intuit_tid — never a token, the realm or the books', async () => {
+    const logs: QboCall[] = [];
+    const { f, r, c, deps } = await connected({ log: (x) => logs.push(x) });
+    f.expireAccess(); f.refuseRefresh();
+    await qboWithAccess(deps, r.grant!, async () => {}, read(c));
+    expect(logs.every((l) => Object.keys(l).sort().join() === 'error,op,status,tid')).toBe(true);
+    expect(logs.every((l) => l.tid === null || /^1-[0-9a-f]{8}-[0-9a-f]{12}$/.test(l.tid))).toBe(true);
+    expect(logs.filter((l) => l.op !== 'discovery').every((l) => l.tid !== null)).toBe(true);
+    expect(logs.find((l) => l.op === 'token:refresh')).toMatchObject({ status: 400, error: 'invalid_grant' });
+    expect(logs.find((l) => l.op === 'preferences')).toMatchObject({ status: 401, error: '3200' });
+    const said = JSON.stringify(logs);
+    const g = JSON.parse(r.grant!.secret) as { r: string; a: string };
+    for (const secret of [g.r, g.a, f.realmId, QBO_CLIENT.clientSecret, 'Westlake']) expect(said).not.toContain(secret);
   });
 });
 

@@ -107,7 +107,15 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     const ok = await app.inject({ method: 'GET', url: `/app/books/quickbooks/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(n2)}&realmId=${realmId}`,
       headers: { cookie: `${owner}; ${s2}` } });
     expect(await notice(ok)).toContain('QuickBooks is connected to Westlake Canvas Co.');
-    expect(await held()).toMatchObject({ state: 'connected', settings: { realmId, companyName: 'Westlake Canvas Co.' } });
+    expect(await held()).toMatchObject({ state: 'connected', settings: { companyName: 'Westlake Canvas Co.' } });
+    // R4 (item 1) — the realmId is sealed with the grant: not in the settings, nowhere in the clear in the database
+    expect((await held())!.settings).not.toHaveProperty('realmId');
+    expect(JSON.parse((await held())!.grant!.secret)).toMatchObject({ realm: realmId });
+    const raw = (await admin.query(`select c.settings::text as settings, k.secret_ciphertext as sealed from books_connections c
+      join connector_credentials k on k.id = c.credential_id where c.business_id = $1 and c.system = 'quickbooks'`, [BIZ])).rows[0];
+    expect(raw.settings).not.toContain(realmId);
+    expect(raw.sealed.startsWith('v1.')).toBe(true);
+    expect(raw.sealed).not.toContain(realmId);
     expect(await home()).toContain('<bdi>Westlake Canvas Co.</bdi>');
   });
 
@@ -124,7 +132,8 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     expect(await notice(await press('/app/books/quickbooks/read'))).toContain('0 new');
     const after = (await held())!.grant!.secret;
     expect(after).not.toBe(before);
-    expect(qbo.liveRefresh()).toEqual([after]);
+    // a day later the access token had ended: the 401 was refreshed once, and the refresh token Intuit returned kept
+    expect(qbo.liveRefresh()).toEqual([(JSON.parse(after) as { r: string }).r]);
   });
 
   it('WRITE BACK: a posted entry of Nomi\'s becomes a journal entry numbered by Nomi; never read back in, never sent twice; a conflict waits', async () => {
@@ -140,6 +149,31 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     expect(r.statusCode).toBe(409);
     expect(r.body).toContain('no customer or vendor in QuickBooks has the code C077.');
     expect(qbo.created).toHaveLength(1);
+  });
+
+  it('R4 (items 10, 12) — CONNECT, DISCONNECT, CONNECT AGAIN: each works, against the fake (Intuit\'s sandbox waits on an account)', async () => {
+    const connect = async () => {
+      const start = await app.inject({ method: 'GET', url: '/app/books/quickbooks/start', headers: { cookie: owner } });
+      const st = cookiesOf(start).find((c) => c.startsWith('yf_qbo_oauth='))!;
+      const nonce = new URL(String(start.headers['location'])).searchParams.get('state')!;
+      const { code, realmId } = qbo.code();
+      return app.inject({ method: 'GET', url: `/app/books/quickbooks/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(nonce)}&realmId=${realmId}`,
+        headers: { cookie: `${owner}; ${st}` } });
+    };
+    expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
+    expect(await held()).toMatchObject({ state: 'connected' });
+    expect(await notice(await press('/app/books/quickbooks/disconnect'))).toContain('Disconnected.');
+    expect(await held()).toMatchObject({ state: 'disconnected', grant: null });
+    expect(await notice(await connect())).toContain('QuickBooks is connected to Westlake Canvas Co.');
+    expect(await held()).toMatchObject({ state: 'connected' });
+    // Intuit's Disconnect URL: where QuickBooks sends an owner who disconnected Nomi there. It says so, and changes
+    // nothing here (a link anyone could open must not disconnect anybody).
+    const there = await app.inject({ method: 'GET', url: '/app/books/quickbooks/disconnected', headers: { cookie: owner } });
+    expect(there.statusCode).toBe(302);
+    expect(await notice(there)).toContain('If you disconnected Nomi in QuickBooks');
+    expect(await held()).toMatchObject({ state: 'connected' });
+    const stranger = await app.inject({ method: 'GET', url: '/app/books/quickbooks/disconnected' });
+    expect([stranger.statusCode, stranger.headers['location']]).toEqual([302, '/login']);
   });
 
   it('A SUBSCRIPTION THAT ENDED: said for what it is; disconnecting gives the access back', async () => {

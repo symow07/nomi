@@ -42,17 +42,28 @@ import { nomiMark as mark, readNomiMark as readMark } from './mark.js';
  */
 
 export const QBO_SCOPE = 'com.intuit.quickbooks.accounting';
-const AUTHORIZE = 'https://appcenter.intuit.com/connect/oauth2';
-const TOKEN = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-const REVOKE = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
+/**
+ * R4 (the App Assessment, item 7) — Intuit's OAuth endpoints are read from its DISCOVERY DOCUMENT, never written here:
+ * the authorize, token and revocation addresses come from it, kept a day, and only on an https host of intuit.com. The
+ * document's own address is the one Intuit publishes for production.
+ */
+export const QBO_DISCOVERY = 'https://developer.api.intuit.com/.well-known/openid_configuration';
+const DISCOVERY_KEPT_MS = 24 * 3600 * 1000;
 const API = 'https://quickbooks.api.intuit.com/v3/company';
 const MINOR = 'minorversion=75';
 /** Every entry read from QuickBooks is in this journal: it keeps journal entries, and no journals. */
 export const QBO_JOURNAL = 'QBO';
 const PAGE = 1000;
+/** An access token is used again until this long before it ends; then, and on a 401, it is refreshed (R4, item 2). */
+const ACCESS_MARGIN_MS = 5 * 60 * 1000;
 
 export type QboClient = { readonly clientId: string; readonly clientSecret: string };
-export type QboDeps = { readonly client: QboClient; readonly fetch: OAuthFetch };
+/**
+ * R4 (items 5, 6) — what each call to Intuit is logged with: what it was, its status, Intuit's error code, and the
+ * `intuit_tid` Intuit returns for its support to trace it. Never the payload, a token, the realm or QuickBooks' data.
+ */
+export type QboCall = { readonly op: string; readonly status: number | null; readonly error: string | null; readonly tid: string | null };
+export type QboDeps = { readonly client: QboClient; readonly fetch: OAuthFetch; readonly log?: (c: QboCall) => void; readonly now?: () => number };
 export type QboSource = { readonly accessToken: string; readonly realmId: string; readonly companyName?: string };
 export type QboRaw = {
   readonly homeCurrency: string; readonly country: string; readonly multiCurrency: boolean;
@@ -63,11 +74,24 @@ export type QboRaw = {
 };
 
 type Answer = { readonly status: number; readonly text: string } | null;
-async function call(deps: QboDeps, url: string, init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string }): Promise<Answer> {
+/** Intuit's error code in an answer: a Fault's first code, or an OAuth `error` (invalid_grant, invalid_client …). */
+function errorOf(text: string): string | null {
+  try {
+    const j = JSON.parse(text) as { Fault?: { Error?: { code?: unknown }[] }; error?: unknown };
+    if (j.Fault) return String(j.Fault.Error?.[0]?.code ?? '');
+    return typeof j.error === 'string' ? j.error.slice(0, 40) : null;
+  } catch { return null; }
+}
+async function call(deps: QboDeps, op: string, url: string, init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string }): Promise<Answer> {
   try {
     const res = await deps.fetch(url, { ...init, signal: AbortSignal.timeout(OAUTH_TIMEOUT_MS) });
-    return { status: res.status, text: await res.text() };
+    const text = await res.text();
+    // a success is parsed for an error only where it holds a Fault (Intuit answers some with 200)
+    deps.log?.({ op, status: res.status, error: res.status >= 300 || text.includes('"Fault"') ? errorOf(text) : null,
+      tid: res.headers?.get('intuit_tid')?.slice(0, 80) ?? null });
+    return { status: res.status, text };
   } catch {
+    deps.log?.({ op, status: null, error: 'unreachable', tid: null });
     return null;
   }
 }
@@ -95,32 +119,101 @@ function refusalOf(a: Answer): ConnectRefusal | null {
   return null;
 }
 
-async function tokens(deps: QboDeps, body: Record<string, string>): Promise<{ readonly access: string; readonly refresh: string } | ConnectRefusal> {
-  const a = await call(deps, TOKEN, { method: 'POST',
+type Endpoints = { readonly authorize: string; readonly token: string; readonly revoke: string };
+const discovered = new WeakMap<OAuthFetch, { readonly at: number; readonly e: Endpoints }>();
+const intuitUrl = (v: unknown): string | null => {
+  if (typeof v !== 'string') return null;
+  try { const u = new URL(v); return u.protocol === 'https:' && (u.hostname === 'intuit.com' || u.hostname.endsWith('.intuit.com')) ? u.toString() : null; } catch { return null; }
+};
+/** Intuit's endpoints, from its discovery document (kept a day). Not reachable, or not Intuit's: nothing is sent. */
+async function endpoints(deps: QboDeps): Promise<Endpoints | ConnectRefusal> {
+  const now = (deps.now ?? Date.now)();
+  const kept = discovered.get(deps.fetch);
+  if (kept && now - kept.at < DISCOVERY_KEPT_MS) return kept.e;
+  const a = await call(deps, 'discovery', QBO_DISCOVERY, { method: 'GET', headers: { Accept: 'application/json' } });
+  if (!a || a.status !== 200) return refused('unreachable');
+  let j: Record<string, unknown>;
+  try { j = JSON.parse(a.text) as Record<string, unknown>; } catch { return refused('unreachable'); }
+  const [authorize, token, revoke] = [intuitUrl(j['authorization_endpoint']), intuitUrl(j['token_endpoint']), intuitUrl(j['revocation_endpoint'])];
+  if (!authorize || !token || !revoke) return refused('unreachable');
+  const e = { authorize, token, revoke };
+  discovered.set(deps.fetch, { at: now, e });
+  return e;
+}
+
+type Tokens = { readonly access: string; readonly refresh: string; readonly expiresIn: number };
+async function tokens(deps: QboDeps, body: Record<string, string>): Promise<Tokens | ConnectRefusal> {
+  const at = await endpoints(deps); if ('kind' in at) return at;
+  const a = await call(deps, body['grant_type'] === 'refresh_token' ? 'token:refresh' : 'token:code', at.token, { method: 'POST',
     headers: { Authorization: basic(deps.client), 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(body).toString() });
   if (!a || a.status >= 500 || a.status === 429) return refused('unreachable');
+  // invalid_grant (an expired or revoked refresh token) and every other refusal of a refresh: the owner connects again
   if (a.status !== 200) return refused(body['grant_type'] === 'refresh_token' ? 'revoked' : 'wrong_credentials');
   let j: Record<string, unknown>;
   try { j = JSON.parse(a.text) as Record<string, unknown>; } catch { return refused('unreadable'); }
   if (typeof j['access_token'] !== 'string' || typeof j['refresh_token'] !== 'string') return refused('wrong_credentials');
-  return { access: j['access_token'], refresh: j['refresh_token'] };
+  const expiresIn = typeof j['expires_in'] === 'number' && j['expires_in'] > 0 ? j['expires_in'] : 3600;
+  return { access: j['access_token'], refresh: j['refresh_token'], expiresIn };
 }
 async function revokeToken(deps: QboDeps, token: string): Promise<void> {
-  await call(deps, REVOKE, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/json', Accept: 'application/json' },
+  const at = await endpoints(deps); if ('kind' in at) return;
+  await call(deps, 'revoke', at.revoke, { method: 'POST', headers: { Authorization: basic(deps.client), 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ token }) });
 }
 
-/** Where the owner is sent to connect the company. */
-export function qboAuthorizeUrl(client: QboClient, o: { readonly redirectUri: string; readonly state: string }): string {
-  return `${AUTHORIZE}?${new URLSearchParams({ client_id: client.clientId, response_type: 'code', scope: QBO_SCOPE, redirect_uri: o.redirectUri, state: o.state }).toString()}`;
+/** Where the owner is sent to connect the company: Intuit's authorize endpoint, from its discovery document. */
+export async function qboAuthorizeUrl(deps: QboDeps, o: { readonly redirectUri: string; readonly state: string }): Promise<string | ConnectRefusal> {
+  const at = await endpoints(deps); if ('kind' in at) return at;
+  return `${at.authorize}?${new URLSearchParams({ client_id: deps.client.clientId, response_type: 'code', scope: QBO_SCOPE, redirect_uri: o.redirectUri, state: o.state }).toString()}`;
 }
 
-/** A grant held, refreshed into an access token — and the grant Intuit returned (a new one every 24 hours), kept first. */
-export async function qboAccess(deps: QboDeps, grant: Grant): Promise<{ readonly accessToken: string; readonly grant: Grant } | ConnectRefusal> {
-  const t = await tokens(deps, { grant_type: 'refresh_token', refresh_token: grant.secret });
+/**
+ * R4 (items 1, 2) — WHAT IS SEALED for a QuickBooks connection: the refresh token, the company's realmId, and the
+ * access token with the time it ends, together, in the one sealed credential (AES-256-GCM, src/security/credentials.ts;
+ * the key is CREDENTIAL_KEY, never in the repo). The realmId is never kept in the clear.
+ */
+type QboGrant = { readonly r: string; readonly realm: string; readonly a?: string; readonly ae?: number };
+const packGrant = (g: QboGrant): Grant => ({ secret: JSON.stringify(g), expiresAt: null });
+const openGrant = (grant: Grant): QboGrant | null => {
+  try {
+    const g = JSON.parse(grant.secret) as Partial<QboGrant>;
+    return typeof g.r === 'string' && typeof g.realm === 'string' && /^\d{1,30}$/.test(g.realm) ? g as QboGrant : null;
+  } catch { return null; }
+};
+
+export type QboAccess = { readonly source: QboSource; readonly grant: Grant; readonly fresh: boolean };
+/**
+ * The connection's access: its access token used again while it has more than five minutes left; refreshed when it
+ * does not, or when `force` (a 401 on a token that should have been good). A refresh returns a new grant — Intuit's
+ * refresh token changes every 24 hours — which the caller keeps before anything is read with it.
+ */
+export async function qboAccess(deps: QboDeps, grant: Grant, o: { readonly force?: boolean } = {}): Promise<QboAccess | ConnectRefusal> {
+  const g = openGrant(grant);
+  if (!g) return refused('revoked');
+  const now = (deps.now ?? Date.now)();
+  if (!o.force && g.a && g.ae !== undefined && g.ae - now > ACCESS_MARGIN_MS) return { source: { accessToken: g.a, realmId: g.realm }, grant, fresh: false };
+  const t = await tokens(deps, { grant_type: 'refresh_token', refresh_token: g.r });
   if ('kind' in t) return t;
-  return { accessToken: t.access, grant: { secret: t.refresh, expiresAt: null } };
+  return { source: { accessToken: t.access, realmId: g.realm }, grant: packGrant({ r: t.refresh, realm: g.realm, a: t.access, ae: now + t.expiresIn * 1000 }), fresh: true };
+}
+
+/**
+ * R4 (items 2, 4) — one piece of work with the connection's access: the grant kept first whenever it changed; and a
+ * 401 on an access token used again is refreshed ONCE and the work retried once. A refresh Intuit refuses
+ * (invalid_grant: the refresh token expired or was revoked) is `revoked`, and the owner is asked to connect again.
+ */
+export async function qboWithAccess<T extends { readonly kind: string }>(deps: QboDeps, grant: Grant, keep: (g: Grant) => Promise<void>,
+  run: (s: QboSource) => Promise<T>): Promise<T | ConnectRefusal> {
+  let a = await qboAccess(deps, grant);
+  if ('kind' in a) return a;
+  if (a.fresh) await keep(a.grant);
+  const out = await run(a.source);
+  if (a.fresh || !(out.kind === 'refused' && (out as unknown as ConnectRefusal).reason === 'revoked')) return out;
+  a = await qboAccess(deps, a.grant, { force: true });
+  if ('kind' in a) return a;
+  await keep(a.grant);
+  return run(a.source);
 }
 
 // ── the mapping ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -249,7 +342,8 @@ export function booksToQbo(d: BooksData, homeCurrency: string, country = 'MA'): 
 
 // ── reading ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 async function getJson(deps: QboDeps, s: QboSource, path: string): Promise<{ readonly body: Record<string, unknown> } | ConnectRefusal> {
-  const a = await call(deps, `${API}/${encodeURIComponent(s.realmId)}/${path}${path.includes('?') ? '&' : '?'}${MINOR}`, { method: 'GET', headers: api(s) });
+  const a = await call(deps, path.startsWith('query') ? `query:${/FROM (\w+)/.exec(decodeURIComponent(path))?.[1] ?? ''}` : path.split('/')[0]!,
+    `${API}/${encodeURIComponent(s.realmId)}/${path}${path.includes('?') ? '&' : '?'}${MINOR}`, { method: 'GET', headers: api(s) });
   const no = refusalOf(a);
   if (no) return no;
   try {
@@ -303,13 +397,14 @@ export function qboConnector(deps: QboDeps, bookCurrency: string): BooksConnecto
       // Refused after the exchange: the grant Intuit just gave is given back.
       if ('kind' in info) { await revokeToken(deps, t.refresh); return info; }
       const name = str((info.body['CompanyInfo'] as Record<string, unknown> | undefined)?.['CompanyName']) ?? '';
-      return { kind: 'connected', source: { ...source, companyName: name }, grant: { secret: t.refresh, expiresAt: null } };
+      return { kind: 'connected', source: { ...source, companyName: name },
+        grant: packGrant({ r: t.refresh, realm: realmId, a: t.access, ae: (deps.now ?? Date.now)() + t.expiresIn * 1000 }) };
     },
     async refresh(grant: Grant) {
-      const r = await qboAccess(deps, grant);
+      const r = await qboAccess(deps, grant, { force: true });
       return 'kind' in r ? r : r.grant;
     },
-    async revoke(grant: Grant) { await revokeToken(deps, grant.secret); },
+    async revoke(grant: Grant) { const g = openGrant(grant); if (g) await revokeToken(deps, g.r); },
     toBooks: (raw) => qboToBooks(raw, bookCurrency),
     fromBooks: (d) => booksToQbo(d, bookCurrency),
     async changedSince(source, cursor) {
@@ -368,7 +463,7 @@ export async function sendEntriesToQbo(deps: QboDeps, s: QboSource, bookCurrency
             ...(l.party ? { Entity: partyRef.get(l.party) } : {}) } };
       }),
     };
-    const a = await call(deps, `${API}/${encodeURIComponent(s.realmId)}/journalentry?${MINOR}&requestid=${encodeURIComponent(`nomi-${e.key}`.slice(0, 50))}`,
+    const a = await call(deps, 'journalentry', `${API}/${encodeURIComponent(s.realmId)}/journalentry?${MINOR}&requestid=${encodeURIComponent(`nomi-${e.key}`.slice(0, 50))}`,
       { method: 'POST', headers: api(s, true), body: exactBody(body) });
     if (!a || a.status >= 500 || a.status === 429) return refused('unreachable');
     if (a.status === 401 || a.status === 403) return refused('revoked');

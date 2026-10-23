@@ -104,6 +104,7 @@ import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
+import type { QboCall } from './books/connectors/quickbooks.js';
 import { publicPost } from './net/publicFetch.js';
 
 /**
@@ -1183,7 +1184,9 @@ export async function buildProduction(
         ...(recipientNamed('googleSheets') && sheetsId && sheetsSecret ? { sheets: { client: { clientId: sheetsId, clientSecret: sheetsSecret }, fetch: oauthFetch } } : {}),
         odoo: { post: publicPost, today: () => new Date().toISOString().slice(0, 10) },
         ...(recipientNamed('xero') && xeroId && xeroSecret ? { xero: { client: { clientId: xeroId, clientSecret: xeroSecret }, fetch: oauthFetch } } : {}),
-        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch } } : {}),
+        // R4 — a call to Intuit that did not go well is logged with its op, status, error code and intuit_tid, and nothing else
+        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch,
+          log: (c: QboCall) => { if (c.status === null || c.status >= 300 || c.error !== null) console.warn(`[books] quickbooks call ${JSON.stringify(c)}`); } } } : {}),
       });
       if (t.read + t.refused + t.problems > 0) console.log(`[books] morning read: ${t.read} read, ${t.refused} refused, ${t.problems} with problems`);
     });

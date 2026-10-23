@@ -27,6 +27,12 @@ export type QboFake = {
   lapse(): void;
   /** A company in the United States (no GlobalTaxCalculation). */
   inUnitedStates(): void;
+  /** An hour passes: every access token Intuit gave ends (401 3200), refresh tokens still good. */
+  expireAccess(): void;
+  /** Every refresh token is refused from now on (400 invalid_grant): expired, or revoked at Intuit. */
+  refuseRefresh(): void;
+  /** Intuit's discovery document does not answer. */
+  discoveryDown(): void;
   readonly created: { readonly body: Record<string, unknown>; readonly requestId: string | null }[];
   readonly liveRefresh: () => readonly string[];
   readonly calls: string[];
@@ -38,7 +44,21 @@ const N = '~#n#~';
 const json = (v: unknown) => JSON.stringify(v, (_k, x: unknown) =>
   (x && typeof x === 'object' && 'number' in x && Object.keys(x).length === 1 ? `${N}${(x as { number: string }).number}` : x))
   .replace(new RegExp(`"${N}(-?[0-9.]+)"`, 'g'), '$1');
-const answer = (status: number, body: unknown) => ({ status, text: async () => (typeof body === 'string' ? body : json(body)) });
+// R4 — every answer carries an intuit_tid, as Intuit's do, for the connector to log
+const answer = (status: number, body: unknown) => {
+  const hex = randomUUID().replace(/-/g, '');
+  const tid = `1-${hex.slice(0, 8)}-${hex.slice(8, 20)}`;
+  return { status, text: async () => (typeof body === 'string' ? body : json(body)), headers: { get: (n: string) => (n.toLowerCase() === 'intuit_tid' ? tid : null) } };
+};
+/** Intuit's production discovery document, as published (the four endpoints the connector reads). */
+export const QBO_DISCOVERY_DOC = {
+  issuer: 'https://oauth.platform.intuit.com/op/v1',
+  authorization_endpoint: 'https://appcenter.intuit.com/connect/oauth2',
+  token_endpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+  userinfo_endpoint: 'https://accounts.platform.intuit.com/v1/openid_connect/userinfo',
+  revocation_endpoint: 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke',
+  jwks_uri: 'https://oauth.platform.intuit.com/op/v1/jwks',
+};
 const fault = (status: number, code: string, message: string, type = 'ValidationFault') =>
   answer(status, { Fault: { Error: [{ Message: message, Detail: message, code, element: '' }], type }, time: '2026-10-22T09:00:00.000-07:00' });
 
@@ -54,6 +74,7 @@ export function qboFake(): QboFake {
   const codes = new Map<string, string>();
   let day = 0; const issuedOn = new Map<string, number>();
   let lapsed = false;
+  let refreshRefused = false; let discoveryAnswers = true;
   const created: QboFake['created'] = [];
   const requests = new Map<string, { status: number; body: unknown }>();
   const calls: string[] = [];
@@ -70,6 +91,9 @@ export function qboFake(): QboFake {
     const u = new URL(url);
     calls.push(`${init.method} ${u.host}${u.pathname}`);
     const h = init.headers;
+    if (u.host === 'developer.api.intuit.com' && u.pathname === '/.well-known/openid_configuration') {
+      return discoveryAnswers ? answer(200, QBO_DISCOVERY_DOC) : answer(503, 'Service Unavailable');
+    }
     if (u.host === 'oauth.platform.intuit.com' || u.host === 'developer.api.intuit.com') {
       if (h['Authorization'] !== `Basic ${Buffer.from(`${QBO_CLIENT.clientId}:${QBO_CLIENT.clientSecret}`).toString('base64')}`) return answer(401, { error: 'invalid_client' });
       if (u.pathname === '/v2/oauth2/tokens/revoke') {
@@ -88,6 +112,7 @@ export function qboFake(): QboFake {
         return answer(200, issue(family));
       }
       if (form.get('grant_type') === 'refresh_token') {
+        if (refreshRefused) return answer(400, { error: 'invalid_grant' });
         const r = form.get('refresh_token') ?? '';
         const family = refreshLive.get(r);
         if (!family) return answer(400, { error: 'invalid_grant' });
@@ -157,9 +182,13 @@ export function qboFake(): QboFake {
       extra = [];
     },
     code() { const c = `qbo-code-${randomUUID()}`; codes.set(c, randomUUID()); return { code: c, realmId }; },
-    nextDay() { day++; },
+    // a day is longer than an access token's hour: the ones given before it have ended
+    nextDay() { day++; access.clear(); },
     lapse() { lapsed = true; },
     inUnitedStates() { country = 'US'; },
+    expireAccess() { access.clear(); },
+    refuseRefresh() { refreshRefused = true; },
+    discoveryDown() { discoveryAnswers = false; },
     liveRefresh: () => [...refreshLive.keys()],
   };
 }

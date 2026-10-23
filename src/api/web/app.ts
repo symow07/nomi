@@ -228,7 +228,7 @@ import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
 import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
-import { qboAuthorizeUrl, qboConnector, type QboClient } from '../../books/connectors/quickbooks.js';
+import { qboAuthorizeUrl, qboConnector, type QboCall, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
@@ -779,6 +779,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const liveness = makeLivenessCache();
   const PERSON_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /**
+   * R4 (Intuit's App Assessment, item 9) — NOTHING IS KEPT BY A BROWSER OR A PROXY unless its route says so: an
+   * answer without its own cache-control is `no-store` (never merely no-cache or private). Where the deployment is
+   * served over HTTPS (secure cookies), browsers are told to keep to it (HSTS, a year; subdomains not claimed).
+   */
+  app.addHook('onSend', async (_req, reply, payload) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    if (deps.secureCookie && !reply.hasHeader('strict-transport-security')) reply.header('strict-transport-security', 'max-age=31536000');
+    return payload;
+  });
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/app')) return;
     const s = sessionOf(req);
@@ -3478,7 +3488,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const QBO_COOKIE = 'yf_qbo_oauth';
   const qboRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/quickbooks/callback`;
   function qboReady(): boolean { return Boolean(deps.qboClient && deps.publicBaseUrl && deps.credentialKey); }
-  const qboDeps = () => ({ client: deps.qboClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  // R4 (items 5, 6) — each call to Intuit is logged with what it was, its status, Intuit's error code and its
+  // intuit_tid: never a payload, a token, the realm or QuickBooks' data (src/books/connectors/quickbooks.ts, QboCall).
+  const qboDeps = () => ({ client: deps.qboClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch),
+    log: (c: QboCall) => (c.status !== null && c.status < 300 && c.error === null ? app.log.debug({ intuit: c }, 'quickbooks call') : app.log.warn({ intuit: c }, 'quickbooks call')) });
   app.get('/app/books/quickbooks/start', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     if (!qboReady()) return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotOffered');
@@ -3486,7 +3499,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // The signed state (provider and verifier unused: Intuit's web flow has a client secret, and no PKCE).
     writeCookie(reply, QBO_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier: '', nonce, personId: personOf(s).id }, Date.now()),
       { path: '/app/books/quickbooks', maxAgeSec: 600 });
-    return reply.redirect(qboAuthorizeUrl(deps.qboClient!, { redirectUri: qboRedirect(), state: nonce }));
+    const to = await qboAuthorizeUrl(qboDeps(), { redirectUri: qboRedirect(), state: nonce });
+    if (typeof to !== 'string') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(localeOf(req), 'quickbooks', to.reason) });
+    return reply.redirect(to);
   });
   app.get('/app/books/quickbooks/callback', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3504,7 +3519,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (connected.kind === 'refused') return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksNotConnected', { why: ledgerWhy(locale, 'quickbooks', connected.reason) });
     await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
       businessId: bid.value, system: 'quickbooks', secret: connected.grant!.secret, by: personOf(s).id,
-      settings: { realmId: connected.source.realmId, companyName: connected.source.companyName ?? '' },
+      // R4 (item 1) — the realmId is sealed with the grant; the settings hold only the company's name, for the page.
+      settings: { companyName: connected.source.companyName ?? '' },
     }));
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksConnected', { org: connected.source.companyName ?? '' });
   });
@@ -3527,6 +3543,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (conn?.grant && qboReady()) await qboConnector(qboDeps(), 'MAD').revoke(conn.grant);
     await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'quickbooks', personOf(s).id));
     return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnected');
+  });
+  /**
+   * R4 (item 10) — Intuit's DISCONNECT URL: where QuickBooks sends an owner who disconnected Nomi there. It says what
+   * that means and changes NOTHING here: a link anyone can open must not disconnect anybody. The next read sees the
+   * grant refused and asks to connect again.
+   */
+  app.get('/app/books/quickbooks/disconnected', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    return flashTo(reply, '/app/books#quickbooks', 'books.flash.quickbooksDisconnectedThere');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {
@@ -6877,7 +6902,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'choose') {
       const carried = mintMetaState(deps.sessionSecret,
         { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: r.tokenCiphertext }, Date.now());
-      return reply.type('text/html; charset=utf-8').send(page(req, {
+      // R4 (item 9) — the one callback that draws a page (the Pages to choose from): its address still holds Meta's
+      // code (spent above, single-use), so it never leaves in a Referer.
+      return reply.type('text/html; charset=utf-8').header('referrer-policy', 'no-referrer').send(page(req, {
         title: t(locale, 'connect.meta.choose.title'), active: 'channels',
         bodyHtml: renderMetaPagePicker(r.pages, carried, locale),
       }));
@@ -6966,7 +6993,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'choose') {
       const carried = mintMetaState(deps.sessionSecret,
         { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: r.tokenCiphertext }, Date.now());
-      return reply.type('text/html; charset=utf-8').send(page(req, {
+      // R4 (item 9) — as Meta's Page picker: the address still holds the spent code, so it never leaves in a Referer.
+      return reply.type('text/html; charset=utf-8').header('referrer-policy', 'no-referrer').send(page(req, {
         title: t(locale, 'connect.wa.choose.title'), active: 'channels',
         bodyHtml: renderWhatsAppNumberPicker(r.numbers, carried, r.wabaId, locale),
       }));
