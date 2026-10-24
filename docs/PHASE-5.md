@@ -50,14 +50,18 @@ It rests on four readings:
    set. The owner sets the price.*
 7. **Still zero spend.** Nothing may require a paid service before the owner says so. Every cost is marked **💰** (§7).
 8. **"100%" must be reachable at zero spend,** or it isn't a launch bar, it's a wish. So:
-   - **channels:** web chat and Telegram only;
+   - **channels:** web chat and Telegram — **and TikTok** (the owner's deliberate override, 2026-10-23, recorded
+     2026-10-24): a large share of online selling and marketing now happens on TikTok, which makes it product scope,
+     not a nice-to-have. LINE, SMS and WeChat stay deferred, unchanged. TikTok is a PLAN for now
+     (docs/TIKTOK-CHANNEL.md): nothing built, no account, no application, no API called. Where its access needs money
+     or a partner's approval, decision 9's bar applies to it like any paid service;
    - **bank data:** statement files only;
    - **exchange rates:** the owner's own.
 9. **The bar for anything that needs a paid service:** built, tested against the vendor's sandbox, proven live on deploy
    day. It's the same split as hardening, which worked.
 10. **The books of record are always Nomi's own** (§1a).
 11. **Tax reports: prepared, never filed.** Country rules only where verified against primary legal sources. Everyone
-    else gets the accountant pack (§3, D3).
+    else gets the accountant pack (§3, D3). Which countries are which: §1b.
 12. **Three levels of access to the books:**
     - the **owner** sees, posts and exports;
     - an **accountant** sees and exports, and posts nothing;
@@ -100,6 +104,23 @@ It rests on four readings:
   - the foundation (Stage A) carries the most weight of anything in this phase.
 
 ---
+
+### 1b · Countries, by tier (the owner, 2026-10-23)
+
+One word was doing two jobs ("verified countries"). A country is now in one of two tiers:
+
+- **RESEARCHED** — the primary sources read; the findings and the chosen defaults written in the docs; **no code**. It
+  costs nothing, so it is done for any country Nomi plausibly sells into.
+- **BUILT** — a country-specific tax file (like the Moroccan FEC) or a hard validation rule shipped in code. **Only
+  when there is a real customer in that country.**
+
+| Tier | Countries |
+|---|---|
+| BUILT | **Morocco** — the CGNC chart, the Moroccan FEC, the ICE, IF and RC (D4, R2, 0208) |
+| RESEARCHED | **France, Spain, the United Kingdom** (Block R: R1–R3; R3's registry formats ship as identifier validation under the normal rules, outside D3); **China** and **the USA** (the addendum, 2026-10-24: docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md) |
+
+A RESEARCHED country's identifier may still be checked in code where the issuing authority publishes the rule (R3's
+shapes): that is identifier validation, not a country tax file, and it does not move the country to BUILT.
 
 ## 2 · What the code says first
 
@@ -442,6 +463,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **Prepared, never filed** (§9).
   - Which countries get a verified report is decided as each one is verified. Morocco is first (D4); France only with a
     French customer.
+  - **France's deferral is a deferral of BUILDING, not of knowing** (the owner, 2026-10-23): researching France — or
+    any country — is never barred by it. The tiers are §1b.
   - *Depends on C1 and A2's tax codes.*
   - *(built 2026-10-22: the ACCOUNTANT PACK, `/app/books/pack.xlsx`, from the trial balance page; owner and accountant.)*
     - One workbook for a period: About (the business, the period, when made, `Nomi · build · schema`, the books'
@@ -876,8 +899,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
       conversation has not had it (the answer often opens a new one after the order). **Until signed, the answer is
       met by silence: a KNOWN GAP, with its fix built and waiting on the signature — not a decision.**
     - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
-- **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
-  TikTok wait for revenue. *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
+- **S7 · Item 22 — channels:** **web chat, then Telegram** (decision 8). LINE, SMS and WeChat wait for revenue.
+  *(Amended 2026-10-24: TikTok is in 100% too — planned, not built: docs/TIKTOK-CHANNEL.md.)* *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
   widget, the page first; one Nomi bot for every business; S7 stays in block S.)*
   - **The chat page** (`/chat/<key>`, `src/api/web/webChat.ts`):
     - The owner turns it on (owner only: going live) on Where customers reach you › Chat page, and shares the address.
@@ -1399,8 +1422,10 @@ D4 leaves both as configurable details until they're published.
   reports are prepared, never filed.
 - **Bank connections.** They cost money, they're regulated, and they'd raise the privacy load from "a shop's books" to "a
   shop's live banking".
-- **Paid channels** (LINE, SMS, WeChat, TikTok), until there's revenue.
-- **The French FEC and DGFiP's checker,** until a French customer.
+- **Paid channels** (LINE, SMS, WeChat), until there's revenue. *TikTok left this line on 2026-10-23: it is in 100%
+  (decision 8), planned in docs/TIKTOK-CHANNEL.md, not built.*
+- **The French FEC and DGFiP's checker,** until a French customer. *A deferral of BUILDING, not of knowing: France is
+  RESEARCHED (§1b).*
 - **Moroccan e-invoicing and the liasse fiscale EDI.** They wait for the decree (CGI art. 145-IX) and are usually the
   accountant's job.
 

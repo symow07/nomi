@@ -13,6 +13,45 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The Block R addendum (2026-10-24): research and a plan; one code item
+
+The owner's addendum of 2026-10-23, re-sent 2026-10-24 ("docs and research only"), with the answers given to it that
+day. Schema 213.
+
+- **Part 1, the two checks** (from git):
+  - **The site:** 32 merges since production's #353 (#354–#386; #358 closed). Only #375 touches the public site: one
+    line, how the reel's example prices are stored, nothing visible. The reel itself predates #353, so it is in
+    production's build, behind `REEL_NATIVE_REVIEW` (en only). The one-sitting review is #383.
+  - **TikTok:** nothing built. Named only on Channels ("not yet") and in the sign-up's channel list; the public site
+    may not name it (a test).
+- **Part 2:**
+  - **The countries, by tier** (PHASE-5.md §1b): BUILT = Morocco; RESEARCHED = France, Spain, the UK, China, the USA.
+    D3 and §9 say France's deferral is one of building, not of knowing.
+  - **The findings:** docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md.
+    - **China's USCC check character IS published** in GB 32100-2015's mandatory chapter (§4.2.5; the worked example
+      re-computed). When China is BUILT it may be hard-validated, unlike FR/ES.
+    - **GB/T 24589 is voluntary;** what binds is "国家统一标准" interfaces (财会〔2024〕12号 arts. 29, 41). File name,
+      encoding and separator: NOT CONFIRMED (the text could not be read).
+    - **Fapiao:** prepare only — issuing for others is regulated (发票管理办法 art. 22).
+    - **The USA:** no national audit file (Rev. Proc. 98-25), the EIN's shape and published prefixes with no check
+      digit, sales tax per state.
+    - **Yonyou / Kingdee:** Chanjet fits the shape partly; what breaks is listed (a pushed `appTicket`, no revoke,
+      registration that may need a Chinese licence).
+- **Part 3, TikTok:** in 100% (decision 8, §9, S7 amended); the plan is docs/TIKTOK-CHANNEL.md, nothing built.
+  - **The owner's guess, checked:** right for TikTok Shop chat (a 1,000-seller gate); not for direct messages (a
+    review and a region gate, reachable).
+  - All four guards work on the direct-message API. The new piece is a per-window message count.
+- **The one code item:** Google Sheets follows the stale-grant rule (0213); "Connect again" says "This disconnects the
+  current connection first."; Odoo's disconnect says to delete the key in Odoo.
+- **Found on the way:** the brief's "财会〔2023〕18号" matches no rule found; the 规范 is 财会〔2024〕12号. GB/T
+  24589.1 was revised in 2024 (in force 2025-07-01). A vendor's claim about the standard is kept in the private notes
+  (`~/nomi-private/VENDOR-NOTES-CN-LEDGERS-2026-10-24.md`).
+- **Needs the owner** (nothing now costs money):
+  - **China:** the GB/T 24589.1-2024 text (free or 💰); the fapiao platform's bulk template (inside the platform);
+    whether a foreign company can register with Chanjet, Yonyou or Kingdee.
+  - **TikTok:** the developer app, a Business account with Advanced Access, the intake form, the reviews (the US one
+    with an addendum), and the privacy page naming TikTok.
+
 ## Block E's review, on the record (2026-10-23)
 
 #382 carries the owner's review of block E (0208). Three things the owner asked to have written down:
