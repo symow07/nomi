@@ -28,6 +28,9 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'GET', url: '/app/books/sheets/callback', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/read', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/disconnect', action: 'post' },
+  // 0213 — connecting again (the old grant given back first) and trying a stale grant again, as for Xero and QuickBooks.
+  { method: 'POST', url: '/app/books/sheets/again', action: 'post' },
+  { method: 'POST', url: '/app/books/sheets/stale', action: 'post' },
   // C4 — writing back: the owner's.
   { method: 'POST', url: '/app/books/sheets/write', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/write', action: 'post' },
@@ -128,7 +131,7 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
  * accountant lands on, and the owner's door to the same copy.
  */
 export type BooksSystems = {
-  readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
+  readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
   readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null; readonly silent?: Date | null };
   /** 0212 — `stale`: when each grant Nomi no longer uses, and the system has not confirmed given back, was set aside. */
   readonly xero?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
@@ -228,21 +231,33 @@ export const xeroWhy = (locale: Locale, reason: string): string => ledgerWhy(loc
  * not hidden); a door to connect (the vendor's own page, where the organisation or company is chosen); or which one it
  * is, when it was last read, a way to read it in and to send posted entries, and a disconnect that asks first.
  */
+/** 0212 / 0213 — a grant still open there that Nomi no longer uses: said in every state, with a way to try again now. */
+function staleLine(locale: Locale, system: Ledger | 'sheets', name: string, stale: readonly Date[] | undefined): string {
+  if (!stale || stale.length === 0) return '';
+  return `<p role="status"><span class="pill warn">${esc(t(locale, 'books.stale.pill'))}</span> ${esc(t(locale, 'books.stale.line', { system: name, date: show.dateYear(locale, stale[0]!) }))}</p>
+      <form method="post" action="/app/books/${system}/stale" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.stale.retry'))}</button></form>`;
+}
+/**
+ * 0212 / 0213 — "Connect again" while a grant is still held: a button (it changes something before the consent page
+ * opens) that gives the grant back first — so it says, in one line, that the connection ends first (the owner,
+ * 2026-10-24): a consent left unfinished leaves the system disconnected.
+ */
+function againButton(locale: Locale, system: Ledger | 'sheets'): string {
+  return `<form method="post" action="/app/books/${system}/again" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.again'))}</button></form>
+      <p class="caption muted">${esc(t(locale, 'books.again.first'))}</p>`;
+}
+
 function ledgerBlock(locale: Locale, system: Ledger, x: NonNullable<BooksSystems['xero']>): string {
   const key = (k: string) => `books.${system}.${k}` as MessageKey;
   const head = `<h2>${esc(t(locale, key('title')))}</h2><p>${esc(t(locale, key('explain')))}</p>
     <p class="caption muted">${esc(t(locale, 'books.systems.history', { system: LEDGER_NAME[system] }))}</p>`;
-  // 0212 — a grant still open there that Nomi no longer uses: said in every state, with a way to try again now
-  const stale = (x.stale ?? []).length === 0 ? '' : `<p role="status"><span class="pill warn">${esc(t(locale, 'books.stale.pill'))}</span> ${esc(t(locale, 'books.stale.line', { system: LEDGER_NAME[system], date: show.dateYear(locale, x.stale![0]!) }))}</p>
-      <form method="post" action="/app/books/${system}/stale" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.stale.retry'))}</button></form>`;
+  const stale = staleLine(locale, system, LEDGER_NAME[system], x.stale);
   if (!x.offered) return `<div class="block" id="${system}">${head}<p class="caption muted">${esc(t(locale, key('notSetUp')))}</p>${stale}</div>`;
   const c = x.connection;
   const connect = (k: MessageKey) => `<p><a class="deeper" href="/app/books/${system}/start">${esc(t(locale, k))}</a></p>`;
   if (!c || c.state === 'disconnected') return `<div class="block" id="${system}">${head}${stale}${connect(key('connect'))}</div>`;
   if (c.state !== 'connected') {
-    // a grant still held is given back first (a button: it changes something before the consent page opens)
-    const again = c.grant ? `<form method="post" action="/app/books/${system}/again" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.again'))}</button></form>`
-      : connect('books.sheets.again');
+    const again = c.grant ? againButton(locale, system) : connect('books.sheets.again');
     return `<div class="block" id="${system}">${head}
       <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(ledgerWhy(locale, system, c.reason ?? 'revoked'))}</p>
       ${stale}${again}</div>`;
@@ -267,18 +282,19 @@ function ledgerBlock(locale: Locale, system: Ledger, x: NonNullable<BooksSystems
  */
 function sheetsBlock(locale: Locale, s: BooksSystems['sheets']): string {
   const head = `<h2>${esc(t(locale, 'books.sheets.title'))}</h2><p>${esc(t(locale, 'books.sheets.explain'))}</p>`;
-  if (!s.offered) return `<div class="block" id="sheets">${head}<p class="caption muted">${esc(t(locale, 'books.sheets.notSetUp'))}</p></div>`;
+  const stale = staleLine(locale, 'sheets', t(locale, 'books.sheets.title'), s.stale);
+  if (!s.offered) return `<div class="block" id="sheets">${head}<p class="caption muted">${esc(t(locale, 'books.sheets.notSetUp'))}</p>${stale}</div>`;
   const c = s.connection;
   const connect = (key: 'books.sheets.connect' | 'books.sheets.again') =>
     `<p><a class="deeper" href="/app/books/sheets/start">${esc(t(locale, key))}</a></p>`;
-  if (!c || c.state === 'disconnected') return `<div class="block" id="sheets">${head}${connect('books.sheets.connect')}</div>`;
+  if (!c || c.state === 'disconnected') return `<div class="block" id="sheets">${head}${stale}${connect('books.sheets.connect')}</div>`;
   if (c.state !== 'connected') {
     return `<div class="block" id="sheets">${head}
       <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(t(locale, `books.connection.${c.reason ?? 'revoked'}` as MessageKey, { system: t(locale, 'books.sheets.title') }))}</p>
-      ${connect('books.sheets.again')}</div>`;
+      ${stale}${c.grant ? againButton(locale, 'sheets') : connect('books.sheets.again')}</div>`;
   }
   const url = c.settings['url'] ?? '';
-  return `<div class="block" id="sheets">${head}
+  return `<div class="block" id="sheets">${head}${stale}
       ${silentLine(locale, t(locale, 'books.sheets.title'), s.silent)}
       ${url.startsWith('https://docs.google.com/') ? `<p><a class="deeper" href="${esc(url)}" rel="noopener" target="_blank">${esc(t(locale, 'books.sheets.open'))}</a></p>` : ''}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}

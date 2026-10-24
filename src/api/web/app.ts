@@ -2387,16 +2387,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // B3 — Google Sheets, where this installation has its client: the owner's door to connect, or the connection.
     const sheetsConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null;
     // B5 — a connected system no read has reached for two days is said, with the day it last answered.
-    const sheets = { offered: sheetsReady(), connection: sheetsConn, silent: sheetsConn ? silentSince(sheetsConn, new Date()) : null };
+    // 0212 / 0213 — a grant Nomi no longer uses that its system has not confirmed given back, said under its system.
+    const stale = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => staleGrants(tx, null, bid.value)) : [];
+    const staleOf = (system: 'xero' | 'quickbooks' | 'sheets') => stale.filter((g) => g.system === system).map((g) => g.staleSince);
+    const sheets = { offered: sheetsReady(), connection: sheetsConn, silent: sheetsConn ? silentSince(sheetsConn, new Date()) : null, stale: staleOf('sheets') };
     // B4 — the shop's own Odoo: offered wherever grants can be sealed; its key's life said on the page (item 14).
     const odooConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'odoo')) : null;
     const odoo = { offered: Boolean(deps.credentialKey), connection: odooConn, silent: odooConn ? silentSince(odooConn, new Date()) : null,
       key: odooConn && odooConn.state === 'connected' ? odooKeyState(odooConn.connectedAt.slice(0, 10), odooConn.keyExpiresOn, todayIso()) : null };
     // D8 — the shop's own Xero, where this installation has its client.
     const xeroConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'xero')) : null;
-    // 0212 — a grant Nomi no longer uses that its system has not confirmed given back, said under its system.
-    const stale = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => staleGrants(tx, null, bid.value)) : [];
-    const staleOf = (system: 'xero' | 'quickbooks') => stale.filter((g) => g.system === system).map((g) => g.staleSince);
     const xero = { offered: xeroReady(), connection: xeroConn, silent: xeroConn ? silentSince(xeroConn, new Date()) : null, stale: staleOf('xero') };
     // D9 — the shop's own QuickBooks, likewise.
     const qboConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks')) : null;
@@ -2520,14 +2520,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     const made = await createSpreadsheet(d, connected.source.accessToken, `${books.name} · Nomi`, books.data);
     if (made.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
-    await withTenantTx(deps.db, bid.value, async (tx) => {
-      await saveConnection(tx, deps.credentialKey!, {
+    const saved = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const out = await saveConnection(tx, deps.credentialKey!, {
         businessId: bid.value, system: 'sheets', secret: connected.grant!.secret, by: personOf(s).id,
         settings: { spreadsheetId: made.spreadsheetId, url: made.url },
       });
       // C4 — what Nomi wrote there is remembered: the owner's later edits are then told from Nomi's own.
       await rememberWritten(tx, bid.value, 'sheets', books.data);
+      return out;
     });
+    // 0213 — an old grant this replaced that Google had not confirmed given back: said, and tried again every hour
+    if (saved.stale) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnectedStale');
     return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnected');
   });
   /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
@@ -3461,8 +3464,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
     const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets'));
-    if (conn?.grant && deps.sheetsClient) await booksConnector('sheets', { bookCurrency: 'MAD', sheets: sheetsDeps() })!.revoke(conn.grant);
-    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'sheets', personOf(s).id));
+    // 0213 — not confirmed by Google (or Sheets not offered here any more), the grant is a stale one: said, tried again
+    const gaveBack = !conn?.grant ? undefined : deps.sheetsClient
+      ? await booksConnector('sheets', { bookCurrency: 'MAD', sheets: sheetsDeps() })!.revoke(conn.grant) : 'not_given_back' as const;
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'sheets', personOf(s).id, gaveBack));
+    if (gaveBack === 'not_given_back') return flashTo(reply, '/app/books#sheets', 'books.flash.disconnectedStale', { system: 'Google Sheets' });
     return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsDisconnected');
   });
   /**
@@ -3476,9 +3482,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * gives the grant held back first, then goes to the consent page — never the GET that starts it, which any link
    * could open. Not confirmed, it goes on all the same (the owner is never locked out) and the callback says so.
    */
-  const grantDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}) });
-  function ledgerAgain(system: 'xero' | 'quickbooks', ready: () => boolean): void {
-    const notOffered = system === 'xero' ? 'books.flash.xeroNotOffered' : 'books.flash.quickbooksNotOffered';
+  const grantDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(xeroReady() ? { xero: xeroDeps() } : {}), ...(qboReady() ? { quickbooks: qboDeps() } : {}),
+    ...(sheetsReady() ? { sheets: sheetsDeps() } : {}) });
+  const GRANT_SYSTEM = { xero: { name: 'Xero', notOffered: 'books.flash.xeroNotOffered' }, quickbooks: { name: 'QuickBooks', notOffered: 'books.flash.quickbooksNotOffered' },
+    sheets: { name: 'Google Sheets', notOffered: 'books.flash.sheetsNotOffered' } } as const;
+  function ledgerAgain(system: 'xero' | 'quickbooks' | 'sheets', ready: () => boolean): void {
+    const { notOffered, name } = GRANT_SYSTEM[system];
     app.post(`/app/books/${system}/again`, async (req, reply) => {
       const s = sessionOf(req); if (!s) return reply.redirect('/login');
       if (!ready()) return flashTo(reply, `/app/books#${system}`, notOffered);
@@ -3489,7 +3498,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req); if (!s) return reply.redirect('/login');
       if (!ready()) return flashTo(reply, `/app/books#${system}`, notOffered);
       const r = await retryStaleGrants(grantDeps(), s.businessId, personOf(s).id, system);
-      const name = system === 'xero' ? 'Xero' : 'QuickBooks';
       if (r.endedLive.length > 0) return flashTo(reply, `/app/books#${system}`, 'books.flash.staleEndedConnectAgain', { system: name });
       return flashTo(reply, `/app/books#${system}`, r.left > 0 ? 'books.flash.staleNotYet' : 'books.flash.staleEnded', { system: name });
     });
@@ -3552,6 +3560,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/books#xero', 'books.flash.xeroDisconnected');
   });
   ledgerAgain('xero', xeroReady);
+  ledgerAgain('sheets', sheetsReady);   // 0213 — after GRANT_SYSTEM above
   /**
    * D9 — THE SHOP'S OWN QUICKBOOKS ONLINE. Connecting goes to Intuit's own page; back here come the code and the
    * company's realmId, the code is exchanged, the company checked, the grant sealed. Reading in, sending posted entries

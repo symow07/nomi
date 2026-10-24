@@ -12,6 +12,8 @@ export type GoogleFake = {
   readonly fetch: OAuthFetch;
   /** The owner withdrew the grant (Google account → Security → third-party access). */
   revoke(): void;
+  /** 0213 — the revocation endpoint does not answer (503) — or, with `false`, answers again. */
+  revokeDown(down?: boolean): void;
   /** The spreadsheet was deleted in Drive. */
   drop(id: string): void;
   /** A sheet's rows, as stored. */
@@ -31,7 +33,7 @@ const UNAUTH = { error: { code: 401, message: 'Request had invalid authenticatio
 const NOT_FOUND = { error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' } };
 
 export function googleFake(): GoogleFake {
-  let revoked = false;
+  let revoked = false; let revokeIsDown = false;
   let scope = 'https://www.googleapis.com/auth/drive.file';
   const live = new Set(['ya29.first', 'ya29.refreshed']);
   const books = new Map<string, Map<string, unknown[][]>>();
@@ -58,7 +60,8 @@ export function googleFake(): GoogleFake {
       }
       return err(400, { error: 'unsupported_grant_type' });
     }
-    if (u.host === 'oauth2.googleapis.com' && u.pathname === '/revoke') { revoked = true; return ok({}); }
+    // Google's revocation ends the whole grant: every token of it, the newest too
+    if (u.host === 'oauth2.googleapis.com' && u.pathname === '/revoke') { if (revokeIsDown) return err(503, 'Service Unavailable'); revoked = true; return ok({}); }
     if (u.host !== 'sheets.googleapis.com') return err(404, NOT_FOUND);
     if (!authorised(init.headers)) return err(401, UNAUTH);
     if (init.method === 'POST' && u.pathname === '/v4/spreadsheets') {
@@ -99,6 +102,7 @@ export function googleFake(): GoogleFake {
   return {
     fetch, calls,
     revoke: () => { revoked = true; },
+    revokeDown: (down = true) => { revokeIsDown = down; },
     drop: (id) => { books.delete(id); },
     rows: (id, sheet) => books.get(id)?.get(sheet) ?? [],
     deleteRow: (id, sheet, row) => { books.get(id)!.get(sheet)!.splice(row - 1, 1); },

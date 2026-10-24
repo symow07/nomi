@@ -177,4 +177,62 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
     const live = (await admin.query(`select count(*)::int as n from connector_credentials where business_id = $1 and connector = 'sheets' and archived_at is null`, [BIZ])).rows[0].n;
     expect(live).toBe(0);
   });
+
+  /** 0213 — how many times Nomi gave a grant back at Google, and the Sheets grants as the table holds them. */
+  const revokes = () => google.calls.filter((c) => c === 'POST oauth2.googleapis.com/revoke').length;
+  const grants = async () => (await admin.query(`select stale_since is not null as stale, revoked_at is not null as revoked, revoke_tries as tries
+    from connector_credentials where business_id = $1 and connector = 'sheets' and (stale_since is not null or revoked_at is not null) order by created_at`, [BIZ])).rows;
+  const press = (url: string) => app.inject({ method: 'POST', url, headers: { cookie: owner } });
+  const page = async () => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+
+  it('0213 — CONNECTING AGAIN gives the old Google grant back FIRST, and the button says the connection ends first', async () => {
+    const { back } = await connect();
+    expect(await notice(await back('good-code'))).toContain('Google Sheets is connected');
+    google.revoke();
+    await press('/app/books/sheets/read');
+    expect(await connection()).toMatchObject({ state: 'connect_again' });
+    const home = await page();
+    expect(home).toContain('action="/app/books/sheets/again"');
+    expect(home).toContain('This disconnects the current connection first.');
+    expect(home).not.toContain('href="/app/books/sheets/start"');
+    const before = revokes();
+    const again = await press('/app/books/sheets/again');
+    expect([again.statusCode, again.headers['location']]).toEqual([302, '/app/books/sheets/start']);
+    expect(revokes(), 'given back before the consent').toBe(before + 1);
+    expect(await connection()).toMatchObject({ state: 'disconnected', credential_id: null });
+    expect((await grants()).at(-1)).toEqual({ stale: false, revoked: true, tries: 1 });
+    // the owner leaves Google's page without finishing: disconnected, as the button said
+    expect(await page()).toContain('href="/app/books/sheets/start"');
+  });
+
+  it('0213 — GOOGLE DOES NOT CONFIRM: connecting goes on, the old grant is kept, shown, tried again; given back, it ends the new one too (Google ends the whole grant), and the page asks to connect again', async () => {
+    const { back } = await connect();
+    expect(await notice(await back('good-code'))).toContain('Google Sheets is connected');
+    google.revokeDown();
+    await press('/app/books/sheets/again');
+    expect(await connection(), 'never locked out').toMatchObject({ state: 'connected' });
+    const next = await connect();
+    expect(await notice(await next.back('good-code'))).toContain('Google has not confirmed that the earlier connection ended; Nomi tries again every hour.');
+    expect((await grants()).at(-1)).toEqual({ stale: true, revoked: false, tries: 1 });
+    expect(await page()).toContain('An earlier Google Sheets connection may still be open there');
+    expect((await tenant.query(`select business_id::text as id from stale_grant_workspaces()`)).rows.map((r) => r.id)).toContain(BIZ);
+    expect(await notice(await press('/app/books/sheets/stale'))).toContain('Google Sheets has not confirmed it yet.');
+    google.revokeDown(false);
+    expect(await notice(await press('/app/books/sheets/stale'))).toContain('Google Sheets confirmed that the earlier connection has ended, and ended this one with it. Connect again once more.');
+    expect((await grants()).at(-1)).toMatchObject({ stale: true, revoked: true });
+    expect(await connection()).toMatchObject({ state: 'connect_again', reason: 'revoked' });
+    expect(await page()).not.toContain('Still open there');
+  });
+
+  it('0213 — DISCONNECTING while Google does not answer: disconnected here, said, kept, and given back when it answers', async () => {
+    const { back } = await connect();
+    expect(await notice(await back('good-code'))).toContain('Google Sheets is connected');
+    google.revokeDown();
+    expect(await notice(await press('/app/books/sheets/disconnect'))).toContain('Disconnected here. Google Sheets has not confirmed that Nomi');
+    expect(await connection()).toMatchObject({ state: 'disconnected', credential_id: null });
+    expect(await page()).toContain('Still open there');
+    google.revokeDown(false);
+    expect(await notice(await press('/app/books/sheets/stale'))).toContain('Google Sheets confirmed that the earlier connection has ended.');
+    expect(await page()).not.toContain('Still open there');
+  });
 });

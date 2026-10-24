@@ -9,7 +9,8 @@ import type { ConnectRefusalReason, Grant, RevokeOutcome } from '../core/books/c
  * the column), and how the last read went. Nothing here is ever deleted: a new grant archives the old, a disconnect
  * archives the grant and says so.
  *
- * 0212 — A STALE GRANT: one Nomi no longer uses that the system has not confirmed given back (QuickBooks, Xero). Its
+ * 0212 — A STALE GRANT: one Nomi no longer uses that the system has not confirmed given back (QuickBooks, Xero; Google
+ * Sheets since 0213). Its
  * row says so (`stale_since`), the books' page shows it, and src/books/staleGrants.ts tries again every hour.
  */
 export type ConnectedSystem = 'sheets' | 'odoo' | 'xero' | 'quickbooks';
@@ -28,12 +29,12 @@ export type BooksConnection = {
   readonly grant: Grant | null;
 };
 
-/** The systems whose grants are given back at the system, and kept track of until they are (0212). */
-const GIVES_BACK: ReadonlySet<ConnectedSystem> = new Set(['xero', 'quickbooks']);
+/** The systems whose grants are given back at the system, and kept track of until they are (0212; Sheets 0213). */
+const GIVES_BACK: ReadonlySet<ConnectedSystem> = new Set(['xero', 'quickbooks', 'sheets']);
 
 /**
  * Connect (or connect again): the grant sealed, the old one archived, the connection's row set to connected. An old
- * QuickBooks or Xero grant still held here was NOT given back first (src/books/staleGrants.ts gives it back before the
+ * QuickBooks, Xero or Google Sheets grant still held here was NOT given back first (src/books/staleGrants.ts gives it back before the
  * consent, and the callback never does — it could end the new grant too): it is archived as stale, and `stale` says so.
  */
 export async function saveConnection(tx: Tx, credentialKey: Buffer, input: {
@@ -126,16 +127,18 @@ export async function noteGiveBackTried(tx: Tx, businessId: string, system: Conn
 }
 
 export type StaleGrant = {
-  readonly id: string; readonly system: 'xero' | 'quickbooks'; readonly staleSince: Date; readonly tries: number;
+  readonly id: string; readonly system: 'xero' | 'quickbooks' | 'sheets'; readonly staleSince: Date; readonly tries: number;
   /** The grant, opened — null when it no longer opens with this installation's key (nothing can give it back then). */
   readonly grant: Grant | null;
 };
 /** This workspace's stale grants, oldest first: archived, not confirmed given back, and young enough to live there (0212). */
 export async function staleGrants(tx: Tx, credentialKey: Buffer | null, businessId: string): Promise<StaleGrant[]> {
-  const rows = (await sql<{ id: string; connector: 'xero' | 'quickbooks'; stale_since: Date; revoke_tries: number; secret: string }>`
+  const rows = (await sql<{ id: string; connector: 'xero' | 'quickbooks' | 'sheets'; stale_since: Date; revoke_tries: number; secret: string }>`
     select id::text as id, connector, stale_since, revoke_tries, secret_ciphertext as secret from connector_credentials
      where business_id = ${businessId}::uuid and archived_at is not null and stale_since is not null and revoked_at is null
-       and connector in ('xero', 'quickbooks') and created_at > now() - interval '100 days'
+       and connector in ('xero', 'quickbooks', 'sheets')
+       -- as long as its token can still work there (0213): Google's six months unused, Intuit's 100 days, Xero's 60
+       and created_at > now() - case when connector = 'sheets' then interval '183 days' else interval '100 days' end
      order by stale_since, id`.execute(tx)).rows;
   return rows.map((r) => {
     let grant: Grant | null = null;

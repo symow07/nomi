@@ -4,27 +4,31 @@ import type { RevokeOutcome } from '../core/books/connector.js';
 import { disconnectSystem, loadConnection, noteGiveBackTried, noteRead, noteStaleTried, rotateGrant, staleGrants } from '../db/booksConnections.js';
 import { xeroConnector, type XeroDeps } from './connectors/xero.js';
 import { qboConnector, type QboDeps } from './connectors/quickbooks.js';
+import { sheetsConnector, type SheetsDeps } from './connectors/sheets.js';
 
 /**
- * THE STALE GRANT (0212; the owner, 2026-10-23) — a QuickBooks or Xero grant Nomi no longer uses must not stay live
- * there unknown to anyone.
+ * THE STALE GRANT (0212; the owner, 2026-10-23; Google Sheets 0213, 2026-10-24) — a QuickBooks, Xero or Google Sheets
+ * grant Nomi no longer uses must not stay live there unknown to anyone.
  *
  *   · CONNECTING AGAIN gives the old grant back FIRST, before the owner is sent to the consent page (`giveBackFirst`,
  *     a POST — never the GET that starts the consent, which any link could open). First, because Xero's revocation
- *     removes every connection the person made and Intuit's disconnects the company: given back after the new
- *     consent, it could end the new grant too.
+ *     removes every connection the person made, Intuit's disconnects the company and Google's ends the whole grant:
+ *     given back after the new consent, it could end the new grant too. So a consent left unfinished leaves the
+ *     system disconnected — the button says so.
  *   · Not confirmed (no answer, an error), connecting goes on — the owner is never locked out — and the old grant, once
  *     the new one replaces it, is a STALE grant (`saveConnection`): said on the books' page, tried again every hour
  *     (`retryStaleGrants`; the worker's `books.staleGrants`) and by the page's own button.
  *   · A stale grant given back while a newer grant is live may end the newer one with it (as above), so the live grant
  *     is then tried at once: refused, the page asks to connect again — now with nothing old left to give back.
  */
-export type GrantDeps = { readonly db: Db; readonly credentialKey: Buffer; readonly xero?: XeroDeps; readonly quickbooks?: QboDeps };
-export type Ledger = 'xero' | 'quickbooks';
+export type GrantDeps = { readonly db: Db; readonly credentialKey: Buffer; readonly xero?: XeroDeps; readonly quickbooks?: QboDeps; readonly sheets?: SheetsDeps };
+export type Ledger = 'xero' | 'quickbooks' | 'sheets';
 
 // The books' currency plays no part in signing in or out.
 const connectorOf = (deps: GrantDeps, system: Ledger) =>
-  (system === 'xero' ? (deps.xero ? xeroConnector(deps.xero, 'MAD') : null) : (deps.quickbooks ? qboConnector(deps.quickbooks, 'MAD') : null));
+  (system === 'xero' ? (deps.xero ? xeroConnector(deps.xero, 'MAD') : null)
+    : system === 'quickbooks' ? (deps.quickbooks ? qboConnector(deps.quickbooks, 'MAD') : null)
+      : (deps.sheets ? sheetsConnector(deps.sheets, 'MAD') : null));
 
 /** Before the consent page: the grant held for `system`, given back. Confirmed, the connection is disconnected here. */
 export async function giveBackFirst(deps: GrantDeps, businessIdRaw: string, system: Ledger, by: string): Promise<RevokeOutcome> {

@@ -13,6 +13,45 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The Block R addendum (2026-10-24): research and a plan; one code item
+
+The owner's addendum of 2026-10-23, re-sent 2026-10-24 ("docs and research only"), with the answers given to it that
+day. Schema 213.
+
+- **Part 1, the two checks** (from git):
+  - **The site:** 32 merges since production's #353 (#354–#386; #358 closed). Only #375 touches the public site: one
+    line, how the reel's example prices are stored, nothing visible. The reel itself predates #353, so it is in
+    production's build, behind `REEL_NATIVE_REVIEW` (en only). The one-sitting review is #383.
+  - **TikTok:** nothing built. Named only on Channels ("not yet") and in the sign-up's channel list; the public site
+    may not name it (a test).
+- **Part 2:**
+  - **The countries, by tier** (PHASE-5.md §1b): BUILT = Morocco; RESEARCHED = France, Spain, the UK, China, the USA.
+    D3 and §9 say France's deferral is one of building, not of knowing.
+  - **The findings:** docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md.
+    - **China's USCC check character IS published** in GB 32100-2015's mandatory chapter (§4.2.5; the worked example
+      re-computed). When China is BUILT it may be hard-validated, unlike FR/ES.
+    - **GB/T 24589 is voluntary;** what binds is "国家统一标准" interfaces (财会〔2024〕12号 arts. 29, 41). File name,
+      encoding and separator: NOT CONFIRMED (the text could not be read).
+    - **Fapiao:** prepare only — issuing for others is regulated (发票管理办法 art. 22).
+    - **The USA:** no national audit file (Rev. Proc. 98-25), the EIN's shape and published prefixes with no check
+      digit, sales tax per state.
+    - **Yonyou / Kingdee:** Chanjet fits the shape partly; what breaks is listed (a pushed `appTicket`, no revoke,
+      registration that may need a Chinese licence).
+- **Part 3, TikTok:** in 100% (decision 8, §9, S7 amended); the plan is docs/TIKTOK-CHANNEL.md, nothing built.
+  - **The owner's guess, checked:** right for TikTok Shop chat (a 1,000-seller gate); not for direct messages (a
+    review and a region gate, reachable).
+  - All four guards work on the direct-message API. The new piece is a per-window message count.
+- **The one code item:** Google Sheets follows the stale-grant rule (0213); "Connect again" says "This disconnects the
+  current connection first."; Odoo's disconnect says to delete the key in Odoo.
+- **Found on the way:** the brief's "财会〔2023〕18号" matches no rule found; the 规范 is 财会〔2024〕12号. GB/T
+  24589.1 was revised in 2024 (in force 2025-07-01). A vendor's claim about the standard is kept in the private notes
+  (`~/nomi-private/VENDOR-NOTES-CN-LEDGERS-2026-10-24.md`).
+- **Needs the owner** (nothing now costs money):
+  - **China:** the GB/T 24589.1-2024 text (free or 💰); the fapiao platform's bulk template (inside the platform);
+    whether a foreign company can register with Chanjet, Yonyou or Kingdee.
+  - **TikTok:** the developer app, a Business account with Advanced Access, the intake form, the reviews (the US one
+    with an addendum), and the privacy page naming TikTok.
+
 ## Block E's review, on the record (2026-10-23)
 
 #382 carries the owner's review of block E (0208). Three things the owner asked to have written down:
@@ -138,12 +177,17 @@ the twelve Intuit items one by one.
     - **Tests:** `tests/parity/stale-grants.test.ts`; `books-quickbooks` and `books-xero` integration, one each for:
       connect again revokes first; a refusal is kept, shown, tried again and given back; disconnect; the hourly round;
       a revocation that ended the live grant.
+  - **The owner's follow-ups (2026-10-24), built with the addendum (0213):**
+    - **Google Sheets follows the same rule**, with the same tests: connect again is a POST that gives the grant back
+      first; a revocation Google does not confirm is kept, shown and tried again; disconnect alike. Google's
+      revocation ends the whole grant, so a stale grant given back can end the new one: the page then asks to connect
+      again. A stale Google grant is tried for 183 days (Google ends a refresh token unused for six months), the
+      others for 100.
+    - **The button says so:** "Connect again" carries one line, "This disconnects the current connection first." A
+      consent left unfinished leaves the system disconnected; the owner accepted that.
+    - **Odoo:** left as it is. Disconnecting it now says the key still works in Odoo until the owner deletes it there
+      (Preferences, under Account Security).
   - **Found, not fixed:**
-    - **Google Sheets** has the same shape (connecting again leaves the old refresh token live at Google). Google's
-      revocation ends the whole grant, so the same POST-first order would apply. Not done: the brief named QuickBooks
-      and Xero.
-    - **Odoo's old key stays live in Odoo** after connecting again with a new one. It is the owner's to delete there
-      (the key is theirs, `revoke` holds nothing).
     - **Refused after the code exchange:** a token the connector gives straight back (the organisation check failed)
       is not tracked if that revocation also fails.
     - **Vendor behaviour is read, not seen.** Xero's from its devblog; Intuit's "disconnects the company" not read on
