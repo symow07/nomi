@@ -159,7 +159,7 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
   it('a new key connects again; disconnecting asks first and forgets the key', async () => {
     expect(await notice(await post('/app/books/odoo/connect', FORM()))).toContain('Odoo is connected.');
     expect(await home()).toMatch(/onclick="return confirm\(this\.dataset\.confirm\)" data-confirm="Disconnect Odoo\?/);
-    expect(await notice(await post('/app/books/odoo/disconnect'))).toContain('Disconnected. Nothing changed in Odoo.');
+    expect(await notice(await post('/app/books/odoo/disconnect'))).toContain('Disconnected. Nothing changed in Odoo. The key still works there until you delete it in Odoo (Preferences, under Account Security).');
     expect((await admin.query(`select count(*)::int as n from connector_credentials where business_id = $1 and connector = 'odoo' and archived_at is null`, [BIZ])).rows[0].n).toBe(0);
   });
 });

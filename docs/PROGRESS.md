@@ -138,12 +138,17 @@ the twelve Intuit items one by one.
     - **Tests:** `tests/parity/stale-grants.test.ts`; `books-quickbooks` and `books-xero` integration, one each for:
       connect again revokes first; a refusal is kept, shown, tried again and given back; disconnect; the hourly round;
       a revocation that ended the live grant.
+  - **The owner's follow-ups (2026-10-24), built with the addendum (0213):**
+    - **Google Sheets follows the same rule**, with the same tests: connect again is a POST that gives the grant back
+      first; a revocation Google does not confirm is kept, shown and tried again; disconnect alike. Google's
+      revocation ends the whole grant, so a stale grant given back can end the new one: the page then asks to connect
+      again. A stale Google grant is tried for 183 days (Google ends a refresh token unused for six months), the
+      others for 100.
+    - **The button says so:** "Connect again" carries one line, "This disconnects the current connection first." A
+      consent left unfinished leaves the system disconnected; the owner accepted that.
+    - **Odoo:** left as it is. Disconnecting it now says the key still works in Odoo until the owner deletes it there
+      (Preferences, under Account Security).
   - **Found, not fixed:**
-    - **Google Sheets** has the same shape (connecting again leaves the old refresh token live at Google). Google's
-      revocation ends the whole grant, so the same POST-first order would apply. Not done: the brief named QuickBooks
-      and Xero.
-    - **Odoo's old key stays live in Odoo** after connecting again with a new one. It is the owner's to delete there
-      (the key is theirs, `revoke` holds nothing).
     - **Refused after the code exchange:** a token the connector gives straight back (the organisation check failed)
       is not tracked if that revocation also fails.
     - **Vendor behaviour is read, not seen.** Xero's from its devblog; Intuit's "disconnects the company" not read on
