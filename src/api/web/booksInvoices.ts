@@ -6,6 +6,8 @@ import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { owedOn, type BilledTo, type InvoiceRow, type InvoiceStatus, type InvoiceView } from '../../db/booksInvoices.js';
 import type { CreditableLine, CreditNoteView } from '../../db/booksCreditNotes.js';
 import { customInputs } from './booksFields.js';
+import { formLines } from './booksEntries.js';
+import { DATE_FORMATS, type LayoutGuess } from '../../core/books/statements.js';
 import { registryLabelKey } from '../../core/books/registry.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
@@ -18,7 +20,8 @@ import * as show from './values.js';
  */
 type Who = Viewer & { readonly kind?: 'team' | 'accountant' };
 const mayPost = (v: Who) => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
-const money = (locale: Locale, d: Decimal, currency: string) => { const m = moneyFromRow(d, currency); return m ? esc(show.money(locale, m)) : esc(d); };
+const plainMoney = (locale: Locale, d: Decimal, currency: string): string => { const m = moneyFromRow(d, currency); return m ? show.money(locale, m) : d; };
+const money = (locale: Locale, d: Decimal, currency: string) => esc(plainMoney(locale, d, currency));
 const day = (locale: Locale, iso: string) => esc(show.dateYear(locale, new Date(`${iso}T12:00:00Z`)));
 const PILL: Record<InvoiceStatus, string> = { draft: 'warn', open: '', partly_paid: 'warn', paid: 'ok', overdue: 'bad', credited: 'muted', refund_due: 'warn', discarded: '' };
 const status = (locale: Locale, s: InvoiceStatus) => `<span class="pill ${PILL[s]}">${esc(t(locale, `books.invoice.status.${s}` as MessageKey))}</span>`;
@@ -60,7 +63,14 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
   const owed = owedOn(v.total, v.credited, v.paid);
   const pick = (name: string, rows: readonly { id: string; code: string; name: string }[]) =>
     `<select name="${name}" required>${rows.map((r) => `<option value="${esc(r.id)}">${esc(r.code)} · ${esc(r.name)}</option>`).join('')}</select>`;
+  // 0216 (c) — paid in another currency: which, and how much of it; the amount above is what it settles.
+  const across = `
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.paidIn'))}</span><select name="paidIn">${CURRENCIES.map((c) =>
+          `<option value="${c}"${c === v.currency ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.arrivedAmount'))}</span><input name="arrived" inputmode="decimal" /></label>
+        <p class="caption muted">${esc(t(locale, 'books.invoice.acrossHelp', { currency: v.currency }))}</p>`;
   const actions = !mayPost(viewer) ? '' : v.status === 'draft' ? `
+      <p><a class="deeper" href="/app/books/invoices/${esc(v.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/issue" class="pform">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.invoice.issueAsk'))}">${esc(t(locale, 'books.invoice.issue'))}</button></form>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/discard" class="pform">
@@ -69,7 +79,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       <h2>${esc(t(locale, 'books.invoice.recordPayment'))}</h2>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/payments" class="pform">
         <label class="pq"><span>${esc(t(locale, 'books.invoice.paidOn'))}</span><input type="date" name="paidOn" value="${esc(today)}" required /></label>
-        <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(owed)}" required /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(owed)}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
         <button class="btn" type="submit">${esc(t(locale, 'books.invoice.record'))}</button>
@@ -78,7 +88,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       <p>${esc(t(locale, 'books.credit.refundExplain'))}</p>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/refunds" class="pform">
         <label class="pq"><span>${esc(t(locale, 'books.invoice.paidOn'))}</span><input type="date" name="paidOn" value="${esc(today)}" required /></label>
-        <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(subDecimal('0' as Decimal, owed))}" required /></label>
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(subDecimal('0' as Decimal, owed))}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
         <button class="btn" type="submit">${esc(t(locale, 'books.credit.recordRefund'))}</button>
@@ -106,7 +116,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       <div class="row"><dt>${esc(t(locale, 'books.invoice.paid'))}</dt><dd>${money(locale, v.paid, v.currency)}</dd></div>
       <div class="row"><dt>${esc(t(locale, 'books.invoice.owed'))}</dt><dd>${money(locale, owed, v.currency)}</dd></div>`}</dl>
     ${v.payments.length > 0 ? `<h2>${esc(t(locale, 'books.invoice.payments'))}</h2><ul class="rows">${v.payments.map((p) =>
-      `<li class="row"><span>${day(locale, p.paidOn)} · <bdi>${esc(p.account)}</bdi>${p.refund ? ` · ${esc(t(locale, 'books.credit.refunded'))}` : ''}</span><span>${money(locale, p.amount, v.currency)} <a href="/app/books/entries/${esc(p.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></span></li>`).join('')}</ul>` : ''}
+      `<li class="row"><span>${day(locale, p.paidOn)} · <bdi>${esc(p.account)}</bdi>${p.refund ? ` · ${esc(t(locale, 'books.credit.refunded'))}` : ''}</span><span>${money(locale, p.amount, v.currency)}${p.paid ? ` · ${esc(t(locale, 'books.invoice.arrived', { amount: plainMoney(locale, p.paid.amount, p.paid.currency) }))}` : ''} <a href="/app/books/entries/${esc(p.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></span></li>`).join('')}</ul>` : ''}
     ${notes}${creditDoor}
     ${actions}
     <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>`;
@@ -125,7 +135,9 @@ export type InvoiceChoices = {
 export const PARTY_CUSTOM = 'cf_party_';
 export const INVOICE_FORM_LINES = 5;
 
-export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string): string {
+/** A new invoice, saved as a draft; 0216 (a) — or, with `editing`, a draft's own form, saving over it. */
+export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string,
+  editing: string | null = null): string {
   const v = (k: string) => esc(values[k] ?? '');
   const options = (rows: readonly { id: string; code: string; name?: string; label?: string }[], name: string, blank: boolean, fallback?: string | null) =>
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${(values[name] ?? fallback) === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
@@ -135,11 +147,11 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
       <td><input name="price${i}" inputmode="decimal" value="${v(`price${i}`)}" aria-label="${esc(t(locale, 'books.invoice.unitPrice'))} ${i + 1}" /></td>
       <td><select name="tax${i}" aria-label="${esc(t(locale, 'books.entry.tax'))} ${i + 1}">${options(c.taxCodes, `tax${i}`, true)}</select></td>
       <td><select name="account${i}" aria-label="${esc(t(locale, 'books.entry.account'))} ${i + 1}">${options(c.accounts, `account${i}`, false, c.salesAccountId)}</select></td></tr>`;
-  return `<h1 class="page">${esc(t(locale, 'books.invoices.new'))}</h1>
+  return `<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.invoice.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
     ${c.parties.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.invoice.noCustomer'))}</span></p>` : ''}
-    <form method="post" action="/app/books/invoices" class="pform">
+    <form method="post" action="${editing ? `/app/books/invoices/${esc(editing)}/edit` : '/app/books/invoices'}" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.invoice.customer'))}</span><select name="party" required>${options(c.parties, 'party', false)}</select></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.invoice.due'))}</span><input type="date" name="dueDate" value="${v('dueDate')}" /></label>
@@ -148,7 +160,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
       <div class="imp-table"><table>
         <thead><tr><th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.invoice.quantity'))}</th>
           <th scope="col">${esc(t(locale, 'books.invoice.unitPrice'))}</th><th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.account'))}</th></tr></thead>
-        <tbody>${Array.from({ length: INVOICE_FORM_LINES }, (_, i) => line(i)).join('')}</tbody>
+        <tbody>${Array.from({ length: formLines(values, INVOICE_FORM_LINES, 'label') }, (_, i) => line(i)).join('')}</tbody>
       </table></div>
       <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
@@ -215,21 +227,25 @@ export function renderBank(locale: Locale, viewer: Who, c: {
  * is left), with its reason and its day; then issued — its number, its entry posted, never changed after.
  */
 export function renderNewCreditNote(locale: Locale, inv: { readonly id: string; readonly key: string; readonly party: string; readonly currency: string },
-  lines: readonly CreditableLine[], values: Readonly<Record<string, string>>, problems: readonly string[], today: string): string {
+  lines: readonly CreditableLine[], values: Readonly<Record<string, string>>, problems: readonly string[], today: string, editing: string | null = null): string {
   const v = (k: string) => esc(values[k] ?? '');
-  return `<h1 class="page">${esc(t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
+  return `<h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
     <p class="lede">${esc(t(locale, 'books.credit.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" action="/app/books/invoices/${esc(inv.id)}/credit-notes" class="pform">
+    <form method="post" action="${editing ? `/app/books/credit-notes/${esc(editing)}/edit` : `/app/books/invoices/${esc(inv.id)}/credit-notes`}" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.credit.reason'))}</span><input name="reason" value="${v('reason')}" maxlength="200" required /></label>
       <div class="imp-table"><table>
         <thead><tr><th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.invoice.quantity'))}</th>
-          <th scope="col">${esc(t(locale, 'books.credit.left'))}</th><th scope="col">${esc(t(locale, 'books.credit.quantity'))}</th></tr></thead>
+          <th scope="col">${esc(t(locale, 'books.credit.left'))}</th><th scope="col">${esc(t(locale, 'books.credit.quantity'))}</th>
+          <th scope="col">${esc(t(locale, 'books.credit.reduction', { currency: inv.currency }))}</th></tr></thead>
         <tbody>${lines.map((l) => `<tr><td><bdi>${esc(l.label)}</bdi></td><td class="num">${esc(l.quantity)}</td><td class="num">${esc(l.left)}</td>
           <td>${signOf(l.left) > 0 ? `<input name="qty${l.lineNo}" inputmode="decimal" value="${values[`qty${l.lineNo}`] !== undefined ? v(`qty${l.lineNo}`) : esc(l.left)}"
-            aria-label="${esc(t(locale, 'books.credit.quantity'))} ${l.lineNo}" />` : ''}</td></tr>`).join('')}</tbody>
+            aria-label="${esc(t(locale, 'books.credit.quantity'))} ${l.lineNo}" />` : ''}</td>
+          <td>${signOf(l.leftNet) > 0 ? `<input name="red${l.lineNo}" inputmode="decimal" value="${v(`red${l.lineNo}`)}"
+            aria-label="${esc(t(locale, 'books.credit.reduction', { currency: inv.currency }))} ${l.lineNo}" />` : ''}</td></tr>`).join('')}</tbody>
       </table></div>
+      <p class="caption muted">${esc(t(locale, 'books.credit.reductionHelp'))}</p>
       <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <p><a class="deeper" href="/app/books/invoices/${esc(inv.id)}">${esc(inv.key)}</a></p>`;
@@ -239,6 +255,7 @@ export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView)
   const pill = c.state === 'issued' ? `<span class="pill ok">${esc(t(locale, 'books.credit.issued'))}</span>`
     : `<span class="pill ${c.state === 'draft' ? 'warn' : ''}">${esc(t(locale, `books.entry.state.${c.state}` as MessageKey))}</span>`;
   const actions = mayPost(viewer) && c.state === 'draft' ? `
+      <p><a class="deeper" href="/app/books/credit-notes/${esc(c.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       <form method="post" action="/app/books/credit-notes/${esc(c.id)}/issue" class="pform">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.issueAsk'))}">${esc(t(locale, 'books.credit.issue'))}</button></form>
       <form method="post" action="/app/books/credit-notes/${esc(c.id)}/discard" class="pform">
@@ -251,9 +268,53 @@ export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView)
     <div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.invoice.quantity'))}</th>
         <th scope="col">${esc(t(locale, 'books.invoice.net'))}</th><th scope="col">${esc(t(locale, 'books.entry.tax'))}</th></tr></thead>
-      <tbody>${c.lines.map((l) => `<tr><td><bdi>${esc(l.label)}</bdi></td><td class="num">${esc(l.quantity)}</td><td class="num">${money(locale, l.net, c.currency)}</td>
+      <tbody>${c.lines.map((l) => `<tr><td><bdi>${esc(l.label)}</bdi>${signOf(l.quantity) === 0 ? ` <span class="caption muted">${esc(t(locale, 'books.credit.priceLowered'))}</span>` : ''}</td>
+        <td class="num">${signOf(l.quantity) === 0 ? '' : esc(l.quantity)}</td><td class="num">${money(locale, l.net, c.currency)}</td>
         <td class="num">${money(locale, l.tax, c.currency)}</td></tr>`).join('')}</tbody>
     </table></div>
     <dl class="scard"><div class="row"><dt>${esc(t(locale, 'books.entry.total'))}</dt><dd><strong>${money(locale, c.total, c.currency)}</strong></dd></div></dl>
     ${actions}`;
+}
+
+/**
+ * 0216 (d) — A BANK'S CSV, ITS COLUMNS SAID ONCE: the file's first lines as they came, and which column is what — the
+ * page's guesses chosen already, each hers to change. Posted, the answer is kept on the bank account; the file is then
+ * given again and read with it (nothing of the file is stored here). Shown again when a later file is not laid out the
+ * same way, or when a line cannot be read with what was kept.
+ */
+export function renderStatementColumns(locale: Locale, o: {
+  readonly accountId: string; readonly account: string; readonly book: string;
+  readonly preview: readonly (readonly string[])[]; readonly guess: LayoutGuess; readonly problems: readonly string[];
+}): string {
+  const g = o.guess;
+  const width = Math.min(40, Math.max(0, ...o.preview.map((r) => r.length)));
+  const head = o.preview[g.headerRow] ?? [];
+  const sample = o.preview[g.headerRow + 1] ?? [];
+  const columns = (name: string, chosen: number | null, none: boolean) => `<select name="${name}">${none ? `<option value=""${chosen === null ? ' selected' : ''}>${esc(t(locale, 'books.bank.columns.none'))}</option>` : ''}${
+    Array.from({ length: width }, (_, i) => `<option value="${i}"${chosen === i ? ' selected' : ''}>${i + 1} · ${esc((head[i] ?? '').slice(0, 40))}${sample[i] ? ` · ${esc(sample[i]!.slice(0, 24))}` : ''}</option>`).join('')}</select>`;
+  const pick = (label: MessageKey, control: string) => `<label class="pq"><span>${esc(t(locale, label))}</span>${control}</label>`;
+  const single = 'single' in g.amount;
+  const preview = o.preview.slice(0, 8).map((r, i) => `<tr><th scope="row">${i + 1}</th>${Array.from({ length: width }, (_, j) => `<td><bdi>${esc((r[j] ?? '').slice(0, 40))}</bdi></td>`).join('')}</tr>`).join('');
+  return `<h1 class="page">${esc(t(locale, 'books.bank.columns.title'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.bank.columns.lede', { account: o.account }))}</p>
+    ${o.problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
+    <h2>${esc(t(locale, 'books.bank.columns.preview'))}</h2>
+    <div class="imp-table"><table><tbody>${preview}</tbody></table></div>
+    <form method="post" action="/app/books/bank/columns?account=${esc(o.accountId)}" class="pform">
+      <input type="hidden" name="sep" value="${g.sep === '\t' ? 'tab' : esc(g.sep)}" />
+      <input type="hidden" name="preview" value="${esc(JSON.stringify(o.preview.slice(0, 12).map((r) => r.slice(0, 40).map((c) => c.slice(0, 80)))))}" />
+      ${pick('books.bank.columns.headerRow', `<select name="headerRow">${o.preview.slice(0, 10).map((_, i) => `<option value="${i}"${i === g.headerRow ? ' selected' : ''}>${i + 1}</option>`).join('')}</select>`)}
+      ${pick('books.bank.columns.date', columns('date', g.date, false))}
+      ${pick('books.bank.columns.dateFormat', `<select name="dateFormat">${DATE_FORMATS.map((f) => `<option${f === g.dateFormat ? ' selected' : ''}>${f}</option>`).join('')}</select>`)}
+      ${pick('books.bank.columns.shape', `<select name="shape"><option value="single"${single ? ' selected' : ''}>${esc(t(locale, 'books.bank.columns.single'))}</option><option value="split"${single ? '' : ' selected'}>${esc(t(locale, 'books.bank.columns.split'))}</option></select>`)}
+      ${pick('books.bank.columns.amount', columns('amount', single ? (g.amount as { single: number }).single : null, true))}
+      ${pick('books.bank.columns.out', columns('out', single ? null : (g.amount as { out: number }).out, true))}
+      ${pick('books.bank.columns.in', columns('in', single ? null : (g.amount as { in: number }).in, true))}
+      ${pick('books.bank.columns.decimal', `<select name="decimal"><option value="."${g.decimal === '.' ? ' selected' : ''}>${esc(t(locale, 'books.bank.columns.point'))}</option><option value=","${g.decimal === ',' ? ' selected' : ''}>${esc(t(locale, 'books.bank.columns.comma'))}</option></select>`)}
+      ${pick('books.bank.columns.currency', columns('currency', g.currency, true).replace(esc(t(locale, 'books.bank.columns.none')), esc(t(locale, 'books.bank.columns.allIn', { currency: o.book }))))}
+      ${pick('books.bank.columns.description', columns('description', g.description, true))}
+      ${pick('books.bank.columns.reference', columns('reference', g.reference, true))}
+      <button class="btn" type="submit">${esc(t(locale, 'books.bank.columns.save'))}</button>
+    </form>
+    <p><a class="back" href="/app/books/bank?account=${esc(o.accountId)}">${esc(t(locale, 'books.bank.title'))}</a></p>`;
 }

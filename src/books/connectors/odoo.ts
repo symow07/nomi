@@ -1,7 +1,7 @@
 import { readStoreAddress } from '../../core/onboard/storeAddress.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
-import { partyIce } from '../../core/books/identifiers.js';
+import { registryFieldFor, registryFieldOf } from '../../core/books/identifiers.js';
 import {
   booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
@@ -127,7 +127,7 @@ const TYPE_OF_KIND: Record<BooksAccount['kind'], string> = {
   asset: 'asset_current', liability: 'liability_current', equity: 'equity', income: 'income', expense: 'expense', off_balance: 'off_balance',
 };
 const JOURNAL_OF = { sale: 'sales', purchase: 'purchases', cash: 'cash', bank: 'bank', credit: 'bank', general: 'general' } as const;
-const ODOO_JOURNAL = { sales: 'sale', purchases: 'purchase', cash: 'cash', bank: 'bank', general: 'general', closing: 'general' } as const;
+const ODOO_JOURNAL = { sales: 'sale', purchases: 'purchase', cash: 'cash', bank: 'bank', general: 'general', closing: 'general', opening: 'general' } as const;   // 0216 — Odoo has no opening kind: a general journal there
 const CODE = /^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/;
 
 /** Odoo's records as the books (B1's shape), every problem located at its model and Odoo id. */
@@ -165,12 +165,14 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     const id = idOf(p['id']);
     const ref = str(p['ref']);
     const code = ref && CODE.test(ref) ? ref : `P${id}`;
-    const registry = str(p['company_registry']);
+    // 0216 — Odoo's one registry field: the ICE for a party in Morocco, the company registry number for anyone else
+    const reg = registryFieldOf(str(p['country_code']), str(p['company_registry']), str(p['vat']));
+    if (reg.bad) bad('res.partner', id, 'company_registry', 'bad_registry');
     if (id !== null) partnerCode.set(id, code);
     parties.push(withValues({
       code, name: str(p['name']) ?? code,
       kind: (num(p['customer_rank']) ?? '0') !== '0' ? 'customer' : (num(p['supplier_rank']) ?? '0') !== '0' ? 'supplier' : 'other',
-      country: str(p['country_code']), ice: partyIce(str(p['country_code']), registry), taxNumber: str(p['vat']),
+      country: str(p['country_code']), ice: reg.ice, taxNumber: str(p['vat']), ...(reg.registry ? { registry: reg.registry } : {}),
     }, readMark(str(p['comment'])).custom));
     note('party', code, 'res.partner', id);
   }
@@ -249,7 +251,7 @@ export function booksToOdoo(d: BooksData, companyCurrency: string): OdooRaw {
     journals: d.journals.map((j, i) => ({ id: { number: String(i + 1) }, code: j.code, name: j.name, type: ODOO_JOURNAL[j.kind] })),
     partners: d.parties.map((p, i) => ({ id: { number: String(i + 1) }, ref: p.code, name: p.name,
       customer_rank: { number: p.kind === 'customer' ? '1' : '0' }, supplier_rank: { number: p.kind === 'supplier' ? '1' : '0' },
-      country_code: p.country ?? false, vat: p.taxNumber ?? false, company_registry: p.ice ?? false, comment: customMark(p.custom) || false })),
+      country_code: p.country ?? false, vat: p.taxNumber ?? false, company_registry: registryFieldFor(p) ?? false, comment: customMark(p.custom) || false })),
     taxes: d.taxCodes.map((t, i) => ({ id: { number: String(i + 1) }, name: t.label, amount: { number: t.rate }, amount_type: 'percent',
       type_tax_use: t.kind === 'deductible' ? 'purchase' : 'sale' })),
     taxAccounts: d.taxCodes.filter((t) => t.account !== null).map((t) => ({ tax_id: [{ number: String(taxId.get(t.code)!) }, t.label],

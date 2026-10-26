@@ -118,6 +118,14 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/bank/import', action: 'post' },
   { method: 'POST', url: '/app/books/bank/match', action: 'post' },
   { method: 'POST', url: '/app/books/bank/unmatch', action: 'post' },
+  // 0216 — a draft edited (an entry, an invoice, a credit note), and a bank's CSV columns kept: the owner's.
+  { method: 'GET', url: '/app/books/entries/:id/edit', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/edit', action: 'post' },
+  { method: 'GET', url: '/app/books/invoices/:id/edit', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/edit', action: 'post' },
+  { method: 'GET', url: '/app/books/credit-notes/:id/edit', action: 'post' },
+  { method: 'POST', url: '/app/books/credit-notes/:id/edit', action: 'post' },
+  { method: 'POST', url: '/app/books/bank/columns', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -383,18 +391,6 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' |
     <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : system === 'xero' ? 'books.conflict.xeroLede' : system === 'quickbooks' ? 'books.conflict.quickbooksLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
     <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
     <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
-}
-
-/**
- * D0 — WHAT THE BOOKS DO NOT DO YET, said where they are used, so a limit is disclosed and not discovered (the owner,
- * 2026-10-22). Each line is a limit that holds today; one goes from here the day it is lifted.
- */
-export function renderBooksNotYet(locale: Locale): string {
-  return `<div class="block" id="not-yet">
-      <h2>${esc(t(locale, 'books.notYet.title'))}</h2>
-      <ul class="rows">${(['books.notYet.currency', 'books.notYet.csv', 'books.notYet.drafts', 'books.notYet.price', 'books.notYet.registry'] as const).map((k) =>
-        `<li class="row"><span>${esc(t(locale, k))}</span></li>`).join('')}</ul>
-    </div>`;
 }
 
 /** D4 (0190) — the owner's door to the CGNC chart, read from the CNC's own text (docs/cgnc/README.md). */

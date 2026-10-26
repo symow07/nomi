@@ -77,10 +77,15 @@ describe('0208 · a party\'s ICE is checked as the business\'s', () => {
   });
 
   it('every connector reads a party\'s ICE through that one door, with the party\'s own country', () => {
-    for (const c of ['odoo', 'xero', 'quickbooks']) {
+    // QuickBooks keeps the ICE in its notes mark (partyIce); Odoo and Xero's one registry field is split by
+    // registryFieldOf (0216), which reads the ICE through partyIce, with the party's own country.
+    expect(readFileSync(`${ROOT}src/books/connectors/quickbooks.ts`, 'utf8')).toMatch(/ice: partyIce\(country\(c\), /);
+    for (const c of ['odoo', 'xero']) {
       const src = readFileSync(`${ROOT}src/books/connectors/${c}.ts`, 'utf8');
-      expect(src, c).toMatch(/ice: partyIce\((str\(p\['country_code'\]\)|country|country\(c\)), /);
+      expect(src, c).toMatch(/registryFieldOf\((str\(p\['country_code'\]\)|country), /);
+      expect(src, c).toContain('ice: reg.ice');
     }
+    expect(readFileSync(`${ROOT}src/core/books/identifiers.ts`, 'utf8')).toContain('const ice = partyIce(country, raw);');
   });
 
   it('the workbook (and so Sheets): an ICE on a party not in Morocco is refused, said for what it is', () => {

@@ -230,7 +230,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
+import { renderBooksChart, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
 import { qboAuthorizeUrl, qboConnector, type QboCall, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
@@ -242,8 +242,8 @@ import { giveBackFirst, retryStaleGrants } from '../../books/staleGrants.js';
 import { readBooks, readInBooks, rememberWritten, type BeforeBooks } from '../../db/booksInterchange.js';
 import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
-import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
-import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { discardEntry, draftEntry, draftEntryForm, entryChoices, listEntries, loadEntry, postEntry, redraftEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
+import { ENTRY_CUSTOM, ENTRY_FORM_LINES, formLines, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
@@ -275,11 +275,11 @@ import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.
 import { renderPaper, renderPapers, type PaperChoices } from './booksPapers.js';
 import { draftFromReading, keepReading, listPapers, paperOf } from '../../db/booksDocuments.js';
 import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
-import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
-import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
-import { creditable, discardCreditNote, draftCreditNote, issueCreditNote, loadCreditNote } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, matchedLines, matchLine, openLines, unmatch } from '../../db/bankStatements.js';
-import { readStatement } from '../../core/books/statements.js';
+import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, listInvoices, loadInvoice, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
+import { INVOICE_FORM_LINES, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
+import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
+import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
@@ -2413,8 +2413,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks }, { morocco: await businessInMorocco(bid.value) })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
         personOf(s).isOwner ? renderBooksChart(locale) : ''}${
-        personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
-        renderBooksNotYet(locale)}`,
+        personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2681,9 +2680,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.entries.new'), active: 'settings',
       bodyHtml: renderNewEntry(locale, c, {}, [], todayIso()) }));
   });
-  app.post('/app/books/entries', async (req, reply) => {
+  /** A new entry's draft, or (0216 (a)) a draft saved over: one form, one set of checks. */
+  const saveEntry = async (req: FastifyRequest, reply: FastifyReply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const editing = (req.params as { id?: string }).id ?? null;
+    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
     const locale = localeOf(req);
     const f = (req.body ?? {}) as Record<string, unknown>;
     const values: Record<string, string> = {};
@@ -2712,7 +2714,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (r === null || r === '0') { problems.push(t(locale, 'books.entry.problem.amount', { n })); return 'bad'; }
       return r;
     };
-    for (let i = 0; i < ENTRY_FORM_LINES; i++) {
+    for (let i = 0; i < formLines(values, ENTRY_FORM_LINES, 'account'); i++) {
       const n = i + 1;
       const account = values[`account${i}`];
       const debit = figure(values[`debit${i}`], n); const credit = figure(values[`credit${i}`], n);
@@ -2731,13 +2733,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     if (problems.length === 0 && lines.length < 2) problems.push(t(locale, 'books.entry.problem.twoLines'));
     const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'books.entries.new'), active: 'settings', bodyHtml: renderNewEntry(locale, c, values, list, todayIso()) }));
+      title: t(locale, editing ? 'books.draft.editTitle' : 'books.entries.new'), active: 'settings', bodyHtml: renderNewEntry(locale, c, values, list, todayIso(), editing) }));
     if (problems.length > 0) return again(problems);
-    const out = await withTenantTx(deps.db, bid, (tx) => draftEntry(tx, bid, personOf(s).id, {
-      journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines,
-      custom: entryCustom.values }));
+    const input = { journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines,
+      custom: entryCustom.values };
+    const out = await withTenantTx(deps.db, bid, (tx) => (editing ? redraftEntry(tx, bid, editing, input) : draftEntry(tx, bid, personOf(s).id, input)));
     if (out.kind === 'refused') return again([entryRefusedWhy(locale, out)]);
-    return reply.redirect(`/app/books/entries/${out.id}`, 303);
+    return editing ? flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.draftSaved') : reply.redirect(`/app/books/entries/${out.id}`, 303);
+  };
+  app.post('/app/books/entries', saveEntry);
+  app.post('/app/books/entries/:id/edit', saveEntry);
+  app.get('/app/books/entries/:id/edit', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ c: await entryChoices(tx, bid), v: await draftEntryForm(tx, bid, id) }));
+    if (!got.v) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.draft.editTitle'), active: 'settings',
+      bodyHtml: renderNewEntry(locale, got.c, got.v, [], todayIso(), id) }));
   });
   app.get('/app/books/entries/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -2831,6 +2845,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.reason === 'credit_refused' ? t(locale, 'books.credit.refused')
       : r.reason === 'nothing_to_credit' ? t(locale, 'books.credit.nothing')
       : r.reason === 'not_issued' ? t(locale, 'books.invoice.notIssued')
+      : r.reason === 'arrived_missing' ? t(locale, 'books.invoice.arrivedMissing', { currency: r.detail ?? '' })
       : entryRefusedWhy(locale, r as EntryRefusal);
   app.get('/app/books/invoices', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -2847,9 +2862,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.invoices.new'), active: 'settings',
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewInvoice(locale, await invoiceChoices(bid), {}, [], todayIso())}` }));
   });
-  app.post('/app/books/invoices', async (req, reply) => {
+  /** A new invoice's draft, or (0216 (a)) a draft saved over. */
+  const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const editing = (req.params as { id?: string }).id ?? null;
+    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
     const locale = localeOf(req);
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries((req.body ?? {}) as Record<string, unknown>)) if (typeof v === 'string') values[k] = v.slice(0, 300);
@@ -2870,7 +2888,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return r;
     };
     const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
-    for (let i = 0; i < INVOICE_FORM_LINES; i++) {
+    for (let i = 0; i < formLines(values, INVOICE_FORM_LINES, 'label'); i++) {
       const n = i + 1;
       const label = (values[`label${i}`] ?? '').trim();
       if (!label && !(values[`quantity${i}`] ?? '').trim() && !(values[`price${i}`] ?? '').trim()) continue;
@@ -2883,12 +2901,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     if (problems.length === 0 && lines.length === 0) problems.push(t(locale, 'books.invoice.problem.noLines'));
     const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'books.invoices.new'), active: 'settings', bodyHtml: renderNewInvoice(locale, c, values, list, todayIso()) }));
+      title: t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'), active: 'settings', bodyHtml: renderNewInvoice(locale, c, values, list, todayIso(), editing) }));
     if (problems.length > 0) return again(problems);
-    const out = await withTenantTx(deps.db, bid, (tx) => draftInvoice(tx, bid, personOf(s).id, {
-      partyId: values['party']!, issueDate: values['issueDate']!, dueDate: due || null, currency, label: (values['label'] ?? '').trim() || null, lines }));
+    const input = { partyId: values['party']!, issueDate: values['issueDate']!, dueDate: due || null, currency, label: (values['label'] ?? '').trim() || null, lines };
+    const out = await withTenantTx(deps.db, bid, (tx) => (editing ? redraftInvoice(tx, bid, editing, input) : draftInvoice(tx, bid, personOf(s).id, input)));
     if (out.kind === 'refused') return again([entryRefusedWhy(locale, out)]);
-    return reply.redirect(`/app/books/invoices/${out.id}`, 303);
+    return editing ? flashTo(reply, `/app/books/invoices/${out.id}`, 'books.flash.draftSaved') : reply.redirect(`/app/books/invoices/${out.id}`, 303);
+  };
+  app.post('/app/books/invoices', saveInvoice);
+  app.post('/app/books/invoices/:id/edit', saveInvoice);
+  app.get('/app/books/invoices/:id/edit', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const v = await withTenantTx(deps.db, bid, (tx) => draftInvoiceForm(tx, bid, id));
+    if (!v) return reply.callNotFound();
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.draft.editTitle'), active: 'settings',
+      bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], todayIso(), id) }));
   });
   app.get('/app/books/invoices/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -2937,11 +2967,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (amount === 'ambiguous') return back(t(locale, 'books.entry.problem.ambiguous', { n: 1 }));
     if (amount === null || amount === '0') return back(t(locale, 'books.entry.problem.amount', { n: 1 }));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(str('paidOn'))) return back(t(locale, 'books.entry.problem.date'));
+    // 0216 (c) — what arrived, where it was another currency (whether it was is the invoice's to say)
+    const typed = str('arrived') === '' ? null : readTypedAmount(str('arrived'));
+    if (typed === 'ambiguous') return back(t(locale, 'books.entry.problem.ambiguous', { n: 1 }));
+    const arrived = typed === '0' ? null : typed;
     const out = await withTenantTx(deps.db, bid, async (tx) => {
       const ok = (await sql<{ n: number }>`select (select count(*) from journals where business_id = ${bid}::uuid and id::text = ${str('journal')} and kind in ('bank', 'cash'))::int
         + (select count(*) from accounts where business_id = ${bid}::uuid and id::text = ${str('account')})::int as n`.execute(tx)).rows[0]!.n;
       if (ok !== 2) return { kind: 'refused' as const, reason: 'other' as const, detail: null };
-      return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account'), refund });
+      return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account'), refund,
+        paid: str('paidIn') === '' ? null : { currency: str('paidIn'), amount: arrived } });
     });
     if (out.kind === 'refused') return back(invoiceRefusedWhy(locale, out));
     return flashTo(reply, `/app/books/invoices/${id}`, refund ? 'books.flash.refundRecorded' : 'books.flash.paymentRecorded');
@@ -2949,25 +2984,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/books/invoices/:id/payments', moneyRoute(false));
   app.post('/app/books/invoices/:id/refunds', moneyRoute(true));
   /** D1b — a credit note: drafted from an issued invoice's lines, issued (numbered, posted), or discarded while a draft. */
-  const creditForm = async (req: FastifyRequest, reply: FastifyReply, values: Readonly<Record<string, string>>, problems: readonly string[], code = 200) => {
+  const creditForm = async (req: FastifyRequest, reply: FastifyReply, values: Readonly<Record<string, string>>, problems: readonly string[], code = 200,
+    editing: { readonly id: string; readonly invoiceId: string } | null = null) => {
     const s = sessionOf(req)!; const bid = bidOf(s)!; const locale = localeOf(req);
-    const id = (req.params as { id: string }).id;
+    const id = editing?.invoiceId ?? (req.params as { id: string }).id;
     const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, todayIso()), lines: await creditable(tx, bid, id) }));
     if (!got.v || !got.v.key) return reply.callNotFound();
     return reply.code(code).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.credit.new', { invoice: got.v.key }), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, { id, key: got.v.key, party: got.v.party, currency: got.v.currency }, got.lines, values, problems, todayIso())}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, { id, key: got.v.key, party: got.v.party, currency: got.v.currency }, got.lines, values, problems, todayIso(), editing?.id ?? null)}` }));
   };
   app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
     return creditForm(req, reply, {}, []);
   });
-  app.post('/app/books/invoices/:id/credit-notes', async (req, reply) => {
+  /** A credit note's draft against an issued invoice, or (0216 (a), `editing`) a draft saved over. */
+  const saveCredit = (editingNote: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const id = (req.params as { id: string }).id;
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const param = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(param)) return reply.callNotFound();
+    const draft = editingNote ? await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, param)) : null;
+    if (editingNote && !draft) return reply.callNotFound();
+    const editing = draft ? { id: param, invoiceId: draft.invoiceId } : null;
+    const id = editing?.invoiceId ?? param;
     const f = (req.body ?? {}) as Record<string, unknown>;
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.trim();
@@ -2976,18 +3017,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!reason) problems.push(t(locale, 'books.credit.problem.reason'));
     const issueDate = values['issueDate'] ?? '';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) problems.push(t(locale, 'books.entry.problem.date'));
-    const lines: { invoiceLineNo: number; quantity: Decimal }[] = [];
+    // each invoice line: a quantity given back (qtyN), a price lowered by an amount (redN, 0216), or both
+    const byLine = new Map<number, { quantity: Decimal; reduction: Decimal | null }>();
     for (const [k, v] of Object.entries(values)) {
-      const m = /^qty(\d{1,3})$/.exec(k); if (!m || v === '' || v === '0') continue;
+      const m = /^(qty|red)(\d{1,3})$/.exec(k); if (!m || v === '' || v === '0') continue;
       const q = readTypedAmount(v);
-      if (q === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n: Number(m[1]) })); continue; }
-      if (q === null) { problems.push(t(locale, 'books.entry.problem.amount', { n: Number(m[1]) })); continue; }
-      lines.push({ invoiceLineNo: Number(m[1]), quantity: q });
+      if (q === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n: Number(m[2]) })); continue; }
+      if (q === null) { problems.push(t(locale, 'books.entry.problem.amount', { n: Number(m[2]) })); continue; }
+      const n = Number(m[2]); const was = byLine.get(n) ?? { quantity: '0' as Decimal, reduction: null };
+      byLine.set(n, m[1] === 'qty' ? { ...was, quantity: q } : { ...was, reduction: q });
     }
-    if (problems.length > 0) return creditForm(req, reply, values, problems, 422);
-    const out = await withTenantTx(deps.db, bid, (tx) => draftCreditNote(tx, bid, personOf(s).id, { invoiceId: id, issueDate, reason, lines }));
-    if (out.kind === 'refused') return creditForm(req, reply, values, [invoiceRefusedWhy(locale, out)], 422);
-    return flashTo(reply, `/app/books/credit-notes/${out.id}`, 'books.flash.creditDrafted');
+    const lines = [...byLine].map(([invoiceLineNo, l]) => ({ invoiceLineNo, ...l }));
+    if (problems.length > 0) return creditForm(req, reply, values, problems, 422, editing);
+    const out = await withTenantTx(deps.db, bid, (tx) => (editing
+      ? redraftCreditNote(tx, bid, editing.id, { issueDate, reason, lines })
+      : draftCreditNote(tx, bid, personOf(s).id, { invoiceId: id, issueDate, reason, lines })));
+    if (out.kind === 'refused') return creditForm(req, reply, values, [invoiceRefusedWhy(locale, out)], 422, editing);
+    return flashTo(reply, `/app/books/credit-notes/${out.id}`, editing ? 'books.flash.draftSaved' : 'books.flash.creditDrafted');
+  };
+  app.post('/app/books/invoices/:id/credit-notes', saveCredit(false));
+  app.post('/app/books/credit-notes/:id/edit', saveCredit(true));
+  app.get('/app/books/credit-notes/:id/edit', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const draft = await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, id));
+    if (!draft) return reply.callNotFound();
+    return creditForm(req, reply, draft.values, [], 200, { id, invoiceId: draft.invoiceId });
   });
   app.get('/app/books/credit-notes/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3390,15 +3446,68 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!accountId) return flashTo(reply, to, 'books.flash.statementUnreadable');
     let text = '';
     try { const file = await req.file(); text = file ? (await file.toBuffer()).toString('utf8') : ''; } catch { text = ''; }
-    const book = (await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid))).bookCurrency;
-    const read = readStatement(text.slice(0, 5_000_000), book);
+    const { book, layout } = await withTenantTx(deps.db, bid, async (tx) => ({ book: (await entryChoices(tx, bid)).bookCurrency, layout: await statementLayoutFor(tx, bid, accountId) }));
+    text = text.slice(0, 5_000_000);
+    const locale = localeOf(req);
+    const problemOf = (r: StatementRead) => (r.kind === 'read' && r.problems.length > 0
+      ? t(locale, 'books.flash.statementProblems', { n: r.problems.length, line: r.problems[0]!.line, why: t(locale, `books.bank.problem.${r.problems[0]!.reason}` as MessageKey) }) : null);
+    // 0216 (d) — a CSV: with the columns kept for this account when it is laid out as they say; else the Nomi layout;
+    // else (or when a line cannot be read) the columns page, where the owner says which column is what.
+    const format = statementFormatOf(text);
+    const delimited = format === null && csvRows(text).rows.filter((r) => r.length >= 2).length >= 2;
+    let read: StatementRead;
+    if (format === 'csv' || delimited) {
+      const kept = layout ? readCsvWithLayout(text, layout, book) : null;
+      const nomi = kept === null || kept.kind === 'differs' ? readStatement(text, book) : null;
+      const usable = (r: StatementRead | { kind: 'differs' } | null): r is StatementRead => r !== null && r.kind === 'read' && r.problems.length === 0;
+      if (usable(kept)) read = kept;
+      else if (usable(nomi)) read = nomi;
+      else {
+        const { sep, rows } = csvRows(text);
+        const accountName = accounts.find((a) => a.id === accountId)!;
+        const why = kept?.kind === 'differs' ? t(locale, 'books.bank.columns.differs') : kept ? problemOf(kept) : nomi ? problemOf(nomi) : null;
+        return reply.code(200).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.bank.columns.title'), active: 'settings',
+          bodyHtml: renderStatementColumns(locale, { accountId, account: `${accountName.code} · ${accountName.name}`, book, preview: rows.slice(0, 12),
+            guess: layout && kept?.kind !== 'differs' ? { ...layout, headerRow: Math.max(0, rows.findIndex((r) => layout.header.every((h, i) => h === '' || headerKey(r[i] ?? '') === h))) } : guessLayout(rows, sep),
+            problems: why ? [why] : [] }) }));
+      }
+    } else {
+      read = readStatement(text, book);
+    }
     if (read.kind === 'unreadable') return flashTo(reply, to, 'books.flash.statementUnreadable');
     if (read.problems.length > 0) {
       const p = read.problems[0]!;
-      return flashTo(reply, to, 'books.flash.statementProblems', { n: read.problems.length, line: p.line, why: t(localeOf(req), `books.bank.problem.${p.reason}` as MessageKey) });
+      return flashTo(reply, to, 'books.flash.statementProblems', { n: read.problems.length, line: p.line, why: t(locale, `books.bank.problem.${p.reason}` as MessageKey) });
     }
     const out = await withTenantTx(deps.db, bid, (tx) => importStatement(tx, bid, personOf(s).id, accountId, read.format, text, read.lines));
     return flashTo(reply, to, 'books.flash.statementRead', { added: out.added, refused: out.refused });
+  });
+  /** 0216 (d) — the columns of a bank's CSV, said once and kept on its account; then the file is given again. */
+  app.post('/app/books/bank/columns', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const accounts = await withTenantTx(deps.db, bid, (tx) => bankAccounts(tx, bid));
+    const accountId = bankAccountOf((req.query as { account?: string }).account, accounts);
+    if (!accountId) return reply.callNotFound();
+    const to = `/app/books/bank?account=${accountId}`;
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string) : '');
+    const col = (k: string) => (/^\d{1,2}$/.test(str(k)) ? Number(str(k)) : null);
+    let preview: string[][] = [];
+    try { const p = JSON.parse(str('preview')) as unknown; if (Array.isArray(p)) preview = p.filter(Array.isArray).map((r) => (r as unknown[]).map((c) => (typeof c === 'string' ? c : ''))); } catch { preview = []; }
+    const headerRow = col('headerRow') ?? 0;
+    const header = (preview[headerRow] ?? []).map(headerKey);
+    const out = col('out'); const inn = col('in'); const single = col('amount');
+    const layout = layoutOf({
+      v: 1, sep: str('sep') === 'tab' ? '\t' : str('sep'), header, date: col('date'), dateFormat: (DATE_FORMATS as readonly string[]).includes(str('dateFormat')) ? str('dateFormat') as DateFormat : null,
+      amount: str('shape') === 'split' ? { out, in: inn } : { single }, decimal: str('decimal'),
+      currency: col('currency'), description: col('description'), reference: col('reference'),
+    } satisfies Record<keyof CsvLayout, unknown>);
+    // a column chosen twice is not a layout: the day is not also the amount
+    const used = layout ? [layout.date, ...('single' in layout.amount ? [layout.amount.single] : [layout.amount.out, layout.amount.in]), layout.currency, layout.description, layout.reference].filter((c) => c !== null) : [];
+    if (!layout || new Set(used).size !== used.length) return flashTo(reply, to, 'books.flash.columnsRefused');
+    const ok = await withTenantTx(deps.db, bid, (tx) => keepStatementLayout(tx, bid, accountId, layout));
+    return flashTo(reply, to, ok ? 'books.flash.columnsSaved' : 'books.flash.columnsRefused');
   });
   app.post('/app/books/bank/match', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

@@ -71,11 +71,12 @@ describe('D7 · the workbook', () => {
     const about = sheet(SAMPLE_WITH_FIELDS, 'Nomi');
     expect(about).toContainEqual(['Applies to', 'Key', 'Label', 'Kind', 'Choices', 'Required', 'In use']);
     expect(about).toContainEqual(['party', 'segment', 'Segment', 'choice', 'retail | wholesale', 'yes', 'yes']);
-    expect(sheet(SAMPLE_WITH_FIELDS, 'Parties')[0]).toEqual(['Code', 'Name', 'Kind', 'Country', 'ICE', 'Tax number', 'party.segment', 'party.since']);
+    expect(sheet(SAMPLE_WITH_FIELDS, 'Parties')[0]).toEqual(['Code', 'Name', 'Kind', 'Country', 'ICE', 'Tax number', 'Registry number', 'party.segment', 'party.since']);
     expect(sheet(SAMPLE_WITH_FIELDS, 'Journal')[0]!.slice(-2)).toEqual(['entry.project', 'line.weight_kg']);
     // books without fields: the sheets as before
     expect(sheet(SAMPLE_BOOKS, 'Nomi')).toHaveLength(2);
-    expect(sheet(SAMPLE_BOOKS, 'Parties')[0]).toHaveLength(6);
+    // 0216 — six columns and the registry number's (written always, read where there)
+    expect(sheet(SAMPLE_BOOKS, 'Parties')[0]).toHaveLength(7);
   });
 
   it('an entry\'s value is the same on each of its lines; a day may be an Excel date; a value of a retired field is kept', () => {

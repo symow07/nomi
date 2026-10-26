@@ -3,7 +3,8 @@ import type { Tx } from './client.js';
 import {
   addDecimal, compareDecimal, divDecimal, mulDecimal, parseDecimal, roundDecimal, signOf, subDecimal, type Decimal,
 } from '../core/types/decimal.js';
-import { draftEntry, postEntry, refusalOf, type DraftLine, type EntryRefusal } from './booksEntries.js';
+import { CURRENCIES } from '../core/types/money.js';
+import { draftEntry, formFigure, postEntry, refusalOf, type DraftLine, type EntryRefusal } from './booksEntries.js';
 import { booksAccountsOf } from './booksOrders.js';
 
 /**
@@ -45,7 +46,7 @@ export type InvoiceView = InvoiceRow & {
   readonly entryId: string | null;
   readonly billedTo: BilledTo;
   readonly lines: readonly { lineNo: number; label: string; quantity: string; unitPrice: string; account: string; taxCode: string | null; net: Decimal; tax: Decimal }[];
-  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean }[];
+  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean; paid: { currency: string; amount: Decimal } | null }[];
   readonly creditNotes: readonly { id: string; key: string | null; state: string; issueDate: string; total: Decimal }[];
 };
 
@@ -100,8 +101,9 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
     select l.line_no, l.label, l.quantity::text as quantity, l.unit_price::text as unit_price, a.code as account, t.code as tax_code, l.net::text as net, l.tax::text as tax
       from invoice_lines l join accounts a on a.id = l.account_id left join tax_codes t on t.id = l.tax_code_id
      where l.invoice_id = ${id}::uuid order by l.line_no`.execute(tx)).rows;
-  const payments = (await sql<{ paid_on: string; amount: string; account: string; entry_id: string; kind: string }>`
-    select pm.paid_on::text as paid_on, pm.amount::text as amount, a.code as account, pm.entry_id::text as entry_id, pm.kind
+  const payments = (await sql<{ paid_on: string; amount: string; account: string; entry_id: string; kind: string; paid_currency: string | null; paid_amount: string | null }>`
+    select pm.paid_on::text as paid_on, pm.amount::text as amount, a.code as account, pm.entry_id::text as entry_id, pm.kind,
+           pm.paid_currency, pm.paid_amount::text as paid_amount
       from invoice_payments pm join accounts a on a.id = pm.account_id where pm.invoice_id = ${id}::uuid order by pm.paid_on, pm.created_at`.execute(tx)).rows;
   return {
     id, key: r.number === null ? null : invoiceKey(r.year!, r.number), party: r.party, issueDate: r.issue_date, dueDate: r.due_date,
@@ -110,7 +112,8 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
       registry: r.b_registry, siret: r.b_siret, registro: r.b_registro },
     credited: d(r.credited), status: statusOf(r.state, d(r.total), d(r.credited), d(r.paid), r.due_date, today),
     lines: lines.map((l) => ({ lineNo: l.line_no, label: l.label, quantity: d(l.quantity), unitPrice: d(l.unit_price), account: l.account, taxCode: l.tax_code, net: d(l.net), tax: d(l.tax) })),
-    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund' })),
+    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund',
+      paid: p.paid_currency === null ? null : { currency: p.paid_currency, amount: d(p.paid_amount!) } })),
     creditNotes: (await sql<{ id: string; year: number | null; number: number | null; state: string; issue_date: string; total: string }>`
       select id::text as id, year, number, state, issue_date::text as issue_date, credit_note_total(id)::text as total from credit_notes
        where invoice_id = ${id}::uuid and state <> 'discarded' order by created_at`.execute(tx)).rows.map((c) => ({
@@ -133,20 +136,59 @@ export async function draftInvoice(tx: Tx, businessId: string, by: string, input
       values (${businessId}::uuid, ${input.partyId}::uuid, ${input.issueDate}::date, ${input.dueDate}::date, ${input.currency}, ${input.label}, ${by},
               ${input.sourceOrderId ?? null}::uuid)
       returning id::text as id`.execute(tx)).rows[0]!.id;
-    let n = 0;
-    for (const l of input.lines) {
-      const rate = l.taxCodeId === null ? '0' : ((await sql<{ r: string }>`select rate::text as r from tax_codes where id = ${l.taxCodeId}::uuid and business_id = ${businessId}::uuid`
-        .execute(tx)).rows[0]?.r ?? '0');
-      const net = roundDecimal(mulDecimal(l.quantity, l.unitPrice), 2);
-      const tax = roundDecimal(divDecimal(mulDecimal(net, d(rate)), d('100'), 6), 2);
-      await sql`insert into invoice_lines (business_id, invoice_id, line_no, label, quantity, unit_price, account_id, tax_code_id, net, tax)
-        values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.label}, ${l.quantity}::numeric, ${l.unitPrice}::numeric, ${l.accountId}::uuid,
-                ${l.taxCodeId}::uuid, ${net}::numeric, ${tax}::numeric)`.execute(tx);
-    }
+    await writeInvoiceLines(tx, businessId, id, input.lines);
     await sql`release savepoint draft_invoice`.execute(tx);
     return { kind: 'drafted', id };
   } catch (e) {
     await sql`rollback to savepoint draft_invoice`.execute(tx);
+    return refusalOf(e);
+  }
+}
+
+async function writeInvoiceLines(tx: Tx, businessId: string, id: string, lines: InvoiceInput['lines']): Promise<void> {
+  let n = 0;
+  for (const l of lines) {
+    const rate = l.taxCodeId === null ? '0' : ((await sql<{ r: string }>`select rate::text as r from tax_codes where id = ${l.taxCodeId}::uuid and business_id = ${businessId}::uuid`
+      .execute(tx)).rows[0]?.r ?? '0');
+    const net = roundDecimal(mulDecimal(l.quantity, l.unitPrice), 2);
+    const tax = roundDecimal(divDecimal(mulDecimal(net, d(rate)), d('100'), 6), 2);
+    await sql`insert into invoice_lines (business_id, invoice_id, line_no, label, quantity, unit_price, account_id, tax_code_id, net, tax)
+      values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.label}, ${l.quantity}::numeric, ${l.unitPrice}::numeric, ${l.accountId}::uuid,
+              ${l.taxCodeId}::uuid, ${net}::numeric, ${tax}::numeric)`.execute(tx);
+  }
+}
+
+/** 0216 (a) — a draft invoice as its form's values (the names `renderNewInvoice` reads), or null when it is not a draft. */
+export async function draftInvoiceForm(tx: Tx, businessId: string, id: string): Promise<Record<string, string> | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const h = (await sql<{ party: string; issue: string; due: string | null; currency: string; label: string | null }>`
+    select party_id::text as party, issue_date::text as issue, due_date::text as due, currency, label
+      from invoices where business_id = ${businessId}::uuid and id = ${id}::uuid and state = 'draft'`.execute(tx)).rows[0];
+  if (!h) return null;
+  const v: Record<string, string> = { party: h.party, issueDate: h.issue, dueDate: h.due ?? '', currency: h.currency, label: h.label ?? '' };
+  const lines = (await sql<{ label: string; quantity: string; price: string; account: string; tax: string | null }>`
+    select label, quantity::text as quantity, unit_price::text as price, account_id::text as account, tax_code_id::text as tax
+      from invoice_lines where invoice_id = ${id}::uuid and business_id = ${businessId}::uuid order by line_no`.execute(tx)).rows;
+  lines.forEach((l, i) => {
+    v[`label${i}`] = l.label; v[`quantity${i}`] = formFigure(l.quantity); v[`price${i}`] = formFigure(l.price); v[`account${i}`] = l.account; v[`tax${i}`] = l.tax ?? '';
+  });
+  return v;
+}
+
+/** 0216 (a) — a draft invoice edited: its header as given, its lines written again. Issued, an invoice is corrected by a credit note. */
+export async function redraftInvoice(tx: Tx, businessId: string, id: string, input: InvoiceInput): Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal> {
+  try {
+    await sql`savepoint redraft_invoice`.execute(tx);
+    const cleared = (await sql<{ ok: boolean }>`select books_clear_draft('invoice', ${id}::uuid) as ok`.execute(tx)).rows[0]!.ok;
+    if (!cleared) { await sql`rollback to savepoint redraft_invoice`.execute(tx); return { kind: 'refused', reason: 'not_a_draft', detail: null }; }
+    await sql`update invoices set party_id = ${input.partyId}::uuid, issue_date = ${input.issueDate}::date, due_date = ${input.dueDate}::date,
+        currency = ${input.currency}, label = ${input.label}
+      where business_id = ${businessId}::uuid and id = ${id}::uuid and state = 'draft'`.execute(tx);
+    await writeInvoiceLines(tx, businessId, id, input.lines);
+    await sql`release savepoint redraft_invoice`.execute(tx);
+    return { kind: 'drafted', id };
+  } catch (e) {
+    await sql`rollback to savepoint redraft_invoice`.execute(tx);
     return refusalOf(e);
   }
 }
@@ -163,7 +205,7 @@ async function rateOn(tx: Tx, businessId: string, from: string, to: string, day:
   return r ? d(r.r) : null;
 }
 
-export type InvoiceRefusal = EntryRefusal | { readonly kind: 'refused'; readonly reason: 'accounts_not_set' | 'too_much' | 'too_much_refund' | 'not_issued'; readonly detail: string | null };
+export type InvoiceRefusal = EntryRefusal | { readonly kind: 'refused'; readonly reason: 'accounts_not_set' | 'too_much' | 'too_much_refund' | 'not_issued' | 'arrived_missing'; readonly detail: string | null };
 
 /** The one marked line that closes a foreign entry in the books' currency: a loss as a debit, a gain as a credit. */
 function fxLine(residue: Decimal, a: { fxLossAccountId: string | null; fxGainAccountId: string | null }, book: string, partyId: string | null): DraftLine | null {
@@ -275,8 +317,15 @@ export async function receivableMove(tx: Tx, businessId: string, invoiceId: stri
 }
 
 /** A payment in, or (D1b) a refund out to a customer owed it back: through `receivableMove`, posted, recorded. */
+/**
+ * C2 — a payment in (D1b: a refund out). `amount` is what it settles, in the invoice's currency. 0216 (c) — `paid` is
+ * what arrived (or left) where that was ANOTHER currency: the bank's line is in it, the receivable's in the invoice's,
+ * and the difference between the two in the books' currency, each at the owner's rate for the day, is an exchange
+ * gain or loss of its own (beside the receivable's own difference, as before). The entry is marked across currencies.
+ */
 export async function recordPayment(tx: Tx, businessId: string, invoiceId: string, by: string,
-  p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean }):
+  p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean;
+       readonly paid?: { readonly currency: string; readonly amount: Decimal | null } | null }):
   Promise<{ readonly kind: 'recorded'; readonly entryId: string; readonly fx: Decimal } | InvoiceRefusal> {
   const a = await booksAccountsOf(tx, businessId);
   if (!a.receivableAccountId) return { kind: 'refused', reason: 'accounts_not_set', detail: null };
@@ -289,29 +338,57 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
   const owed = owedOn(d(inv.total), d(inv.credited), d(inv.paid));
   const room = refund ? subDecimal(d('0'), owed) : owed;
   if (compareDecimal(p.amount, room) > 0) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
+  const named = p.paid && p.paid.currency !== inv.currency ? p.paid : null;
+  if (named && !(CURRENCIES as readonly string[]).includes(named.currency)) return { kind: 'refused', reason: 'other', detail: null };
+  if (named && (named.amount === null || signOf(named.amount) <= 0)) return { kind: 'refused', reason: 'arrived_missing', detail: named.currency };
+  const across = named ? { currency: named.currency, amount: named.amount! } : null;
   const move = await receivableMove(tx, businessId, invoiceId, p.amount, !refund, p.paidOn);
   if ('kind' in move) return move;
+  const bank = across ?? { currency: inv.currency, amount: p.amount };
   const lines: DraftLine[] = refund ? [
     { accountId: a.receivableAccountId, partyId: inv.party_id, taxCodeId: null, currency: inv.currency, debit: p.amount, credit: null, label: null, isFx: false },
-    { accountId: p.accountId, partyId: null, taxCodeId: null, currency: inv.currency, debit: null, credit: p.amount, label: null, isFx: false },
+    { accountId: p.accountId, partyId: null, taxCodeId: null, currency: bank.currency, debit: null, credit: bank.amount, label: null, isFx: false },
   ] : [
-    { accountId: p.accountId, partyId: null, taxCodeId: null, currency: inv.currency, debit: p.amount, credit: null, label: null, isFx: false },
+    { accountId: p.accountId, partyId: null, taxCodeId: null, currency: bank.currency, debit: bank.amount, credit: null, label: null, isFx: false },
     { accountId: a.receivableAccountId, partyId: inv.party_id, taxCodeId: null, currency: inv.currency, debit: null, credit: p.amount, label: null, isFx: false },
   ];
   lines.push(...move.lines);
+  let fx = move.fx;
+  if (across) {
+    // What arrived against what it settles, both in the books' currency at the day's rates — exactly as posting turns
+    // each line (0173) — and the difference on the exchange accounts: more arrived than it settled is a gain.
+    const book = (await sql<{ c: string }>`select books_currency(${businessId}::uuid) as c`.execute(tx)).rows[0]!.c;
+    const inBook = async (currency: string, x: Decimal): Promise<Decimal | null> => {
+      if (currency === book) return x;
+      const r = await rateOn(tx, businessId, currency, book, p.paidOn);
+      return r === null ? null : roundDecimal(mulDecimal(x, r), 2);
+    };
+    const arrived = await inBook(across.currency, across.amount);
+    if (arrived === null) return { kind: 'refused', reason: 'no_rate', detail: `${across.currency} to ${book} on or before ${p.paidOn}` };
+    const settled = await inBook(inv.currency, p.amount);
+    if (settled === null) return { kind: 'refused', reason: 'no_rate', detail: `${inv.currency} to ${book} on or before ${p.paidOn}` };
+    const gain = refund ? subDecimal(settled, arrived) : subDecimal(arrived, settled);
+    if (signOf(gain) !== 0) {
+      if (!a.fxLossAccountId || !a.fxGainAccountId) return { kind: 'refused', reason: 'fx_accounts', detail: null };
+      lines.push(fxLine(subDecimal(d('0'), gain), a, book, null)!);
+    }
+    fx = addDecimal(fx, gain);
+  }
   const key = inv.number === null ? '' : invoiceKey(inv.year!, inv.number);
   try {
     await sql`savepoint record_payment`.execute(tx);
-    const made = await draftEntry(tx, businessId, by, { journalId: p.journalId, date: p.paidOn, label: `${key} · ${refund ? '−' : ''}${p.amount} ${inv.currency}`,
-      documentRef: key, documentDate: p.paidOn, lines });
+    const made = await draftEntry(tx, businessId, by, { journalId: p.journalId, date: p.paidOn,
+      label: `${key} · ${refund ? '−' : ''}${p.amount} ${inv.currency}${across ? ` · ${across.amount} ${across.currency}` : ''}`,
+      documentRef: key, documentDate: p.paidOn, lines, acrossCurrencies: across !== null });
     if (made.kind === 'refused') { await sql`rollback to savepoint record_payment`.execute(tx); return made; }
     const posted = await postEntry(tx, businessId, made.id, by);
     if (posted.kind === 'refused') { await sql`rollback to savepoint record_payment`.execute(tx); return posted; }
-    await sql`insert into invoice_payments (business_id, invoice_id, paid_on, currency, amount, receivable_book, account_id, entry_id, created_by, kind)
+    await sql`insert into invoice_payments (business_id, invoice_id, paid_on, currency, amount, receivable_book, account_id, entry_id, created_by, kind,
+                                            paid_currency, paid_amount)
       values (${businessId}::uuid, ${invoiceId}::uuid, ${p.paidOn}::date, ${inv.currency}, ${p.amount}::numeric, ${move.relief}::numeric,
-              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${refund ? 'refund' : 'in'})`.execute(tx);
+              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${refund ? 'refund' : 'in'}, ${across?.currency ?? null}, ${across?.amount ?? null}::numeric)`.execute(tx);
     await sql`release savepoint record_payment`.execute(tx);
-    return { kind: 'recorded', entryId: made.id, fx: move.fx };
+    return { kind: 'recorded', entryId: made.id, fx };
   } catch (e) {
     await sql`rollback to savepoint record_payment`.execute(tx);
     return refusalOf(e);

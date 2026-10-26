@@ -119,6 +119,13 @@ export const openYear = (tx: Tx, businessId: string, startsOn: string, endsOn: s
     return { kind: 'done' as const };
   });
 
+/** 0216 — the opening journal, for a chart that has none: code AN, kind opening (the opening entry and nothing else). */
+export const addOpeningJournal = (tx: Tx, businessId: string, name: string) =>
+  attempt(tx, 'opening_journal', async () => {
+    await sql`insert into journals (business_id, code, name, kind) values (${businessId}::uuid, 'AN', ${name}, 'opening')`.execute(tx);
+    return { kind: 'done' as const };
+  });
+
 /** The closing journal, for a chart that has none: code CL, kind closing. */
 export const addClosingJournal = (tx: Tx, businessId: string, name: string) =>
   attempt(tx, 'closing_journal', async () => {

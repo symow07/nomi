@@ -1440,17 +1440,26 @@ D4 leaves both as configurable details until they're published.
 
 ---
 
-## 10 · What the books do not do yet (said to owners on the books' page)
+## 10 · What the books did not do — lifted (0216, 2026-10-26)
 
-Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/books` (`renderBooksNotYet`, the
-`books.notYet.*` keys). A line goes from both the day its limit is lifted.
+The five limits disclosed on `/app/books` from 2026-10-22 are gone, and so is the list (the owner's "list 3 — all in
+100%"). What each became:
 
-- **A payment is taken only in the invoice's own currency.** A payment in any other currency is refused.
-- **A bank statement in CSV is read in one layout only:** a header row naming Date and Amount (or Debit and Credit),
-  with Description and Currency where the bank gives them. OFX and CAMT.053 files are read as banks send them.
-- **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
-- **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
-  with nothing given back, is not a credit note yet.
-- **A company registry number travels in no connector** (since R3, 0210, the field exists: SIREN, NIF, company
-  number). It is given when a customer is added in Nomi. The workbook, Sheets, Odoo, Xero and QuickBooks do not carry
-  it, and a party read in from one has none.
+- **A payment in another currency than its invoice** (c): the bank's line in what arrived, the receivable's in the
+  invoice's currency; the difference at the owner's rates for the day is an exchange gain or loss, a marked line of its
+  own, to the cent, for a payment in and a refund out. The entry is marked `across_currencies` and balances in the
+  books' currency only; only a bank or cash journal takes the mark (NB028). The workbook carries it ("Across
+  currencies").
+- **A bank's own CSV** (d): one columns page, its guesses the owner's to change; the answer is kept on the bank account
+  (`accounts.statement_layout`) and every later file from that bank is read with it. The Nomi layout, OFX and CAMT.053
+  read as before. A file laid out otherwise, or a line the kept columns cannot read, opens the page again.
+- **A draft edited** (a): entry, invoice, credit note — the same form, saving over the draft; the old lines go through
+  `books_clear_draft` (the app role still deletes nothing). Posted and issued documents are corrected by reversal and
+  by credit note, as before.
+- **A price lowered with nothing given back** (b): a credit-note line of quantity 0, its amount and the line's tax; no
+  line takes more than is left, and a later return takes what the price now is.
+- **The registry number in the connectors** (e): Odoo `company_registry`, Xero `CompanyNumber`, a "Registry number"
+  column in the workbook and Sheets; QuickBooks has no place for it and gets none.
+- **The opening entry's own journal** (f): AN (kind `opening`), which takes only an entry on its year's first day or
+  the books' start day (NB027). The predicate `books_day_writable` (0211) is unchanged: with one lock per year, the
+  opening period is open only while it is one of the two current periods — the owner's to decide (PROGRESS).

@@ -63,6 +63,7 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
     customShown(locale, fields, 'entry', e.custom),
   ].filter(Boolean);
   const actions = !mayPost(viewer) ? '' : e.state === 'draft' ? `
+      <p><a class="deeper" href="/app/books/entries/${esc(e.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       ${!e.documentRef || !e.documentDate ? `<p class="caption muted">${esc(t(locale, 'books.entry.needsDocument'))}</p>` : ''}
       <form method="post" action="/app/books/entries/${esc(e.id)}/post" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.entry.post'))}</button></form>
       <form method="post" action="/app/books/entries/${esc(e.id)}/discard" class="pform">
@@ -107,8 +108,22 @@ export const ENTRY_FORM_LINES = 8;
 export const ENTRY_CUSTOM = 'cf_entry_';
 export const lineCustom = (i: number): string => `cf_line${i}_`;
 
-/** A new entry by hand: up to eight lines; empty ones are left out. Saved as a DRAFT, posted from its own page. */
-export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string): string {
+/**
+ * 0216 (a) — how many line rows a form draws: its own number, or a draft's lines and two more (a draft made from an
+ * order or a workbook may have more than the form's eight). The handler reads the same number of rows back.
+ */
+export const formLines = (values: Readonly<Record<string, string>>, base: number, key: string): number => {
+  let last = -1;
+  for (const k of Object.keys(values)) { const m = new RegExp(`^${key}(\\d{1,3})$`).exec(k); if (m && values[k]) last = Math.max(last, Number(m[1])); }
+  return Math.min(200, Math.max(base, last + 3));
+};
+
+/**
+ * A new entry by hand: up to eight lines; empty ones are left out. Saved as a DRAFT, posted from its own page.
+ * 0216 (a) — `editing`, a draft's id: the same form, filled with the draft, saving over it.
+ */
+export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string,
+  editing: string | null = null): string {
   const v = (k: string) => esc(values[k] ?? '');
   const options = (rows: readonly { id: string; code: string; name?: string; label?: string }[], name: string, blank: boolean) =>
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${values[name] === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
@@ -123,10 +138,10 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
       <td><input name="label${i}" value="${v(`label${i}`)}" aria-label="${esc(t(locale, 'books.entry.lineLabel'))} ${i + 1}" /></td>
       <td><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td>
       ${customInputs(locale, c.fields ?? [], 'line', lineCustom(i), values, { bare: true, n: i + 1 })}</tr>`;
-  return `<h1 class="page">${esc(t(locale, 'books.entries.new'))}</h1>
+  return `<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.entries.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entry.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" action="/app/books/entries" class="pform">
+    <form method="post" action="${editing ? `/app/books/entries/${esc(editing)}/edit` : '/app/books/entries'}" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span><select name="journal" required>${options(c.journals, 'journal', false)}</select></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="date" value="${values['date'] ? v('date') : esc(today)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" required maxlength="200" /></label>
@@ -138,7 +153,7 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
           <th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.currency'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th>${customHeads(c.fields ?? [], 'line')}</tr></thead>
-        <tbody>${Array.from({ length: ENTRY_FORM_LINES }, (_, i) => line(i)).join('')}</tbody>
+        <tbody>${Array.from({ length: formLines(values, ENTRY_FORM_LINES, 'account') }, (_, i) => line(i)).join('')}</tbody>
       </table></div>
       <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>

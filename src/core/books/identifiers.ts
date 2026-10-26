@@ -1,3 +1,4 @@
+import { checkRegistry } from './registry.js';
 /**
  * E2 (Phase 5; 0206) — THE BUSINESS'S OWN IDENTIFIERS, as its books and its FEC carry them: the ICE, the IF and the
  * RC with its court. A rule is checked only where an official source publishes one (docs/PHASE-5.md, E2):
@@ -36,6 +37,23 @@ export const partyIce = (country: string | null, raw: string | null): string | n
   const ice = country !== ICE_COUNTRY || raw === null ? '' : iceAsTyped(raw);
   return isIce(ice) ? ice : null;
 };
+/**
+ * 0216 — a connected system's ONE registry field, split (Odoo's `company_registry`, Xero's `CompanyNumber`): the ICE for
+ * a party in Morocco when it is one; otherwise the company registry number, by R3's rules for the party's country
+ * (`checkRegistry`: FR nine digits, GB eight or two letters and six, ES nine capitals or digits, elsewhere as typed).
+ * A number those rules refuse is not kept, and `bad` says so (a problem on the row, never a guess).
+ */
+export function registryFieldOf(country: string | null, raw: string | null, taxNumber: string | null):
+  { readonly ice: string | null; readonly registry: string | null; readonly bad: boolean } {
+  if (raw === null || raw.trim() === '') return { ice: null, registry: null, bad: false };
+  const ice = partyIce(country, raw);
+  if (ice !== null) return { ice, registry: null, bad: false };
+  const r = checkRegistry({ country, registry: raw, siret: '', registro: '', taxNumber: taxNumber ?? '' });
+  return r.ok ? { ice: null, registry: r.value.registry, bad: false } : { ice: null, registry: null, bad: true };
+}
+/** The one field written back: the ICE where there is one, else the registry number. */
+export const registryFieldFor = (p: { readonly ice: string | null; readonly registry?: string | null }): string | null => p.ice ?? p.registry ?? null;
+
 const BOUND: Record<IdentifierField, number> = { ice: ICE_POSITIONS, taxId: 40, rc: 40, rcCourt: 80 };
 
 /** Every bad field at once. Empty clears a field. */
