@@ -312,6 +312,7 @@ export const RULES = Object.freeze({
   connection_approvals: { do: 'unrelated' },
   mail_accounts: { do: 'unrelated' },
   meta_accounts: { do: 'unrelated' },
+  tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
   whatsapp_accounts: { do: 'unrelated' },
   whatsapp_templates: { do: 'unrelated' },
   sending_domains: { do: 'unrelated' },
