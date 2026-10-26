@@ -47,7 +47,7 @@ itself, the legal source, and never to copy it from software.
   from the class rubric above, or from none (241, 248, 251, 258).
 - **Numbers the CGNC leaves empty** (12, 18, 46, 48, 49 …) are not accounts.
 - **Each account's kind follows its class.** See the header of 0190.
-- **The six journals are Nomi's, not the CGNC's** (it prescribes none): VE, AC, BQ, CA, OD, CL.
+- **The seven journals are Nomi's, not the CGNC's** (it prescribes none): VE, AC, BQ, CA, OD, CL, and AN (0216: the opening entry's own).
 
 ## Files
 

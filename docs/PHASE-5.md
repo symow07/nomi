@@ -546,7 +546,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
         `tools/cgnc/`, and re-running them reproduces the list.
       - A template of 0171: the owner adds it from the books' page. It changes nothing the owner already has, and
         chooses the accounts Nomi drafts with only where none were chosen (VE, 3421, 7111, 6331, 7331).
-      - The six journals are Nomi's, not the CGNC's.
+      - The seven journals are Nomi's, not the CGNC's (AN, the opening entry's, since 0216).
     - **The Moroccan FEC** (`/app/books/fec`, owner and accountant): per fiscal year, the eighteen fields of Avis 24
       annex 3, named and ordered as the Avis lists them, read from the ministry's PDF.
       - The auxiliary account is the party. The validation date is the posting day. The currency amount is given
