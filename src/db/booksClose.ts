@@ -86,6 +86,9 @@ export async function closeState(tx: Tx, businessId: string) {
       and kind = 'equity' and is_active order by code`),
     closingJournals: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals where business_id = ${businessId}::uuid
       and kind = 'closing' order by code`),
+    // 0216 (f) — the opening entry's own journal, where the chart has one
+    openingJournals: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals where business_id = ${businessId}::uuid
+      and kind = 'opening' order by code`),
   };
 }
 
@@ -116,6 +119,13 @@ export const closeYear = (tx: Tx, businessId: string, p: { readonly yearId: stri
 export const openYear = (tx: Tx, businessId: string, startsOn: string, endsOn: string) =>
   attempt(tx, 'open_year', async () => {
     await sql`insert into fiscal_years (business_id, starts_on, ends_on) values (${businessId}::uuid, ${startsOn}::date, ${endsOn}::date)`.execute(tx);
+    return { kind: 'done' as const };
+  });
+
+/** 0216 — the opening journal, for a chart that has none: code AN, kind opening (the opening entry and nothing else). */
+export const addOpeningJournal = (tx: Tx, businessId: string, name: string) =>
+  attempt(tx, 'opening_journal', async () => {
+    await sql`insert into journals (business_id, code, name, kind) values (${businessId}::uuid, 'AN', ${name}, 'opening')`.execute(tx);
     return { kind: 'done' as const };
   });
 

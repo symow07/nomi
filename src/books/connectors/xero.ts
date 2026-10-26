@@ -1,6 +1,6 @@
 import { OAUTH_TIMEOUT_MS, type OAuthFetch } from '../../connectors/oauth.js';
 import { refused, revokeAnswer, type BooksConnector, type ConnectRefusal, type Grant, type RevokeOutcome, type Located } from '../../core/books/connector.js';
-import { partyIce } from '../../core/books/identifiers.js';
+import { registryFieldFor, registryFieldOf } from '../../core/books/identifiers.js';
 import {
   booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksParty, type BooksProblem,
   type BooksTaxCode, type CustomValues, type RecordKind,
@@ -183,11 +183,13 @@ export function xeroToBooks(raw: XeroRaw, bookCurrency: string): { data: BooksDa
     const number = str(c['ContactNumber']);
     const id = str(c['ContactID']) ?? '';
     const code = number && CODE.test(number) ? number : `X${id.replace(/-/g, '').slice(0, 12).toUpperCase()}`;
-    const registry = str(c['CompanyNumber']);
     const country = (Array.isArray(c['Addresses']) ? (c['Addresses'] as Record<string, unknown>[]) : []).map((x) => str(x['Country'])).find((x) => x && /^[A-Z]{2}$/.test(x)) ?? null;
+    // 0216 — Xero's one registry field: the ICE for a party in Morocco, the company registry number for anyone else
+    const reg = registryFieldOf(country, str(c['CompanyNumber']), str(c['TaxNumber']));
+    if (reg.bad) bad(`Contact ${code}`, 'CompanyNumber', 'bad_registry');
     parties.push({ code, name: str(c['Name']) ?? code,
       kind: c['IsCustomer'] === true ? 'customer' : c['IsSupplier'] === true ? 'supplier' : 'other',
-      country, ice: partyIce(country, registry), taxNumber: str(c['TaxNumber']) });
+      country, ice: reg.ice, taxNumber: str(c['TaxNumber']), ...(reg.registry ? { registry: reg.registry } : {}) });
     note('party', code, 'Contact');
   }
   // Xero posts every tax to the organisation's own tax account: "GST / VAT", SystemAccount "GST" (Accounting API types).
@@ -251,7 +253,7 @@ export function booksToXero(d: BooksData, baseCurrency: string): XeroRaw {
     accounts: d.accounts.filter((a) => TYPE_OF_KIND[a.kind] !== null).map((a, i) => ({ AccountID: id('a', i), Code: a.code, Name: a.name,
       Type: TYPE_OF_KIND[a.kind]![0], Class: TYPE_OF_KIND[a.kind]![1], Status: 'ACTIVE', ...(a.code === taxAccount ? { SystemAccount: 'GST' } : {}) })),
     contacts: d.parties.map((p, i) => ({ ContactID: id('c', i), ContactNumber: p.code, Name: p.name, ContactStatus: 'ACTIVE',
-      IsCustomer: p.kind === 'customer', IsSupplier: p.kind === 'supplier', ...(p.ice ? { CompanyNumber: p.ice } : {}), ...(p.taxNumber ? { TaxNumber: p.taxNumber } : {}),
+      IsCustomer: p.kind === 'customer', IsSupplier: p.kind === 'supplier', ...(registryFieldFor(p) ? { CompanyNumber: registryFieldFor(p) } : {}), ...(p.taxNumber ? { TaxNumber: p.taxNumber } : {}),
       Addresses: p.country ? [{ AddressType: 'POBOX', Country: p.country }] : [] })),
     taxRates: d.taxCodes.map((t) => ({ Name: t.label, TaxType: t.code, Status: 'ACTIVE', EffectiveRate: n(t.rate), DisplayTaxRate: n(t.rate),
       CanApplyToRevenue: t.kind !== 'deductible', CanApplyToExpenses: t.kind !== 'collected' })),

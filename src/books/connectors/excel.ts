@@ -1,3 +1,4 @@
+import { checkRegistry } from '../../core/books/registry.js';
 import { xlsxSheets, xlsxWrite, type XlsxCell, type XlsxSheet, type XlsxValue } from '../../net/xlsx.js';
 import { parseDecimal, roundDecimal, type Decimal } from '../../core/types/decimal.js';
 import { CURRENCIES } from '../../core/types/money.js';
@@ -37,6 +38,13 @@ const HEADERS = {
     'Currency', 'Debit', 'Credit', 'Line label'],
 } as const;
 type Tab = keyof typeof HEADERS;
+/**
+ * 0216 — a column a workbook from before it has not: written always, read where it is there. The company registry
+ * number (R3), after "Tax number"; checked by R3's rules for the party's country, a refused one a problem on its row.
+ */
+const REGISTRY = 'Registry number';
+/** 0216 (c) — likewise, after "Line label": "yes" on an entry that settles across currencies (a payment in another one). */
+const ACROSS = 'Across currencies';
 /**
  * D7 — the custom fields, on the "Nomi" sheet below this header row (a tab of their own would be a sheet older
  * workbooks lack, and Google Sheets refuses to read a tab that is not there). Their values are columns named by the
@@ -241,9 +249,13 @@ export function sheetsToBooks(
     if (ice !== null && !isIce(ice)) at('parties', r.n, 'ICE', 'bad_ice');
     else if (iceWrong) at('parties', r.n, 'ICE', 'ice_not_morocco');
     const taxNumber = text(r.get('Tax number'));
+    const typedRegistry = text(r.get(REGISTRY));
+    const reg = typedRegistry === null ? null : checkRegistry({ country, registry: typedRegistry, siret: '', registro: '', taxNumber: taxNumber ?? '' });
+    if (reg && !reg.ok) at('parties', r.n, REGISTRY, 'bad_registry');
+    const registry = reg && reg.ok ? reg.value.registry : null;
     const custom = customOf('parties', r.n, 'party', headsOf.get('parties') ?? [], r.get);
-    if (c && name && k && !seen('party', c, 'parties', r.n, 'Code') && !iceWrong) {
-      parties.push({ code: c, name, kind: k, country, ice, taxNumber, ...(custom ? { custom } : {}) });
+    if (c && name && k && !seen('party', c, 'parties', r.n, 'Code') && !iceWrong && !(reg && !reg.ok)) {
+      parties.push({ code: c, name, kind: k, country, ice, taxNumber, ...(registry ? { registry } : {}), ...(custom ? { custom } : {}) });
     }
   }
   const taxCodes: BooksData['taxCodes'][number][] = [];
@@ -271,7 +283,7 @@ export function sheetsToBooks(
     const entryCustom = customOf('journal', r.n, 'entry', journalHeads(), r.get);
     const head = {
       journal: text(r.get('Journal')), date: r.get('Date'), label: text(r.get('Label')), documentRef: text(r.get('Document')),
-      documentDate: r.get('Document date'), state: text(r.get('State')),
+      documentDate: r.get('Document date'), state: text(r.get('State')), across: text(r.get(ACROSS)),
     };
     let b = building.get(key);
     if (!b) {
@@ -281,9 +293,11 @@ export function sheetsToBooks(
       const documentDate = day('journal', r.n, 'Document date', head.documentDate, false);
       const state = head.state === null || head.state === 'draft' ? 'draft' : head.state === 'posted' ? 'posted' : null;
       if (state === null) at('journal', r.n, 'State', 'unknown_kind');
+      const across = head.across === null || head.across === 'no' ? false : head.across === 'yes' ? true : null;
+      if (across === null) at('journal', r.n, ACROSS, 'unknown_kind');
       b = { entry: { key, journal: journal ?? '', date: date ?? '', label: label ?? '', documentRef: head.documentRef, documentDate, state: state ?? 'draft',
-        ...(entryCustom ? { custom: entryCustom } : {}) },
-        lines: [], rows: [], broken: !journal || !date || !label || state === null };
+        ...(across ? { acrossCurrencies: true } : {}), ...(entryCustom ? { custom: entryCustom } : {}) },
+        lines: [], rows: [], broken: !journal || !date || !label || state === null || across === null };
       building.set(key, b);
       where.set(`entry:${key}`, { sheet: SHEETS.journal, row: r.n });
     } else {
@@ -293,6 +307,7 @@ export function sheetsToBooks(
       differs('Label', head.label, b.entry.label);
       differs('Document', head.documentRef, b.entry.documentRef);
       differs('State', head.state, b.entry.state);
+      if (head.across !== null) differs(ACROSS, head.across, b.entry.acrossCurrencies ? 'yes' : 'no');
       if (head.date.text !== '') differs('Date', day('journal', r.n, 'Date', head.date, false), b.entry.date);
       if (head.documentDate.text !== '') differs('Document date', day('journal', r.n, 'Document date', head.documentDate, false), b.entry.documentDate);
       for (const [k, v] of Object.entries(entryCustom ?? {})) differs(`entry.${k}`, v, b.entry.custom?.[k] ?? null);
@@ -354,13 +369,13 @@ export function workbookSheets(d: BooksData): { readonly name: string; readonly 
         ...fields.map((f) => [f.appliesTo, f.key, f.label, f.kind, f.choices === null ? null : f.choices.join(' | '), f.required ? 'yes' : 'no', f.retired ? 'no' : 'yes'])])] },
     { name: SHEETS.accounts, rows: [[...HEADERS.accounts], ...d.accounts.map((a) => [a.code, a.name, a.kind, a.parent])] },
     { name: SHEETS.journals, rows: [[...HEADERS.journals], ...d.journals.map((j) => [j.code, j.name, j.kind])] },
-    { name: SHEETS.parties, rows: [[...HEADERS.parties, ...partyCols.map((k) => `party.${k}`)],
-      ...d.parties.map((p) => [p.code, p.name, p.kind, p.country, p.ice, p.taxNumber, ...values(partyCols, p.custom)])] },
+    { name: SHEETS.parties, rows: [[...HEADERS.parties, REGISTRY, ...partyCols.map((k) => `party.${k}`)],
+      ...d.parties.map((p) => [p.code, p.name, p.kind, p.country, p.ice, p.taxNumber, p.registry ?? null, ...values(partyCols, p.custom)])] },
     { name: SHEETS.taxCodes, rows: [[...HEADERS.taxCodes], ...d.taxCodes.map((t) => [t.code, t.label, n(t.rate), t.kind, t.account, t.validFrom, t.validTo])] },
-    { name: SHEETS.journal, rows: [[...HEADERS.journal, ...entryCols.map((k) => `entry.${k}`), ...lineCols.map((k) => `line.${k}`)],
+    { name: SHEETS.journal, rows: [[...HEADERS.journal, ACROSS, ...entryCols.map((k) => `entry.${k}`), ...lineCols.map((k) => `line.${k}`)],
       ...d.entries.flatMap((e) => e.lines.map((l) => [
         e.key, e.journal, e.date, e.label, e.documentRef, e.documentDate, e.state, l.account, l.party, l.taxCode, l.currency, n(l.debit), n(l.credit), l.label,
-        ...values(entryCols, e.custom), ...values(lineCols, l.custom),
+        e.acrossCurrencies ? 'yes' : null, ...values(entryCols, e.custom), ...values(lineCols, l.custom),
       ]))] },
   ];
 }

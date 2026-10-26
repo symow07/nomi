@@ -12,7 +12,8 @@ import { MINOR_UNITS, type Currency } from '../types/money.js';
  */
 
 export const ACCOUNT_KINDS = ['asset', 'liability', 'equity', 'income', 'expense', 'off_balance'] as const;
-export const JOURNAL_KINDS = ['sales', 'purchases', 'bank', 'cash', 'general', 'closing'] as const;
+// 0216 — 'opening': the opening entry's own journal (AN), its year's first day or the books' start day only.
+export const JOURNAL_KINDS = ['sales', 'purchases', 'bank', 'cash', 'general', 'closing', 'opening'] as const;
 export const PARTY_KINDS = ['customer', 'supplier', 'other'] as const;
 export const TAX_KINDS = ['collected', 'deductible', 'exempt'] as const;
 export const FIELD_APPLIES = ['entry', 'line', 'party'] as const;
@@ -40,6 +41,12 @@ export type BooksJournal = { readonly code: string; readonly name: string; reado
 export type BooksParty = {
   readonly code: string; readonly name: string; readonly kind: (typeof PARTY_KINDS)[number];
   readonly country: string | null; readonly ice: string | null; readonly taxNumber: string | null;
+  /**
+   * 0216 — the company registry number (R3: SIREN, NIF, company number; anywhere else as typed), where the source has
+   * a field for it: the workbook and Sheets (a column), Odoo (`company_registry`) and Xero (`CompanyNumber`), each of
+   * which keeps ONE registry field — the ICE for a party in Morocco, this for anyone else. QuickBooks has none: never.
+   */
+  readonly registry?: string | null;
   readonly custom?: CustomValues;
 };
 export type BooksTaxCode = {
@@ -65,6 +72,8 @@ export type BooksEntry = {
   readonly state: 'draft' | 'posted';
   readonly lines: readonly BooksLine[];
   readonly custom?: CustomValues;
+  /** 0216 (c) — a payment settling in one currency what arrived in another: it balances in the books' currency only. */
+  readonly acrossCurrencies?: boolean;
 };
 
 export type BooksData = {
@@ -93,7 +102,7 @@ export type BooksRecord = { readonly kind: RecordKind; readonly key: string; rea
 export const BOOKS_PROBLEMS = [
   'missing_sheet', 'missing_column', 'required', 'not_a_date', 'not_an_amount', 'ambiguous_amount', 'unknown_kind',
   'bad_code', 'duplicate', 'unknown_account', 'unknown_journal', 'unknown_party', 'unknown_tax_code',
-  'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'ice_not_morocco', 'entry_fields_differ', 'too_many_decimals',
+  'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'ice_not_morocco', 'bad_registry', 'across_journal', 'entry_fields_differ', 'too_many_decimals',
   // against what Nomi already holds (the read-in, B2/B5)
   'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed', 'tax_before_known',
   // E3 — an entry dated before these books, where it cannot be left where it is (Sheets)
@@ -232,6 +241,12 @@ export function booksProblems(
     // with no foreign line; beside one, it holds the exchange difference and balances after conversion, which is the
     // database's to check at posting, with the owner's rates.
     const foreign = [...totals.keys()].some((c) => c !== known.bookCurrency);
+    // 0216 (c) — one marked across currencies balances in the books' currency only: the database's, at posting.
+    if (e.acrossCurrencies) {
+      const kind = d.journals.find((j) => j.code === e.journal)?.kind;
+      if (kind !== undefined && kind !== 'bank' && kind !== 'cash') at('entry', e.key, 'Journal', 'across_journal');
+      continue;
+    }
     for (const [c, t] of totals) {
       if (c === known.bookCurrency && foreign) continue;
       if (compareDecimal(t.debit, t.credit) !== 0) { at('entry', e.key, 'Debit', 'unbalanced'); break; }

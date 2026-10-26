@@ -3,7 +3,7 @@ import type { Tx } from './client.js';
 import {
   addDecimal, compareDecimal, divDecimal, mulDecimal, parseDecimal, roundDecimal, signOf, subDecimal, type Decimal,
 } from '../core/types/decimal.js';
-import { draftEntry, postEntry, refusalOf, type DraftLine } from './booksEntries.js';
+import { draftEntry, formFigure, postEntry, refusalOf, type DraftLine } from './booksEntries.js';
 import { booksAccountsOf } from './booksOrders.js';
 import { creditNoteKey, invoiceKey, receivableMove, type BilledTo, type InvoiceRefusal } from './booksInvoices.js';
 
@@ -54,11 +54,56 @@ function creditRefusalOf(e: unknown): CreditRefusal {
   return refusalOf(e);
 }
 
-export async function draftCreditNote(tx: Tx, businessId: string, by: string, input: {
+/**
+ * A line of a credit note: some of an invoice line's quantity given back, or (0216) its price LOWERED by an amount with
+ * nothing given back — a damage allowance, a discount after a dispute. Both on one invoice line are two lines.
+ */
+export type CreditLineInput = { readonly invoiceLineNo: number; readonly quantity: Decimal; readonly reduction?: Decimal | null };
+
+export type CreditNoteInput = {
   readonly invoiceId: string; readonly issueDate: string; readonly reason: string;
-  readonly lines: readonly { readonly invoiceLineNo: number; readonly quantity: Decimal }[];
-}): Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
-  const wanted = input.lines.filter((l) => signOf(l.quantity) > 0);
+  readonly lines: readonly CreditLineInput[];
+};
+
+export async function draftCreditNote(tx: Tx, businessId: string, by: string, input: CreditNoteInput): Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
+  return writeCreditNote(tx, businessId, by, input, null);
+}
+
+/** 0216 (a) — a draft credit note as its form's values (qtyN, redN by invoice line), with its invoice; null when not a draft. */
+export async function draftCreditForm(tx: Tx, businessId: string, id: string): Promise<{ readonly invoiceId: string; readonly values: Record<string, string> } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const h = (await sql<{ invoice_id: string; issue: string; reason: string }>`select invoice_id::text as invoice_id, issue_date::text as issue, reason
+    from credit_notes where business_id = ${businessId}::uuid and id = ${id}::uuid and state = 'draft'`.execute(tx)).rows[0];
+  if (!h) return null;
+  const v: Record<string, string> = { issueDate: h.issue, reason: h.reason };
+  // every line of the invoice says what this draft does to it — nothing, a quantity back, a price lowered — so the form
+  // shows the draft and not its defaults
+  for (const l of await creditable(tx, businessId, h.invoice_id)) { v[`qty${l.lineNo}`] = '0'; v[`red${l.lineNo}`] = ''; }
+  for (const l of (await sql<{ n: number; quantity: string; net: string }>`select invoice_line_no as n, quantity::text as quantity, net::text as net
+    from credit_note_lines where credit_note_id = ${id}::uuid and business_id = ${businessId}::uuid order by line_no`.execute(tx)).rows) {
+    if (Number(l.quantity) === 0) v[`red${l.n}`] = formFigure(l.net); else v[`qty${l.n}`] = formFigure(l.quantity);
+  }
+  return { invoiceId: h.invoice_id, values: v };
+}
+
+/**
+ * 0216 (a) — a draft credit note edited: its day, reason and lines as given, the old lines gone through the database's
+ * one door. Its invoice stays its own. Issued, a credit note never changes.
+ */
+export async function redraftCreditNote(tx: Tx, businessId: string, id: string, input: Omit<CreditNoteInput, 'invoiceId'>): Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
+  const was = (await sql<{ invoice_id: string }>`select invoice_id::text as invoice_id from credit_notes where business_id = ${businessId}::uuid and id = ${id}::uuid
+    and state = 'draft'`.execute(tx)).rows[0];
+  if (!was) return { kind: 'refused', reason: 'not_a_draft', detail: null };
+  return writeCreditNote(tx, businessId, '', { ...input, invoiceId: was.invoice_id }, id);
+}
+
+async function writeCreditNote(tx: Tx, businessId: string, by: string, input: CreditNoteInput, editing: string | null):
+  Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
+  // each wish is one line: goods given back, or a price lowered
+  const wanted = input.lines.flatMap((l) => [
+    ...(l.reduction && signOf(l.reduction) > 0 ? [{ invoiceLineNo: l.invoiceLineNo, quantity: d('0'), reduction: roundDecimal(l.reduction, 2) }] : []),
+    ...(signOf(l.quantity) > 0 ? [{ invoiceLineNo: l.invoiceLineNo, quantity: l.quantity, reduction: null as Decimal | null }] : []),
+  ]);
   if (wanted.length === 0) return { kind: 'refused', reason: 'nothing_to_credit', detail: null };
   const inv = (await sql<{ currency: string }>`select currency from invoices where business_id = ${businessId}::uuid and id = ${input.invoiceId}::uuid
     and state = 'issued'`.execute(tx)).rows[0];
@@ -66,15 +111,35 @@ export async function draftCreditNote(tx: Tx, businessId: string, by: string, in
   const left = new Map((await creditable(tx, businessId, input.invoiceId)).map((l) => [l.lineNo, l]));
   try {
     await sql`savepoint draft_credit`.execute(tx);
-    const id = (await sql<{ id: string }>`insert into credit_notes (business_id, invoice_id, issue_date, currency, reason, created_by)
-      values (${businessId}::uuid, ${input.invoiceId}::uuid, ${input.issueDate}::date, ${inv.currency}, ${input.reason}, ${by}) returning id::text as id`.execute(tx)).rows[0]!.id;
+    let id: string;
+    if (editing === null) {
+      id = (await sql<{ id: string }>`insert into credit_notes (business_id, invoice_id, issue_date, currency, reason, created_by)
+        values (${businessId}::uuid, ${input.invoiceId}::uuid, ${input.issueDate}::date, ${inv.currency}, ${input.reason}, ${by}) returning id::text as id`.execute(tx)).rows[0]!.id;
+    } else {
+      const cleared = (await sql<{ ok: boolean }>`select books_clear_draft('credit_note', ${editing}::uuid) as ok`.execute(tx)).rows[0]!.ok;
+      if (!cleared) { await sql`rollback to savepoint draft_credit`.execute(tx); return { kind: 'refused', reason: 'not_a_draft', detail: null }; }
+      await sql`update credit_notes set issue_date = ${input.issueDate}::date, reason = ${input.reason}
+        where business_id = ${businessId}::uuid and id = ${editing}::uuid and state = 'draft'`.execute(tx);
+      id = editing;
+    }
     let n = 0;
     for (const w of wanted) {
       const l = left.get(w.invoiceLineNo);
-      // the last of a line takes exactly what is left of it; a part is its quantity at the line's price and tax
-      const all = l !== undefined && compareDecimal(w.quantity, l.left) === 0;
-      const net = !l ? d('0') : all ? l.leftNet : roundDecimal(mulDecimal(w.quantity, l.unitPrice), 2);
-      const tax = !l ? d('0') : all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
+      let net: Decimal; let tax: Decimal;
+      if (!l) { net = d('0'); tax = d('0'); }
+      else if (w.reduction !== null) {
+        // a price lowered: its amount, at the line's tax; all that is left of the line takes exactly what is left
+        const all = compareDecimal(w.reduction, l.leftNet) === 0;
+        net = w.reduction;
+        tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
+      } else {
+        // the last of a line takes exactly what is left of it; a part is its quantity at the line's price and tax
+        const all = compareDecimal(w.quantity, l.left) === 0;
+        net = all ? l.leftNet : roundDecimal(mulDecimal(w.quantity, l.unitPrice), 2);
+        tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
+      }
+      // what is left, for this note's next line on the same invoice line (the database counts them together too)
+      if (l) left.set(w.invoiceLineNo, { ...l, left: subDecimal(l.left, w.quantity), leftNet: subDecimal(l.leftNet, net), leftTax: subDecimal(l.leftTax, tax) });
       await sql`insert into credit_note_lines (business_id, credit_note_id, line_no, invoice_line_no, quantity, net, tax)
         values (${businessId}::uuid, ${id}::uuid, ${++n}, ${w.invoiceLineNo}, ${w.quantity}::numeric, ${net}::numeric, ${tax}::numeric)`.execute(tx);
     }

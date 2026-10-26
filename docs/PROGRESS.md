@@ -13,6 +13,36 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The books' disclosed limits, lifted (2026-10-26, 0216)
+
+The owner's order, third of three ("list 3 — all in 100%", one PR). PHASE-5.md §10 says what each became; the list on
+`/app/books` is gone.
+- **(a) Drafts edited:** an entry, an invoice and a credit note open in their own form and save over the draft.
+  `books_clear_draft` (definer) is the one way old lines go, so the app role still has no DELETE. It works only on a
+  draft, only in the viewer's own workspace, and never for an accountant (NB021). Posted and issued documents are
+  untouched.
+- **(b) A price lowered, nothing returned:** a credit-note line can have quantity 0 and an amount. No line takes more
+  than is left, and a later return takes the price as it now stands.
+- **(c) A payment in another currency:** the receivable is settled in the invoice's currency and the bank is booked in
+  what arrived. The difference, at the owner's rates, goes to exchange gain or loss, to the cent. Tests cover both
+  directions for a payment in and a refund out. The entry is marked `across_currencies`, which only a bank or cash
+  journal may take (NB028), and the workbook carries the mark.
+- **(d) A bank's own CSV:** one columns page, with guessed answers the owner can change. The answer is kept on the bank
+  account and later files from that bank are read with it. A file laid out differently, or a line that cannot be
+  read, opens the page again. My call: nothing of the file is stored, so the first file is given twice (once to show
+  its columns, once to read it).
+- **(e) The registry number:** carried by Odoo `company_registry`, Xero `CompanyNumber`, and a workbook/Sheets column.
+  QuickBooks gets nothing.
+- **(f) The opening journal:** AN, kind `opening`. It takes only an entry on its year's first day or the books' start
+  day (NB027), and the closing page offers it where the chart has none.
+- **For the owner, one decision (f):** `books_day_writable` (0211) is unchanged. A lock is one date per year, so the
+  opening entry's period is writable only while it is one of the two current periods; it cannot stay open on its
+  own once its year is locked past it. My recommendation is to leave it so. The opening entry is written when the
+  books start, before any lock, and a late correction goes through the existing reopen, which is recorded. If the
+  owner wants the opening period writable on its own, that is a per-period lock: a migration of its own.
+- **Verification:** see the PR. `tests/integration/books-limits.test.ts` (11), `books-bank.test.ts` (the columns
+  flow), `tests/parity/books-limits.test.ts` (9).
+
 ## TikTok direct messages, built against a fake (2026-10-26, 0215)
 
 The owner's order, second of three: surface A only (docs/TIKTOK-CHANNEL.md §6 has the whole of it).
@@ -31,7 +61,7 @@ The owner's order, second of three: surface A only (docs/TIKTOK-CHANNEL.md §6 h
   document here is a refusal that is not retried.
 - **Verification:** pre-pilot 14/14 before and after (the send gate and the worker changed); `tiktok.test.ts` (18);
   `tests/integration/tiktok*.test.ts` (16). The count's guard switched off fails its test.
-- **Next, in the owner's order:** the six books items (one PR).
+- **Merged:** #390.
 
 ## The migration record is the migrator's alone (2026-10-26, 0214)
 

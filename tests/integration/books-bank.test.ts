@@ -93,9 +93,11 @@ d('C3 · reconciliation from statement files (requires DATABASE_URL + MIGRATE_DA
     expect((await as((q) => q(`select count(*)::int as n from statement_lines`))).rows[0].n).toBe(2);
   });
 
-  it('a CSV with a figure that reads two ways is not read in at all, and says where', async () => {
-    expect(await notice(await upload('Date,Amount,Description\n2026-04-25,1.250,Something\n', 'x.csv')))
-      .toContain('Nothing was read in: 1 lines need fixing. The first, line 2: a figure that can be read two ways.');
+  it('a CSV with a figure that reads two ways is not read in at all, says where, and (0216) asks for its columns — the decimal mark among them', async () => {
+    const asked = await upload('Date,Amount,Description\n2026-04-25,1.250,Something\n', 'x.csv');
+    expect(asked.statusCode).toBe(200);
+    expect(asked.body).toContain('Nothing was read in: 1 lines need fixing. The first, line 2: a figure that can be read two ways.');
+    expect(asked.body).toContain('name="decimal"');
     expect((await as((q) => q(`select count(*)::int as n from statement_lines`))).rows[0].n).toBe(2);
   });
 
@@ -128,6 +130,37 @@ d('C3 · reconciliation from statement files (requires DATABASE_URL + MIGRATE_DA
     expect((await as((q) => q(`select count(*)::int as n from statement_matches where unmatched_at is not null`))).rows[0].n).toBe(1);
     // and it can be matched again
     expect(await notice(await post('/app/books/bank/match', { account: k.bank, line: await lineOf('1440.60'), journalLine: await journalLine('1440.60', 'debit') }))).toContain('Matched.');
+  });
+
+  it('0216 (d) A BANK\'S OWN CSV: its columns asked once, kept on the account; the same file then reads, the next one too, and one laid out otherwise asks again', async () => {
+    const BANK = `Relevé du compte 5141\nDate opération;Libellé;Débit;Crédit;Réf.\n02/05/2026;VIR ATLAS;;1 250,50;R-${RUN}-1\n03/05/2026;FRAIS TENUE;12,00;;R-${RUN}-2\n`;
+    const first = await upload(BANK, 'releve.csv');
+    expect(first.statusCode).toBe(200);
+    expect(first.body).toContain('action="/app/books/bank/columns?account=');
+    // the page's own guesses: the header on row 2, Débit and Crédit as money out and in, a comma, the days as DD/MM/YYYY
+    expect(first.body).toMatch(/name="headerRow">[^]*?<option value="1" selected>2<\/option>/);
+    expect(first.body).toMatch(/name="dateFormat">[^]*?<option selected>DD\/MM\/YYYY<\/option>/);
+    expect(first.body).toMatch(/name="decimal">[^]*?<option value="," selected>/);
+    expect(await as(async (q) => (await q(`select count(*)::int as n from statement_lines where reference like $1`, [`R-${RUN}-%`])).rows[0].n)).toBe(0);
+    const preview = /name="preview" value="([^"]*)"/.exec(first.body)![1]!.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
+    const kept = await post(`/app/books/bank/columns?account=${k.bank}`, { sep: ';', preview, headerRow: '1', date: '0', dateFormat: 'DD/MM/YYYY',
+      shape: 'split', amount: '', out: '2', in: '3', decimal: ',', currency: '', description: '1', reference: '4' });
+    expect(await notice(kept)).toContain('The columns are kept for this account.');
+    expect(await notice(await upload(BANK, 'releve.csv'))).toContain('Read in: 2 new lines');
+    const read = await as(async (q) => (await q(`select booked_on::text as day, amount::text, wording from statement_lines where reference like $1 order by booked_on`, [`R-${RUN}-%`])).rows);
+    expect(read).toEqual([{ day: '2026-05-02', amount: '1250.50', wording: 'VIR ATLAS' }, { day: '2026-05-03', amount: '-12.00', wording: 'FRAIS TENUE' }]);
+    // the next month's file from the same bank: read with what was kept, nothing asked
+    expect(await notice(await upload(BANK.replace(/R-/g, 'S-').replace('02/05', '02/06'), 'juin.csv'))).toContain('Read in: 2 new lines');
+    // another layout: the page again, saying why; and two columns chosen as one is refused
+    const other = await upload(`Fecha;Concepto;Importe\n2026-05-04;CAFE;-3,50\n`, 'otro.csv');
+    expect(other.statusCode).toBe(200);
+    expect(other.body).toContain('This file is not laid out as the columns kept for this account');
+    expect(await notice(await post(`/app/books/bank/columns?account=${k.bank}`, { sep: ';', preview, headerRow: '1', date: '0', dateFormat: 'DD/MM/YYYY',
+      shape: 'single', amount: '0', out: '', in: '', decimal: ',', currency: '', description: '', reference: '' }))).toContain('Those columns cannot be kept');
+    // the accountant keeps no columns
+    const tried = await post(`/app/books/bank/columns?account=${k.bank}`, { sep: ';', preview, headerRow: '1', date: '0', dateFormat: 'DD/MM/YYYY',
+      shape: 'single', amount: '2', decimal: ',' }, accountant);
+    expect(tried.headers['location']).toBe('/app/books');
   });
 
   it('the accountant sees the page and matches nothing', async () => {

@@ -54,17 +54,17 @@ export async function readBooks(tx: Tx, businessId: string): Promise<BooksData> 
      where a.business_id = ${businessId}::uuid order by a.code`.execute(tx)).rows;
   const journals = (await sql<BooksData['journals'][number]>`
     select code, name, kind from journals where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
-  const parties = (await sql<{ code: string; name: string; kind: BooksData['parties'][number]['kind']; country: string | null; ice: string | null; tax_number: string | null; custom: CustomValues }>`
-    select code, name, kind, country, ice, tax_number, custom from parties where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
+  const parties = (await sql<{ code: string; name: string; kind: BooksData['parties'][number]['kind']; country: string | null; ice: string | null; tax_number: string | null; registry: string | null; custom: CustomValues }>`
+    select code, name, kind, country, ice, tax_number, registry_number as registry, custom from parties where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
   const fields = await fieldsOf(tx, businessId);
   const taxCodes = (await sql<{ code: string; label: string; rate: string; kind: BooksData['taxCodes'][number]['kind']; account: string | null; valid_from: string; valid_to: string | null }>`
     select t.code, t.label, t.rate::text as rate, t.kind, a.code as account, t.valid_from::text as valid_from, t.valid_to::text as valid_to
       from tax_codes t left join accounts a on a.id = t.account_id
      where t.business_id = ${businessId}::uuid order by t.code, t.valid_from`.execute(tx)).rows;
-  const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string; document_ref: string | null; document_date: string | null; state: 'draft' | 'posted'; custom: CustomValues }>`
+  const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string; document_ref: string | null; document_date: string | null; state: 'draft' | 'posted'; custom: CustomValues; across_currencies: boolean }>`
     select e.id::text as id,
            case when e.state = 'posted' then j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number else 'draft-' || e.id end as key,
-           j.code as journal, e.entry_date::text as date, e.label, e.document_ref, e.document_date::text as document_date, e.state, e.custom
+           j.code as journal, e.entry_date::text as date, e.label, e.document_ref, e.document_date::text as document_date, e.state, e.custom, e.across_currencies
       from journal_entries e join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
      where e.business_id = ${businessId}::uuid and e.state <> 'discarded'
      order by e.entry_date, e.number nulls last, e.created_at, e.id`.execute(tx)).rows;
@@ -80,10 +80,13 @@ export async function readBooks(tx: Tx, businessId: string): Promise<BooksData> 
   return {
     accounts,
     journals,
-    parties: parties.map((p) => withCustom({ code: p.code, name: p.name, kind: p.kind, country: p.country, ice: p.ice, taxNumber: p.tax_number }, p.custom)),
+    // 0216 — the registry number travels only where there is one (a workbook from before it reads the same)
+    parties: parties.map((p) => withCustom({ code: p.code, name: p.name, kind: p.kind, country: p.country, ice: p.ice, taxNumber: p.tax_number,
+      ...(p.registry ? { registry: p.registry } : {}) }, p.custom)),
     taxCodes: taxCodes.map((t) => ({ code: t.code, label: t.label, rate: dec(t.rate)!, kind: t.kind, account: t.account, validFrom: t.valid_from, validTo: t.valid_to })),
     entries: heads.map((h): BooksEntry => withCustom({
       key: h.key, journal: h.journal, date: h.date, label: h.label, documentRef: h.document_ref, documentDate: h.document_date, state: h.state,
+      ...(h.across_currencies ? { acrossCurrencies: true } : {}),
       lines: (byEntry.get(h.id) ?? []).map((l) => withCustom({
         account: l.account, party: l.party, taxCode: l.tax_code, currency: l.currency, debit: side(l.debit), credit: side(l.credit), label: l.label,
       }, l.custom)),
@@ -323,8 +326,8 @@ async function applyBooks(
     added++;
   }
   for (const p of data.parties.filter((x) => adds('party').includes(x.code))) {
-    ids.party.set(p.code, (await sql<{ id: string }>`insert into parties (business_id, code, name, kind, country, ice, tax_number, custom)
-      values (${businessId}::uuid, ${p.code}, ${p.name}, ${p.kind}, ${p.country}, ${p.ice}, ${p.taxNumber}, ${JSON.stringify(p.custom ?? {})}::jsonb) returning id::text as id`.execute(tx)).rows[0]!.id);
+    ids.party.set(p.code, (await sql<{ id: string }>`insert into parties (business_id, code, name, kind, country, ice, tax_number, registry_number, custom)
+      values (${businessId}::uuid, ${p.code}, ${p.name}, ${p.kind}, ${p.country}, ${p.ice}, ${p.taxNumber}, ${p.registry ?? null}, ${JSON.stringify(p.custom ?? {})}::jsonb) returning id::text as id`.execute(tx)).rows[0]!.id);
     added++;
   }
   for (const t of data.taxCodes.filter((x) => adds('tax_code').includes(taxCodeKey(x)))) {
@@ -339,9 +342,9 @@ async function applyBooks(
     if (p.action === 'replace' && p.draftOf) {
       await sql`update journal_entries set state = 'discarded' where id = ${p.draftOf}::uuid and business_id = ${businessId}::uuid and state = 'draft'`.execute(tx);
     }
-    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, custom)
+    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, custom, across_currencies)
       values (${businessId}::uuid, ${ids.journal.get(e.journal)!}::uuid, ${yearOf.get(e.key)!}::uuid, ${e.date}::date, ${e.label},
-              ${e.documentRef}, ${e.documentDate}::date, ${by}, ${JSON.stringify(e.custom ?? {})}::jsonb) returning id::text as id`.execute(tx)).rows[0]!.id;
+              ${e.documentRef}, ${e.documentDate}::date, ${by}, ${JSON.stringify(e.custom ?? {})}::jsonb, ${e.acrossCurrencies === true}) returning id::text as id`.execute(tx)).rows[0]!.id;
     let n = 0;
     for (const l of e.lines) {
       const tax = l.taxCode === null ? null : (await sql<{ id: string }>`select id::text as id from tax_codes

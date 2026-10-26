@@ -16,7 +16,7 @@ import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 export type EntryRefusal = {
   readonly kind: 'refused';
   readonly reason: 'unbalanced' | 'period' | 'needs_document' | 'no_rate' | 'tax_not_in_force' | 'fx_accounts'
-    | 'accountant' | 'not_a_draft' | 'not_posted' | 'no_fiscal_year' | 'invoice_locked' | 'payment_refused' | 'other';
+    | 'accountant' | 'not_a_draft' | 'not_posted' | 'no_fiscal_year' | 'invoice_locked' | 'payment_refused' | 'opening_day' | 'other';
   readonly detail: string | null;
 };
 const REASON_OF: Record<string, EntryRefusal['reason']> = {
@@ -26,6 +26,8 @@ const REASON_OF: Record<string, EntryRefusal['reason']> = {
   NB021: 'accountant', NB005: 'not_a_draft', NB010: 'not_posted',
   // C2 (0184) — an issued invoice's rules, a payment's.
   NB018: 'invoice_locked', NB019: 'payment_refused',
+  // 0216 — the opening journal takes only the opening entry, on its year's first day or the books' start day.
+  NB027: 'opening_day',
 };
 /** The database's refusal as its reason; anything that is not one of the books' own refusals is thrown on. */
 export function refusalOf(e: unknown): EntryRefusal {
@@ -35,7 +37,8 @@ export function refusalOf(e: unknown): EntryRefusal {
   // Only the figures after the dash ("MAD: debits 997.66, credits 997.65"; "USD to MAD on or before 2026-04-09").
   const detail = code === 'NB009' ? (/— ([^;]+)/.exec(message)?.[1] ?? null)
     : code === 'NB014' ? (/for (\w{3} to \w{3} on or before \d{4}-\d{2}-\d{2})/.exec(message)?.[1] ?? null)
-    : code === 'NB012' ? (/tax code (\S+) is not in force on (\S+)/.exec(message)?.slice(1).join(' · ') ?? null) : null;
+    : code === 'NB012' ? (/tax code (\S+) is not in force on (\S+)/.exec(message)?.slice(1).join(' · ') ?? null)
+    : code === 'NB027' ? (/first day \((\d{4}-\d{2}-\d{2})\)/.exec(message)?.[1] ?? null) : null;
   return { kind: 'refused', reason: REASON_OF[code] ?? 'other', detail };
 }
 
@@ -112,7 +115,68 @@ export type DraftInput = {
   readonly sourceOrderId?: string | null;
   /** D7 — the entry's custom values. */
   readonly custom?: CustomValues;
+  /** 0216 (c) — a payment that settles in one currency what arrived in another: it balances in the books' currency only. */
+  readonly acrossCurrencies?: boolean;
 };
+
+async function writeEntryLines(tx: Tx, businessId: string, id: string, lines: readonly DraftLine[]): Promise<void> {
+  let n = 0;
+  for (const l of lines) {
+    await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, is_fx, custom)
+      values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.accountId}::uuid, ${l.label}, ${l.currency}, ${l.debit ?? '0'}::numeric,
+              ${l.credit ?? '0'}::numeric, ${l.partyId}::uuid, ${l.taxCodeId}::uuid, ${l.isFx}, ${JSON.stringify(l.custom ?? {})}::jsonb)`.execute(tx);
+  }
+}
+
+/** A figure as a form shows it: no trailing zeros ("10.000" reads two ways in a box; "10" one). */
+export const formFigure = (x: string): string => (x.includes('.') ? x.replace(/0+$/, '').replace(/\.$/, '') : x);
+
+/** 0216 (a) — a draft entry as its form's values (the names `renderNewEntry` reads), or null when it is not a draft. */
+export async function draftEntryForm(tx: Tx, businessId: string, id: string): Promise<Record<string, string> | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const h = (await sql<{ journal: string; date: string; label: string; ref: string | null; doc: string | null; custom: CustomValues }>`
+    select journal_id::text as journal, entry_date::text as date, label, document_ref as ref, document_date::text as doc, custom
+      from journal_entries where business_id = ${businessId}::uuid and id = ${id}::uuid and state = 'draft'`.execute(tx)).rows[0];
+  if (!h) return null;
+  const v: Record<string, string> = { journal: h.journal, date: h.date, label: h.label, documentRef: h.ref ?? '', documentDate: h.doc ?? '' };
+  for (const [k, x] of Object.entries(h.custom ?? {})) v[`cf_entry_${k}`] = String(x);
+  const lines = (await sql<{ account: string; party: string | null; tax: string | null; currency: string; debit: string; credit: string; label: string | null; fx: boolean; custom: CustomValues }>`
+    select account_id::text as account, party_id::text as party, tax_code_id::text as tax, currency, debit::text as debit, credit::text as credit, label, is_fx as fx, custom
+      from journal_lines where entry_id = ${id}::uuid and business_id = ${businessId}::uuid order by line_no`.execute(tx)).rows;
+  lines.forEach((l, i) => {
+    v[`account${i}`] = l.account; v[`currency${i}`] = l.currency; v[`party${i}`] = l.party ?? ''; v[`tax${i}`] = l.tax ?? ''; v[`label${i}`] = l.label ?? '';
+    if (Number(l.debit) !== 0) v[`debit${i}`] = formFigure(l.debit);
+    if (Number(l.credit) !== 0) v[`credit${i}`] = formFigure(l.credit);
+    if (l.fx) v[`fx${i}`] = '1';
+    for (const [k, x] of Object.entries(l.custom ?? {})) v[`cf_line${i}_${k}`] = String(x);
+  });
+  return v;
+}
+
+/**
+ * 0216 (a) — A DRAFT EDITED: its header as given, its lines written again (the old ones through the database's one
+ * door, `books_clear_draft`). Only a draft: a posted entry is corrected by its reversal, never edited.
+ */
+export async function redraftEntry(tx: Tx, businessId: string, id: string, d: DraftInput): Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal> {
+  const fy = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${businessId}::uuid
+    and starts_on <= ${d.date}::date and ends_on >= ${d.date}::date`.execute(tx)).rows[0];
+  if (!fy) return { kind: 'refused', reason: 'no_fiscal_year', detail: d.date };
+  try {
+    await sql`savepoint redraft_entry`.execute(tx);
+    const cleared = (await sql<{ ok: boolean }>`select books_clear_draft('entry', ${id}::uuid) as ok`.execute(tx)).rows[0]!.ok;
+    if (!cleared) { await sql`rollback to savepoint redraft_entry`.execute(tx); return { kind: 'refused', reason: 'not_a_draft', detail: null }; }
+    await sql`update journal_entries set journal_id = ${d.journalId}::uuid, fiscal_year_id = ${fy.id}::uuid, entry_date = ${d.date}::date, label = ${d.label},
+        document_ref = ${d.documentRef}, document_date = ${d.documentDate}::date, custom = ${JSON.stringify(d.custom ?? {})}::jsonb,
+        across_currencies = ${d.acrossCurrencies === true}
+      where business_id = ${businessId}::uuid and id = ${id}::uuid and state = 'draft'`.execute(tx);
+    await writeEntryLines(tx, businessId, id, d.lines);
+    await sql`release savepoint redraft_entry`.execute(tx);
+    return { kind: 'drafted', id };
+  } catch (e) {
+    await sql`rollback to savepoint redraft_entry`.execute(tx);
+    return refusalOf(e);
+  }
+}
 
 /** A draft, in the fiscal year its day falls in. The day must be open and unlocked; balance is the posting's to check. */
 export async function draftEntry(tx: Tx, businessId: string, by: string, d: DraftInput): Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal> {
@@ -121,16 +185,12 @@ export async function draftEntry(tx: Tx, businessId: string, by: string, d: Draf
   if (!fy) return { kind: 'refused', reason: 'no_fiscal_year', detail: d.date };
   try {
     await sql`savepoint draft_entry`.execute(tx);
-    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, source_order_id, custom)
+    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, source_order_id, custom,
+                                                                 across_currencies)
       values (${businessId}::uuid, ${d.journalId}::uuid, ${fy.id}::uuid, ${d.date}::date, ${d.label}, ${d.documentRef}, ${d.documentDate}::date, ${by}, ${d.sourceOrderId ?? null}::uuid,
-              ${JSON.stringify(d.custom ?? {})}::jsonb)
+              ${JSON.stringify(d.custom ?? {})}::jsonb, ${d.acrossCurrencies === true})
       returning id::text as id`.execute(tx)).rows[0]!.id;
-    let n = 0;
-    for (const l of d.lines) {
-      await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, is_fx, custom)
-        values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.accountId}::uuid, ${l.label}, ${l.currency}, ${l.debit ?? '0'}::numeric,
-                ${l.credit ?? '0'}::numeric, ${l.partyId}::uuid, ${l.taxCodeId}::uuid, ${l.isFx}, ${JSON.stringify(l.custom ?? {})}::jsonb)`.execute(tx);
-    }
+    await writeEntryLines(tx, businessId, id, d.lines);
     await sql`release savepoint draft_entry`.execute(tx);
     return { kind: 'drafted', id };
   } catch (e) {

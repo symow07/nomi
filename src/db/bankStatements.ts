@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
-import type { StatementFormat, StatementLine } from '../core/books/statements.js';
+import { layoutOf, type CsvLayout, type StatementFormat, type StatementLine } from '../core/books/statements.js';
 
 /**
  * C3 (Phase 5, item 4; 0185) — STATEMENTS READ IN, AND MATCHED BY A PERSON. A line already read in (its fingerprint,
@@ -99,4 +99,18 @@ export async function unmatch(tx: Tx, businessId: string, by: string, matchId: s
 export async function bankAccounts(tx: Tx, businessId: string) {
   return (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from accounts
     where business_id = ${businessId}::uuid and kind = 'asset' and is_active order by code`.execute(tx)).rows;
+}
+
+/** 0216 (d) — the columns kept for this bank account's CSV files, or null. */
+export async function statementLayoutFor(tx: Tx, businessId: string, accountId: string): Promise<CsvLayout | null> {
+  const r = (await sql<{ l: unknown }>`select statement_layout as l from accounts where business_id = ${businessId}::uuid and id = ${accountId}::uuid`.execute(tx)).rows[0];
+  return r ? layoutOf(r.l) : null;
+}
+
+/** 0216 (d) — keep the columns for this bank account (replacing what was kept). Checked whole first. */
+export async function keepStatementLayout(tx: Tx, businessId: string, accountId: string, layout: CsvLayout): Promise<boolean> {
+  if (layoutOf(layout) === null) return false;
+  const r = await sql`update accounts set statement_layout = ${JSON.stringify(layout)}::jsonb
+    where business_id = ${businessId}::uuid and id = ${accountId}::uuid`.execute(tx);
+  return Number(r.numAffectedRows ?? 0) > 0;
 }

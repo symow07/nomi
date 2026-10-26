@@ -67,8 +67,9 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
   });
   afterAll(async () => { await app?.close(); await db?.destroy(); await tenant?.end(); await purgeBusinesses(admin, [BIZ], 'books-morocco-test'); await admin?.end(); });
 
-  it('THE CGNC CHART: 870 accounts added (the owner\'s 5141 kept as named), six journals, the accounts Nomi drafts with chosen; again, nothing', async () => {
-    expect(await notice(await post('/app/books/chart/cgnc'))).toContain('Added: 870 accounts and 6 journals.');
+  it('THE CGNC CHART: 870 accounts added (the owner\'s 5141 kept as named), seven journals (0216: AN, for the opening entry), the accounts Nomi drafts with chosen; again, nothing', async () => {
+    expect(await notice(await post('/app/books/chart/cgnc'))).toContain('Added: 870 accounts and 7 journals.');
+    expect((await as((q) => q(`select name, kind from journals where code = 'AN'`))).rows[0]).toEqual({ name: 'À-nouveaux', kind: 'opening' });
     const n = (await as((q) => q(`select count(*)::int as n from accounts`))).rows[0].n;
     expect(n).toBe(871);
     expect((await as((q) => q(`select name from accounts where code = '5141'`))).rows[0].name).toBe('Banque Populaire');
