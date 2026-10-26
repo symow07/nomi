@@ -166,7 +166,7 @@ export const QUEUES = {
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
 export type EchoJob = {
   businessId: string;
-  channel: 'instagram' | 'messenger';
+  channel: 'instagram' | 'messenger' | 'tiktok';
   mid: string;
   customer: string;
   account: string;

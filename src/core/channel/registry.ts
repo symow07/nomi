@@ -41,7 +41,7 @@ import { type Result, ok, err } from '../types/result.js';
  * with no adapter behind it would be a row promising something no code can do,
  * which is the exact failure this registry exists to prevent.
  */
-export const OUTREACH_CHANNELS = ['email', 'whatsapp', 'instagram', 'messenger', 'web_chat', 'telegram'] as const;
+export const OUTREACH_CHANNELS = ['email', 'whatsapp', 'instagram', 'messenger', 'web_chat', 'telegram', 'tiktok'] as const;
 export type OutreachChannel = (typeof OUTREACH_CHANNELS)[number];
 
 /** What the API structurally permits for a message the buyer did not invite. */
@@ -173,6 +173,16 @@ export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapabilit
   telegram: {
     availableHere: true, channel: 'telegram', coldInitiate: 'never', requires: [],
     replyWindowHours: null, instead: ['click_to_whatsapp', 'buyer_writes_first'],
+    deliveryReceipts: false,
+  },
+  // 0215 — a business's own TikTok account, through the Business Messaging API (docs/TIKTOK-CHANNEL.md, surface A).
+  // "You are prohibited from initiating a conversation." Not a plain window: a COUNT per window ("Messaging limits"),
+  // held by the send gate from the conversation's own messages (src/core/channel/tiktokLimits.ts) — 10 in the 48 hours
+  // after a first message, any number in the 48 hours after each reply, three more after 48 hours of silence. TikTok
+  // tells an app nothing about delivery.
+  tiktok: {
+    availableHere: true, channel: 'tiktok', coldInitiate: 'never', requires: [],
+    replyWindowHours: 48, instead: ['click_to_whatsapp', 'buyer_writes_first'],
     deliveryReceipts: false,
   },
 };

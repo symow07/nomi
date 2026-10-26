@@ -416,7 +416,8 @@ const COMING_SOON: readonly MessageKey[] = [
   // G1 — the two sign-up asks about that Nomi cannot answer on yet. Phase 9 —
   // each is a word in the reader's language, like its siblings (微信 beside 企业微信).
   // S7 — Telegram left the list: it is answered now.
-  'channel.platform.tiktok', 'channel.platform.wechat',
+  // 0215 — TikTok left the list: its direct messages are a channel of their own (its screen).
+  'channel.platform.wechat',
   'channel.platform.wecom', 'channel.platform.rednote',
 ];
 
@@ -743,16 +744,17 @@ export type InboundLink = {
  * notice sent there still lands; every action lands on the screen of its
  * control.
  */
-export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts' | 'chat' | 'telegram';
-export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts', 'chat', 'telegram'];
+export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts' | 'chat' | 'telegram' | 'tiktok';
+export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts', 'chat', 'telegram', 'tiktok'];
 export const CHANNELS_HOME = '/app/business/channels';
 export const channelScreenHref = (s: ChannelScreen): string => `/app/channels/${s}`;
 /** The screen a channel's own controls are on. */
 export const screenOfChannel = (c: OutreachChannel): ChannelScreen =>
-  c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : c === 'web_chat' ? 'chat' : c === 'telegram' ? 'telegram' : 'whatsapp';
+  c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : c === 'web_chat' ? 'chat' : c === 'telegram' ? 'telegram'
+    : c === 'tiktok' ? 'tiktok' : 'whatsapp';
 const CHANNEL_SCREEN_TITLE: Readonly<Record<ChannelScreen, MessageKey>> = {
   whatsapp: 'reach.channel.whatsapp', meta: 'meta.panel.title', email: 'reach.channel.email', alerts: 'channels.alerts.title',
-  chat: 'reach.channel.web_chat', telegram: 'reach.channel.telegram',
+  chat: 'reach.channel.web_chat', telegram: 'reach.channel.telegram', tiktok: 'reach.channel.tiktok',
 };
 /** Each screen's heading — the home's row for it says the same words, and so does the tab. */
 export const channelScreenTitle = (locale: Locale, s: ChannelScreen): string => t(locale, CHANNEL_SCREEN_TITLE[s]);
@@ -771,7 +773,38 @@ export type ChannelScreenParts = {
   readonly chatPage?: { readonly url: string | null; readonly served: boolean };
   /** S7 — Telegram: the business's start link while it is on (null: off), and whether this host has the bot. */
   readonly telegram?: { readonly url: string | null; readonly served: boolean; readonly greeting?: string };
+  /** 0215 — TikTok: whether this host offers it, and the account she connected (null: none). */
+  readonly tiktok?: {
+    readonly served: boolean;
+    readonly account: { readonly username: string; readonly needsAttention: boolean; readonly euMessages: number; readonly euLastAt: Date | null } | null;
+  };
 };
+
+/**
+ * 0215 — TikTok's screen (docs/TIKTOK-CHANNEL.md, surface A): what it does, what the account must be, TikTok's own
+ * limits in plain words, the account connected (or that TikTok no longer accepts the access), the messages from the
+ * EEA, Switzerland or the UK that TikTok gives Nomi nothing to read from, and the owner's Connect / Disconnect.
+ * Staff see the same and that the owner decides. Where this host has no TikTok app, it says so and offers nothing.
+ */
+function tiktokScreen(locale: Locale, viewer: Viewer, p: NonNullable<ChannelScreenParts['tiktok']>): string {
+  const name = assistantName(locale);
+  const lede = `<p class="lede">${esc(t(locale, 'channels.tiktok.lede', { name }))}</p>`;
+  if (!p.served) return `${lede}<p>${esc(t(locale, 'channels.tiktok.notHere'))}</p>`;
+  const a = p.account;
+  const state = !a ? `<p><span class="pill">${esc(t(locale, 'connect.state.notConnected'))}</span></p>`
+    : a.needsAttention ? `<p role="status"><span class="pill warn">${esc(t(locale, 'connect.state.attention'))}</span> ${esc(t(locale, 'channels.tiktok.attention'))}</p>`
+      : `<p><span class="pill ok">${esc(t(locale, 'connect.state.connected'))}</span>${a.username ? ` <bdi>@${esc(a.username)}</bdi>` : ''}</p>`;
+  const eu = a && a.euMessages > 0
+    ? `<p role="status">${esc(t(locale, 'channels.tiktok.eu', { count: String(a.euMessages), date: a.euLastAt ? show.date(locale, a.euLastAt) : '' }))}</p>` : '';
+  const control = !viewer.isOwner ? `<p class="caption">${esc(t(locale, 'staff.ownerDecides'))}</p>`
+    : !a || a.needsAttention
+      ? `<form method="get" action="/app/connect/tiktok/start" class="inline"><button class="btn send" type="submit">${esc(t(locale, a ? 'channels.tiktok.again' : 'channels.tiktok.connect'))}</button></form>`
+      : `<form method="post" action="/app/connect/tiktok/disconnect" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'channels.tiktok.disconnectAsk'))}">${esc(t(locale, 'channels.tiktok.disconnect'))}</button></form>`;
+  return `${lede}${state}${eu}
+    <p class="caption">${esc(t(locale, 'channels.tiktok.needs'))}</p>
+    <p class="caption">${esc(t(locale, 'channels.tiktok.rules'))}</p>
+    ${control}`;
+}
 
 /**
  * S7 — the chat page's screen, and Telegram's: what it is, whether it answers, the address to share while it does, and
@@ -963,6 +996,7 @@ export function renderChannelScreen(
     case 'alerts': return body(alertsScreen(data, locale, viewer));
     case 'chat': return body(chatScreen(locale, viewer, parts.chatPage ?? { url: null, served: false }, 'chat'));
     case 'telegram': return body(chatScreen(locale, viewer, parts.telegram ?? { url: null, served: false }, 'telegram'));
+    case 'tiktok': return body(tiktokScreen(locale, viewer, parts.tiktok ?? { served: false, account: null }));
   }
 }
 

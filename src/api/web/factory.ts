@@ -109,7 +109,7 @@ export type FactoryPromises = {
  * two pages cannot disagree.
  */
 export type ReachChannel = {
-  readonly channel: 'instagram' | 'messenger' | 'email' | 'web_chat' | 'telegram';
+  readonly channel: 'instagram' | 'messenger' | 'email' | 'web_chat' | 'telegram' | 'tiktok';
   readonly state: 'connected' | 'not_connected' | 'attention';
   /** The Page, the handle or the mailbox address it is connected as. */
   readonly as?: string;
@@ -134,7 +134,7 @@ export function otherChannels(
 ): readonly ReachChannel[] {
   const out: ReachChannel[] = [];
   // S7 — the chat page and Telegram, beside the Page's two.
-  for (const ch of ['instagram', 'messenger', 'web_chat', 'telegram'] as const) {
+  for (const ch of ['instagram', 'messenger', 'web_chat', 'telegram', 'tiktok'] as const) {
     const link = offer.inbound.get(ch);
     // Shown where it can be connected HERE (connect.ts's rule), or where it already is.
     const here = CHANNEL_REGISTRY[ch].availableHere && link?.configured === true;
@@ -871,9 +871,17 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
       value: t(locale, !o ? 'connect.state.notHere' : o.state === 'connected' ? 'connect.state.connected' : 'connect.state.notConnected'),
       tone: o?.state === 'connected' ? 'ok' : undefined });
   };
+  // 0215 — TikTok: its own row and screen, named as the account it is connected as, or needing her.
+  const tk = s.others.find((x) => x.channel === 'tiktok');
+  const tiktokRow = menuRow({ href: channelScreenHref('tiktok'), label: channelScreenTitle(locale, 'tiktok'),
+    ...(tk?.as ? { descHtml: `<bdi>${esc(tk.as)}</bdi>` } : {}),
+    value: t(locale, !tk ? 'connect.state.notHere' : tk.state === 'connected' ? 'connect.state.connected'
+      : tk.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
+    tone: tk?.state === 'connected' ? 'ok' : tk?.state === 'attention' ? 'warn' : undefined });
   const metaRank = Math.min(s.rank('instagram', 1), s.rank('messenger', 2));
   const rows = [{ at: s.rank('whatsapp', 0), html: whatsapp }, { at: metaRank, html: metaRow }, { at: s.rank('email', 3), html: email },
-    { at: s.rank('web_chat', 4), html: own('web_chat', 'chat') }, { at: s.rank('telegram', 5), html: own('telegram', 'telegram') }]
+    { at: s.rank('web_chat', 4), html: own('web_chat', 'chat') }, { at: s.rank('telegram', 5), html: own('telegram', 'telegram') },
+    { at: s.rank('tiktok', 6), html: tiktokRow }]
     .sort((a, b) => a.at - b.at).map((b) => b.html);
 
   // WA (0120) — once WhatsApp is live, who may get a reply: the list only

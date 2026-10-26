@@ -36,6 +36,11 @@ export type IngressDeps = {
     readonly path: string; readonly adapter: ChannelAdapter;
     /** S7 — the header the channel signs with, when it is not Meta's (Telegram: its webhook's secret). */
     readonly signatureHeader?: string;
+    /**
+     * 0215 — what a signed delivery says about the ACCOUNT itself, read once before any event (TikTok: its username,
+     * and a message from the EEA, Switzerland or the UK that carries nothing to answer). It never stops the delivery.
+     */
+    readonly observe?: (payload: unknown) => Promise<void>;
   }[];
   /**
    * S7 — which business an event is for, when the account it arrived on does not say (one Telegram bot for every
@@ -68,7 +73,7 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
   // event id. WhatsApp's payloads also carry STATUSES; those are events of the
   // same parse, and `persistEvent` records them by kind.
   if (deps.adapter) mountChannel(app, '/webhook/whatsapp', deps.adapter, deps, now);
-  for (const mount of deps.also ?? []) mountChannel(app, mount.path, mount.adapter, deps, now, mount.signatureHeader);
+  for (const mount of deps.also ?? []) mountChannel(app, mount.path, mount.adapter, deps, now, mount.signatureHeader, mount.observe);
 
   return app;
 }
@@ -84,6 +89,7 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
 function mountChannel(
   app: FastifyInstance, path: string, adapter: ChannelAdapter,
   deps: IngressDeps, now: () => Date, signatureHeader = 'x-hub-signature-256',
+  observe?: (payload: unknown) => Promise<void>,
 ): void {
   app.get(path, async (request, reply) => {
     const q = request.query as Record<string, string | undefined>;
@@ -105,6 +111,7 @@ function mountChannel(
     } catch {
       return reply.code(200).send({ ok: true, received: 0 });
     }
+    if (observe) await observe(payload).catch(() => undefined);
     let received = 0;
     for (const parsed of adapter.parseWebhook(payload)) {
       if (isStaleEvent(parsed.occurredAt, now())) continue;

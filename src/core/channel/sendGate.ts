@@ -37,6 +37,11 @@ export type GateInput = {
   /** M18.5 — the tenant has already sent its daily maximum. */
   readonly dailyCeilingReached?: boolean;
   /**
+   * 0215 — the CHANNEL's own count is used up (TikTok's messages per window: tiktokLimits.ts). It binds everyone, as
+   * the window does: TikTok refuses the account's message whoever typed it.
+   */
+  readonly channelLimitReached?: boolean;
+  /**
    * M20.1 — the owner has explicitly turned messaging on for this channel
    * (`channels.activated_at`). CONNECTED is not ACTIVATED: working credentials
    * mean the provider is reachable, not that the owner decided to go live.
@@ -165,6 +170,7 @@ export const GATE_REFUSALS = [
   'frozen',               // D4 (2026-10-12) — the subscription lapsed: nothing goes, from anyone
   'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
   'language_not_reviewed', // 0153 — the buyer's language has no signed disclosure: nothing automated reaches them
+  'tiktok_limit',         // 0215 — TikTok's messages per window are used: nothing more until the customer writes
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -278,6 +284,9 @@ export function gateOutbound(g: GateInput): GateDecision {
   if (g.origin === 'employee' && g.dailyCeilingReached === true) {
     return { allow: false, reason: 'daily_ceiling' };
   }
+
+  // 0215 — the channel's own count, like the window below: it binds everyone.
+  if (g.channelLimitReached === true) return { allow: false, reason: 'tiktok_limit' };
 
   // The window binds everyone — the provider rejects violations regardless of
   // who typed the message.

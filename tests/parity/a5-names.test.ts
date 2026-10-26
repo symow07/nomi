@@ -98,7 +98,8 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // workspace closed. 2026-10-14 — one more: a name taken off a product (the
     // products step waits for a name in each script the buyers write).
     // S7 — two more: the chat page, and Telegram, switched on or off (a channel connected completes the setup step).
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(26);
+    // 0215 — two more: TikTok connected (the callback) and disconnected.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(28);
   });
 });
 

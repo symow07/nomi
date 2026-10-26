@@ -243,7 +243,10 @@ export function channelStore(
         select max(last_asked_at) as at from opt_outs
          where business_id = ${businessId} and channel = ${channel}
            and identity = any(${identities}::text[]) and lifted_at is null`.execute(tx)).rows[0]?.at ?? null;
+      // 0215 — a TikTok conversation's counts: TikTok limits how many messages the account sends (tiktokLimits.ts).
+      const tiktok = channel === 'tiktok' ? await tiktokHistory(tx, conversationId) : null;
       const ctx: ConversationSendContext = {
+        ...(tiktok ? { tiktok } : {}),
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
         // paused: absence is "she has set no ceiling", never "stop". G3 — the
@@ -506,7 +509,7 @@ export async function ensureConversation(
   businessId: BusinessId,
   identity: string,
   profileName: string | null,
-  channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' | 'web_chat' | 'telegram' = 'whatsapp',
+  channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' | 'web_chat' | 'telegram' | 'tiktok' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
   const existing = await sql<{ client_id: string; display_name: string | null }>`
     select cc.client_id, cl.display_name from client_channels cc
@@ -738,5 +741,29 @@ export async function ownerSendFacts(
     // G10b — so she is told, when she presses send, that his window is shut.
     lastInboundAt: row?.last_inbound_at ?? null,
     channel: row?.channel ?? 'whatsapp',
+  };
+}
+
+/**
+ * 0215 — what TikTok's limits are counted from (src/core/channel/tiktokLimits.ts): this conversation's own messages,
+ * the customer's and the account's. The account's are every outbound message — Nomi's, and the owner's from TikTok's
+ * own app (recorded from the echoes) — because TikTok counts the account's, not the tool's.
+ */
+export async function tiktokHistory(tx: Tx, conversationId: string): Promise<import('../core/channel/tiktokLimits.js').TikTokHistory> {
+  const r = (await sql<{ first_in: Date | null; last_in: Date | null; replied: boolean; since_first: number; since_quiet: number }>`
+    with ins as (
+      select min(sent_at) as first_in, max(sent_at) as last_in
+        from messages where conversation_id = ${conversationId}::uuid and direction = 'inbound')
+    select ins.first_in, ins.last_in,
+           exists (select 1 from messages m where m.conversation_id = ${conversationId}::uuid and m.direction = 'outbound'
+                    and m.sent_at < ins.last_in) as replied,
+           (select count(*)::int from messages m where m.conversation_id = ${conversationId}::uuid and m.direction = 'outbound'
+                    and m.sent_at >= ins.first_in) as since_first,
+           (select count(*)::int from messages m where m.conversation_id = ${conversationId}::uuid and m.direction = 'outbound'
+                    and m.sent_at > ins.last_in + interval '48 hours') as since_quiet
+      from ins`.execute(tx)).rows[0];
+  return {
+    firstInboundAt: r?.first_in ?? null, lastInboundAt: r?.last_in ?? null, repliedToUs: r?.replied ?? false,
+    sentSinceFirst: r?.since_first ?? 0, sentSinceQuiet: r?.since_quiet ?? 0,
   };
 }
