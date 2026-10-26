@@ -52,7 +52,8 @@ It rests on four readings:
 8. **"100%" must be reachable at zero spend,** or it isn't a launch bar, it's a wish. So:
    - **channels:** web chat and Telegram — **and TikTok** (the owner's deliberate override, 2026-10-23, recorded
      2026-10-24): a large share of online selling and marketing now happens on TikTok, which makes it product scope,
-     not a nice-to-have. LINE, SMS and WeChat stay deferred, unchanged. TikTok is a PLAN for now
+     not a nice-to-have. LINE, SMS and WeChat stay deferred, unchanged. **Direct messages only** (2026-10-26):
+     TikTok Shop chat is out (partner-gated, not a Moroccan market). TikTok is a PLAN for now
      (docs/TIKTOK-CHANNEL.md): nothing built, no account, no application, no API called. Where its access needs money
      or a partner's approval, decision 9's bar applies to it like any paid service;
    - **bank data:** statement files only;
@@ -121,6 +122,14 @@ One word was doing two jobs ("verified countries"). A country is now in one of t
 
 A RESEARCHED country's identifier may still be checked in code where the issuing authority publishes the rule (R3's
 shapes): that is identifier validation, not a country tax file, and it does not move the country to BUILT.
+
+**China (the owner, 2026-10-26):**
+- **It stays RESEARCHED.** Until there is a Chinese customer, nothing is done about registering with Chanjet,
+  Yonyou or Kingdee, and the GB/T 24589 text is not obtained.
+- **When China is BUILT, the 统一社会信用代码 gets a HARD check, not a warning.** Its check character is published by
+  the authority in GB 32100-2015's mandatory chapter 4 (§4.2.5; docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md §1.1):
+  a wrong one is refused. This is unlike France's SIREN sum and Spain's NIF control character, which no authority
+  publishes and which stay warnings (R3).
 
 ## 2 · What the code says first
 
