@@ -11,10 +11,9 @@
 >    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
 >    with them, the go-ahead for the live model check that strict mode's writer needs (S4's last item, the one code
 >    item left);
-> 3. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
-> 4. **TikTok's access steps** — the developer app, a Business account with Advanced Access, the intake form, the
+> 3. **TikTok's access steps** — the developer app, a Business account with Advanced Access, the intake form, the
 >    reviews, and the privacy page naming TikTok; the data-security review's answers are drafted when it is reached;
-> 5. **Intuit** — the owner's reading of INTUIT-QUESTIONNAIRE.md, then the sandbox and the App Assessment.
+> 4. **Intuit** — the owner's reading of INTUIT-QUESTIONNAIRE.md, then the sandbox and the App Assessment.
 > Waiting for a customer there, not for the owner: China (GB/T 24589.1-2024, the fapiao template, the ledger
 > registrations) and France's FEC.
 
@@ -635,8 +634,10 @@ Each item is built and fully tested (§4) before the next one that depends on it
         le trimestre pour un assujetti TVA trimestriel (CGI art. 108-II), ou une durée fixée par l'entreprise dans son
         manuel comptable ? Un commerçant autorisé à centraliser une fois par exercice peut-il n'avoir qu'une période ?
         Existe-t-il une position écrite du CNC, de la DGI ou de l'Ordre ? »
-      - D10 waits for the answer. The most natural reading is the month, and it is not to be picked without the
-        accountant.
+      - **Decided by the owner from the research (2026-10-27), not by the accountant:** no Moroccan source defines
+        « période », and BOFiP BOI-BIC-DECLA-30-10-20-40 §140 allows a month or a quarter ("par exemple"). So the
+        length is a per-workspace setting, MONTHLY by default, chosen once when the books start, as built in #384
+        (0211). An accountant's view is welcome later and blocks nothing. The question above is kept for that reading.
   - **Done when:**
     - the opening entry is taken once and refused a second time;
     - the date and the person are recorded;
@@ -1079,7 +1080,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
 The research behind these four items is the owner's, given in the block's brief. Where this session did not re-read a
 source, the claim is marked *reported* (the owner's research), as §0's convention asks.
 
-- **R1 · What a « période » is (D10's open question).** *Recorded, NOT built: the enforcement waits on the owner.*
+- **R1 · What a « période » is (D10's open question).** *Built (0211, #384); the length is decided (the owner,
+  2026-10-27): a per-workspace setting, monthly by default. No accountant's answer is waited on.*
   - **No Moroccan source defines it** (*reported*, consistent with D10's own reading of 2026-10-22). Avis 24 §2.3 d)
     uses the word and never defines it; "mois", "mensuel" and "trimestr*" appear nowhere in the Avis. Loi 9-88 art. 3
     fixes CENTRALISATION once a month (once a year for art. 1 al. 5's small traders). That is a different thing.

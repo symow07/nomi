@@ -177,8 +177,9 @@ Built and switched off by design; each waits on a person, not on code:
   `railway run --service nomi -- node tools/telegram-webhook.mjs` once, then `--check`. Each business then turns it
   on and shares its start link.
 - **The chat page (S7):** nothing to set up; each business turns it on and shares its address or the widget's line.
-- **D10 (Morocco):** waits for an accountant's answer on what a « période » is (PHASE-5.md, D10: the question is
-  written there, in French).
+- **D10 (Morocco):** nothing to set up. The period length is decided (the owner, 2026-10-27): each workspace chooses
+  month or quarter when its books start, monthly by default (PHASE-5.md, D10). The rule engages for a Moroccan
+  workspace the moment its owner starts the books on the closing page.
 
 ## Somebody hears when it breaks (CC-10)
 
