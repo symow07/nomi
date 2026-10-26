@@ -3,6 +3,14 @@
 **Status (2026-10-24):** TikTok is in 100% (PHASE-5.md decision 8, the owner's override of 2026-10-23). This page is
 the plan: **nothing is built, no account exists, nothing was applied for, and no TikTok API was called.**
 
+**Decided (the owner, 2026-10-26): the DIRECT-MESSAGE path only (surface A).**
+- **TikTok Shop chat (B) is OUT:** its Customer Service API is partner-gated (1,000 authorised sellers), and Morocco
+  is not a TikTok Shop market.
+- **Comment replies (C) are not in this plan either.**
+- The owner is taking the access steps (§4) personally. When the data security and privacy review is reached, Claude
+  drafts its answers from this page and from the code, for the owner to read; nothing is submitted by Claude.
+- B and C stay below as what was read, for the record.
+
 **How it was read:** TikTok's two developer sites draw their pages with script. The same text was read from each
 site's own public documentation endpoint (no login, no product API): TikTok API for Business
 (`business-api.tiktok.com/portal/docs?id=…`) and TikTok Shop Partner Center (`partner.tiktokshop.com/docv2/page/…`).
@@ -21,9 +29,9 @@ There are three TikTok surfaces with an official API. They are separate: the Bus
 | **B · TikTok Shop customer service** | The buyer–seller chat inside TikTok Shop | **Yes** (Customer Service API, a "custom" scope) | **A partner-size gate**: 1,000+ authorised sellers, or 1 million API calls a day |
 | **C · Comment replies** | Comments on the business's own videos | **Yes** (Accounts API) | An access application form (since 2026-03-20) |
 
-**The recommendation: build A first.** It is the only surface a new app like Nomi can reach. B is blocked on scale
-until Nomi has 1,000 sellers on TikTok Shop. C can follow A: it answers comments in public, so it would need its own
-decision about what Nomi may say in public. **The owner's guess, checked:** "messaging access is partner-gated, and
+**A only (decided 2026-10-26).** A is the only surface a new app like Nomi can reach. B is out: blocked on scale
+(1,000 sellers on TikTok Shop) and not offered in Morocco. C is not in this plan: it would answer in public, which
+would need its own decision about what Nomi may say there. **The owner's guess, checked:** "messaging access is partner-gated, and
 that's the real blocker" is **right for TikTok Shop chat (B)**. It is **not quite right for direct messages (A)**,
 which are gated by a review and by region, not by partner size. A is reachable.
 
@@ -105,8 +113,10 @@ The channel shape is the one Telegram and Instagram already use. For surface A, 
    same as Telegram. The owner's words with counsel's.
 4. **Money:** none found on any page read. NOT CONFIRMED that there is none. If any review or tier turns out to
    cost, decision 9's bar applies.
-5. **Later:** the Accounts API form for comments (C), and a decision on public replies. TikTok Shop (B) waits for
-   1,000 sellers.
+5. **Out (2026-10-26):** TikTok Shop chat (B) and comment replies (C). Nothing to apply for.
+6. **The data security and privacy review:** when the owner reaches it, Claude drafts the answers (the deletion
+   process, deletion logs, who can reach the data, where it is kept) from this page and from the code, for the owner
+   to read and submit.
 
 ## 5 · The build estimate, and what blocks it
 
@@ -122,5 +132,4 @@ The channel shape is the one Telegram and Instagram already use. For surface A, 
   - the fake, pre-pilot scenario 15 and the integration tests: 1 day.
 - **Then live:** the bar of decision 9 — built, tested against TikTok's sandbox if one is offered (NOT CONFIRMED that
   one is), proven live on deploy day.
-- **B (Shop chat):** about 4–6 more days on the same base, but blocked by the 1,000-seller gate, not by work.
-- **C (comments):** about 2–3 days, after its form, and after the owner decides what may be said in public.
+- **B (Shop chat), C (comments):** out of the plan (2026-10-26).
