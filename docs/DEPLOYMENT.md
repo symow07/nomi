@@ -79,6 +79,38 @@ cannot leak. Without an access code it runs the public checks only and exits 0.
 
 Exit 0 = all checks passed; exit 1 = first failure, with detail.
 
+## After paying Railway — in this order, all before 2026-12-01
+
+Production is stopped (found 2026-10-27, read-only): the `nomi` and `Postgres` services' last deployments are
+REMOVED (`nomi`'s is #353), the `backup` cron's runs are SKIPPED, and `app.nomidoes.com` answers Railway's
+"Application not found". The Postgres volume (`postgres-volume`, `/var/lib/postgresql/data`, 774 MB of 5,000) is Ready
+and not pending deletion. Railway stops reading `railway.json` on **2026-12-01**, so the move off it rides on the same
+return (the owner's order, 2026-10-27):
+
+1. **Pay; bring Postgres back; take a fresh backup** (`BACKUP-RESTORE.md`, both parts — the dump and the roles, drill
+   passed). The newest laptop copy is 2026-10-16. Nothing else starts before this backup.
+2. **The owner sets the two deploy settings on the service:** Railway → `nomi` → Settings → Deploy:
+   - Pre-deploy Command: `node tools/migrate.mjs`
+   - Healthcheck Path: `/health`
+   Stored on the service, they survive the file's removal.
+3. **Claude confirms both, read-only** (the service's config through the Railway CLI or its MCP; nothing written).
+4. **One PR removes `railway.json`**, with `tests/parity/uptime-heartbeat.test.ts` changed to say where the two
+   settings now live. Merged through `tools/gated-merge.sh`.
+5. **Deploy #354 onward** — one deploy of everything merged since #353, after the pre-deploy checklist
+   (`LAUNCH-CHECKLIST.md`): the backup of step 1 younger than the day, then `/health`, and `schema_version` equal to
+   `REQUIRED_SCHEMA_VERSION`.
+
+**THE TRAP — `railway config apply` wipes the service's variables.** Do not move `railway.json` to Railway's
+Infrastructure as Code (`.railway/railway.ts`). Seen twice:
+- **2026-09-16:** `railway config plan` proposed deleting all twenty of the service's variables (`CREDENTIAL_KEY` and
+  `DATABASE_URL` among them) and unlinking its GitHub source. The format describes a service completely, and a file
+  in a public repository cannot hold the secrets, so it does not declare them; applying it would have removed them.
+- **2026-10-27:** `railway config migrate` (dry run) again wrote the pre-deploy command as a comment only, so applying
+  its file would also have dropped the migrations before each deploy.
+Nothing was applied either time. `railway config migrate --apply` also clears the service's Config File setting on
+Railway: it is a production change, not a file conversion. The dashboard settings of step 2 replace `railway.json`
+with nothing to apply.
+
 ## Deploy
 
 1. Merge to `main` → Railway builds, **runs the migrator, then redeploys.**
@@ -96,7 +128,7 @@ Exit 0 = all checks passed; exit 1 = first failure, with detail.
    **Railway stops reading `railway.json` on 2026-12-01.** Before then, put the
    same command in the dashboard (service → Settings → Deploy → Pre-deploy
    Command), where it is stored on the service and survives the file's removal,
-   then delete the file. **Do NOT migrate it with `railway config migrate`**,
+   then delete the file — the order is "After paying Railway" above. **Do NOT migrate it with `railway config migrate`**,
    which was tried on 2026-09-16 and is a trap in two ways: the file it writes
    drops the pre-deploy command to a comment, and the format describes a service
    EXHAUSTIVELY — `railway config plan` proposed deleting all twenty environment

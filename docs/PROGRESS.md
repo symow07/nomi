@@ -13,6 +13,18 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Production stopped; the move off railway.json (2026-10-27)
+
+- **Found, read-only:** `app.nomidoes.com` answers Railway's "Application not found". The last deployments of `nomi`
+  (#353) and `Postgres` (2026-10-22) are REMOVED and the `backup` cron's runs are SKIPPED. The Postgres volume is Ready,
+  774 MB, `deletedAt` null, not pending deletion. The newest laptop backup is 2026-10-16.
+- **Railway stops reading `railway.json` on 2026-12-01.** The owner chose the dashboard route (A): the pre-deploy
+  command and health check set on the service, then one PR removes the file. Not Infrastructure as Code: its
+  `config apply` would wipe the service's variables, and its migrate drops the pre-deploy command. A file built for it
+  was discarded unpushed. The ordered steps and the trap are in DEPLOYMENT.md, "After paying Railway".
+- **The Desktop checkout** was fast-forwarded to main (`5f2115ac`) and linked to Railway (`nomi`, production, `nomi`
+  service) for read-only use, so noWhat reads current code and production's variable names.
+
 ## D10's period length, decided without the accountant (2026-10-27)
 
 - **The owner's decision:** no Moroccan source defines « période », and BOFiP §140 allows a month or a quarter. So
