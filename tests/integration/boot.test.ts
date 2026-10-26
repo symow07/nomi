@@ -3181,6 +3181,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     let bid: import('../../src/core/types/ids.js').BusinessId;
     const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    /** One statement as the migrator (the admin role): the only role that may write `_migrations` (0214). */
+    const asMigrator = async (text: string, values: unknown[] = []): Promise<void> => {
+      if (!MIGRATE_URL) throw new Error('the schema drill needs MIGRATE_DATABASE_URL: only the migrator writes _migrations');
+      const pg = (await import('pg')).default;
+      const c = new pg.Client({ connectionString: MIGRATE_URL });
+      await c.connect();
+      try { await c.query(text, values); } finally { await c.end(); }
+    };
     const audits = (action: string) => q((tx) => sql<{ n: number }>`
       select count(*)::int n from channel_audit where business_id=${DEMO_BIZ} and action=${action}
     `.execute(tx as never).then((r) => r.rows[0]!.n));
@@ -3299,8 +3307,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
        * would have collided with migration 1. A negated version is below zero
        * for every migration there will ever be, and negating it again is exact.
        */
-      await q((tx) => sql`update _migrations set version = -version
-                           where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
+      // 0214 — the record is the migrator's alone: the app role may not write it, so the shift is the admin's.
+      await asMigrator(`update _migrations set version = -version where version >= $1`, [REQUIRED_SCHEMA_VERSION]);
 
       const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.schema.ok, JSON.stringify(pre.schema)).toBe(false);
@@ -3313,8 +3321,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // inverse of the shift — `version < 0` is every row this test moved and
       // nothing else, where the old bound (`<= REQUIRED - 100`) silently left
       // behind anything that had been above the required version.
-      await q((tx) => sql`update _migrations set version = -version
-                           where version < 0`.execute(tx as never));
+      await asMigrator(`update _migrations set version = -version where version < 0`);
       expect((await activationPreconditions(prod.db, bid, { providerConfigured: true })).schema.ok).toBe(true);
       // …and the record this test borrowed is whole again. Without this, the
       // damage is invisible until a later branch's migration goes missing.
