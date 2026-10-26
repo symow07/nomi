@@ -13,6 +13,22 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The migration record is the migrator's alone (2026-10-26, 0214)
+
+The owner's order: first of three, ahead of TikTok and the books' limits.
+- **The hole:** 0005 granted the app role insert and update on every table, `_migrations` included. So the app could
+  record a migration it never ran, and the boot guard would serve a build against a schema that isn't there. Or it
+  could rewrite a checksum, which is what G20 exists to catch. Open since it was found on 2026-10-01 (KS5).
+  - Proven on a fresh database before the fix: the app role inserted a forged version.
+- **The fix:** 0214 revokes every write on `_migrations` from the app role and keeps select (the boot guard reads
+  it).
+  - `boot.test.ts`'s schema drill shifts the record as the migrator now.
+- **The guard for the class:** `tests/integration/app-role-writes.test.ts` lists every table the app may write with no
+  row security, outside the queue's own `pgboss` schema. It holds exactly `deploy_lag`, `model_checks` and
+  `model_check_log`, each named with why. A new one fails until it is classified.
+- Next, in the owner's order: TikTok direct messages against a recorded fake (one PR), then the six books items (one
+  PR).
+
 ## The Block R addendum (2026-10-24): research and a plan; one code item
 
 The owner's addendum of 2026-10-23, re-sent 2026-10-24 ("docs and research only"), with the answers given to it that
@@ -3293,7 +3309,7 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 - **The host's own Page connect never asked G7's stop (2026-10-01, building KS6).** `POST /app/channels/{instagram,messenger}/connect` (C9 — the installation's configured Page and Instagram, linked to whichever workspace asks first) checked neither `connections_off` nor anything else; WhatsApp's connect and every step of the owner's own Page did. It now asks the same one question (`connectionRefusal`), so the stop and KS6's approval hold there too. WhatsApp's reconnect still does not ask: it restores a channel connected before, which KS6 never gates; G7's stop leaving it open is unchanged. The e-mail mailbox connect is outside both (no Meta app involved).
 - **BOT's database limit outlives a test run (2026-10-01, KS6's integration run).** `accounts.test.ts` posted its five sign-ups from the test client's own address (and one from one of sixteen fixed ones); with the per-caller limit now in the database, a second run within the hour on the same database — CI runs the suite twice — found the five tries spent (12 tests failed locally, 429; reproduced twice in a row). Each of its requests now comes from its own address. Test-only.
 - **G1's digest test depended on the database's other sign-ups (2026-10-01, MAIL's integration run).** The operator's digest names the day's OLDEST 25 sign-ups; a local database other runs had signed 31 up on that day cut the test's own, newest one off, and jobs the previous file left on the alert queue (one per two-second poll) delayed it past the test's ten seconds. Reproduced both ways; the test now sends a list holding only hers, ahead of leftovers (`priority`). Test-only. Whether the digest should list the newest first is left as it is.
-- **The schema's default privileges reach every new table (2026-10-01, KS5).** 0005 grants the app role select, insert and update on every table made after it, so 0112's `mail_sends` and 0113's ceiling were the app's to rewrite. Both migrations now revoke it and turn row security on before production saw them; 0114 does the same for its tables, and tests prove the app is refused. A sweep of the local schema found one older table the app can still write without row security: `_migrations` (since 0005). Not changed here — outside the item; worth a migration of its own.
+- **The schema's default privileges reach every new table (2026-10-01, KS5).** 0005 grants the app role select, insert and update on every table made after it, so 0112's `mail_sends` and 0113's ceiling were the app's to rewrite. Both migrations now revoke it and turn row security on before production saw them; 0114 does the same for its tables, and tests prove the app is refused. A sweep of the local schema found one older table the app can still write without row security: `_migrations` (since 0005). Not changed here — outside the item; worth a migration of its own. **Fixed 2026-10-26 (0214):** the app role reads `_migrations` and may not write it; `tests/integration/app-role-writes.test.ts` holds the list of tables the app may write with no row security (the three installation-wide ones).
 
 - **The deletion-request test failed every day from 16:00 UTC (2026-10-01, CI on #183).** `tests/integration/buyer-deletion-request.test.ts` wrote its expected dates in Shanghai's zone, but since G2 (0100) a workspace that names no zone at sign-up is born in UTC, so from 16:00 UTC the page's date and the test's were a day apart. Reproduced locally at 16:11 UTC; the test now reads the workspace's own zone and passed at 16:12. Test-only; nothing shipped was wrong.
 

@@ -462,7 +462,8 @@ import type { Db } from './client.js';
 // 211 = a lock date for each fiscal year; the books' start; Avis 24's periods kept on the set of locks (0211).
 // 212 = a QuickBooks or Xero grant Nomi no longer uses, kept track of until its system confirms it given back (0212).
 // 213 = Google Sheets' grants kept track of like QuickBooks' and Xero's, each with its own life there (0213).
-export const REQUIRED_SCHEMA_VERSION = 213;
+// 214 = the migration record is the migrator's alone: the app role reads it and may not write it (0214).
+export const REQUIRED_SCHEMA_VERSION = 214;
 
 export type SchemaState = {
   readonly required: number;
