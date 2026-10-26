@@ -35,12 +35,10 @@ The owner's order, third of three ("list 3 — all in 100%", one PR). PHASE-5.md
   QuickBooks gets nothing.
 - **(f) The opening journal:** AN, kind `opening`. It takes only an entry on its year's first day or the books' start
   day (NB027), and the closing page offers it where the chart has none.
-- **For the owner, one decision (f):** `books_day_writable` (0211) is unchanged. A lock is one date per year, so the
-  opening entry's period is writable only while it is one of the two current periods; it cannot stay open on its
-  own once its year is locked past it. My recommendation is to leave it so. The opening entry is written when the
-  books start, before any lock, and a late correction goes through the existing reopen, which is recorded. If the
-  owner wants the opening period writable on its own, that is a per-period lock: a migration of its own.
-- **Verification:** see the PR. `tests/integration/books-limits.test.ts` (11), `books-bank.test.ts` (the columns
+- **Decided (f), the owner, 2026-10-27: "Locked means locked."** `books_day_writable` (0211) stays as it is. The
+  opening period has no lock of its own; a late fix to the opening entry reopens the year, which is recorded.
+- **Merged:** #391 (`365a9f68`). Nothing is left to build that needs no money, no account and no native reader.
+- **Verification:** check 8758, trust 44/44, build, integration 1874/1874. `tests/integration/books-limits.test.ts` (11), `books-bank.test.ts` (the columns
   flow), `tests/parity/books-limits.test.ts` (9).
 
 ## TikTok direct messages, built against a fake (2026-10-26, 0215)

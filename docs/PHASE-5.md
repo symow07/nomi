@@ -1,13 +1,22 @@
 # Phase 5 — the full map
 
-> **STATUS, 2026-10-23: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
-> Blocks A, B, C, D, S and E are built, tested and merged (#375–#382; schema 208). Block R (the research acted on,
-> 0209–0210) is in review; its held items wait on the owner (Stage R below). What remains is not code:
-> 1. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
+> **STATUS, 2026-10-27: BUILT. WAITING ON PEOPLE AND MONEY, NOT IN DEVELOPMENT.**
+> Blocks A, B, C, D, S, E and R are built, tested and merged (#375–#391; schema 216), with TikTok direct messages
+> against a fake (#390, 0215) and the books' six disclosed limits lifted (#391, 0216, §10). What remains is not code:
+> Nothing is left to build that needs no money, no account and no native reader (2026-10-27). In order of what each
+> unblocks:
+> 1. **the deploy** — Railway's $5, then one deploy of #354–#391 (0161–0216) after the pre-deploy checklist; it
+>    brings Telegram's bot, its settings and its webhook, and every live check after it;
 > 2. **native signatures on four sentence sets**, read in one pass: the survey question, the survey's thank-you, the
 >    Telegram /start greeting (src/core/conversation/survey.ts, greeting.ts) and strict mode's starters (strict.ts);
-> 3. **a deploy** — production is on #353 (zero-spend), and Telegram's bot, its settings and its webhook come with it.
-> Nothing new starts until the accountant's answer or the signatures arrive (the owner, 2026-10-22).
+>    with them, the go-ahead for the live model check that strict mode's writer needs (S4's last item, the one code
+>    item left);
+> 3. **an accountant's answer** on what a « période » is in Avis 24 — D10 waits on it (the question is in D10, in French);
+> 4. **TikTok's access steps** — the developer app, a Business account with Advanced Access, the intake form, the
+>    reviews, and the privacy page naming TikTok; the data-security review's answers are drafted when it is reached;
+> 5. **Intuit** — the owner's reading of INTUIT-QUESTIONNAIRE.md, then the sandbox and the App Assessment.
+> Waiting for a customer there, not for the owner: China (GB/T 24589.1-2024, the fapiao template, the ledger
+> registrations) and France's FEC.
 
 The history below is the plan as it was approved, then each block as it was built.
 
@@ -53,8 +62,8 @@ It rests on four readings:
    - **channels:** web chat and Telegram — **and TikTok** (the owner's deliberate override, 2026-10-23, recorded
      2026-10-24): a large share of online selling and marketing now happens on TikTok, which makes it product scope,
      not a nice-to-have. LINE, SMS and WeChat stay deferred, unchanged. **Direct messages only** (2026-10-26):
-     TikTok Shop chat is out (partner-gated, not a Moroccan market). TikTok is a PLAN for now
-     (docs/TIKTOK-CHANNEL.md): nothing built, no account, no application, no API called. Where its access needs money
+     TikTok Shop chat is out (partner-gated, not a Moroccan market). TikTok is BUILT against a
+     fake of its documented answers (#390, 0215; docs/TIKTOK-CHANNEL.md §6): no account, no application, no API called. Where its access needs money
      or a partner's approval, decision 9's bar applies to it like any paid service;
    - **bank data:** statement files only;
    - **exchange rates:** the owner's own.
@@ -354,7 +363,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
     again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
   *(built 2026-10-21, 0184: invoices numbered at issue from their own counter, F-<year>-<n>, inside the issuing
-  transaction — no gap, ten at once consecutive; issued, never changed (a correction is a credit note, not built yet);
+  transaction — no gap, ten at once consecutive; issued, never changed (a correction is a credit note: D1b, 0188);
   net and tax checked to the cent by the database; issuing posts receivable / sales / tax, a foreign invoice's
   conversion rounding its own marked exchange line. Payments in the invoice's currency, never more than owed (app and
   database); the receivable relieved at its own book value, the last payment taking exactly what is left; the realised
@@ -909,7 +918,7 @@ Each item is built and fully tested (§4) before the next one that depends on it
       met by silence: a KNOWN GAP, with its fix built and waiting on the signature — not a decision.**
     - The page shows the last 90 days and the latest answers. The buyer's own page does not show their score yet.
 - **S7 · Item 22 — channels:** **web chat, then Telegram** (decision 8). LINE, SMS and WeChat wait for revenue.
-  *(Amended 2026-10-24: TikTok is in 100% too — planned, not built: docs/TIKTOK-CHANNEL.md.)* *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
+  *(Amended 2026-10-24: TikTok is in 100% too — built against a fake, #390: docs/TIKTOK-CHANNEL.md.)* *(built 2026-10-22, 0203–0204; the owner's choices that day: both a hosted page and a
   widget, the page first; one Nomi bot for every business; S7 stays in block S.)*
   - **The chat page** (`/chat/<key>`, `src/api/web/webChat.ts`):
     - The owner turns it on (owner only: going live) on Where customers reach you › Chat page, and shares the address.
@@ -1142,8 +1151,9 @@ source, the claim is marked *reported* (the owner's research), as §0's conventi
     - **The named test** (`tests/integration/books-periods.test.ts`, "FEBRUARY 2027"): on 15 February 2027, January and
       February 2027 and December 2026 are open together; on 1 March 2027, January 2027 closes and December 2026 stays
       open. Every day in those tests is named, so they do not depend on the day they run.
-    - **Not built:** a journal of its own for the opening entry. The opening entry is any entry dated the start day,
-      written before that period closes.
+    - **The opening entry's own journal** (AN, 0216 (f)): it takes only an entry on its year's first day or the books'
+      start day. **Locked means locked** (the owner, 2026-10-27): the opening period has no lock of its own; a late fix
+      reopens the year, which is recorded.
   - **Imports and the FEC (rule c), checked:** the FEC's eighteen fields have none that says "imported" (annex 3:
     the journal, the entry's number and date, the account, the auxiliary account, the document, the label, the
     amounts, the lettrage, the validation date, the currency). None is invented. Nothing needs one: history set apart
@@ -1432,7 +1442,7 @@ D4 leaves both as configurable details until they're published.
 - **Bank connections.** They cost money, they're regulated, and they'd raise the privacy load from "a shop's books" to "a
   shop's live banking".
 - **Paid channels** (LINE, SMS, WeChat), until there's revenue. *TikTok left this line on 2026-10-23: it is in 100%
-  (decision 8), planned in docs/TIKTOK-CHANNEL.md, not built.*
+  (decision 8), built against a fake (#390, docs/TIKTOK-CHANNEL.md §6).*
 - **The French FEC and DGFiP's checker,** until a French customer. *A deferral of BUILDING, not of knowing: France is
   RESEARCHED (§1b).*
 - **Moroccan e-invoicing and the liasse fiscale EDI.** They wait for the decree (CGI art. 145-IX) and are usually the
@@ -1462,4 +1472,5 @@ The five limits disclosed on `/app/books` from 2026-10-22 are gone, and so is th
   column in the workbook and Sheets; QuickBooks has no place for it and gets none.
 - **The opening entry's own journal** (f): AN (kind `opening`), which takes only an entry on its year's first day or
   the books' start day (NB027). The predicate `books_day_writable` (0211) is unchanged: with one lock per year, the
-  opening period is open only while it is one of the two current periods — the owner's to decide (PROGRESS).
+  opening period is open only while it is one of the two current periods. **Decided (the owner, 2026-10-27): locked
+  means locked;** a late fix reopens the year, recorded.
