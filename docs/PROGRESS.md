@@ -13,6 +13,20 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## D10's period length, decided without the accountant (2026-10-27)
+
+- **The owner's decision:** no Moroccan source defines « période », and BOFiP §140 allows a month or a quarter. So
+  the length is a per-workspace setting, monthly by default, as #384 (0211) built it. An accountant's view is welcome
+  later and blocks nothing. PHASE-5 D10 and R1 and LAUNCH-CHECKLIST say so; the item is off the owner's list.
+- **"Turn enforcement on": nothing to change, checked.** The rule is not switched off anywhere, and no flag, setting
+  or page waits on the accountant. Since 0211 it engages for each Moroccan workspace when its owner starts the books
+  (`books_start`, with the length, month preselected). From then on, the worker raises each year's lock to its floor
+  every hour (`books_roll_periods`, :07), and `books_day_writable` refuses anything on or before the lock. Outside
+  Morocco the lock stays manual. The start is the owner's on purpose: it is the books' first day and the opening
+  entry's date (the owner's rule of 2026-10-23).
+- **Not live yet, for one reason only:** production is on #353, which has no books at all. It goes live with the
+  deploy (the owner's list, item 1).
+
 ## The books' disclosed limits, lifted (2026-10-26, 0216)
 
 The owner's order, third of three ("list 3 — all in 100%", one PR). PHASE-5.md §10 says what each became; the list on
