@@ -25,6 +25,7 @@ export type CloseView = {
   readonly years: readonly FiscalYear[]; readonly history: readonly LockEvent[];
   readonly start: BooksStart | null; readonly morocco: boolean;
   readonly equity: readonly { id: string; code: string; name: string }[]; readonly closingJournals: readonly { id: string; code: string; name: string }[];
+  readonly openingJournals?: readonly { id: string; code: string; name: string }[];
   readonly month: string; readonly monthEnd: string; readonly checklist: readonly { item: ChecklistItem; n: number }[]; readonly today: string;
 };
 
@@ -77,6 +78,9 @@ export function renderClose(locale: Locale, viewer: Who, v: CloseView): string {
         <label class="pq"><span>${esc(t(locale, 'books.trial.from'))}</span><input type="date" name="startsOn" value="${esc(next.starts)}" required /></label>
         <label class="pq"><span>${esc(t(locale, 'books.trial.to'))}</span><input type="date" name="endsOn" value="${esc(next.ends)}" required /></label>
         <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.openYear'))}</button></form>` : ''}
+      ${owner(viewer) && v.openingJournals !== undefined && v.openingJournals.length === 0 ? `<form method="post" action="/app/books/closing/opening-journal" class="pform">
+        <p>${esc(t(locale, 'books.close.needOpening'))}</p>
+        <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.addOpening'))}</button></form>` : ''}
       ${!owner(viewer) ? '' : openYears.filter((y) => y.endsOn < v.today).map((y) => v.closingJournals.length === 0
         ? `<form method="post" action="/app/books/closing/journal" class="pform"><p>${esc(t(locale, 'books.close.needJournal'))}</p>
             <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.addJournal'))}</button></form>`

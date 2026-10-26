@@ -86,6 +86,9 @@ export async function closeState(tx: Tx, businessId: string) {
       and kind = 'equity' and is_active order by code`),
     closingJournals: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals where business_id = ${businessId}::uuid
       and kind = 'closing' order by code`),
+    // 0216 (f) — the opening entry's own journal, where the chart has one
+    openingJournals: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals where business_id = ${businessId}::uuid
+      and kind = 'opening' order by code`),
   };
 }
 

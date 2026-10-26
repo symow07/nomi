@@ -72,6 +72,7 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/closing/reopen', action: 'post' },
   { method: 'POST', url: '/app/books/closing/open-year', action: 'post' },
   { method: 'POST', url: '/app/books/closing/journal', action: 'post' },
+  { method: 'POST', url: '/app/books/closing/opening-journal', action: 'post' },
   { method: 'POST', url: '/app/books/closing/year', action: 'post' },
   // D3 — the accountant pack: a copy out, the accountant's too.
   { method: 'GET', url: '/app/books/pack.xlsx', action: 'export' },

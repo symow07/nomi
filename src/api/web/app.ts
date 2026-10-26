@@ -269,7 +269,7 @@ import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENA
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
-import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
+import { addClosingJournal, addOpeningJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
 import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.js';
 import { renderPaper, renderPapers, type PaperChoices } from './booksPapers.js';
@@ -3150,6 +3150,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const out = await withTenantTx(deps.db, bid, (tx) => addClosingJournal(tx, bid, t(locale, 'books.close.journalName')));
+    return closeBack(reply, out, 'books.flash.journalAdded', {}, locale);
+  });
+  /** 0216 (f) — the opening entry's own journal (AN), for a chart that has none. */
+  app.post('/app/books/closing/opening-journal', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const out = await withTenantTx(deps.db, bid, (tx) => addOpeningJournal(tx, bid, t(locale, 'books.close.openingName')));
     return closeBack(reply, out, 'books.flash.journalAdded', {}, locale);
   });
   app.post('/app/books/closing/year', async (req, reply) => {
