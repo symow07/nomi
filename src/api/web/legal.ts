@@ -110,6 +110,8 @@ export type LegalFacts = {
   readonly advisorHistory?: boolean;
   /** S7 — Nomi's Telegram bot is on here: Telegram carries those buyers' messages, and is named. */
   readonly telegram?: boolean;
+  /** 0215 — businesses here can connect their own TikTok account: TikTok carries those direct messages, and is named. */
+  readonly tiktok?: boolean;
 };
 
 /**
@@ -206,6 +208,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
       ${facts.telegram ? `<li>${esc(t(l, 'legal.privacy.who.telegram'))}</li>` : ''}
+      ${facts.tiktok ? `<li>${esc(t(l, 'legal.privacy.who.tiktok'))}</li>` : ''}
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
       ${facts.fallback ? `<li>${esc(t(l, 'legal.privacy.who.aiFallback', { processor: processorLabel(facts.fallback, l), primary: facts.processor.name }))}</li>` : ''}
       ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live.

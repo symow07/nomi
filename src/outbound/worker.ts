@@ -4,7 +4,8 @@ import {
   onSendFailure, isUncertainSend,
 } from '../core/channel/delivery.js';
 import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice } from '../core/channel/sendGate.js';
-import { channelSendPlan, type TemplateState } from '../core/channel/window.js';
+import { channelSendPlan, sendPlan, type TemplateState } from '../core/channel/window.js';
+import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.js';
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../core/owner/i18n/messages.js';
@@ -129,6 +130,8 @@ export type ConversationSendContext = {
    * signed off by a native reader, or not. Absent: none on record.
    */
   readonly buyerLanguage?: 'reviewed' | 'unreviewed';
+  /** 0215 — a TikTok conversation's own counts (tiktokLimits.ts); absent on any other channel. */
+  readonly tiktok?: TikTokHistory;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -395,8 +398,11 @@ export async function driveConversationOutbound(
     await refuse(deps, candidate, 'outreach_unchecked');
     return [...effects, { kind: 'canceled', id: candidate.id, reason: 'outreach_unchecked' }];
   }
-  // And the window is the CHANNEL's, not WhatsApp's — see `channelSendPlan`.
-  const plan = channelSendPlan(candidate.channel ?? 'whatsapp', ctx.lastInboundAt, now, ctx.template);
+  // And the window is the CHANNEL's, not WhatsApp's — see `channelSendPlan`. 0215 — TikTok's is a COUNT, not a window:
+  // its plan is open and its counts decide (`channelLimitReached`); with no counts read, nothing goes (fail closed).
+  const onTikTok = candidate.channel === 'tiktok';
+  const plan = onTikTok ? sendPlan('open', 'reply', 'none') : channelSendPlan(candidate.channel ?? 'whatsapp', ctx.lastInboundAt, now, ctx.template);
+  const tiktokRefused = onTikTok && (!ctx.tiktok || !tiktokMaySend(ctx.tiktok, now).send);
   const gate = gateOutbound({
     origin: candidate.origin,
     ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
@@ -409,6 +415,7 @@ export async function driveConversationOutbound(
     ...(ctx.pilotMode !== undefined ? { pilotMode: ctx.pilotMode } : {}),
     ...(ctx.recipientAllowed !== undefined ? { recipientAllowed: ctx.recipientAllowed } : {}),
     ...(ctx.dailyCeilingReached !== undefined ? { dailyCeilingReached: ctx.dailyCeilingReached } : {}),
+    ...(tiktokRefused ? { channelLimitReached: true } : {}),
     // M20.1 — same fail-closed convention: a store that does not resolve
     // activation gets the safe answer.
     ...(ctx.activated !== undefined ? { activated: ctx.activated } : {}),

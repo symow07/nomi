@@ -177,6 +177,10 @@ export const COOKIES: readonly NomiCookie[] = [
     reason: 'D9 — the state of a QuickBooks connection in progress (the books), checked when Intuit sends the owner back.',
   },
   {
+    name: 'yf_tiktok', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
+    reason: '0215 — the state of a TikTok connection in progress, checked when TikTok sends the owner back.',
+  },
+  {
     name: 'yf_meta', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of an Instagram or Messenger connection in progress, checked when Meta sends the person back.',
   },

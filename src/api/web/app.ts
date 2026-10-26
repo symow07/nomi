@@ -36,6 +36,9 @@ import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
 import { renderMetaPagePicker } from './metaConnect.js';
+import { completeTikTokConnection, disconnectTikTokAccount, type TikTokConnectDeps } from '../../channels/tiktok/connect.js';
+import { tiktokAuthorizeUrl } from '../../channels/tiktok/api.js';
+import { liveTikTokAccount } from '../../db/tiktokAccounts.js';
 import { renderWhatsAppNumberPicker } from './whatsappConnect.js';
 import { completeWhatsAppConnection, disconnectWhatsAppAccount, whatsAppAccountToken, type WaConnectDeps, type WaConnectOutcome } from '../../channels/whatsapp/connect.js';
 import { submitReopenTemplate, reopenTemplateStatuses } from '../../channels/whatsapp/templates.js';
@@ -479,6 +482,8 @@ export type WebDeps = {
    */
   readonly metaLogin?: MetaLogin | null;
   readonly metaConnect?: MetaConnectDeps;
+  /** 0215 — a business connects its own TikTok account (docs/TIKTOK-CHANNEL.md, surface A), where this host has the app. */
+  readonly tiktokConnect?: TikTokConnectDeps;
   /** WA — Embedded Signup: a business connects its own WhatsApp number. Absent: not offered. */
   readonly waLogin?: WaLogin | null;
   /** EXT — the page reader can read a PDF (the model provider takes documents: Anthropic's does). Absent: it cannot. */
@@ -4828,7 +4833,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = parseBusinessId(businessId);
     const chatOn = b.ok && deps.chatIngest ? (await withTenantTx(deps.db, b.value, (tx) => chatPageKey(tx, b.value))) !== null : false;
     const tgOn = b.ok && deps.telegramBot ? (await withTenantTx(deps.db, b.value, (tx) => telegramCode(tx, b.value))) !== null : false;
+    // 0215 — TikTok: offered where this host has the app (and the privacy page names TikTok); hers once connected.
+    const tt = b.ok && tiktokReady() ? await withTenantTx(deps.db, b.value, (tx) => liveTikTokAccount(tx, b.value)).catch(() => null) : null;
     return new Map<OutreachChannel, InboundLink>([
+      ['tiktok', {
+        configured: tiktokReady() !== null, connected: tt !== null,
+        ...(tiktokReady() ? { connectHref: '/app/connect/tiktok/start' } : {}),
+        ...(tt?.username ? { connectedAs: `@${tt.username}` } : {}),
+        ...(tt?.needsAttention ? { needsAttention: true } : {}),
+      }],
       ['instagram', inboundLink('instagram', hostChannels(businessId).instagram !== null, linked.instagram)],
       ['messenger', inboundLink('messenger', hostChannels(businessId).messenger !== null, linked.messenger)],
       ['web_chat', { configured: deps.chatIngest !== undefined, connected: chatOn }],
@@ -4927,6 +4940,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const tgName = screen === 'telegram' && bid.ok ? (await withTenantTx(deps.db, bid.value, (tx) => sql<{ name: string }>`select name from businesses where id = ${bid.value}::uuid`.execute(tx))).rows[0]?.name ?? '' : '';
       const tgGreeting = greetingText((GREETING_LOCALES as readonly string[]).includes(locale) ? locale as GreetingLocale : 'en').split('{business}').join(tgName || '…');
       const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
+      // 0215 — TikTok: the account she connected, read for its screen.
+      const tt = screen === 'tiktok' && bid.ok && tiktokReady() ? await withTenantTx(deps.db, bid.value, (tx) => liveTikTokAccount(tx, bid.value)) : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: channelScreenTitle(locale, screen), active: 'channels',
         bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
@@ -4934,6 +4949,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
           telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
+          tiktok: { served: tiktokReady() !== null, account: tt ? { username: tt.username, needsAttention: tt.needsAttention !== null, euMessages: tt.euMessages, euLastAt: tt.euLastAt } : null },
         }),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
@@ -7161,6 +7177,61 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const done = wc !== null && bid.ok && await disconnectWhatsAppAccount(wc, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
     return channelsFlash(reply, done ? 'connect.wa.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
+  });
+
+  /**
+   * 0215 — a business connects its OWN TikTok account (docs/TIKTOK-CHANNEL.md, surface A): owner only, under the same
+   * decision as activating messaging, behind the operator's stop and the first-connection approval. TikTok's own page
+   * asks for the permissions; the state cookie ties the callback to the person who pressed Connect.
+   */
+  const TIKTOK_COOKIE = 'yf_tiktok';
+  const tiktokRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/tiktok/callback`;
+  function tiktokReady(): TikTokConnectDeps | null {
+    return deps.tiktokConnect?.app && deps.tiktokConnect.credentialKey && deps.publicBaseUrl ? deps.tiktokConnect : null;
+  }
+  app.get('/app/connect/tiktok/start', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('tiktok')); if (!s) return reply;
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return channelsFlash(reply, refused, undefined, channelScreenHref('tiktok'));
+    const tc = tiktokReady();
+    if (!tc || !tc.app) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('tiktok'));
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, TIKTOK_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier: '', nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/connect/tiktok', maxAgeSec: 600 });
+    return reply.redirect(tiktokAuthorizeUrl(tc.app, nonce));
+  });
+  app.get('/app/connect/tiktok/callback', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('tiktok')); if (!s) return reply;
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[TIKTOK_COOKIE];
+    writeCookie(reply, TIKTOK_COOKIE, '', { path: '/app/connect/tiktok', maxAgeSec: 0 });   // used once, whatever happens
+    // Stopped while she was on TikTok's page (or not approved): nothing is connected.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return channelsFlash(reply, refused, undefined, channelScreenHref('tiktok'));
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('tiktok'));
+    }
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('tiktok'));
+    const tc = tiktokReady();
+    const bid = parseBusinessId(s.businessId);
+    if (!tc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('tiktok'));
+    const r = await completeTikTokConnection(tc, { businessId: bid.value, by: personOf(s).name, code: q.code.slice(0, 2048), redirectUri: tiktokRedirectUri() });
+    facts.evict(s.businessId);   // a place customers write: a setup step
+    // The address still holds TikTok's code (spent above, once): it never leaves in a Referer.
+    reply.header('referrer-policy', 'no-referrer');
+    return r.outcome === 'connected' ? channelsFlash(reply, 'connect.tiktok.flash.connected', undefined, channelScreenHref('tiktok'))
+      : r.outcome === 'rejected' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('tiktok'))
+      : channelsFlash(reply, `connect.tiktok.flash.${r.outcome}`, undefined, channelScreenHref('tiktok'));
+  });
+  app.post('/app/connect/tiktok/disconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('tiktok')); if (!s) return reply;
+    const tc = deps.tiktokConnect ?? null;
+    const bid = parseBusinessId(s.businessId);
+    const done = tc !== null && bid.ok ? await disconnectTikTokAccount(tc, { businessId: bid.value, by: personOf(s).name }) : null;
+    facts.evict(s.businessId);
+    return channelsFlash(reply, !done ? 'connect.flash.rejected' : done.givenBack ? 'connect.tiktok.flash.disconnected' : 'connect.tiktok.flash.disconnectedHere',
+      undefined, channelScreenHref('tiktok'));
   });
 
   app.post('/app/connect/meta/disconnect', async (req, reply) => {

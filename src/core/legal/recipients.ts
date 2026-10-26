@@ -18,7 +18,7 @@
 export type OptionalRecipient = {
   readonly id: 'stripe' | 'webPush' | 'httpsMail' | 'd360' | 'smtp' | 'apollo'
     // A5 (Phase 5, PHASE-5.md §6.3) — the books' new processors, none named yet.
-    | 'googleSheets' | 'odoo' | 'xero' | 'intuit' | 'documentReader' | 'telegram';
+    | 'googleSheets' | 'odoo' | 'xero' | 'intuit' | 'documentReader' | 'telegram' | 'tiktok';
   readonly name: string;
   /** The variables that switch it on, as the boot reads them; none for one switched on inside the product. */
   readonly switchedOnBy: (env: Readonly<Record<string, string | undefined>>) => readonly string[];
@@ -50,6 +50,10 @@ export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
   { id: 'documentReader', name: 'the model that reads receipts, invoices and bills', switchedOnBy: (env) => set(env, 'DOCUMENT_READER_API_KEY'), named: false },
   // S7 (2026-10-22) — Nomi's one Telegram bot carries buyers' messages: named on the privacy page in every language.
   { id: 'telegram', name: 'Telegram', switchedOnBy: (env) => set(env, 'TELEGRAM_BOT_TOKEN'), named: { key: 'legal.privacy.who.telegram' } },
+  // 0215 (2026-10-26) — a business's own TikTok account carries its customers' direct messages. Its privacy line is
+  // written (`legal.privacy.who.tiktok`, five languages) and waits for the owner's read with counsel's: until it is
+  // named here, the boot refuses TikTok's variables and nothing reaches TikTok (docs/TIKTOK-CHANNEL.md §4).
+  { id: 'tiktok', name: 'TikTok', switchedOnBy: (env) => set(env, 'TIKTOK_APP_ID', 'TIKTOK_APP_SECRET', 'TIKTOK_AUTH_URL'), named: false },
 ];
 
 /** What the boot refuses: each service switched on that the privacy page does not name. */

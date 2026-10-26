@@ -12,7 +12,7 @@ export type ChannelKind =
   | 'whatsapp'
   // future — types only, no fake integrations:
   | 'instagram' | 'messenger' | 'wechat' | 'rednote'
-  | 'telegram' | 'line' | 'email' | 'web_chat';
+  | 'telegram' | 'line' | 'email' | 'web_chat' | 'tiktok';
 
 export type SendResult =
   | { readonly ok: true; readonly providerMessageId: string }

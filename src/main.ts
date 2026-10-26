@@ -52,7 +52,7 @@ import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
-import { deriveKey, acceptRetiredKeys } from './security/credentials.js';
+import { deriveKey, acceptRetiredKeys, decryptSecret, encryptSecret, credentialFingerprint } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
 import { OPTIONAL_RECIPIENTS, recipientNamed, unnamedRecipientProblems, type OptionalRecipient } from './core/legal/recipients.js';
 import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/whatsapp/meta.js';
@@ -73,6 +73,9 @@ import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { webChatAdapter } from './channels/web_chat/adapter.js';
 import { telegramFrom, type TelegramFetch } from './channels/telegram/adapter.js';
+import { tiktokAppFrom, openTikTokGrant, packTikTokGrant, refreshTikTokGrant, TIKTOK_ACCESS_MARGIN_MS, type TikTokApp, type TikTokFetch } from './channels/tiktok/api.js';
+import { tiktokDelivery, tiktokIngressAdapter, tiktokSendAdapter } from './channels/tiktok/messaging.js';
+import { liveTikTokAccount, markTikTokNeedsAttention, rotateTikTokGrant, type TikTokAccount } from './db/tiktokAccounts.js';
 import { START_CODE, telegramRoute } from './db/telegram.js';
 import { GREETING_SIGNED, greetingFor, type GreetingSigned } from './core/conversation/greeting.js';
 import { autonomyReleasedFor, disclosureFor, withDisclosure } from './core/conversation/disclosure.js';
@@ -533,6 +536,11 @@ export async function buildProduction(
     surveySigned?: SurveySigned;
     /** S7 — tests only: Telegram's Bot API, instead of the network. */
     telegramFetch?: TelegramFetch;
+    /**
+     * 0215 — tests only: TikTok's developer app and its API, instead of the environment and the network. Production
+     * reads TIKTOK_* only once the privacy page names TikTok (D18); tests stand in a fake here.
+     */
+    tiktok?: { readonly app: TikTokApp; readonly fetch: TikTokFetch };
     /** S7 — tests only: the /start greeting, and (S6) the survey's thank-you, as if their readers had signed them. */
     greetingSigned?: GreetingSigned;
     surveyThanksSigned?: SurveySigned;
@@ -826,12 +834,21 @@ export async function buildProduction(
    * while the privacy page names Telegram (D18). A business turns it on and shares its own start link.
    */
   const telegramBot = recipientNamed('telegram') ? telegramFrom(process.env, overrides?.telegramFetch) : null;
+  /**
+   * 0215 — TikTok direct messages (docs/TIKTOK-CHANNEL.md, surface A): the installation's developer app, from the
+   * environment, and only while the privacy page names TikTok (D18). Each business connects its own account; the app's
+   * secret checks every delivery to /webhook/tiktok.
+   */
+  const tiktokApp: TikTokApp | null = overrides?.tiktok?.app ?? (recipientNamed('tiktok') ? tiktokAppFrom(process.env) : null);
+  const tiktokFetch: TikTokFetch = overrides?.tiktok?.fetch ?? (fetch as unknown as TikTokFetch);
+  const tiktokIngress = tiktokApp ? tiktokIngressAdapter(tiktokApp.appSecret) : null;
 
   const whatsappHere = overrides?.adapter !== undefined || cfg.provider !== 'disabled';
   const channelsHere: readonly string[] = [
     ...(whatsappHere ? ['whatsapp'] : []),
     ...Object.keys(socialIngress),
     ...(telegramBot ? ['telegram'] : []),
+    ...(tiktokIngress ? ['tiktok'] : []),
   ];
 
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
@@ -870,6 +887,8 @@ export async function buildProduction(
     ...(fallbackSwitchedOn(process.env, fallbackLlm) && fallbackLlm ? { fallback: aiProcessor(fallbackLlm.baseURL) } : {}),
     // S7 — Telegram, while Nomi's bot is on here (named whenever it is: recipients.ts).
     ...((process.env['TELEGRAM_BOT_TOKEN'] ?? '').trim() ? { telegram: true } : {}),
+    // 0215 — TikTok is named only where this installation has the app (and only once the page names it: D18).
+    ...(tiktokApp ? { tiktok: true } : {}),
   };
   console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
   // The owner's decision at the Phase 4 gate (2026-10-14): the legal pages name who runs Nomi before any real business
@@ -1021,6 +1040,8 @@ export async function buildProduction(
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
     },
+    // 0215 — a business connects its OWN TikTok account (Business Messaging), when this installation has the app.
+    ...(tiktokApp ? { tiktokConnect: { db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), app: tiktokApp, fetchImpl: tiktokFetch } } : {}),
     // WA — a business connects its OWN WhatsApp number (Embedded Signup).
     waLogin,
     waConnect: {
@@ -1391,9 +1412,41 @@ export async function buildProduction(
    */
   const installationNumber = cfg.provider === 'meta' ? (cfg.META_WHATSAPP_PHONE_NUMBER_ID ?? null) : null;
 
+  /**
+   * 0215 — the TikTok adapter for ONE business, from the account it connected itself. The grant is opened for the
+   * send and renewed first when its access token has under five minutes left; a renewed grant is kept at once, whole,
+   * before it is used. A grant TikTok refuses (a renewal, or a send it calls a dead token) is recorded once, so the page
+   * asks the owner to connect again — and an account that needs her sends nothing: `channel_unavailable`.
+   */
+  const tiktokAdapterFor = (businessId: BusinessId, account: TikTokAccount | null): Partial<Record<string, ChannelAdapter | undefined>> => {
+    if (!account || !tiktokApp) return { tiktok: undefined };
+    if (account.needsAttention) return { tiktok: undefined };
+    const dead = () => withTenantTx(db, businessId, (tx) => markTikTokNeedsAttention(tx, account.id, 'revoked'));
+    return {
+      tiktok: tiktokSendAdapter({
+        openId: account.openId, fetchImpl: tiktokFetch, onDead: dead,
+        accessToken: async () => {
+          let secret: string;
+          try { secret = decryptSecret(account.ciphertext, credentialKey).plain; } catch { return { token: null, retryable: false }; }
+          const grant = openTikTokGrant(secret);
+          if (!grant) return { token: null, retryable: false };
+          if (grant.ae - Date.now() > TIKTOK_ACCESS_MARGIN_MS) return { token: grant.a };
+          const renewed = await refreshTikTokGrant(tiktokApp, grant, tiktokFetch);
+          if (!renewed.ok) {
+            if (renewed.reason === 'rejected') await dead().catch(() => undefined);
+            return { token: null, retryable: renewed.reason === 'unavailable' };
+          }
+          const packed = packTikTokGrant(renewed.grant);
+          await withTenantTx(db, businessId, (tx) => rotateTikTokGrant(tx, account.id, encryptSecret(packed, credentialKey), credentialFingerprint(packed)));
+          return { token: renewed.grant.a };
+        },
+      }),
+    };
+  };
+
   const adaptersFor = (
     businessId: BusinessId, metaAccount: MetaAccount | null = null, waAccount: WhatsAppAccount | null = null,
-    waNumber: string | null = null,
+    waNumber: string | null = null, tiktokAccount: TikTokAccount | null = null,
   ) => {
     const email = emailAdapter({
       transport: overrides?.mailTransport ?? (smtpConfig
@@ -1408,6 +1461,7 @@ export async function buildProduction(
       ...(adapter ? { [adapter.kind]: adapter } : {}), email, web_chat: webChatAdapter(), ...(telegramBot ? { telegram: telegramBot.adapter } : {}),
       ...metaAdaptersFor(businessId, metaAccount),
       ...waAdaptersFor(businessId, waAccount),
+      ...tiktokAdapterFor(businessId, tiktokAccount),
       ...(waAccount === null && installationNumber !== null && waNumber !== installationNumber ? { whatsapp: undefined } : {}),
     };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
@@ -1444,8 +1498,10 @@ export async function buildProduction(
     const waAccount = await liveWhatsAppAccount(tx, businessId);
     // …and, with none of its own, which number its credential routes: the installation's serves only its holder.
     const waNumber = waAccount ? null : await activeWhatsAppNumber(tx, businessId);
+    // 0215 — and its own TikTok account, read the same way.
+    const tiktokAccount = await liveTikTokAccount(tx, businessId);
     return {
-      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount, waNumber),
+      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount, waNumber, tiktokAccount),
       mailHeaders: mailHeadersFor(businessId),
       // F1 — a picture is sent only from Nomi's own public address.
       mediaOrigin: cfg.PUBLIC_BASE_URL ?? null,
@@ -1806,7 +1862,8 @@ export async function buildProduction(
   // adapter's for every channel, which on a 360dialog installation would have
   // recorded an Instagram message as theirs.
   const inboundAdapters: Record<string, ChannelAdapter> = Object.fromEntries(
-    [...(adapter ? [adapter] : []), ...Object.values(socialIngress), ...(telegramBot ? [telegramBot.adapter] : [])].map((a) => [a.kind, a]),
+    [...(adapter ? [adapter] : []), ...Object.values(socialIngress), ...(telegramBot ? [telegramBot.adapter] : []),
+      ...(tiktokIngress ? [tiktokIngress] : [])].map((a) => [a.kind, a]),
   );
   const providerOf: Record<string, string> = Object.fromEntries(
     Object.values(inboundAdapters).map((a) => [a.kind, a.provider]),
@@ -1899,8 +1956,9 @@ export async function buildProduction(
           ...(e.postId ? { postId: e.postId } : {}),
         });
       } else if (e.kind === 'echo') {
-        // CH3 — read a little later, so a send of ours has written its id first.
-        if (channel !== 'instagram' && channel !== 'messenger') return;
+        // CH3 — read a little later, so a send of ours has written its id first. 0215 — TikTok's echoes too: a message
+        // the owner typed in TikTok's app or on the web is the owner answering (messaging.ts names the sources).
+        if (channel !== 'instagram' && channel !== 'messenger' && channel !== 'tiktok') return;
         await boss.send(QUEUES.echo, {
           businessId: bid, channel, mid: e.eventId, customer: e.waId, account: e.phoneNumberId,
           text: e.text, received: e.received, appId: e.appId, occurredAt: e.occurredAt.toISOString(),
@@ -1978,6 +2036,16 @@ export async function buildProduction(
       ...(socialIngress.messenger ? [{ path: '/webhook/messenger', adapter: socialIngress.messenger }] : []),
       // S7 — Telegram signs with the secret its webhook was set with, in its own header.
       ...(telegramBot ? [{ path: '/webhook/telegram', adapter: telegramBot.adapter, signatureHeader: 'x-telegram-bot-api-secret-token' }] : []),
+      // 0215 — TikTok signs with the app's secret (`Tiktok-Signature`); each delivery also names the account's own
+      // username, and a message from the EEA, Switzerland or the UK carries nothing but that it came: both noted on
+      // the account (`tiktok_note_delivery`, definer: no tenant is known yet).
+      ...(tiktokIngress ? [{
+        path: '/webhook/tiktok', adapter: tiktokIngress, signatureHeader: 'tiktok-signature',
+        observe: async (payload: unknown) => {
+          const d = tiktokDelivery(payload);
+          if (d && (d.username || d.eu)) await sql`select tiktok_note_delivery(${d.openId}, ${d.username}, ${d.eu})`.execute(db);
+        },
+      }] : []),
     ],
     route: async (e, channel) => (channel === 'telegram' && e.kind === 'message' ? routeTelegram(e) : e),
 

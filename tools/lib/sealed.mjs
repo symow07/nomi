@@ -46,6 +46,8 @@ export const SEALED = [
   { table: 'connector_credentials', column: 'secret_ciphertext' },
   { table: 'mail_accounts', column: 'refresh_token_ciphertext' },
   { table: 'meta_accounts', column: 'token_ciphertext' },
+  // 0215 — a business's own TikTok account: both its tokens, sealed together.
+  { table: 'tiktok_accounts', column: 'token_ciphertext' },
   // WA (0120) — a business's own WhatsApp number: its token, and the two-step PIN it was registered with.
   { table: 'whatsapp_accounts', column: 'token_ciphertext' },
   { table: 'whatsapp_accounts', column: 'pin_ciphertext' },

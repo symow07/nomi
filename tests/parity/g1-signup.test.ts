@@ -76,9 +76,11 @@ describe('G1 · the cap, the mode, the operator', () => {
     expect(job.slice(0, 400)).toContain('signupDigestAlert(db, PILOT_BUSINESS_ID, new Date())');
     expect(job.slice(0, 400)).toContain("{ singletonKey: 'signup_digest', singletonSeconds: 23 * 3600 }");
   });
-  it('TikTok and WeChat are on Channels as "not yet"', () => {
+  it('WeChat is on Channels as "not yet"; TikTok left the list (0215: a channel of its own)', () => {
     const channels = readFileSync(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
     // Phase 9 — each is a word in the reader's language now (微信 in Chinese).
-    expect(channels).toContain("'channel.platform.tiktok', 'channel.platform.wechat',");
+    const soon = channels.slice(channels.indexOf('const COMING_SOON'), channels.indexOf('function problemBlock'));
+    expect(soon).toContain("'channel.platform.wechat',");
+    expect(soon).not.toContain("'channel.platform.tiktok'");
   });
 });

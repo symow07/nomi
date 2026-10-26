@@ -13,6 +13,26 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## TikTok direct messages, built against a fake (2026-10-26, 0215)
+
+The owner's order, second of three: surface A only (docs/TIKTOK-CHANNEL.md §6 has the whole of it).
+- **Built:**
+  - the channel, and a business's own account with one sealed grant;
+  - owner-only connect;
+  - the signed webhook;
+  - replies from the business's own grant, renewed first;
+  - the owner typing in TikTok takes the conversation (echoes);
+  - TikTok's message counts held by the send gate (`tiktok_limit`);
+  - EEA messages counted, never answered.
+- **Not live:** TikTok is listed as a recipient but `named: false`, so the boot refuses `TIKTOK_*` until the owner
+  reads `legal.privacy.who.tiktok`. The access steps (developer app, intake form, reviews) are the owner's.
+  `tools/tiktok-webhook.mjs` is never run.
+- **Read, not seen:** the dead-token code 40105 is not confirmed from TikTok's own appendix. A code TikTok does not
+  document here is a refusal that is not retried.
+- **Verification:** pre-pilot 14/14 before and after (the send gate and the worker changed); `tiktok.test.ts` (18);
+  `tests/integration/tiktok*.test.ts` (16). The count's guard switched off fails its test.
+- **Next, in the owner's order:** the six books items (one PR).
+
 ## The migration record is the migrator's alone (2026-10-26, 0214)
 
 The owner's order: first of three, ahead of TikTok and the books' limits.

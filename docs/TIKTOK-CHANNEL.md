@@ -1,7 +1,10 @@
 # TikTok — the channel plan (PLAN ONLY, nothing built)
 
-**Status (2026-10-24):** TikTok is in 100% (PHASE-5.md decision 8, the owner's override of 2026-10-23). This page is
-the plan: **nothing is built, no account exists, nothing was applied for, and no TikTok API was called.**
+**Status (2026-10-26): surface A BUILT against a recorded fake (0215); nothing has met TikTok.** No account exists, nothing
+was applied for, and no TikTok API was called. TikTok is a recipient the privacy page does NOT yet name, so the boot
+refuses its variables until the owner reads its privacy line (§4). What was built is §6.
+
+TikTok is in 100% (PHASE-5.md decision 8, the owner's override of 2026-10-23).
 
 **Decided (the owner, 2026-10-26): the DIRECT-MESSAGE path only (surface A).**
 - **TikTok Shop chat (B) is OUT:** its Customer Service API is partner-gated (1,000 authorised sellers), and Morocco
@@ -133,3 +136,45 @@ The channel shape is the one Telegram and Instagram already use. For surface A, 
 - **Then live:** the bar of decision 9 — built, tested against TikTok's sandbox if one is offered (NOT CONFIRMED that
   one is), proven live on deploy day.
 - **B (Shop chat), C (comments):** out of the plan (2026-10-26).
+
+## 6 · What was built (0215, 2026-10-26)
+
+Against a recorded fake of TikTok's documented answers (`tests/channels/tiktok-fake.ts`), on the owner's order (the
+direct-message path only; item 1 of three).
+
+- **The channel:** `tiktok` on all six channel lists; `CHANNEL_REGISTRY.tiktok` (never writes first, no receipts).
+- **The account:** `tiktok_accounts` holds a business's account (`open_id`, username) and ONE sealed grant (both
+  tokens and when each ends; `tools/rekey.mjs` knows the column). One live account per business and per account; row
+  security; no delete; a practice copy is refused one. `channel_credentials` routes `open_id` → the business.
+- **Connecting** (`/app/connect/tiktok/{start,callback,disconnect}`, owner only, behind the operator's stop and
+  first-connection approval):
+  - TikTok's own authorization URL with our state and `disable_auto_auth=1`;
+  - the code exchanged;
+  - all four messaging permissions required — fewer, and the grant is given straight back;
+  - an account another workspace holds is refused and given back;
+  - disconnecting revokes and says whether TikTok confirmed.
+- **Inbound** (`/webhook/tiktok`): the app's `Tiktok-Signature` checked (five minutes' tolerance) before anything is
+  read.
+  - A customer's text runs the one turn; an image or a shared post is named and handed to a person.
+  - The account's own sends are echoes: Nomi's own by the id recorded; the owner typing in TikTok (`APP`, `WEB`)
+    takes the conversation, as CH3; TikTok's automatic messages (`OTHERS`) are dropped.
+  - A message from the EEA, Switzerland or the UK carries no content: it is counted on the account (definer
+    `tiktok_note_delivery`) and the TikTok screen says so. The username is learnt the same way.
+- **Sending:** text through `/business/message/send/` from the business's own grant.
+  - The access token is renewed first when under five minutes are left, and the renewed grant kept at once.
+  - A token TikTok calls dead (40105, not confirmed from its appendix) is marked once, and nothing more goes from
+    it (`channel_unavailable`).
+- **TikTok's limits** (`src/core/channel/tiktokLimits.ts`): 10 after a first message; any number for 48 hours
+  after each reply; three after 48 hours of silence. Counted from the conversation's own messages, the owner's
+  included, and held by the send gate for everyone with its own reason, `tiktok_limit` (its words in five languages).
+- **The privacy page:** `legal.privacy.who.tiktok` written in five languages and shown only where the app is
+  configured. `recipients.ts` keeps TikTok `named: false` until the owner reads it.
+- **The operator's step:** `tools/tiktok-webhook.mjs` (dry run unless `--yes`) sets the app's DIRECT_MESSAGE
+  callback. Never run.
+- **Tests:**
+  - `tests/parity/tiktok.test.ts` (18);
+  - `tests/integration/tiktok.test.ts` (8, production composition);
+  - `tests/integration/tiktok-connect.test.ts` (8, the routes).
+  - The count's guard switched off fails its test.
+- **Not built:** reading images (`/media/download/`); assigning a conversation at TikTok; anything for surfaces B
+  and C (out).
