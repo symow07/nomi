@@ -22,3 +22,17 @@ export function backupFreshness(
   const hoursSince = (now.getTime() - latestUploadedAt.getTime()) / 3_600_000;
   return hoursSince > maxAgeHours ? { stale: true, hoursSince } : { stale: false, hoursSince };
 }
+
+/**
+ * 0217 — what the heartbeat says of the backups, from the newest completed run and the newest failed one
+ * (backup_failures, written by the job itself). A failure newer than the last good run is the last backup failing —
+ * news now, not 36 hours later; a prune that did not finish after its copy was recorded counts too, because somebody
+ * must look. Neither ever: this installation runs no scheduled backup, and nothing is judged.
+ */
+export type BackupState = 'none' | 'fresh' | 'stale' | 'failed';
+
+export function backupState(lastRunAt: Date | null, lastFailureAt: Date | null, now: Date): BackupState {
+  if (!lastRunAt && !lastFailureAt) return 'none';
+  if (lastFailureAt && (!lastRunAt || lastFailureAt.getTime() > lastRunAt.getTime())) return 'failed';
+  return backupFreshness(lastRunAt, now).stale ? 'stale' : 'fresh';
+}

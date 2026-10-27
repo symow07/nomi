@@ -98,7 +98,7 @@ describe('0165 · wired where it is read', () => {
     expect(main).not.toMatch(/model = \(await providerRefusing\(db\)\) \? 'refusing' : 'answering'/);
     // 0166 — the heartbeat fails when nobody writes replies (`serving`), the fallback counted when it is on.
     expect(src('src/worker/heartbeat.ts')).toContain(": o.model ? { probeModel: async () => (await readModelView(o.db, o.model!)).serving !== 'none' } : {}),");
-    expect(src('src/main.ts')).toContain('db: prod.db, model: prod.primaryModel });');
+    expect(src('src/main.ts')).toContain('db: prod.db, model: prod.primaryModel, alarms: prod.alarms });');
   });
   it('the check runs every five minutes and once at boot; every client the app builds is timed', () => {
     const main = src('src/main.ts');

@@ -197,8 +197,8 @@ describe('the wiring', () => {
 
   it('the CLI starts the heartbeat AFTER the server listens, with the validated address and port', () => {
     const listen = main.indexOf('await prod.app.listen(');
-    // 0165 — with the model it asks about (what /health asks about).
-    const start = main.indexOf('await startHeartbeat(prod.boss, { url: v.cfg.HEALTH_PING_URL ?? null, port: v.cfg.PORT, db: prod.db, model: prod.primaryModel })');
+    // 0165 — with the model it asks about (what /health asks about); 0217 — and the alarms it must not stay green through.
+    const start = main.indexOf('await startHeartbeat(prod.boss, { url: v.cfg.HEALTH_PING_URL ?? null, port: v.cfg.PORT, db: prod.db, model: prod.primaryModel, alarms: prod.alarms })');
     expect(listen).toBeGreaterThan(-1);
     expect(start).toBeGreaterThan(listen);
   });

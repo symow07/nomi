@@ -29,6 +29,24 @@ Then it pings `HEALTH_PING_URL` — or `HEALTH_PING_URL/fail` when either check
 failed (Healthchecks.io's failure signal). The ping has a 10 s limit, never
 stops the app, and the address is never written to a log.
 
+**Since 0217 it also fails on what must not stay green** (2026-10-22: the
+backup's upload was refused, the app's alert went into a mailbox Google had
+revoked, and the heartbeat stayed green for two days). The tick pings `/fail`,
+and logs which, while any of these holds (`src/pipeline/alarms.ts`):
+
+- the last scheduled backup **failed** (a `backup_failures` row newer than the
+  newest completed run), or none completed in 36 hours;
+- **the operator's own mailbox** — the way the operator's alerts leave — must
+  be connected again (asked only where `SYSTEM_SMTP_*` is set);
+- an operator alert or an account letter **reached nobody** and is still being
+  tried (`undelivered_alerts`: kept, tried again every hour at :45 for seven
+  days, closed the first time a way works — or when what it said stopped being
+  true: a backup completed since, the mailbox connected again).
+
+An alarm about Nomi's mail must not travel by Nomi's mail alone: this one is
+Healthchecks.io's e-mail. Railway's deploy check (`/health`) is unchanged, so
+none of these can block a deploy.
+
 **The point is the silence.** If the process dies, the database goes, or the
 job queue (pg-boss, which runs the five-minute tick) stops, the pings simply
 stop — and Healthchecks.io, which is not on Railway, e-mails you when the
@@ -168,10 +186,13 @@ Run it again.
   That is still caught: Healthchecks.io is outside Railway, so the missing
   pings are an alert. What you will not get is Nomi's own error e-mail — the
   thing that would send it is down too.
-- **The mail sender failing.** Error alerts leave through the installation's
-  own sender (A3: the connected mailbox, then SMTP). If that is broken, the
-  alert is logged as not delivered and — with no live WhatsApp — goes
-  nowhere. The heartbeat does not depend on it.
+- **The mail sender failing** — covered since 0217. An alert every way of
+  which failed (e-mail, WhatsApp, the owner's phones) is kept in
+  `undelivered_alerts`, tried again hourly, and fails the heartbeat while it
+  waits; the operator's mailbox needing to be connected again fails the
+  heartbeat at once, and every workspace's dead mailbox is told to its owner
+  once (`mailbox_disconnected`). What is still not covered: a sender that says
+  it sent and did not.
 - **Deployment mode** (no channel configured at all): errors are recorded,
   but nothing consumes the alert queue, so none is e-mailed; `tools/errors.mjs`
   still lists them. A queued alert expires after a day.

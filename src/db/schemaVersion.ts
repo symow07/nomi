@@ -464,7 +464,9 @@ import type { Db } from './client.js';
 // 213 = Google Sheets' grants kept track of like QuickBooks' and Xero's, each with its own life there (0213).
 // 214 = the migration record is the migrator's alone: the app role reads it and may not write it (0214).
 // 215 = TikTok direct messages: the channel on every list, a business's own account and its sealed grant (0215).
-export const REQUIRED_SCHEMA_VERSION = 216;
+// 216 = the books' disclosed limits lifted: a draft edited, a price lowered, a payment across currencies, a bank's columns kept, the opening journal (0216).
+// 217 = an alarm that reaches somebody: failed backups recorded, a dead mailbox told once, an undelivered alert kept and tried again (0217).
+export const REQUIRED_SCHEMA_VERSION = 217;
 
 export type SchemaState = {
   readonly required: number;

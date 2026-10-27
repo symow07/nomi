@@ -313,6 +313,7 @@ export const RULES = Object.freeze({
   mail_accounts: { do: 'unrelated' },
   meta_accounts: { do: 'unrelated' },
   tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
+  undelivered_alerts: { do: 'unrelated' },   // 0217 — an operator alert or account letter that reached nobody; no customer in it
   whatsapp_accounts: { do: 'unrelated' },
   whatsapp_templates: { do: 'unrelated' },
   sending_domains: { do: 'unrelated' },

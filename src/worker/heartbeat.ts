@@ -40,6 +40,12 @@ export type HeartbeatDeps = {
    * be written, so the check is marked failed and the operator hears it from outside Railway too. Absent: not asked.
    */
   readonly probeModel?: () => Promise<boolean>;
+  /**
+   * 0217 — what must not stay green: a failed or missing backup, the operator's mailbox dead, an alert that reached
+   * nobody (src/pipeline/alarms.ts). Each reason is a line for the log; none means nothing to say. A throw or
+   * silence is a reason too. Absent: not asked.
+   */
+  readonly alarms?: () => Promise<readonly string[]>;
   readonly fetch: PingFetch;
   readonly log: (line: string) => void;
   /** Each probe's own limit; a probe that has not answered by then has failed. Default 5 s. */
@@ -70,6 +76,20 @@ async function within(probe: () => Promise<boolean>, ms: number): Promise<boolea
   }
 }
 
+/** The reasons `probe` gives within `ms`; a throw or silence is itself one. */
+async function reasonsWithin(probe: () => Promise<readonly string[]>, ms: number): Promise<readonly string[]> {
+  const silent = ['the alarm checks did not answer'];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      probe().then((r) => (Array.isArray(r) ? r : silent), () => silent),
+      new Promise<readonly string[]>((resolve) => { timer = setTimeout(() => resolve(silent), ms); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /** A name for why a ping failed that cannot quote the address: `TimeoutError`, `TypeError`… */
 const reasonOf = (e: unknown): string =>
   (typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string'
@@ -83,13 +103,15 @@ const reasonOf = (e: unknown): string =>
 export async function heartbeatTick(deps: HeartbeatDeps): Promise<HeartbeatOutcome> {
   if (!deps.url) return 'off';
   const limit = deps.probeTimeoutMs ?? 5_000;
-  const [db, http, model] = await Promise.all([within(deps.probeDb, limit), within(deps.probeHttp, limit),
-    deps.probeModel ? within(deps.probeModel, limit) : Promise.resolve(true)]);
-  const healthy = db && http && model;
+  const [db, http, model, alarms] = await Promise.all([within(deps.probeDb, limit), within(deps.probeHttp, limit),
+    deps.probeModel ? within(deps.probeModel, limit) : Promise.resolve(true),
+    deps.alarms ? reasonsWithin(deps.alarms, limit) : Promise.resolve([] as readonly string[])]);
+  const healthy = db && http && model && alarms.length === 0;
   const state = healthy ? 'healthy' : `unhealthy (${[
     db ? null : 'the database did not answer',
     http ? null : '/health did not answer on loopback',
     model ? null : 'the model provider is not answering (see /health)',
+    ...alarms,
   ].filter(Boolean).join('; ')})`;
   let target: string;
   try {
@@ -133,6 +155,8 @@ export async function startHeartbeat(
     readonly probeDb?: () => Promise<boolean>;
     /** Tests only; production reads what /health reads (`readModelView`). */
     readonly probeModel?: () => Promise<boolean>;
+    /** 0217 — the reasons the heartbeat must fail though the app answers (src/pipeline/alarms.ts). */
+    readonly alarms?: () => Promise<readonly string[]>;
     readonly fetch?: PingFetch;
     readonly log?: (line: string) => void;
   },
@@ -159,6 +183,7 @@ async function scheduleHeartbeat(
   o: {
     readonly port: number; readonly db: Db; readonly model?: ConfiguredModels;
     readonly probeDb?: () => Promise<boolean>; readonly probeModel?: () => Promise<boolean>; readonly fetch?: PingFetch;
+    readonly alarms?: () => Promise<readonly string[]>;
   },
   url: string, log: (line: string) => void,
 ): Promise<'on'> {
@@ -169,6 +194,7 @@ async function scheduleHeartbeat(
     probeHttp: loopbackHealth(o.port, fetchImpl),
     fetch: fetchImpl,
     log,
+    ...(o.alarms ? { alarms: o.alarms } : {}),
     ...(o.probeModel ? { probeModel: o.probeModel }
       : o.model ? { probeModel: async () => (await readModelView(o.db, o.model!)).serving !== 'none' } : {}),
   };
