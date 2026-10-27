@@ -63,8 +63,10 @@ describe('the daily check is wired, and the alert can leave by e-mail', () => {
     expect(main).toMatch(/boss\.schedule\(QUEUES\.backups, '30 6 \* \* \*'/);
     // MAIL — owner alerts by the capped sender; the operator's (the backup alert among them) by the installation's own.
     // Phase 8 of the warmth run — and whether Meta approved Nomi, which only the two interruptions read.
-    expect(main).toMatch(/deliverOwnerAlert\(\{ db, adapter: adapter \?\? noNumberForAlerts, mail: alertMail, operatorMail: systemMail, publicBaseUrl: cfg\.PUBLIC_BASE_URL \?\? null, push: pushOut, whatsappApproved \}/);
-    expect(main).toContain("const whatsappApproved = metaReviewFrom(process.env).state === 'approved';");
+    // 0217 — one composition for the queue's worker and the hourly retry (`notifyDeps`).
+    expect(main).toContain('db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail,');
+    expect(main).toContain("publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut, whatsappApproved: metaReviewFrom(process.env).state === 'approved',");
+    expect(main).toContain('await deliverOwnerAlert(notifyDeps(), job.data);');
     expect(main).toMatch(/kind: 'backup_stale'/);
   });
 });

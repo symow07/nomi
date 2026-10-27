@@ -276,8 +276,8 @@ export type NotifyJob = {
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
-    | 'deploy_behind' | 'deploy_caught_up'   // 0167 — production an hour behind main, and caught up again
-    | 'backup_failed' | 'mailbox_disconnected';   // 0217 — a scheduled backup failed; a mailbox's grant died
+    | 'deploy_behind' | 'deploy_caught_up'
+    | 'backup_failed' | 'mailbox_disconnected';   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;

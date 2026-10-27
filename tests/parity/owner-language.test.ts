@@ -257,10 +257,13 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };
+    // 0217 — a failed backup names its run, its step and the job's words; a dead mailbox its address.
+    const backupFailed = { step: 'uploading the copy', reason: 'upload', address: 'ops@example.com' };
     for (const locale of LOCALES) {
       for (const k of ALERT_KEYS) {
         const params = k.startsWith('notify.deletion_due') ? { ...base, ...deletion }
-          : k.startsWith('notify.meta_errors') ? { ...base, ...metaErrors } : base;
+          : k.startsWith('notify.meta_errors') ? { ...base, ...metaErrors }
+          : k.startsWith('notify.backup_failed') || k.startsWith('notify.mailbox_disconnected') ? { ...base, ...backupFailed } : base;
         expect(t(locale, k, params), `${locale} ${k}`).not.toContain('{');
       }
     }

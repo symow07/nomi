@@ -148,7 +148,7 @@ const INDIRECT: Record<string, string> = {
   login_codes: 'x.login_id in (select id from logins where business_id = any($1::uuid[]))',
 };
 /** Tables that belong to no business at all. */
-const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_sends', 'installation_limits', 'spend_breaker_alerts', 'signup_settings', 'signup_throttles', 'plans', 'billing_settings',
+const GLOBAL = new Set(['_migrations', 'backup_runs', 'backup_failures', 'signup_invites', 'mail_sends', 'installation_limits', 'spend_breaker_alerts', 'signup_settings', 'signup_throttles', 'plans', 'billing_settings',
   // 0126 — the ids-only record of every erasure: the operator's, outliving any workspace, asserted on its own below.
   'erasure_ledger',
   // 0141 (D12) — which ledger lines the operator was mailed: ids only, the operator's, no business's.

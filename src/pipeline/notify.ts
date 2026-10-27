@@ -21,6 +21,7 @@ import { interruptionPeople, ownerAlertFacts, type InterruptionPerson } from '..
 import { morningFacts, morningSummaryDone } from '../db/morningSummary.js';
 import { morningLines } from '../core/owner/morningSummary.js';
 import { scrubSecrets } from '../core/ops/appErrors.js';
+import { loggableMessage } from '../security/loggable.js';
 import { backupTimes, mailboxState, markAlertDelivered, noteUndelivered, openUndeliveredAlerts, undeliveredJob } from '../db/alarms.js';
 import { backupState } from '../core/ops/backups.js';
 
@@ -65,7 +66,7 @@ export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error'
   'deploy_behind', 'deploy_caught_up',
   // 0217 — a scheduled backup failed: told within five minutes, not 36 hours later.
   'backup_failed'] as const satisfies readonly AlertKind[];
-/** 0217 — the steps backup/run.sh names (`backup_failures.step`), each with its words in `notify.backup_failed.step.*`. */
+/** 0217 — the steps backup/run.sh names (`backup_failures.step`), each with its words in `backup.failedStep.*`. */
 export const BACKUP_STEPS = ['read', 'dump', 'drill', 'encrypt', 'upload', 'prune', 'record'] as const;
 type BackupStep = typeof BACKUP_STEPS[number];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
@@ -444,7 +445,7 @@ export function renderOwnerAlert(
     const f = detail.backupFailure;
     return t(locale, 'notify.backup_failed', {
       name: f?.name ?? '—', when: f ? `${formatDate(locale, f.at, detail.zone ?? 'UTC')} ${formatTime(locale, f.at, detail.zone ?? 'UTC')}` : '—',
-      step: t(locale, `notify.backup_failed.step.${BACKUP_STEPS.includes(f?.step as BackupStep) ? f!.step : 'other'}` as MessageKey),
+      step: t(locale, `backup.failedStep.${BACKUP_STEPS.includes(f?.step as BackupStep) ? f!.step : 'other'}` as MessageKey),
       reason: f?.reason ?? '—',
     });
   }
@@ -699,7 +700,7 @@ export async function retryUndelivered(deps: NotifyDeps): Promise<{ readonly tri
     try {
       if (await deliverOwnerAlert(deps, job) === 'sent') delivered++;
     } catch (e) {
-      console.warn(`[notify] ${open.kind} alert, tried again: ${e instanceof Error ? e.message : String(e)}`);
+      console.warn(`[notify] ${open.kind} alert, tried again: ${loggableMessage(e instanceof Error ? e.message : String(e))}`);
     }
   }
   return { tried, delivered };

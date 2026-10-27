@@ -81,12 +81,12 @@ describe('the two new alerts', () => {
     for (const l of LOCALES) {
       const said = renderOwnerAlert(l, 'backup_failed', null, { backupFailure: { name: 'nomi-backup-20261022T030412Z', at, step: 'upload', reason: 'upload' }, zone: 'UTC' });
       expect(said, l).toContain('nomi-backup-20261022T030412Z');
-      expect(said, l).toContain(t(l, 'notify.backup_failed.step.upload'));
+      expect(said, l).toContain(t(l, 'backup.failedStep.upload'));
       expect(messages[l]['notify.backup_failed.subject'].length, l).toBeGreaterThan(0);
-      for (const s of [...BACKUP_STEPS, 'other'] as const) expect(messages[l][`notify.backup_failed.step.${s}`].length, `${l} ${s}`).toBeGreaterThan(0);
+      for (const s of [...BACKUP_STEPS, 'other'] as const) expect(messages[l][`backup.failedStep.${s}`].length, `${l} ${s}`).toBeGreaterThan(0);
       // a step the job did not name is said as "running", never as a raw key
       expect(renderOwnerAlert(l, 'backup_failed', null, { backupFailure: { name: 'n', at, step: 'weird', reason: 'r' } }), l)
-        .toContain(t(l, 'notify.backup_failed.step.other'));
+        .toContain(t(l, 'backup.failedStep.other'));
       const mailbox = renderOwnerAlert(l, 'mailbox_disconnected', null, { mailbox: { address: 'ops@example.com', since: at }, zone: 'UTC' });
       expect(mailbox, l).toContain('ops@example.com');
       expect(messages[l]['notify.mailbox_disconnected.subject'].length, l).toBeGreaterThan(0);
