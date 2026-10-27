@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { withTenantTx, type Db } from '../db/client.js';
+import { withTenantTx, type Db, type Tx } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
 import { t, capabilityName, steppedName, type MessageKey } from '../core/owner/i18n/messages.js';
@@ -15,11 +15,14 @@ import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
-import { archivePhone, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
+import { archivePhone, livePhones, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
 import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
 import { interruptionPeople, ownerAlertFacts, type InterruptionPerson } from '../db/alertChannel.js';
 import { morningFacts, morningSummaryDone } from '../db/morningSummary.js';
 import { morningLines } from '../core/owner/morningSummary.js';
+import { scrubSecrets } from '../core/ops/appErrors.js';
+import { backupTimes, mailboxState, markAlertDelivered, noteUndelivered, openUndeliveredAlerts, undeliveredJob } from '../db/alarms.js';
+import { backupState } from '../core/ops/backups.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -59,7 +62,12 @@ export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error'
   // 0128 — the model provider refused for billing (escalating), answers again, or its balance runs low.
   'provider_refusing', 'provider_answering', 'provider_balance',
   // 0167 — production an hour behind main, and caught up again.
-  'deploy_behind', 'deploy_caught_up'] as const satisfies readonly AlertKind[];
+  'deploy_behind', 'deploy_caught_up',
+  // 0217 — a scheduled backup failed: told within five minutes, not 36 hours later.
+  'backup_failed'] as const satisfies readonly AlertKind[];
+/** 0217 — the steps backup/run.sh names (`backup_failures.step`), each with its words in `notify.backup_failed.step.*`. */
+export const BACKUP_STEPS = ['read', 'dump', 'drill', 'encrypt', 'upload', 'prune', 'record'] as const;
+type BackupStep = typeof BACKUP_STEPS[number];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -86,6 +94,8 @@ export const goesByMail = (kind: AlertKind): boolean =>
   isOperatorAlert(kind)
   // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
   || kind === 'connection_approved' || kind === 'connection_refused'
+  // 0217 — the workspace's mailbox can no longer send: its letters, and its owner's e-mail, wait on it.
+  || kind === 'mailbox_disconnected'
   // BILL — money: the trial ending, a failed payment, the hold, a plan's month used.
   || isBillingAlert(kind);
 
@@ -236,6 +246,10 @@ export type OperatorAlertDetail = {
   readonly appError?: AppErrorAlertJob | null;
   /** `meta_errors` (CEIL): the workspaces over the line, the worst first. */
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
+  /** 0217 — `backup_failed`: the run, when, its step and the job's words. */
+  readonly backupFailure?: { readonly name: string; readonly at: Date; readonly step: string; readonly reason: string };
+  /** 0217 — `mailbox_disconnected`: the mailbox, and since when it cannot send. */
+  readonly mailbox?: { readonly address: string; readonly since: Date };
   /** 0167 — what production runs, main's head, how long it has waited, and its first line. */
   readonly deploy?: { readonly running: string; readonly main: string; readonly minutes: number; readonly title: string };
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
@@ -425,6 +439,21 @@ export function renderOwnerAlert(
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
       ...forms, ...check, ...cohort, ...mail, ...approvals, ...flags].join('\n');
   }
+  // 0217 — which run failed, when, at which step, in the job's own words; then what still stands.
+  if (kind === 'backup_failed') {
+    const f = detail.backupFailure;
+    return t(locale, 'notify.backup_failed', {
+      name: f?.name ?? '—', when: f ? `${formatDate(locale, f.at, detail.zone ?? 'UTC')} ${formatTime(locale, f.at, detail.zone ?? 'UTC')}` : '—',
+      step: t(locale, `notify.backup_failed.step.${BACKUP_STEPS.includes(f?.step as BackupStep) ? f!.step : 'other'}` as MessageKey),
+      reason: f?.reason ?? '—',
+    });
+  }
+  if (kind === 'mailbox_disconnected') {
+    const m = detail.mailbox;
+    return t(locale, 'notify.mailbox_disconnected', {
+      address: m?.address ?? '—', when: m ? formatDate(locale, m.since, detail.zone ?? 'UTC') : '—',
+    });
+  }
   // 0167 — production behind main: what runs, what waits, since when; then caught up.
   if (kind === 'deploy_behind' || kind === 'deploy_caught_up') {
     const d = detail.deploy ?? { running: '—', main: '—', minutes: 0, title: '' };
@@ -512,22 +541,32 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
 type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
-  | 'connection_approved' | 'connection_refused'
+  | 'connection_approved' | 'connection_refused' | 'mailbox_disconnected'
   | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number] | typeof DAILY_KINDS[number]>;
 const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
 void everyKindClassified;
 
 /**
  * An operator alert (the backup alert first), or one of the account's letters
- * (`goesByMail`): e-mail first, WhatsApp too where it can actually arrive.
+ * (`goesByMail`): e-mail first, WhatsApp too where it can actually arrive, and
+ * (0217) the owner's phones where phone alerts are on.
  *
  * Outcome is `sent` when at least one way delivered; `failed_permanent` when
  * every way that existed failed; `skipped_no_destination` when there was no
- * way at all (no login e-mail, no sender, and no live number) — which the log
- * line makes visible, since an alert about missing backups that has nowhere
+ * way at all (no login e-mail, no sender, no live number, no phone) — which the
+ * log line makes visible, since an alert about missing backups that has nowhere
  * to go is itself something the operator needs to know.
+ *
+ * 0217 — AN ALERT THAT REACHED NOBODY IS KEPT (`undelivered_alerts`) and tried
+ * again every hour for seven days (`retryUndelivered`); while one is open the
+ * heartbeat pings its /fail, so the operator hears from outside Nomi. On
+ * 2026-10-23 the backup alert's only way out was a mailbox Google had revoked,
+ * and the refusal was one warning line. An operator alert with nowhere at all
+ * to go is kept too; an account letter with nowhere to go is not (its owner set
+ * up no way, and no hour will change that).
  */
 async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+  const push = deps.push ?? null;
   const found = await withTenantTx(deps.db, bid, async (tx) => {
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
       select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
@@ -536,6 +575,7 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
       zone: await zoneOf(tx, bid),
       email: await ownerLoginEmail(tx, bid),
       live: row?.owner_phone ? await channelIsLive(tx, bid) : false,
+      phones: push ? await ownerPhones(tx, bid) : [],
     };
   });
   if (!found.row) return 'skipped_no_destination';
@@ -545,26 +585,124 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   // KS6 — an approval opens Channels, where the first channel can now connect.
   const opens = job.kind === 'self_demoted' ? SELF_DEMOTION_PAGE
     : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE
+    // 0217 — a dead mailbox opens the e-mail channel page, where it is connected again.
+    : job.kind === 'mailbox_disconnected' ? '/app/channels/email'
     : isBillingAlert(job.kind) ? BILLING_PAGE : null;
   const body = opens && deps.publicBaseUrl
     ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
 
   let tried = 0; let sent = 0;
+  const why: string[] = [];
+  let retryLater: string | null = null;
+  const subject = t(locale, operatorSubjectKey(job));
   // MAIL — the operator's alerts by the operator's mailbox; an owner's by the sender strangers' mail uses.
   const mail = isOperatorAlert(job.kind) ? (deps.operatorMail ?? deps.mail) : deps.mail;
   if (mail && found.email) {
     tried++;
-    const r = await mail.send({ to: found.email, subject: t(locale, operatorSubjectKey(job)), text: body });
-    if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
+    const r = await mail.send({ to: found.email, subject, text: body });
+    if (r.ok) sent++; else { console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`); why.push(`e-mail: ${r.error}`); }
   }
   if (found.live && found.row.owner_phone) {
     tried++;
     const r = await deps.adapter.sendText(found.row.owner_phone, body);
     if (r.ok) sent++;
-    else if (r.retryable && sent === 0) throw new Error(`owner alert send failed (retryable): ${r.error}`);
+    else {
+      // 0217 — said, whichever kind of refusal: until then a refusal that would not change was silent.
+      console.warn(`[notify] ${job.kind} WhatsApp alert failed: ${r.error}`);
+      why.push(`WhatsApp: ${r.error}`);
+      if (r.retryable) retryLater = r.error;
+    }
   }
-  if (tried === 0) { console.warn(`[notify] ${job.kind} alert has nowhere to go: no login e-mail or sender, and no live number`); return 'skipped_no_destination'; }
-  return sent > 0 ? 'sent' : 'failed_permanent';
+  // 0217 — the owner's phones (G5b), where phone alerts are on: a way out that needs no mailbox and no WhatsApp.
+  if (push && found.phones.length > 0) {
+    tried++;
+    const way = await phoneWay(deps, bid, job.kind, found.phones, { title: subject, body: words, url: null });
+    if (way === 'sent') sent++; else why.push(`phone: ${way === 'later' ? 'no answer' : 'refused'}`);
+  }
+  if (sent > 0) {
+    await withTenantTx(deps.db, bid, (tx) => markAlertDelivered(tx, bid, job.kind));
+    return 'sent';
+  }
+  if (tried === 0) {
+    console.warn(`[notify] ${job.kind} alert has nowhere to go: no login e-mail or sender, no live number, no phone`);
+    if (isOperatorAlert(job.kind)) await keepUndelivered(deps, bid, job, 'nowhere to go: no sign-in e-mail or sender, no live number, no phone');
+    return 'skipped_no_destination';
+  }
+  await keepUndelivered(deps, bid, job, why.join('; '));
+  // A WhatsApp refusal that may pass later goes back to the queue, as before; the row is kept either way.
+  if (retryLater) throw new Error(`owner alert send failed (retryable): ${retryLater}`);
+  return 'failed_permanent';
+}
+
+/** 0217 — nobody was reached: kept, with why (no secret, no address), to be tried again. */
+async function keepUndelivered(deps: NotifyDeps, bid: BusinessId, job: NotifyJob, why: string): Promise<void> {
+  await withTenantTx(deps.db, bid, (tx) => noteUndelivered(tx, bid, job.kind, job, scrubSecrets(why)));
+}
+
+/** The owner's phones: those turned on by the owner, or through the owner's access code (no person). */
+async function ownerPhones(tx: Tx, bid: BusinessId): Promise<PhoneSubscription[]> {
+  const owner = (await sql<{ id: string }>`
+    select id::text as id from people where business_id = ${bid} and is_owner and archived_at is null limit 1`.execute(tx)).rows[0];
+  return (await livePhones(tx, bid)).filter((p) => p.personId === null || p.personId === owner?.id);
+}
+
+/** One message to these phones: sent when any took it; a phone the push service says is gone is archived. */
+async function phoneWay(deps: NotifyDeps, bid: BusinessId, kind: AlertKind, phones: readonly PhoneSubscription[],
+  message: { readonly title: string; readonly body: string; readonly url: string | null }): Promise<WayResult> {
+  const push = deps.push;
+  if (!push) return 'failed';
+  let result: WayResult = 'failed';
+  for (const phone of phones) {
+    const sent = await sendPush(phone, message, push.keys, push.fetch);
+    if (sent.kind === 'sent') { result = 'sent'; await withTenantTx(deps.db, bid, (tx) => markPhoneSent(tx, phone.id)); }
+    else if (sent.kind === 'gone') await withTenantTx(deps.db, bid, (tx) => archivePhone(tx, bid, phone.id, 'gone'));
+    else {
+      console.warn(`[notify] ${kind} phone alert failed (${sent.status ?? 'no answer'})`);
+      if (sent.retryable && result === 'failed') result = 'later';
+    }
+  }
+  return result;
+}
+
+/** 0217 — is what this alert says still so? Only two kinds can stop being true on their own; the rest always are. */
+async function stillTrue(db: Db, bid: BusinessId, job: NotifyJob): Promise<boolean> {
+  if (job.kind === 'backup_failed' || job.kind === 'backup_stale') {
+    const { lastRunAt, lastFailure } = await backupTimes(db);
+    return backupState(lastRunAt, lastFailure?.failedAt ?? null, new Date()) !== 'fresh';
+  }
+  if (job.kind === 'mailbox_disconnected') {
+    const account = await withTenantTx(db, bid, (tx) => mailboxState(tx, bid));
+    return account !== null && account.needsAttention !== null && account.address === job.mailbox?.address;
+  }
+  return true;
+}
+
+/**
+ * 0217 — every hour: each alert that reached nobody, not tried within the hour, from the last seven days, is
+ * delivered again as it stood (its newest job). A way that works marks it delivered; one that fails counts the try.
+ * Never throws: one alert's trouble does not stop the others.
+ */
+export async function retryUndelivered(deps: NotifyDeps): Promise<{ readonly tried: number; readonly delivered: number }> {
+  let tried = 0; let delivered = 0;
+  for (const open of await openUndeliveredAlerts(deps.db, '55 minutes')) {
+    const bid = parseBusinessId(open.businessId);
+    if (!bid.ok) continue;
+    const job = await withTenantTx(deps.db, bid.value, (tx) => undeliveredJob(tx, open.id)) as NotifyJob | null;
+    if (!job || job.businessId !== open.businessId || job.kind !== open.kind) continue;
+    // What it says may have stopped being true while it waited: a backup has completed since, the mailbox is
+    // connected again. Then it is closed, never sent — a stale alarm is noise, and the heartbeat is green again.
+    if (!await stillTrue(deps.db, bid.value, job)) {
+      await withTenantTx(deps.db, bid.value, (tx) => markAlertDelivered(tx, bid.value, job.kind));
+      continue;
+    }
+    tried++;
+    try {
+      if (await deliverOwnerAlert(deps, job) === 'sent') delivered++;
+    } catch (e) {
+      console.warn(`[notify] ${open.kind} alert, tried again: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { tried, delivered };
 }
 
 /** How one way out went: delivered, refused for good, or worth trying again later. */
@@ -790,6 +928,9 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.spend ? { spend: job.spend } : {}),
     // 0167 — production behind main, and caught up.
     ...(job.deploy ? { deploy: job.deploy } : {}),
+    // 0217 — a failed backup; a dead mailbox.
+    ...(job.backupFailure ? { backupFailure: { ...job.backupFailure, at: new Date(job.backupFailure.at) } } : {}),
+    ...(job.mailbox ? { mailbox: { address: job.mailbox.address, since: new Date(job.mailbox.since) } } : {}),
     ...(job.providerRefusal ? { providerRefusal: {
       provider: job.providerRefusal.provider, since: new Date(job.providerRefusal.since), step: job.providerRefusal.step,
       words: job.providerRefusal.words, ...(job.providerRefusal.until ? { until: new Date(job.providerRefusal.until) } : {}),

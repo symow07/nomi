@@ -13,6 +13,24 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## An alarm that reaches somebody (2026-10-27, 0217)
+
+- **Found while restoring production:** the 10-22 03:04 backup's upload was refused (the bucket's keys had changed;
+  the 10-12 deployment held the old ones). The app saw the backup stale on 10-23 and 10-24 and e-mailed the operator
+  through the Gmail mailbox Google had revoked at 10-22 18:41; the refusal was one warning line, a WhatsApp refusal
+  wrote nothing, and the heartbeat stayed green. Nobody heard. The backup service was redeployed from main
+  (`ee296da7`) the same day; its keys list the bucket again.
+- **Built (the owner's approval, fixes 1–4):** the heartbeat fails on a failed or missing backup, the operator's
+  mailbox dead, or an alert that reached nobody (`src/pipeline/alarms.ts`); a dead mailbox is told to its owner once
+  (`mailbox_disconnected`); an operator alert or account letter that reached nobody is kept (`undelivered_alerts`),
+  said in the log whatever refused it, tried again hourly for seven days, closed when a way works or when it stopped
+  being true; the owner's phones are a way out for these alerts too; `backup/run.sh` writes `backup_failures` before
+  its `/fail` ping, and the operator is told within five minutes (`backup_failed`). Tests:
+  `tests/parity/alarms-reach-owner.test.ts`, `tests/integration/alarms-reach-owner.test.ts` (the record and the
+  "still true" check each switched off fail their own).
+- **Fix 5, proposed and the owner's:** a dedicated sending service (`MAIL_*`), so one revoked Google grant no
+  longer silences the mail strangers cause. Not blocking.
+
 ## Production stopped; the move off railway.json (2026-10-27)
 
 - **Found, read-only:** `app.nomidoes.com` answers Railway's "Application not found". The last deployments of `nomi`

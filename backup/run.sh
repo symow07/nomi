@@ -16,14 +16,22 @@
 #   6. record a row in backup_runs (what the app's stale-backup alert reads),
 #             then ping the dead-man's switch
 #
+# A RUN THAT FAILS SAYS SO TWICE (0217). It writes a row in backup_failures —
+# its name, the step it was on, why — and then pings /fail. The app reads the
+# row: the heartbeat fails, and the operator is told within five minutes, by
+# every way the app has. Before 0217 only the ping knew, and the app learned of
+# a failure 36 hours later by the absence of a good run (2026-10-22: the upload
+# was refused, and nobody heard).
+#
 # CONNECTION. Everything comes from the environment as Railway reference
 # variables — PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE from the Postgres
 # service, ACCESS_KEY_ID/SECRET_ACCESS_KEY/ENDPOINT/BUCKET from the bucket.
 # No URL is built and nothing secret is ever an argument to a command
 # (tests/parity/no-secret-in-argv.test.ts).
 #
-# Any failure exits non-zero: Railway shows the run as failed, the /fail ping
-# fires if a ping URL is set, and nothing half-made reaches the bucket.
+# Any failure exits non-zero: Railway shows the run as failed, backup_failures
+# gets its row, the /fail ping fires if a ping URL is set, and nothing
+# half-made reaches the bucket.
 set -uo pipefail
 
 : "${PGHOST:?}" "${PGPORT:?}" "${PGUSER:?}" "${PGPASSWORD:?}" "${PGDATABASE:?}"
@@ -52,7 +60,19 @@ mkdir -p "$STAGE"
 trap 'rm -rf "$WORK"' EXIT
 
 ping() { [ -n "$PING" ] && curl -fsS -m 10 --retry 2 -o /dev/null "$PING$1" ${2:+--data-raw "$2"} || true; }
-fail() { echo "FAILED: $*" >&2; ping /fail "$*"; exit 1; }
+# The step the run is on, for backup_failures: read, dump, drill, encrypt,
+# upload, prune, record (the table's own list).
+STEP=read
+# Best effort, and bounded: a database that cannot be reached is often WHY the
+# run failed, and then the ping below is the only word that leaves.
+note_failure() {
+  PGOPTIONS="-c statement_timeout=10000" "$PGBIN/psql" -v ON_ERROR_STOP=1 -q \
+    -v name="$NAME" -v step="$STEP" -v reason="$1" >/dev/null 2>&1 <<'SQL' \
+    || echo "    the failure could not be written to backup_failures either" >&2
+insert into backup_failures (name, step, reason) values (:'name', :'step', left(:'reason', 500));
+SQL
+}
+fail() { echo "FAILED: $*" >&2; note_failure "$*"; ping /fail "$*"; exit 1; }
 ping /start
 
 # ── 1 · dump ────────────────────────────────────────────────────────────────
@@ -70,6 +90,7 @@ DB_EPOCH="$("$PGBIN/psql" -tAc 'select extract(epoch from now())::bigint' 2>/dev
 CLOCK_OFFSET=""
 case "$DB_EPOCH" in ''|*[!0-9]*) ;; *) CLOCK_OFFSET=$(( DB_EPOCH - $(date -u +%s) )) ;; esac
 
+STEP=dump
 "$PGBIN/pg_dumpall" --roles-only -l "$PGDATABASE" -f "$STAGE/roles-$TS.sql" || fail "roles dump"
 grep -qE "CREATE ROLE $RUNTIME_ROLE([^a-zA-Z0-9_]|$)" "$STAGE/roles-$TS.sql" \
   || fail "roles file does not contain $RUNTIME_ROLE — a restore would lose every RLS policy"
@@ -108,11 +129,13 @@ echo "    $DUMP_BYTES bytes, schema $SCHEMA_V, role $RUNTIME_ROLE"
 # checks. It exits non-zero unless all four pass, and (d) — isolation denies
 # with no tenant context — is the one that catches a roles-less restore.
 echo "[2/6] restore drill"
+STEP=drill
 PGBIN="$PGBIN" bash /app/verify-restore.sh "$STAGE" || fail "restore drill did not pass — this dump is NOT uploaded"
 echo "restore_drill:   passed 4/4 in the backup container" >> "$STAGE/MANIFEST.txt"
 
 # ── 3 · encrypt ─────────────────────────────────────────────────────────────
 echo "[3/6] encrypting (recipient ${AGE_RECIPIENT:0:16}…)"
+STEP=encrypt
 ENC="$STAGE/encrypted"; mkdir -p "$ENC"
 for f in "$STAGE/roles-$TS.sql" "$STAGE/nomi-$TS.dump" "$STAGE/MANIFEST.txt"; do
   age -r "$AGE_RECIPIENT" -o "$ENC/$(basename "$f").age" "$f" || fail "age failed on $(basename "$f")"
@@ -120,6 +143,7 @@ done
 
 # ── 4 · upload ──────────────────────────────────────────────────────────────
 echo "[4/6] uploading to $BUCKET/daily/$NAME/"
+STEP=upload
 export RCLONE_CONFIG_BK_TYPE=s3 RCLONE_CONFIG_BK_PROVIDER=Other
 export RCLONE_CONFIG_BK_ACCESS_KEY_ID="$ACCESS_KEY_ID" RCLONE_CONFIG_BK_SECRET_ACCESS_KEY="$SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_BK_ENDPOINT="$ENDPOINT" RCLONE_CONFIG_BK_REGION="${REGION:-auto}"
@@ -154,6 +178,7 @@ if [ -n "$PRUNE_PROBLEM" ]; then echo "    THE PRUNE DID NOT FINISH: $PRUNE_PROB
 
 # ── 6 · record, then ping ───────────────────────────────────────────────────
 echo "[6/6] recording the run"
+STEP=record
 "$PGBIN/psql" -v ON_ERROR_STOP=1 -q \
   -v name="$NAME" -v taken="$TS" -v bytes="$DUMP_BYTES" -v sha="$DUMP_SHA" -v schema="$SCHEMA_V" <<'SQL' \
   || fail "could not record the run in backup_runs (is migration 0069 applied?)"
@@ -162,6 +187,7 @@ values (:'name', to_timestamp(:'taken', 'YYYYMMDD"T"HH24MISS"Z"') at time zone '
 SQL
 
 # The copy is safe and recorded; only now may a prune problem fail the run.
+STEP=prune
 [ -z "$PRUNE_PROBLEM" ] \
   || fail "$NAME is uploaded and recorded, but the prune did not finish: $PRUNE_PROBLEM (see [5/6])"
 ping "" "$PRUNE_SUMMARY"

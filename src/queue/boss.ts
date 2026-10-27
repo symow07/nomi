@@ -146,6 +146,8 @@ export const QUEUES = {
   allowance: 'ops.allowance',
   /** R5 — once a day: spot checks offered on work that went out alone. */
   spotChecks: 'trust.spot_checks',
+  /** 0217 — every hour: each operator alert or account letter that reached nobody, tried again (seven days). */
+  alertRetry: 'ops.alert_retry',
   /**
    * THE WARMTH RUN (0123) — every ten minutes: the photos of Instagram and
    * Messenger customers who are due a look (`faces_due`), fetched and kept
@@ -274,7 +276,8 @@ export type NotifyJob = {
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
-    | 'deploy_behind' | 'deploy_caught_up';   // 0167 — production an hour behind main, and caught up again
+    | 'deploy_behind' | 'deploy_caught_up'   // 0167 — production an hour behind main, and caught up again
+    | 'backup_failed' | 'mailbox_disconnected';   // 0217 — a scheduled backup failed; a mailbox's grant died
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -291,6 +294,10 @@ export type NotifyJob = {
    * the name, the day's counts and the provider's own words. Never a customer.
    */
   metaErrors?: { business: string; attempted: number; failed: number; errors: string[] }[];
+  /** 0217 — `backup_failed`: which run, when (ISO), the step it was on and the job's own words. */
+  backupFailure?: { name: string; at: string; step: string; reason: string };
+  /** 0217 — `mailbox_disconnected`: the mailbox, and since when (ISO) it cannot send. */
+  mailbox?: { address: string; since: string };
   /** 0167 — `deploy_behind` / `deploy_caught_up`: what production runs, main's head, minutes waited, its first line. */
   deploy?: { running: string; main: string; minutes: number; title: string };
   /** `signup_digest` only (G1): who signed up in the last day. Dates as ISO strings. */

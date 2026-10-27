@@ -63,7 +63,15 @@ service).
   with the key you hold. The fetch then prunes `~/nomi-private/backups` on the same
   180-day rule as `tools/backup.sh`; those two are the only things that ever
   prune the laptop's copies.
+- **If a run fails** (0217): before its `/fail` ping, the job writes a row in
+  `backup_failures` — the run's name, the step it was on (read, dump, drill,
+  encrypt, upload, prune, record) and why. The app reads it: within five
+  minutes the operator is told (`backup_failed`, by e-mail, WhatsApp and the
+  phone where each works), and the app's own heartbeat pings its `/fail`
+  until a later run completes — so Healthchecks.io says it from outside Nomi
+  even when Nomi's mail is down. A database the job cannot reach is often why
+  it failed; then the row cannot be written and the job's own ping is the word.
 - **If it stops running**: the app checks `backup_runs` daily at 06:30 UTC and,
   with nothing younger than 36 h, e-mails the owner (and WhatsApps too where a
-  channel is live). Healthchecks.io, if configured, alerts independently when
-  the ping is late.
+  channel is live); the heartbeat fails too from the 36th hour. Healthchecks.io,
+  if configured, alerts independently when the ping is late.

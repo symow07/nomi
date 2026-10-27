@@ -83,7 +83,8 @@ import { assistantNameOfConversation } from './db/assistants.js';
 import type { ChannelEvent, InboundMessageEvent } from './channels/whatsapp/parse.js';
 import { sendDueSurveys, surveyBusinessesDue } from './db/surveys.js';
 import type { SurveySigned } from './core/conversation/survey.js';
-import { deliverOwnerAlert, sendAlert, lateUrgentAlert } from './pipeline/notify.js';
+import { deliverOwnerAlert, sendAlert, lateUrgentAlert, retryUndelivered, type NotifyDeps } from './pipeline/notify.js';
+import { alarmReasons, backupFailureAlerts, mailboxAlerts } from './pipeline/alarms.js';
 import type { JobWithMetadata } from 'pg-boss';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
@@ -444,6 +445,8 @@ export type Production = {
   readonly reportError: ReportError;
   /** 0165 — the provider and model this deployment is configured for: what /health and the heartbeat ask about. */
   readonly primaryModel: ConfiguredModels;
+  /** 0217 — why the heartbeat must fail though the app answers: a backup, the operator's mailbox, an alert that reached nobody. */
+  readonly alarms: () => Promise<readonly string[]>;
   close(): Promise<void>;
 };
 
@@ -1101,6 +1104,8 @@ export async function buildProduction(
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'], primaryModel,
     channels: channelsHere, reportError: errors.report,
+    // 0217 — the operator's mailbox is asked only where the operator's mail leaves through one (SYSTEM_SMTP_*).
+    alarms: () => alarmReasons(db, { operatorBusinessId: PILOT_BUSINESS_ID, operatorMailbox: systemSmtp !== null }),
     async close() {
       if (closing) return;
       closing = true;
@@ -1635,6 +1640,11 @@ export async function buildProduction(
   const noNumberForAlerts = {
     sendText: async () => ({ ok: false as const, retryable: false, error: 'no WhatsApp adapter: owner alerts need a number' }),
   };
+  // One composition for every way an alert leaves (the queue's worker and the hourly retry).
+  const notifyDeps = (): NotifyDeps => ({
+    db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail,
+    publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut, whatsappApproved: metaReviewFrom(process.env).state === 'approved',
+  });
   await boss.work(QUEUES.notify, { includeMetadata: true }, async ([job]: JobWithMetadata<NotifyJob>[]) => {
     if (!job) return;
     // The owner's word after the 106 seconds (2026-10-13): an urgent alert that waited too long in the queue is
@@ -1645,10 +1655,15 @@ export async function buildProduction(
     // Phase 8 of the warmth run — WhatsApp is a way out of Nomi only once Meta
     // approved Nomi (`META_APP_REVIEW=approved:<date>`): the day it does, everyone
     // on the default notification way is on WhatsApp, with nothing rebuilt.
-    const whatsappApproved = metaReviewFrom(process.env).state === 'approved';
     // The backup alert also travels by the installation's own mail (A3), so
     // it reaches the owner with no channel connected at all.
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut, whatsappApproved }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert(notifyDeps(), job.data);   // throws on retryable failure → pg-boss retries
+  });
+  // 0217 — every hour: what reached nobody is tried again, as it stood, for seven days (`retryUndelivered`).
+  await boss.schedule(QUEUES.alertRetry, '45 * * * *', {});
+  await boss.work(QUEUES.alertRetry, async () => {
+    const r = await retryUndelivered(notifyDeps());
+    if (r.tried > 0) console.log(`[notify] ${r.tried} undelivered alert(s) tried again; ${r.delivered} delivered`);
   });
 
   // CH3 — a reply the owner typed in Instagram's or Messenger's own app. Our
@@ -1825,7 +1840,9 @@ export async function buildProduction(
     // BILL — a subscription for each workspace whose first channel connected with a card saved; then its e-mails, each once.
     if (stripe) await subscribeSweep(db, stripe.client, new Date()).catch((e: unknown) => console.warn(`[billing] sweep: ${loggableMessage(e instanceof Error ? e.message : String(e))}`));
     // KS6 — and each decision on a first connection, told to its owner once.
-    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db), ...await billingAlerts(db)]) {
+    // 0217 — a failed backup run, told within five minutes; and every mailbox whose grant died, told to its owner once.
+    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db), ...await billingAlerts(db),
+      ...await backupFailureAlerts(db, PILOT_BUSINESS_ID), ...await mailboxAlerts(db)]) {
       await sendAlert(boss, job satisfies NotifyJob);
     }
   });
@@ -2090,7 +2107,7 @@ if (isMain) {
   });
   await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
   // CC-10 — the dead-man's switch: only now that /health can answer on loopback.
-  await startHeartbeat(prod.boss, { url: v.cfg.HEALTH_PING_URL ?? null, port: v.cfg.PORT, db: prod.db, model: prod.primaryModel });
+  await startHeartbeat(prod.boss, { url: v.cfg.HEALTH_PING_URL ?? null, port: v.cfg.PORT, db: prod.db, model: prod.primaryModel, alarms: prod.alarms });
   if (prod.ownerAccessCodeGenerated) {
     // The owner needs this to log into the command center. Set OWNER_ACCESS_CODE
     // in the host to make it stable across deploys.

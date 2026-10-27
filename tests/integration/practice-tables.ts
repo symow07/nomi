@@ -89,6 +89,8 @@ export const PRACTICE_SKIP = [
   'push_subscriptions',
   // G3 (0101) — the day's allowance alerts sent to the owner: the copy spends hers.
   'allowance_alerts',
+  // 0217 — an alert that reached nobody: a copy alerts nobody (P3), so it has none.
+  'undelivered_alerts',
   // G7 (0103) — what the operator did to a workspace: never the copy's.
   'workspace_suspensions',
   // KS6 (0115) — the operator's approval of the first connection: a copy never connects.
