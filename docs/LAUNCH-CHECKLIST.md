@@ -72,7 +72,11 @@ So, before `tools/books-area.mjs --on` runs for anyone:
   one archive with its index (`/app/settings/data/papers.zip`), and closing
   waits for the owner's own copy of every one (NE012) — an accountant's
   download does not count, and a paper added later makes the copy old again.
-- **The public pages describe the books.** `/privacy` and `/data-deletion` say
+- ~~**The public pages describe the books.**~~ **Done (A6's lines, 2026-10-28; the owner reads the wording
+  before it merges):** `/privacy` has "If your business keeps its books in Nomi" (what they hold, who sees them,
+  Odoo, the reader, what closure keeps and why, imported history), and `/data-deletion` lists the books among what
+  is kept and the shop's own copies among what is the shop's to delete. Odoo is named (D18). The item, as written:
+  `/privacy` and `/data-deletion` say
   what is kept when a workspace closes, for how long, why, and that the owner
   leaves with their copy (PHASE-5.md §6), including that an imported file kept
   as history is kept whole until its newest entry's date, so its older entries

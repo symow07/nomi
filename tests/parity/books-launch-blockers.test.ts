@@ -26,27 +26,27 @@ const listed = (name: string): string[] => {
 const blockers = (): string[] => listed('BLOCKERS');
 
 describe('the books are switched on for nobody while a launch blocker stands', () => {
-  it('--on refuses before connecting, names every blocker, and changes nothing', () => {
+  it('while one stands, --on refuses before connecting and changes nothing (the refusal, held in the tool)', () => {
+    expect(read('tools/books-area.mjs')).toMatch(/if \(want === true && BLOCKERS\.length > 0\) \{[\s\S]{0,400}?Nothing was changed[\s\S]{0,40}?process\.exit\(3\)/);
+  });
+
+  it('with none standing (A6, 2026-10-28), --on goes on to the database — here the one nobody runs', () => {
+    expect(blockers()).toEqual([]);
     const r = run(['--business', BIZ, '--on']);
-    expect(r.code).toBe(3);
-    expect(r.err).toContain('Nothing was changed');
-    expect(r.err).not.toMatch(/ECONNREFUSED|connect/i);
-    for (const b of blockers()) expect(r.err).toContain(b);
+    expect(r.code).toBe(1);
+    expect(r.err).not.toContain('Nothing was changed');
   });
 
   it('--off is never blocked: hiding the books always works (it fails here only on the database nobody runs)', () => {
     expect(run(['--business', BIZ, '--off']).code).not.toBe(3);
   });
 
-  it('the tool and the checklist are one list: the public pages (E1, 2026-10-22, built the papers copy, and it left)', () => {
-    const list = blockers();
-    expect(list).toHaveLength(1);
+  it('the tool and the checklist are one list: both items struck (E1 the papers copy, A6 the public pages)', () => {
+    expect(blockers()).toEqual([]);
     const section = /## Before the books are switched on for ANY workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
     expect(section).toContain('tools/books-area.mjs');
-    expect(section).not.toMatch(/The owner's copy of their papers, and closure of a workspace holding\s+papers\.\*\*/);
-    expect(section).toMatch(/The public pages describe the books/);
-    expect(list[0]).toMatch(/public pages/);
-    expect(list.some((x) => /copy of their papers/.test(x))).toBe(false);
+    expect(section).toMatch(/~~The owner's copy of their papers, and closure of a workspace holding\s+papers\.~~ \*\*Done \(E1, 0205/);
+    expect(section).toMatch(/~~\*\*The public pages describe the books\.\*\*~~ \*\*Done \(A6's lines, 2026-10-28/);
   });
 
   it('MOROCCO: nothing blocks since R2 — the FEC\'s name is a configurable default, none being published (the ICE, IF and RC left with E2, 0206)', async () => {
@@ -59,7 +59,7 @@ describe('the books are switched on for nobody while a launch blocker stands', (
     expect(MOROCCO_BLOCKERS).toEqual([]);
     // the tool reads the workspace's country and refuses a Moroccan one with these, once connected
     expect(read('tools/books-area.mjs')).toMatch(/const owed = blockersFor\(biz\.country\);\s+if \(want === true && owed\.length > 0\)/);
-    // and the refusal everyone gets today names no Moroccan item
+    // and nothing names a Moroccan item
     expect(run(['--business', BIZ, '--on']).err).not.toContain('And for a Moroccan workspace');
     const section = /## Before the books are switched on for a MOROCCAN workspace — BLOCKING[\s\S]*?(?=\n## )/.exec(read('docs/LAUNCH-CHECKLIST.md'))?.[0] ?? '';
     expect(section).toMatch(/~~The business's legal identifiers — ICE, IF and RC — held on its profile,[\s\S]*?~~ \*\*Done \(E2, 0206/);

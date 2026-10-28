@@ -7,9 +7,7 @@
  * the file's name was not the one the DGI requires — that left with R2 (0209): none is published, so the name is a
  * configurable default. (The business's ICE, IF and RC left with E2, 0206.) The list is empty, and kept for the next.
  */
-export const BLOCKERS = [
-  'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy; and /privacy names the shop\'s own systems the books read from (Odoo; Google Sheets is held at boot by D18), and that the model provider reads a receipt or bill when the owner asks it to (D6)',
-];
+export const BLOCKERS = [];
 
 // R2 (0209, 2026-10-23) — the FEC's file name left: none is published, so it is a configurable default. Empty now.
 export const MOROCCO_BLOCKERS = [];

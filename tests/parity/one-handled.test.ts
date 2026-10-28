@@ -111,7 +111,7 @@ describe('the advisor batch · the privacy page says where the advisor\'s answer
       expect(html, l).toContain(esc(t(l, 'legal.updated.privacy')));
       // the day the page changed, whole (a bare 7 would be found in 2026) — moved again by the data-protection batch (2026-10-12),
       // and by Phase 1's sign-up check (2026-10-13, the owner's word)
-      expect(t(l, 'legal.updated.privacy').replace(/[\u2066-\u2069]/g, ''), l).toContain(({ en: '13 October 2026', zh: '2026 年 10 月 13 日', ar: '13 أكتوبر 2026', es: '13 de octubre de 2026', fr: '13 octobre 2026' } as const)[l]);
+      expect(t(l, 'legal.updated.privacy').replace(/[\u2066-\u2069]/g, ''), l).toContain(({ en: '28 October 2026', zh: '2026 年 10 月 28 日', ar: '28 أكتوبر 2026', es: '28 de octubre de 2026', fr: '28 octobre 2026' } as const)[l]); // A6 moved it
     });
   }
 

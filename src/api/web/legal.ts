@@ -223,6 +223,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     </ul>
     <p>${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     ${toDeletion('legal.privacy.howLong.title', 'legal.privacy.howLong.body')}
+    ${/* A6 — a customer named in a business's books (an invoice made out to them) is in its statutory record. */ ''}<p>${esc(t(l, 'legal.privacy.howLong.books'))}</p>
     ${toDeletion('legal.privacy.choices.title', 'legal.privacy.choices.body')}
     ${/* §9.3 — THE ADVISOR'S HISTORY, before anything is kept: what, on what basis, where the question goes
          and what that provider keeps, who reads it (nobody), and what a customer's deletion reaches. */
@@ -242,9 +243,18 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.owner.who', { processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
       facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
       l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>
-    <p>${esc(t(l, 'legal.privacy.owner.howLong'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.howLong'))}${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.howLongBooks'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.export', { data: t(l, 'data.title') }))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.delete', { data: t(l, 'data.title'), people: t(l, 'people.title') }))}</p>
+    ${/* A6 (PHASE-5.md §6) — THE BOOKS, before they are switched on for anyone: what they hold and who sees them, the
+         shop's own Odoo they read from and write to (D18 names it), the provider that reads a paper the owner asks it
+         to (D6, the same provider as the replies), and what closure keeps, for how long, why, and that the owner
+         leaves with their copy (0172, 0205). Google Sheets, Xero and QuickBooks are not named: D18 holds them off. */ ''}<h2 id="books">${esc(t(l, 'legal.privacy.books.title'))}</h2>
+    <p>${esc(t(l, 'legal.privacy.books.what'))}</p>
+    <p>${esc(t(l, 'legal.privacy.books.odoo'))}</p>
+    <p>${esc(t(l, 'legal.privacy.books.reader', { processor: processorLabel(facts.processor, l) }))}</p>
+    <p>${esc(t(l, 'legal.privacy.books.kept'))}</p>
+    <p>${esc(t(l, 'legal.privacy.books.history'))}</p>
     ${/* §9.4 — D7: every cookie is strictly necessary, so there is no banner; the list is the code's own. */ ''}<h2 id="cookies">${esc(t(l, 'legal.privacy.cookies.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
     ${cookieTable(l)}
@@ -369,6 +379,7 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
       email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
     ${/* 0126 — why there is no form here, and what closing a workspace does. */ ''}<p>${k('legal.deletion.noForm')}</p>
     <p>${k('legal.deletion.closed')}</p>
+    ${/* A6 — closing keeps one thing: the books the law requires (the list below). */ ''}<p>${k('legal.deletion.closedBooks')}</p>
     ${/* D4 (0147) — a request that waits is chased, never carried out by Nomi. */ ''}<p>${k('legal.deletion.chased')}</p>
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
@@ -383,7 +394,11 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
     <h2>${k('legal.deletion.kept.title')}</h2>
     <ul>${list([
       'legal.deletion.kept.orders', 'legal.deletion.kept.doNotContact', 'legal.deletion.kept.record',
+      // A6 — a business's books keep what names them (an invoice made out to them), to the legal date.
+      'legal.deletion.kept.books',
       'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere',
+      // A6 — the copies in the shop's own systems (a downloaded workbook, its Odoo) are the shop's to delete.
+      'legal.deletion.kept.booksCopies',
     ])}${outside}${list([
       'legal.deletion.kept.backups',
       // 0126 — a restore brings nobody back: tools/replay-erasures.mjs, docs/BACKUP-RESTORE.md.

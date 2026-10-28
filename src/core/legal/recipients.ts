@@ -42,9 +42,11 @@ export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
   { id: 'apollo', name: 'Apollo', switchedOnBy: () => [], named: false },
   // A5 (Phase 5, PHASE-5.md §6.3) — each receives a shop's books or messages once switched on, so none may be before
   // the privacy page names it in every language. Odoo is the shop's own system, connected per business with a key it
-  // gives (like Apollo): nothing in the environment switches it on, and nothing wires it while it is unnamed.
+  // gives (like Apollo): nothing in the environment switches it on, and the books page offers it to any workspace whose
+  // books are on — so it was named (A6) before any workspace's were.
   { id: 'googleSheets', name: 'Google (Sheets)', switchedOnBy: (env) => set(env, 'SHEETS_CLIENT_ID', 'SHEETS_CLIENT_SECRET'), named: false },
-  { id: 'odoo', name: 'Odoo (the shop\'s own)', switchedOnBy: () => [], named: false },
+  // A6 (2026-10-28) — named on the privacy page's books section in every language.
+  { id: 'odoo', name: 'Odoo (the shop\'s own)', switchedOnBy: () => [], named: { key: 'legal.privacy.books.odoo' } },
   { id: 'xero', name: 'Xero', switchedOnBy: (env) => set(env, 'XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'), named: false },
   { id: 'intuit', name: 'Intuit (QuickBooks)', switchedOnBy: (env) => set(env, 'QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'), named: false },
   { id: 'documentReader', name: 'the model that reads receipts, invoices and bills', switchedOnBy: (env) => set(env, 'DOCUMENT_READER_API_KEY'), named: false },
