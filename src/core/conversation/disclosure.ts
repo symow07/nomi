@@ -1,3 +1,4 @@
+import { withoutOpeningGreeting } from './openingGreeting.js';
 /**
  * WHAT SHE SAYS BEFORE A MESSAGE NOBODY APPROVED REACHES A BUYER.
  *
@@ -231,3 +232,13 @@ export const carriesDisclosure = (text: string): boolean => SHAPES.some((re) => 
  */
 export const withDisclosure = (disclosure: string, reply: string): string =>
   `${disclosure}\n\n${reply}`;
+
+/**
+ * The disclosure in front of a reply the WRITER wrote (2026-10-28): the disclosure already says hello, so the reply's
+ * own opening greeting goes (`withoutOpeningGreeting`) and the customer is greeted once. The disclosure is untouched.
+ * A reply that was only a greeting leaves the disclosure alone. Fixed sentences that were signed use `withDisclosure`.
+ */
+export const withDisclosureFirst = (disclosure: string, reply: string): string => {
+  const rest = withoutOpeningGreeting(reply);
+  return rest ? withDisclosure(disclosure, rest) : disclosure;
+};

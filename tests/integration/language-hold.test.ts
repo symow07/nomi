@@ -74,8 +74,9 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
    * was already told, these do not.)
    */
   const first = async (words: string): Promise<string> => {
-    const { disclosureFor, withDisclosure } = await import('../../src/core/conversation/disclosure.js');
-    return withDisclosure(disclosureFor({ detected: 'ar', name: 'Lily', business: `Hold ${RUN}` })!, words);
+    // One greeting (2026-10-28): the disclosure's; the reply's own «أهلًا بكم،» goes, as a reply sent alone does.
+    const { disclosureFor, withDisclosureFirst } = await import('../../src/core/conversation/disclosure.js');
+    return withDisclosureFirst(disclosureFor({ detected: 'ar', name: 'Lily', business: `Hold ${RUN}` })!, words);
   };
 
   beforeAll(async () => {

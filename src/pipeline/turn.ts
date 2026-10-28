@@ -27,7 +27,7 @@ import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { addressesInGender } from '../core/safety/address.js';
-import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
+import { disclosureFor, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
 import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
 import { OPT_OUT_REPLIES, asksOnlyOffAList, optOutLanguage } from '../core/safety/optOut.js';
@@ -1626,7 +1626,8 @@ export async function commitTurn(
       const askedWhatItIs = r.notice === 'handoff' && asksAboutBeingAi(req.text) !== null;
       const say = r.newState.aiDisclosureDeliveredAt === null || askedWhatItIs ? sentence : null;
       outbound = {
-        conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks,
+        // One greeting: the disclosure's; the reply's own opening greeting goes (openingGreeting.ts).
+        conversationId: req.conversationId, reply: say ? withDisclosureFirst(say, reply) : reply, asks: r.asks,
         ...(r.notice ? { notice: r.notice } : {}),
       };
       if (say) await recordDisclosure(r.newState.aiDisclosureDeliveredAt === null ? 'first_auto_send' : 'identity_question');
