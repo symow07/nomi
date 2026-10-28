@@ -13,6 +13,24 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## One greeting, not two; the assistant's name is the workspace's (2026-10-28)
+
+- **"nomi-socials" is not a default or a slug:** it is Westlake's one assistant row, named on Getting ready at
+  2026-09-28 05:05 UTC (`assistants.name`, `onboarding_state.assistant_named_at`; read-only query). No code writes
+  it. The owner renames it: Setup → People (`/app/settings/people#assistants`) → "Who answers your customers" → the
+  row → "Change the name, job or tone" → Name → Save. The default stays `DEFAULT_ASSISTANT_NAME` ("Lily" / 小雅).
+- **The double greeting:** the signed disclosure opens with its own hello, and a reply sent alone that opened with
+  "Hi Amal!" greeted twice. `withDisclosureFirst` (`src/core/conversation/disclosure.ts`) now joins them, taking the
+  reply's opening greeting off by fixed rules (`openingGreeting.ts`; six languages; corpus both ways in
+  `tests/parity/opening-greeting.test.ts`). The disclosure is untouched (its sign-off test still holds); a reply that
+  was only a greeting leaves the disclosure alone; replies after the customer was told go as written. The fixed
+  sentences behind the disclosure (Telegram's /start greeting, the survey question) keep `withDisclosure` — signed
+  text is never cut. Tested in the production composition on WhatsApp and Telegram
+  (`tests/integration/disclosure-one-greeting.test.ts`); `language-hold.test.ts` expected the double greeting and now
+  expects one.
+- **What is left in code that needs no money, account or native reader:** nothing (as at #391; #392–#401 were the
+  owner's orders).
+
 ## Sign-up holds the EU, the EEA and the UK (2026-10-28)
 
 - **The owner's order:** a business whose country is in the EU or UK waits at sign-up until LAUNCH-CHECKLIST's counsel
