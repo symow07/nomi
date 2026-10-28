@@ -69,9 +69,18 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   messages, pictures and documents "are processed there") and says nothing of a basis or safeguards — none is
   written that we cannot back up. The same question for Morocco is PHASE-5.md §6.4
   ([§6, item 4](PHASE-5.md#6--the-privacy-load-accepted-as-written-with-the-owners-note)), parked as a lawyer's
-  question. **Not enforced in code:** sign-up does not refuse an EU or UK country, and a customer's country is not
-  recorded, so a customer in the EU or UK writing to any workspace today is not caught by anything; this line is
-  the owner's to hold.
+  question.
+- **Workspaces: held at sign-up** (2026-10-28, `src/core/legal/transfer.ts`). A business whose country is in the EU,
+  the EEA (Iceland, Liechtenstein, Norway — the GDPR applies there in full) or the UK is told plainly, with the legal
+  contact address, before any code is sent, and again at `/verify` if the hold came back while the code was out.
+  Nothing it typed is kept. **The switch is the owner's:** `EU_UK_SIGNUP=open` on the `nomi` service lifts it — only
+  once this line is cleared and `/privacy` says the basis. Unset (today) holds. Not covered: a workspace the operator
+  makes by hand (`provision-factory.mjs`) and the 59 made before — none has an EU, EEA or UK country (production,
+  2026-10-28).
+- **Customers: cannot be gated.** No customer's country is recorded: Instagram and Messenger give none, and a
+  WhatsApp number's calling code says where the number was issued, not where its holder lives or is. So a customer
+  in the EU or UK writing to any workspace, Westlake included, is not held by anything; that part of this line is the
+  owner's to weigh with counsel, not something the code can enforce.
 
 ## Before the books are switched on for ANY workspace — BLOCKING (the owner, 2026-10-21)
 

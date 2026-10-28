@@ -163,7 +163,9 @@ drafts only, operator-assisted (decision 34). `docs/FACTORY-PROVISIONING.md`
 2. In Railway (by name; values pasted by the owner): `SIGNUP_MODE=invite`,
    `SIGNUP_CAP=20`, the installation's sender set (sign-up codes and alerts),
    `META_APP_REVIEW` unset (Channels says Nomi is being reviewed). Optional:
-   `VAPID_*` for phone alerts.
+   `VAPID_*` for phone alerts. `EU_UK_SIGNUP` stays unset (businesses in the
+   EU, the EEA and the UK wait at sign-up) until LAUNCH-CHECKLIST's counsel
+   line is cleared; then `EU_UK_SIGNUP=open`.
 3. One invitation per business: `tools/invite-factory.mjs`. Agencies: at most
    two, one client workspace each.
 4. Every day: read each sign-up e-mail and the 07:15 UTC list; act with

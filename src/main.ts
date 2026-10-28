@@ -16,6 +16,7 @@ import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
+import { euUkSignupOpenFrom } from './core/legal/transfer.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
 import { httpsMailConfigFrom, httpsSystemMailer, cappedMail } from './channels/email/httpsMail.js';
 import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
@@ -974,6 +975,8 @@ export async function buildProduction(
       signupMode: signupModeFrom(process.env['SIGNUP_MODE']),
       // G1 — the cohort cap, counted in the database; unset: no cap.
       signupCap: signupCapFrom(process.env['SIGNUP_CAP']),
+      // The EU, the EEA and the UK wait at sign-up until the owner sets EU_UK_SIGNUP=open (LAUNCH-CHECKLIST).
+      euUkSignupOpen: euUkSignupOpenFrom(process.env['EU_UK_SIGNUP']),
       // A3 — the installation's own sender. Unset, nothing ever asks for a code.
       systemMail,
       // MAIL — codes and reset links by the sender strangers' mail uses.
