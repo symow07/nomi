@@ -13,9 +13,20 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Proof the pre-deploy step ran (2026-10-28)
+
+- **Why:** #396's deploy ran with `preDeployCommand ["node tools/migrate.mjs"]`, and its log held no "done" line;
+  Railway's dashboard shows no pre-deploy log (the owner looked). Postgres's scan counters were tried and rejected:
+  production's did not move across that deploy even for the app's own boot read.
+- **Built:** the migrator prints a start line before it connects, and writes its mark at the end of every run (the
+  comment on `_migrations`: time, Railway's commit and deployment, applied, recorded; best-effort).
+  `tools/migrate-mark.mjs --expect <sha>` reads it read-only: 0 proves that commit, 4 is no proof. No schema change.
+  The first deploy that carries it is its first proof.
+
 ## The books on the public pages (2026-10-28): the last blocker before `books-area --on`
 
-- **Written, not merged (the owner reads the wording first):** `/privacy` has "If your business keeps its books in
+- **Merged as #397 (`ab92292b`, 2026-10-28 11:06 UTC) after the owner approved the English; deployed; Westlake's
+  books switched on (`tools/books-area.mjs --on`, read back SHOWN).** `/privacy` has "If your business keeps its books in
   Nomi" (what they hold, who sees them, the shop's own Odoo, the reader on the replies' provider, closure's copy and
   ten years, imported history), with a pointer from the customer's "How long" and the owner's; `/data-deletion` says
   closing keeps the books and lists, under what is kept, the entries that name a customer and the shop's own copies.
@@ -23,7 +34,7 @@ under "Decided" below.
 - **Odoo is named for D18** (`legal.privacy.books.odoo`). Found on the way: Odoo was offered on the books page
   whenever a credential key exists, while `recipients.ts` said "nothing wires it while it is unnamed"; the books are
   off for every workspace, so nobody reached it. Naming it closes the gap.
-- **`BLOCKERS` is empty.** After the merge, `tools/books-area.mjs --business <id> --on` switches a workspace's books
+- **`BLOCKERS` is empty.** Since the merge, `tools/books-area.mjs --business <id> --on` switches a workspace's books
   on (the operator's, with the admin URL); Westlake is CN, so no Moroccan item applies.
 
 ## Off railway.json; production on #395 (2026-10-28)

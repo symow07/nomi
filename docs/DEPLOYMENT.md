@@ -138,6 +138,24 @@ Read them back with the Railway MCP's `get-service-config` (the `deploy` section
    service's own variables — so it reaches `postgres.railway.internal` directly
    and needs no TCP proxy.
 
+   **Proof it ran (since 2026-10-28):** the log is not proof. #396's deploy ran
+   with the command and its log held no "done" line, and Railway shows no
+   pre-deploy log of its own. So every run prints `migrate: start · commit … ·
+   deployment …` before it connects, and leaves its MARK on the database: the
+   comment on `_migrations` names the time, Railway's commit
+   (`RAILWAY_GIT_COMMIT_SHA`) and deployment (`RAILWAY_DEPLOYMENT_ID`), and how
+   many migrations it applied (`tools/lib/migrate-mark.mjs`). After every
+   deploy, read-only:
+
+   ```bash
+   railway run --service Postgres -- sh -c 'MIGRATE_DATABASE_URL="$DATABASE_PUBLIC_URL" node tools/migrate-mark.mjs --expect <merge sha>'
+   ```
+
+   Exit 0 and "✓ The pre-deploy step ran for <sha>" is the proof; exit 4 means
+   the last run was for another commit (or none), so the step did not run for
+   this deploy. A mark that cannot be written is said in the log and does not
+   fail the deploy: the migrations are what the deploy waits on.
+
    Until 2026-10-28 it came from `railway.json`, which Railway stops reading on
    2026-12-01; the move is "After paying Railway" above. **Do NOT migrate a
    config file with `railway config migrate`**,

@@ -99,8 +99,10 @@ is social media as the sales channel, not manufacturing.
 **Before any deploy that migrates:** a backup younger than the day — the
 Railway cron (`backup/`, 03:00 UTC, see `docs/BACKUP-RESTORE.md` "Scheduled
 backups") normally provides it; check `backup_runs` or the bucket's `daily/`.
-Otherwise `tools/backup.sh` by hand. After the deploy, confirm `/health` and
-that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
+Otherwise `tools/backup.sh` by hand. After the deploy, confirm `/health`,
+that `schema_version` equals `REQUIRED_SCHEMA_VERSION`, and that
+`tools/migrate-mark.mjs --expect <merge sha>` proves the pre-deploy step ran
+(`docs/DEPLOYMENT.md`, "Proof it ran"). See
 `docs/LAUNCH-CHECKLIST.md`.
 - A connection URL is never a command argument: pg tools get the password
   through the environment (`tools/lib/pgenv.py`; the cron job uses Railway
