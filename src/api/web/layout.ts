@@ -3338,6 +3338,8 @@ export type SignupPageInput = {
    * workspace by hand. Never a silent block, and never which mark it was.
    */
   readonly riskRefused?: boolean;
+  /** A business in the EU, the EEA or the UK, held until counsel's checklist line is cleared (core/legal/transfer.ts). */
+  readonly transferHeld?: boolean;
   /**
    * BOT — the provider's widget, drawn just above the button with its own
    * script; the token it makes arrives in `field`. Absent: no check.
@@ -3360,6 +3362,13 @@ export function signupPage(input: SignupPageInput): string {
         `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`)}</p>` : '';
     return doorFrame(locale, input.path, t(locale, 'signup.title'),
       `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead" role="alert">${esc(t(locale, 'signup.riskRefused'))}</p>${contact}`, other);
+  }
+  if (input.transferHeld) {
+    const contact = input.contact
+      ? `<p class="lead">${esc(t(locale, 'signup.transferHeld.contact', { email: '\u0000' })).replace('\u0000',
+        `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`)}</p>` : '';
+    return doorFrame(locale, input.path, t(locale, 'signup.title'),
+      `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead" role="alert">${esc(t(locale, 'signup.transferHeld'))}</p>${contact}`, other);
   }
   if (input.mode === 'closed') {
     const contact = input.contact

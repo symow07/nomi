@@ -55,6 +55,8 @@ import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, ren
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress, type SiteInput } from './site.js';
 import { renderSiteReel, reelReady } from './siteReel.js';
 import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
+import { signupHeldForTransfer } from '../../core/legal/transfer.js';
+import { canonicalCountry } from '../../core/owner/business.js';
 import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
@@ -338,6 +340,11 @@ export type WebDeps = {
   readonly signupMode?: SignupMode;
   /** G1 — how many self-serve workspaces may exist (`SIGNUP_CAP`); absent: no cap. */
   readonly signupCap?: number | null;
+  /**
+   * The EU, the EEA and the UK (`EU_UK_SIGNUP`, src/core/legal/transfer.ts): true only once the owner has flipped it,
+   * counsel's checklist line cleared. Absent or false, a business there is held at sign-up.
+   */
+  readonly euUkSignupOpen?: boolean;
   /**
    * A3 — the installation's own sender. With one, a code is e-mailed when an
    * account is made and when an unknown browser signs in. WITHOUT ONE NOTHING
@@ -1655,6 +1662,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** A sign-up that scored high is refused, said plainly, with the way to a person — never a silent block. */
   const riskRefusal = (reply: FastifyReply, locale: Locale) =>
     html(reply, 403, signupPage({ locale, path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, riskRefused: true }));
+  /**
+   * A business in the EU, the EEA or the UK waits until counsel confirms how its customers' data may leave
+   * (src/core/legal/transfer.ts): said plainly, with the way to a person, and nothing it typed is kept.
+   */
+  const transferHeld = (country: string): boolean => signupHeldForTransfer(country, deps.euUkSignupOpen === true);
+  const transferRefusal = (reply: FastifyReply, locale: Locale, mode: SignupMode) =>
+    html(reply, 403, signupPage({ locale, path: '/signup', mode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, transferHeld: true }));
   app.get('/signup', async (req, reply) => {
     if (sessionOf(req)) return reply.redirect('/app');
     const signupMode = await signupModeNow();
@@ -1703,6 +1717,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const v = validateSignup(raw, { mode: signupMode, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX });
     // AGE — under the minimum refuses the sign-up itself, before anything else is said or spent, and keeps nothing.
     if (!v.ok && v.problems.age === 'age_under') return ageRefusal(reply, locale, signupMode, true);
+    // The EU, the EEA and the UK — held before anything is spent or sent, and before she is asked anything more
+    // (a zone, a currency) for a workspace that cannot open.
+    if (transferHeld(canonicalCountry(raw.country.trim().toUpperCase()))) return transferRefusal(reply, locale, signupMode);
     if (!v.ok) {
       const sentence = (p: SignupProblem): string => t(locale, `signup.problem.${p}` as MessageKey, { n: PASSWORD_MIN });
       const problems: Partial<Record<SignupField, string>> = {};
@@ -2129,6 +2146,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (signupMode === 'closed') {
         return html(reply, 403, signupPage({ locale, path: '/signup', mode: 'closed', passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null }));
       }
+      // …and the EU, the EEA and the UK as they stand NOW: a code sent before the hold opens nothing after it.
+      if (transferHeld(p.profile.country)) return transferRefusal(reply, locale, signupMode);
       const made = await provisionAccount(deps.db, { ...p, inviteRequired: signupMode === 'invite', cap: deps.signupCap ?? null });
       if (made.code !== 'created') {
         // The address was taken, or the invitation spent, while the code was in her inbox.

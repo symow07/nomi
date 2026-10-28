@@ -16515,3 +16515,13 @@ it) and on /data-deletion (the books item under what is kept).
 - **Choices to check:** the UK's and Spain's laws keep their own names in every language (zh too, unlike the French
   and Moroccan codes); "bis" stays as the article's name in Arabic, as L123-22 does; Spain's tax office is «Hacienda»
   in Spanish and «مصلحة الضرائب» in Arabic.
+
+## Sign-up holds the EU, the EEA and the UK (2026-10-28)
+
+Two new lines, written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read them on
+/signup after choosing a country in the EU, the EEA or the UK.
+
+- **The keys:** `signup.transferHeld`, `signup.transferHeld.contact`.
+- **Choices to check:** "the service that drafts replies" for the model provider (起草回复的服务 / الخدمة التي تصوغ
+  الردود / el servicio que redacta las respuestas / le service qui rédige les réponses), never a word for software;
+  the Arabic addresses nobody (a verbal noun, «يُرجى»).

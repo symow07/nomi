@@ -13,6 +13,17 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Sign-up holds the EU, the EEA and the UK (2026-10-28)
+
+- **The owner's order:** a business whose country is in the EU or UK waits at sign-up until LAUNCH-CHECKLIST's counsel
+  line (the transfer basis for DeepSeek, China) is cleared, behind a flag the owner flips. Built: `src/core/legal/
+  transfer.ts` (the EU's 27, plus the EEA's three — the GDPR applies there in full, so "EU" read as the GDPR's reach —
+  and GB); held before any code is sent and again at `/verify`; a plain page with the legal contact; nothing kept.
+  The flag: `EU_UK_SIGNUP=open` lifts it; unset holds. Customers cannot be gated (no country is recorded) — said beside
+  the checklist line. No migration. Production today: no workspace has an EU, EEA or UK country.
+- **#399 merged (`bb1c668c`) and deployed (`c855b618`):** `/health` ok, `schema_version` 218, `migrate-mark --expect
+  bb1c668c` exit 0 ("applied 1 · recorded 217"); `/privacy` shows the UK's six years.
+
 ## The books kept by their country's law: the UK six years, Spain ten (2026-10-28, 0218)
 
 - **The owner's decision**, from the laws themselves: the United Kingdom six years (Finance Act 1998, Sch. 18,
