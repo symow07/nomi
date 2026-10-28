@@ -13,6 +13,19 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The books on the public pages (2026-10-28): the last blocker before `books-area --on`
+
+- **Written, not merged (the owner reads the wording first):** `/privacy` has "If your business keeps its books in
+  Nomi" (what they hold, who sees them, the shop's own Odoo, the reader on the replies' provider, closure's copy and
+  ten years, imported history), with a pointer from the customer's "How long" and the owner's; `/data-deletion` says
+  closing keeps the books and lists, under what is kept, the entries that name a customer and the shop's own copies.
+  Five languages; zh, ar, es, fr in `docs/NATIVE-REVIEW-UI.md` (not a gate). Both pages' dates moved to 28 October.
+- **Odoo is named for D18** (`legal.privacy.books.odoo`). Found on the way: Odoo was offered on the books page
+  whenever a credential key exists, while `recipients.ts` said "nothing wires it while it is unnamed"; the books are
+  off for every workspace, so nobody reached it. Naming it closes the gap.
+- **`BLOCKERS` is empty.** After the merge, `tools/books-area.mjs --business <id> --on` switches a workspace's books
+  on (the operator's, with the admin URL); Westlake is CN, so no Moroccan item applies.
+
 ## Off railway.json; production on #395 (2026-10-28)
 
 - **The deploy happened by itself (2026-10-27 18:53 UTC):** Railway auto-deploys `main` again since it was paid, and

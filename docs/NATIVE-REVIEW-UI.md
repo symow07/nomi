@@ -16487,3 +16487,17 @@ The front page's English is read (`REEL_NATIVE_REVIEW.en` = yes) and is not repe
 > Thank you — that helps {business}.
 
 Signed by the owner: ______  Date: ______  Signed: starters ☐ · /start greeting ☐ · survey question ☐ · thank-you ☐
+
+## The books on the public pages (A6, 2026-10-28)
+
+New legal lines, written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read them on
+/privacy ("If your business keeps its books in Nomi", and the two pointers under "How long" and in the business's
+section) and on /data-deletion (the paragraph after the one on closing, and the two books items under what is kept).
+
+- **The keys:** `legal.privacy.books.title`, `.what`, `.odoo`, `.reader`, `.kept`, `.history`;
+  `legal.privacy.howLong.books`; `legal.privacy.owner.howLongBooks`; `legal.deletion.closedBooks`;
+  `legal.deletion.kept.books`, `legal.deletion.kept.booksCopies`.
+- **Choices to check:** the books' words follow the owner's data page (账簿 / الدفاتر المحاسبية / contabilidad /
+  comptabilité); "posted" is 过账 / مرحَّل / contabilizado / validée; the two laws keep their French names in ar, es and fr
+  and are translated in zh (《商法典》, 《税法总典》); Arabic and Spanish name the accountant without a gender («المحاسب
+  المضاف من قِبله», «la persona de contabilidad»), French by «la personne chargée de la comptabilité».

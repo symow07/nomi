@@ -21,6 +21,13 @@ runs the product. The draft terms for the business itself are in
   an Instagram or Messenger customer, their profile photo as the platform
   shows it (0123 `client_faces`, looked at again every 30 days), so the
   business sees their face.
+- The books (A6, 2026-10-28), in the business's section and on the deletion page: what they hold and that only
+  the owner and an accountant the owner adds see them; the shop's own Odoo, read from and written to with the
+  owner's key (named for D18); a receipt, invoice or bill the owner asks Nomi to read goes to the replies' own
+  provider, and nothing posts without the owner; closure requires the owner's copy, then keeps the books and papers,
+  switched off, until ten years after the last financial year with a posted entry (L123-22, CGI art. 211; ten years
+  everywhere, `books_retention`'s `*` row), then erases them; imported history kept whole. A customer's deletion
+  leaves the entries that name them (an invoice made out to them), and the shop's own copies are the shop's.
 - Who sees it: the business; Meta (carriage); the configured model provider
   (drafting, and phrasing the advisor's answers), named from `LLM_BASE_URL` by
   `aiProcessor` (DeepSeek in production); Railway (hosting); Google or
