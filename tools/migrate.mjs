@@ -3,7 +3,7 @@
  * Portable migration runner — ordinary PostgreSQL, no Supabase anything.
  *
  *   node tools/migrate.mjs                # apply bootstrap + pending migrations
- *   node tools/migrate.mjs --status       # show applied vs pending
+ *   node tools/migrate.mjs --status       # show applied vs pending, and the last run's mark
  *
  * Connection: MIGRATE_DATABASE_URL (admin/DDL role) falling back to
  * DATABASE_URL. Runtime and migration credentials should differ in
@@ -32,12 +32,18 @@
  * ones. Each applied migration now carries the sha256 of what was applied
  * (0044); a file that no longer matches stops the run before anything else is
  * applied, and says which file and what to do about it.
+ *
+ * THE MARK (2026-10-28) — proof the pre-deploy step ran, since a log line is not: a "start" line before anything can
+ * fail, and at the end of every run the comment on `_migrations` names the time, Railway's commit and deployment, and
+ * what was applied (tools/lib/migrate-mark.mjs). tools/migrate-mark.mjs reads it back after a deploy. Writing it is
+ * best-effort: the migrations are what the deploy waits on, so a mark that cannot be written is said, not fatal.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { toolClient } from './lib/db.mjs';
+import { runOf, markText, readMark } from './lib/migrate-mark.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const url = process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -50,6 +56,8 @@ if (!url) {
 // never finishes. Ten minutes for one reply is far above any migration so far;
 // each unit is its own transaction, so a closed connection leaves that unit
 // unapplied and the chain stopped, never half-done.
+const run = runOf(process.env);
+console.log(`migrate: start · commit ${run.commit} · deployment ${run.deployment}`);
 const client = toolClient(url, { replyTimeoutMs: 10 * 60_000 });
 await client.connect().catch((e) => { console.error(`migrate: ${e.message}`); process.exit(1); });
 
@@ -126,6 +134,8 @@ every database has the old text, re-record it deliberately:
     console.log(`applied:  ${applied.join(', ') || 'none'}`);
     console.log(`pending:  ${pending.join(', ') || 'none'}`);
     console.log(`changed:  ${changed.join(', ') || 'none'}   (applied, then edited on disk)`);
+    const mark = readMark((await one(`select obj_description('public._migrations'::regclass, 'pg_class') as c`))?.c);
+    console.log(`last run: ${mark ? `${mark.at.toISOString()} · commit ${mark.commit} · deployment ${mark.deployment} · applied ${mark.applied}` : 'no mark'}`);
     process.exit(0);
   }
 
@@ -157,6 +167,11 @@ every database has the old text, re-record it deliberately:
   }
 
   const count = await one('select count(*)::int as n from _migrations');
+  try {
+    await client.query(`comment on table public._migrations is '${markText({ at: new Date(), ...run, applied: pending.length, recorded: count.n })}'`);
+  } catch (e) {
+    console.error(`migrate: the run's mark could not be written (${e.message}); the migrations above stand`);
+  }
   console.log(`done — ${count.n} migrations recorded`);
 } finally {
   await client.end();
