@@ -5,6 +5,7 @@ import { OPTIONAL_RECIPIENTS, recipientNamed } from '../../src/core/legal/recipi
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { BOOKS_RETENTION } from '../../src/core/legal/booksRetention.js';
 import { withoutIsolates } from './isolates.js';
 
 /**
@@ -28,6 +29,8 @@ describe('A6 · the books on /privacy and /data-deletion, in every language', ()
         line(l, 'legal.privacy.books.odoo'),
         line(l, 'legal.privacy.books.reader', { processor: processorLabel(deepseek, l) }),
         line(l, 'legal.privacy.books.kept'),
+        `<p>${line(l, 'legal.privacy.books.years.lead')}</p>`,
+        `<ul>${BOOKS_RETENTION.map((r) => `<li>${line(l, r.key)}</li>`).join('')}</ul>`,
         line(l, 'legal.privacy.books.history'),
       ].map((x) => h.indexOf(x));
       expect(at.every((i) => i > 0), `${l} ${JSON.stringify(at)}`).toBe(true);
@@ -41,15 +44,28 @@ describe('A6 · the books on /privacy and /data-deletion, in every language', ()
     }
   });
 
-  it('the ten years and the two laws are said in every language; the systems D18 holds off are not named', () => {
+  it('each country\'s period is said with its law, in every language; the systems D18 holds off are not named', () => {
+    // 0218: the United Kingdom's six years, France's, Morocco's and Spain's ten, ten everywhere else (booksRetention.ts)
+    const LAWS: Record<string, readonly string[]> = {
+      GB: ['Finance Act 1998', 'Value Added Tax Act 1994'], FR: ['L123-22'], MA: ['211'], ES: ['Ley General Tributaria', '66 bis'], '*': [],
+    };
+    expect(BOOKS_RETENTION.map((r) => r.country).sort()).toEqual(Object.keys(LAWS).sort());
     for (const l of LOCALES) {
-      const kept = t(l, 'legal.privacy.books.kept');
-      expect(kept, l).toContain('L123-22');
-      expect(kept, l).toContain('211');
+      for (const r of BOOKS_RETENTION) for (const law of LAWS[r.country]!) expect(t(l, r.key), `${l} ${r.country}`).toContain(law);
+      // the closure line says the period is the country's, and names no single figure for everyone
+      expect(t(l, 'legal.privacy.books.kept'), l).not.toMatch(/L123-22|211/);
       const h = renderPrivacy(l, null, FACTS);
       for (const off of ['Google Sheets', 'Xero', 'QuickBooks', 'Intuit']) expect(h, `${l} ${off}`).not.toContain(off);
       expect(h, l).toContain('Odoo');
     }
+  });
+
+  it('a paper the owner asks Nomi to read is processed where the replies are, said like the messages\' line', () => {
+    expect(t('en', 'legal.privacy.books.reader')).toContain('Documents are processed there.');
+    expect(t('zh', 'legal.privacy.books.reader')).toContain('单据在那里处理。');
+    expect(t('ar', 'legal.privacy.books.reader')).toContain('وتُعالَج المستندات هناك.');
+    expect(t('es', 'legal.privacy.books.reader')).toContain('Los documentos se procesan allí.');
+    expect(t('fr', 'legal.privacy.books.reader')).toContain('Les documents y sont traités.');
   });
 
   it('the deletion page keeps the books that name a customer and leaves the shop\'s own copies to the shop', () => {

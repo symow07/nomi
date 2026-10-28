@@ -61,6 +61,18 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   before the third paying workspace." Not before. Not after. The isolation
   sweep, item 10 (the sweep report (kept outside the repo since 2026-10-16)).
 
+## Before any customer or workspace in the EU or UK — BLOCKING (the owner, 2026-10-28)
+
+- **Before any customer or workspace in the EU or UK: counsel confirms the transfer basis and safeguards for
+  DeepSeek (China), and the privacy page says it.** GDPR art. 13(1)(f) (and the UK GDPR's) asks the page to say that
+  personal data goes to a country outside, and on what basis. `/privacy` names where it goes ("DeepSeek (China)";
+  messages, pictures and documents "are processed there") and says nothing of a basis or safeguards — none is
+  written that we cannot back up. The same question for Morocco is PHASE-5.md §6.4
+  ([§6, item 4](PHASE-5.md#6--the-privacy-load-accepted-as-written-with-the-owners-note)), parked as a lawyer's
+  question. **Not enforced in code:** sign-up does not refuse an EU or UK country, and a customer's country is not
+  recorded, so a customer in the EU or UK writing to any workspace today is not caught by anything; this line is
+  the owner's to hold.
+
 ## Before the books are switched on for ANY workspace — BLOCKING (the owner, 2026-10-21)
 
 The books are off everywhere (`businesses.books_area`, 0176). An owner who

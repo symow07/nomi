@@ -1337,6 +1337,13 @@ Parties, Invoices, Payments) and fixed columns.
   - France: "documents comptables" and "pièces justificatives… doivent être conservés pendant dix ans" (Code de commerce
     L123-22, via BOFiP).
   - Morocco: CGI art. 211, "pendant dix (10) ans", electronic records "sur support électronique".
+  - United Kingdom (0218, the owner, 2026-10-28): **six years** — corporation tax records until "the sixth anniversary
+    of the end of the period" (Finance Act 1998, Sch. 18, para. 21); VAT up to six years (VATA 1994, Sch. 11,
+    para. 6(3)); the Companies Act 2006, s. 388(4) (3 years private, 6 public) and a sole trader's TMA 1970, s. 12B(2)
+    are shorter.
+  - Spain (0218): **ten years, kept** — the Código de Comercio, art. 30.1, asks six from the last entry, but the LGT,
+    art. 66 bis.2–.3, lets losses and deductions carried forward be checked for ten, with the accounting behind them;
+    Nomi cannot tell which businesses carry any forward. Every other country: ten (`books_retention`'s `*`).
   - GDPR art. 17(3)(b): erasure doesn't apply where processing is needed "for compliance with a legal obligation".
 - **How it meets erasure (the owner's rule):** **a buyer's deletion request still erases their personal data. Entries
   required for the statutory record are kept to the legal date, then erased.**
@@ -1379,6 +1386,10 @@ Parties, Invoices, Payments) and fixed columns.
   The CNDP's list (délibération 236-2015) doesn't include the USA. Art. 44 then needs consent, a listed necessity, or the
   CNDP's authorisation, and art. 15(e) requires the transfer to be declared.
 - **Parked as a lawyer's question.** The seam is open now: residency is a parameter (A4, decision 14).
+- **The same question for the EU and the UK** (the owner, 2026-10-28): replies, pictures and the documents the owner
+  asks Nomi to read go to DeepSeek (China). No basis or safeguards are written on `/privacy` until counsel confirms
+  them — BLOCKING before any customer or workspace there (LAUNCH-CHECKLIST.md, "Before any customer or workspace in
+  the EU or UK").
 
 **5. Backups** are kept 180 days. That's fine for recovery, but they are **not the legal archive.** The books plus the
 closing export carry the 10 years, and the pages won't suggest otherwise.

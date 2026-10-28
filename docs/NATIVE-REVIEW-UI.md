@@ -16501,3 +16501,17 @@ section) and on /data-deletion (the paragraph after the one on closing, and the 
   comptabilité); "posted" is 过账 / مرحَّل / contabilizado / validée; the two laws keep their French names in ar, es and fr
   and are translated in zh (《商法典》, 《税法总典》); Arabic and Spanish name the accountant without a gender («المحاسب
   المضاف من قِبله», «la persona de contabilidad»), French by «la personne chargée de la comptabilité».
+
+## The books kept by country; documents processed there (0218, 2026-10-28)
+
+New and rewritten legal lines, written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read
+them on /privacy ("If your business keeps its books in Nomi": the reader's line, the closure line and the list under
+it) and on /data-deletion (the books item under what is kept).
+
+- **New keys:** `legal.privacy.books.years.lead`, `.gb`, `.fr`, `.ma`, `.es`, `.other`.
+- **Rewritten:** `legal.privacy.books.reader` (gains "Documents are processed there." — said as the messages' own line
+  says it: 在那里处理 / تُعالَج … هناك / se procesan allí / y sont traités); `legal.privacy.books.kept` (the period is
+  the country's, no figure); `legal.deletion.kept.books` (six years in the United Kingdom, ten elsewhere).
+- **Choices to check:** the UK's and Spain's laws keep their own names in every language (zh too, unlike the French
+  and Moroccan codes); "bis" stays as the article's name in Arabic, as L123-22 does; Spain's tax office is «Hacienda»
+  in Spanish and «مصلحة الضرائب» in Arabic.
