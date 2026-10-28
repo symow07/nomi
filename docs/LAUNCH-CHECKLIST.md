@@ -185,6 +185,6 @@ Built and switched off by design; each waits on a person, not on code:
 
 - `HEALTH_PING_URL` is set on the `nomi` service and the Healthchecks.io
   check "Nomi app" is green — the steps are in `docs/MONITORING.md`. Railway
-  only swaps in a deploy whose `/health` answers (`railway.json`).
+  only swaps in a deploy whose `/health` answers (the service's Healthcheck Path, `docs/DEPLOYMENT.md`).
 - Errors inside the app reach the pilot workspace's sign-in address; read them
   with `node tools/errors.mjs` (same page).

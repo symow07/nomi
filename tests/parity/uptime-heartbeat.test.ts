@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   heartbeatTick, failUrl, loopbackHealth, startHeartbeat, HEARTBEAT_CRON, type PingFetch,
@@ -239,8 +239,14 @@ describe('the wiring', () => {
   });
 
   it('Railway only replaces a running deploy once /health answers — and still migrates first', () => {
-    const cfg = JSON.parse(read('railway.json')) as { deploy: { healthcheckPath?: string; preDeployCommand?: string[] } };
-    expect(cfg.deploy.healthcheckPath).toBe('/health');
-    expect(cfg.deploy.preDeployCommand).toEqual(['node tools/migrate.mjs']);
+    // Since 2026-10-28 both are the nomi service's own settings, read back from Railway (docs/DEPLOYMENT.md, "Where
+    // the two deploy settings live"). A config file in the repo would override them for every deploy, so none may
+    // come back; the repository's part is to say what the service must hold.
+    for (const f of ['railway.json', 'railway.toml']) {
+      expect(existsSync(fileURLToPath(new URL(`../../${f}`, import.meta.url))), f).toBe(false);
+    }
+    const doc = read('docs/DEPLOYMENT.md');
+    expect(doc).toContain('Pre-deploy Command: `node tools/migrate.mjs`');
+    expect(doc).toContain('Healthcheck Path: `/health`');
   });
 });

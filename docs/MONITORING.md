@@ -85,7 +85,8 @@ naming the variable — never printing it.
 
 ### Deploys: `/health` must answer first
 
-`railway.json` sets `"healthcheckPath": "/health"`. A new deploy only
+The `nomi` service's Healthcheck Path is `/health` (on the service since 2026-10-28; `docs/DEPLOYMENT.md`, "Where
+the two deploy settings live"). A new deploy only
 replaces the running one after its `/health` answers 200 (within Railway's
 default window, 300 s; the app answers within seconds of starting). A build
 that cannot reach the database answers 503 and never goes live — the running
