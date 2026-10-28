@@ -25,8 +25,11 @@ runs the product. The draft terms for the business itself are in
   the owner and an accountant the owner adds see them; the shop's own Odoo, read from and written to with the
   owner's key (named for D18); a receipt, invoice or bill the owner asks Nomi to read goes to the replies' own
   provider, and nothing posts without the owner; closure requires the owner's copy, then keeps the books and papers,
-  switched off, until ten years after the last financial year with a posted entry (L123-22, CGI art. 211; ten years
-  everywhere, `books_retention`'s `*` row), then erases them; imported history kept whole. A customer's deletion
+  switched off, for as long as the business's country's law requires, counted from the end of the last financial
+  year with a posted entry, then erases them — six years in the United Kingdom (FA 1998 Sch. 18 para. 21, VATA 1994
+  Sch. 11 para. 6), ten in France (L123-22), Morocco (CGI art. 211), Spain (LGT art. 66 bis) and everywhere else
+  (0218; the page's list is `src/core/legal/booksRetention.ts`, held equal to `books_retention`); a paper the owner
+  asks Nomi to read "is processed there", like the messages; imported history kept whole. A customer's deletion
   leaves the entries that name them (an invoice made out to them), and the shop's own copies are the shop's.
 - Who sees it: the business; Meta (carriage); the configured model provider
   (drafting, and phrasing the advisor's answers), named from `LLM_BASE_URL` by

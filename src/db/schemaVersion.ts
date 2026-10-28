@@ -466,7 +466,8 @@ import type { Db } from './client.js';
 // 215 = TikTok direct messages: the channel on every list, a business's own account and its sealed grant (0215).
 // 216 = the books' disclosed limits lifted: a draft edited, a price lowered, a payment across currencies, a bank's columns kept, the opening journal (0216).
 // 217 = an alarm that reaches somebody: failed backups recorded, a dead mailbox told once, an undelivered alert kept and tried again (0217).
-export const REQUIRED_SCHEMA_VERSION = 217;
+// 218 = the books kept as long as their country's law says: six years in the United Kingdom, Spain's ten under its own law (0218).
+export const REQUIRED_SCHEMA_VERSION = 218;
 
 export type SchemaState = {
   readonly required: number;

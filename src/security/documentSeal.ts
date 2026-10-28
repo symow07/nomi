@@ -3,7 +3,7 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:cr
 /**
  * A4 (Phase 5) — A DOCUMENT AT REST IS SEALED: AES-256-GCM, its own key, bound to its workspace and its id.
  *
- * Receipts, invoices and bills are kept ten years (PHASE-5.md §6). A copy of the store — a database dump, a disk, a
+ * Receipts, invoices and bills are kept for years — ten in most countries, six in the United Kingdom (PHASE-5.md §6, 0218). A copy of the store — a database dump, a disk, a
  * backup — must not be a copy of a shop's papers. So every document's bytes are sealed before they are stored:
  *
  *   · the key is derived from CREDENTIAL_KEY with HKDF under its own label, so a document key is never a credential

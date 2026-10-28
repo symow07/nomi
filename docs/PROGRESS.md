@@ -13,7 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The books kept by their country's law: the UK six years, Spain ten (2026-10-28, 0218)
+
+- **The owner's decision**, from the laws themselves: the United Kingdom six years (Finance Act 1998, Sch. 18,
+  para. 21; VATA 1994, Sch. 11, para. 6(3) — the Companies Act and a sole trader's TMA duty are shorter); Spain kept at
+  ten (Código de Comercio art. 30 asks six, but LGT art. 66 bis lets carried-forward losses and deductions be checked
+  for ten, and Nomi cannot tell who carries any). France, Morocco and every country not on record stay ten.
+- **Built:** 0218 adds `GB` (6) and `ES` (10, its own law, so its owner's data page names it); `/privacy` says the
+  period is the country's and lists each with its law (`src/core/legal/booksRetention.ts`, held equal to the table
+  by `tests/integration/books-retention-country.test.ts`); `/data-deletion` says six in the UK, ten elsewhere. A
+  workspace already held, and a paper already attached, keep the dates they were given.
+- **Same PR:** the reader's line gains "Documents are processed there." (five languages); LAUNCH-CHECKLIST gains a
+  BLOCKING line — counsel confirms the transfer basis and safeguards for DeepSeek (China) before any customer or
+  workspace in the EU or UK, and `/privacy` says it (linked to PHASE-5 §6.4). Nothing in code enforces it.
+
 ## Proof the pre-deploy step ran (2026-10-28)
+
+- **Merged as #398 (`ea8b3b3c`) and deployed (`2f211b23`); proven on that deploy:** `migrate-mark --expect ea8b3b3c`
+  read "Last migrator run: 2026-10-28T14:25:19.428Z · commit ea8b3b3c… · deployment 2f211b23… · applied 0 ·
+  recorded 216" and exited 0.
 
 - **Why:** #396's deploy ran with `preDeployCommand ["node tools/migrate.mjs"]`, and its log held no "done" line;
   Railway's dashboard shows no pre-deploy log (the owner looked). Postgres's scan counters were tried and rejected:

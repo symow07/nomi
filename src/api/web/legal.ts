@@ -8,6 +8,7 @@ import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { OPERATOR, operatorNamed } from '../../core/legal/operator.js';
+import { BOOKS_RETENTION } from '../../core/legal/booksRetention.js';
 
 /** G1 — the version of the terms a sign-up agrees to: their English words, digested (src/core/legal/terms.ts). */
 export const TERMS_VERSION: string = createHash('sha256')
@@ -254,6 +255,8 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.books.odoo'))}</p>
     <p>${esc(t(l, 'legal.privacy.books.reader', { processor: processorLabel(facts.processor, l) }))}</p>
     <p>${esc(t(l, 'legal.privacy.books.kept'))}</p>
+    ${/* 0218 — how long, by country: the page's copy of books_retention (src/core/legal/booksRetention.ts). */ ''}<p>${esc(t(l, 'legal.privacy.books.years.lead'))}</p>
+    <ul>${BOOKS_RETENTION.map((r) => `<li>${esc(t(l, r.key))}</li>`).join('')}</ul>
     <p>${esc(t(l, 'legal.privacy.books.history'))}</p>
     ${/* §9.4 — D7: every cookie is strictly necessary, so there is no banner; the list is the code's own. */ ''}<h2 id="cookies">${esc(t(l, 'legal.privacy.cookies.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
