@@ -13,6 +13,19 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Off railway.json; production on #395 (2026-10-28)
+
+- **The deploy happened by itself (2026-10-27 18:53 UTC):** Railway auto-deploys `main` again since it was paid, and
+  the merge of #395 deployed #354–#395 (0161–0217) through `railway.json`'s pre-deploy. Production is on `c212c741`,
+  schema 217; no scheduled job has failed since; the 03:00 UTC backup (`nomi-backup-20261028T030343Z`, schema 217)
+  passed its drill. **The owner keeps auto-deploy on: every merge to `main` is a deploy.**
+- **The operator's Gmail reconnected (07:38 UTC)**; the heartbeat went healthy at 07:40, and a test operator alert
+  (`deploy_caught_up`, true at the time) left with nothing undelivered.
+- **The two deploy settings moved onto the service by the API** (the dashboard fields were locked by the file):
+  `node tools/migrate.mjs` and `/health`. Same 54 variable names, same source, before and after; no deploy started,
+  nothing staged. Then the PR that removes `railway.json` (DEPLOYMENT.md, "After paying Railway", step 4). Its merge
+  waits for the owner's word.
+
 ## An alarm that reaches somebody (2026-10-27, 0217)
 
 - **Found while restoring production:** the 10-22 03:04 backup's upload was refused (the bucket's keys had changed;

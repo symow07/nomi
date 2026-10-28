@@ -89,16 +89,23 @@ return (the owner's order, 2026-10-27):
 
 1. **Pay; bring Postgres back; take a fresh backup** (`BACKUP-RESTORE.md`, both parts — the dump and the roles, drill
    passed). The newest laptop copy is 2026-10-16. Nothing else starts before this backup.
-2. **The owner sets the two deploy settings on the service:** Railway → `nomi` → Settings → Deploy:
+1. **Done 2026-10-27:** Railway paid, Postgres back, backup `nomi-backup-20261027T170007Z` (drill 4/4).
+2. **Done 2026-10-28, by the API:** the two deploy settings written on the service itself. The dashboard could not
+   take them: while `railway.json` set them, both fields read "The value is set in /railway.json" and were locked.
+   The service held neither underneath, so removing the file first would have deployed with no migration and no
+   health check. Railway's `update-service` (MCP), on `nomi` in production only, live (not staged):
    - Pre-deploy Command: `node tools/migrate.mjs`
    - Healthcheck Path: `/health`
-   Stored on the service, they survive the file's removal.
-3. **Claude confirms both, read-only** (the service's config through the Railway CLI or its MCP; nothing written).
-4. **One PR removes `railway.json`**, with `tests/parity/uptime-heartbeat.test.ts` changed to say where the two
-   settings now live. Merged through `tools/gated-merge.sh`.
-5. **Deploy #354 onward** — one deploy of everything merged since #353, after the pre-deploy checklist
-   (`LAUNCH-CHECKLIST.md`): the backup of step 1 younger than the day, then `/health`, and `schema_version` equal to
-   `REQUIRED_SCHEMA_VERSION`.
+
+   It started no deploy and staged nothing. Before and after, the same 54 variable names, the same source
+   (`symow07/nomi`, `main`), domains, builder and region; only those two fields changed.
+3. **Done 2026-10-28, read-only:** the service's config shows both under `deploy`.
+4. **One PR removes `railway.json`** (this one), with `tests/parity/uptime-heartbeat.test.ts` holding that no config
+   file comes back. Merged through `tools/gated-merge.sh` on the owner's word. Its merge deploys: check that the
+   deployment's settings show both values from the service (no file icon), that its log shows the migrator ran with
+   nothing to apply, SUCCESS, `/health`, and `schema_version` equal to `REQUIRED_SCHEMA_VERSION`.
+5. **Done 2026-10-27, unasked:** the merge of #395 deployed #354–#395 (0161–0217) by itself; Railway auto-deploys
+   `main`, and the owner keeps it on (2026-10-28). Every merge to `main` is a deploy from now on.
 
 **THE TRAP — `railway config apply` wipes the service's variables.** Do not move `railway.json` to Railway's
 Infrastructure as Code (`.railway/railway.ts`). Seen twice:
@@ -108,27 +115,32 @@ Infrastructure as Code (`.railway/railway.ts`). Seen twice:
 - **2026-10-27:** `railway config migrate` (dry run) again wrote the pre-deploy command as a comment only, so applying
   its file would also have dropped the migrations before each deploy.
 Nothing was applied either time. `railway config migrate --apply` also clears the service's Config File setting on
-Railway: it is a production change, not a file conversion. The dashboard settings of step 2 replace `railway.json`
+Railway: it is a production change, not a file conversion. The service settings of step 2 replace `railway.json`
 with nothing to apply.
+
+### Where the two deploy settings live
+
+On the `nomi` service itself (Railway → `nomi` → Settings → Deploy), since 2026-10-28:
+- Pre-deploy Command: `node tools/migrate.mjs`
+- Healthcheck Path: `/health`
+
+No `railway.json` or `railway.toml` may come back: a config file overrides the service for every deploy it is in.
+Read them back with the Railway MCP's `get-service-config` (the `deploy` section) or the dashboard.
 
 ## Deploy
 
 1. Merge to `main` → Railway builds, **runs the migrator, then redeploys.**
-2. **Migrations apply automatically, before the new build boots.** `railway.json`
-   sets a pre-deploy command:
-
-   ```json
-   { "deploy": { "preDeployCommand": ["node tools/migrate.mjs"] } }
-   ```
+2. **Migrations apply automatically, before the new build boots.** The service's
+   Pre-deploy Command is `node tools/migrate.mjs` ("Where the two deploy
+   settings live", above).
 
    It runs between build and deploy, inside Railway's private network, with the
    service's own variables — so it reaches `postgres.railway.internal` directly
    and needs no TCP proxy.
 
-   **Railway stops reading `railway.json` on 2026-12-01.** Before then, put the
-   same command in the dashboard (service → Settings → Deploy → Pre-deploy
-   Command), where it is stored on the service and survives the file's removal,
-   then delete the file — the order is "After paying Railway" above. **Do NOT migrate it with `railway config migrate`**,
+   Until 2026-10-28 it came from `railway.json`, which Railway stops reading on
+   2026-12-01; the move is "After paying Railway" above. **Do NOT migrate a
+   config file with `railway config migrate`**,
    which was tried on 2026-09-16 and is a trap in two ways: the file it writes
    drops the pre-deploy command to a comment, and the format describes a service
    EXHAUSTIVELY — `railway config plan` proposed deleting all twenty environment
