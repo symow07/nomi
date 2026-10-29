@@ -25,7 +25,7 @@ import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
-import { deployWatchSweep, readMainChain } from './pipeline/deployWatch.js';
+import { deployWatchSweep, readMainChain, unseenClock } from './pipeline/deployWatch.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -1796,18 +1796,22 @@ export async function buildProduction(
   /**
    * 0167 — THE DEPLOY ALARM: every ten minutes, does this process have every merge main has had for an hour? A merge
    * that has not arrived is the operator's alert, once per merge; caught up, once more (src/pipeline/deployWatch.ts). Off where the process was not deployed
-   * from git (local, a hand upload): it says so once.
+   * from git (local, a hand upload): it says so once. A private repository is read with `DEPLOY_WATCH_GITHUB_TOKEN`
+   * (fine-grained, this repository only, Contents read), never logged; an hour without seeing main is its own alert.
    */
   const runningCommit = process.env['RAILWAY_GIT_COMMIT_SHA']?.trim() || null;
+  const deployWatchToken = process.env['DEPLOY_WATCH_GITHUB_TOKEN']?.trim() || null;
   const deployRepo = process.env['RAILWAY_GIT_REPO_OWNER'] && process.env['RAILWAY_GIT_REPO_NAME']
     ? `${process.env['RAILWAY_GIT_REPO_OWNER']}/${process.env['RAILWAY_GIT_REPO_NAME']}` : null;
   if (runningCommit && deployRepo) {
-    console.log(`Deploy watch: this process runs ${runningCommit.slice(0, 7)}; main is compared every ten minutes.`);
+    console.log(`Deploy watch: this process runs ${runningCommit.slice(0, 7)}; main is compared every ten minutes, ${deployWatchToken ? 'read with DEPLOY_WATCH_GITHUB_TOKEN' : 'read without a key (a private repository cannot be seen)'}.`);
+    const unseen = unseenClock();
     await boss.schedule(QUEUES.deployWatch, '*/10 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies DeployWatchJob);
     await boss.work<DeployWatchJob>(QUEUES.deployWatch, async ([job]: { data: DeployWatchJob }[]) => {
       if (!job) return;
       await deployWatchSweep({
-        db, running: runningCommit, readMain: () => readMainChain(deployRepo, runningCommit), operatorBusinessId: job.data.businessId,
+        db, running: runningCommit, readMain: () => readMainChain(deployRepo, runningCommit, fetch, deployWatchToken), unseen,
+        operatorBusinessId: job.data.businessId,
         send: async (j, key) => { await sendAlert(boss, j satisfies NotifyJob, { singletonKey: key }); },
       });
     });

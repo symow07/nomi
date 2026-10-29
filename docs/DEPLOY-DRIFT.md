@@ -32,6 +32,10 @@ Measured from the newest merge instead, merges less than an hour apart would pos
 - **A red run in Actions means the watcher itself broke** (and GitHub e-mails you). "Behind" is told only through Healthchecks, and the run stays green; otherwise a stop would e-mail you every hour. Before the two secrets exist, every run succeeds and says "Not set up".
 - **Silent only if Healthchecks itself can't alert you.** A quiet check means Healthchecks has heard a ping in time, and nothing more.
 - **The inside watcher (#363) stays.** Two watchers, failing in different directions.
+  - Since 2026-10-29 it is loud when blind too: an hour without seeing `main` (a private repository read without a key,
+    a refused key, GitHub down) is its own operator alert, `deploy_unseen`, with GitHub's reason; seeing it again is
+    `deploy_seen_again`. On 2026-10-28 it saw nothing for ten hours and said nothing. A private repository is read with
+    `DEPLOY_WATCH_GITHUB_TOKEN` on the `nomi` service (`docs/env-checklist.md`).
 
 ## Setup: the owner's, about 15 minutes, once
 

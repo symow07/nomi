@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { DEPLOY_GRACE_MS, deployVerdict } from '../../src/core/ops/deployWatch.js';
-import { readMainChain } from '../../src/pipeline/deployWatch.js';
+import { DEPLOY_GRACE_MS, deployVerdict, type MainCommit } from '../../src/core/ops/deployWatch.js';
+import { readMainChain, UNSEEN_WHYS } from '../../src/pipeline/deployWatch.js';
 import { renderOwnerAlert, goesByMail, OPERATOR_ALERT_KINDS } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -66,7 +66,7 @@ describe('0167 · GitHub\'s answer: ONE compare call, followed along first paren
   };
   it('the merges production lacks, newest first, ending with production\'s own commit; branch commits left out', async () => {
     let asked = '';
-    const chain = await readMainChain('symow07/nomi', OLD, (async (u: string) => { asked = u; return new Response(JSON.stringify(body), { status: 200 }); }) as never);
+    const chain = await readMainChain('symow07/nomi', OLD, (async (u: string) => { asked = u; return new Response(JSON.stringify(body), { status: 200 }); }) as never) as MainCommit[];
     expect(asked).toBe(`https://api.github.com/repos/symow07/nomi/compare/${OLD}...main`);
     expect(chain?.map((c) => c.sha)).toEqual([M2, M1, OLD]);
     expect(chain?.[1]).toEqual({ sha: M1, at: new Date('2026-10-14T19:17:00Z'), title: 'Merge pull request #354' });
@@ -74,15 +74,31 @@ describe('0167 · GitHub\'s answer: ONE compare call, followed along first paren
   });
   it('identical: production is the head', async () => {
     const same = { status: 'identical', base_commit: raw(SHA, '2026-10-15T05:09:43Z', [OLD]), commits: [] };
-    const chain = await readMainChain('symow07/nomi', SHA, (async () => new Response(JSON.stringify(same), { status: 200 })) as never);
+    const chain = await readMainChain('symow07/nomi', SHA, (async () => new Response(JSON.stringify(same), { status: 200 })) as never) as MainCommit[];
     expect(deployVerdict(SHA, chain, NOW).verdict).toBe('current');
   });
-  it('anything else is no answer — rate limited, offline, unreadable, or no single head', async () => {
-    expect(await readMainChain('symow07/nomi', OLD, (async () => new Response('rate limited', { status: 403 })) as never)).toBeNull();
-    expect(await readMainChain('symow07/nomi', OLD, (async () => { throw new Error('offline'); }) as never)).toBeNull();
-    expect(await readMainChain('symow07/nomi', OLD, (async () => new Response('{"status":"ahead"}', { status: 200 })) as never)).toBeNull();
+  it('anything else is main unseen, with GitHub\'s reason — not found, refused, limited, or no usable answer', async () => {
+    const answer = (status: number) => (async () => new Response('no', { status })) as never;
+    // 2026-10-28: the repository was private, the app asked without a key, and this is what GitHub said every time.
+    expect(await readMainChain('symow07/nomi', OLD, answer(404))).toEqual({ unseen: 'not_found' });
+    expect(await readMainChain('symow07/nomi', OLD, answer(401))).toEqual({ unseen: 'refused' });
+    expect(await readMainChain('symow07/nomi', OLD, answer(403))).toEqual({ unseen: 'limited' });
+    expect(await readMainChain('symow07/nomi', OLD, answer(429))).toEqual({ unseen: 'limited' });
+    expect(await readMainChain('symow07/nomi', OLD, answer(502))).toEqual({ unseen: 'other' });
+    expect(await readMainChain('symow07/nomi', OLD, (async () => { throw new Error('offline'); }) as never)).toEqual({ unseen: 'other' });
+    expect(await readMainChain('symow07/nomi', OLD, (async () => new Response('{"status":"ahead"}', { status: 200 })) as never)).toEqual({ unseen: 'other' });
     const twoHeads = { ...body, commits: [...body.commits, raw('d'.repeat(40), '2026-10-15T04:00:00Z', [OLD])] };
-    expect(await readMainChain('symow07/nomi', OLD, (async () => new Response(JSON.stringify(twoHeads), { status: 200 })) as never)).toBeNull();
+    expect(await readMainChain('symow07/nomi', OLD, (async () => new Response(JSON.stringify(twoHeads), { status: 200 })) as never)).toEqual({ unseen: 'other' });
+  });
+  it('2026-10-29 · a private repository is read with the token, sent only in the request\'s header; without one, no header', async () => {
+    const heard: Record<string, string>[] = [];
+    const listen = (async (_u: string, init: { headers: Record<string, string> }) => {
+      heard.push(init.headers); return new Response(JSON.stringify(body), { status: 200 });
+    }) as never;
+    expect(Array.isArray(await readMainChain('symow07/nomi', OLD, listen, 'github_pat_test'))).toBe(true);
+    expect(heard[0]!['authorization']).toBe('Bearer github_pat_test');
+    await readMainChain('symow07/nomi', OLD, listen);
+    expect(heard[1]).not.toHaveProperty('authorization');
   });
 });
 
@@ -96,8 +112,21 @@ describe('0167 · the operator is told, in every language, by e-mail always', ()
       expect(behind).not.toMatch(/\{|notify\./);
     });
   }
+  for (const l of LOCALES) {
+    it(`${l} · main unseen, with each reason and what to do; then seen again`, () => {
+      for (const why of UNSEEN_WHYS) {
+        const unseen = renderOwnerAlert(l, 'deploy_unseen', null, { deployUnseen: { running: '408a5db', minutes: 63, why } });
+        for (const s of ['408a5db', '63', 'GitHub']) expect(unseen, `${l} ${why} ${s}`).toContain(s);
+        expect(unseen, `${l} ${why}`).not.toMatch(/\{|notify\./);
+        if (why !== 'other') expect(unseen, `${l} ${why}`).toContain('DEPLOY_WATCH_GITHUB_TOKEN');
+      }
+      const again = renderOwnerAlert(l, 'deploy_seen_again', null, { deployUnseen: { running: '408a5db', minutes: 600 } });
+      for (const s of ['408a5db', '600']) expect(again, `${l} ${s}`).toContain(s);
+      expect(again).not.toMatch(/\{|notify\./);
+    });
+  }
   it('both are operator alerts: e-mail always, never depending on WhatsApp', () => {
-    for (const k of ['deploy_behind', 'deploy_caught_up'] as const) {
+    for (const k of ['deploy_behind', 'deploy_caught_up', 'deploy_unseen', 'deploy_seen_again'] as const) {
       expect(OPERATOR_ALERT_KINDS as readonly string[]).toContain(k);
       expect(goesByMail(k)).toBe(true);
     }
@@ -107,5 +136,13 @@ describe('0167 · the operator is told, in every language, by e-mail always', ()
     expect(main).toContain("const runningCommit = process.env['RAILWAY_GIT_COMMIT_SHA']?.trim() || null;");
     expect(main).toContain("await boss.schedule(QUEUES.deployWatch, '*/10 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies DeployWatchJob);");
     expect(main).toContain("console.log('Deploy watch: off — this process was not deployed from git (no RAILWAY_GIT_COMMIT_SHA).');");
+  });
+  it('2026-10-29 · the token comes from the Railway variable, goes to the read, and never into the log; one unseen clock per process', () => {
+    const main = src('src/main.ts');
+    expect(main).toContain("const deployWatchToken = process.env['DEPLOY_WATCH_GITHUB_TOKEN']?.trim() || null;");
+    expect(main).toContain('readMain: () => readMainChain(deployRepo, runningCommit, fetch, deployWatchToken), unseen,');
+    expect(main).toContain('const unseen = unseenClock();');
+    for (const line of main.split('\n').filter((x) => /console\.(log|warn|error)/.test(x))) expect(line).not.toMatch(/\$\{deployWatchToken\}/);
+    expect(src('docs/env-checklist.md')).toContain('DEPLOY_WATCH_GITHUB_TOKEN');
   });
 });

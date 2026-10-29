@@ -16525,3 +16525,14 @@ Two new lines, written in zh, ar, es and fr in one pass; none has had a native r
 - **Choices to check:** "the service that drafts replies" for the model provider (起草回复的服务 / الخدمة التي تصوغ
   الردود / el servicio que redacta las respuestas / le service qui rédige les réponses), never a word for software;
   the Arabic addresses nobody (a verbal noun, «يُرجى»).
+
+## The deploy alarm when it cannot see main (2026-10-29)
+
+Eight new lines, written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. They are e-mails to
+the operator only, never an owner page.
+
+- **The keys:** `notify.deploy_unseen` (and `.subject`, `.why.not_found`, `.why.refused`, `.why.limited`,
+  `.why.other`), `notify.deploy_seen_again` (and `.subject`).
+- **Choices to check:** GitHub's "personal access token" said as an access key (访问密钥 / مفتاح وصول / clave de
+  acceso / clé d'accès) — "token" and 令牌 are banned owner words; GitHub's own menu names (Settings, Developer
+  settings, Contents) left in English, as GitHub shows them; the Arabic addresses nobody («يُرجى», a verbal noun).
