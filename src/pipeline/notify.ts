@@ -62,8 +62,8 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
 export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker',
   // 0128 — the model provider refused for billing (escalating), answers again, or its balance runs low.
   'provider_refusing', 'provider_answering', 'provider_balance',
-  // 0167 — production an hour behind main, and caught up again.
-  'deploy_behind', 'deploy_caught_up',
+  // 0167 — production an hour behind main, and caught up again; 2026-10-29 — main out of sight for an hour, and seen again.
+  'deploy_behind', 'deploy_caught_up', 'deploy_unseen', 'deploy_seen_again',
   // 0217 — a scheduled backup failed: told within five minutes, not 36 hours later.
   'backup_failed'] as const satisfies readonly AlertKind[];
 /** 0217 — the steps backup/run.sh names (`backup_failures.step`), each with its words in `backup.failedStep.*`. */
@@ -253,6 +253,8 @@ export type OperatorAlertDetail = {
   readonly mailbox?: { readonly address: string; readonly since: Date };
   /** 0167 — what production runs, main's head, how long it has waited, and its first line. */
   readonly deploy?: { readonly running: string; readonly main: string; readonly minutes: number; readonly title: string };
+  /** 2026-10-29 — `deploy_unseen` / `deploy_seen_again`: production's commit, minutes out of sight, GitHub's reason. */
+  readonly deployUnseen?: { readonly running: string; readonly minutes: number; readonly why?: 'not_found' | 'refused' | 'limited' | 'other' };
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
   readonly zone?: string;
   /** `signup_digest` (G1): who signed up in the last day. */
@@ -459,6 +461,12 @@ export function renderOwnerAlert(
   if (kind === 'deploy_behind' || kind === 'deploy_caught_up') {
     const d = detail.deploy ?? { running: '—', main: '—', minutes: 0, title: '' };
     return t(locale, `notify.${kind}`, { running: d.running, main: d.main, minutes: d.minutes, title: d.title || '—' });
+  }
+  // 2026-10-29 — main out of sight: for how long, GitHub's reason and what to do about it; then seen again.
+  if (kind === 'deploy_unseen' || kind === 'deploy_seen_again') {
+    const u = detail.deployUnseen ?? { running: '—', minutes: 0 };
+    const text = t(locale, `notify.${kind}`, { running: u.running, minutes: u.minutes });
+    return kind === 'deploy_unseen' ? `${text}\n${t(locale, `notify.deploy_unseen.why.${u.why ?? 'other'}`)}` : text;
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -929,6 +937,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.spend ? { spend: job.spend } : {}),
     // 0167 — production behind main, and caught up.
     ...(job.deploy ? { deploy: job.deploy } : {}),
+    ...(job.deployUnseen ? { deployUnseen: job.deployUnseen } : {}),
     // 0217 — a failed backup; a dead mailbox.
     ...(job.backupFailure ? { backupFailure: { ...job.backupFailure, at: new Date(job.backupFailure.at) } } : {}),
     ...(job.mailbox ? { mailbox: { address: job.mailbox.address, since: new Date(job.mailbox.since) } } : {}),

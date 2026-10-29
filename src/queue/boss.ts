@@ -276,7 +276,7 @@ export type NotifyJob = {
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
-    | 'deploy_behind' | 'deploy_caught_up'
+    | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
     | 'backup_failed' | 'mailbox_disconnected';   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
@@ -300,6 +300,11 @@ export type NotifyJob = {
   mailbox?: { address: string; since: string };
   /** 0167 — `deploy_behind` / `deploy_caught_up`: what production runs, main's head, minutes waited, its first line. */
   deploy?: { running: string; main: string; minutes: number; title: string };
+  /**
+   * 2026-10-29 — `deploy_unseen` / `deploy_seen_again`: what production runs, how many minutes main was out of sight,
+   * and (unseen only) GitHub's reason (`UNSEEN_WHYS` in src/pipeline/deployWatch.ts).
+   */
+  deployUnseen?: { running: string; minutes: number; why?: 'not_found' | 'refused' | 'limited' | 'other' };
   /** `signup_digest` only (G1): who signed up in the last day. Dates as ISO strings. */
   signups?: { business: string; kind: string | null; country: string | null; at: string }[];
   /** `signup_digest` (G7, KS4): every operator switch still on — which, for whom (null: everyone), since when (ISO). */

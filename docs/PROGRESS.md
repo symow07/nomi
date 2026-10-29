@@ -13,6 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The deploy alarm cannot go blind quietly (2026-10-29)
+
+- **What happened:** #401 merged at 18:45 UTC on 2026-10-28 and Railway built nothing for it; deployed by hand at
+  04:28 UTC (deployment `a7aed509`, `migrate-mark --expect decf447f` passed). Neither watcher said a word. The inside
+  one asked GitHub without a key, the repository is private, every look was a 404 — read as "GitHub not answering",
+  which said nothing by design (201 looks, no `deploy_lag` row). The outside one (`deploy-drift.yml`) has never had its
+  two secrets: every run says "Not set up" and stays green.
+- **Built:** an hour of looks that cannot see `main` is `deploy_unseen` (an operator alert, e-mail always), told once
+  per blind spell with GitHub's reason — not found (private, no key or a key that cannot read it), refused (the key
+  itself), limited, or no usable answer — and what to do about each; the first look that sees `main` again is
+  `deploy_seen_again`, then the ordinary alarm runs. The clock is kept in the process (one replica): a restart while
+  still blind starts the hour again. `readMainChain` sends `DEPLOY_WATCH_GITHUB_TOKEN` (fine-grained, this repository
+  only, Contents read-only) in its header when set; never logged.
+- **The owner's:** create the token and paste it on the `nomi` service as `DEPLOY_WATCH_GITHUB_TOKEN`; and the
+  outside watcher's two secrets (`docs/DEPLOY-DRIFT.md`) — the only alarm when Railway deploys nothing at all.
+- **Not known:** why Railway did not build `decf447f`. The four merges before it deployed on their own.
+- Tests: `tests/parity/deploy-watch.test.ts`, `tests/integration/deploy-watch.test.ts` (the night of 2026-10-28 as a
+  test: ten hours of 404s told once, then seen again, then behind).
+
 ## One greeting, not two; the assistant's name is the workspace's (2026-10-28)
 
 - **"nomi-socials" is not a default or a slug:** it is Westlake's one assistant row, named on Getting ready at
