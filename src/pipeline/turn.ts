@@ -27,7 +27,7 @@ import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { addressesInGender } from '../core/safety/address.js';
-import { disclosureFor, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
+import { disclosureFor, withDisclosure, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
 import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
 import { OPT_OUT_REPLIES, asksOnlyOffAList, optOutLanguage } from '../core/safety/optOut.js';
@@ -1625,9 +1625,12 @@ export async function commitTurn(
       // gender — said only that a person would reply. The question was asked now; it is answered now.
       const askedWhatItIs = r.notice === 'handoff' && asksAboutBeingAi(req.text) !== null;
       const say = r.newState.aiDisclosureDeliveredAt === null || askedWhatItIs ? sentence : null;
+      // One greeting: the disclosure's; the reply's own opening greeting goes (openingGreeting.ts) — but only from a
+      // reply the WRITER wrote. The owner's word-for-word answer (a taught answer, How you sell's words) and every fixed
+      // sentence go behind the disclosure exactly as they are (#401's audit, batch 5): nothing of them is trimmed.
+      const joined = say ? (r.answerPath === 'model' ? withDisclosureFirst(say, reply) : withDisclosure(say, reply)) : reply;
       outbound = {
-        // One greeting: the disclosure's; the reply's own opening greeting goes (openingGreeting.ts).
-        conversationId: req.conversationId, reply: say ? withDisclosureFirst(say, reply) : reply, asks: r.asks,
+        conversationId: req.conversationId, reply: joined, asks: r.asks,
         ...(r.notice ? { notice: r.notice } : {}),
       };
       if (say) await recordDisclosure(r.newState.aiDisclosureDeliveredAt === null ? 'first_auto_send' : 'identity_question');
