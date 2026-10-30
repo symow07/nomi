@@ -3,12 +3,13 @@ import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { BooksProblem } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
-import { loadConnection, noteRead, rotateGrant, type ConnectedSystem } from '../db/booksConnections.js';
+import { loadConnection, noteRead, type ConnectedSystem } from '../db/booksConnections.js';
 import { readInBooks, type BeforeBooks } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
-import { xeroAccess, type XeroDeps } from './connectors/xero.js';
+import type { XeroDeps } from './connectors/xero.js';
+import { qboAccessLocked, xeroAccessLocked } from './grantLock.js';
 import { qboWithAccess, type QboDeps } from './connectors/quickbooks.js';
 import { sentTo } from './writeBack.js';
 
@@ -60,10 +61,9 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
       .changedSince({ accessToken: access.accessToken, spreadsheetId: conn.settings['spreadsheetId'] }, conn.cursor);
   } else if (system === 'xero') {
     if (!deps.xero || !conn.settings['tenantId']) return { kind: 'refused', reason: 'source_missing' };
-    // Xero's refresh token rotates: the new one is kept before anything is read with it.
-    const access = await xeroAccess(deps.xero, conn.grant);
+    // Xero's refresh token rotates: the new one is kept before anything is read with it — B12: one refresh at a time.
+    const access = await xeroAccessLocked(deps.xero, { db: deps.db, credentialKey: deps.credentialKey, businessId: bid.value, by });
     if ('kind' in access) return refuse(access.reason);
-    await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'xero', access.grant.secret, by));
     read = await booksConnector('xero', { bookCurrency, xero: deps.xero })!
       .changedSince({ accessToken: access.accessToken, tenantId: conn.settings['tenantId'] }, conn.cursor);
   } else if (system === 'quickbooks') {
@@ -72,9 +72,10 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     // Intuit returns (its refresh token changes every 24 hours) kept before anything is read with it. The realmId is
     // in the sealed grant, never in the connection's settings.
     const qbo = deps.quickbooks;
-    const got = await qboWithAccess(qbo, conn.grant,
-      (g) => withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', g.secret, by)),
-      (source) => booksConnector('quickbooks', { bookCurrency, quickbooks: qbo })!.changedSince(source, conn.cursor));
+    // B12 — the access got under the connection's lock, which keeps a fresh grant itself.
+    const got = await qboWithAccess(qbo, conn.grant, async () => undefined,
+      (source) => booksConnector('quickbooks', { bookCurrency, quickbooks: qbo })!.changedSince(source, conn.cursor),
+      qboAccessLocked(qbo, { db: deps.db, credentialKey: deps.credentialKey, businessId: bid.value, by }));
     if (got.kind === 'refused') return refuse(got.reason);
     read = got;
   } else {

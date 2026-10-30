@@ -138,6 +138,26 @@ d('D8 · the shop\'s own Xero (requires DATABASE_URL + MIGRATE_DATABASE_URL)', {
     expect(xero.liveRefresh()).toEqual([(await held())!.grant!.secret]);
   });
 
+  it('B12 · TWO PIECES OF WORK AT ONCE refresh the grant one at a time: neither spends a token the other already rotated', async () => {
+    const { readConnectedSystem } = await import('../../src/books/readIn.js');
+    const { writeBackXero } = await import('../../src/books/writeBack.js');
+    // Xero answering a refresh slowly, as it does on a bad day: long enough for the two to overlap.
+    const slow: typeof xero.fetch = async (url, init) => {
+      if (new URLSearchParams(init.body ?? '').get('grant_type') === 'refresh_token') await new Promise((r) => setTimeout(r, 300));
+      return xero.fetch(url, init);
+    };
+    const deps = { db, credentialKey: KEY, xero: { client: XERO_CLIENT, fetch: slow } };
+    // The morning's read and the owner's write-back, at the same moment.
+    const [read, wrote] = await Promise.all([readConnectedSystem(deps, BIZ, 'xero', 'owner'), writeBackXero(deps, BIZ, 'owner')]);
+    // Audit batch 3 (B12, 2026-10-30): both loaded the same refresh token; Xero spent it on the first and answered the
+    // second invalid_grant — "revoked", and the owner asked to connect again for nothing.
+    expect(read.kind).toBe('read');
+    expect(wrote.kind).toBe('written');
+    const now = (await held())!;
+    expect(now.state).toBe('connected');
+    expect(xero.liveRefresh()).toEqual([now.grant!.secret]);
+  });
+
   it('WRITE BACK: a posted entry of Nomi\'s becomes a posted manual journal; never read back in as new, never sent twice; a conflict waits', async () => {
     await postEntry(`Vente comptoir ${RUN}`);
     expect(await notice(await press('/app/books/xero/write'))).toContain('Written: 1.');

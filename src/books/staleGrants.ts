@@ -1,7 +1,7 @@
 import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { RevokeOutcome } from '../core/books/connector.js';
-import { disconnectSystem, loadConnection, noteGiveBackTried, noteRead, noteStaleTried, rotateGrant, staleGrants } from '../db/booksConnections.js';
+import { disconnectSystem, loadConnection, noteGiveBackTried, noteRead, noteStaleTried, refreshUnderLock, staleGrants } from '../db/booksConnections.js';
 import { xeroConnector, type XeroDeps } from './connectors/xero.js';
 import { qboConnector, type QboDeps } from './connectors/quickbooks.js';
 import { sheetsConnector, type SheetsDeps } from './connectors/sheets.js';
@@ -70,11 +70,15 @@ export async function retryStaleGrants(deps: GrantDeps, businessIdRaw: string, b
   for (const system of done) {
     const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, system));
     if (!conn?.grant || conn.state !== 'connected') continue;
-    const r = await connectorOf(deps, system)!.refresh(conn.grant);
-    if (!('kind' in r)) {
+    // B12 — under the connection's lock: the newest grant refreshed, and a rotated one kept before anyone else refreshes.
+    const r = await refreshUnderLock(deps.db, deps.credentialKey, bid.value, system, by, async (grant, keep) => {
+      if (!grant) return null;
+      const next = await connectorOf(deps, system)!.refresh(grant);
       // a refresh may return the next grant (Xero rotates it; Intuit's changes daily): kept at once, as every refresh is
-      if (r.secret !== conn.grant.secret) await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, system, r.secret, by));
-    } else if (r.reason !== 'unreachable') {
+      if (!('kind' in next) && next.secret !== grant.secret) await keep(next.secret);
+      return next;
+    });
+    if (r !== null && 'kind' in r && r.reason !== 'unreachable') {
       await withTenantTx(deps.db, bid.value, (tx) => noteRead(tx, bid.value, system, { ok: false, reason: 'revoked' }));
       endedLive.push(system);
     }

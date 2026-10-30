@@ -204,13 +204,18 @@ export async function qboAccess(deps: QboDeps, grant: Grant, o: { readonly force
  * (invalid_grant: the refresh token expired or was revoked) is `revoked`, and the owner is asked to connect again.
  */
 export async function qboWithAccess<T extends { readonly kind: string }>(deps: QboDeps, grant: Grant, keep: (g: Grant) => Promise<void>,
-  run: (s: QboSource) => Promise<T>): Promise<T | ConnectRefusal> {
-  let a = await qboAccess(deps, grant);
+  run: (s: QboSource) => Promise<T>,
+  /**
+   * Audit batch 3 (B12) — how the access is got: `qboAccess` itself, or the caller's version under the connection's
+   * lock (`refreshUnderLock`), which reads the newest grant and keeps the next one itself (then `keep` does nothing).
+   */
+  access: (g: Grant, o: { readonly force?: boolean }) => Promise<QboAccess | ConnectRefusal> = (g, o) => qboAccess(deps, g, o)): Promise<T | ConnectRefusal> {
+  let a = await access(grant, {});
   if ('kind' in a) return a;
   if (a.fresh) await keep(a.grant);
   const out = await run(a.source);
   if (a.fresh || !(out.kind === 'refused' && (out as unknown as ConnectRefusal).reason === 'revoked')) return out;
-  a = await qboAccess(deps, a.grant, { force: true });
+  a = await access(a.grant, { force: true });
   if ('kind' in a) return a;
   await keep(a.grant);
   return run(a.source);
