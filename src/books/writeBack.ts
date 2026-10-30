@@ -4,7 +4,7 @@ import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import { recordsOf } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
-import { loadConnection } from '../db/booksConnections.js';
+import { loadLiveConnection } from '../db/booksConnections.js';
 import { GONE, readBooks, rememberWritten, unreadAt, type UnreadRecord } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
@@ -40,9 +40,9 @@ export type WriteResult =
 export async function writeBackSheets(deps: WriteDeps, businessIdRaw: string): Promise<WriteResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !deps.sheets) return { kind: 'refused', reason: 'source_missing' };
-  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'sheets'));
+  const conn = await loadLiveConnection(deps.db, deps.credentialKey, bid.value, 'sheets');
   const id = conn?.settings['spreadsheetId'];
-  if (!conn || conn.state !== 'connected' || !conn.grant || !id) return { kind: 'refused', reason: 'revoked' };
+  if (!conn || conn.state !== 'connected' || !id) return { kind: 'refused', reason: 'revoked' };
   const access = await sheetsAccess(deps.sheets, conn.grant);
   if ('kind' in access) return { kind: 'refused', reason: access.reason };
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
@@ -75,8 +75,8 @@ export async function sentTo(tx: Tx, businessId: string, system: 'odoo' | 'xero'
 export async function writeBackOdoo(deps: WriteDeps, businessIdRaw: string): Promise<WriteResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !deps.odoo) return { kind: 'refused', reason: 'unreachable' };
-  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'odoo'));
-  if (!conn || conn.state === 'disconnected' || !conn.grant) return { kind: 'refused', reason: 'revoked' };
+  const conn = await loadLiveConnection(deps.db, deps.credentialKey, bid.value, 'odoo');
+  if (!conn) return { kind: 'refused', reason: 'revoked' };
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
   const live = await booksConnector('odoo', { bookCurrency: book, odoo: deps.odoo })!.refresh(conn.grant);
   if ('kind' in live) return { kind: 'refused', reason: live.reason };
@@ -124,9 +124,9 @@ export async function writeBackOdoo(deps: WriteDeps, businessIdRaw: string): Pro
 export async function writeBackXero(deps: WriteDeps, businessIdRaw: string, by: string): Promise<WriteResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !deps.xero) return { kind: 'refused', reason: 'source_missing' };
-  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'xero'));
+  const conn = await loadLiveConnection(deps.db, deps.credentialKey, bid.value, 'xero');
   const tenantId = conn?.settings['tenantId'];
-  if (!conn || conn.state === 'disconnected' || !conn.grant || !tenantId) return { kind: 'refused', reason: 'revoked' };
+  if (!conn || !tenantId) return { kind: 'refused', reason: 'revoked' };
   // B12 — refreshed and kept under the connection's lock: one refresh at a time.
   const access = await xeroAccessLocked(deps.xero, { db: deps.db, credentialKey: deps.credentialKey, businessId: bid.value, by });
   if ('kind' in access) return { kind: 'refused', reason: access.reason };
@@ -178,8 +178,8 @@ async function postedNotSent(db: Db, businessId: BusinessId, system: 'xero' | 'q
 export async function writeBackQuickbooks(deps: WriteDeps, businessIdRaw: string, by: string): Promise<WriteResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !deps.quickbooks) return { kind: 'refused', reason: 'source_missing' };
-  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'quickbooks'));
-  if (!conn || conn.state === 'disconnected' || !conn.grant) return { kind: 'refused', reason: 'revoked' };
+  const conn = await loadLiveConnection(deps.db, deps.credentialKey, bid.value, 'quickbooks');
+  if (!conn) return { kind: 'refused', reason: 'revoked' };
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
   const entries = await postedNotSent(deps.db, bid.value, 'quickbooks');
   if (entries.length === 0) return { kind: 'written', count: 0 };
