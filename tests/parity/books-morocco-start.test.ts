@@ -17,7 +17,7 @@ describe('the books of a Moroccan shop start with the advice', () => {
     expect(renderBooksHome('en', OWNER, holding, undefined, { morocco: true })).toContain('id="morocco-start"');
     expect(renderBooksHome('en', OWNER, holding)).not.toContain('id="morocco-start"');
     expect(readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8'))
-      .toContain("{ morocco: await businessInMorocco(bid.value) }");
+      .toContain("{ morocco: where.country === 'MA', moroccanBooks }");
   });
 
   it('in every language, a period, never a month', () => {

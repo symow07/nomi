@@ -88,7 +88,8 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     // state (404s, no links) is outreach-area.test.ts.
     await withTenantTx(db, bid.value, (tx) =>
       // A6 (0176) — and the books, which also exist only where they are switched on (off: books-roles.test.ts).
-      sql`update businesses set outreach_area = true, books_area = true where id = ${RUN_BIZ}::uuid`.execute(tx));
+      // Audit B17 — and the Moroccan FEC, which exists only for Moroccan books: an ICE on record (off: audit-batch-2.test.ts).
+      sql`update businesses set outreach_area = true, books_area = true, legal_ice = '001234567000089' where id = ${RUN_BIZ}::uuid`.execute(tx));
 
     // REAL ids out of the seeded data, not invented ones: a route given a
     // nonexistent id takes its not-found branch and never runs the query that

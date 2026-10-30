@@ -16536,3 +16536,23 @@ the operator only, never an owner page.
 - **Choices to check:** GitHub's "personal access token" said as an access key (访问密钥 / مفتاح وصول / clave de
   acceso / clé d'accès) — "token" and 令牌 are banned owner words; GitHub's own menu names (Settings, Developer
   settings, Contents) left in English, as GitHub shows them; the Arabic addresses nobody («يُرجى», a verbal noun).
+
+## Customer, the Inbox and "price" (audit B15, 2026-10-30)
+
+About 200 lines reworded in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read them on
+the labels page and a customer's panel, Saved replies, Surveys, Turns, Channels (the chat page, Telegram), What
+{name} knows (answers given), Today, the Inbox and the calendar.
+
+- **The keys:** `labels.*` (and `labels.buyers.*`), `savedReplies.lede`, `.textsHint`, `surveys.lede`,
+  `surveys.languages.none`, `surveys.flash.on`, `turn.explain`, `turn.rules`, `knowledge.given.lede`, `.none`,
+  `channels.chat.lede`, `channels.telegram.lede`, `.greetingWritten`, `setup.names.door`, `settings.desc.languages`,
+  `books.orders.buyer`, `order.invoice.english`; and for "price": `today.word.quoted`, `today.tally.quotes.*`,
+  `buyers.lens.valueSays`, `buyers.lens.quoted`, `buyers.row.quoted`, `buyers.attention.quote`, `inbox.ctx.quote`,
+  `conv.status.quoted`, `conv.phase.commercial_discussion` (zh), `conv.copy.lead` (zh), `inbox.draft.held.first_quote`
+  (zh), `insight.productsNoPrice.*`, `calendar.lede` (zh), `calendar.kind.*price*` (zh), `calendar.say.price_*`,
+  `calendar.line.price`.
+- **Choices to check:** 客户 / عميل / cliente / client for the customer; 收件箱 / الرسائل / Mensajes / Messages for the
+  list, as the nav names it; "a price given" for a quote — 告知价格, ذُكر السعر (the passive: no word agrees with the
+  customer or the owner), precio dado, prix donné; Arabic plural forms of عميل (عميلان، عملاء، عميلًا); French keeps
+  the impersonal «cela vous attend» in `turn.rules`.
+

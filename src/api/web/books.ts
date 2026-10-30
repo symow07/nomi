@@ -147,7 +147,7 @@ export type BooksSystems = {
   readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
 };
 
-export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems, o: { readonly morocco?: boolean } = {}): string {
+export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems, o: { readonly morocco?: boolean; readonly moroccanBooks?: boolean } = {}): string {
   const lead = viewer.kind === 'accountant' ? t(locale, 'books.home.accountant') : t(locale, 'books.home.owner');
   const state = b.hasBooks
     ? (b.lastCopyAt ? t(locale, 'data.books.lastCopy', { date: show.dateYear(locale, b.lastCopyAt) }) : '')
@@ -161,7 +161,8 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
     <p><a class="deeper" href="/app/books/trial-balance">${esc(t(locale, 'books.trial.title'))}</a></p>
     <p><a class="deeper" href="/app/books/closing">${esc(t(locale, 'books.close.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/fec">${esc(t(locale, 'books.fec.title'))}</a></p>
+    ${/* Audit B17 — the Moroccan FEC only for books kept to Morocco's rules (`keepsMoroccanBooks`). */ ''}${o.moroccanBooks
+      ? `<p><a class="deeper" href="/app/books/fec">${esc(t(locale, 'books.fec.title'))}</a></p>` : ''}
     <p><a class="deeper" href="/app/books/papers">${esc(t(locale, 'books.papers.title'))}</a></p>
     <p><a class="deeper" href="/app/books/fields">${esc(t(locale, 'books.fields.door'))}</a></p>
     <ul class="scard dl-files"><li class="row">

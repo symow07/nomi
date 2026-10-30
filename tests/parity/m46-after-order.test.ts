@@ -205,6 +205,23 @@ describe('M46 · the owner page', () => {
     }
   });
 
+  it('audit B14 · a shop is never told what its proforma lacks: no delivery-term line, no door to Terms', () => {
+    for (const over of [{ incoterm: null }, { paymentTerms: null }, { paymentTerms: null, incoterm: null }]) {
+      for (const locale of LOCALES) {
+        for (const sellerKind of ['brand', 'online_shop', 'retail', 'agency']) {
+          const html = renderOrder(view({ ...over, sellerKind }), locale, null);
+          expect(html, `${locale} ${sellerKind}`).not.toContain(esc(t(locale, 'order.invoice.noTerms')));
+          expect(html, `${locale} ${sellerKind}`).not.toContain(esc(t(locale, 'order.invoice.noIncoterm')));
+          expect(html, `${locale} ${sellerKind}`).not.toContain('href="/app/settings/terms"');
+        }
+        // a factory, an exporter, a wholesaler — and a workspace with no kind — are still told
+        for (const sellerKind of ['manufacturer', 'trading', 'wholesale', null]) {
+          expect(renderOrder(view({ ...over, sellerKind }), locale, null), `${locale} ${sellerKind}`).toContain('href="/app/settings/terms"');
+        }
+      }
+    }
+  });
+
   it('offers every state, and no others', () => {
     const html = renderOrder(view(), 'en', null);
     for (const s of ORDER_STATES) expect(html, s).toContain(`value="${s}"`);

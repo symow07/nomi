@@ -180,6 +180,17 @@ export const isOutreachRoute = (url: string): boolean => {
   return OUTREACH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 };
 
+const under = (prefixes: readonly string[], url: string): boolean => {
+  const path = url.split('?')[0]?.split('#')[0] ?? url;
+  return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
+};
+/** Audit B14 — the export trade's pages (`tradesForExport`): 404 for a shop, a brand or an agency, read by the gate in app.ts. */
+export const EXPORT_PREFIXES: readonly string[] = ['/app/settings/terms', '/app/settings/samples'];
+export const isExportRoute = (url: string): boolean => under(EXPORT_PREFIXES, url);
+/** Audit B17 — the Moroccan FEC and the CGNC chart (`keepsMoroccanBooks`): 404 for any other books. */
+export const MOROCCAN_BOOKS_PREFIXES: readonly string[] = ['/app/books/fec', '/app/books/chart/cgnc'];
+export const isMoroccanBooksRoute = (url: string): boolean => under(MOROCCAN_BOOKS_PREFIXES, url);
+
 /**
  * The one "go deeper" link. Phase F: every surface used to grow its own — .more,
  * .fmore, .link, a bare <a> — so the same affordance looked different on every

@@ -117,8 +117,8 @@ describe('M9.3 · conversation detail (localized)', () => {
 
   it('quote/order context localized, omitted cleanly when absent', () => {
     const en = renderConversationDetail(detailWithDraft, 'en', NOW, null);
-    expect(en).toContain('Quote'); expect(en).toContain('total $4,600.00');
-    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, null)).toContain('报价');
+    expect(en).toContain('Price'); expect(en).toContain('total $4,600.00');
+    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, null)).toContain('价格');
     const noCtx = renderConversationDetail({ ...detailWithDraft, quote: null, order: null }, 'en', NOW, null);
     expect(noCtx).not.toContain('class="ctx"');
   });

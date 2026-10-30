@@ -13,6 +13,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { labelled } from '../../core/owner/i18n/format.js';
 import { isGeneratedSku } from '../../core/owner/sku.js';
+import { tradesForExport } from '../../core/owner/sellingStyle.js';
 import { unitLabel } from './products.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
 import { productName, proformaRow } from './inbox.js';
@@ -58,6 +59,8 @@ export type OrderView = {
   /** G6 — the delivery term the order was confirmed under; null when she had stated none. */
   readonly incoterm?: string | null;
   readonly sellerName: string;
+  /** Audit B14 — the seller's kind of business: a shop is never told what its proforma lacks (`tradesForExport`). */
+  readonly sellerKind?: string | null;
   readonly confirmedAt: Date | null;
   /**
    * M45/G15 — the sample he already paid for, coming off THIS order because
@@ -82,12 +85,12 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       name: string | null; name_zh: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
       client_email: string | null; payment_terms: string | null; incoterm: string | null; confirmed_at: Date | null;
-      proforma_token: string | null;
+      proforma_token: string | null; seller_kind: string | null;
     }>`
       select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
              cl.display_name as buyer, cl.id::text as client_id, p.name, p.name_zh, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
-             o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, o.proforma_token, b.name as seller
+             o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, o.proforma_token, b.name as seller, b.kind as seller_kind
         from orders o
         join businesses b on b.id = o.business_id
         left join clients cl on cl.id = o.client_id
@@ -153,7 +156,7 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       totalAmount: o.total === null ? null : decimal(o.total),
       currency: o.currency,
       email: o.client_email, paymentTerms: o.payment_terms, incoterm: o.incoterm,
-      sellerName: o.seller, confirmedAt: o.confirmed_at,
+      sellerName: o.seller, sellerKind: o.seller_kind, confirmedAt: o.confirmed_at,
       // Currencies that do not match are NOT converted here: her rate (M43b)
       // is a decision she states, and applying one silently to a document a
       // buyer pays against is the arithmetic this product refuses to invent.
@@ -322,7 +325,8 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
               amount: show.money(locale, v.sampleCredit.amount) }))}</p>`
           : ''}</section>`
-    : unitPrice && total
+    // Audit B14 — a shop, a brand or an agency has no terms page and no delivery term: nothing says its proforma lacks one.
+    : unitPrice && total && tradesForExport(v.sellerKind)
       ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
           ${/* V1-537 — confirmed under payment terms with no delivery term: a proforma needs one, so the page says which is missing. */ ''}<p class="muted">${esc(t(locale, v.paymentTerms && !v.incoterm ? 'order.invoice.noIncoterm' : 'order.invoice.noTerms'))}</p>
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`

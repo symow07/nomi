@@ -160,6 +160,12 @@ The prompts are English only, so there is no zh/ar column.
 ## What the owner sees
 
 ### Mechanical swaps: one word, the same fix everywhere
+**Audit B15 (2026-10-30):** "buyer" is gone from every owner-facing catalogue line in en/zh/ar/es/fr (the 36 that came
+back with labels, surveys, saved replies, turns, Telegram and the chat page), the labels lines name the Inbox, and
+Today, the Inbox, the calendar and Today's insights say "price" for "quote" (报价 → 价格, عرض سعر → سعر, presupuesto /
+cotización → precio, devis → prix). `tests/parity/audit-batch-2.test.ts` holds all three in every language. Code
+identifiers (`buyers.*` keys, `/app/buyers/…` form actions, `#buyers` on Your data) keep their names.
+
 A key can sit in more than one row, because the fixes add up. Keys that also need a judgement call have their own rows further down and are not repeated here.
 
 | Word today | Replace with (en / zh / ar) | Count | Keys |
@@ -341,6 +347,11 @@ This needs two code changes first: a product with a single price gets a price at
 | `scenarios.ts:559, 596, 611` (plus the fixture at 138-150: MOQ 1000, one 1000+ tier) | "maybe 5000?" / "What quantities are you considering?" | "maybe two?" / "Which one caught your eye?" |
 
 ### 3. Samples. Depends on: whether the business offers samples
+**Done for shops (audit B14, 2026-10-30):** the Samples page, its row on How you sell and the conversation card's door
+are a business's that sells by quantity only (`tradesForExport` in `src/core/owner/sellingStyle.ts`); for a shop, a
+brand or an agency the address is 404. A cosmetics brand that does offer samples has no page for them yet — the
+per-business switch below is still open.
+
 Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. Taking the sample price off the first order only makes sense for bulk and repeat trade.
 
 | Where | Today | Proposed |
@@ -357,6 +368,10 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 | `samples.ts:75-79`, the note to the writer | "…and that comes off the first order." | Already sent only when a sample policy is set. |
 
 ### 4. Proforma and delivery terms (Incoterms). Depends on: whether the business exports or sells to other businesses
+**Done for shops (audit B14, 2026-10-30):** the Terms page and its row are a bulk seller's only (404 for a shop, a
+brand or an agency), and the order page no longer tells a shop its proforma lacks a delivery term. An "order summary"
+for shops is not built.
+
 | Where | Today | Proposed |
 |---|---|---|
 | `order.invoice.title`, `invoice.ts:78` | Proforma invoice / PROFORMA INVOICE | "Order summary" for shops, brands and agencies, or let the owner choose. |

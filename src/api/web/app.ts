@@ -216,7 +216,7 @@ import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, re
 import { advisorRoutes, ownName } from './advisor.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
-  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -228,6 +228,8 @@ import {
 } from '../../security/otp.js';
 import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
+import { tradesForExport } from '../../core/owner/sellingStyle.js';
+import { keepsMoroccanBooks } from '../../core/books/identifiers.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
@@ -945,6 +947,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // A stranger is not told what exists here: the route answers with the same
     // login redirect as every other address.
     if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
+  });
+
+  /** The business's kind, country and Moroccan identifiers: what B14's and B17's pages are shown by. */
+  const kindAndCountryOf = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
+    sql<{ kind: string | null; country: string | null; ice: string | null; taxId: string | null; rc: string | null }>`
+      select kind, country, legal_ice as ice, legal_if as "taxId", legal_rc as rc from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]
+    ?? { kind: null, country: null, ice: null, taxId: null, rc: null };
+
+  /**
+   * Audit B14 and B17 — pages a business of another kind or country is not shown, answered like a wrong address:
+   * the export trade's terms and samples (`tradesForExport`: a shop, a brand or an agency gets 404, its forms too),
+   * and the Moroccan FEC and CGNC chart (`keepsMoroccanBooks`: books with no country, or another, get 404). Read only
+   * on those addresses; a stranger still gets the login redirect.
+   */
+  app.addHook('preHandler', async (req, reply) => {
+    const exportRoute = isExportRoute(req.url);
+    const moroccoRoute = !exportRoute && isMoroccanBooksRoute(req.url);
+    if (!exportRoute && !moroccoRoute) return;
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!bid?.ok) return;
+    const b = await kindAndCountryOf(bid.value);
+    if (exportRoute ? !tradesForExport(b.kind) : !keepsMoroccanBooks(b)) return reply.callNotFound();
   });
 
   /**
@@ -2398,9 +2423,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(made.file);
   });
 
-  /** The owner, 2026-10-22 — a Moroccan workspace is told how its books are best started (Avis n° 24). */
-  const businessInMorocco = async (bid: BusinessId) => (await withTenantTx(deps.db, bid, (tx) =>
-    sql<{ c: string | null }>`select country as c from businesses where id = ${bid}::uuid`.execute(tx))).rows[0]?.c === 'MA';
   // A5 — the books' home, and the copy from it: the owner's and the accountant's (the guard above decides who).
   app.get('/app/books', async (req, reply) => {
     const s = sessionOf(req);
@@ -2426,13 +2448,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // D9 — the shop's own QuickBooks, likewise.
     const qboConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'quickbooks')) : null;
     const quickbooks = { offered: qboReady(), connection: qboConn, silent: qboConn ? silentSince(qboConn, new Date()) : null, stale: staleOf('quickbooks') };
+    // Audit B17 — the Moroccan FEC and the CGNC chart, only for books kept to Morocco's rules.
+    const where = await kindAndCountryOf(bid.value);
+    const moroccanBooks = keepsMoroccanBooks(where);
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks }, { morocco: await businessInMorocco(bid.value) })}${
-        // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
-        personOf(s).isOwner ? renderBooksChart(locale) : ''}${
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo, xero, quickbooks }, { morocco: where.country === 'MA', moroccanBooks })}${
+        // C1 (0183) — the accounts every drafted entry uses: the owner's to choose. B17 — the CGNC chart only for Moroccan books.
+        personOf(s).isOwner && moroccanBooks ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}`,
     }));
   });

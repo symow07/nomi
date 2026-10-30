@@ -11,6 +11,7 @@ import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
+import { tradesForExport } from '../../core/owner/sellingStyle.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
@@ -789,7 +790,8 @@ export type ConversationDetail = {
    * samples because there was nothing of hers to say, and the buyer is
    * waiting. The card names the next thing to tap.
    */
-  readonly sampleAsked: { readonly policyStated: boolean } | null;
+  /** `samplesPage` — audit B14: false for a shop, a brand or an agency, which has no Samples page to send the owner to. */
+  readonly sampleAsked: { readonly policyStated: boolean; readonly samplesPage?: boolean } | null;
   /** The design pass — the conversation's channel, for the card's "goes on …". Optional so fixtures still type. */
   readonly channel?: string;
   /** Phase 2d (0152) — the product photos the owner may send here; none on a channel that cannot carry a picture. */
@@ -2068,13 +2070,14 @@ function withheldFrom(
  */
 async function sampleAsk(
   tx: Tx, businessId: BusinessId, conversationId: string,
-): Promise<{ policyStated: boolean } | null> {
+): Promise<{ policyStated: boolean; samplesPage: boolean } | null> {
   const asked = (await sql<{ id: string }>`
     select id from sample_requests
      where business_id = ${businessId} and conversation_id = ${conversationId}
        and handled_at is null limit 1`.execute(tx)).rows[0];
   if (!asked) return null;
-  return { policyStated: (await tenantRepos(tx, businessId).catalog.samplePolicy()) !== null };
+  const kind = (await sql<{ kind: string | null }>`select kind from businesses where id = ${businessId}`.execute(tx)).rows[0]?.kind ?? null;
+  return { policyStated: (await tenantRepos(tx, businessId).catalog.samplePolicy()) !== null, samplesPage: tradesForExport(kind) };
 }
 
 /**
@@ -2780,9 +2783,9 @@ export function renderConversationDetail(
    * every other card here: what happened, why, what to do about it.
    */
   const sampleCard = d.sampleAsked
-    ? `<div class="card${d.sampleAsked.policyStated ? '' : ' refused'}">
+    ? `<div class="card${d.sampleAsked.policyStated || d.sampleAsked.samplesPage === false ? '' : ' refused'}">
         ${stateHead('warn', t(locale, 'samples.asked.title'))}
-        ${d.sampleAsked.policyStated ? '' : `<div class="rf">
+        ${d.sampleAsked.policyStated || d.sampleAsked.samplesPage === false ? '' : `<div class="rf">
           <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: assistantName(locale) }))}</div>
           <div class="rf-d"><a href="/app/settings/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
         </div>`}
