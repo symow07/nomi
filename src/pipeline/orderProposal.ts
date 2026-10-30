@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { withTenantTx, lockConversation, type Db } from '../db/client.js';
+import { withTenantTx, lockConversation, type Db, type Tx } from '../db/client.js';
 import { tenantRepos } from '../db/repos.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { confirmableFromProposal } from '../core/commerce/confirmable.js';
@@ -48,8 +48,8 @@ export type ProposalOutcome =
 export type ProposalDeps = {
   readonly db: Db;
   readonly now: () => Date;
-  /** The existing outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
+  /** The existing outbound path (main.ts), in the confirmation's own transaction (audit batch 1, B7). */
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks: null, notice: null, tx: Tx) => Promise<void>;
 };
 
 export async function confirmOrderProposal(
@@ -95,10 +95,11 @@ export async function confirmOrderProposal(
       // LG — in the customer's language where it is one of the three.
       language: fixedLanguage(p.customerLanguage),
     });
+    // B7 — queued in this transaction: the order and the message that tells the customer commit together.
+    if (sendText) await deps.kickOutbound(input.businessId, input.conversationId, sendText, null, null, tx);
     return { outcome: 'confirmed', orderReference: created.orderReference, sendText };
   });
 
-  if (r.sendText) await deps.kickOutbound(input.businessId, input.conversationId, r.sendText);
   return r.orderReference ? { outcome: r.outcome, orderReference: r.orderReference } : { outcome: r.outcome };
 }
 

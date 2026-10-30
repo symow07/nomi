@@ -49,10 +49,12 @@ export type IngressDeps = {
    */
   route?(e: ChannelEvent, channel: string): Promise<ChannelEvent | null>;
   /** Insert into channel_events keyed on e.dedupKey (NOT eventId — statuses
-   * share their message's wamid); 'duplicate' = key hit = already seen. */
+   * share their message's wamid); 'duplicate' = key hit = already seen.
+   * Audit batch 1 (A2) — production's also queues the follow-on work IN THE SAME TRANSACTION, so a failure leaves
+   * no row behind to make the provider's retry a duplicate. */
   persistEvent(e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'>;
-  /** Enqueue follow-on work (inbound job / status reconciliation). */
-  onNewEvent(e: ChannelEvent, channel: string): Promise<void>;
+  /** Follow-on work after a new event, for a store that does not queue it itself (tests). Production passes none. */
+  onNewEvent?(e: ChannelEvent, channel: string): Promise<void>;
   readonly now?: () => Date;
   /** Structured request logging (production on; tests quiet). */
   readonly logger?: boolean;
@@ -121,7 +123,7 @@ function mountChannel(
       // two channels share this handler and a conversation belongs to one.
       const outcome = await deps.persistEvent(event, payload, adapter.kind);
       if (outcome === 'new') {
-        await deps.onNewEvent(event, adapter.kind);
+        await deps.onNewEvent?.(event, adapter.kind);
         received += 1;
       }
     }

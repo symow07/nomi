@@ -461,7 +461,8 @@ export type WebDeps = {
    * The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)).
    * 0080 — `asks`: the question the reply asks, stamped when it leaves.
    */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null, notice?: 'handoff' | 'opt_out' | null) => Promise<void>;
+  /** Audit batch 1 (B7) — in the decision's own transaction (`tx`): see `ApplyDeps.kickOutbound`. */
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks: PendingQuestion | null, notice: 'handoff' | 'opt_out' | null, tx: Tx) => Promise<void>;
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;

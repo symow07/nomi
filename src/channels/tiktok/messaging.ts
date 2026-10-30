@@ -132,7 +132,7 @@ export function tiktokSendAdapter(cfg: {
       const r = await sendTikTokText(cfg.fetchImpl, { accessToken: access.token, openId: cfg.openId, conversationId: to, body });
       if (r.ok) return { ok: true, providerMessageId: `tt:${r.messageId}` };
       if (r.dead) await cfg.onDead().catch(() => undefined);
-      return { ok: false, retryable: r.retryable, error: r.error };
+      return { ok: false, retryable: r.retryable, error: r.error, ...(r.uncertain ? { uncertain: true } : {}) };
     },
   };
 }

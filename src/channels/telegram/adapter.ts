@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { ChannelAdapter, OutboundMedia, SendResult } from '../contract.js';
+import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
 import type { ChannelEvent } from '../whatsapp/parse.js';
 
 /**
@@ -16,10 +17,12 @@ import type { ChannelEvent } from '../whatsapp/parse.js';
  *
  * The bot's token is in the address Telegram is called at. It never appears in an error this returns or logs.
  */
-export type TelegramFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }) =>
+export type TelegramFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string; signal?: AbortSignal }) =>
   Promise<{ readonly ok: boolean; readonly status: number; json(): Promise<unknown> }>;
 
 export const TELEGRAM_TEXT_MAX = 4096;
+/** B9 — the most a send waits for Telegram, as Meta's and TikTok's do. */
+export const TELEGRAM_SEND_TIMEOUT_MS = 15_000;
 const API = 'https://api.telegram.org';
 
 type TgUser = { readonly id?: number; readonly first_name?: string; readonly last_name?: string; readonly username?: string; readonly language_code?: string };
@@ -82,6 +85,8 @@ export function telegramAdapter(cfg: {
   /** The secret Telegram echoes on every update (set with the webhook). */
   readonly secretToken: string;
   readonly fetchImpl?: TelegramFetch;
+  /** B9 — how long a send may take before it is called uncertain (tests shorten it). */
+  readonly timeoutMs?: number;
 }): ChannelAdapter {
   const doFetch: TelegramFetch = cfg.fetchImpl ?? (async (url, init) => {
     const r = await fetch(url, init);
@@ -90,12 +95,19 @@ export function telegramAdapter(cfg: {
   const call = async (method: 'sendMessage' | 'sendPhoto', body: Record<string, unknown>, to: string): Promise<SendResult> => {
     let r: Awaited<ReturnType<TelegramFetch>>;
     try {
-      r = await doFetch(`${API}/bot${cfg.token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    } catch {
-      return { ok: false, retryable: true, error: 'telegram: network' };
+      // B9 — bounded like every other channel's send: a hung call held the conversation's send for good.
+      r = await doFetch(`${API}/bot${cfg.token}/${method}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+        signal: AbortSignal.timeout(cfg.timeoutMs ?? TELEGRAM_SEND_TIMEOUT_MS),
+      });
+    } catch (e) {
+      // B5 — retried only when it provably never reached Telegram; a timeout may have been accepted.
+      return thrownSend('telegram', e);
     }
     const j = (await r.json().catch(() => null)) as { ok?: boolean; result?: { message_id?: number }; description?: string } | null;
     if (r.ok && j?.ok === true && typeof j.result?.message_id === 'number') return { ok: true, providerMessageId: `tg:${to}:${j.result.message_id}` };
+    // B5 — a yes we could not read (no body, or no message id) may still have been delivered.
+    if (r.ok && j?.ok !== false) return acceptedWithoutId('telegram');
     // The description is Telegram's words about the request, never the token; cut short all the same.
     const said = typeof j?.description === 'string' ? j.description.replace(/bot\d+:[\w-]+/g, 'bot…').slice(0, 160) : '';
     return { ok: false, retryable: r.status === 429 || r.status >= 500, error: `telegram ${r.status}${said ? `: ${said}` : ''}` };

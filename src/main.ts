@@ -66,7 +66,7 @@ import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
 import { advisorMemory } from './advisor/memory.js';
 import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
-import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
+import { prepareConversationOutbound, finishConversationOutbound, callProvider, type AdapterFor, type DriveEffect, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
@@ -101,7 +101,7 @@ import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { connectionDecisionAlerts } from './pipeline/approvalWatch.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
-import { installCrashReporting } from './worker/appErrors.js';
+import { installCrashReporting, txDatabase } from './worker/appErrors.js';
 import { startHeartbeat } from './worker/heartbeat.js';
 import { requestLogger } from './api/requestLog.js';
 import { loggableLine, loggableMessage } from './security/loggable.js';
@@ -1085,9 +1085,16 @@ export async function buildProduction(
       // The EXISTING outbound path — the same QUEUES.outbound worker the turn
       // pipeline uses. applyOwnerCommand (inbox actions) sends through this.
       // 0136 — every kick is a person's act (a draft sent, an order confirmed): approved.
-      kickOutbound: async (businessId, conversationId, reply, asks, notice) => {
-        await boss.send(QUEUES.outbound, { businessId, conversationId, reply, asks: asks ?? null, notice: notice ?? null, approved: true },
-          { singletonKey: conversationId });
+      // Audit batch 1 (B7, B8) — IN THE DECISION'S OWN TRANSACTION: the reply's row and the drive's job commit with
+      // the draft marked sent, or none of them does. A queue that failed after the commit left a draft "sent" that
+      // nothing would send and nobody could approve again; and the row, written once here, is never mistaken for a
+      // retried job's — two identical replies approved minutes apart both go.
+      kickOutbound: async (businessId, conversationId, reply, asks, notice, tx) => {
+        const bid = parseBusinessId(businessId);
+        if (!bid.ok) throw new Error('kickOutbound: not a business id');
+        await enqueueOutboundRow(tx, bid.value, conversationId, reply, 'employee', null, asks ?? null,
+          notice === 'opt_out' || notice === 'handoff' ? notice : null, true, null, false);
+        await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId, db: txDatabase(tx) });
       },
       // M16.1: bare re-drive tick — delivers an owner takeover reply through the
       // SAME outbound worker (no second send path).
@@ -1147,11 +1154,20 @@ export async function buildProduction(
       const businessId = parseBusinessId(job.data.businessId);
       if (!businessId.ok || !job.data.conversationId) return;   // poison: drop
 
-      const effects = await withTenantTx(db, businessId.value, async (tx) => {
-        await lockConversation(tx, job.data.conversationId);
+      /*
+       * Audit batch 1 (A1) — THE PROVIDER IS CALLED WITH NO TRANSACTION OPEN. It was called inside this one, so a
+       * crash or a deploy during the call rolled the row back to 'queued' (or away, with the reply that queued it),
+       * the job ran again, and the customer got the reply twice — 0052's 'uncertain' could never be reached. Now:
+       * the first transaction queues, decides and marks the row 'sending', and COMMITS; the call is made; a second
+       * transaction records the answer. Killed in between, the row stays 'sending', the next tick calls it
+       * uncertain, and the owner decides.
+       */
+      const cid = job.data.conversationId;
+      const first = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, cid);
         // P6 — a conversation that is gone (Practice's Start over, an erasure)
         // has nobody to send to: the job asks nothing of anyone.
-        if (!(await conversationExists(tx, job.data.conversationId))) return [];
+        if (!(await conversationExists(tx, cid))) return null;
         if (job.data.reply) {
           await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
             'employee', null, job.data.asks ?? null,
@@ -1162,16 +1178,28 @@ export async function buildProduction(
         const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
         const practice = await isPracticeCopy(tx, businessId.value);
         const drivers = practice ? practiceDrivers : await real(tx, businessId.value);
-        const fx = await driveConversationOutbound({ store, ...drivers, now: () => new Date() }, job.data.conversationId);
-        // The practice customer's phone is the page: a reply accepted is a reply
-        // delivered. Recorded through the receipt path a status webhook takes, so
-        // the next reply is not held for a receipt that could never come (the
-        // sequencer waits up to 90 s for one on Instagram).
-        if (practice) {
-          for (const e of fx) if (e.kind === 'sent') await store.reconcileStatus(e.providerMessageId, 'delivered', null);
-        }
-        return fx;
+        return { practice, prepared: await prepareConversationOutbound({ store, ...drivers, now: () => new Date() }, cid) };
       });
+      if (!first) return;
+      let effects: readonly DriveEffect[] = first.prepared.effects;
+      const send = first.prepared.send;
+      if (send) {
+        const result = await callProvider(send);
+        const finished = await withTenantTx(db, businessId.value, async (tx) => {
+          await lockConversation(tx, cid);
+          const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
+          const fx = await finishConversationOutbound({ store, now: () => new Date() }, send, result);
+          // The practice customer's phone is the page: a reply accepted is a reply
+          // delivered. Recorded through the receipt path a status webhook takes, so
+          // the next reply is not held for a receipt that could never come (the
+          // sequencer waits up to 90 s for one on Instagram).
+          if (first.practice) {
+            for (const e of fx) if (e.kind === 'sent') await store.reconcileStatus(e.providerMessageId, 'delivered', null);
+          }
+          return fx;
+        });
+        effects = [...effects, ...finished];
+      }
 
       const waiting = effects.find((e) => e.kind === 'waiting');
       const progressed = effects.some((e) => e.kind === 'sent');
@@ -1919,6 +1947,13 @@ export async function buildProduction(
   };
 
   // The stored-once gate and the turn's queue, for every channel's events (the webhooks, and S7's chat page).
+  /*
+   * Audit batch 1 (A2) — THE EVENT'S ROW AND ITS JOB COMMIT TOGETHER. The row was committed first and the job queued
+   * after, in a second step: a queue that failed between them answered the provider with an error, the provider
+   * delivered again, and the row made the retry "a duplicate" — the customer's message was never read. Now one
+   * transaction writes the row, the conversation, and queues the job through it (pg-boss in the same transaction);
+   * a failure leaves nothing, and the retry is new.
+   */
   const persistEvent = async (e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
@@ -1926,6 +1961,11 @@ export async function buildProduction(
       // acknowledged and dropped, never stored, and no turn runs. The channel stays connected, so renewing
       // resumes at once.
       if (await withTenantTx(db, bid, (tx) => billingHeld(tx))) return 'duplicate';
+      // Seen already: answered before the name is looked up (a network call), which a duplicate never needed.
+      const seen = await withTenantTx(db, bid, async (tx) => (await sql<{ id: string }>`
+        select id from channel_events where id = ${e.dedupKey}`.execute(tx)).rows.length > 0);
+      if (seen) return 'duplicate';
+      const profileName = e.kind === 'message' ? await nameFor(bid, channel, e) : null;
       return withTenantTx(db, bid, async (tx) => {
         const r = await sql<{ id: string }>`
           insert into channel_events
@@ -1938,38 +1978,35 @@ export async function buildProduction(
           on conflict (id) do nothing
           returning id
         `.execute(tx);
-        return r.rows.length > 0 ? 'new' : 'duplicate';
+        if (r.rows.length === 0) return 'duplicate';
+        await queueEvent(tx, bid, e, channel, profileName);
+        return 'new';
       });
     };
 
-  const onNewEvent = async (e: ChannelEvent, channel: string): Promise<void> => {
-      const bid = await resolveTenant(e.phoneNumberId, channel);
-      if (!bid) return;
-
+  /** What a new event sets going, in the transaction that stored it (A2): every job goes through `tx`. */
+  const queueEvent = async (tx: Tx, bid: BusinessId, e: ChannelEvent, channel: string, profileName: string | null): Promise<void> => {
+      const inTx = txDatabase(tx);
       if (e.kind === 'message') {
-        const profileName = await nameFor(bid, channel, e);
-        const { conversationId } = await withTenantTx(db, bid, async (tx) => {
-          const conv = await ensureConversation(tx, bid, e.waId, profileName,
-            channel as 'whatsapp' | 'instagram' | 'messenger');
-          // Health signals live on the channel row: "when did anything arrive".
-          await sql`
-            update channels
-               set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
-             where business_id = ${bid} and kind = ${channel}
-          `.execute(tx);
-          // G10b — the 24-hour window is THIS buyer's. It lived on the channel
-          // row, which any buyer's message moved, so one chatty buyer kept a
-          // silent one's window open and Meta rejected what the gate allowed.
-          // `greatest`, because webhooks can arrive out of order.
-          await sql`
-            update client_channels
-               set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${e.occurredAt})
-             where channel = ${channel} and channel_user_id = ${e.waId}
-          `.execute(tx);
-          return conv;
-        });
+        const conv = await ensureConversation(tx, bid, e.waId, profileName,
+          channel as 'whatsapp' | 'instagram' | 'messenger');
+        // Health signals live on the channel row: "when did anything arrive".
+        await sql`
+          update channels
+             set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
+           where business_id = ${bid} and kind = ${channel}
+        `.execute(tx);
+        // G10b — the 24-hour window is THIS buyer's. It lived on the channel
+        // row, which any buyer's message moved, so one chatty buyer kept a
+        // silent one's window open and Meta rejected what the gate allowed.
+        // `greatest`, because webhooks can arrive out of order.
+        await sql`
+          update client_channels
+             set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${e.occurredAt})
+           where channel = ${channel} and channel_user_id = ${e.waId}
+        `.execute(tx);
         await enqueueInbound(boss, {
-          businessId: bid, conversationId,
+          businessId: bid, conversationId: conv.conversationId,
           messageId: e.eventId, text: e.text ?? '',
           // M34 — the parser has captured these since M3; nothing carried them
           // past the webhook until now, which is why a voice note arrived as
@@ -1981,7 +2018,7 @@ export async function buildProduction(
           ...(e.ref ? { ref: e.ref } : {}),
           // CH7 — and the shop's own post it is about, so its caption can be read.
           ...(e.postId ? { postId: e.postId } : {}),
-        });
+        }, inTx);
       } else if (e.kind === 'echo') {
         // CH3 — read a little later, so a send of ours has written its id first. 0215 — TikTok's echoes too: a message
         // the owner typed in TikTok's app or on the web is the owner answering (messaging.ts names the sources).
@@ -1989,14 +2026,13 @@ export async function buildProduction(
         await boss.send(QUEUES.echo, {
           businessId: bid, channel, mid: e.eventId, customer: e.waId, account: e.phoneNumberId,
           text: e.text, received: e.received, appId: e.appId, occurredAt: e.occurredAt.toISOString(),
-        } satisfies EchoJob, { startAfter: overrides?.echoSettleSeconds ?? ECHO_SETTLE_SECONDS, singletonKey: e.dedupKey });
+        } satisfies EchoJob, { startAfter: overrides?.echoSettleSeconds ?? ECHO_SETTLE_SECONDS, singletonKey: e.dedupKey, db: inTx });
       } else {
-        const r = await withTenantTx(db, bid, (tx) =>
-          channelStore(tx, bid).reconcileStatus(e.eventId, e.status, e.errorDetail));
+        const r = await channelStore(tx, bid).reconcileStatus(e.eventId, e.status, e.errorDetail);
         if (r.conversationId) {
           await boss.send(QUEUES.outbound,
             { businessId: bid, conversationId: r.conversationId },
-            { singletonKey: r.conversationId });
+            { singletonKey: r.conversationId, db: inTx });
         }
       }
     };
@@ -2008,9 +2044,7 @@ export async function buildProduction(
   ingestWebChat = async (e: InboundMessageEvent): Promise<'new' | 'duplicate' | 'refused'> => {
     const page = await resolveTenant(e.phoneNumberId, 'web_chat');
     if (!page || await withTenantTx(db, page, (tx) => billingHeld(tx))) return 'refused';
-    const r = await persistEvent(e, { text: e.text }, 'web_chat');
-    if (r === 'new') await onNewEvent(e, 'web_chat');
-    return r;
+    return persistEvent(e, { text: e.text }, 'web_chat');
   };
 
   /**
@@ -2076,8 +2110,8 @@ export async function buildProduction(
     ],
     route: async (e, channel) => (channel === 'telegram' && e.kind === 'message' ? routeTelegram(e) : e),
 
+    // A2 — stored and queued in one transaction: nothing is left for an `onNewEvent` to do.
     persistEvent,
-    onNewEvent,
   });
 
   // /health's `provider` is WhatsApp's, as it always was: 'disabled' here means

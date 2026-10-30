@@ -28,6 +28,7 @@ function memStore(initial: readonly Partial<Row>[], ctx: Partial<ConversationSen
     requiresOrder: r.requiresOrder ?? true, attempts: r.attempts ?? 0,
     sentAt: r.sentAt ?? null, to: r.to ?? '971500000001', body: r.body ?? 'hello',
     origin: r.origin ?? 'employee', sendingSince: r.sendingSince ?? null,
+    ...(r.approved ? { approved: true } : {}),
     nextRetryAt: null, deadLettered: false,
   }));
   const transitions: string[] = [];
@@ -102,7 +103,7 @@ describe('M3 · outbound worker drive', () => {
     expect((await drive(m.store, ['http429']))[0]).toMatchObject({ kind: 'retry_scheduled' });
   });
 
-  it('connection loss retries; provider 4xx fails permanently without retry', async () => {
+  it('a refused connection retries; provider 4xx fails permanently without retry', async () => {
     const down = memStore([{ id: 'a' }]);
     expect((await drive(down.store, ['network_down']))[0]).toMatchObject({ kind: 'retry_scheduled' });
 
@@ -301,7 +302,7 @@ import { whatsappClient, PROVIDER_TIMEOUT_MS } from '../../src/channels/whatsapp
 import { whatsappMediaFetcher } from '../../src/channels/whatsapp/media.js';
 
 describe('M1 · provider HTTP timeouts', () => {
-  it('every send carries an abort signal; abort classifies as retryable', async () => {
+  it('every send carries an abort signal; an abort is uncertain, never retried (B5)', async () => {
     let sawSignal: AbortSignal | undefined;
     const client = whatsappClient({
       baseUrl: 'https://x', apiKey: 'k',
@@ -312,7 +313,8 @@ describe('M1 · provider HTTP timeouts', () => {
     });
     const r = await client.sendText('1', 'x');
     expect(sawSignal).toBeInstanceOf(AbortSignal);
-    expect(r).toMatchObject({ ok: false, retryable: true });
+    // Audit batch 1 (B5): it was retryable, and a provider that accepted it late got it twice.
+    expect(r).toMatchObject({ ok: false, retryable: false, uncertain: true });
     expect(PROVIDER_TIMEOUT_MS).toBe(15_000);
   });
 
@@ -347,5 +349,63 @@ describe('M3 · error-sink redaction', () => {
     const everything = m.transitions.join('\n');
     expect(everything).not.toContain('sk-live-supersecret-123');
     expect(everything).toContain('[redacted]');
+  });
+});
+
+/* ── Audit batch 1 (2026-10-30): a send that may have left is never sent again ── */
+describe('Audit batch 1 · B5 — no answer, or a yes with no id, is uncertain: never retried', () => {
+  for (const behavior of ['timeout', 'ok_no_id'] as const) {
+    it(`${behavior}: the row stops as 'uncertain' for the owner to decide, and a later tick sends nothing`, async () => {
+      const m = memStore([{ id: 'a' }]);
+      const sim = whatsappSimulator([behavior, 'ok']);
+      const first = await driveConversationOutbound({ store: m.store, adapter: sim.adapter, now: () => NOW }, 'conv1');
+      expect(first).toEqual([{ kind: 'uncertain', id: 'a' }]);
+      expect(m.rows[0]!.status).toBe('uncertain');
+      expect(m.rows[0]!.nextRetryAt).toBeNull();
+      expect(m.transitions.at(-1)).toMatch(/^a:sending->uncertain \(no answer: whatsapp/);
+      // The next tick: nothing queued, nothing sent — only one request ever reached the provider.
+      expect(await driveConversationOutbound({ store: m.store, adapter: sim.adapter, now: () => NOW }, 'conv1')).toEqual([{ kind: 'idle' }]);
+      expect(sim.requests).toHaveLength(1);
+    });
+  }
+  it('the control: a refused connection never left, and is retried as before', async () => {
+    const m = memStore([{ id: 'a' }]);
+    expect((await drive(m.store, ['network_down']))[0]).toMatchObject({ kind: 'retry_scheduled', id: 'a' });
+    expect(m.rows[0]!.status).toBe('queued');
+  });
+  it('a send that THROWS (not a provider answer) is uncertain too, never rolled back into a resend', async () => {
+    const m = memStore([{ id: 'a' }]);
+    const throwing = { ...whatsappSimulator([]).adapter, sendText: async () => { throw new Error('boom'); } };
+    expect(await driveConversationOutbound({ store: m.store, adapter: throwing, now: () => NOW }, 'conv1')).toEqual([{ kind: 'uncertain', id: 'a' }]);
+    expect(m.rows[0]!.status).toBe('uncertain');
+  });
+});
+
+describe('Audit batch 1 · A1 — a send still in flight is looked at again once it may be uncertain', () => {
+  it('nothing else to send and a fresh "sending" row: wait until the reclaim window, then it is uncertain', async () => {
+    const since = new Date(NOW.getTime() - 30_000);
+    const m = memStore([{ id: 'a', status: 'sending', sendingSince: since }]);
+    const fx = await drive(m.store);
+    expect(fx).toEqual([{ kind: 'waiting', blockedOn: 'a', recheckInMs: 2 * 60_000 - 30_000 + 1_000 }]);
+    const later = await driveConversationOutbound({ store: m.store, adapter: whatsappSimulator([]).adapter, now: () => new Date(since.getTime() + 2 * 60_000) }, 'conv1');
+    expect(later).toContainEqual({ kind: 'uncertain', id: 'a' });
+  });
+});
+
+describe('Audit batch 1 · B6 — a reply a person approved goes after "Hand to me"', () => {
+  it('the assistant\'s own queued reply is still cancelled; the approved one is sent', async () => {
+    const m = memStore(
+      [{ id: 'auto', seq: 1, requiresOrder: false }, { id: 'ok', seq: 2, requiresOrder: false, approved: true }],
+      { assignedTo: 'owner-1' },
+    );
+    const fx = await drive(m.store);
+    expect(fx).toContainEqual({ kind: 'canceled', id: 'auto', reason: 'handed_off' });
+    expect(fx).toContainEqual(expect.objectContaining({ kind: 'sent', id: 'ok' }));
+  });
+  it('an approved reply still answers to everything else: the window, the Stop', async () => {
+    const shut = memStore([{ id: 'a', approved: true }], { assignedTo: 'owner-1', lastInboundAt: hoursAgo(30) });
+    expect(await drive(shut.store)).toContainEqual({ kind: 'canceled', id: 'a', reason: 'window_closed' });
+    const stopped = memStore([{ id: 'b', approved: true }], { assignedTo: 'owner-1', stopped: true });
+    expect(await drive(stopped.store)).toContainEqual({ kind: 'canceled', id: 'b', reason: 'stopped' });
   });
 });

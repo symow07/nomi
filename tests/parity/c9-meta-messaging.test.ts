@@ -219,9 +219,10 @@ describe('C9 · handing a reply to Meta', () => {
     expect(await sender(503, {})('PSID', 'hi')).toMatchObject({ ok: false, retryable: true });
   });
 
-  it('an acceptance with no id is retried, because a reply must be matchable later', async () => {
+  it('an acceptance with no id is uncertain, never sent again: Meta said yes (audit batch 1, B5)', async () => {
     calls = [];
-    expect(await sender(200, { ok: true })('PSID', 'hi')).toMatchObject({ ok: false, retryable: true });
+    // It was retried "because a reply must be matchable later" — and a yes is a yes: the customer got it twice.
+    expect(await sender(200, { ok: true })('PSID', 'hi')).toMatchObject({ ok: false, retryable: false, uncertain: true });
   });
 
   it('nothing the provider said comes back as text — only its status', async () => {

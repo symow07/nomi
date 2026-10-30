@@ -1,7 +1,7 @@
 import { stampRungs } from '../db/ramp.js';
 import { sameWords } from '../db/ownerWords.js';
 import { sql } from 'kysely';
-import { withTenantTx, lockConversation, type Db } from '../db/client.js';
+import { withTenantTx, lockConversation, type Db, type Tx } from '../db/client.js';
 import { parseOwnerReply } from '../core/conversation/cards.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { ensureSpotChecks } from './spotChecks.js';
@@ -54,11 +54,13 @@ export type ApplyDeps = {
   readonly db: Db;
   readonly now: () => Date;
   /**
-   * Existing outbound path (main.ts: boss.send(QUEUES.outbound, …)).
+   * Existing outbound path (main.ts: the reply's row and the drive's job).
    * 0080 — `asks`: the question the draft asks, carried to the message so the
    * conversation's pending question is set when it actually leaves.
+   * Audit batch 1 (B7) — `tx` is the decision's own transaction: the reply is queued with the draft marked sent, or
+   * neither happens and the draft can be approved again.
    */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null, notice?: 'handoff' | 'opt_out' | null) => Promise<void>;
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks: PendingQuestion | null, notice: 'handoff' | 'opt_out' | null, tx: Tx) => Promise<void>;
 };
 
 export async function applyOwnerCommand(
@@ -79,7 +81,7 @@ export async function applyOwnerCommand(
   // nothing. Who decided lives where it always also lived, as text: the
   // `draft_resolved` event payload and `capability_events.actor`.
 
-  const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{
+  const decide = async (tx: Tx): Promise<{
     outcome: ApplyOutcome; conversationId: string | null; sendText: string | null; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null;
   }> => {
     // FOR UPDATE + status='pending' is the idempotency guard: a second submit
@@ -220,13 +222,17 @@ export async function applyOwnerCommand(
       default:
         return { outcome: 'unknown', conversationId: draft.conversation_id, sendText: null };
     }
-  });
+  };
 
-  // Send AFTER commit, through the existing worker path. Only approve/edit send.
-  if (result.sendText && result.conversationId) {
-    // 0135 — the line that answers a stop keeps its mark when it is sent as written; an edit is the owner's own words.
-    await deps.kickOutbound(input.businessId, result.conversationId, result.sendText, result.asks ?? null, result.notice ?? null);
-  }
+  const result = await withTenantTx(deps.db, input.businessId, async (tx) => {
+    const r = await decide(tx);
+    // Through the existing worker path, IN THIS TRANSACTION (B7): only approve/edit send. 0135 — the line that
+    // answers a stop keeps its mark when it is sent as written; an edit is the owner's own words.
+    if (r.sendText && r.conversationId) {
+      await deps.kickOutbound(input.businessId, r.conversationId, r.sendText, r.asks ?? null, r.notice ?? null, tx);
+    }
+    return r;
+  });
 
   return { outcome: result.outcome, conversationId: result.conversationId, messageZh: messageFor(result.outcome) };
 }
