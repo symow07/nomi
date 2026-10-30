@@ -166,12 +166,13 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
     expect(asked.length).toBe(2);
     expect((await post(shopCookie, '/app/knowledge/from-page', { address: '', text: PAGE })).headers['location']).toBe(pastedAt);
     expect(asked.length).toBe(2);
-    // Once decided, the page is read anew.
+    // Once decided, it leaves the waiting list; the address sent again opens it (0220: reading it again is its own
+    // step, its allowance shown first — tests/integration/page-reread.test.ts), still nothing fetched or asked.
     const lines = (await get(shopCookie, at)).body.match(/name="(line:[^"]+)"/g)!.map((m) => m.slice(6, -1));
     await post(shopCookie, `${at}/confirm`, { [lines[0]!]: 'on' });
     expect((await get(shopCookie, '/app/knowledge')).body).not.toContain(`href="${at}"`);
-    await post(shopCookie, '/app/knowledge/from-page', { address: 'shop.example/pages/shipping', text: '' });
-    expect([fetched.length, asked.length]).toEqual([2, 3]);
+    expect((await post(shopCookie, '/app/knowledge/from-page', { address: 'shop.example/pages/shipping', text: '' })).headers['location']).toBe(at);
+    expect([fetched.length, asked.length]).toEqual([1, 2]);
   });
 
   it('B21 · a refused answer for everything comes back on its own section, with what was typed', async () => {

@@ -1,15 +1,15 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
-import { pageText, containFacts, type PageFact } from '../../core/owner/pageFacts.js';
+import { pageText, containFacts, readingShareAtMost, type PageFact } from '../../core/owner/pageFacts.js';
 import { StoreFetchError, type StoreFetcher } from '../../net/publicFetch.js';
 import type { PageFactsReader } from '../../llm/ports.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { esc, back } from './layout.js';
+import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 
@@ -25,12 +25,53 @@ import * as show from './values.js';
  * (business-level, her own words confirmed), on the audit trail.
  */
 export type PageFactsRefusal = 'not_an_address' | 'not_public' | 'unreachable' | 'too_large' | 'not_a_page'
-  | 'nothing_read' | 'allowance_used' | 'reader_failed' | 'not_configured';
+  | 'nothing_read' | 'allowance_used' | 'reader_failed' | 'not_configured' | 'under_way';
 
 export type Proposal = {
   readonly id: string; readonly source: string; readonly lines: readonly (PageFact & { readonly key: string })[];
   readonly createdAt: Date; readonly decidedAt: Date | null; readonly written: number | null;
+  /** 0220 — the newer reading that took this one's place, if any. */
+  readonly replacedBy: string | null;
+  /** 0220 — the approved reading this one would replace once approved, and when that one was approved. */
+  readonly rereadOf: { readonly id: string; readonly decidedAt: Date | null } | null;
 };
+
+type Deps = {
+  readonly fetcher: StoreFetcher;
+  readonly reader?: PageFactsReader | undefined;
+  readonly spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
+};
+type Lines = readonly (PageFact & { readonly key: string })[];
+
+/** The page at an address, as text; why not, when it cannot be had. Costs nothing: no model is asked. */
+async function fetchPage(fetcher: StoreFetcher, url: string): Promise<{ readonly ok: true; readonly text: string } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
+  try {
+    const page = await fetcher.get(url);
+    if (page.status < 200 || page.status >= 300 || !/html|text\/plain/i.test(page.contentType)) return { ok: false, reason: 'not_a_page' };
+    return { ok: true, text: pageText(page.body) };
+  } catch (e) {
+    const why = e instanceof StoreFetchError ? e.reason : 'unreachable';
+    return { ok: false, reason: why === 'not_public' ? 'not_public' : why === 'too_large' ? 'too_large' : 'unreachable' };
+  }
+}
+
+/** The one paid step: within the day's allowance, the model reads the text; its spend is recorded whatever it found. */
+async function readFacts(db: Db, bid: BusinessId, deps: Deps, text: string): Promise<{ readonly ok: true; readonly lines: Lines } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
+  if (!deps.reader) return { ok: false, reason: 'not_configured' };
+  if (text.length < 20) return { ok: false, reason: 'nothing_read' };
+  const allowance = await withTenantTx(db, bid, (tx) => allowanceOf(tx));
+  if (allowanceUsed(allowance)) return { ok: false, reason: 'allowance_used' };
+  let read: Awaited<ReturnType<PageFactsReader['read']>>;
+  try {
+    read = await deps.reader.read({ text });
+  } catch {
+    return { ok: false, reason: 'reader_failed' };
+  }
+  await deps.spent?.({ llmCalls: 1, inputTokens: read.usage.inputTokens, outputTokens: read.usage.outputTokens });
+  const facts = containFacts(read.facts, text);
+  if (facts.length === 0) return { ok: false, reason: 'nothing_read' };
+  return { ok: true, lines: facts.map((f, i) => ({ key: `f${i + 1}`, ...f })) };
+}
 
 /** "myshop.com/pages/shipping" → a public https address; null when it is not one. */
 export function pageAddress(raw: string): string | null {
@@ -44,63 +85,129 @@ export function pageAddress(raw: string): string | null {
 }
 
 export async function startPageFacts(
-  db: Db, businessIdRaw: string, actor: string,
-  deps: {
-    readonly fetcher: StoreFetcher;
-    readonly reader?: PageFactsReader | undefined;
-    readonly spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
-  },
+  db: Db, businessIdRaw: string, actor: string, deps: Deps,
   input: { readonly address: string; readonly text: string },
-): Promise<{ readonly ok: true; readonly id: string; readonly again?: true } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
+): Promise<{ readonly ok: true; readonly id: string; readonly again?: 'waiting' | 'approved' } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { ok: false, reason: 'unreachable' };
   if (!deps.reader) return { ok: false, reason: 'not_configured' };
   // B19 — the same page sent again while its reading still waits for her ticks is that reading, not a second one:
-  // nothing fetched, no model asked, nothing charged. Read again only once she has decided.
-  const kept = async (source: string) => withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string }>`
-    select id::text as id from knowledge_proposals
-     where business_id = ${bid.value} and source = ${source} and decided_at is null
-     order by created_at desc limit 1`.execute(tx)).rows[0]?.id ?? null);
+  // nothing fetched, no model asked, nothing charged. 0220 — and an address whose newest reading she approved opens
+  // that reading too: reading it again is its own step, with what it uses of the day's allowance shown first.
+  const kept = async (source: string) => withTenantTx(db, bid.value, async (tx) => {
+    const r = (await sql<{ id: string; decided: boolean }>`
+      select id::text as id, decided_at is not null as decided from knowledge_proposals
+       where business_id = ${bid.value} and source = ${source} and replaced_by is null
+         and (decided_at is null or not ${source.startsWith(`${PASTED}:`)})
+       order by created_at desc limit 1`.execute(tx)).rows[0];
+    return r ? { id: r.id, again: r.decided ? 'approved' as const : 'waiting' as const } : null;
+  });
   let text: string; let source: string;
   if (input.text.trim()) {
     text = pageText(input.text);
     // B19 — text pasted is known again by its fingerprint (never kept itself): `pasted:` and 16 hex of its SHA-256.
     source = `${PASTED}:${createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
     const again = await kept(source);
-    if (again) return { ok: true, id: again, again: true };
+    if (again) return { ok: true, ...again };
   } else {
     const url = pageAddress(input.address);
     if (!url) return { ok: false, reason: 'not_an_address' };
     const again = await kept(url.slice(0, 500));
-    if (again) return { ok: true, id: again, again: true };
-    try {
-      const page = await deps.fetcher.get(url);
-      if (page.status < 200 || page.status >= 300 || !/html|text\/plain/i.test(page.contentType)) return { ok: false, reason: 'not_a_page' };
-      text = pageText(page.body);
-    } catch (e) {
-      const why = e instanceof StoreFetchError ? e.reason : 'unreachable';
-      return { ok: false, reason: why === 'not_public' ? 'not_public' : why === 'too_large' ? 'too_large' : 'unreachable' };
-    }
+    if (again) return { ok: true, ...again };
+    const page = await fetchPage(deps.fetcher, url);
+    if (!page.ok) return page;
+    text = page.text;
     source = url;
   }
-  if (text.length < 20) return { ok: false, reason: 'nothing_read' };
-  const allowance = await withTenantTx(db, bid.value, (tx) => allowanceOf(tx));
-  if (allowanceUsed(allowance)) return { ok: false, reason: 'allowance_used' };
-  let read: Awaited<ReturnType<PageFactsReader['read']>>;
-  try {
-    read = await deps.reader.read({ text });
-  } catch {
-    return { ok: false, reason: 'reader_failed' };
-  }
-  await deps.spent?.({ llmCalls: 1, inputTokens: read.usage.inputTokens, outputTokens: read.usage.outputTokens });
-  const facts = containFacts(read.facts, text);
-  if (facts.length === 0) return { ok: false, reason: 'nothing_read' };
-  const lines = facts.map((f, i) => ({ key: `f${i + 1}`, ...f }));
+  const read = await readFacts(db, bid.value, deps, text);
+  if (!read.ok) return read;
   const id = await withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string }>`
     insert into knowledge_proposals (business_id, source, lines, created_by)
-    values (${bid.value}, ${source.slice(0, 500)}, ${JSON.stringify(lines)}::jsonb, ${actor.slice(0, 120)})
+    values (${bid.value}, ${source.slice(0, 500)}, ${JSON.stringify(read.lines)}::jsonb, ${actor.slice(0, 120)})
     returning id::text as id`.execute(tx)).rows[0]!.id);
   return { ok: true, id };
+}
+
+/**
+ * 0220 — WHAT READING IT AGAIN USES, said before she confirms: at most this share of today's allowance (the ceiling
+ * of one reading, `readingShareAtMost`), and how much is used so far; or that the workspace has no daily limit; or
+ * that today's allowance is used, and then there is nothing to confirm.
+ */
+export type RereadCharge = { readonly kind: 'share'; readonly atMost: number; readonly used: number }
+  | { readonly kind: 'no_limit' } | { readonly kind: 'used' };
+export async function rereadCharge(db: Db, businessIdRaw: string): Promise<RereadCharge> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { kind: 'used' };
+  const a = await withTenantTx(db, bid.value, (tx) => allowanceOf(tx));
+  if (allowanceUsed(a)) return { kind: 'used' };
+  if (!a.budget) return { kind: 'no_limit' };
+  return { kind: 'share', atMost: readingShareAtMost(a.budget), used: Math.min(100, a.pctUsed ?? 0) };
+}
+
+/** Claimed longer ago than this, a reading in progress is taken as dead (a fetch is 10 s; a reading two tries of 90). */
+const CLAIM_STALE = '5 minutes';
+
+/**
+ * 0220 — READ THE PAGE AGAIN: one new, paid reading of the same address, only from the confirm step.
+ *   · the old reading still waits → the new one replaces it, in the transaction that writes the new one;
+ *   · the old reading was approved → its knowledge stays live; the new one waits (`reread_of`), and only approving
+ *     it replaces those lines (`confirmPageFacts`). A re-read of it already waiting is opened instead (no charge).
+ * Two clicks pay once: the old reading is CLAIMED before anything is fetched, and a claim younger than five minutes
+ * refuses (`under_way`). Whatever happens, the claim is let go; a page that cannot be fetched costs nothing, and a
+ * reading that finds nothing has used its allowance (the confirm step says so) and leaves the old reading as it was.
+ */
+export async function rereadPageFacts(db: Db, businessIdRaw: string, oldId: string, actor: string, deps: Deps,
+): Promise<{ readonly ok: true; readonly id: string; readonly again?: 'waiting' } | { readonly ok: false; readonly reason: PageFactsRefusal | 'gone' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok || !UUID.test(oldId)) return { ok: false, reason: 'gone' };
+  if (!deps.reader) return { ok: false, reason: 'not_configured' };
+  const claim = await withTenantTx(db, bid.value, async (tx) => {
+    const o = (await sql<{ source: string; decided: boolean; replaced: boolean; reread_of: string | null; claimed: boolean }>`
+      select source, decided_at is not null as decided, replaced_by is not null as replaced, reread_of::text as reread_of,
+             coalesce(reread_started_at > now() - ${CLAIM_STALE}::interval, false) as claimed
+        from knowledge_proposals where business_id = ${bid.value} and id = ${oldId}::uuid for update`.execute(tx)).rows[0];
+    if (!o || o.replaced || isPasted(o.source)) return { kind: 'gone' } as const;
+    if (o.decided) {
+      const open = (await sql<{ id: string }>`
+        select id::text as id from knowledge_proposals
+         where business_id = ${bid.value} and reread_of = ${oldId}::uuid and decided_at is null and replaced_by is null`.execute(tx)).rows[0];
+      if (open) return { kind: 'open', id: open.id } as const;
+    }
+    if (o.claimed) return { kind: 'under_way' } as const;
+    await sql`update knowledge_proposals set reread_started_at = now() where business_id = ${bid.value} and id = ${oldId}::uuid`.execute(tx);
+    // An approved reading is replaced only on approval; a waiting one now — passing on what IT would replace.
+    return { kind: 'claimed', source: o.source, rereadOf: o.decided ? oldId : o.reread_of, replaces: o.decided ? null : oldId } as const;
+  });
+  if (claim.kind === 'gone') return { ok: false, reason: 'gone' };
+  if (claim.kind === 'open') return { ok: true, id: claim.id, again: 'waiting' };
+  if (claim.kind === 'under_way') return { ok: false, reason: 'under_way' };
+  const letGo = () => withTenantTx(db, bid.value, async (tx) => {
+    await sql`update knowledge_proposals set reread_started_at = null where business_id = ${bid.value} and id = ${oldId}::uuid`.execute(tx);
+  });
+  try {
+    const url = pageAddress(claim.source);
+    if (!url) { await letGo(); return { ok: false, reason: 'not_an_address' }; }
+    const page = await fetchPage(deps.fetcher, url);
+    if (!page.ok) { await letGo(); return page; }
+    const read = await readFacts(db, bid.value, deps, page.text);
+    if (!read.ok) { await letGo(); return read; }
+    const id = randomUUID();
+    await withTenantTx(db, bid.value, async (tx) => {
+      // The old reading leaves first (its key to the new one is checked at commit), so the one-waiting index holds.
+      if (claim.replaces) {
+        await sql`update knowledge_proposals set replaced_by = ${id}::uuid, reread_started_at = null
+                   where business_id = ${bid.value} and id = ${claim.replaces}::uuid and replaced_by is null`.execute(tx);
+      }
+      await sql`insert into knowledge_proposals (id, business_id, source, lines, created_by, reread_of)
+                values (${id}::uuid, ${bid.value}, ${claim.source}, ${JSON.stringify(read.lines)}::jsonb, ${actor.slice(0, 120)},
+                        ${claim.rereadOf}::uuid)`.execute(tx);
+      await sql`update knowledge_proposals set reread_started_at = null where business_id = ${bid.value} and id = ${oldId}::uuid`.execute(tx);
+    });
+    return { ok: true, id };
+  } catch (e) {
+    await letGo();
+    throw e;
+  }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -122,47 +229,63 @@ export async function openProposals(db: Db, businessIdRaw: string): Promise<read
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string; source: string; lines: number; created_at: Date }>`
     select id::text as id, source, jsonb_array_length(lines)::int as lines, created_at from knowledge_proposals
-     where business_id = ${bid.value} and decided_at is null
+     where business_id = ${bid.value} and decided_at is null and replaced_by is null
      order by created_at desc limit 10`.execute(tx)).rows.map((r) => ({ id: r.id, source: r.source, lines: r.lines, createdAt: r.created_at })));
 }
 
 export async function loadProposal(db: Db, businessIdRaw: string, id: string): Promise<Proposal | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !UUID.test(id)) return null;
-  const r = await withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string; source: string; lines: unknown; created_at: Date; decided_at: Date | null; written: number | null }>`
-    select id::text as id, source, lines, created_at, decided_at, written from knowledge_proposals
-     where business_id = ${bid.value} and id = ${id}::uuid`.execute(tx)).rows[0]);
+  const r = await withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string; source: string; lines: unknown; created_at: Date; decided_at: Date | null; written: number | null;
+    replaced_by: string | null; reread_of: string | null; reread_of_decided_at: Date | null }>`
+    select p.id::text as id, p.source, p.lines, p.created_at, p.decided_at, p.written, p.replaced_by::text as replaced_by,
+           p.reread_of::text as reread_of, o.decided_at as reread_of_decided_at
+      from knowledge_proposals p left join knowledge_proposals o on o.id = p.reread_of and o.business_id = p.business_id
+     where p.business_id = ${bid.value} and p.id = ${id}::uuid`.execute(tx)).rows[0]);
   if (!r) return null;
   const lines = (Array.isArray(r.lines) ? r.lines : []).flatMap((x: unknown) => {
     const o = (typeof x === 'object' && x !== null ? x : {}) as Record<string, unknown>;
     return typeof o['key'] === 'string' && typeof o['fact'] === 'string' && typeof o['quote'] === 'string'
       ? [{ key: o['key'], fact: o['fact'], quote: o['quote'] }] : [];
   });
-  return { id: r.id, source: r.source, lines, createdAt: r.created_at, decidedAt: r.decided_at, written: r.written };
+  return { id: r.id, source: r.source, lines, createdAt: r.created_at, decidedAt: r.decided_at, written: r.written,
+    replacedBy: r.replaced_by, rereadOf: r.reread_of ? { id: r.reread_of, decidedAt: r.reread_of_decided_at } : null };
 }
 
 /** Only the ticked lines become knowledge; none ticked writes nothing. Once decided, a proposal is closed. */
 export async function confirmPageFacts(
   db: Db, businessIdRaw: string, id: string, actor: string, ticked: readonly string[], label: string,
-): Promise<{ readonly kind: 'written'; readonly n: number } | { readonly kind: 'none_ticked' } | { readonly kind: 'gone' }> {
+): Promise<{ readonly kind: 'written'; readonly n: number; readonly replaced: number } | { readonly kind: 'none_ticked' } | { readonly kind: 'gone' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !UUID.test(id)) return { kind: 'gone' };
   return withTenantTx(db, bid.value, async (tx) => {
-    const p = (await sql<{ lines: unknown; decided_at: Date | null }>`
-      select lines, decided_at from knowledge_proposals where business_id = ${bid.value} and id = ${id}::uuid for update`.execute(tx)).rows[0];
-    if (!p || p.decided_at) return { kind: 'gone' } as const;
+    const p = (await sql<{ lines: unknown; decided_at: Date | null; replaced_by: string | null; reread_of: string | null }>`
+      select lines, decided_at, replaced_by::text as replaced_by, reread_of::text as reread_of
+        from knowledge_proposals where business_id = ${bid.value} and id = ${id}::uuid for update`.execute(tx)).rows[0];
+    if (!p || p.decided_at || p.replaced_by) return { kind: 'gone' } as const;
     const want = new Set(ticked);
     const lines = (Array.isArray(p.lines) ? p.lines : []) as { key?: unknown; fact?: unknown }[];
     const chosen = lines.filter((l) => typeof l.key === 'string' && want.has(l.key) && typeof l.fact === 'string');
     if (chosen.length === 0) return { kind: 'none_ticked' } as const;
     for (const l of chosen) {
-      await sql`insert into product_knowledge (business_id, product_id, kind, label, content, source)
-                values (${bid.value}, null, 'faq', ${label.slice(0, 200)}, ${String(l.fact)}, 'owner_confirmed')`.execute(tx);
+      await sql`insert into product_knowledge (business_id, product_id, kind, label, content, source, from_proposal)
+                values (${bid.value}, null, 'faq', ${label.slice(0, 200)}, ${String(l.fact)}, 'owner_confirmed', ${id}::uuid)`.execute(tx);
+    }
+    // 0220 — a reading of a page she had approved replaces that reading's lines only now, as she approves it: they are
+    // archived (never deleted), and the old reading is marked replaced. Lines she wrote herself are not the reading's.
+    let replaced = 0;
+    if (p.reread_of) {
+      replaced = (await sql<{ id: string }>`
+        update product_knowledge set status = 'archived', updated_at = now()
+         where business_id = ${bid.value} and from_proposal = ${p.reread_of}::uuid and status = 'active'
+        returning id::text as id`.execute(tx)).rows.length;
+      await sql`update knowledge_proposals set replaced_by = ${id}::uuid
+                 where business_id = ${bid.value} and id = ${p.reread_of}::uuid and replaced_by is null`.execute(tx);
     }
     await sql`update knowledge_proposals set decided_at = now(), written = ${chosen.length} where business_id = ${bid.value} and id = ${id}::uuid`.execute(tx);
     await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
-              values (${bid.value}, null, 'knowledge_imported', ${actor}, ${JSON.stringify({ proposal: id, written: chosen.length, of: lines.length })}::jsonb)`.execute(tx);
-    return { kind: 'written', n: chosen.length } as const;
+              values (${bid.value}, null, 'knowledge_imported', ${actor}, ${JSON.stringify({ proposal: id, written: chosen.length, of: lines.length, ...(p.reread_of ? { replaces: p.reread_of, archived: replaced } : {}) })}::jsonb)`.execute(tx);
+    return { kind: 'written', n: chosen.length, replaced } as const;
   });
 }
 
@@ -196,22 +319,54 @@ export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null =
   </div>`;
 }
 
-/** The proposal: each line with the sentence it came from; none ticked. */
-export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null): string {
+/**
+ * The proposal: each line with the sentence it came from; none ticked. 0220 — a reading of an address offers "Read
+ * the page again" (a door to the confirm step) wherever a reader exists; one a newer reading replaced says so and
+ * leads to it; one that would replace an approved reading says so above its lines.
+ */
+export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null, canReread = false): string {
   const head = `${back('/app/knowledge', t(locale, 'nav.knowledge'))}
     <h1 class="page">${esc(t(locale, 'pageFacts.reviewTitle'))}</h1>
     ${flashBanner(flash)}
     <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>`;
+  if (p.replacedBy) {
+    return `${head}<p id="replaced">${esc(t(locale, 'pageFacts.replaced'))}</p>
+    <p>${deeper(`/app/knowledge/from-page/${esc(p.replacedBy)}`, t(locale, 'pageFacts.replaced.open'))}</p>`;
+  }
+  const again = canReread && !isPasted(p.source)
+    ? `<p id="reread">${deeper(`/app/knowledge/from-page/${esc(p.id)}/again`, t(locale, 'pageFacts.reread.door'))}</p>` : '';
   if (p.decidedAt) {
-    return `${head}<p>${esc(t(locale, 'pageFacts.decided', { n: show.count(locale, p.written ?? 0), date: show.date(locale, p.decidedAt) }))}</p>`;
+    return `${head}<p>${esc(t(locale, 'pageFacts.decided', { n: show.count(locale, p.written ?? 0), date: show.date(locale, p.decidedAt) }))}</p>${again}`;
   }
   return `${head}
+    ${p.rereadOf?.decidedAt ? `<p class="note" id="replaces">${esc(t(locale, 'pageFacts.replacesOn', { date: show.date(locale, p.rereadOf.decidedAt) }))}</p>` : ''}
     <p>${esc(t(locale, 'pageFacts.tickIntro'))}</p>
     <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/confirm" class="pform">
       <ul class="rows">${p.lines.map((l) => `<li class="row"><label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}" />
         <span dir="auto">${esc(l.fact)}</span></label>
         <p class="muted small" dir="auto">${esc(t(locale, 'pageFacts.quote', { quote: l.quote }))}</p></li>`).join('')}</ul>
       <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.confirm'))}</button>
-    </form>`;
+    </form>${again}`;
+}
+
+/**
+ * 0220 — the confirm step of "Read the page again": what happens to this reading, what the new one uses of today's
+ * allowance, and — before the button — that a reading which finds nothing still uses it. Used up: the reason, no button.
+ */
+export function renderReread(p: Proposal, charge: RereadCharge, locale: Locale, refused: PageFactsRefusal | null = null): string {
+  const cost = charge.kind === 'share' ? t(locale, 'pageFacts.reread.charge', { at: charge.atMost, used: charge.used })
+    : charge.kind === 'no_limit' ? t(locale, 'pageFacts.reread.noLimit') : null;
+  return `${back(`/app/knowledge/from-page/${esc(p.id)}`, t(locale, 'pageFacts.reviewTitle'))}
+    <h1 class="page">${esc(t(locale, 'pageFacts.reread.title'))}</h1>
+    <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>
+    <p>${esc(t(locale, 'pageFacts.reread.intro'))}</p>
+    <p>${esc(t(locale, p.decidedAt ? 'pageFacts.reread.keepsApproved' : 'pageFacts.reread.replacesWaiting'))}</p>
+    ${refused ? `<p class="perr" role="alert" id="reread-err">${esc(t(locale, `pageFacts.refused.${refused}` as MessageKey))}</p>` : ''}
+    ${cost === null ? (refused === 'allowance_used' ? '' : `<p class="perr" role="alert">${esc(t(locale, 'pageFacts.refused.allowance_used'))}</p>`)
+      : `<p id="reread-cost">${esc(cost)}</p>
+    <p id="reread-nothing">${esc(t(locale, 'pageFacts.reread.nothingCounts'))}</p>
+    <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/again" class="pform">
+      <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.reread.button'))}</button>
+    </form>`}`;
 }
 

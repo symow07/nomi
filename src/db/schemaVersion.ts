@@ -468,7 +468,8 @@ import type { Db } from './client.js';
 // 217 = an alarm that reaches somebody: failed backups recorded, a dead mailbox told once, an undelivered alert kept and tried again (0217).
 // 218 = the books kept as long as their country's law says: six years in the United Kingdom, Spain's ten under its own law (0218).
 // 219 = a locked period is locked to the app too: a close under way is a row only the closing function writes, never a setting (0219).
-export const REQUIRED_SCHEMA_VERSION = 219;
+// 220 = a page of her site read again: one paid reading, the old one replaced, or its knowledge replaced only when the new one is approved (0220).
+export const REQUIRED_SCHEMA_VERSION = 220;
 
 export type SchemaState = {
   readonly required: number;

@@ -81,6 +81,7 @@ describe('EXT · the proposal, as she sees it', () => {
   it('every line with its sentence, none ticked', () => {
     const html = renderProposal({
       id: '00000000-0000-4000-8000-000000000001', source: 'https://myshop.com/pages/shipping', createdAt: new Date(), decidedAt: null, written: null,
+      replacedBy: null, rereadOf: null,
       lines: [{ key: 'f1', fact: 'Orders ship within 2 business days.', quote: 'We ship within 2 business days.' }],
     }, 'en', null);
     expect(html).toContain('name="line:f1"');
