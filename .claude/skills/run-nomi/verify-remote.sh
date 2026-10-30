@@ -122,7 +122,7 @@ check_page /app            'id="home-hi"'  "Home renders"
 check_page /app/onboarding "Practice before launch"  "Pilot runbook renders"
 check_page /app/onboarding "Running version"         "deployment info visible to the owner"
 check_page /app/inbox      "Buyers"                  "Buyers renders"
-check_page /app/factory    "What you promise buyers" "My factory renders"
+check_page /app/business   "My business"             "My business renders"
 check_page /app/knowledge  "What she knows"          "Knowledge renders"
 
 # Report the running build (informational, not a gate).
