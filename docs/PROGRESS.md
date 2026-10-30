@@ -306,6 +306,11 @@ day. Schema 213.
 - **When it recurs, before rerunning:** keep the run's report (CI keeps `results.json`, the path is in the log). Time
   each step of `close()`: the server, `boss.stop()`, each pool. Read `pgboss.job` for jobs in `active` at that
   moment. Then the hook's number is a fact, not a guess.
+- **It recurred — URGENT by criterion 1 (2026-10-30).** #406 (audit batch 2), run 41034219515: attempt 1 and its rerun
+  both passed all 1901 integration tests and both failed `password-recovery.test.ts`'s `afterAll` the same way (51 s
+  for the file; 6 s in the send-path PR's green run, with the same files ahead of it). The rerun was made before this
+  note was read, so neither attempt captured the timings. Nothing linked it to #406's change (no route it calls, no
+  file before it in the order). The step-by-step measurement of `close()` is its own PR, next.
 
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
