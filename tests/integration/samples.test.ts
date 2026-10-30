@@ -203,7 +203,8 @@ d('M45 · samples (requires DATABASE_URL)', () => {
   it('THE CONVERSATION says the sample was asked for, and why nothing was said', async () => {
     const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
     const detail = await loadConversationDetail(db, BIZ, convId, new Date());
-    expect(detail!.sampleAsked).toEqual({ policyStated: false });
+    // audit B14 — a workspace with no kind sells by quantity: its card opens the Samples page
+    expect(detail!.sampleAsked).toEqual({ policyStated: false, samplesPage: true });
   });
 
   it('SHE STATES IT, and the reply path can answer from that moment', async () => {
@@ -222,7 +223,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
 
     const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
     expect((await loadConversationDetail(db, BIZ, convId, new Date()))!.sampleAsked)
-      .toEqual({ policyStated: true });
+      .toEqual({ policyStated: true, samplesPage: true });
   });
 
   it('STATING A NEW ONE INSERTS — the old promise stays on the record', async () => {

@@ -141,7 +141,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect((await get('/app/settings/profile')).body).toContain(t('en', 'settings.currency.fixed'));
   });
 
-  it('A FLOOR, A NEW PRICE AND A SAMPLE are in dirhams too', async () => {
+  it('A FLOOR AND A NEW PRICE are in dirhams too; a shop has no sample price to state (audit B14)', async () => {
     await form('/app/business/prices', { productId: pid, floor: '100', maxDiscountPct: '10', askAbovePct: '5' }, cookie);
     expect(await one(`select currency, floor_price_usd::float as floor from pricing_policy where business_id = $1 and product_id = $2`, [bid, pid]))
       .toEqual({ currency: 'AED', floor: 100 });
@@ -150,9 +150,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(edited.statusCode).toBe(302);
     expect(await one(`select currency, unit_price_usd::float as price from price_tiers where product_id = $1 and min_qty = 1`, [pid]))
       .toEqual({ currency: 'AED', price: 1250.5 });
-    await form('/app/settings/samples', { price: '15', credited: 'on' }, cookie);
-    expect(await one(`select currency, price_amount::float as price from sample_policy where business_id = $1 order by stated_at desc limit 1`, [bid]))
-      .toEqual({ currency: 'AED', price: 15 });
+    expect((await form('/app/settings/samples', { price: '15', credited: 'on' }, cookie)).statusCode).toBe(404);
+    expect((await admin.query(`select 1 from sample_policy where business_id = $1`, [bid])).rowCount).toBe(0);
     // The product's page names the currency on its price box.
     expect((await get(`/app/products/${pid}`)).body).toContain(t('en', 'product.edit.price', { currency: 'AED' }));
   });

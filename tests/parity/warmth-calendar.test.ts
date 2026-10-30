@@ -328,8 +328,8 @@ describe('every date carries a face and a sentence, never a bare dot', () => {
       expect(s, `${l}/${k}`).not.toContain('{');
     }
     expect(t('en', 'calendar.say.reply_due', { who: 'Pedro' })).toBe('Reply owed to Pedro');
-    expect(t('zh', 'calendar.say.price_worked_out', { who: '陈莉' })).toBe('给陈莉发了报价');
-    expect(t('zh', 'calendar.say.price_worked_out', { who: 'Pedro' })).toBe('给 Pedro 发了报价');
+    expect(t('zh', 'calendar.say.price_worked_out', { who: '陈莉' })).toBe('告诉了陈莉价格');
+    expect(t('zh', 'calendar.say.price_worked_out', { who: 'Pedro' })).toBe('告诉了 Pedro 价格');
     for (const l of LOCALES) for (const k of ['calendar.say.price_review', 'calendar.say.price_unsent'] as const) {
       expect(t(l, k, { who: 'Pedro' }), `${l}/${k}`).toContain('Pedro');
     }

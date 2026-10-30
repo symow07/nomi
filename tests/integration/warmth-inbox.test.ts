@@ -194,7 +194,7 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     const head = r.body.indexOf('<h2 class="bgroup-h">Nothing spent yet</h2>');
     expect(head).toBeGreaterThan(rowAt(conv['Bo']));
     // phase 9 of the warmth run (w4-customers-04) — between them, those given a price and not ordered on, headed apart
-    const quoted = r.body.indexOf('<h2 class="bgroup-h">Quoted, nothing ordered yet</h2>');
+    const quoted = r.body.indexOf('<h2 class="bgroup-h">Given a price, nothing ordered yet</h2>');
     expect(quoted).toBeGreaterThan(rowAt(conv['Bo']));
     expect(rowAt(conv['Fay'])).toBeGreaterThan(quoted);
     expect(rowAt(conv['Fay'])).toBeLessThan(head);
@@ -246,7 +246,7 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     for (const name of ['Hal', 'Ivy', 'Jo', 'Kim', 'Ade', 'Bo', 'Tan']) expect(at(name), name).toBe(-1);
     // each with its line; the one who spent most first, then the most recent
     expect(b).toMatch(/Cy<\/bdi><\/span><span class="ar-line">Regular, no order since /);
-    expect(b).toMatch(/Fay<\/bdi><\/span><span class="ar-line">Quote sent [^<]+, no word since/);
+    expect(b).toMatch(/Fay<\/bdi><\/span><span class="ar-line">Price given [^<]+, no word since/);
     expect(b).toMatch(/Gus<\/bdi><\/span><span class="ar-line">Question sent [^<]+, no answer yet/);
     expect(at('Cy')).toBeLessThan(at('Fay'));
     expect(at('Fay')).toBeLessThan(at('Gus'));

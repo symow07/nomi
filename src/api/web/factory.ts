@@ -36,6 +36,7 @@ import {
   loadBusinessProfile, loadTerms, loadSamples, loadClosures, loadRates, menuRow, menuGroup, type BusinessProfile,
 } from './settings.js';
 import { loadBusinessKind } from './businessKind.js';
+import { tradesForExport } from '../../core/owner/sellingStyle.js';
 import { HS_BASE, loadHub } from './howYouSell.js';
 import type { OwnerRate } from '../../core/commerce/exchange.js';
 import { loadProductList } from './products.js';
@@ -1175,7 +1176,8 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
   // that sells in another currency than its country's own (`ratePairOf`).
   const home = currencyOfCountry(f.connection.country);
   const samples = m?.samples ?? null;
-  const rows = [
+  // Audit B14 — terms and samples are the export trade's; a shop, a brand or an agency is not shown them.
+  const exportRows = m !== null && !tradesForExport(m.kind) ? [] : [
     menuRow({ href: '/app/settings/terms', icon: 'terms', label: t(locale, 'terms.title'),
       value: m === null ? null : m.terms ? inLine([...(m.terms.incoterm ? [m.terms.incoterm] : []), m.terms.payment]) : t(locale, 'setup.value.notSetUp') }),
     menuRow({ href: '/app/settings/samples', icon: 'samples', label: t(locale, 'samples.title'),
@@ -1184,6 +1186,9 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
         : isZero(samples.price) ? t(locale, 'business.value.free') : show.money(locale, samples.price),
       // A customer waiting for a sample is waiting for the owner; a price not stated is a setting.
       tone: samples !== null && samples.waiting > 0 ? 'warn' : undefined }),
+  ];
+  const rows = [
+    ...exportRows,
     menuRow({ href: '/app/settings/closures', icon: 'closures', label: t(locale, 'closures.title'),
       value: m === null ? null : m.closure
         ? inLine([m.closure.label, t(locale, 'closures.range', { from: show.date(locale, m.closure.from), to: show.date(locale, m.closure.to) })])

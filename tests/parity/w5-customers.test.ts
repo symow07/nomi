@@ -194,19 +194,22 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
     }
   });
 
-  it('the event has Today\'s name for it — a quote — in the calendar, the band and Results; "worked out" is gone', () => {
+  it('the event has Today\'s name for it — a price, never a quote (audit B15) — in the calendar, the band and Results; "worked out" is gone', () => {
     for (const l of LOCALES) {
-      const quote = { en: 'Quote', zh: '报价', ar: 'عرض', es: 'Presupuesto', fr: 'Devis' }[l];
+      const price = { en: 'price', zh: '价格', ar: 'سعر', es: 'precio', fr: 'prix' }[l];
+      const quote = { en: 'quote', zh: '报价', ar: 'عرض سعر', es: 'presupuesto', fr: 'devis' }[l];
       for (const k of ['calendar.say.price_worked_out', 'calendar.say.price_review', 'calendar.say.price_unsent', 'calendar.line.price', 'buyers.attention.quote'] as const) {
-        expect(t(l, k, { who: 'X', date: 'D', price: 'P', qty: 'Q' }).toLowerCase(), `${l} ${k}`).toContain(quote.toLowerCase());
+        const s = t(l, k, { who: 'X', date: 'D', price: 'P', qty: 'Q' }).toLowerCase();
+        expect(s, `${l} ${k}`).toContain(price);
+        expect(s, `${l} ${k}`).not.toContain(quote);
       }
     }
-    expect(t('en', 'calendar.say.price_worked_out', { who: 'Carlos' })).toBe('Quote sent to Carlos');
+    expect(t('en', 'calendar.say.price_worked_out', { who: 'Carlos' })).toBe('Price sent to Carlos');
     expect(read('src/api/web/analytics.ts')).toContain("stat(d.commerce.quotes, 'today.tally.quotes')");
     expect(read('src/api/web/analytics.ts')).toContain("stat(d.commerce.orders, 'today.tally.orders')");
   });
 
-  it('w4-customers-16 · Chinese breaks only where the sentence has a space, never inside 报价', () => {
+  it('w4-customers-16 · Chinese breaks only where the sentence has a space, never inside 价格', () => {
     expect(CSS).toContain('html[lang="zh"] .dl-say { word-break:keep-all; overflow-wrap:anywhere; }');
   });
 

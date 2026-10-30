@@ -32,6 +32,13 @@ export const iceAsTyped = (raw: string): string => raw.replace(/\s+/g, '');
 export const isIce = (ice: string): boolean => [...ice].length === ICE_POSITIONS && !/\s/.test(ice);
 /** The country whose register the ICE is. */
 export const ICE_COUNTRY = 'MA';
+/**
+ * Audit B17 — books kept to Morocco's rules: a business in Morocco, or one that already gave its ICE, IF or RC (the
+ * Settings page asks for them only then). Only these see the FEC of CNC Avis n° 24 and the CGNC chart; books with no
+ * country on record, or another country, are offered neither, and their addresses answer as an unknown one.
+ */
+export const keepsMoroccanBooks = (b: { readonly country: string | null; readonly ice?: string | null; readonly taxId?: string | null; readonly rc?: string | null }): boolean =>
+  b.country === ICE_COUNTRY || Boolean(b.ice || b.taxId || b.rc);
 /** A connected system's registry field, kept as the party's ICE only for a party in Morocco, and only when it is one. */
 export const partyIce = (country: string | null, raw: string | null): string | null => {
   const ice = country !== ICE_COUNTRY || raw === null ? '' : iceAsTyped(raw);

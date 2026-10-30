@@ -29,7 +29,7 @@ import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
-import { validateIdentifiers, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
+import { validateIdentifiers, keepsMoroccanBooks, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
 import * as show from './values.js';
 
 /**
@@ -183,7 +183,7 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       languagesServed: b.languages_served ?? [],
       postalAddress: b.postal_address, outreachArea: b.outreach_area === true,
       whatYouSell: asked ? { category: b.product_category && isProductCategory(b.product_category) ? b.product_category : null } : null,
-      identifiers: b.country === 'MA' || b.legal_ice || b.legal_if || b.legal_rc
+      identifiers: keepsMoroccanBooks({ country: b.country, ice: b.legal_ice, taxId: b.legal_if, rc: b.legal_rc })
         ? { ice: b.legal_ice, taxId: b.legal_if, rc: b.legal_rc, rcCourt: b.legal_rc_court } : null,
     };
   });

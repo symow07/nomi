@@ -427,8 +427,8 @@ describe('Results', () => {
       const overview = results(l).split(shown(l, 'analytics.section.activity'))[0]!;
       expect(statsOf(overview), l).toHaveLength(2);
     }
-    // The warmth run's phase 9 (w4-customers-20) — Today's figure, in Today's words: quotes GIVEN, orders confirmed
-    expect(statsOf(results('en'))).toContain('12 quotes sent');
+    // The warmth run's phase 9 (w4-customers-20) — Today's figure, in Today's words: prices GIVEN, orders confirmed (audit B15: not "quotes")
+    expect(statsOf(results('en'))).toContain('12 prices given');
   });
 
   it('V1-209 · a count\'s words agree with it, in each language\'s own forms', () => {

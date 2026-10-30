@@ -26,6 +26,14 @@ export const isRetailKind = (kind: string | null | undefined): boolean => profil
  */
 export const sellsByQuantity = (kind: string | null | undefined): boolean => profileOf(kind) === 'bulk';
 
+/**
+ * Audit B14 — the export trade's screens: payment and delivery terms (an Incoterm on a proforma), sample prices, and
+ * the proforma's "this order has no delivery term" line. They are a business's that sells by quantity — a factory,
+ * an exporter, a wholesaler, or a workspace with no kind (Westlake's). A shop, a brand or an agency never sees them:
+ * the doors are not drawn and the addresses answer as an unknown one.
+ */
+export const tradesForExport = (kind: string | null | undefined): boolean => sellsByQuantity(kind);
+
 /** The unit a new product counts in, until the owner says otherwise. */
 export const defaultUnitFor = (kind: string | null | undefined): string => (isRetailKind(kind) ? 'item' : 'pcs');
 

@@ -95,11 +95,11 @@ d('S2 · labels on buyers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () =>
 
   it('PUT ON from the buyer\'s panel, by name: a new label, or the one in use of that name whatever its capitals; staff too', async () => {
     const r = await put('amal', '  Wholesale ');
-    expect(flashSaid(r, SECRET)).toBe('Wholesale is on this buyer.');
+    expect(flashSaid(r, SECRET)).toBe('Wholesale is on this customer.');
     expect(String(r.headers['location'])).toBe(`/app/inbox/${buyer.amal.conv}#labels`);
-    expect(flashSaid(await put('amal', 'WHOLESALE'), SECRET)).toBe('Wholesale was already on this buyer.');
-    expect(flashSaid(await put('bilal', 'wholesale', staff), SECRET)).toBe('Wholesale is on this buyer.');
-    expect(flashSaid(await put('bilal', 'Dubai fair', staff), SECRET)).toBe('Dubai fair is on this buyer.');
+    expect(flashSaid(await put('amal', 'WHOLESALE'), SECRET)).toBe('Wholesale was already on this customer.');
+    expect(flashSaid(await put('bilal', 'wholesale', staff), SECRET)).toBe('Wholesale is on this customer.');
+    expect(flashSaid(await put('bilal', 'Dubai fair', staff), SECRET)).toBe('Dubai fair is on this customer.');
     expect(flashSaid(await put('chen', 'x'.repeat(41)), SECRET)).toContain('A label of 1 to 40 characters');
     expect(await tx((x) => sql<{ n: number }>`select count(*)::int as n from labels`.execute(x).then((q) => q.rows[0]!.n))).toBe(2);
     const panel = await get(`/app/inbox/${buyer.amal.conv}`);

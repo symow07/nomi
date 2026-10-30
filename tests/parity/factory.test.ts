@@ -879,6 +879,23 @@ describe('Phase 9 · B5 · My business', () => {
     expect(staff).toContain('href="/app/settings/closures"');
   });
 
+  it('audit B14 · a shop, a brand or an agency is shown no export screen: no Terms row, no Samples row; a factory keeps both', () => {
+    const menuOf = (kind: string | null) => ({ kind, howYouSell: null, terms: null, samples: { price: null, waiting: 0 }, closure: null, rate: null });
+    for (const l of LOCALES) {
+      for (const kind of ['brand', 'online_shop', 'retail', 'startup', 'agency', 'services', 'other']) {
+        const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/terms"');
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/samples"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/closures"');
+      }
+      for (const kind of ['manufacturer', 'trading', 'wholesale', null]) {
+        const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/terms"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/samples"');
+      }
+    }
+  });
+
   it('V1-393 · one door per place: the details open the profile; each channel row opens Channels, with no second door', () => {
     expect(menu(audit)).toContain('<a class="srow sr-menu" href="/app/settings/profile">');
     expect(page('en')).not.toContain('href="/app/settings">');
