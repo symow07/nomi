@@ -11,7 +11,7 @@
 -- Now "a close is under way" is a ROW only the closing function can write: `books_closing_marks`, one row per
 -- transaction (txid_current()), written by books_close_year (security definer) at the point it set the setting and
 -- removed where it cleared it. The app role has no privilege on the table at all, and a transaction that aborts
--- takes its row with it. `books_closing_now()` (security definer) is the one reader: the lock predicate and the
+-- takes its row with it. `books_close_under_way()` (security definer) is the one reader: the lock predicate and the
 -- closing journal's rule (0189) ask it. The setting is read by nothing any more.
 --
 -- Re-made from their newest definitions: books_day_writable and books_close_year (0211), closing_journal_rules (0189).
@@ -26,12 +26,12 @@ create table if not exists books_closing_marks (
 revoke all on books_closing_marks from nomi_app;
 revoke all on books_closing_marks from public;
 
-create or replace function books_closing_now() returns boolean
+create or replace function books_close_under_way() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from books_closing_marks where xact = txid_current())
 $$;
-revoke all on function books_closing_now() from public;
-grant execute on function books_closing_now() to nomi_app;
+revoke all on function books_close_under_way() from public;
+grant execute on function books_close_under_way() to nomi_app;
 
 -- books_day_writable, re-made from 0211: the lock gives way only to a close under way in this very transaction.
 create or replace function books_day_writable(p_business uuid, p_fiscal_year uuid, p_day date) returns text
@@ -41,7 +41,7 @@ language sql stable as $$
     when f.state <> 'open' then format('fiscal year %s to %s is closed', f.starts_on, f.ends_on)
     when p_day < f.starts_on or p_day > f.ends_on then format('%s is outside fiscal year %s to %s', p_day, f.starts_on, f.ends_on)
     when f.lock_date is not null and p_day <= f.lock_date
-         and not books_closing_now()
+         and not books_close_under_way()
       then format('%s is on or before the lock date %s', p_day, f.lock_date)
     else null end
   from (select 1) one
@@ -105,7 +105,7 @@ grant execute on function books_close_year(uuid, uuid, uuid, text, text, text) t
 create or replace function closing_journal_rules() returns trigger
 language plpgsql as $$
 begin
-  if books_closing_now() or books_purge_allowed() then return new; end if;
+  if books_close_under_way() or books_purge_allowed() then return new; end if;
   if (select kind from journals where id = new.journal_id) = 'closing' then
     raise exception 'books: the closing journal takes only the closing entry, written when a year is closed' using errcode = 'NB025';
   end if;
