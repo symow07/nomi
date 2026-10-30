@@ -1579,6 +1579,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
   /**
+   * Audit batch 3 (B11, 2026-10-30) — FIVE WRONG TRIES LOCK AN ADDRESS FOR THE CALLER WHO MADE THEM, whether or not it
+   * signs in here. The lock answered 429 only for a real login (an unknown address kept answering 401), so five tries
+   * told anyone which addresses exist — and any stranger could lock the owner out for fifteen minutes. Counted per
+   * caller and address, in memory, the same for every address: "locked" says nothing about the address, and binds
+   * only the caller who earned it.
+   */
+  const signInFailures = makeThrottle({ max: 5, windowMs: 15 * 60_000 });
+  /**
    * PWR — the door can e-mail a link only where the installation sends system
    * mail, and (PWR2) knows its own address: the link in the mail must be
    * whole, and it is never built from the request's Host header, which the
@@ -1828,8 +1836,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * The e-mail names the business, so nobody is asked "which factory?". An
      * unknown address spends the same slow verification a known one does and
      * gets the same sentence, so the door does not say which addresses exist.
-     * A locked login is told to wait WITHOUT its password being checked: the
-     * lock must not become an oracle that still answers right-or-wrong.
+     * A caller past its wrong tries is told to wait WITHOUT the password being
+     * checked: the lock must not become an oracle that still answers
+     * right-or-wrong — nor, since B11, one that says the address exists.
      */
     // Phase 9 (V1-037) — the e-mail form sends both fields, and asks the page,
     // not the browser, to say that one is empty; the code form sends neither.
@@ -1842,16 +1851,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (email === '') return refuse(400, 'email_missing');
       if (password === '') return refuse(400, 'password_missing');
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
+      // B11 — a caller past its five wrong tries on this address is told to wait, before anything is looked up.
+      const triesHere = `${callerOf(req)}|${email}`;
+      if (signInFailures.spent(triesHere, Date.now())) return refuse(429, 'locked');
+      const wrong = () => { signInFailures.allow(triesHere, Date.now()); return refuse(401, 'password'); };
       const login = await lookupLogin(deps.db, email).catch(() => null);
-      if (!login) { await spendAVerification(password); return refuse(401, 'password'); }
-      if (login.lockedUntil && login.lockedUntil.getTime() > Date.now()) return refuse(429, 'locked');
+      if (!login) { await spendAVerification(password); return wrong(); }
+      const knownDevice = isKnownDevice(deps.sessionSecret, parseCookies(req.headers.cookie)[DEVICE_COOKIE], login.loginId, Date.now());
+      /*
+       * B11 — THE DATABASE'S LOCK (five wrong tries from anywhere, login_record 0055) still stops guessing from many
+       * callers — but only on a browser this login has never signed in from, and it is answered there exactly as a
+       * wrong password (the slow check spent, the same words): it neither says the address exists nor keeps the
+       * owner out of their own browser. A right password from a new browser still has the e-mailed code to pass (A3).
+       */
+      if (login.lockedUntil && login.lockedUntil.getTime() > Date.now() && !knownDevice) {
+        await spendAVerification(password);
+        return wrong();
+      }
       const ok = password.length <= PASSWORD_MAX && await verifyPassword(password, login.passwordHash);
       await recordLoginAttempt(deps.db, login.loginId, ok).catch(() => undefined);
-      if (!ok) return refuse(401, 'password');
+      if (!ok) return wrong();
       // A3 — the password was right. From a browser we have not seen for THIS
       // login, the address has to answer too. If the code cannot be sent she is
       // let in: a sender that is down must not lock every owner out.
-      if (otpOn && !isKnownDevice(deps.sessionSecret, parseCookies(req.headers.cookie)[DEVICE_COOKIE], login.loginId, Date.now())) {
+      if (otpOn && !knownDevice) {
         const sent = await sendCode(reply, locale, email, 'device', null, login.loginId);
         if (sent === 'sent') return reply.redirect('/verify');
         if (sent === 'slow') return refuse(429, 'slow');
