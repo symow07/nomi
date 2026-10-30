@@ -3,7 +3,7 @@ import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
-import { allowanceOf, allowanceUsed, PHOTO_READS_A_DAY } from '../../db/allowance.js';
+import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
 import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
@@ -1811,14 +1811,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
       profile: v.value.profile, termsVersion: TERMS_VERSION, adultConfirmed: true, risk,
     };
-    // A3 — with a sender, the address has to answer first. An address that
-    // already has a workspace is told so NOW, as before: she could learn it by
-    // trying to sign in, and a code sent to it would only confuse its owner.
+    // A3 — with a sender, the address has to answer first.
+    // Audit batch 5 (2026-10-31) — and the page never says whether it has a workspace already: the door hides which
+    // addresses exist, so sign-up does too. An address that has one gets the same reply (a code waits on /verify)
+    // and a mail of its own — "you already have a workspace", how to sign in, and no code. Its owner learns it;
+    // a stranger learns nothing.
     if (otpOn) {
-      if (await lookupLogin(deps.db, wanted.email).catch(() => null)) return again(400, { error: t(locale, 'signup.error.email_taken') });
       // BOT (0114) — codes to one company's domain, by the hour.
       if (!(await domainAllows(wanted.email))) return again(429, { error: t(locale, 'verify.error.slow') });
-      const sent = await sendCode(reply, locale, wanted.email, 'signup', wanted, null);
+      const taken = await lookupLogin(deps.db, wanted.email).catch(() => null);
+      const sent = await sendCode(reply, locale, wanted.email, 'signup', wanted, null, taken ? {
+        subject: mailT(locale, 'signup.taken.mail.subject'),
+        text: mailT(locale, 'signup.taken.mail.body', { email: show.isolate(locale, wanted.email), link: `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login` }),
+      } : undefined);
       if (sent !== 'sent') return again(sent === 'slow' ? 429 : 502, { error: t(locale, sent === 'slow' ? 'verify.error.slow' : 'verify.error.mail') });
       return reply.redirect('/verify');
     }
@@ -2146,15 +2151,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** Issues a code, mails it, and points the browser at /verify. False: tell her why not. */
   const sendCode = async (
     reply: FastifyReply, locale: Locale, email: string, purpose: OtpPurpose, payload: PendingSignup | null, loginId: string | null,
+    /** Audit batch 5 — a sign-up to an address that has a workspace: the code is made as ever (the page cannot tell), never mailed. */
+    instead?: { readonly subject: string; readonly text: string },
   ): Promise<'sent' | 'slow' | 'mail'> => {
     const code = newOtpCode();
     const id = await issueOtp(deps.db, {
       email, purpose, codeHash: otpHash(deps.sessionSecret, email, purpose, code), payload, loginId, ttlSeconds: OTP_TTL_SECONDS,
     }).catch(() => null);
     if (!id) return 'slow';
-    const mailed = await codeMail!.send({
-      to: email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
-    }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    const message = instead ?? { subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }) };
+    const mailed = await codeMail!.send({ to: email, ...message }).catch(() => ({ ok: false as const, error: 'unreachable' }));
     // MAIL — today's caps hold: the page says to slow down, as for too many codes in an hour.
     if (refusedByCap(mailed)) return 'slow';
     if (!mailed.ok) {
@@ -6523,6 +6529,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,
     model: deps.advisorModel ?? null,
+    // A4 — its metering: the day's allowance, asked before a question reaches the model, and what the question used,
+    // written on the workspace's ledger. Two narrow ports on the app's pool: an answer, and one write of usage.
+    allowanceUsed: (businessId) => allowanceUsedFor(deps.db, businessId),
+    spent: (businessId, u) => recordSpendAlone(deps.db, businessId, u, { turn: false }),
     // 0130 — the advisor's memory: a narrow port (keep, open, forget), never a writable pool.
     memory: deps.advisorMemory ?? null,
     processor: (locale) => processorLabel(legalFacts.processor, locale),

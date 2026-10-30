@@ -10,7 +10,7 @@ import { hybridRetriever } from '../retrieval/hybrid.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { decideBatch } from '../core/conversation/batching.js';
 import {
-  recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor,
+  recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor, stillWaiting, turnRecorded,
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
 import {
@@ -28,7 +28,7 @@ import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/in
 import { matchCaption, postLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
 import { catalogueNames } from '../db/productAliases.js';
 import { enqueueOutboundRow, pilotFactsFor } from '../db/channels.js';
-import { turnHold, HOLD_REASON } from '../db/assistantStop.js';
+import { turnHold, HOLD_REASON, type TurnHold } from '../db/assistantStop.js';
 import { practiceOf, conversationExists } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
@@ -234,6 +234,11 @@ export async function startWorker(
     seen: Awaited<ReturnType<typeof seeImage>> | null;
     fragmentIds: readonly string[];
     started: number;
+    /**
+     * G13 — a person asked for this message to be answered (their transcript of a voice note): a turn already
+     * recorded for it does not stop this one.
+     */
+    again?: boolean;
   }): Promise<void> => {
     const businessId = { value: input.businessId };
     const conversationId = { value: input.conversationId };
@@ -242,10 +247,17 @@ export async function startWorker(
     // own (below), so a turn that fails after paying is still on the ledger.
     let spent: { llmCalls: number; inputTokens: number; outputTokens: number } | null = null;
     let committed = false;
+    // A turn held after its model was paid (Stop pressed while it wrote): its calls are on the ledger, but no turn.
+    let heldAfterPaying = false;
     // P5 — who pays: the workspace itself, or, for a practice copy, the workspace it practises for.
     let payer: BusinessId = businessId.value;
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
+      // B24 (audit batch 5) — asked under the lock, so two processes holding the same job, or a job retried after its
+      // turn committed, answer once: a batch whose fragments a turn already answered, or a voice note's or a photo's
+      // message a turn already answers, runs nothing — no model, no reply, no second draft.
+      if (input.fragmentIds.length > 0 ? !(await stillWaiting(tx, input.fragmentIds))
+        : !input.again && (await turnRecorded(tx, input.messageId))) return null;
       // P5 — a practice copy's turn is the workspace's cost, on its own ledger
       // and allowance: known before any model is paid, so a turn that fails
       // after paying is charged there too.
@@ -288,6 +300,30 @@ export async function startWorker(
           [{ messageId: input.messageId, text: input.caption }]);
       }
 
+      /*
+       * The audit's polish item (batch 5): the hold was read once, before the voice note was heard, the photo seen
+       * and this transaction began. Stop (or the operator's silence, the allowance, a lapse) pressed in that gap — or
+       * while the model writes, below — must not end in a draft. Asked again here, before the model, and once more
+       * before anything is committed: held, the turn is the hold's — recorded as held, handed to a person, silent.
+       */
+      const heldTurn = async (hold: TurnHold, usage: { llmCalls: number; inputTokens: number; outputTokens: number } | null) => {
+        await tenant.audit.recordTurn({
+          messageId: input.messageId, conversationId: conversationId.value,
+          stateBefore: (await tenant.conversations.loadState(conversationId.value)) ?? {},
+          input: { text: input.text, messageIds: input.fragmentIds.length ? [...input.fragmentIds] : [input.messageId] },
+          analysis: null, retrieved: null,
+          decision: { action: { kind: 'held', reason: HOLD_REASON[hold] } },
+          quoteId: null, promptVersion: null, modelId: null, latencyMs: Date.now() - started,
+          measure: { path: 'silent', analyserAvoidable: false, llmCalls: usage?.llmCalls ?? 0,
+            inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0 },
+        });
+        await markFragmentsProcessed(tx, input.fragmentIds, input.messageId);
+        return handToPerson(tenant, conversationId.value, { kind: HOLD_REASON[hold] },
+          [{ messageId: input.messageId, text: input.text || input.caption }]);
+      };
+      const before = await turnHold(tx, businessId.value, conversationId.value);
+      if (before) return heldTurn(before, null);
+
       const req = {
         conversationId: conversationId.value,
         messageId: input.messageId,
@@ -305,6 +341,8 @@ export async function startWorker(
       };
       const result = await computeTurn(ports, req);
       spent = result.usage;
+      const during = await turnHold(tx, businessId.value, conversationId.value);
+      if (during) { heldAfterPaying = true; return heldTurn(during, result.usage); }
       const fx = await commitTurn(ports, req, result, started);
       // P3 — a practice turn (0086) is checked by the golden set's own
       // checkers, and the page shows what held. Only on a copy.
@@ -317,7 +355,7 @@ export async function startWorker(
     }).then((fx) => { committed = true; return fx; }).finally(async () => {
       // T7 — the budget dataset: what every attempt's calls cost, kept or not;
       // a turn is counted once, when it is kept (a retry is the same turn).
-      if (spent) await recordSpendAlone(db, payer, spent, { turn: committed });
+      if (spent) await recordSpendAlone(db, payer, spent, { turn: committed && !heldAfterPaying });
     });
     // 0128 — the model answered this turn: if the provider was refusing for billing, it is back.
     if ((spent as { llmCalls: number } | null)?.llmCalls) {
@@ -332,6 +370,8 @@ export async function startWorker(
     // not queue the reply twice (an identical employee reply within ten
     // minutes is skipped, db/channels.ts). An alert can repeat only if this
     // send is retried after it succeeded; that is tolerated.
+    // B24 — nothing ran: another turn had already answered this.
+    if (effects === null) return;
     if (effects.outbound) {
       await boss.send(QUEUES.outbound, {
         businessId: input.businessId,
@@ -570,7 +610,7 @@ export async function startWorker(
         businessId: businessId.value, conversationId: conversationId.value,
         messageId: job.data.messageId, text: job.data.text, caption: null,
         provenance: 'transcribed', heard: null, seen: null, mediaId: null,
-        fragmentIds: [], started,
+        fragmentIds: [], started, again: true,
       });
       return;
     }
@@ -638,6 +678,12 @@ export async function startWorker(
         return;
       }
     }
+
+    // B24 — a voice note's or a photo's job retried after its turn committed (the queue's send below failed, a
+    // deploy stopped the worker): nothing to hear or see again, nothing to pay for, nothing to answer twice. One
+    // short read, no lock, closed before any download — like G10c's above.
+    if ((job.data.messageType === 'audio' || job.data.messageType === 'image')
+        && (await withTenantTx(db, businessId.value, (tx) => turnRecorded(tx, job.data.messageId)))) return;
 
     // M34 — a voice note is heard BEFORE the turn, outside the tenant
     // transaction: a download and a transcription are seconds of network, and

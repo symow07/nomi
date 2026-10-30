@@ -53,11 +53,11 @@ function fakeModel(routes: Record<string, Route>, says: Record<string, string> =
     recognise: async ({ question }) => {
       const r = routes[question];
       calls.push(`recognise:${r?.id ?? '-'}`);
-      return r ? { period: null, customer: null, product: null, reference: null, ...r } : null;
+      return { pick: r ? { period: null, customer: null, product: null, reference: null, ...r } : null, usage: { inputTokens: 100, outputTokens: 10 } };
     },
     phrase: async ({ question, facts }) => {
       calls.push(`phrase:${routes[question]?.id ?? '-'}`);
-      return says[question] ?? facts.join(' ');
+      return { text: says[question] ?? facts.join(' '), usage: { inputTokens: 200, outputTokens: 20 } };
     },
   };
 }

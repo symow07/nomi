@@ -569,6 +569,9 @@ export function renderProductList(
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
   // On PR 344 (the owner) — a language only on the profile's default list is a suggestion: said once, quietly.
   const suggested = [...new Set(items.flatMap((p) => p.namesSuggested ?? []))];
+  // Audit batch 5 (2026-10-31) — a name missing in a served script is said ONCE, above the list, with the languages;
+  // each such row carries one small mark. It was a line per language on every row (24 lines for 12 products).
+  const wanted = [...new Set(items.flatMap((p) => p.namesWanted ?? []))];
   // Phase 9 (V1-301, V1-304) — the way to add says "add", under the title and
   // in the list's own column: it was a far-right text link ("Teach your
   // assistant your products ›"), and on a Spanish phone dropped 50 px below the
@@ -579,6 +582,8 @@ export function renderProductList(
     ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
     ${waiting > 0 ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
       ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}
+    ${wanted.length ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.namesWanted', {
+      mark: t(locale, 'product.list.noNameMark'), languages: formatList(locale, wanted.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}
     ${suggested.length ? `<div class="block measure-prose"><p class="caption muted">${esc(t(locale, 'product.list.namesSuggested', {
       languages: formatList(locale, suggested.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}`;
   if (items.length === 0) {
@@ -605,7 +610,7 @@ export function renderProductList(
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}"><span class="prod-m">
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
       <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
-      ${(p.namesWanted ?? []).map((l) => `<span class="p-tag">${esc(t(locale, 'product.list.noName', { language: languageCalled(locale, l) }))}</span>`).join('')}
+      ${(p.namesWanted ?? []).length ? `<span class="p-tag">${esc(t(locale, 'product.list.noNameMark'))}</span>` : ''}
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
     </span>${GO}</a>`;
   }).join('');

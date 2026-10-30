@@ -116,6 +116,21 @@ export async function loadConnection(tx: Tx, credentialKey: Buffer, businessId: 
 }
 
 /**
+ * Audit batch 5 (2026-10-31) — A GRANT THAT NO LONGER OPENS IS SAID. A connection whose stored grant cannot be opened
+ * (a key rotation gone wrong, its credential row gone) was refused as `revoked` by every read and write-back, while
+ * its row kept saying "connected": the page promised what no read could do. Now the one loader for reads and
+ * write-backs records it like any revoked grant (`connect_again`, the page asks to connect again) and answers null.
+ */
+export async function loadLiveConnection(db: Db, credentialKey: Buffer, businessId: BusinessId, system: ConnectedSystem): Promise<(BooksConnection & { readonly grant: Grant }) | null> {
+  return withTenantTx(db, businessId, async (tx) => {
+    const conn = await loadConnection(tx, credentialKey, businessId, system);
+    if (!conn || conn.state === 'disconnected') return null;
+    if (!conn.grant) { await noteRead(tx, businessId, system, { ok: false, reason: 'revoked' }); return null; }
+    return { ...conn, grant: conn.grant };
+  });
+}
+
+/**
  * How a read went. A refusal that waits on the owner (revoked, expired, gone) changes the state, and the page says so;
  * one that only needs time (Google or Odoo did not answer) changes nothing but the time it was tried.
  */

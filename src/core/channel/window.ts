@@ -58,11 +58,6 @@ export function reopenAllowed(lastInboundAt: Date | null, now: Date): boolean {
   return lastInboundAt !== null && now.getTime() - lastInboundAt.getTime() <= REOPEN_MAX_MS;
 }
 
-export function windowMsLeft(lastInboundAt: Date | null, now: Date): number {
-  if (!lastInboundAt) return 0;
-  return Math.max(0, lastInboundAt.getTime() + WINDOW_MS - now.getTime());
-}
-
 export type TemplateState = 'approved' | 'none' | 'rejected';
 export type SendIntent = 'reply' | 'follow_up';
 

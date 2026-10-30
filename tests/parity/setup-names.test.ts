@@ -120,11 +120,20 @@ describe('the list and the product\'s page say it of each product', () => {
   it('the list marks a product with no name in a served script, and only that one', () => {
     for (const l of LOCALES) {
       const html = withWorkspace(scope({}), () => renderProductList([item(['zh', 'ar']), { ...item([]), id: 'p2', name: 'Paper bag' }], l));
-      for (const lang of ['zh', 'ar'] as const) {
-        expect(html, `${l} ${lang}`).toContain(esc(t(l, 'product.list.noName', { language: languageCalled(l, lang) })));
-      }
-      const second = html.slice(html.indexOf('/app/products/p2'));
-      expect(second, l).not.toContain(esc(t(l, 'product.list.noName', { language: languageCalled(l, 'zh') })));
+      const mark = `<span class="p-tag">${esc(t(l, 'product.list.noNameMark'))}</span>`;
+      expect(html.split('/app/products/p2')[0], l).toContain(mark);
+      expect(html.slice(html.indexOf('/app/products/p2')), l).not.toContain(mark);
+    }
+  });
+  it('audit batch 5 · the missing languages are said once, above the list — never a line per language on every row', () => {
+    for (const l of LOCALES) {
+      const html = withWorkspace(scope({}), () => renderProductList(
+        [item(['zh', 'ar']), { ...item(['ar']), id: 'p2', name: 'Paper bag' }, { ...item(['zh', 'ar']), id: 'p3', name: 'Jute bag' }], l));
+      const line = esc(t(l, 'product.list.namesWanted', { mark: t(l, 'product.list.noNameMark'),
+        languages: formatList(l, [languageCalled(l, 'zh'), languageCalled(l, 'ar')]) }));
+      expect(html.split(line).length - 1, l).toBe(1);
+      expect(html.indexOf(line), l).toBeLessThan(html.indexOf('class="prod"'));
+      expect(html.split(`<span class="p-tag">${esc(t(l, 'product.list.noNameMark'))}</span>`).length - 1, l).toBe(3);
     }
   });
   it('the product\'s page says it where its names are, before the box that adds one', () => {
@@ -152,7 +161,7 @@ describe('the list and the product\'s page say it of each product', () => {
       const line = esc(t(l, 'product.list.namesSuggested', { languages: formatList(l, [languageCalled(l, 'zh'), languageCalled(l, 'ar')]) }));
       expect(html.split(line).length - 1, l).toBe(1);
       expect(html, l).toContain(`<p class="caption muted">${line}</p>`);
-      expect(html, l).not.toContain(esc(t(l, 'product.list.noName', { language: languageCalled(l, 'zh') })));
+      expect(html, l).not.toContain(esc(t(l, 'product.list.noNameMark')));
       const detail = withWorkspace(scope({}), () => renderProductDetail({
         id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', category: null, unit: 'pcs', moq: 100, leadTimeDays: null,
         customizable: false, learned: true, status: 'learned', imageMatchable: true, isActive: true,

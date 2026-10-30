@@ -61,12 +61,6 @@ export function channelLifecycle(f: ChannelFacts): ChannelLifecycle {
 }
 
 /**
- * Can the owner turn messaging on right now? Only from `ready` — an active
- * channel is already on, and both other states need the connection fixed first.
- */
-export const canActivateChannel = (f: ChannelFacts): boolean => channelLifecycle(f) === 'ready';
-
-/**
  * M20.4 (F-09) — why an owner-typed reply would not leave, if it would not.
  *
  * This is NOT a second gate. `gateOutbound` remains the only authority over

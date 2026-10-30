@@ -16,10 +16,11 @@ before you acted. Every control below works by changing one of its inputs.
 
 | Blast radius | Do this | Why it stops her |
 |---|---|---|
-| The whole factory | `/app/factory` → **Stop messaging** (停止发消息) | `not_activated` — binds the employee *and* the owner |
+| The whole business, WhatsApp | `/app/business` → **Stop WhatsApp messages** (停止 WhatsApp 消息) | `not_activated` — binds the employee *and* the owner |
+| The whole business, every channel | `/app/business` → **Stop {name} everywhere** (the owner's Stop, rule 13) | `stopped` — the assistant only; the owner's own replies still go |
 | One conversation | `/app/inbox` → the conversation → **Take over** | `handed_off` — employee only; you keep replying as yourself |
 | One capability | `/app/employee` → **One kind at a time** (`/app/employee/one-kind`) → **Wait for my OK** | drops it to draft. This is the real "force_draft", per tenant |
-| One buyer | `/app/factory` → allowlist → remove the number | `not_allowlisted` — binds everyone, owner included |
+| One customer (WhatsApp pilot) | `/app/business` → allowlist → remove the number | `not_allowlisted` — binds everyone, owner included |
 | The connection | `/app/channels` → **Disconnect** | queued employee messages are canceled at send time, by design |
 
 If the app itself is unreachable, this is **Stop messaging** straight against the

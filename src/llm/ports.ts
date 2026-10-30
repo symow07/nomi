@@ -172,10 +172,17 @@ export interface AdvisorModel {
      * the entry it resolved to and what it named — never an answer or a figure (docs/ADVISOR-MEMORY.md §4).
      */
     earlier?: readonly { readonly question: string; readonly entry: string; readonly params: Readonly<Record<string, string | null>> }[];
-  }): Promise<{ id: string; period: string | null; customer: string | null; product: string | null; reference: string | null } | null>;
-  /** One short answer in `language`, from `facts` alone. Null: nothing usable came back. */
-  phrase(input: { question: string; language: string; facts: readonly string[]; opinion: boolean }): Promise<string | null>;
+  }): Promise<{
+    readonly pick: { id: string; period: string | null; customer: string | null; product: string | null; reference: string | null } | null;
+    /** A4 — what the call used, for the ledger, whatever came back. */
+    readonly usage: AdvisorCallUsage;
+  }>;
+  /** One short answer in `language`, from `facts` alone. `text` null: nothing usable came back. */
+  phrase(input: { question: string; language: string; facts: readonly string[]; opinion: boolean }): Promise<{ readonly text: string | null; readonly usage: AdvisorCallUsage }>;
 }
+
+/** A4 — one advisor call's tokens, as the provider counted them. */
+export type AdvisorCallUsage = { readonly inputTokens: number; readonly outputTokens: number };
 
 /**
  * G10 (decision 38) — a reply the business is about to send, translated so its

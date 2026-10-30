@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
-import type { Tx } from './client.js';
+import { withTenantTx, type Db, type Tx } from './client.js';
+import { parseBusinessId } from '../core/types/ids.js';
 import { checkBudget, type Budget, type BudgetVerdict, type Usage } from '../core/budget.js';
 
 /**
@@ -62,3 +63,13 @@ export const allowanceRenewsAt = (now: Date): Date =>
 
 /** True when the day's allowance is used and the cap holds — or the installation's breaker holds (KS5): no model is asked. */
 export const allowanceUsed = (a: Allowance): boolean => a.verdict.kind === 'pause' || a.breaker === true;
+
+/**
+ * A4 — the same question for a caller that holds a pool, not a transaction (the advisor's route, through its
+ * port): is today's allowance used? A workspace id that does not parse is answered as used — nothing is asked.
+ */
+export async function allowanceUsedFor(db: Db, businessId: string): Promise<boolean> {
+  const bid = parseBusinessId(businessId);
+  if (!bid.ok) return true;
+  return allowanceUsed(await withTenantTx(db, bid.value, (tx) => allowanceOf(tx)));
+}

@@ -320,8 +320,8 @@ There are 105 entries here (about 96 distinct). Each one needs a condition, not 
 |---|---|---|
 | `product.list.moq`, on every product row and the product page (`products.ts:399, 476`) | Min. order | **High visibility.** Show it only when the owner set a minimum. |
 | `product.edit.moq` | Smallest order you will take | Make it optional and empty by default: "(leave empty if there is none)" / 没有就留空 / يُترك فارغًا إن لم يوجد |
-| `product.review.moqSuffix`, `product.review.change.moq`, `product.reject.bad_moq` | MOQ {qty} / MOQ: … / MOQ looks off | Write "Minimum order" in full, and only on lines that state one. |
-| `product.add.example2` | Vacuum cup $2.60 MOQ 1000 | Bulk sellers keep one example with a minimum ("…at least 1000"); everyone else sees "Face serum 30 ml $19". |
+| ~~`product.review.moqSuffix`, `product.review.change.moq`, `product.reject.bad_moq`~~ | MOQ {qty} / MOQ: … / MOQ looks off | Write "Minimum order" in full, and only on lines that state one. **Done 2026-10-31 (audit batch 5):** `change.moq` says "Minimum order"; `moqSuffix` was used nowhere and is gone; `bad_moq` already said it. |
+| ~~`product.add.example2`~~ | Vacuum cup $2.60 MOQ 1000 | **Done 2026-10-31 (audit batch 5):** "Ceramic mug $2.60" for everyone, no minimum, in five languages. |
 | `proof.fact.moq`, on the customer's price page; the row is always drawn (`proof.ts:316`) | Minimum order (shows "100 pcs" for any imported product without a stated minimum) | The wording is fine; show it only when the minimum is above 1. |
 | `templates.ts:47-48`, the customer reply when a quantity is below the minimum | "The minimum order for this product is {moq} pieces…" | Use the product's own unit instead of "pieces". Any business triggers it for fewer than 100 items, because the import gives every product without a stated minimum a minimum of 100 (`products.ts:285`). |
 | `templates.ts:65`, the note to the writer | "Quantity {requested} is below the minimum of {moq}." | "They asked for {requested}; the smallest order for this product is {moq}." |

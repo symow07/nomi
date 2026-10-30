@@ -54,12 +54,16 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
 
 ## Before the third paying workspace — BLOCKING (the owner, 2026-10-15)
 
-- **The owner's advisor is metered.** `answerFollowUp` (`src/advisor/answer.ts`)
-  makes up to two model calls a question with no allowance check and no spend
-  record: one workspace's staff can spend without limit, uncounted, where the
-  installation's spend breaker cannot see it. The owner's words: "metered
-  before the third paying workspace." Not before. Not after. The isolation
-  sweep, item 10 (the sweep report (kept outside the repo since 2026-10-16)).
+- ~~**The owner's advisor is metered.**~~ **DONE (A4, audit batch 5, 2026-10-31).**
+  Before each question, the advisor route asks the day's allowance (the rule every
+  model call follows, the installation's spend breaker included); used up, the
+  model is asked nothing and the owner reads "Today's allowance is used up, so
+  nothing was looked up" (`advisor.allowanceUsed`). Every call that answered is
+  written on the workspace's ledger, calls and tokens, never a turn
+  (`answerFollowUp` returns `spent`; the route records it through its `spent`
+  port). Tests: `tests/integration/advisor-metering.test.ts`, the A4 cases in
+  `tests/parity/advisor-build.test.ts`. Was: up to two model calls a question,
+  unchecked and unrecorded (the isolation sweep, item 10).
 
 ## Before any customer or workspace in the EU or UK — BLOCKING (the owner, 2026-10-28)
 

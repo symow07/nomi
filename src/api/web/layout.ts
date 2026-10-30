@@ -1894,6 +1894,9 @@ const STYLE_PAGES = `
   .ct .ct-co { font-size:var(--font-size-small); margin-top:var(--space-8); display:block; }
   .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
   .ct .since { font-size:var(--font-size-small); }
+  .ct-more { display:inline-block; }
+  .ct-more > summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; }
+  .ct-more[open] > summary { margin-bottom:var(--space-8); }
   /* Permanent, and it should read that way at a glance. */
   .ct.stopped .who { color:var(--color-ink-secondary); }
   .btn.stop { color:var(--color-ink-secondary); }
@@ -2575,7 +2578,6 @@ const STYLE_PAGES = `
   .sbx-mode > h2, .sbx-mode > p { margin:0; }
   /* Phase 9 (V1-291) — Start over sits with the conversation it erases, a button among buttons. */
   .sbx-log-h h2 { margin:0; }
-  .sbx-checklist .chk.gap .mk { color:var(--color-ink-secondary); }
   .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }

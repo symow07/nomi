@@ -73,7 +73,7 @@ for (const [want, carry, questions] of ROUTES) {
   for (const [i, q] of questions.entries()) {
     const l = ['en', 'zh', 'ar', 'es', 'fr'][i];
     let got;
-    try { got = await timed(() => model.recognise({ question: q, entries })); } catch (e) { got = undefined; console.log(`  ✗ ${l} ${q}  → error ${e.message}`); unreadable++; continue; }
+    try { got = (await timed(() => model.recognise({ question: q, entries }))).pick; } catch (e) { got = undefined; console.log(`  ✗ ${l} ${q}  → error ${e.message}`); unreadable++; continue; }
     if (got === null) { if (want !== null) { unreadable++; console.log(`  ✗ ${l} ${q}  → unreadable`); } else console.log(`  ✓ ${l} ${q}  → unknown (unreadable)`); continue; }
     const id = entryOf(got.id) ? got.id : null;
     const carried = Object.entries(carry).every(([k, v]) => (got[k] ?? '').toLowerCase().includes(v.toLowerCase()));
@@ -103,7 +103,7 @@ for (const [want, carry, never, before, questions] of FOLLOWUPS) {
   for (const [i, q] of questions.entries()) {
     const l = ['en', 'zh', 'ar', 'es', 'fr'][i];
     let got;
-    try { got = await timed(() => model.recognise({ question: q, entries, earlier: [before] })); } catch (e) { console.log(`  ✗ ${l} ${q}  → error ${e.message}`); unreadable++; continue; }
+    try { got = (await timed(() => model.recognise({ question: q, entries, earlier: [before] }))).pick; } catch (e) { console.log(`  ✗ ${l} ${q}  → error ${e.message}`); unreadable++; continue; }
     if (!got) { unreadable++; console.log(`  ✗ ${l} ${q}  → unreadable`); continue; }
     const carried = Object.entries(carry).every(([k, v]) => (got[k] ?? '').toLowerCase().includes(v.toLowerCase()));
     const leaked = Object.entries(never).some(([k, v]) => (got[k] ?? '').toLowerCase().includes(v.toLowerCase()));
@@ -139,7 +139,7 @@ for (const [i, l] of ['en', 'zh', 'ar', 'es', 'fr'].entries()) {
   for (const f of FACTS(l)) {
     const question = f.q[i];
     let text;
-    try { text = await timed(() => model.phrase({ question, language: LANGUAGE[l], facts: f.facts, opinion: !!f.opinion })); } catch (e) { text = null; console.log(`  ✗ ${l} ${question}  → error ${e.message}`); }
+    try { text = (await timed(() => model.phrase({ question, language: LANGUAGE[l], facts: f.facts, opinion: !!f.opinion }))).text; } catch (e) { text = null; console.log(`  ✗ ${l} ${question}  → error ${e.message}`); }
     worded++;
     if (!text) { unreadable++; console.log(`  ✗ ${l} ${question}  → nothing`); continue; }
     const c = checkPhrasing(text, { facts: f.facts, names: f.names, known: KNOWN, must: f.must ?? [], locale: l });

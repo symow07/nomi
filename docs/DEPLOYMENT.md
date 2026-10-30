@@ -67,7 +67,7 @@ Only GETs plus one login POST — it never posts an owner action, never touches
 the sandbox, and never sends a message. Safe against production. It checks:
 
 - `/health` is `ok` **and** `db:true`, and leaks no build information
-- every owner surface (`/app`, `/app/inbox`, `/app/factory`, `/app/onboarding`, `/app/sandbox`) redirects when signed out
+- every owner surface (`/app`, `/app/inbox`, `/app/business`, `/app/onboarding`, `/app/sandbox`) redirects when signed out
 - an owner **action** rejects anonymous callers
 - while WhatsApp is disabled, `/webhook/whatsapp` is **404** (not mounted); `/webhook/messenger` and `/webhook/instagram` answer the handshake (403 on a wrong token) once `META_PAGE_*` is set
 - the session cookie is `Secure` + `HttpOnly` + `SameSite=Lax` (over https)

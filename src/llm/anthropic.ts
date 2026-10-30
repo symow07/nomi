@@ -469,16 +469,17 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
             : ''),
         messages: [{ role: 'user', content: question.slice(0, 1000) }],
       }, ADVISOR_REQUEST);
+      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
       const block = firstText(res.content);
       const raw = block?.type === 'text' ? block.text : '';
       const json = /\{[\s\S]*\}/.exec(raw)?.[0];
-      if (!json) return null;
+      if (!json) return { pick: null, usage };
       try {
         const v = JSON.parse(json) as Record<string, unknown>;
         const str = (x: unknown): string | null => (typeof x === 'string' && x.trim() !== '' && x.trim().toLowerCase() !== 'null' ? x.trim().slice(0, 120) : null);
         const id = str(v['id']);
-        return id ? { id, period: str(v['period']), customer: str(v['customer']), product: str(v['product']), reference: str(v['reference']) } : null;
-      } catch { return null; }
+        return { pick: id ? { id, period: str(v['period']), customer: str(v['customer']), product: str(v['product']), reference: str(v['reference']) } : null, usage };
+      } catch { return { pick: null, usage }; }
     },
     async phrase({ question, language, facts, opinion }) {
       const res = await client.messages.create({
@@ -502,10 +503,11 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
           'Output only the answer.',
         messages: [{ role: 'user', content: `QUESTION: ${question.slice(0, 1000)}\n\nFACTS:\n${facts.map((f) => `- ${f}`).join('\n')}` }],
       }, ADVISOR_REQUEST);
+      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
       const block = firstText(res.content);
       const out = block?.type === 'text' ? block.text.trim() : '';
-      if (!out || res.stop_reason === 'max_tokens') return null;
-      return out.slice(0, 1500);
+      if (!out || res.stop_reason === 'max_tokens') return { text: null, usage };
+      return { text: out.slice(0, 1500), usage };
     },
   };
 }

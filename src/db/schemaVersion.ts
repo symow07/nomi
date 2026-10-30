@@ -469,7 +469,8 @@ import type { Db } from './client.js';
 // 218 = the books kept as long as their country's law says: six years in the United Kingdom, Spain's ten under its own law (0218).
 // 219 = a locked period is locked to the app too: a close under way is a row only the closing function writes, never a setting (0219).
 // 220 = a page of her site read again: one paid reading, the old one replaced, or its knowledge replaced only when the new one is approved (0220).
-export const REQUIRED_SCHEMA_VERSION = 220;
+// 221 = a year locked and closed on the workspace's own day, not the database's UTC one (0221).
+export const REQUIRED_SCHEMA_VERSION = 221;
 
 export type SchemaState = {
   readonly required: number;

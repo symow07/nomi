@@ -3,7 +3,7 @@ import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { BooksProblem } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
-import { loadConnection, noteRead, type ConnectedSystem } from '../db/booksConnections.js';
+import { loadLiveConnection, noteRead, type ConnectedSystem } from '../db/booksConnections.js';
 import { readInBooks, type BeforeBooks } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
@@ -45,8 +45,8 @@ export type ReadResult =
 export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string, system: ConnectedSystem, by: string): Promise<ReadResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { kind: 'refused', reason: 'unreadable' };
-  const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, system));
-  if (!conn || conn.state === 'disconnected' || !conn.grant) return { kind: 'refused', reason: 'revoked' };
+  const conn = await loadLiveConnection(deps.db, deps.credentialKey, bid.value, system);
+  if (!conn) return { kind: 'refused', reason: 'revoked' };
   const note = (o: Parameters<typeof noteRead>[3]) => withTenantTx(deps.db, bid.value, (tx) => noteRead(tx, bid.value, system, o));
   const refuse = async (reason: ConnectRefusalReason): Promise<ReadResult> => { await note({ ok: false, reason }); return { kind: 'refused', reason }; };
   const bookCurrency = (await withTenantTx(deps.db, bid.value, (tx) =>

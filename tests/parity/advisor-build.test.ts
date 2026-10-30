@@ -195,7 +195,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     const routes: string[] = [];
     const fake = { get: (p: string) => { routes.push(`GET ${p}`); }, post: (p: string) => { routes.push(`POST ${p}`); } };
     advisorRoutes(fake as unknown as FastifyInstance, { viewer: () => null, locale: () => 'en', page: (_r, o) => o.bodyHtml, db: null, model: null,
-      memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply) => reply, takeFlash: () => null });
+      allowanceUsed: async () => false, spent: async () => undefined, memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply) => reply, takeFlash: () => null });
     // 0130 — a kept conversation opened; the card's answer; one conversation deleted.
     // the redesign — earlier conversations on a page of their own.
     expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/earlier', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
@@ -203,10 +203,17 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     const at = app.indexOf('advisorRoutes(app, {');
     const call = app.slice(at, app.indexOf('\n  });', at) + 5);
     expect([...call.matchAll(/^ {4}([a-zA-Z]+): /gm)].map((m) => m[1]))
-      .toEqual(['viewer', 'locale', 'page', 'db', 'model', 'memory', 'processor', 'provider', 'flashTo', 'takeFlash']);
+      .toEqual(['viewer', 'locale', 'page', 'db', 'model', 'allowanceUsed', 'spent', 'memory', 'processor', 'provider', 'flashTo', 'takeFlash']);
     expect(call).toContain('db: deps.advisorDb ?? null,');
     expect(call).toContain('model: deps.advisorModel ?? null,');
-    expect(call).not.toMatch(/deps\.db\b|send|enqueue|save|price|boss/i);
+    // A4 — the only two lines that reach the app's own pool: the allowance asked (an answer), and usage written to
+    // the ledger (one write, of usage only). Nothing else in the call may.
+    const METERING = [
+      '    allowanceUsed: (businessId) => allowanceUsedFor(deps.db, businessId),',
+      '    spent: (businessId, u) => recordSpendAlone(deps.db, businessId, u, { turn: false }),',
+    ];
+    for (const line of METERING) expect(call).toContain(line);
+    expect(METERING.reduce((c, line) => c.replace(line, ''), call)).not.toMatch(/deps\.db\b|send|enqueue|save|price|boss/i);
     // nothing else in the app answers at the advisor's address
     expect(app.match(/['"`]\/app\/advisor/g) ?? []).toEqual([]);
   });
@@ -422,13 +429,14 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
 describe('the routes · signed in only; a fixed sentence asks the database and the model nothing', () => {
   /** A database that fails the test if anything touches it. */
   const untouchable = new Proxy({}, { get: (_t, p) => { throw new Error(`the database was touched: ${String(p)}`); } }) as unknown as Db;
-  const model = (recognised: Awaited<ReturnType<AdvisorModel['recognise']>> | Error, calls: string[] = []): AdvisorModel => ({
-    recognise: async () => { calls.push('recognise'); if (recognised instanceof Error) throw recognised; return recognised; },
-    phrase: async () => { calls.push('phrase'); return 'PHRASED'; },
+  const model = (recognised: Awaited<ReturnType<AdvisorModel['recognise']>>['pick'] | Error, calls: string[] = []): AdvisorModel => ({
+    recognise: async () => { calls.push('recognise'); if (recognised instanceof Error) throw recognised; return { pick: recognised, usage: { inputTokens: 0, outputTokens: 0 } }; },
+    phrase: async () => { calls.push('phrase'); return { text: 'PHRASED', usage: { inputTokens: 0, outputTokens: 0 } }; },
   });
   const io = (o: Partial<AdvisorIO> = {}, signedIn = true): AdvisorIO => ({
     viewer: () => (signedIn ? { businessId: '00000000-0000-4000-8000-000000000001', viewerId: 'p1' } : null),
     locale: () => 'en', page: (_r, x) => x.bodyHtml, db: untouchable, model: model(null),
+    allowanceUsed: async () => false, spent: async () => undefined,
     memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply, path) => reply.redirect(path), takeFlash: () => null, ...o,
   });
 
@@ -498,6 +506,37 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
     expect(made.drawn!.bodyHtml).toContain(esc(t('en', 'advisor.unknown')));
     const failed = await ask('POST', io({ model: model(new Error('timeout')) }), { q: 'how are sales' });
     expect(failed.drawn!.bodyHtml).toContain(esc(t('en', 'advisor.failed')));
+  });
+
+  // A4 — the allowance before the model; what was used, after. The rows are tests/integration/advisor-metering.test.ts.
+  it('A4 · today\'s allowance used up: the model is asked nothing, nothing is recorded, and the owner reads why', async () => {
+    const calls: string[] = []; const spent: unknown[] = [];
+    const r = await ask('POST', io({ model: model({ id: 'I6', period: null, customer: null, product: null, reference: null }, calls),
+      allowanceUsed: async () => true, spent: async (_b, s) => { spent.push(s); } }), { q: 'what are my competitors doing' });
+    for (const l of LOCALES) expect(t(l, 'advisor.allowanceUsed'), l).not.toBe(t(l, 'advisor.failed'));
+    expect(r.drawn!.bodyHtml).toContain(esc(t('en', 'advisor.allowanceUsed')));
+    expect(calls).toEqual([]);
+    expect(spent).toEqual([]);
+  });
+  it('A4 · the allowance cannot be read: nothing is asked of the model ("could not look that up")', async () => {
+    const calls: string[] = [];
+    const r = await ask('POST', io({ model: model({ id: 'I6', period: null, customer: null, product: null, reference: null }, calls),
+      allowanceUsed: async () => { throw new Error('db down'); } }), { q: 'what are my competitors doing' });
+    expect(r.drawn!.bodyHtml).toContain(esc(t('en', 'advisor.failed')));
+    expect(calls).toEqual([]);
+  });
+  it('A4 · every call that answered is recorded once, for the asker\'s workspace — even when the answer is "I don\'t know"', async () => {
+    const spent: [string, unknown][] = [];
+    const counted = (u: number): AdvisorModel => ({
+      recognise: async () => ({ pick: null, usage: { inputTokens: u, outputTokens: 7 } }),
+      phrase: async () => ({ text: 'x', usage: { inputTokens: 1, outputTokens: 1 } }),
+    });
+    await ask('POST', io({ model: counted(512), spent: async (b, s) => { spent.push([b, s]); } }), { q: 'what is the meaning of life' });
+    expect(spent).toEqual([['00000000-0000-4000-8000-000000000001', { llmCalls: 1, inputTokens: 512, outputTokens: 7 }]]);
+    // A call that failed outright reported nothing to record: nothing is written.
+    spent.length = 0;
+    await ask('POST', io({ model: model(new Error('timeout')), spent: async (b, s) => { spent.push([b, s]); } }), { q: 'how are sales' });
+    expect(spent).toEqual([]);
   });
 
   it('an installation without the pool or the model says it cannot answer yet', async () => {

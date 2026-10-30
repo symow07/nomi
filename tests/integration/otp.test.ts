@@ -185,12 +185,22 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     mailUp = true;
   });
 
-  it('an address that already has a workspace is told so at once, and is sent nothing', async () => {
+  it('audit batch 5 · sign-up does not say an address has a workspace: the same reply as a new one, and its owner is told by mail', async () => {
     const before = outbox.length;
-    const r = await form('/signup', { ...A, factory: 'Copycat' });
-    expect(r.statusCode).toBe(400);
-    expect(r.body).toContain(t('en', 'signup.error.email_taken'));
-    expect(outbox.length).toBe(before);
+    const taken = await form('/signup', { ...A, factory: 'Copycat' });
+    const fresh = await form('/signup', { ...A, factory: `Otp Fresh ${RUN}`, email: `nadia-${RUN}@otp.example` });
+    // the page cannot tell them apart: both wait for a code on /verify
+    expect([taken.statusCode, taken.headers['location']]).toEqual([302, '/verify']);
+    expect([fresh.statusCode, fresh.headers['location']]).toEqual([302, '/verify']);
+    expect(taken.body).not.toContain(t('en', 'signup.error.email_taken'));
+    // the owner of the address hears it, with no code in the mail; the new address gets its code
+    const [toTaken, toFresh] = [outbox.slice(before).find((m) => m.to === A.email), outbox.slice(before).find((m) => m.to !== A.email)];
+    expect(toTaken?.subject).toBe(t('en', 'signup.taken.mail.subject'));
+    expect(toTaken?.text).toContain('/login');
+    expect(`${toTaken?.subject} ${toTaken?.text}`).not.toMatch(/\d{6}/);
+    expect(toFresh?.subject).toMatch(/\d{6}/);
+    // and no second workspace for the taken address
+    expect((await admin.query(`select 1 from businesses where name = 'Copycat'`)).rowCount).toBe(0);
   });
 
   it('the application role cannot read a waiting code', async () => {

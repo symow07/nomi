@@ -296,11 +296,13 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
         <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>` : ''}
       ${g === 'can' ? deeper(`/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
         t(locale, 'contacts.write.button')) : ''}
-      ${/* The warmth run (-16) — the row's act drawn as a button, outlined like its neighbours; ghost words read as a caption. */ ''}<form method="get" action="/app/contacts/suppress" class="inline">${hidden}
+      ${/* The warmth run (-16) — the row's act drawn as a button, outlined like its neighbours; ghost words read as a caption.
+           Audit batch 5 (2026-10-31) — and folded under "More": on every row it was the page's loudest thing, and it cannot be undone. */ ''}<details class="ct-more"><summary>${esc(t(locale, 'contacts.more'))}</summary>
+      <form method="get" action="/app/contacts/suppress" class="inline">${hidden}
         <button class="btn" type="submit">${esc(t(locale, 'contacts.suppress.button'))}</button></form>
       ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'contacts.archive.confirm', { who: c.displayName ?? shown(c) }))}">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
+          data-confirm="${esc(t(locale, 'contacts.archive.confirm', { who: c.displayName ?? shown(c) }))}">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}</details>`;
     /**
      * The warmth run (w4-settings-b-outreach-14) — a face on every row, the
      * customers' own colour, as on the Inbox and Today. Someone who has

@@ -37,12 +37,6 @@ export const checklistFor = (kind: ChecklistKind): readonly ChecklistItem[] =>
        ...(kind === 'retail' ? ['retail_price' as const] : []), 'order_tapped'];
 
 /**
- * Items that cannot pass yet, whatever is practised. None since RT (0095): a
- * shop's price question is answered with the price of one.
- */
-export const NOT_YET: ReadonlySet<ChecklistItem> = new Set([]);
-
-/**
  * AUDIT B16 — READINESS, ONE ANSWER. How much of the checklist the owner has seen: Practice's card, Ready for
  * customers, Getting ready (its verdict, its "Ready for customers" row and its Practice row) and Going live all
  * show THIS count. They drifted: Practice counted what its copy showed, Ready and Getting ready only what Practice
@@ -52,17 +46,16 @@ export const NOT_YET: ReadonlySet<ChecklistItem> = new Set([]);
 export type Readiness = {
   readonly items: readonly ChecklistItem[];
   readonly seen: ReadonlySet<ChecklistItem>;
-  /** Items seen, of those that can pass. */
+  /** Items seen. */
   readonly done: number;
-  /** Items that can pass (`NOT_YET` is not counted against the owner). */
+  /** Every item (audit batch 5: none has been unpassable since RT, so the "not yet" set is gone). */
   readonly total: number;
   readonly complete: boolean;
 };
 
 export const readinessOf = (items: readonly ChecklistItem[], seen: ReadonlySet<ChecklistItem>): Readiness => {
-  const counted = items.filter((i) => !NOT_YET.has(i));
-  const done = counted.filter((i) => seen.has(i)).length;
-  return { items, seen, done, total: counted.length, complete: done >= counted.length };
+  const done = items.filter((i) => seen.has(i)).length;
+  return { items, seen, done, total: items.length, complete: done >= items.length };
 };
 
 

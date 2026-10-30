@@ -60,10 +60,37 @@ export async function markFragmentsProcessed(
   tx: Tx, fragmentIds: readonly string[], turnMessageId: string,
 ): Promise<void> {
   if (fragmentIds.length === 0) return;
-  await sql`
+  // B24 (audit batch 5) — only fragments no turn has answered, the ids bound as one array (no hand-escaping). Fewer
+  // than asked means another turn answered some of them first: this one must not stand, so its transaction rolls back.
+  const r = await sql`
     update message_fragments set processed_in = ${turnMessageId}
-     where id = any(${sql.raw(`array[${fragmentIds.map((f) => `'${f.replace(/'/g, "''")}'`).join(',')}]`)}::text[])
+     where id = any(${[...fragmentIds]}::text[]) and processed_in is null
   `.execute(tx);
+  if (Number(r.numAffectedRows ?? 0) !== new Set(fragmentIds).size) {
+    throw new Error(`a turn's fragments were already answered (${Number(r.numAffectedRows ?? 0)} of ${new Set(fragmentIds).size} still waiting)`);
+  }
+}
+
+/**
+ * B24 — asked under the conversation's lock, before a turn runs: are all of these fragments still unanswered? Two
+ * processes can both read the same batch before either takes the lock (a deploy's overlap; FAIR's limit is per
+ * process). The one that takes the lock second finds them answered, and runs nothing.
+ */
+export async function stillWaiting(tx: Tx, fragmentIds: readonly string[]): Promise<boolean> {
+  if (fragmentIds.length === 0) return true;
+  const r = await sql<{ n: number }>`
+    select count(*)::int as n from message_fragments where id = any(${[...fragmentIds]}::text[]) and processed_in is null
+  `.execute(tx);
+  return (r.rows[0]?.n ?? 0) === new Set(fragmentIds).size;
+}
+
+/**
+ * B24 — a turn already answers this message (`turns.message_id` is unique). A voice note's or a photo's job carries
+ * no fragments, so a retry after its turn committed would otherwise run a whole second turn.
+ */
+export async function turnRecorded(tx: Tx, messageId: string): Promise<boolean> {
+  const r = await sql<{ e: boolean }>`select exists (select 1 from turns where message_id = ${messageId}) as e`.execute(tx);
+  return r.rows[0]?.e === true;
 }
 
 /**
