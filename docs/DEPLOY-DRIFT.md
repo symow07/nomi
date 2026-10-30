@@ -40,7 +40,7 @@ Measured from the newest merge instead, merges less than an hour apart would pos
 ## Setup: the owner's, about 15 minutes, once
 
 1. **Healthchecks.io** → new check, named "nomi deploy drift":
-   - Schedule: Simple, **Period 1 hour**, **Grace 30 minutes**. (Hourly since 2026-10-16: the limit is an hour, so checking more often buys nothing.)
+   - Schedule: Simple, **Period 6 hours**, **Grace 3 hours** (set 2026-10-30). The workflow still runs hourly, and a `/fail` ping alarms at once; the period only decides how long a silent watcher (Actions stopped, the job broken) goes unnoticed: up to 9 hours.
    - Copy its ping URL.
 2. **Railway** → the project → Settings → Tokens:
    - Create a **project token** for the **production** environment, named "deploy drift (GitHub)".

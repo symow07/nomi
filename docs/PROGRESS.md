@@ -28,6 +28,9 @@ under "Decided" below.
   only, Contents read-only) in its header when set; never logged.
 - **The owner's:** create the token and paste it on the `nomi` service as `DEPLOY_WATCH_GITHUB_TOKEN`; and the
   outside watcher's two secrets (`docs/DEPLOY-DRIFT.md`) — the only alarm when Railway deploys nothing at all.
+  **Done 2026-10-30:** `DEPLOY_WATCH_GITHUB_TOKEN` is on the `nomi` service (read by name), and the outside watcher's
+  two secrets are set: run 41010688263 (by hand, not a dry run) read `production 1f85873 · main 1f85873 · caught up`
+  and pinged; Healthchecks period 6 hours, grace 3 hours (the owner's).
 - **Not known:** why Railway did not build `decf447f`. The four merges before it deployed on their own.
 - Tests: `tests/parity/deploy-watch.test.ts`, `tests/integration/deploy-watch.test.ts` (the night of 2026-10-28 as a
   test: ten hours of 404s told once, then seen again, then behind).
@@ -434,8 +437,8 @@ The owner's boundary, so nobody re-opens it by accident. Production runs #353 (s
   Westlake's inbox, and no new buyer appeared; that is not the owner's reply test.)
 - **The deploy-day checklist — built, never verified live:** everything after #353; the honest `/health` (#361, seen
   only in the local preview); the fallback (above); the inside deploy watcher (#363/#368, never run in production);
-  the outside watcher (#367, its Railway half never run with a real token).
-- **Parked with the money:** Resend / isolation finding 2; the outside watcher's setup; the side-by-side fallback
+  the outside watcher (#367, its Railway half never run with a real token — run with it 2026-10-30, green: below).
+- **Parked with the money:** Resend / isolation finding 2 (live 2026-10-30, #403); the outside watcher's setup (done 2026-10-30); the side-by-side fallback
   sweeps. **Deferred:** the Arabic hold (waking condition unchanged, its 60-turn run spends DeepSeek balance).
   **Accepted:** the g1-signup narrowing (#354), on the CI evidence.
 
@@ -469,7 +472,7 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
 - **The outside deploy watcher (2026-10-16):** `.github/workflows/deploy-drift.yml` every 30 minutes reads production's
   commit through a Railway project token and walks main back to it; pings Healthchecks unless a merge production lacks
   is over an hour old (then `/fail`, naming the commits). Every failure of the job pings nothing, so it is LOUD when
-  Actions stop. Waits on the owner's setup (`docs/DEPLOY-DRIFT.md`). **#363's clock fixed the same way (2026-10-16):** it
+  Actions stop. Set up by the owner, **2026-10-30:** run 41010688263 (by hand, not a dry run) read `production 1f85873 · main 1f85873 · caught up` and pinged; Healthchecks period 6 hours, grace 3 hours (the owner's). **#363's clock fixed the same way (2026-10-16):** it
   measures from the oldest merge production lacks, read in ONE compare call (GitHub allows a keyless caller 60 an hour;
   a walk per merge would go silent exactly when production is far behind); one alert per merge that did not arrive.
 - **Private would cost money, nothing else (measured 2026-10-16):** ~13,300 CI minutes in 30 days against 2,000 free;
@@ -515,7 +518,7 @@ what makes each urgent; fix the false dedupe-key comments. The report: `docs/REP
   sweep report; item 10's hard marker in LAUNCH-CHECKLIST ("metered before the third paying workspace").
 - **Not deployed: Railway's `nomi` trigger is off since #353 (2026-10-14 18:11 UTC).** Main is ahead of production
   by #354–#360; production is healthy at schema 160. The owner turns it back on; one deploy then runs 0161–0164.
-- **Waiting on the owner:** the Railway trigger; the #3 reply check; the dedicated sender's three variables (#2, steps in the report); disk
+- **Waiting on the owner:** the Railway trigger; the #3 reply check; the dedicated sender's three variables (#2, steps in the report; done 2026-10-30, #403); disk
   space on the Mac; DeepSeek's outage.
 
 ## Phase 4 — after #340–#342 (2026-10-14) — read this first
@@ -3748,8 +3751,8 @@ once, in this order, and tick it here.
 | Echoes: `message_echoes` on the Page subscription and in the app's webhook; a reply typed in Messenger's and Instagram's own apps recorded as the owner's; Nomi's own sends recognised by `app_id` (`META_SOCIAL_APP_ID`) or their recorded id; `tools/meta-resubscribe.mjs --yes` for Pages connected before | CH3 | The owner replies from the Business Suite inbox and from the Instagram app: the reply shows on the transcript as theirs, the waiting draft is superseded, nothing of Nomi's own is taken for theirs. Confirm which `app_id` Meta's inbox echoes carry (the code needs only that it is not ours) |
 | The launch acceptance test (`docs/LAUNCH-ACCEPTANCE.md`): a stranger signs up, imports, names, practises, connects their Page and Instagram; a second stranger writes; the draft is sent and arrives | G8 | `tools/acceptance-check.mjs --business <id>` exits 0, and the owner's stopwatch is under 30 minutes. Cohort 1b opens when it passes |
 | Suspending a workspace: its Page unsubscribed at Meta, and resubscribed on restore | G7 | `tools/suspend-workspace.mjs` on a test workspace with a real Page: the Page's subscribed apps no longer list Nomi, then do again |
-| The dedicated mail sender: paste `MAIL_PROVIDER` (resend or postmark), `MAIL_API_KEY` and `MAIL_FROM` (a verified sending address) into the `nomi` service | MAIL | Sign up a test address on the live site: the code arrives from `MAIL_FROM`, not the operator's mailbox; an owner alert arrives the same way; the boot log no longer says the sender is half-set; the operator's daily list shows the codes |
-| The bot check: paste `BOT_CHECK_PROVIDER` (turnstile or hcaptcha), `BOT_CHECK_SITE_KEY` and `BOT_CHECK_SECRET` into the `nomi` service (the provider's site set to `app.nomidoes.com`) | BOT | `/signup` shows the widget; a sign-up from a browser gets its code; the same form posted without the widget's token (`curl`) is refused and nothing is mailed; `tools/signup-mode.mjs` says all three are set |
+| ~~The dedicated mail sender: paste `MAIL_PROVIDER` (resend or postmark), `MAIL_API_KEY` and `MAIL_FROM` (a verified sending address) into the `nomi` service~~ — **live 2026-10-30** (#403): `MAIL_PROVIDER=resend`, `MAIL_FROM=Nomi <no-reply@nomidoes.com>`, nomidoes.com verified at Resend. The boot first refused the key (D18: the privacy page did not name Resend; production stayed on the earlier deploy); #403 named it, and the boot log says "Nomi's mail by Resend". A password-reset link arrived in the inbox with an `amazonses.com` Message-ID, SPF, DKIM and DMARC passing (the owner). Operator alerts stay on the operator's Gmail; no fallback between the two (the owner's decision). Done | MAIL | — |
+| ~~The bot check: paste `BOT_CHECK_PROVIDER` (turnstile or hcaptcha), `BOT_CHECK_SITE_KEY` and `BOT_CHECK_SECRET` into the `nomi` service (the provider's site set to `app.nomidoes.com`)~~ — **live 2026-10-30**: Cloudflare Turnstile; `/signup` draws the widget and its script (read 2026-10-30); verified by the owner. The privacy page names it, and since #403 says it sees the internet address the form is sent from. Done | BOT | — |
 | Billing: make the Stripe account, create the webhook endpoint `https://app.nomidoes.com/hooks/stripe` (the five events in `docs/env-checklist.md`), paste `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, configure Stripe's customer portal (card, invoices, plan changes), then define each plan with `tools/billing.mjs plan-set` from its Stripe price | BILL | A test workspace saves a card in Stripe's test mode and Billing says so within a minute; connecting its first channel makes a subscription whose trial ends the granted days later; a test clock's failed payment marks it past due, then a cancellation holds the assistant and e-mails the owner; paying again releases it |
 | ~~EXT's live check on the production provider~~ — **run 2026-10-01 23:30 UTC** (`tools/check-ext.mjs`): the closer reading read the plain lines and containment kept out the heading and the two-product line, as intended; **a PDF came back empty** — the custom provider reads no documents. Since then a PDF is offered only where the provider is Anthropic's (`pdfReadable`) and refused in plain words elsewhere. Done, with that finding | EXT | — |
 | CH7: the shop's own caption read with its Page token (`GET /{media-id}?fields=caption`, `instagram_basic`) for a shared post (`ig_post`), a reel (`ig_reel`) and a story reply (`reply_to.story.id`) | CH7 | A customer account shares one of the shop's posts whose caption names one catalogue product: the reply is about that product and the timeline says "Your product: …"; another account's post goes to a person. Confirm the webhook carries `ig_post_media_id` / `reel_video_id` / `reply_to.story.id` as built, and whether a story's caption is returned at all. Its App Review submission is CH7's own (decision 6) |
