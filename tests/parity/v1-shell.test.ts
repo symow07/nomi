@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
 import { renderSetup, renderSettingsHome, renderLanguage } from '../../src/api/web/settings.js';
-import { MARK_FIGURE } from '../../src/core/owner/brand.js';
+import { MARK_GEOMETRY } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
@@ -118,10 +118,14 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     for (const l of LOCALES) {
       const html = page(l);
       const [before, after = ''] = html.split('class="brand"');
-      expect(before, l).not.toContain(MARK_FIGURE);                     // not in the header band, not anywhere else
-      const brand = after.split('</div>')[0] ?? '';
-      expect(brand.split(MARK_FIGURE).length - 1, l).toBe(2);            // the detail cut and the small cut
-      expect(html.split(MARK_FIGURE).length - 1, l).toBe(2);
+      // The seal (2026-10-31): the two cuts are two drawings now — the detail one and the small one on its pixel grid.
+      const { detail, small } = MARK_GEOMETRY;
+      for (const cut of [detail.seal, small.seal]) {
+        expect(before, l).not.toContain(cut);                            // not in the header band, not anywhere else
+        const brand = after.split('</div>')[0] ?? '';
+        expect(brand.split(cut).length - 1, l).toBe(1);                  // the detail cut and the small cut, once each
+        expect(html.split(cut).length - 1, l).toBe(1);
+      }
     }
     const html = drawn();
     expect(html).toContain('.brand .mark-small { display:none; }');      // desktop: the detail cut beside the word

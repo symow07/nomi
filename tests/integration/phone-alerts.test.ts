@@ -147,6 +147,14 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     const icon = await prod.app.inject({ method: 'GET', url: '/assets/icon-512.png' });
     expect(icon.headers['content-type']).toBe('image/png');
     expect(icon.rawPayload.subarray(1, 4).toString()).toBe('PNG');
+    for (const url of ['/assets/icon-maskable-512.png', '/assets/apple-touch-icon.png']) {
+      const more = await prod.app.inject({ method: 'GET', url });
+      expect(more.statusCode, url).toBe(200);
+      expect(more.rawPayload.subarray(1, 4).toString(), url).toBe('PNG');
+    }
+    const ico = await prod.app.inject({ method: 'GET', url: '/favicon.ico' });
+    expect(ico.statusCode).toBe(200);
+    expect(ico.headers['content-type']).toBe('image/x-icon');
     expect((await get('/app')).body).toContain('<link rel="manifest" href="/manifest.webmanifest">');
   });
 

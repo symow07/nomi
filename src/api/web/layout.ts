@@ -2766,7 +2766,7 @@ ${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss
  * All of it arrives in the page — the mark is drawn inline, nothing is fetched.
  */
 export const publicTop = (locale: Locale, home: string, path: string | null): string =>
-  `<header class="pub-top"><a class="pub-brand" href="${esc(home)}">${markSmall(28, null)}<span>Nomi</span></a>`
+  `<header class="pub-top"><a class="pub-brand" href="${esc(home)}">${markSmall(32, null)}<span>Nomi</span></a>`
   + `${path ? switcher(locale, path) : ''}</header>`;
 export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
   .pub-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16);
@@ -3089,7 +3089,7 @@ ${TYPE_SLOT}
 ${scriptTo(LIVE_JS)}</head>
 <body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
-    <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span>${brandname}</div>
+    <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(32, null)}</span>${brandname}</div>
     ${nav}
   </nav>
   <div class="content">

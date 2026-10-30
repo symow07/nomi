@@ -102,7 +102,7 @@ import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
-import { APP_ICONS } from './appIcons.js';
+import { APP_ICONS, FAVICON_ICO } from './appIcons.js';
 import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
@@ -633,6 +633,9 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
   { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
   { method: 'GET', url: '/assets/icon-512.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
+  { method: 'GET', url: '/assets/icon-maskable-512.png', why: 'The seal (2026-10-31) — the home-screen icon a launcher may crop to its own shape; names no tenant' },
+  { method: 'GET', url: '/assets/apple-touch-icon.png', why: 'The seal (2026-10-31) — the icon an iPhone puts on its home screen, at its own 180; names no tenant' },
+  { method: 'GET', url: '/favicon.ico', why: 'The seal (2026-10-31) — the coin a browser asks for by name when a page names none it can draw; names no tenant' },
   { method: 'GET', url: '/assets/guide/:file', why: 'The guided path — the setup videos and their captions, recorded from the demo workspace: the same files for everyone, read from the build, never from the database; names no tenant. Only names of the folder\'s one shape are served' },
   { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
@@ -1506,10 +1509,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     .header('service-worker-allowed', '/').type('text/javascript; charset=utf-8').send(SERVICE_WORKER));
   app.get('/manifest.webmanifest', async (_req, reply) => reply
     .header('cache-control', 'public, max-age=3600').type('application/manifest+json').send(appManifest()));
-  for (const size of ['192', '512'] as const) {
-    app.get(`/assets/icon-${size}.png`, async (_req, reply) => reply
-      .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/png').send(APP_ICONS[size]));
+  const ICON_FILES = { 'icon-192': '192', 'icon-512': '512', 'icon-maskable-512': 'maskable-512', 'apple-touch-icon': 'apple-touch' } as const;
+  for (const [file, key] of Object.entries(ICON_FILES)) {
+    app.get(`/assets/${file}.png`, async (_req, reply) => reply
+      .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/png').send(APP_ICONS[key]));
   }
+  app.get('/favicon.ico', async (_req, reply) => reply
+    .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/x-icon').send(FAVICON_ICO));
   /**
    * THE WARMTH RUN (2026-10-03) — a customer's photo, as kept (0123). Signed
    * in, and under the business's row security: another business's customer is
