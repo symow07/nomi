@@ -240,6 +240,9 @@ describe('w4-settings-b-outreach-15, -16, -18 · the fold apart from the search;
       const html = renderContacts(view([wrote]), l, null);
       expect(html, l).toContain(`<button class="btn" type="submit">${esc(t(l, 'contacts.suppress.button'))}</button>`);
       expect(html, l).not.toContain('btn ghost');
+      // Audit batch 5 — folded under "More" on each row: it cannot be undone, and was the page's loudest thing.
+      const fold = html.slice(html.indexOf('<details class="ct-more">'));
+      expect(fold.slice(0, fold.indexOf('</details>')), l).toContain(esc(t(l, 'contacts.suppress.button')));
     }
   });
   it('the focused way back on the never-again page has a control\'s padding and corner', () => {
