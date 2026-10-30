@@ -241,6 +241,21 @@ describe('C6 · the message both providers receive', () => {
     expect(r.ok).toBe(true);
   });
 
+  it('B5 for mail (audit batch 3): a send that THREW is uncertain, never retried — unless it provably never left', async () => {
+    const timedOut = (): never => { throw new DOMException('timeout', 'TimeoutError'); };
+    const refused = (): never => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) }); };
+    const throwing = (thrown: () => never, when: (url: string) => boolean): OAuthFetch => async (url, init) => {
+      if (when(url)) thrown();
+      return { status: 201, text: async () => JSON.stringify({ id: 'draft-1', internetMessageId: '<x@y>' }) };
+    };
+    // Gmail's send itself: it may have gone (before: retryable, and a mail sent twice).
+    expect(await gmailSender(throwing(timedOut, () => true))('a', msg)).toMatchObject({ ok: false, retryable: false, uncertain: true });
+    expect(await gmailSender(throwing(refused, () => true))('a', msg)).toMatchObject({ ok: false, retryable: true });
+    // Graph: creating the draft reaches nobody, so it is tried again; the send itself is uncertain.
+    expect(await graphSender(throwing(timedOut, (u) => !u.endsWith('/send')))('a', msg)).toMatchObject({ ok: false, retryable: true });
+    expect(await graphSender(throwing(timedOut, (u) => u.endsWith('/send')))('a', msg)).toMatchObject({ ok: false, retryable: false, uncertain: true });
+  });
+
   it('Graph: the message is created from MIME, then sent, and its internetMessageId is the id', async () => {
     const w = wire((c) => c.url.endsWith('/send')
       ? { status: 202, body: '' }

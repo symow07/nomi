@@ -58,7 +58,7 @@ export function smtpMailTransport(deps: SmtpTransportDeps): MailTransport {
       const sent = await smtpDeliver(deps.config, { to: message.to, data }, deps.smtp);
       return sent.ok
         ? { ok: true, providerMessageId: messageId }
-        : { ok: false, retryable: sent.retryable, error: sent.error };
+        : { ok: false, retryable: sent.retryable, error: sent.error, ...(sent.uncertain ? { uncertain: true } : {}) };
     },
   };
 }

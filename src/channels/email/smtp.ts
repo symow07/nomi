@@ -46,7 +46,9 @@ export type SmtpConfig = {
 /** What a delivery attempt became. `retryable` follows SMTP's own 4xx/5xx meaning. */
 export type SmtpOutcome =
   | { readonly ok: true }
-  | { readonly ok: false; readonly retryable: boolean; readonly error: string };
+  | { readonly ok: false; readonly retryable: boolean; readonly error: string;
+      /** B5 for mail (audit batch 3) — the message was written to the server and its answer never came: it may be delivered. */
+      readonly uncertain?: true };
 
 export type SmtpDeps = {
   /** Injected so a test can hand in a socket to a server it started itself. */
@@ -180,6 +182,8 @@ export async function smtpDeliver(
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const secure = config.port === 465;
   let session: Session | null = null;
+  // B5 for mail — once the message itself is on the wire, a lost answer may still be a delivered mail.
+  let bodySent = false;
   try {
     const socket = await (deps.connect ?? openSocket)({ host: config.host, port: config.port, secure });
     session = new Session(socket, timeoutMs);
@@ -226,13 +230,17 @@ export async function smtpDeliver(
     if (to.code !== 250 && to.code !== 251) return refuse('recipient', to);
     const data = await session.say('DATA');
     if (data.code !== 354) return refuse('data', data);
+    bodySent = true;
     session.write(`${dotStuff(message.data)}${CRLF}.${CRLF}`);
     const accepted = await session.read();
     if (accepted.code !== 250) return refuse('body', accepted);
     await session.say('QUIT').catch(() => undefined);
     return { ok: true };
   } catch (e) {
-    // A dropped connection or a timeout is the network, not the message.
+    // A dropped connection or a timeout is the network, not the message — and before the message was written, it never
+    // left: tried again. After it was written (audit batch 3, B5 for mail), the server may have taken it: uncertain, never
+    // sent twice by a machine.
+    if (bodySent) return { ok: false, retryable: false, uncertain: true, error: 'smtp: no answer after the message was sent' };
     return { ok: false, retryable: true, error: e instanceof Error ? `smtp ${e.message}` : 'smtp failed' };
   } finally {
     session?.end();
