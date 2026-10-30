@@ -166,6 +166,7 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
+import { markPromiseKept } from '../../db/promisedDates.js';
 import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
@@ -6309,6 +6310,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const gone = await withTenantTx(deps.db, bid.value, (tx) => removeEntry(tx, bid.value, id, personOf(s).id));
     return gone ? flashTo(reply, '/app/calendar', 'calendar.flash.removed', undefined, `/app/calendar/entries/${id}/restore`)
       : flashTo(reply, '/app/calendar', 'calendar.flash.notFound');
+  });
+
+  // Audit batch 3 (B13) — a promise kept, by the owner's (or staff's) word: off what is owed, ✓ on the calendar.
+  app.post('/app/calendar/promises/:id/kept', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    const id = (req.params as { id: string }).id;
+    if (!bid.ok || !UUID.test(id)) return flashTo(reply, '/app/calendar', 'calendar.flash.notKept');
+    const kept = await withTenantTx(deps.db, bid.value, (tx) => markPromiseKept(tx, bid.value, id, personOf(s).id));
+    return flashTo(reply, '/app/calendar', kept ? 'calendar.flash.kept' : 'calendar.flash.notKept');
   });
 
   // Phase 5 — Undo, from the notice that followed taking a date off.

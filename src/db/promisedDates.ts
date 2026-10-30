@@ -31,6 +31,32 @@ export async function notePromises(tx: Tx, outboundId: string, today: string): P
   return n;
 }
 
+/**
+ * Audit batch 3 (B13, 2026-10-30) — A PROMISE TO GET BACK IS KEPT BY GETTING BACK. `kept_at` had no writer, so every
+ * follow-up promised stayed owed — and, once its day passed, late — for good. Called from the same 'sent' transition,
+ * AFTER this message's own promises are read: a later message that reaches the customer in that conversation keeps the
+ * follow-ups promised before it — unless it promises to get back again itself ("still checking, I'll confirm on
+ * Friday" answers nothing yet; the earlier promise stays owed beside the new one). A delivery is kept by the owner's
+ * word (`markPromiseKept`); a price's end is no promise to keep, and is never owed (`src/db/calendar.ts`).
+ */
+export async function keepFollowUps(tx: Tx, outboundId: string): Promise<number> {
+  const r = await sql`
+    update promised_dates p set kept_at = now(), kept_by = 'next_message'
+      from outbound_messages o
+     where o.id = ${outboundId}::uuid and p.conversation_id = o.conversation_id and p.business_id = o.business_id
+       and p.kind = 'follow_up' and p.kept_at is null and p.outbound_id is distinct from o.id
+       and not exists (select 1 from promised_dates q where q.outbound_id = o.id and q.kind = 'follow_up')`.execute(tx);
+  return Number(r.numAffectedRows ?? 0);
+}
+
+/** B13 — the owner (or staff) says a promise was kept: a delivery made, a follow-up done another way. Once. */
+export async function markPromiseKept(tx: Tx, businessId: string, id: string, by: string): Promise<boolean> {
+  const r = await sql`
+    update promised_dates set kept_at = now(), kept_by = ${by}
+     where id = ${id}::uuid and business_id = ${businessId}::uuid and kept_at is null and kind <> 'price_end'`.execute(tx);
+  return Number(r.numAffectedRows ?? 0) > 0;
+}
+
 export type Promised = {
   readonly id: string; readonly conversationId: string; readonly kind: PromiseKind;
   readonly dueOn: string; readonly said: string; readonly saidBy: 'assistant' | 'person'; readonly kept: boolean;

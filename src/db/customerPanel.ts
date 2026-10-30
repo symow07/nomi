@@ -1,5 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
+import { zoneOf } from './zone.js';
+import { dayKey } from '../core/owner/i18n/format.js';
 import { faceVersions } from './faces.js';
 import { type Money, moneyFromRow } from '../core/types/money.js';
 
@@ -108,10 +110,14 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
      order by s.requested_at desc limit 3`.execute(tx)).rows
     .map((r) => ({ askedAt: r.asked_at, handledAt: r.handled_at }));
 
+  // B13 — what is open: not kept, and not a price whose day has passed (it has ended; there is nothing to keep).
+  const today = dayKey(new Date(), await zoneOf(tx, (await sql<{ b: string }>`
+    select business_id::text as b from conversations where id = ${conversationId}::uuid`.execute(tx)).rows[0]!.b));
   const promised = (await sql<{ said: string; due_on: string; said_by: string; conversation_id: string }>`
     select p.said, to_char(p.due_on, 'YYYY-MM-DD') as due_on, p.said_by, p.conversation_id::text as conversation_id
       from promised_dates p join conversations c on c.id = p.conversation_id
      where c.client_id = ${client}::uuid and p.kept_at is null
+       and (p.kind <> 'price_end' or p.due_on >= ${today}::date)
      order by p.due_on limit 4`.execute(tx)).rows
     .map((r) => ({ said: r.said, dueOn: r.due_on, byAssistant: r.said_by === 'assistant', conversationId: r.conversation_id }));
 

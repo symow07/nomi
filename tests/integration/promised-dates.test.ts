@@ -3,6 +3,8 @@ import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import type { ChannelAdapter } from '../../src/channels/contract.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
+import Fastify from 'fastify';
+import { flashSaid } from './tenant.js';
 
 /**
  * 0083 — WHAT A REPLY PROMISED, over Postgres, the real store and the real
@@ -112,5 +114,83 @@ d('0083 · a sent reply\'s promises (requires DATABASE_URL)', () => {
     const { loadCustomerPanel } = await import('../../src/db/customerPanel.js');
     const panel = await inTenant((tx) => loadCustomerPanel(tx, cid));
     expect(panel!.promised.map((p) => p.said)).toContain('I\'ll check the 100 ml and get back to you tomorrow.');
+  });
+
+  // ── Audit batch 3 (B13, 2026-10-30): `kept_at` had no writer, so every promise stayed owed, and late, for good. ──
+  const keptOf = (said: string) => inTenant((tx) => sql<{ kept: Date | null }>`
+    select kept_at as kept from promised_dates where said = ${said}`.execute(tx).then((r) => r.rows[0]?.kept ?? null));
+  const delivered = () => inTenant((tx) => sql`update outbound_messages set status = 'delivered', delivered_at = now()
+                                where conversation_id = ${cid}::uuid and status = 'sent'`.execute(tx));
+
+  it('B13 · a reply that promises to get back again keeps nothing; the next one that answers keeps every follow-up before it', async () => {
+    // The person's "I will confirm the colours on Friday" (above) promised again: the first follow-up is still owed.
+    expect(await keptOf('I\'ll check the 100 ml and get back to you tomorrow.')).toBeNull();
+    await delivered();
+    await queue('The 100 ml comes in amber and clear glass.');
+    await drive();
+    // Before B13: both stayed owed for good, and late from their day on.
+    expect(await keptOf('I\'ll check the 100 ml and get back to you tomorrow.')).not.toBeNull();
+    expect(await keptOf('I will confirm the colours on Friday.')).not.toBeNull();
+    // A price's end is no follow-up: an answer does not touch it.
+    expect(await keptOf('This price is valid until December 15.')).toBeNull();
+  });
+
+  it('B13 · a delivery is kept by the owner\'s word: the Kept button on the calendar, once; a price\'s end has none', async () => {
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    const { loadCalendar } = await import('../../src/db/calendar.js');
+    const { renderCalendar, parseCalendarQuery } = await import('../../src/api/web/calendar.js');
+    const { dayKey, addDays } = await import('../../src/core/owner/i18n/format.js');
+    const SECRET = 'a-test-session-secret-of-sufficient-length';
+    const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+    await delivered();
+    await queue('Your order will ship by Friday.');
+    await drive();
+    const id = await inTenant((tx) => sql<{ id: string }>`select id::text as id from promised_dates where kind = 'delivery'`.execute(tx).then((r) => r.rows[0]!.id));
+    const now = new Date();
+    const due = await inTenant((tx) => sql<{ d: string }>`select to_char(due_on, 'YYYY-MM-DD') as d from promised_dates where id = ${id}::uuid`.execute(tx).then((r) => r.rows[0]!.d));
+    const q = parseCalendarQuery({ day: due }, now);
+    const before = renderCalendar(await loadCalendar(db, BIZ, { ...q, outreach: false }, now), 'en', { ask: q, now });
+    expect(before).toContain(`action="/app/calendar/promises/${id}/kept"`);
+
+    const app = Fastify({ logger: false });
+    registerWebApp(app, {
+      db, businessId: BIZ, accessCode: `prom-${RUN}`, sessionSecret: SECRET, employeeName: 'Lily', avatar: '👩‍💼',
+      secureCookie: false, factsTtlMs: 0, provider: 'disabled', messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await app.ready();
+    try {
+      const cookie = String((await app.inject({ method: 'POST', url: '/login', payload: `code=prom-${RUN}`, headers: FORM })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
+      const press = () => app.inject({ method: 'POST', url: `/app/calendar/promises/${id}/kept`, headers: { cookie, ...FORM }, payload: '' });
+      const r = await press();
+      expect(r.statusCode).toBe(302);
+      expect(flashSaid(r, SECRET)).toContain('Marked kept');
+      expect(await keptOf('Your order will ship by Friday.')).not.toBeNull();
+      expect(flashSaid(await press(), SECRET), 'once').toContain('Nothing was marked');
+    } finally { await app.close(); }
+    const after = renderCalendar(await loadCalendar(db, BIZ, { ...q, outreach: false }, now), 'en', { ask: q, now });
+    expect(after).not.toContain(`action="/app/calendar/promises/${id}/kept"`);
+    // A price has no button: it is not a promise to keep.
+    const priceDay = await inTenant((tx) => sql<{ d: string }>`select to_char(due_on, 'YYYY-MM-DD') as d from promised_dates where kind = 'price_end'`.execute(tx).then((r) => r.rows[0]!.d));
+    const pq = parseCalendarQuery({ day: priceDay }, now);
+    expect(renderCalendar(await loadCalendar(db, BIZ, { ...pq, outreach: false }, now), 'en', { ask: pq, now })).not.toContain('/kept"');
+    void addDays; void dayKey;
+  });
+
+  it('B13 · a price whose day has passed has ended: done on the calendar, never late, and gone from the customer\'s open list', async () => {
+    const { loadCalendar } = await import('../../src/db/calendar.js');
+    const { parseCalendarQuery } = await import('../../src/api/web/calendar.js');
+    const { loadCustomerPanel } = await import('../../src/db/customerPanel.js');
+    const { dayKey, addDays } = await import('../../src/core/owner/i18n/format.js');
+    const now = new Date();
+    const yesterday = addDays(dayKey(now, 'Asia/Shanghai'), -1);
+    await inTenant((tx) => sql`insert into promised_dates (business_id, conversation_id, kind, due_on, said, said_by)
+      values (${BIZ}, ${cid}::uuid, 'price_end', ${yesterday}::date, 'This offer holds until yesterday.', 'assistant')`.execute(tx));
+    const q = parseCalendarQuery({ day: yesterday }, now);
+    const cal = await loadCalendar(db, BIZ, { ...q, outreach: false }, now);
+    const e = cal.entries.find((x) => x.detail.said === 'This offer holds until yesterday.')!;
+    // Before B13: { kept: false, overdue: true } — a red "late" mark on a price that simply ended.
+    expect(e.detail).toMatchObject({ kept: true, overdue: false });
+    const panel = await inTenant((tx) => loadCustomerPanel(tx, cid));
+    expect(panel!.promised.map((p) => p.said)).not.toContain('This offer holds until yesterday.');
   });
 });

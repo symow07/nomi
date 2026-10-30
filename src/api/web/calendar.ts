@@ -306,12 +306,23 @@ const removeForm = (locale: Locale, e: CalendarEntry): string => e.kind === 'own
       <button class="btn ghost" type="submit">${esc(t(locale, 'calendar.remove'))}</button></form>`
   : '';
 
+/**
+ * Audit batch 3 (B13) — a promise still open is marked kept here: a button — it changes something. A delivery has no
+ * other way to be kept (a follow-up is kept by the next message that reaches the customer); a price's end, none.
+ */
+const keptForm = (locale: Locale, e: CalendarEntry): string =>
+  (e.kind === 'promise_follow_up' || e.kind === 'promise_delivery') && e.detail.kept !== true
+    ? `<form method="post" action="/app/calendar/promises/${esc(e.source.id)}/kept" class="cal-rm">
+      <button class="btn ghost" type="submit">${esc(t(locale, 'calendar.kept'))}</button></form>`
+    : '';
+
 /** Still owed, however old: a reply due, a sample nobody has dealt with, a promise not kept by its day. */
 function isOwed(e: CalendarEntry, now: Date): boolean {
   if (isDone(e, now)) return false;
   return e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open === true)
     || (e.kind === 'price_worked_out' && e.detail.priceState === 'review')
-    || (e.kind.startsWith('promise_') && e.day <= dayKey(now, workspaceZone()));
+    // B13 — a price's end is said, never owed: there is nothing to do on its day.
+    || (e.kind.startsWith('promise_') && e.kind !== 'promise_price_end' && e.day <= dayKey(now, workspaceZone()));
 }
 
 /**
@@ -399,7 +410,7 @@ function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | nu
   const to = doorOf(e) ?? (onHome ? href({ month: e.day, day: e.day }) : null);
   return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" data-cat="${esc(e.category)}">
         <span class="dl-hour">${on}${esc(hour)}</span>${whoOf(locale, e)}
-        ${to ? `<a class="dl-go" href="${to}">${body}${GO}</a>` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
+        ${to ? `<a class="dl-go" href="${to}">${body}${GO}</a>${keptForm(locale, e)}` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
       </li>`;
 }
 
