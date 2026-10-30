@@ -312,6 +312,14 @@ day. Schema 213.
   note was read, so neither attempt captured the timings. Nothing linked it to #406's change (no route it calls, no
   file before it in the order). The step-by-step measurement of `close()` is its own PR, next.
 
+**2b · A second flake to watch: an invented figure that was not held (reported 2026-10-30 by the batch-3 session).**
+- **The test:** `tests/integration/product-code-exemption.test.ts` › "an invented figure beside a product's name IS held".
+- **Failed:** main, 2026-10-15 (run 38682304137: `heldBecause` null) and PR #405, 2026-10-30 (run 41032326052:
+  `refused` 0). Locally: 12 of 12 repeats pass, and two full runs.
+- **What it looks like:** no error during the file; the writer's reply was not the scripted one, or was not refused.
+  The case only drafts: nothing is sent. Not touched (the owner's instruction). Same rule as the stop's: when it
+  recurs, keep the run's report and read the draft and its events before rerunning.
+
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
 auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was held for the owner. The

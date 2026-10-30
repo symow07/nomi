@@ -82,7 +82,18 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
       systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } },
     });
   }, 90_000);
-  afterAll(async () => { await admin?.end(); await prod?.close(); });
+  // PROGRESS "A flake to watch" — this hook outlasted 45 s three times in CI. Which half waits is said while it waits
+  // (close() reports its own steps, src/queue/stopClock.ts).
+  afterAll(async () => {
+    const began = Date.now();
+    let at = 'admin.end()';
+    const watch = setInterval(() => console.error(`[stop] password-recovery afterAll still in ${at} after ${Date.now() - began} ms`), 10_000);
+    try {
+      await admin?.end();
+      at = 'prod.close()';
+      await prod?.close();
+    } finally { clearInterval(watch); }
+  });
 
   it('the door offers it, and the page asks for the address', async () => {
     const door = await prod.app.inject({ method: 'GET', url: '/login' });
