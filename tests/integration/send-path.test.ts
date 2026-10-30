@@ -258,6 +258,9 @@ d('Audit batch 1 · the send path, in production\'s composition (requires DATABA
     const first = await draft(cid, body);
     expect((await approve(cid, first)).statusCode).toBe(302);
     await until(async () => (sentTo(body).length === 1 ? true : undefined), 'the first reply');
+    // Recorded as sent, not merely handed to the provider: with A1 the provider is called before 'sent' is written, and
+    // a receipt for a row still 'sending' marks nothing — the second reply then waits 90 s for one (seen 2026-10-30).
+    await until(async () => ((await rowsOf(cid)).some((r) => r.body === body && r.status === 'sent') ? true : undefined), 'the first reply recorded as sent');
     await delivered(cid);
     const second = await draft(cid, body);
     expect((await approve(cid, second)).statusCode).toBe(302);
