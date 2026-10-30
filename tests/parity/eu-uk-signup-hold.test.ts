@@ -25,6 +25,22 @@ describe('the EU, the EEA and the UK at sign-up', () => {
     expect(signupHeldForTransfer(canonicalCountry('UK'), false)).toBe(true);
   });
 
+  it('the owner (2026-10-30): one line under the country field says so before anyone picks — every language, error or not', () => {
+    for (const l of LOCALES) {
+      const line = `<div class="hint">${esc(t(l, 'signup.country.hint'))}</div>`;
+      for (const html of [
+        signupPage({ locale: l, path: '/signup', mode: 'open', passwordMin: 10 }),
+        signupPage({ locale: l, path: '/signup', mode: 'open', passwordMin: 10, problems: { country: 'Pick a country.' } }),
+      ]) {
+        const at = html.indexOf(line);
+        if (html.includes('Pick a country.')) expect(at, l).toBeGreaterThan(html.indexOf('Pick a country.'));
+        expect(at, l).toBeGreaterThan(html.indexOf('id="su-country"'));
+        expect(html.indexOf(line, at + 1), l).toBe(-1);
+      }
+    }
+    expect(t('en', 'signup.country.hint')).toBe('Businesses in the EU, the EEA and the UK can’t sign up yet.');
+  });
+
   it('only EU_UK_SIGNUP=open lifts the hold; unset or anything else holds', () => {
     expect(euUkSignupOpenFrom('open')).toBe(true);
     expect(euUkSignupOpenFrom(' open ')).toBe(true);

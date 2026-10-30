@@ -7,7 +7,8 @@
  * Stripe (an owner's billing), the browsers' push services (alerts), Resend or
  * Postmark (sign-in codes and alerts), 360dialog (every WhatsApp message), the
  * installation's own SMTP server (mail to customers), and Apollo (prospect
- * searches). Each is listed here with what switches it on. While `named` is
+ * searches). (Resend or Postmark was named on 2026-10-30, the owner's line.)
+ * Each is listed here with what switches it on. While `named` is
  * false, switching it on fails: the boot refuses the variable (`validateEnv`),
  * and Apollo, switched on per business by a stored key, is not wired at all.
  *
@@ -32,7 +33,8 @@ const set = (env: Readonly<Record<string, string | undefined>>, ...names: string
 export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
   { id: 'stripe', name: 'Stripe', switchedOnBy: (env) => set(env, 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'), named: false },
   { id: 'webPush', name: 'the browsers\' push services (web push)', switchedOnBy: (env) => set(env, 'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY'), named: false },
-  { id: 'httpsMail', name: 'Resend or Postmark', switchedOnBy: (env) => set(env, 'MAIL_PROVIDER', 'MAIL_API_KEY'), named: false },
+  // MAIL (2026-10-30) — named in the "who" list by the provider in use, in every language, and in the business section.
+  { id: 'httpsMail', name: 'Resend or Postmark', switchedOnBy: (env) => set(env, 'MAIL_PROVIDER', 'MAIL_API_KEY'), named: { key: 'legal.privacy.who.httpsMail' } },
   {
     id: 'd360', name: '360dialog',
     switchedOnBy: (env) => [...(env['WHATSAPP_PROVIDER'] === '360dialog' ? ['WHATSAPP_PROVIDER=360dialog'] : []), ...set(env, 'D360_API_KEY')],

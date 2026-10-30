@@ -146,10 +146,31 @@ describe('D5 · the privacy page has a statement for the people who use Nomi at 
   });
   it('names who receives it by name: Google for Nomi’s own mail (production’s system mailbox is Google’s, checked 2026-10-12), the configured language service and host', () => {
     const html = page('en');
-    expect(t('en', 'legal.privacy.owner.who', { processor: 'X', hosting: 'Y' })).toMatch(/^Who receives it: Google, which carries Nomi’s own e-mail/);
-    expect(html).toContain(esc(t('en', 'legal.privacy.owner.who', { processor: 'DeepSeek (China)', hosting: 'Railway (USA)' })));
+    expect(t('en', 'legal.privacy.owner.who', { sender: 'Google', processor: 'X', hosting: 'Y' })).toMatch(/^Who receives it: Google, which carries Nomi’s own e-mail/);
+    expect(html).toContain(esc(t('en', 'legal.privacy.owner.who', { sender: 'Google', processor: 'DeepSeek (China)', hosting: 'Railway (USA)' })));
     // The system mail is sent through the operator's own connected mailbox first (src/main.ts).
     expect(read('src/main.ts')).toMatch(/mailboxSystemMailer\(systemSmtp\.from/);
+  });
+  it('MAIL (D18): where the dedicated sender runs, it is named in the "who" list and in place of Google, in every language', () => {
+    const resend = { ...FACTS, mailSender: 'Resend' };
+    for (const l of LOCALES) {
+      const line = esc(t(l, 'legal.privacy.who.httpsMail', { sender: 'Resend' }));
+      expect(line, l).toContain('Resend');
+      expect(page(l), l).not.toContain(line);
+      expect(page(l, resend), l).toContain(line);
+      const who = (h: string) => h.slice(h.indexOf('id="business"'), h.indexOf('id="cookies"'));
+      const sender = (x: string) => esc(t(l, 'legal.privacy.owner.who', { sender: x, processor: 'P', hosting: 'H' })).split('P')[0]!;
+      expect(who(page(l, resend)), l).toContain(sender('Resend'));
+      expect(who(page(l)), l).toContain(sender('Google'));
+    }
+    expect(t('en', 'legal.privacy.who.httpsMail', { sender: 'Resend' })).toBe(
+      'Resend, which delivers the e-mails Nomi sends to the people who run a business: sign-in codes, password links and alerts. These e-mails name no customer and carry none of your messages.');
+    // The name comes from the sender the boot built, never from a test's own sender.
+    expect(read('src/main.ts')).toMatch(/dedicatedConfig && !overrides\?\.systemMail \? \{ mailSender: MAIL_PROVIDER_NAMES\[dedicatedConfig\.provider\] \}/);
+  });
+  it('the bot check says it sees the internet address — the server sends it (remoteip)', () => {
+    expect(t('en', 'legal.privacy.owner.botCheck', { botCheck: 'X' })).toMatch(/and the internet address it is sent from/);
+    expect(read('src/api/web/botCheck.ts')).toMatch(/body\.set\('remoteip', callerIp\)/);
   });
   it('the bot check only where one runs', () => {
     const said = (h: string) => h.includes(esc(t('en', 'legal.privacy.owner.botCheck', { botCheck: '@@' })).split('@@')[1]!);
@@ -361,7 +382,7 @@ describe('D18 · no service receives anyone\'s data before the privacy page name
       'odoo', 'smtp', 'stripe', 'telegram', 'tiktok', 'webPush', 'xero']);   // A5 adds the books' six
     expect(unnamedRecipientProblems({})).toEqual([]);
     for (const [env, name] of [
-      [{ STRIPE_SECRET_KEY: 'sk_test_x' }, 'Stripe'], [{ VAPID_PRIVATE_KEY: 'x' }, 'web push'], [{ MAIL_API_KEY: 'x' }, 'Resend or Postmark'],
+      [{ STRIPE_SECRET_KEY: 'sk_test_x' }, 'Stripe'], [{ VAPID_PRIVATE_KEY: 'x' }, 'web push'],
       [{ WHATSAPP_PROVIDER: '360dialog' }, '360dialog'], [{ SMTP_HOST: 'smtp.example.test' }, 'SMTP server'],
     ] as const) {
       const p = unnamedRecipientProblems(env);
@@ -371,6 +392,9 @@ describe('D18 · no service receives anyone\'s data before the privacy page name
     // Named, it may be switched on.
     const named = OPTIONAL_RECIPIENTS.map((r) => ({ ...r, named: { key: 'legal.privacy.who.x' } }));
     expect(unnamedRecipientProblems({ STRIPE_SECRET_KEY: 'x', SMTP_HOST: 'y' }, named)).toEqual([]);
+    // MAIL (2026-10-30) — Resend is named on the privacy page, so its variables no longer stop the boot.
+    expect(OPTIONAL_RECIPIENTS.find((r) => r.id === 'httpsMail')).toMatchObject({ named: { key: 'legal.privacy.who.httpsMail' } });
+    expect(unnamedRecipientProblems({ MAIL_PROVIDER: 'resend', MAIL_API_KEY: 'x' })).toEqual([]);
   });
   it('a service marked named has its line on the privacy page, in every language', async () => {
     const { OPTIONAL_RECIPIENTS } = await import('../../src/core/legal/recipients.js');
