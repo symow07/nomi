@@ -147,7 +147,8 @@ d('EXT · a page of her site, learned line by line (requires DATABASE_URL + MIGR
     await admin.query(`insert into tenant_budgets (business_id, daily_llm_calls, daily_tokens, soft_warn_pct, on_exceeded) values ($1, 1, 1000, 80, 'pause')
                        on conflict (business_id) do update set daily_llm_calls = 1, on_exceeded = 'pause'`, [BIZ]);
     const before = asked.length;
-    expect((await post(app, cookie, '/app/knowledge/from-page', { address: 'myshop.com/pages/shipping', text: '' })).body)
+    // An address never read here (one already read opens that reading, 0220, and so asks for no allowance).
+    expect((await post(app, cookie, '/app/knowledge/from-page', { address: 'myshop.com/pages/payment', text: '' })).body)
       .toContain(t('en', 'pageFacts.refused.allowance_used'));
     expect(asked.length).toBe(before);
     await admin.query(`delete from tenant_budgets where business_id = $1`, [BIZ]);

@@ -16,6 +16,17 @@
 export type PageFact = { readonly fact: string; readonly quote: string };
 export const PAGE_FACTS_MAX = 20;
 export const PAGE_TEXT_MAX = 60_000;
+/** The reader's longest answer, in tokens (`anthropicPageFactsReader`). */
+export const PAGE_FACTS_OUTPUT_MAX = 3_000;
+/**
+ * 0220 — what one reading can use, at most, in tokens: the page's text and the reader's instructions counted as a
+ * token a character (a ceiling: text runs several characters to a token), plus the longest answer.
+ */
+export const PAGE_READING_TOKENS_AT_MOST = PAGE_TEXT_MAX + 1_000 + PAGE_FACTS_OUTPUT_MAX;
+/** The share of a day's allowance one reading uses at most, in whole percent rounded up: one call, or its tokens. */
+export function readingShareAtMost(budget: { readonly dailyLlmCalls: number; readonly dailyTokens: number }): number {
+  return Math.ceil(Math.max(100 / budget.dailyLlmCalls, (100 * PAGE_READING_TOKENS_AT_MOST) / budget.dailyTokens));
+}
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“' };
 

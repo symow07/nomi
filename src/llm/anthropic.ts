@@ -3,7 +3,7 @@ import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
-import { parseFactsAnswer } from '../core/owner/pageFacts.js';
+import { parseFactsAnswer, PAGE_FACTS_OUTPUT_MAX } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
 import { parseExtractorAnswer } from '../core/onboard/extract.js';
 import type { Analysis } from '../core/conversation/decide.js';
@@ -583,7 +583,7 @@ export function anthropicPageFactsReader(client: Anthropic, model: string = MODE
       const res = await client.messages.create({
         model,
         ...extra,
-        max_tokens: 3000,
+        max_tokens: PAGE_FACTS_OUTPUT_MAX,
         temperature: 0,
         system:
           'You read a page from a shop\'s own website: shipping, returns, payment, care or similar. ' +

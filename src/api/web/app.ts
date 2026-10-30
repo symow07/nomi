@@ -214,7 +214,7 @@ import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
-import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, openProposals, sourceLabel, type PageFactsKept } from './pageFacts.js';
+import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderReread, rereadCharge, rereadPageFacts, openProposals, sourceLabel, isPasted, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes, ownName } from './advisor.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
@@ -7961,8 +7961,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       fetcher: deps.storeFetcher ?? publicFetcher, reader: deps.pageFactsReader,
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
     }, { address: String(b.address ?? ''), text: String(b.text ?? '') });
-    // B19 — a page already read and still waiting for her ticks opens that reading, and says so.
-    if (out.ok) return out.again ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.again') : reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
+    // B19 — a page already read and still waiting for her ticks opens that reading, and says so; 0220 — so does one
+    // she approved, where reading it again is its own step (what it uses of the allowance is shown first).
+    if (out.ok) return out.again === 'waiting' ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.again')
+      : out.again === 'approved' ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.readBefore')
+      : reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
     // Phase 6 — the knowledge page again, the reason under the form and what was typed still in it.
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
@@ -7972,8 +7975,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/knowledge/from-page/:id', authed('knowledge', async (s, req, locale, reply) => {
     const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
     if (!p) { reply.code(404); return missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }); }
-    return renderProposal(p, locale, takeFlash(req, reply));
+    return renderProposal(p, locale, takeFlash(req, reply), Boolean(deps.pageFactsReader));
   }));
+  /**
+   * 0220 — READ THE PAGE AGAIN. The GET is the confirm step and spends nothing: what happens to this reading, what
+   * the new one uses of today's allowance, that finding nothing still uses it. The POST makes the one paid reading.
+   */
+  const rereadPage = (req: FastifyRequest, locale: Locale, bodyHtml: string) => page(req, { title: t(locale, 'pageFacts.reread.title'), active: 'knowledge', bodyHtml });
+  app.get('/app/knowledge/from-page/:id/again', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
+    if (!p) return reply.code(404).type('text/html; charset=utf-8').send(rereadPage(req, locale,
+      missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') })));
+    // Nothing to read again: no reader here, text that was pasted, or a reading a newer one already replaced.
+    if (!deps.pageFactsReader || p.replacedBy || isPasted(p.source)) return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(p.id)}`);
+    return reply.type('text/html; charset=utf-8').send(rereadPage(req, locale, renderReread(p, await rereadCharge(deps.db, s.businessId), locale)));
+  });
+  app.post('/app/knowledge/from-page/:id/again', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const out = await rereadPageFacts(deps.db, s.businessId, id, personOf(s).name, {
+      fetcher: deps.storeFetcher ?? publicFetcher, reader: deps.pageFactsReader,
+      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
+    });
+    if (out.ok) return flashTo(reply, `/app/knowledge/from-page/${out.id}`, out.again ? 'pageFacts.flash.again' : 'pageFacts.flash.reread');
+    const reason = out.reason;
+    const p = reason === 'gone' ? null : await loadProposal(deps.db, s.businessId, id);
+    if (!p || reason === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
+    return reply.code(400).type('text/html; charset=utf-8').send(rereadPage(req, locale,
+      renderReread(p, await rereadCharge(deps.db, s.businessId), locale, reason)));
+  });
   app.post('/app/knowledge/from-page/:id/confirm', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
@@ -7986,6 +8019,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await confirmPageFacts(deps.db, s.businessId, id, personOf(s).name, ticked, label);
     if (r.kind === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
     if (r.kind === 'none_ticked') return flashTo(reply, `/app/knowledge/from-page/${encodeURIComponent(id)}`, 'pageFacts.flash.noneTicked');
+    // 0220 — approving a reading of a page she had approved before replaced that reading's lines: said so.
+    if (p.rereadOf) return flashTo(reply, '/app/knowledge', 'pageFacts.flash.replaced');
     return flashTo(reply, '/app/knowledge', 'pageFacts.flash.written', { n: r.n });
   });
 

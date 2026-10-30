@@ -13,6 +13,30 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Read the page again (2026-10-30, 0220; the owner's follow-up to #410's B19)
+
+- **Why:** since B19, the same address sent while its reading waits opens that reading — so a site that changed
+  gave back the old one.
+- **The step:** "Read the page again" (a door on any reading of an address, waiting or approved, where a reader
+  exists; never for pasted text — pasting new text is already a new reading). It opens a confirm page that spends
+  nothing and says, before its one button: what happens to this reading; what the new one uses — "up to N% of
+  today's allowance; M% used so far" (`readingShareAtMost`: the 60,000-character page and the instructions counted a
+  token a character, plus the 3,000-token answer; 7% of G2's day), or "no daily limit", or the allowance used and no
+  button; and that a reading which finds nothing still uses allowance. No money is shown: an owner pays nothing per
+  reading.
+- **Waiting → replaced:** the new reading replaces it in the transaction that writes the new one (`replaced_by`); it
+  leaves every list, cannot be approved, and says what replaced it.
+- **Approved → kept until the new one is approved:** its knowledge stays live and untouched; the new reading waits
+  (`reread_of`) and says it would replace the lines from that date; approving it archives (never deletes) the lines
+  the old reading wrote (`product_knowledge.from_proposal`, backfilled in 0220 by the confirm's own timestamp) and
+  marks the old reading replaced. Lines the owner wrote herself are never the reading's.
+- **Also:** an address whose newest reading she approved now opens that reading ("You approved a reading of this page
+  already…") instead of making a new paid reading with nothing shown first — re-reading is always the confirm step.
+- **Pays once:** the old reading is claimed before anything is fetched (`reread_started_at`, stale after five
+  minutes); a second click is "being read right now". A page that cannot be fetched costs nothing; any failure leaves
+  the old reading as it was and lets the claim go.
+- Tests: `tests/parity/page-reread.test.ts` (7), `tests/integration/page-reread.test.ts` (5 — all 5 fail on `main`).
+
 ## Audit batch 4 — user-facing defects (2026-10-30, no migration)
 
 - **B16 — one readiness count.** Ready and Getting ready read only what Practice had written down, Practice read its

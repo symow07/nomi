@@ -161,6 +161,9 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'pageFacts.flash.written',
   // B19 — the page was read already: its reading again, nothing read twice.
   'pageFacts.flash.again',
+  'pageFacts.flash.reread',
+  'pageFacts.flash.readBefore',
+  'pageFacts.flash.replaced',
   // BILL — a plan saved.
   'billing.flash.plan',
   // KS6 — asked; asked before; or nothing to ask.
