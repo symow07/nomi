@@ -19,7 +19,7 @@ import { workspaceZone } from './zone.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { approvalCard, workingLine, orderCard, loadConversationDetail, bubbleClass, speakerOf, type ConversationDetail } from './inbox.js';
-import { expectTotal, NOT_YET, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
+import { expectTotal, NOT_YET, readinessOf, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
 import { unitLabel } from './products.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal, type PracticeSettings } from '../../db/practice.js';
@@ -387,7 +387,8 @@ export type PracticeChecklistView = {
 
 function checklistCard(c: PracticeChecklistView, locale: Locale): string {
   const name = assistantName(locale);
-  const done = c.items.filter((i) => c.seen.has(i)).length;
+  // B16 — the one count, as Ready for customers, Getting ready and Going live say it.
+  const { done, total } = readinessOf(c.items, c.seen);
   const rows = c.items.map((i) => {
     const gap = NOT_YET.has(i);
     const ok = !gap && c.seen.has(i);
@@ -404,7 +405,7 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
         : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',
             { expected: money(x.expected, x.currency), quoted: money(x.quoted, x.currency) }))}</span></li>`).join('');
   return `<div class="card sbx-checklist">
-    <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(t(locale, 'practice.checklist.count', { done, total: c.items.length }))}</span></h2>
+    <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(t(locale, 'practice.checklist.count', { done, total }))}</span></h2>
     <ul class="checks">${rows}</ul>
     ${totals ? `<h3>${esc(t(locale, 'practice.total.title'))}</h3><ul class="checks">${totals}</ul>` : ''}
   </div>`;

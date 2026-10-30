@@ -27,7 +27,9 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
     headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const get = (url: string, who: keyof typeof cookies) => app.inject({ method: 'GET', url, headers: { cookie: cookies[who] } });
 
+  let ACCOUNTANT_ALSO: ReadonlySet<string> = new Set();
   beforeAll(async () => {
+    ({ ACCOUNTANT_ALSO } = await import('../../src/api/web/books.js'));
     await seedRunTenant();
     const { createDb } = await import('../../src/db/client.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
@@ -89,6 +91,8 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
       const res = await app.inject({ method: r.method as 'GET' | 'POST', url, headers: { cookie: cookies.accountant,
         ...(r.method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) }, ...(r.method === 'POST' ? { payload: '' } : {}) });
       if (r.method === 'POST' && r.url === '/logout') continue;
+      // B18 — their own sign-in (password, language) is theirs: audit-batch-4.test.ts walks those.
+      if (ACCOUNTANT_ALSO.has(`${r.method} ${r.url}`)) continue;
       if (res.statusCode !== 302 || res.headers['location'] !== '/app/books') leaked.push(`${r.method} ${r.url} → ${res.statusCode} ${res.headers['location'] ?? ''}`);
     }
     expect(leaked, leaked.join('\n')).toEqual([]);

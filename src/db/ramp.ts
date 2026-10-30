@@ -5,7 +5,7 @@ import { zoneOf } from './zone.js';
 import { sameWords } from './ownerWords.js';
 import { figuresIn } from '../core/conversation/figures.js';
 import { isRetailKind } from '../core/owner/sellingStyle.js';
-import { checklistFor, type ChecklistItem } from './practiceChecklist.js';
+import { checklistFor, readinessOf, type ChecklistItem } from './practiceChecklist.js';
 import {
   talksProgress, sellsProgress, SELLS, TALKS, type RampDecision, type Rung, type RungProgress,
 } from '../core/trust/ramp.js';
@@ -91,8 +91,9 @@ export async function rampState(tx: Tx, businessId: BusinessId): Promise<RampSta
   const kind = !b?.priced ? 'no_catalogue' : isRetailKind(b.kind) ? 'retail' : 'catalogue';
   const required: readonly ChecklistItem[] = checklistFor(kind);
   const seen = new Set((await sql<{ item: string }>`select item from practice_checks where business_id = ${businessId}::uuid`
-    .execute(tx)).rows.map((x) => x.item));
-  const checklistComplete = required.every((i) => seen.has(i));
+    .execute(tx)).rows.map((x) => x.item as ChecklistItem));
+  // B16 — complete by the one count (`readinessOf`), as Practice and Ready for customers say it.
+  const checklistComplete = readinessOf(required, seen).complete;
   const named = b?.named === true;
   const talks = talksProgress(decisions, { ...(b?.n ? { n: Number(b.n) } : {}), checklistComplete, named });
   const sells = sellsProgress(decisions, talks.ready, !(b?.prices_to_owner ?? false) && (b?.priced ?? false));

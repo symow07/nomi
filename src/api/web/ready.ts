@@ -1,7 +1,8 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
-import { checklistFor, checklistKind, NOT_YET, type ChecklistItem } from '../../db/practiceChecklist.js';
+import { readinessOf, NOT_YET, type ChecklistItem } from '../../db/practiceChecklist.js';
+import { loadReadiness } from '../../db/readiness.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { sendingAloneEarned } from '../../db/earned.js';
 import { assistantStopped } from '../../db/assistantStop.js';
@@ -38,16 +39,15 @@ export type ReadyView = {
   readonly silenced?: boolean;
 };
 
-/** Items still to see: an item that cannot pass yet (`NOT_YET`) is not counted against the owner. */
-export const readyDone = (v: Pick<ReadyView, 'items' | 'seen'>): number => v.items.filter((i) => v.seen.has(i)).length;
-export const readyTotal = (v: Pick<ReadyView, 'items'>): number => v.items.filter((i) => !NOT_YET.has(i)).length;
-export const readyComplete = (v: Pick<ReadyView, 'items' | 'seen'>): boolean => readyDone(v) >= readyTotal(v);
+/** B16 — the one count (`readinessOf`): items seen of those that can pass (`NOT_YET` is not counted against the owner). */
+export const readyDone = (v: Pick<ReadyView, 'items' | 'seen'>): number => readinessOf(v.items, v.seen).done;
+export const readyTotal = (v: Pick<ReadyView, 'items'>): number => readinessOf(v.items, new Set()).total;
+export const readyComplete = (v: Pick<ReadyView, 'items' | 'seen'>): boolean => readinessOf(v.items, v.seen).complete;
 
 export async function loadReady(db: Db, live: BusinessId): Promise<ReadyView> {
-  const items = checklistFor(await checklistKind(db, live));
+  // B16 — what Practice's copy shows, as Practice reads it: this page was a redraw of Practice behind.
+  const { items, seen } = await loadReadiness(db, live);
   return withTenantTx(db, live, async (tx) => {
-    const seen = new Set((await sql<{ item: string }>`select item from practice_checks where business_id = ${live}::uuid`
-      .execute(tx)).rows.map((r) => r.item as ChecklistItem));
     const named = (await sql<{ n: boolean }>`select assistant_named_at is not null as n from onboarding_state where business_id = ${live}::uuid`
       .execute(tx)).rows[0]?.n ?? false;
     return { items, seen, named, connected: anyConnected(await connectedChannels(tx, live)), earned: await sendingAloneEarned(tx),

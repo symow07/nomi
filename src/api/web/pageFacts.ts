@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -50,17 +51,28 @@ export async function startPageFacts(
     readonly spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
   },
   input: { readonly address: string; readonly text: string },
-): Promise<{ readonly ok: true; readonly id: string } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
+): Promise<{ readonly ok: true; readonly id: string; readonly again?: true } | { readonly ok: false; readonly reason: PageFactsRefusal }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { ok: false, reason: 'unreachable' };
   if (!deps.reader) return { ok: false, reason: 'not_configured' };
+  // B19 — the same page sent again while its reading still waits for her ticks is that reading, not a second one:
+  // nothing fetched, no model asked, nothing charged. Read again only once she has decided.
+  const kept = async (source: string) => withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string }>`
+    select id::text as id from knowledge_proposals
+     where business_id = ${bid.value} and source = ${source} and decided_at is null
+     order by created_at desc limit 1`.execute(tx)).rows[0]?.id ?? null);
   let text: string; let source: string;
   if (input.text.trim()) {
     text = pageText(input.text);
-    source = 'pasted';
+    // B19 — text pasted is known again by its fingerprint (never kept itself): `pasted:` and 16 hex of its SHA-256.
+    source = `${PASTED}:${createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
+    const again = await kept(source);
+    if (again) return { ok: true, id: again, again: true };
   } else {
     const url = pageAddress(input.address);
     if (!url) return { ok: false, reason: 'not_an_address' };
+    const again = await kept(url.slice(0, 500));
+    if (again) return { ok: true, id: again, again: true };
     try {
       const page = await deps.fetcher.get(url);
       if (page.status < 200 || page.status >= 300 || !/html|text\/plain/i.test(page.contentType)) return { ok: false, reason: 'not_a_page' };
@@ -92,6 +104,27 @@ export async function startPageFacts(
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Text pasted rather than an address: `pasted` before B19, `pasted:<fingerprint>` since. */
+const PASTED = 'pasted';
+export const isPasted = (source: string): boolean => source === PASTED || source.startsWith(`${PASTED}:`);
+/** What a proposal's source is called on a page: the address's host, or "text you pasted". */
+export const sourceLabel = (locale: Locale, source: string, whole = false): string => {
+  if (isPasted(source)) return t(locale, 'pageFacts.pasted');
+  if (whole) return source;
+  try { return new URL(source).hostname; } catch { return source; }
+};
+
+/** B19 — the readings still waiting for her ticks, newest first: found again on the knowledge page after leaving. */
+export type OpenProposal = { readonly id: string; readonly source: string; readonly lines: number; readonly createdAt: Date };
+export async function openProposals(db: Db, businessIdRaw: string): Promise<readonly OpenProposal[]> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return [];
+  return withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string; source: string; lines: number; created_at: Date }>`
+    select id::text as id, source, jsonb_array_length(lines)::int as lines, created_at from knowledge_proposals
+     where business_id = ${bid.value} and decided_at is null
+     order by created_at desc limit 10`.execute(tx)).rows.map((r) => ({ id: r.id, source: r.source, lines: r.lines, createdAt: r.created_at })));
+}
 
 export async function loadProposal(db: Db, businessIdRaw: string, id: string): Promise<Proposal | null> {
   const bid = parseBusinessId(businessIdRaw);
@@ -140,10 +173,15 @@ export async function confirmPageFacts(
  * own ("Nothing was read") that lost the address.
  */
 export type PageFactsKept = { readonly address: string; readonly text: string; readonly reason: PageFactsRefusal };
-export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null = null): string {
+export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null = null, open: readonly OpenProposal[] = []): string {
   const bad = kept ? ' aria-invalid="true" aria-describedby="pf-err" autofocus' : '';
+  // B19 — a reading left before it was ticked is found here again, each a door back to its lines.
+  const waiting = open.length === 0 ? '' : `<h3 class="sub3" id="pf-waiting">${esc(t(locale, 'pageFacts.waiting.title'))}</h3>
+    <ul class="rows">${open.map((p) => `<li class="row"><a class="deeper" href="/app/knowledge/from-page/${esc(p.id)}"><bdi>${esc(sourceLabel(locale, p.source))}</bdi></a>
+      <span class="caption muted">${esc(t(locale, 'pageFacts.waiting.row', { n: show.count(locale, p.lines), date: show.date(locale, p.createdAt) }))}</span></li>`).join('')}</ul>`;
   return `<div class="block" id="from-page">
     <h2>${esc(t(locale, 'pageFacts.title'))}</h2>
+    ${waiting}
     ${/* Phase 9 (V1-365) — the section's description at the lede's size, its field as wide as the teach form's. */ ''}
     <p class="fdesc">${esc(t(locale, 'pageFacts.intro'))}</p>
     <form method="post" action="/app/knowledge/from-page" class="pform">
@@ -163,7 +201,7 @@ export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null)
   const head = `${back('/app/knowledge', t(locale, 'nav.knowledge'))}
     <h1 class="page">${esc(t(locale, 'pageFacts.reviewTitle'))}</h1>
     ${flashBanner(flash)}
-    <p class="muted">${esc(t(locale, 'pageFacts.from', { source: p.source === 'pasted' ? t(locale, 'pageFacts.pasted') : p.source }))}</p>`;
+    <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>`;
   if (p.decidedAt) {
     return `${head}<p>${esc(t(locale, 'pageFacts.decided', { n: show.count(locale, p.written ?? 0), date: show.date(locale, p.decidedAt) }))}</p>`;
   }

@@ -13,6 +13,31 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Audit batch 4 — user-facing defects (2026-10-30, no migration)
+
+- **B16 — one readiness count.** Ready and Getting ready read only what Practice had written down, Practice read its
+  copy as it stood, Getting ready's Practice row counted four older rehearsal tasks, and Practice's total held items
+  that cannot pass yet. Now one reader, `loadReadiness` (`src/db/readiness.ts`: reads the practice copy, writes it
+  down, counts with `readinessOf`), behind Ready, Getting ready (its row and its Practice row), Practice, the
+  assistant's page and Going live (its "Finish getting ready" line, and beside the Practice door when no channel is
+  connected). Its own module because `practice.ts` reaches the channels and the advisor reads `practiceChecklist.ts`.
+- **B18 — the accountant.** `ACCOUNTANT_ALSO` adds their sign-in page, its password form and the language page; their
+  rail is the books' with a "Your sign-in" entry (the `key` icon — `user-circle` is the assistant's mark). Books
+  switched off: `/app/books` is a page saying so (`books.off.*`), every other page still leads there, a form there
+  is "the books only" — the 404 ↔ redirect loop is gone. Anyone else still gets 404.
+- **B19 — a site page's reading.** The knowledge page lists the readings waiting for ticks (newest 10), each a door
+  back. The same address, or the same text pasted (`pasted:<sha256 prefix>`), while one waits opens that reading:
+  nothing fetched, no model, no charge (`pageFacts.flash.again`). Once decided, the page is read anew.
+- **B20 — FEC on a phone.** `.pill.long` wraps; given to every pill that holds a sentence on FEC, closing and entries.
+  390 px: FEC 820 → 390 wide, closing 401 → 390.
+- **B21 — price limits.** A refused form's error shows in THAT form only (it showed in every one), keeps what was
+  typed (it was lost), marks the field (`aria-invalid`, `autofocus`), and the form's action carries its section
+  (`#everything`, `#p-<id>`, `#volume`), so the page opens there; the folded "everything" section is drawn open.
+- **B22 — primary buttons.** Each books form's own act is `btn send` (FEC file name, lock, post / save draft,
+  fields, papers, invoices, credit notes, bank, columns); secondary acts are outlined `btn`, never text-like `ghost`
+  (the books home keeps one fill, the workbook's; its chart and accounts forms are outlined). People's per-person Save in "Hand-offs in turn" was `ghost`; now `btn` (the page's one fill stays Add).
+- Tests: `tests/parity/audit-batch-4.test.ts`, `tests/integration/audit-batch-4.test.ts` (5/5 fail on the code before).
+
 ## The deploy alarm cannot go blind quietly (2026-10-29)
 
 - **What happened:** #401 merged at 18:45 UTC on 2026-10-28 and Railway built nothing for it; deployed by hand at

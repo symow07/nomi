@@ -351,7 +351,7 @@ function renderRotationSection(r: RotationView, locale: Locale, now: Date): stri
           ${p.lastGivenAt ? `<span class="caption muted">${esc(t(locale, 'turn.lastGiven', { when: show.when(locale, p.lastGivenAt, now) }))}</span>` : ''}</span>
         <label class="chkbox"><input type="checkbox" name="inTurn" value="1"${p.inRotation ? ' checked' : ''} /> ${esc(t(locale, 'turn.inTurn'))}</label>
         <label><span class="caption">${esc(t(locale, 'turn.away'))}</span> <input type="date" name="awayUntil" value="${esc(day(away ? p.awayUntil : null))}" /></label>
-        <button class="btn ghost" type="submit">${esc(t(locale, 'turn.save'))}</button></form></li>`;
+        <button class="btn" type="submit">${esc(t(locale, 'turn.save'))}</button></form></li>`;
   }).join('');
   return `<section class="block" id="turn">
       <h2>${esc(t(locale, 'turn.title'))}</h2>

@@ -198,7 +198,8 @@ import {
   runScriptedPractice, renderPractice, practiceUrl,
 } from './sandbox.js';
 import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, setPractice, practiceSettings, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
-import { checklistFor, checklistKind, observeChecklist, settleTotals } from '../../db/practiceChecklist.js';
+import { observeChecklist, settleTotals } from '../../db/practiceChecklist.js';
+import { loadReadiness } from '../../db/readiness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -213,7 +214,7 @@ import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
-import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
+import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, openProposals, sourceLabel, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes, ownName } from './advisor.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
@@ -235,7 +236,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { renderBooksChart, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
+import { renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
 import { qboAuthorizeUrl, qboConnector, type QboCall, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
@@ -316,7 +317,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, booksShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, booksShown, viewerRole, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 import { saveMorningSetting } from '../../db/morningSummary.js';
@@ -986,7 +987,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const who = personOf(s);
     const route = req.routeOptions.url;
     // A6 (0176) — where the books are off, they are not there: not found, as the outreach area is.
-    if (req.url.startsWith('/app/books') && !booksShown()) return reply.callNotFound();
+    // B18 — except to an accountant, whose every page leads to the books: a 404 there was a loop with no way out.
+    // They land on the books' home, which says the books are off (`renderBooksOff`), and keep their own sign-in.
+    if (req.url.startsWith('/app/books') && !booksShown()) {
+      if (who.kind !== 'accountant') return reply.callNotFound();
+      if (req.method === 'GET' && route === '/app/books') return;
+      if (req.method === 'GET' || req.method === 'HEAD') return reply.redirect('/app/books');
+      return flashTo(reply, '/app/books', 'books.flash.onlyBooks');
+    }
     const books = booksRouteOf(req.method, route);
     if (books) {
       if (booksMay(who, books.action)) return;
@@ -2375,7 +2383,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn }, locale, flash, t(locale, 'nav.setup'));
+    // B18 — an accountant's way back is the books, and their language is a door from here (they have no Setup).
+    const accountant = personOf(s).kind === 'accountant';
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn, accountant }, locale, flash,
+      t(locale, accountant ? 'nav.books' : 'nav.setup'));
   }));
 
   /**
@@ -2454,6 +2465,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.callNotFound();
+    // B18 — the books switched off: only an accountant reaches here (the guard above), and is told so plainly.
+    if (!booksShown()) {
+      return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.off.title'), active: 'none',
+        bodyHtml: renderBooksOff(locale, businessName() ?? '') }));
+    }
     const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
     // B3 — Google Sheets, where this installation has its client: the owner's door to connect, or the connection.
     const sheetsConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null;
@@ -5783,7 +5799,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'prices.title'), active: 'factory',
         bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null,
-          r.errors, { productId }),
+          r.errors, { productId, values: { floor: b['floor'] ?? '', maxDiscountPct: b['maxDiscountPct'] ?? '', askAbovePct: b['askAbovePct'] ?? '' } }),
       }));
     }
     return flashTo(reply, '/app/business/prices',
@@ -5808,7 +5824,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!r.ok) {
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'prices.title'), active: 'factory',
-        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors),
+        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors,
+          { productId: b['productId'] ?? '', minQty: b['minQty'] ?? '', discountPct: b['discountPct'] ?? '' }),
       }));
     }
     return flashTo(reply, '/app/business/prices', 'prices.flash.volumeAdded');
@@ -6572,7 +6589,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   // Phase 7 — the language switch, a tap down from Setup's Language row.
   app.get('/app/settings/language', authed('settings', (_s, _req, locale) => ({
-    title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale),
+    title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale, viewerRole() === 'accountant'),
   })));
   // The design pass (UI-PASS 7) — the business profile, on its own page.
   // ── G5b Alerts on your phone: anyone signed in turns them on for their own phone ──
@@ -7923,7 +7940,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
     return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply))
       + renderAnswerSuggestions(locale, given, personOf(s), new Date()) + renderKnowledgeIndex(index, locale, prefill)
-      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
+      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept, await openProposals(deps.db, s.businessId))
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
       + renderKnowledgePeriod(ops, locale, new Date()) + '</div>';
@@ -7944,7 +7961,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       fetcher: deps.storeFetcher ?? publicFetcher, reader: deps.pageFactsReader,
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
     }, { address: String(b.address ?? ''), text: String(b.text ?? '') });
-    if (out.ok) return reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
+    // B19 — a page already read and still waiting for her ticks opens that reading, and says so.
+    if (out.ok) return out.again ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.again') : reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
     // Phase 6 — the knowledge page again, the reason under the form and what was typed still in it.
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
@@ -7964,7 +7982,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const ticked = Object.keys(b).filter((k) => k.startsWith('line:') && b[k] !== undefined).map((k) => k.slice('line:'.length));
     const p = await loadProposal(deps.db, s.businessId, id);
     if (!p) return reply.redirect('/app/knowledge');
-    const label = t(locale, 'pageFacts.label', { source: p.source === 'pasted' ? t(locale, 'pageFacts.pasted') : (() => { try { return new URL(p.source).hostname; } catch { return p.source; } })() });
+    const label = t(locale, 'pageFacts.label', { source: sourceLabel(locale, p.source) });
     const r = await confirmPageFacts(deps.db, s.businessId, id, personOf(s).name, ticked, label);
     if (r.kind === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
     if (r.kind === 'none_ticked') return flashTo(reply, `/app/knowledge/from-page/${encodeURIComponent(id)}`, 'pageFacts.flash.noneTicked');
@@ -8096,10 +8114,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const view = await loadPracticeView(deps.db, copy, q.before, now);
       const settings = live.ok ? await practiceSettings(deps.db, live.value, copy) : null;
       // P4 — the checklist: what the copy shows was seen, written on the workspace; the totals settled.
+      // B16 — the one reader every readiness count reads (`loadReadiness`).
       const checklist = live.ok ? {
-        items: checklistFor(await checklistKind(deps.db, live.value)),
         totals: await settleTotals(deps.db, live.value, copy),
-        seen: await observeChecklist(deps.db, live.value, copy),
+        ...await loadReadiness(deps.db, live.value),
         currency: await workspaceCurrency(deps.db, live.value),
       } : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {

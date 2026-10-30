@@ -159,6 +159,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // EXT — lines read more closely.
   'import.flash.extracted',
   'pageFacts.flash.written',
+  // B19 — the page was read already: its reading again, nothing read twice.
+  'pageFacts.flash.again',
   // BILL — a plan saved.
   'billing.flash.plan',
   // KS6 — asked; asked before; or nothing to ask.

@@ -42,6 +42,30 @@ export const checklistFor = (kind: ChecklistKind): readonly ChecklistItem[] =>
  */
 export const NOT_YET: ReadonlySet<ChecklistItem> = new Set([]);
 
+/**
+ * AUDIT B16 — READINESS, ONE ANSWER. How much of the checklist the owner has seen: Practice's card, Ready for
+ * customers, Getting ready (its verdict, its "Ready for customers" row and its Practice row) and Going live all
+ * show THIS count. They drifted: Practice counted what its copy showed, Ready and Getting ready only what Practice
+ * had last written down (a check seen in Practice and not yet redrawn there was missing from them), Practice's
+ * total counted an item that cannot pass yet, and Getting ready's Practice row counted four other tasks.
+ */
+export type Readiness = {
+  readonly items: readonly ChecklistItem[];
+  readonly seen: ReadonlySet<ChecklistItem>;
+  /** Items seen, of those that can pass. */
+  readonly done: number;
+  /** Items that can pass (`NOT_YET` is not counted against the owner). */
+  readonly total: number;
+  readonly complete: boolean;
+};
+
+export const readinessOf = (items: readonly ChecklistItem[], seen: ReadonlySet<ChecklistItem>): Readiness => {
+  const counted = items.filter((i) => !NOT_YET.has(i));
+  const done = counted.filter((i) => seen.has(i)).length;
+  return { items, seen, done, total: counted.length, complete: done >= counted.length };
+};
+
+
 
 export async function checklistKind(db: Db, live: BusinessId): Promise<ChecklistKind> {
   const r = await withTenantTx(db, live, async (tx) => (await sql<{ kind: string | null; priced: boolean }>`

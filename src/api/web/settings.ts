@@ -443,7 +443,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
  * Phase 9 (w4-today-setup-29) — five rows like every menu's, each in its own language and at a row's size;
  * the one in force says so in words and to a screen reader (`aria-current`), not by a class alone.
  */
-export function renderLanguage(locale: Locale): string {
+export function renderLanguage(locale: Locale, accountant = false): string {
   const rows = LOCALES.map((l) => {
     const on = l === locale;
     return `<li><a class="srow sr-menu" href="/locale?set=${l}&next=/app/settings/language" hreflang="${l}"${on ? ' aria-current="true"' : ''}>`
@@ -452,7 +452,8 @@ export function renderLanguage(locale: Locale): string {
       + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
       + `${GO}</a></li>`;
   }).join('');
-  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
+  // B18 — an accountant reached this from their sign-in page (they have no Setup).
+  return `${accountant ? back('/app/settings/account', t(locale, 'account.title')) : back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
     <ul class="scard" aria-label="${esc(t(locale, 'switcher.aria'))}">${rows}</ul>`;
 }

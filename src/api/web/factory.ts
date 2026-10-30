@@ -182,6 +182,8 @@ export type FactoryReadiness = {
    * workspace has no cap), whether it is used up, and when it renews.
    */
   readonly allowance?: { readonly pctUsed: number | null; readonly used: boolean; readonly renewsAt: Date };
+  /** B16 — the Practice checklist's count (`activationPreconditions`), beside "Finish getting {name} ready". */
+  readonly practice?: { readonly done: number; readonly total: number; readonly complete: boolean };
 };
 
 export type FactoryView = {
@@ -519,6 +521,7 @@ export async function loadFactory(
       pilotMode: state?.pilotMode ?? true,
       assistantStop: stop ?? { stoppedAt: null, stoppedBy: null },
       opsSilenced,
+      ...(pre?.practice ? { practice: pre.practice } : {}),
       ...(allowance ? { allowance: {
         pctUsed: allowance.pctUsed, used: allowanceUsed(allowance), renewsAt: allowanceRenewsAt(new Date()),
       } } : {}),
@@ -979,7 +982,10 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
     // carries no WhatsApp message: said as Nomi's team's, with no door.
     const wiredOnly = b === 'no_channel' && f.connection.connected?.whatsapp === true;
     const href = wiredOnly ? null : BLOCKER_FIX[b];
-    const line = esc(wiredOnly ? t(locale, 'golive.waNoProvider') : t(locale, `activation.blocker.${b}` as MessageKey, { name }));
+    // B16 — "not ready" says how far the checklist is, in the words Getting ready and Ready for customers use.
+    const count = b === 'not_ready' && r.practice && !r.practice.complete
+      ? ` · ${t(locale, 'pilot.ready.count', { done: r.practice.done, total: r.practice.total })}` : '';
+    const line = esc(wiredOnly ? t(locale, 'golive.waNoProvider') : t(locale, `activation.blocker.${b}` as MessageKey, { name }) + count);
     return `<li>${shape('waiting')} ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
   }).join('')}</ul>`;
 
@@ -1075,6 +1081,8 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
         // Phase 9 (w4-business-assistant-14) — the answer line above already says nothing is connected; here, only while it says something else (held).
         : `${s.held ? `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>` : ''}
            ${deeper(BUSINESS_SCREEN_PATH.channels, t(locale, 'factory.reach.title'))}`}
+       ${r.practice && !r.practice.complete
+         ? `<p class="fdesc" data-golive="practice">${esc(t(locale, 'pilot.ready.count', { done: r.practice.done, total: r.practice.total }))}</p>` : ''}
        ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`) + allowanceBlock;
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These

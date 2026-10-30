@@ -37,7 +37,7 @@ export function renderPapers(locale: Locale, viewer: Who, rows: readonly PaperRo
     <p class="lede">${esc(t(locale, 'books.papers.lede'))}</p>
     ${owner(viewer) && offered ? `<form method="post" action="/app/books/papers" enctype="multipart/form-data" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.papers.file'))}</span><input type="file" name="paper" accept="image/jpeg,image/png,image/webp,application/pdf" required /></label>
-      <button class="btn" type="submit">${esc(t(locale, 'books.papers.keep'))}</button></form>` : ''}
+      <button class="btn send" type="submit">${esc(t(locale, 'books.papers.keep'))}</button></form>` : ''}
     ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.papers.none'))}</p>` : `<ul class="rows">${rows.map((r) => `<li class="row">
       <span><a href="/app/books/papers/${esc(r.id)}"><bdi>${esc(r.name)}</bdi></a> · <span class="caption muted">${esc(show.dateYear(locale, new Date(`${r.addedOn}T12:00:00Z`)))}</span></span>
       <span>${r.historyThrough ? `<span class="pill">${esc(t(locale, 'books.papers.history'))}</span>` : r.draftedEntryId ? `<span class="pill ok">${esc(t(locale, 'books.papers.drafted'))}</span>`
@@ -85,11 +85,11 @@ export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: 
           <td><select name="tax${i}" aria-label="${esc(t(locale, 'books.entry.tax'))} ${i + 1}"><option value=""></option>${c.taxCodes.map((x) =>
             `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select> ${money(locale, l.tax, last.reading!.currency)}</td>
           <td>${pick(`account${i}`, c.accounts, null, `${t(locale, 'books.entry.account')} ${i + 1}`)}</td></tr>`).join('')}</tbody></table></div>
-        <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button></form></div>`;
+        <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button></form></div>`;
   const drafted = last?.entryId ? `<p><span class="pill ok">${esc(t(locale, 'books.papers.drafted'))}</span> <a href="/app/books/entries/${esc(last.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></p>` : '';
   const read = !owner(viewer) ? '' : !reader.available ? `<p class="caption muted">${esc(t(locale, 'books.papers.noReader'))}</p>`
     : !reader.canRead ? `<p class="caption muted">${esc(t(locale, 'books.papers.pdfNotRead'))}</p>`
-    : `<form method="post" action="/app/books/papers/${esc(p.id)}/read" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, last ? 'books.papers.readAgain' : 'books.papers.read'))}</button></form>`;
+    : `<form method="post" action="/app/books/papers/${esc(p.id)}/read" class="pform"><button class="btn${last ? '' : ' send'}" type="submit">${esc(t(locale, last ? 'books.papers.readAgain' : 'books.papers.read'))}</button></form>`;
   // E3 (0207) — an import's source file kept as history: said for what it is, downloaded like any paper, never read
   // into an entry (the database refuses it too).
   const history = p.history ? `<p role="status"><span class="pill">${esc(t(locale, 'books.papers.history'))}</span></p>

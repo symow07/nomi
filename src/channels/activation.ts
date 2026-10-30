@@ -48,6 +48,8 @@ export type ActivationPreconditions = {
   /** M20.3.1 — the one channel-state answer both sections of My factory render. */
   readonly lifecycle: ChannelLifecycle;
   readonly blockers: readonly ActivationRefusal[];
+  /** B16 — the Practice checklist's count, from the one reader: what `not_ready` waits on, said on Going live. */
+  readonly practice?: { readonly done: number; readonly total: number; readonly complete: boolean };
 };
 
 export async function activationPreconditions(
@@ -105,6 +107,8 @@ export async function activationPreconditions(
     lifecycle,
     schema: { required: schema.required, actual: schema.actual, ok: schema.ok },
     blockers,
+    // Only where the checklist is what `not_ready` waits on: a workspace that signed itself up (G6).
+    ...(readiness.ready ? { practice: readiness.ready } : {}),
   };
 }
 

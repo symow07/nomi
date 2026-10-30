@@ -760,6 +760,9 @@ ${LANGSW_CSS}
     font-size:var(--font-size-caption); font-weight:600;
     margin-inline-end:var(--space-8); margin-block-end:var(--space-8); white-space:nowrap; }
   .pill.ok { background:var(--color-ok-wash); color:var(--color-ok); }
+  /* B20 — a pill that holds a sentence (what a file goes without, a journal's gaps) wraps inside the page's measure:
+     on a phone it ran 820 px wide and the whole page scrolled sideways. */
+  .pill.long { white-space:normal; max-width:100%; overflow-wrap:anywhere; }
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .pill.warn { background:var(--color-needs-wash); color:var(--color-needs); }
   .pill.owner { background:var(--color-sand); color:var(--color-ink); font-weight:600; }
@@ -1425,6 +1428,7 @@ const STYLE_PAGES = `
   .floor-langs dd { margin:0; flex:1 1 16em; color:var(--color-ink-secondary); }
   /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
+  .dl-files .row > span { min-width:0; overflow-wrap:anywhere; }
   .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
   .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* The Solar run — the download at 22 px, its line the 22 px one. */
@@ -3002,13 +3006,19 @@ export function shell(input: {
   const role = viewerRole();
   const switchTo = (href: string, key: MessageKey) => `<a href="${href}" class="navlink navswitch" data-nav="switch"
        >${railIcon('transfer-horizontal')}<span class="nl-body"><span class="nl-text">${esc(t(locale, key))}</span></span></a>`;
-  if (isBooksPath(input.path)) {
-    const booksEntry = `<a href="/app/books" class="navlink active" data-nav="books" aria-current="page"
+  // B18 — an accountant has the books' rail on every page they reach, their own sign-in (password, language)
+  // included, with a door to it: it drew the sales side's there, every entry of which sent them back.
+  if (isBooksPath(input.path) || role === 'accountant') {
+    const inBooks = isBooksPath(input.path);
+    const booksEntry = `<a href="/app/books" class="navlink${inBooks ? ' active' : ''}" data-nav="books"${inBooks ? ' aria-current="page"' : ''}
        >${railIcon('notebook-minimalistic')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'nav.books'))}</span></span></a>`;
+    const own = !inBooks;
+    const accountEntry = role !== 'accountant' ? '' : `<a href="/app/settings/account" class="navlink${own ? ' active' : ''}" data-nav="account"${own ? ' aria-current="page"' : ''}
+       >${railIcon('key')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'account.title'))}</span></span></a>`;
     const foot = role === 'owner' ? switchTo('/app', 'nav.toSales')
       : `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout"
           >${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
-    return shellWith(input, `<div class="navgroup">${booksEntry}</div><div class="navfoot">${foot}</div>`);
+    return shellWith(input, `<div class="navgroup">${booksEntry}${accountEntry}</div><div class="navfoot">${foot}</div>`);
   }
   const toBooks = role === 'owner' && booksShown() ? switchTo('/app/books', 'nav.toBooks') : '';
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>

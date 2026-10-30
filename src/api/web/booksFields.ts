@@ -37,7 +37,7 @@ export function renderFields(locale: Locale, viewer: Who, rows: readonly FieldRo
           <span class="caption muted">${esc(t(locale, 'books.fields.choicesHint'))}</span></label>
         <label class="pq"><span><input type="checkbox" name="required" value="1" /> ${esc(t(locale, 'books.fields.required'))}</span>
           <span class="caption muted">${esc(t(locale, 'books.fields.requiredHint'))}</span></label>
-        <button class="btn" type="submit">${esc(t(locale, 'books.fields.add'))}</button>
+        <button class="btn send" type="submit">${esc(t(locale, 'books.fields.add'))}</button>
       </form></div>`;
   return `<h1 class="page">${esc(t(locale, 'books.fields.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.fields.lede'))}</p>
