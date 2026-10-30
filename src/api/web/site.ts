@@ -142,7 +142,7 @@ export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
     noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS + (first.css ?? ''),
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
-    <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
+    <a class="site-brand" href="${v.path}">${markSmall(32, null)}<span>Nomi</span></a>
     <a class="site-signin" href="${signIn}">${k('site.signIn')}</a>
     <div class="site-lang">${switcher(l, v.path)}</div>
   </header>

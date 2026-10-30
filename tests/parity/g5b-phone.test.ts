@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import vm from 'node:vm';
 import { SERVICE_WORKER, appManifest, INSTALL_LINKS } from '../../src/api/web/phone.js';
-import { APP_ICONS } from '../../src/api/web/appIcons.js';
+import { APP_ICONS, FAVICON_ICO } from '../../src/api/web/appIcons.js';
 import { renderPhoneAlerts } from '../../src/api/web/phoneAlerts.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -60,14 +60,31 @@ describe('G5b · installable', () => {
     const m = JSON.parse(appManifest());
     // The identity system (2026-10-04) — the brand and the paper the app is drawn with, wherever they move to.
     expect(m).toMatchObject({ name: 'Nomi', start_url: '/app', display: 'standalone', theme_color: DESIGN_TOKENS.color.brand, background_color: DESIGN_TOKENS.color.paper });
-    expect(m.icons.map((i: { src: string }) => i.src)).toEqual(['/assets/icon-192.png', '/assets/icon-512.png']);
-    expect(INSTALL_LINKS).toBe('<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/icon-192.png">');
+    // The seal (2026-10-31): two icons for any shape, and a maskable one with the seal inside the launcher's safe circle.
+    expect(m.icons.map((i: { src: string; purpose: string }) => `${i.src} ${i.purpose}`)).toEqual([
+      '/assets/icon-192.png any', '/assets/icon-512.png any', '/assets/icon-maskable-512.png maskable',
+    ]);
+    expect(INSTALL_LINKS).toBe('<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">');
   });
-  it('the icons are PNGs of their stated size', () => {
-    for (const [size, png] of Object.entries(APP_ICONS)) {
-      expect(png.subarray(1, 4).toString(), size).toBe('PNG');
-      expect([png.readUInt32BE(16), png.readUInt32BE(20)], size).toEqual([Number(size), Number(size)]);
+  it('the icons are PNGs of their stated size, the iPhone\'s at its own 180', () => {
+    const SIZE = { '192': 192, '512': 512, 'maskable-512': 512, 'apple-touch': 180 } as const;
+    expect(Object.keys(APP_ICONS).sort()).toEqual(Object.keys(SIZE).sort());
+    for (const [key, png] of Object.entries(APP_ICONS)) {
+      expect(png.subarray(1, 4).toString(), key).toBe('PNG');
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)], key).toEqual([SIZE[key as keyof typeof SIZE], SIZE[key as keyof typeof SIZE]]);
     }
+  });
+  it('/favicon.ico holds the coin at 16, 32 and 48, each a PNG', () => {
+    expect([FAVICON_ICO.readUInt16LE(2), FAVICON_ICO.readUInt16LE(4)]).toEqual([1, 3]);   // an icon, three entries
+    const sizes: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const at = 6 + 16 * i;
+      sizes.push(FAVICON_ICO.readUInt8(at));
+      const png = FAVICON_ICO.subarray(FAVICON_ICO.readUInt32LE(at + 12));
+      expect(png.subarray(1, 4).toString()).toBe('PNG');
+      expect(png.readUInt32BE(16)).toBe(FAVICON_ICO.readUInt8(at));
+    }
+    expect(sizes).toEqual([16, 32, 48]);
   });
 });
 

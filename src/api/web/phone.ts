@@ -42,17 +42,19 @@ self.addEventListener('notificationclick', function (e) {
 
 /** The install manifest: Nomi opens on its own, from the home screen, at the app. */
 export function appManifest(): string {
-  // The identity system (2026-10-04) — the installed app's bar is the brand, like its icon.
+  // The identity system (2026-10-04) — the installed app's bar is the brand, like the seal on its icon (2026-10-31).
   const { brand, paper } = DESIGN_TOKENS.color;
   return JSON.stringify({
     name: 'Nomi', short_name: 'Nomi', start_url: '/app', scope: '/', display: 'standalone',
     background_color: paper, theme_color: brand,
     icons: [
-      { src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-      { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      // The seal on the paper; the maskable one has more paper round it, so a launcher's circle or squircle keeps all of it.
+      { src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/assets/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   });
 }
 
 /** What the shell's head carries so a phone can install it (its colours are in the manifest). */
-export const INSTALL_LINKS = `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/icon-192.png">`;
+export const INSTALL_LINKS = `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">`;

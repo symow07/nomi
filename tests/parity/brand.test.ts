@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { linkedCss } from './linked-css.js';
 import { readFile } from 'node:fs/promises';
 import { shell, loginPage } from '../../src/api/web/layout.js';
-import { MARK_FIGURE, markDetail, markSmall, faviconDataUri } from '../../src/core/owner/brand.js';
+import { MARK_GEOMETRY, markDetail, markSmall, faviconDataUri } from '../../src/core/owner/brand.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 /**
- * M30 — the Nomi mark.
+ * M30 — the Nomi mark: the seal (2026-10-31), "nomi" in two rows with its "o"
+ * a cash coin.
  *
  * The product inlines the mark rather than fetching it, so there are two copies
  * of the drawing: `assets/brand/*.svg` (the source of record) and
@@ -16,39 +17,48 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
  * matters: the inline geometry must equal the file's, byte for byte.
  */
 
-const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', avatar = markSmall(30, null)) =>
+const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', avatar = markSmall(32, null)) =>
   shell({ title: 'T', active: 'home', locale, path: '/app', avatar, bodyHtml: '<p>body</p>' });
 
-/** The three shapes, pulled out of a source file with the fills ignored. */
-const figureOf = (svg: string): string =>
-  (svg.match(/<(?:circle cx="50" cy="19"[^>]*|path [^>]*)\/>/g) ?? []).join('');
+/** The drawing of an SVG: its paths' `d`, in order, the fills ignored. */
+const pathsOf = (svg: string): string[] => [...svg.matchAll(/<path [^>]*\bd="([^"]+)"/g)].map((m) => m[1]!);
 
 describe('M30 · the inline mark cannot drift from assets/brand/', () => {
   it('matches the source of record, in every cut', async () => {
-    for (const cut of ['mark-detail', 'mark-small', 'mark-mono', 'mark-night']) {
-      const src = await readFile(new URL(`../../assets/brand/${cut}.svg`, import.meta.url), 'utf8');
-      expect(figureOf(src), `${cut}.svg has drifted from brand.ts`).toBe(MARK_FIGURE);
+    const src = async (f: string) => readFile(new URL(`../../assets/brand/${f}.svg`, import.meta.url), 'utf8');
+    const { detail, small, favicon } = MARK_GEOMETRY;
+    expect(pathsOf(await src('mark-detail')), 'mark-detail.svg has drifted from brand.ts').toEqual([detail.seal, detail.coin]);
+    expect(pathsOf(await src('mark-mono')), 'mark-mono.svg has drifted from brand.ts').toEqual([detail.seal, detail.coin]);
+    expect(pathsOf(await src('mark-small')), 'mark-small.svg has drifted from brand.ts').toEqual([small.seal, small.coin]);
+    expect(pathsOf(await src('favicon')), 'favicon.svg has drifted from brand.ts').toEqual([favicon.coin]);
+    // the sources carry the same two colours as the tokens
+    for (const f of ['mark-detail', 'mark-small']) {
+      const svg = await src(f);
+      expect(svg, f).toContain(`fill="${DESIGN_TOKENS.color.brand}"`);
+      expect(svg, f).toContain(`fill="${DESIGN_TOKENS.color.coin}"`);
     }
   });
 
-  it('is TWO cuts — a reversed ground, not one drawing scaled', () => {
+  it('is TWO cuts — a drawing on the pixel grid for small sizes, not one drawing scaled', () => {
     const detail = markDetail(40);
-    const small = markSmall(30);
-    // same geometry…
-    expect(figureOf(detail)).toBe(figureOf(small));
-    // …opposite ground: a paper disc for the large cut, a SOLID disc for the
-    // small. The identity system (2026-10-04): the mark is the BRAND magenta —
-    // never the deep or the light shade, which are meanings. Only the colour
-    // moved; the cuts are the owner's (V1-106).
-    expect(detail).toContain('r="50" fill="var(--color-paper)"');
-    expect(small).toContain('r="50" fill="var(--color-brand)"');
-    expect(detail).toContain('<g fill="var(--color-brand)">');
-    expect(small).toContain('<g fill="var(--color-surface)">');
-    for (const svg of [detail, small]) expect(svg).not.toMatch(/--color-(needs|assistant|ink)\b/);
+    const small = markSmall(32);
+    expect(detail).toContain('viewBox="0 0 400 400"');
+    expect(small).toContain('viewBox="0 0 32 32"');
+    expect(pathsOf(detail)).toEqual([MARK_GEOMETRY.detail.seal, MARK_GEOMETRY.detail.coin]);
+    expect(pathsOf(small)).toEqual([MARK_GEOMETRY.small.seal, MARK_GEOMETRY.small.coin]);
+    // the detail coin has its two rims (six edges); the small one is a disc and a hole
+    expect(MARK_GEOMETRY.detail.coin.match(/z/g)).toHaveLength(6);
+    expect(MARK_GEOMETRY.small.coin.match(/z/g)).toHaveLength(2);
+    // the seal in the brand, the coin in its own wine — never a meaning's shade, never ink
+    for (const svg of [detail, small]) {
+      expect(svg).toContain('<path fill="var(--color-brand)" fill-rule="evenodd"');
+      expect(svg).toContain('<path fill="var(--color-coin)" fill-rule="evenodd"');
+      expect(svg).not.toMatch(/--color-(needs|assistant|ink)\b/);
+    }
   });
 
-  it('carries no literal colour — it inherits the tokens, night included', () => {
-    for (const svg of [markDetail(40), markSmall(30)]) {
+  it('carries no literal colour — it inherits the tokens', () => {
+    for (const svg of [markDetail(40), markSmall(32)]) {
       expect(svg.match(/#[0-9a-fA-F]{3,8}/g) ?? []).toEqual([]);
     }
   });
@@ -59,15 +69,15 @@ describe('M30 · the shell wears the mark', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).toContain('class="mark"');
-      expect(html, l).toContain(MARK_FIGURE);
+      expect(html, l).toContain(MARK_GEOMETRY.detail.seal);
       expect(html, l).toContain('Nomi');
     }
   });
 
   it('uses the DETAIL cut in the brand block, at the size that cut is for', () => {
     const brand = page().split('class="brand"')[1]?.split('</div>')[0] ?? '';
-    expect(brand).toContain('width="40"');
-    expect(brand).toContain('r="50" fill="var(--color-paper)"');   // the paper disc = detail cut
+    expect(brand).toContain('viewBox="0 0 400 400" width="40"');
+    expect(brand).toContain('viewBox="0 0 32 32" width="32"');   // the phone's cut, on its pixel grid
   });
 
   it('does not mirror in RTL — only directional glyphs do', () => {
@@ -75,7 +85,7 @@ describe('M30 · the shell wears the mark', () => {
     expect(style).toContain('[dir="rtl"] .go');          // the chevron still mirrors
     expect(style).not.toMatch(/\[dir="rtl"\][^{]*\.mark/);
     // and the Arabic page draws the same mark as the English one
-    expect(page('ar')).toContain(MARK_FIGURE);
+    expect(page('ar')).toContain(MARK_GEOMETRY.detail.seal);
   });
 });
 
@@ -83,11 +93,10 @@ describe('M30 · the favicon', () => {
   const href = () => page().match(/<link rel="icon" href="([^"]+)"/)![1]!;
   const decoded = () => atob(href().replace('data:image/svg+xml;base64,', ''));
 
-  it('is a data URI, so no static route is added', () => {
+  it('is a data URI, so no page needs a static route for it', () => {
     expect(href()).toMatch(/^data:image\/svg\+xml;base64,/);
-    // G5b — the app is installable now (alerts on the phone need it): the
-    // home-screen icon is its own static route; the favicon stays a data URI.
-    expect(page()).toContain('<link rel="apple-touch-icon" href="/assets/icon-192.png">');
+    // G5b — the app is installable: the home-screen icons are their own static routes; the favicon stays a data URI.
+    expect(page()).toContain('<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">');
     expect(page()).toContain('<link rel="manifest" href="/manifest.webmanifest">');
   });
 
@@ -95,11 +104,12 @@ describe('M30 · the favicon', () => {
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('data:image/svg+xml;base64,');
   });
 
-  it('carries the SMALL cut — reversed, because a favicon is 16px', () => {
+  it('is the COIN alone — no letters, because a favicon is 16px', () => {
     const svg = decoded();
-    expect(figureOf(svg)).toBe(MARK_FIGURE);
-    expect(svg).toContain(`r="50" fill="${DESIGN_TOKENS.color.brand}"`);     // solid disc, the brand
-    expect(svg).toContain(`<g fill="${DESIGN_TOKENS.color.surface}">`);      // knocked out
+    expect(svg).toContain('viewBox="0 0 16 16"');
+    expect(pathsOf(svg)).toEqual([MARK_GEOMETRY.favicon.coin]);
+    expect(svg).toContain(`fill="${DESIGN_TOKENS.color.coin}"`);
+    expect(svg).not.toContain(MARK_GEOMETRY.small.seal);
   });
 
   it('takes its colours FROM the tokens — the one place the mark cannot use var()', () => {
@@ -111,7 +121,7 @@ describe('M30 · the favicon', () => {
 
   it('contains no % — the character this product bans in owner copy', () => {
     expect(href()).not.toContain('%');
-    expect(loginPage({ locale: 'en', path: '/login' })).toBeTruthy();
+    expect(faviconDataUri()).not.toContain('%');
   });
 });
 
@@ -123,7 +133,7 @@ describe('M30 · the avatar — retired by V1 step three (2026-09-24)', () => {
   it('shows no face, whatever it is given', () => {
     expect(page('en', '🦊')).not.toContain('🦊');
     expect(page('en', '🦊')).not.toContain('class="avatar"');
-    expect(page('en', markSmall(30, null))).not.toContain('class="who"');   // V1 · option A: no band at all
+    expect(page('en', markSmall(32, null))).not.toContain('class="who"');   // V1 · option A: no band at all
   });
 
   it('main.ts no longer reads EMPLOYEE_AVATAR, and no emoji stands in for anyone', async () => {

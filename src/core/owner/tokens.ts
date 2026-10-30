@@ -172,7 +172,8 @@ export const DESIGN_TOKENS = {
    *                go: the ordinary primary act as a fill (Save, Add, Connect,
    *                Next), a door's words and every chevron, an underline under a
    *                link, the focus ring, the selection, a checked control, the
-   *                tab or row you are on, today's date, and the mark. Its shape
+   *                tab or row you are on, today's date, and the seal (the mark's
+   *                frame and letters; its coin is `coin`). Its shape
    *                is the thing itself: a button, a door's ›, an underline.
    *   needs        DEEP (L* 24). Something waits for the owner. Its shape is the
    *                NEEDS DOT: a solid disc, drawn (never a font's glyph), before
@@ -238,8 +239,12 @@ export const DESIGN_TOKENS = {
    *                state, a text colour, a border or a fill of anything but
    *                the orb's light. Its own value: a
    *                touch toward violet, held clear of `needs` (ΔE00 12.5) and of
-   *                `assistant` (10.3). Four magentas is the CEILING — brand,
-   *                needs, assistant, orbGlow — and `palette.test.ts` holds both.
+   *                `assistant` (10.3).
+   *   coin         #5A0A2E, the coin in the mark — the seal's "o" (the owner,
+   *                2026-10-31) — and nothing else: drawn only by `brand.ts`.
+   *                A dark wine, darker than `needs`, never a meaning.
+   * Five magentas is the CEILING — brand, needs, assistant, orbGlow, coin —
+   * and `palette.test.ts` holds it.
    *
    * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
    * reason: the owner surface bans the `%` character outright, and that ban is
@@ -266,6 +271,8 @@ export const DESIGN_TOKENS = {
     warnLine: '#E9BDBA',
     /** DECORATIVE: the advisor orb's glow only (above). Never a button, chip, state or text. */
     orbGlow: '#A1127A',
+    /** DECORATIVE: the coin in the mark (the seal's "o", 2026-10-31) and nothing else. Never a button, chip, state or text. */
+    coin: '#5A0A2E',
   },
   /**
    * A colour by the JOB it does, named after one of the palette's own (never a

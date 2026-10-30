@@ -55,8 +55,10 @@ describe('the palette', () => {
       'sand',
       // The identity system (2026-10-04): the signature, between the two meaning shades.
       'brand',
-      // The advisor's orb (2026-10-07): its glow, decorative and the orb's alone — the fourth magenta, and the last.
+      // The advisor's orb (2026-10-07): its glow, decorative and the orb's alone — the fourth magenta.
       'orbGlow',
+      // The seal (2026-10-31): the coin in the mark, decorative and the mark's alone — the fifth, and the last.
+      'coin',
     ].sort());
     expect(C['ink']).toBe('#25201C');
     expect(C['inkSecondary']).toBe('#665D55');
@@ -68,6 +70,7 @@ describe('the palette', () => {
     expect(C['assistant']).toBe('#BE2D6E');
     expect(C['brand']).toBe('#9A0F5E');
     expect(C['orbGlow']).toBe('#A1127A');
+    expect(C['coin']).toBe('#5A0A2E');
     // three shades with three jobs: never one value again
     expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(3);
     expect(C['needsWash']).not.toBe(C['assistantWash']);
@@ -88,11 +91,22 @@ describe('the palette', () => {
     }
   });
 
-  it('four magentas is the ceiling: brand, needs, assistant and the orb\'s glow — a fifth fails here', () => {
+  it('five magentas is the ceiling: brand, needs, assistant, the orb\'s glow and the mark\'s coin — a sixth fails here', () => {
     // A magenta: a hue from violet-magenta to raspberry, dark enough to be a colour rather than a wash.
     const light = (h: string) => { const v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255); return (Math.max(...v) + Math.min(...v)) / 2; };
     const magentas = Object.keys(C).filter((k) => { const h = hue(C[k]!); return h >= 290 && h <= 355 && light(C[k]!) <= 0.6; }).sort();
-    expect(magentas).toEqual(['assistant', 'brand', 'needs', 'orbGlow']);
+    expect(magentas).toEqual(['assistant', 'brand', 'coin', 'needs', 'orbGlow']);
+  });
+
+  it('the coin is decorative and the mark\'s alone: named by the mark, never a role, never a rule of the stylesheet', async () => {
+    // The seal (2026-10-31): the wine of the coin in the seal's "o". The mark draws it through its variable
+    // (the favicon, a document of its own, reads the token); nothing else names it.
+    const naming = (await sources(SRC)).filter(({ src }) => /\bcoin:|--color-coin|color\.coin|5A0A2E/i.test(src)).map(({ f }) => f).sort();
+    expect(naming).toEqual(['brand.ts', 'tokens.ts']);
+    expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('coin');
+    expect(cssVariables().match(/--color-coin:/g)).toHaveLength(1);
+    const layout = readFileSync(join(SRC_PATH, 'api/web/layout.ts'), 'utf8');
+    expect(layout).not.toMatch(/--color-coin/);
   });
 
   it('the orb\'s glow is decorative and the advisor\'s alone: named by the orb, drawn by one rule (the nav mark\'s light), never a role', async () => {
@@ -186,6 +200,6 @@ describe('the palette', () => {
     expect(brand).not.toContain('--color-assistant');
     expect(brand).not.toContain('--color-needs');
     expect(brand).not.toContain("'var(--color-ink)'");
-    expect(brand).toContain("'var(--color-brand)'");
+    expect(brand).toContain('fill="var(--color-brand)"');   // the seal: its frame and letters
   });
 });
