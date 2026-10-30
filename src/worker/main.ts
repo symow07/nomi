@@ -679,14 +679,16 @@ export async function startWorker(
       }
     }
 
+    // B24 — a voice note's or a photo's job retried after its turn committed (the queue's send below failed, a
+    // deploy stopped the worker): nothing to hear or see again, nothing to pay for, nothing to answer twice. One
+    // short read, no lock, closed before any download — like G10c's above.
+    if ((job.data.messageType === 'audio' || job.data.messageType === 'image')
+        && (await withTenantTx(db, businessId.value, (tx) => turnRecorded(tx, job.data.messageId)))) return;
+
     // M34 — a voice note is heard BEFORE the turn, outside the tenant
     // transaction: a download and a transcription are seconds of network, and
     // holding a conversation lock across them would serialise every other
     // buyer behind one slow provider.
-    // B24 — a voice note's or a photo's job retried after its turn committed (the queue's send below failed, a
-    // deploy stopped the worker): nothing to hear or see again, nothing to pay for, nothing to answer twice.
-    if ((job.data.messageType === 'audio' || job.data.messageType === 'image')
-        && (await withTenantTx(db, businessId.value, (tx) => turnRecorded(tx, job.data.messageId)))) return;
     // T7 — each transcription is a paid call: counted, whether it heard anything or not.
     let transcriptions = 0;
     // WA (0120) — a business with its own WhatsApp number: its media are fetched with its own token.

@@ -2159,9 +2159,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       email, purpose, codeHash: otpHash(deps.sessionSecret, email, purpose, code), payload, loginId, ttlSeconds: OTP_TTL_SECONDS,
     }).catch(() => null);
     if (!id) return 'slow';
-    const mailed = await codeMail!.send(instead ? { to: email, ...instead } : {
-      to: email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
-    }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    const message = instead ?? { subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }) };
+    const mailed = await codeMail!.send({ to: email, ...message }).catch(() => ({ ok: false as const, error: 'unreachable' }));
     // MAIL — today's caps hold: the page says to slow down, as for too many codes in an hour.
     if (refusedByCap(mailed)) return 'slow';
     if (!mailed.ok) {

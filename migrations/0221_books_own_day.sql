@@ -35,6 +35,7 @@ end $$;
 revoke all on function books_lock_to(date, text) from public;
 grant execute on function books_lock_to(date, text) to nomi_app;
 
+-- books_close_year, re-made from 0219: the year's last day must have ENDED in the workspace's own day.
 create or replace function books_close_year(p_year uuid, p_result_account uuid, p_journal uuid, p_by text, p_label text, p_ref text)
 returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
