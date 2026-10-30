@@ -13,6 +13,40 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Audit batch 5 — the advisor metered, the owner's words kept, one turn per message (2026-10-31, 0221)
+
+- **A4 — the advisor is metered** (blocked the third paying workspace). Before each question the advisor asks today's
+  allowance (`allowanceUsedFor`, G3's reader, through two narrow ports so the advisor's wall holds); used up, the
+  model is asked nothing and the page says "Today's allowance is used up, so nothing was looked up. Try again after
+  it renews." — the re-read's allowance wording, no money. Every call that answered goes on the workspace's ledger
+  (calls and tokens, never a turn), the unknown-question call too. `AdvisorModel` returns its usage.
+  `LAUNCH-CHECKLIST.md`'s advisor item is done. Tests: `tests/integration/advisor-metering.test.ts` (4/4 fail on
+  main), `tests/parity/advisor-build.test.ts`.
+- **#401 — word for word means word for word.** The disclosure's greeting strip (`withDisclosureFirst`) now applies
+  only to a reply the model wrote; a taught answer, a fast-path reply or a fixed sentence goes behind the disclosure
+  exactly as written (`withDisclosure`). Test: `tests/pipeline/disclosure-word-for-word.test.ts` (fails on main).
+- **B24 — one message, one turn.** Under the conversation's lock, before anything is paid for, a turn asks whether
+  its batch's lines are still unanswered (another process read them first: a deploy's overlap, FAIR's per-process
+  limit) or whether its voice note's or photo's message already has a turn (a job retried after its commit). Either
+  way it runs nothing; a retried media job also stops before the media are read again. `markFragmentsProcessed`
+  refuses lines a turn already answered.
+- **Stop pressed mid-turn** (polish): the hold (Stop, ops silence, allowance, lapse) is asked again before the model
+  and before the commit; held, the turn is recorded held and the customer handed to a person — no draft. The model's
+  calls stay on the ledger, not as a turn. Tests: `tests/integration/turn-once.test.ts` (3/3 fail on main).
+- **Polish:** 0221 — a year is locked and closed on the workspace's own day (`books_today`), and closes only once its
+  last day has ended there (`books-own-day`, the UTC−11 case fails on main); a books grant that no longer opens marks
+  the connection "connect again" on any read or write-back (`loadLiveConnection`; `books-dead-grant` fails on main);
+  sign-up no longer says an address has a workspace — same reply, and its owner gets a "you already have a
+  workspace" mail with no code (`otp.test.ts`); the add-products example is "Ceramic mug", no minimum; "MOQ" written
+  out; contacts' "Never write to them again" and Archive fold under "More"; products' missing names said once above
+  the list, one "Name missing" mark per row; dead code (`canActivateChannel`, `windowMsLeft`, Practice's empty
+  `NOT_YET`); operator docs and `verify-remote.sh` say `/app/business`.
+- **Not done, and why:** `/app/settings/zone` and `/app/settings/currency` stay — no page posts to them, but three
+  integration tests and the staff-permission list do; removing them is its own change.
+- **Found on the way:** `verify-remote.sh` checks four page markers the catalogue no longer has ("Practice before
+  launch", "Buyers", "What she knows", and the old My factory one, fixed here). It has been failing on those since
+  the positioning rewrite; its markers want a pass against a running instance.
+
 ## Read the page again (2026-10-30, 0220; the owner's follow-up to #410's B19)
 
 - **Why:** since B19, the same address sent while its reading waits opens that reading — so a site that changed
