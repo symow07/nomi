@@ -3431,6 +3431,7 @@ export function signupPage(input: SignupPageInput): string {
       <select id="su-country" name="country" required autocomplete="country"${at('country')}>${pick}${countryOptions(locale).map((c) =>
         option(c.code, c.name, v.country)).join('')}</select>
       ${fieldErr('country')}
+      ${/* The owner (2026-10-30): said always, error or not — while EU_UK_SIGNUP holds those sign-ups (core/legal/transfer.ts). */ ''}<div class="hint">${esc(t(locale, 'signup.country.hint'))}</div>
       ${/* TZ — asked only where the country has several zones; a country with one gets it. */
         zoneChoices(v.country).length > 1 ? `
       <label for="su-zone">${esc(t(locale, 'signup.zone'))}</label>

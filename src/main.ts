@@ -18,7 +18,7 @@ import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { euUkSignupOpenFrom } from './core/legal/transfer.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
-import { httpsMailConfigFrom, httpsSystemMailer, cappedMail } from './channels/email/httpsMail.js';
+import { httpsMailConfigFrom, httpsSystemMailer, cappedMail, MAIL_PROVIDER_NAMES } from './channels/email/httpsMail.js';
 import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
 import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/stripe.js';
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
@@ -738,7 +738,8 @@ export async function buildProduction(
    * before, through `systemMail` — capped all the same. A test's own sender
    * (`overrides.systemMail`) is used as given.
    */
-  const dedicatedMail = (() => { const c = httpsMailConfigFrom(process.env); return c ? httpsSystemMailer(c) : null; })();
+  const dedicatedConfig = httpsMailConfigFrom(process.env);
+  const dedicatedMail = dedicatedConfig ? httpsSystemMailer(dedicatedConfig) : null;
   const mailCaps = mailCapsFrom(process.env);
   const strangerMail = overrides?.systemMail ? null : (dedicatedMail ?? systemMail);
   const codeMail: SystemMail | null = overrides?.systemMail
@@ -893,8 +894,10 @@ export async function buildProduction(
     ...((process.env['TELEGRAM_BOT_TOKEN'] ?? '').trim() ? { telegram: true } : {}),
     // 0215 — TikTok is named only where this installation has the app (and only once the page names it: D18).
     ...(tiktokApp ? { tiktok: true } : {}),
+    // MAIL — the dedicated sender, named by the provider that carries the codes, links and owner alerts (D18).
+    ...(dedicatedConfig && !overrides?.systemMail ? { mailSender: MAIL_PROVIDER_NAMES[dedicatedConfig.provider] } : {}),
   };
-  console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
+  console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}${legalFacts.mailSender ? ` · Nomi's mail by ${legalFacts.mailSender}` : ''}`);
   // The owner's decision at the Phase 4 gate (2026-10-14): the legal pages name who runs Nomi before any real business
   // uses it. The name is not logged; only whether one is set.
   console.log(cfg.OPERATOR_PERSON?.trim() ? 'Legal pages name who runs Nomi (OPERATOR_PERSON).'

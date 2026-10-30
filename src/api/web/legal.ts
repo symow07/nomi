@@ -113,6 +113,11 @@ export type LegalFacts = {
   readonly telegram?: boolean;
   /** 0215 — businesses here can connect their own TikTok account: TikTok carries those direct messages, and is named. */
   readonly tiktok?: boolean;
+  /**
+   * MAIL (D18, 2026-10-30) — the dedicated sender (Resend or Postmark) carrying Nomi's own mail here, by name:
+   * named in the "who" list, and in the business section in place of Google. Absent, Google carries it.
+   */
+  readonly mailSender?: string | null;
 };
 
 /**
@@ -219,6 +224,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
         facts.transcriber ? `<li>${esc(t(l, 'legal.privacy.who.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))}</li>` : ''}
       <li>${esc(t(l, 'legal.privacy.who.hosting', { hosting: processorLabel(facts.hosting, l) }))}</li>
       <li>${esc(t(l, 'legal.privacy.who.mail'))}</li>
+      ${facts.mailSender ? `<li>${esc(t(l, 'legal.privacy.who.httpsMail', { sender: facts.mailSender }))}</li>` : ''}
       ${/* §9.3 — the sign-up bot check, only when one is configured: it sees the sign-up page, never a message. */
         facts.botCheck ? `<li>${esc(t(l, 'legal.privacy.who.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}</li>` : ''}
     </ul>
@@ -241,7 +247,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.owner.staff'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.why'))}</p>
     ${/* Phase 1 (0148) — the sign-up's abuse check, the fingerprint named as one. */ ''}<p id="signup-check">${esc(t(l, 'legal.privacy.owner.signupCheck'))}</p>
-    <p>${esc(t(l, 'legal.privacy.owner.who', { processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
+    <p>${esc(t(l, 'legal.privacy.owner.who', { sender: facts.mailSender ?? 'Google', processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
       facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
       l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.howLong'))}${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.howLongBooks'))}</p>

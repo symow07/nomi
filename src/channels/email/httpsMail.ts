@@ -18,6 +18,8 @@ import type { SystemMail } from './systemMail.js';
 export const MAIL_PROVIDERS = ['resend', 'postmark'] as const;
 export type MailProvider = (typeof MAIL_PROVIDERS)[number];
 export type HttpsMailConfig = { readonly provider: MailProvider; readonly apiKey: string; readonly from: string };
+/** Each provider as it calls itself: the name the privacy page gives it (D18). */
+export const MAIL_PROVIDER_NAMES: Record<MailProvider, string> = { resend: 'Resend', postmark: 'Postmark' };
 
 export function httpsMailConfigFrom(env: Record<string, string | undefined>): HttpsMailConfig | null {
   const provider = (env['MAIL_PROVIDER'] ?? '').trim().toLowerCase();
