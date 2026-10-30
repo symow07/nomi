@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTelegramUpdate, telegramAdapter, telegramSecretMatches, TELEGRAM_TEXT_MAX, type TelegramFetch } from '../../src/channels/telegram/adapter.js';
+import { parseTelegramUpdate, telegramAdapter, telegramSecretMatches, TELEGRAM_TEXT_MAX, TELEGRAM_SEND_TIMEOUT_MS, type TelegramFetch } from '../../src/channels/telegram/adapter.js';
 
 /**
  * S7 (Phase 5, item 22) — the Telegram adapter, alone: the webhook's secret, which updates are a buyer's message, and
@@ -39,7 +39,8 @@ describe('S7 · Telegram out', () => {
     const calls: { url: string; body: string }[] = [];
     const fetchImpl: TelegramFetch = async (url, init) => {
       calls.push({ url, body: init.body });
-      if (answers === 'down') throw new Error(`connect ECONNREFUSED ${url}`);
+      // What Node's fetch throws when nothing listens: the request never left (B5 retries only that).
+      if (answers === 'down') throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ECONNREFUSED ${url}`), { code: 'ECONNREFUSED' }) });
       const a = answers.shift()!;
       return { ok: a.status < 300, status: a.status, json: async () => a.body };
     };
@@ -69,5 +70,28 @@ describe('S7 · Telegram out', () => {
     const { calls, adapter } = scripted([]);
     expect(await adapter.sendText('555', 'x'.repeat(TELEGRAM_TEXT_MAX + 1))).toMatchObject({ ok: false, retryable: false });
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('Audit batch 1 · B9 — a Telegram send has a time limit; B5 — what it cannot tell is uncertain', () => {
+  it('a call that never answers ends at the limit, as uncertain (never retried), with the signal handed to fetch', async () => {
+    let signal: AbortSignal | undefined;
+    // Telegram that never answers — until the signal aborts the call, as Node's fetch does.
+    const hung: TelegramFetch = (_url, init) => new Promise((_ok, fail) => {
+      signal = init.signal;
+      init.signal?.addEventListener('abort', () => fail(init.signal!.reason));
+    });
+    const adapter = telegramAdapter({ botId: BOT, token: TOKEN, secretToken: 's', fetchImpl: hung, timeoutMs: 50 });
+    const r = await adapter.sendText('555', 'hi');
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(r).toEqual({ ok: false, retryable: false, uncertain: true, error: 'telegram: no answer in time' });
+    expect(TELEGRAM_SEND_TIMEOUT_MS).toBe(15_000);
+  }, 5_000);
+  it('a yes with no message id, or one we could not read, may have been delivered: uncertain', async () => {
+    for (const body of [{ ok: true, result: {} }, null]) {
+      const fetchImpl: TelegramFetch = async () => ({ ok: true, status: 200, json: async () => body });
+      const r = await telegramAdapter({ botId: BOT, token: TOKEN, secretToken: 's', fetchImpl }).sendText('555', 'hi');
+      expect(r, JSON.stringify(body)).toMatchObject({ ok: false, retryable: false, uncertain: true });
+    }
   });
 });

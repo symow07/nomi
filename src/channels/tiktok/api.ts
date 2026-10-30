@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
 
 /**
  * TIKTOK, OVER THE WIRE — the Business Messaging API's sign-in and the one call that sends (docs/TIKTOK-CHANNEL.md,
@@ -71,15 +72,19 @@ export function openTikTokGrant(secret: string): TikTokGrant | null {
 }
 
 type Answer = { readonly status: number; readonly body: Record<string, unknown> } | null;
+/** One call; it throws when no answer came (the caller decides what that means). */
+async function request(fetchImpl: TikTokFetch, path: string, body: Record<string, unknown>, accessToken?: string): Promise<NonNullable<Answer>> {
+  const res = await fetchImpl(`${TIKTOK_API}${path}`, {
+    method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: { 'Content-Type': 'application/json', ...(accessToken ? { 'Access-Token': accessToken } : {}) },
+  });
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(await res.text()) as Record<string, unknown>; } catch { /* not JSON: an empty body */ }
+  return { status: res.status, body: parsed };
+}
 async function post(fetchImpl: TikTokFetch, path: string, body: Record<string, unknown>, accessToken?: string): Promise<Answer> {
   try {
-    const res = await fetchImpl(`${TIKTOK_API}${path}`, {
-      method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'Content-Type': 'application/json', ...(accessToken ? { 'Access-Token': accessToken } : {}) },
-    });
-    let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(await res.text()) as Record<string, unknown>; } catch { /* not JSON: an empty body */ }
-    return { status: res.status, body: parsed };
+    return await request(fetchImpl, path, body, accessToken);
   } catch {
     return null;
   }
@@ -129,16 +134,25 @@ export async function revokeTikTokGrant(app: TikTokApp, grant: TikTokGrant, fetc
 
 export type SendOutcome =
   | { readonly ok: true; readonly messageId: string }
-  | { readonly ok: false; readonly retryable: boolean; readonly dead: boolean; readonly error: string };
+  | { readonly ok: false; readonly retryable: boolean; readonly dead: boolean; readonly error: string; readonly uncertain?: true };
 
 /** One text to one conversation. TikTok's words are never kept: only its code. */
 export async function sendTikTokText(fetchImpl: TikTokFetch, o: { readonly accessToken: string; readonly openId: string; readonly conversationId: string; readonly body: string }): Promise<SendOutcome> {
   if (o.body.length > TIKTOK_TEXT_MAX) return { ok: false, retryable: false, dead: false, error: `tiktok: longer than ${TIKTOK_TEXT_MAX} characters` };
-  const a = await post(fetchImpl, '/business/message/send/', {
-    business_id: o.openId, recipient_type: 'CONVERSATION', recipient: o.conversationId, message_type: 'TEXT', text: { body: o.body },
-  }, o.accessToken);
+  let a: Answer;
+  try {
+    a = await request(fetchImpl, '/business/message/send/', {
+      business_id: o.openId, recipient_type: 'CONVERSATION', recipient: o.conversationId, message_type: 'TEXT', text: { body: o.body },
+    }, o.accessToken);
+  } catch (e) {
+    // B5 — retried only when it provably never reached TikTok; a timeout may have been accepted.
+    const r = thrownSend('tiktok', e);
+    return { ...r, dead: false };
+  }
   const id = (dataOf(a)['message'] as Record<string, unknown> | undefined)?.['message_id'];
   if (codeOf(a) === 0 && typeof id === 'string' && id !== '') return { ok: true, messageId: id };
+  // B5 — a yes that named no message may still be on its way: never sent again by a machine.
+  if (codeOf(a) === 0 && a.status >= 200 && a.status < 300) return { ...acceptedWithoutId('tiktok'), dead: false };
   return {
     ok: false, retryable: retryable(a), dead: codeOf(a) === TIKTOK_TOKEN_DEAD,
     error: a === null ? 'tiktok: network' : `tiktok ${a.status} code ${codeOf(a) ?? 'none'}`,

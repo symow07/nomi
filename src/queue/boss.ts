@@ -386,10 +386,15 @@ export const inboundGroup = (businessId: string): { readonly id: string } => ({ 
  * twice because its fragment row is marked `processed_in` by the turn that
  * answers it. The group runs one job per workspace per worker.
  */
-export async function enqueueInbound(boss: PgBoss, job: InboundJob): Promise<void> {
+export async function enqueueInbound(
+  boss: PgBoss, job: InboundJob,
+  /** Audit batch 1 (A2) — a transaction to queue it in: the job commits with the message's row, or neither does. */
+  db?: { executeSql(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> },
+): Promise<void> {
   await boss.send(QUEUES.inbound, job, {
     singletonKey: job.conversationId,
     retryLimit: 3,
     group: inboundGroup(job.businessId),
+    ...(db ? { db } : {}),
   });
 }

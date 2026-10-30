@@ -16,7 +16,15 @@ export type ChannelKind =
 
 export type SendResult =
   | { readonly ok: true; readonly providerMessageId: string }
-  | { readonly ok: false; readonly retryable: boolean; readonly error: string };
+  | {
+      readonly ok: false; readonly retryable: boolean; readonly error: string;
+      /**
+       * Audit batch 1 (B5) — the provider may have accepted it: no answer in time, the connection lost after the
+       * request was written, or a yes that named no message. Never retried; the row stops and a person decides
+       * (0052, `sendFailure.ts`).
+       */
+      readonly uncertain?: true;
+    };
 
 /**
  * M26 — a picture, with the words that go with it.

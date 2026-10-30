@@ -264,7 +264,11 @@ export function gateOutbound(g: GateInput): GateDecision {
   }
   if (g.origin === 'employee') {
     // 0135 — except a notice that may still reach them (`noticeSpeaks`).
-    if (!aiMaySpeak(ownershipOf(g.assignedTo)) && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
+    // Audit batch 1 (B6) — and except a reply a PERSON approved: pressing Send on a draft after "Hand to me" is the
+    // person who holds the conversation choosing those words. It was cancelled as handed off after the page said sent.
+    if (!aiMaySpeak(ownershipOf(g.assignedTo)) && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo)) && g.approved !== true) {
+      return { allow: false, reason: 'handed_off' };
+    }
     // Through a pause only the line that answers a stop: nothing else the assistant writes.
     if (g.paused && g.notice !== 'opt_out') return { allow: false, reason: 'paused' };
   }
@@ -302,11 +306,12 @@ export function gateOutbound(g: GateInput): GateDecision {
  * gate blocks their retries.
  */
 export function cancelableOnTakeover(
-  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach'; readonly notice?: Notice | null })[],
+  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach'; readonly notice?: Notice | null; readonly approved?: boolean })[],
   holder: ConversationOwnership = 'OWNER_CONTROLLED',
 ): readonly string[] {
   return rows
     // 0135 — a notice that may still reach them is not the employee speaking.
-    .filter((r) => r.status === 'queued' && r.origin === 'employee' && !noticeSpeaks(r.notice, holder))
+    // B6 — nor is a reply a person approved: it answers to the gate, which names the real reason if it may not go.
+    .filter((r) => r.status === 'queued' && r.origin === 'employee' && r.approved !== true && !noticeSpeaks(r.notice, holder))
     .map((r) => r.id);
 }

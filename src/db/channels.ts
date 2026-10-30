@@ -631,6 +631,12 @@ export async function enqueueOutboundRow(
    * (`kind = 'image'`, 0024), its body the caption. The worker still refuses one it does not serve (F1).
    */
   media: { readonly url: string } | null = null,
+  /**
+   * Audit batch 1 (B8) — false where the caller's own transaction makes the row exactly once (a person's approval,
+   * an order confirmed): two identical replies approved minutes apart are two replies, and both go. Left true for a
+   * job that may run again, which the identical-body check below keeps from queueing its reply twice.
+   */
+  dedupe = true,
 ): Promise<string | null> {
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
@@ -681,7 +687,7 @@ export async function enqueueOutboundRow(
            ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
            ${media ? 'image' : 'text'}, ${media?.url ?? null}
       from outbound_messages where conversation_id = ${conversationId}
-    having ${origin} <> 'employee' or not exists (
+    having ${origin} <> 'employee' or not ${dedupe} or not exists (
       select 1 from outbound_messages
        where conversation_id = ${conversationId} and body = ${body}
          and origin = 'employee' and status not in ('failed','canceled')

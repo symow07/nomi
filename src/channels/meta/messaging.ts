@@ -1,4 +1,5 @@
 import type { SendResult, OutboundMedia } from '../contract.js';
+import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
 import type { ChannelEvent, InboundMessageEvent } from '../whatsapp/parse.js';
 
 /**
@@ -361,13 +362,15 @@ function metaPoster(cfg: MetaSendConfig) {
         try { id = str(obj(JSON.parse(text))['message_id']); } catch { /* id below */ }
         // A provider always names what it accepted; the row's own id would not
         // match the status webhooks Meta sends about it.
-        return id ? { ok: true, providerMessageId: id } : { ok: false, retryable: true, error: 'meta accepted without an id' };
+        // B5 — and a yes with no id may still be on its way: never sent again by a machine.
+        return id ? { ok: true, providerMessageId: id } : acceptedWithoutId('meta');
       }
       const status = `meta ${res.status}${metaErrorCode(text)}`;
       if (res.status === 429 || res.status >= 500) return { ok: false, retryable: true, error: status };
       return { ok: false, retryable: false, error: status };
-    } catch {
-      return { ok: false, retryable: true, error: 'meta unreachable' };
+    } catch (e) {
+      // B5 — retried only when it provably never reached Meta; a timeout may have been accepted.
+      return thrownSend('meta', e);
     }
   };
 }

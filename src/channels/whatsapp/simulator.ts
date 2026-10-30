@@ -29,7 +29,9 @@ export type SendBehavior =
   | 'http400_window'        // 24h window expired (re-engagement required) → NOT retryable
   | 'http400_template'      // template unknown/rejected → NOT retryable
   | 'http401'               // credential invalid → NOT retryable
-  | 'network_down';         // connection loss → retryable
+  | 'network_down'          // the connection was refused: it never left → retryable
+  | 'timeout'               // no answer in time: it may have left → uncertain (B5)
+  | 'ok_no_id';             // 2xx naming no message: it may have left → uncertain (B5)
 
 export const SIMULATOR_SECRET = 'sim-webhook-secret-not-a-real-credential';
 
@@ -140,7 +142,12 @@ export function whatsappSimulator(
       case 'http401':
         return { status: 401, text: async () => '{"error":"invalid api key"}' };
       case 'network_down':
-        throw new Error('ECONNREFUSED (simulated)');
+        // What Node's fetch throws when nothing listens: the request never left.
+        throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED (simulated)'), { code: 'ECONNREFUSED' }) });
+      case 'timeout':
+        throw new DOMException('The operation was aborted due to timeout (simulated)', 'TimeoutError');
+      case 'ok_no_id':
+        return { status: 200, text: async () => '{}' };
     }
   };
 

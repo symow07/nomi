@@ -1,7 +1,7 @@
 import { nextToSend, type OutboundRow } from './sequencer.js';
 import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
-  onSendFailure, isUncertainSend,
+  onSendFailure, isUncertainSend, SENDING_RECLAIM_MS,
 } from '../core/channel/delivery.js';
 import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice } from '../core/channel/sendGate.js';
 import { channelSendPlan, sendPlan, type TemplateState } from '../core/channel/window.js';
@@ -9,16 +9,22 @@ import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../core/owner/i18n/messages.js';
-import type { ChannelAdapter } from '../channels/contract.js';
+import type { ChannelAdapter, SendResult } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 
 /**
  * M3 — The outbound drive loop for ONE conversation. Ports in, effects out;
- * the caller (pg-boss job / test) owns the transaction and the conversation
- * advisory lock. Restart-safe: stuck 'sending' rows are reclaimed, every
+ * the caller (pg-boss job / test) owns the transactions and the conversation
+ * advisory lock. Restart-safe: stuck 'sending' rows become 'uncertain', every
  * transition is recorded, and re-running a tick is always harmless.
+ *
+ * Audit batch 1 (A1) — three steps: `prepareConversationOutbound` (decide, mark
+ * 'sending'), `callProvider` (the wire), `finishConversationOutbound` (record
+ * the answer). Production commits the first before the second and holds no
+ * transaction across the call; `driveConversationOutbound` runs all three on
+ * one store.
  */
 
 export type OutboundWorkRow = OutboundRow & {
@@ -218,6 +224,20 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
   'no_postal_address',
 ];
 
+/**
+ * Audit batch 1 (A1) — A SEND, PREPARED: the row is already 'sending', and `call` is the one thing left that
+ * leaves the building. The production drive commits the 'sending' mark, makes the call with no transaction or
+ * lock held, and records the answer in a second transaction (`finishConversationOutbound`).
+ */
+export type PendingSend = {
+  readonly row: OutboundWorkRow;
+  readonly conversationId: string;
+  readonly call: () => Promise<SendResult>;
+  /** WA-S — it goes as the reopening template: what the customer receives instead of the row's words. */
+  readonly reopenText?: string;
+};
+export type Prepared = { readonly effects: readonly DriveEffect[]; readonly send: PendingSend | null };
+
 export type DriveEffect =
   /** 0052 — the provider was called and never answered; a person must decide. */
   | { readonly kind: 'uncertain'; readonly id: string }
@@ -313,7 +333,7 @@ export function marketingFooter(
     t(locale, 'mail.footer.unsubscribe', { url: unsubscribeUrl })].join('\n');
 }
 
-export async function driveConversationOutbound(
+export async function prepareConversationOutbound(
   deps: {
     /** WhatsApp, when the installation has it; the map answers for the rest. */
     store: OutboundStore; adapter?: ChannelAdapter; adapters?: AdapterFor;
@@ -325,8 +345,9 @@ export async function driveConversationOutbound(
     mediaOrigin?: string | null;
   },
   conversationId: string,
-): Promise<readonly DriveEffect[]> {
+): Promise<Prepared> {
   const effects: DriveEffect[] = [];
+  const done = (fx: readonly DriveEffect[]): Prepared => ({ effects: fx, send: null });
   const { rows, ctx } = await deps.store.load(conversationId);
   const now = deps.now();
 
@@ -379,13 +400,23 @@ export async function driveConversationOutbound(
 
   // 3. Ordering decision.
   const decision = nextToSend(active, now);
-  if (decision.action === 'idle') return [...effects, { kind: 'idle' }];
+  if (decision.action === 'idle') {
+    // A1 — a send still in flight (another drive, or one whose outcome could not be written) is looked at again
+    // once it may be called uncertain: left alone, a row whose ending was lost would sit in 'sending' unseen.
+    const inFlight = live.filter((r) => r.status === 'sending' && r.sendingSince !== null);
+    if (inFlight.length > 0) {
+      const oldest = inFlight.reduce((a, b) => (a.sendingSince!.getTime() <= b.sendingSince!.getTime() ? a : b));
+      const due = SENDING_RECLAIM_MS - (now.getTime() - oldest.sendingSince!.getTime()) + 1_000;
+      return done([...effects, { kind: 'waiting', blockedOn: oldest.id, recheckInMs: Math.max(1_000, due) }]);
+    }
+    return done([...effects, { kind: 'idle' }]);
+  }
   if (decision.action === 'wait') {
-    return [...effects, { kind: 'waiting', blockedOn: decision.blockedOn, recheckInMs: decision.recheckInMs }];
+    return done([...effects, { kind: 'waiting', blockedOn: decision.blockedOn, recheckInMs: decision.recheckInMs }]);
   }
 
   const candidate = active.find((r) => r.id === decision.id);
-  if (!candidate) return effects; // row vanished mid-tick — next tick resolves
+  if (!candidate) return done(effects); // row vanished mid-tick — next tick resolves
 
   // 4. Final gate: 24h window + suppression, evaluated at SEND time.
   //
@@ -396,7 +427,7 @@ export async function driveConversationOutbound(
   // someone who may never have consented.
   if (candidate.origin === 'outreach' && !ctx.outreach) {
     await refuse(deps, candidate, 'outreach_unchecked');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'outreach_unchecked' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'outreach_unchecked' }]);
   }
   // And the window is the CHANNEL's, not WhatsApp's — see `channelSendPlan`. 0215 — TikTok's is a COUNT, not a window:
   // its plan is open and its counts decide (`channelLimitReached`); with no counts read, nothing goes (fail closed).
@@ -435,7 +466,7 @@ export async function driveConversationOutbound(
   });
   if (!gate.allow) {
     await refuse(deps, candidate, gate.reason);
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }]);
   }
   if (gate.viaTemplate) {
     /*
@@ -457,19 +488,18 @@ export async function driveConversationOutbound(
         && candidate.origin !== 'outreach' && candidate.kind !== 'image'
         && (candidate.origin === 'owner' || candidate.approved === true)) {
       await deps.store.transition(candidate.id, 'sending', null);
-      const sent = await tAdapter.sendTemplate(candidate.to, { name: ctx.reopen.name, language: ctx.reopen.language, params: ctx.reopen.params });
-      if (sent.ok) {
-        await deps.store.recordProviderId(candidate.id, sent.providerMessageId);
-        await deps.store.reopenedWith?.(candidate.id, conversationId, ctx.reopen.text, candidate.body);
-        await deps.store.transition(candidate.id, 'sent', null);
-        // The template asks nothing Nomi can read.
-        await deps.store.markQuestionAsked?.(conversationId, null);
-        return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: sent.providerMessageId }];
-      }
-      return [...effects, await failedSend(deps, candidate, sent)];
+      const reopen = ctx.reopen;
+      const sendTemplate = tAdapter.sendTemplate.bind(tAdapter);
+      return {
+        effects,
+        send: {
+          row: candidate, conversationId, reopenText: reopen.text,
+          call: () => sendTemplate(candidate.to, { name: reopen.name, language: reopen.language, params: reopen.params }),
+        },
+      };
     }
     await refuse(deps, candidate, 'window_needs_owner');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'window_needs_owner' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'window_needs_owner' }]);
   }
 
   // 5. Send, with the transition recorded on both sides of the wire.
@@ -490,7 +520,7 @@ export async function driveConversationOutbound(
   if (candidate.kind === 'image') {
     if (!candidate.mediaUrl || !servedByNomi(candidate.mediaUrl, deps.mediaOrigin ?? null) || !adapterFor(deps, candidate.channel)?.sendMedia) {
       await refuse(deps, candidate, 'media_unsupported');
-      return [...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }];
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
     }
   }
   // C4.a — the adapter this row's channel needs, and the refusals that follow
@@ -499,14 +529,14 @@ export async function driveConversationOutbound(
   const adapter = adapterFor(deps, candidate.channel);
   if (!adapter) {
     await refuse(deps, candidate, 'channel_unavailable');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }]);
   }
   const asMail = adapter.sendMail !== undefined;
   if (asMail && !candidate.subject) {
     // A mail with no subject is not the message she wrote, and inventing one
     // would invent the only part her buyer sees before opening it.
     await refuse(deps, candidate, 'subject_missing');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'subject_missing' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'subject_missing' }]);
   }
   // 'en' is the fallback for a buyer whose language nothing has observed yet —
   // named here, at the one place that needs one, rather than assumed in the
@@ -528,7 +558,7 @@ export async function driveConversationOutbound(
   // no way out would have gone.
   if (asMail && candidate.origin === 'outreach' && !('List-Unsubscribe' in envelope.headers)) {
     await refuse(deps, candidate, 'no_unsubscribe');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }]);
   }
   /*
    * 0133 (docs/PRE-LAUNCH.md item 3) — A FIRST E-MAIL OR FOLLOW-UP CARRIES, IN ITS OWN TEXT, A WAY OUT A PERSON CAN
@@ -540,51 +570,104 @@ export async function driveConversationOutbound(
   const marketing = asMail && candidate.origin === 'outreach';
   if (marketing && !ctx.sender?.postalAddress?.trim()) {
     await refuse(deps, candidate, 'no_postal_address');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_postal_address' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'no_postal_address' }]);
   }
   if (marketing && !envelope.unsubscribeUrl) {
     await refuse(deps, candidate, 'no_unsubscribe');
-    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
+    return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }]);
   }
   const mailText = marketing
     ? candidate.body + marketingFooter(ctx.sender!, envelope.unsubscribeUrl!, ctx.buyerLocale ?? ctx.sender!.locale)
     : candidate.body;
 
+  // A1 — 'sending' is written HERE, and the production drive commits it before the provider is called: a crash or a
+  // deploy during the call leaves this row 'sending' — it becomes 'uncertain' and the owner decides — instead of
+  // rolling it back to 'queued', which sent it again.
   await deps.store.transition(candidate.id, 'sending', null);
-  const result = asMail && adapter.sendMail
-    ? await adapter.sendMail({
-        to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag,
-      })
-    : candidate.kind === 'image' && candidate.mediaUrl && adapter.sendMedia
-      ? await adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })
-      : await adapter.sendText(candidate.to, candidate.body);
+  const mediaUrl = candidate.kind === 'image' ? candidate.mediaUrl ?? null : null;
+  const call = (): Promise<SendResult> => (asMail && adapter.sendMail
+    ? adapter.sendMail({ to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag })
+    : mediaUrl && adapter.sendMedia
+      ? adapter.sendMedia(candidate.to, { url: mediaUrl, caption: candidate.body })
+      : adapter.sendText(candidate.to, candidate.body));
+  return { effects, send: { row: candidate, conversationId, call } };
+}
 
+/**
+ * Audit batch 1 (A1) — the provider's answer, recorded. The production drive calls this in a transaction of its
+ * own, AFTER the call; the row may have moved meanwhile (a concurrent drive called it uncertain, an erasure took
+ * it), and that is read first.
+ */
+export async function finishConversationOutbound(
+  deps: { store: OutboundStore; now: () => Date }, send: PendingSend, result: SendResult,
+): Promise<readonly DriveEffect[]> {
+  const { row: candidate, conversationId } = send;
+  const { rows } = await deps.store.load(conversationId);
+  const current = rows.find((r) => r.id === candidate.id);
+  // Erased while it was on the wire (Practice's Start over, a deletion): there is nothing left to write on.
+  if (!current) return [];
   if (result.ok) {
     await deps.store.recordProviderId(candidate.id, result.providerMessageId);
+    if (send.reopenText !== undefined) await deps.store.reopenedWith?.(candidate.id, conversationId, send.reopenText, candidate.body);
     await deps.store.transition(candidate.id, 'sent', null);
-    // 0079 — the buyer has been TOLD: a message carrying the disclosure left,
-    // whoever wrote it and whichever mode sent it. Here and nowhere else — a
-    // queued, refused or failed one told him nothing.
-    if (carriesDisclosure(candidate.body)) await deps.store.markDisclosureDelivered?.(conversationId, now);
-    // 0080 — and what it ASKED is now what the customer was asked: a "yes"
-    // that follows answers this. The owner's own words ask nothing Nomi can
-    // read, so they clear it.
-    await deps.store.markQuestionAsked?.(conversationId, candidate.origin === 'employee' ? candidate.asks ?? null : null);
-    return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: result.providerMessageId }];
+    if (send.reopenText !== undefined) {
+      // The template asks nothing Nomi can read.
+      await deps.store.markQuestionAsked?.(conversationId, null);
+    } else {
+      // 0079 — the buyer has been TOLD: a message carrying the disclosure left,
+      // whoever wrote it and whichever mode sent it. Here and nowhere else — a
+      // queued, refused or failed one told him nothing.
+      if (carriesDisclosure(candidate.body)) await deps.store.markDisclosureDelivered?.(conversationId, deps.now());
+      // 0080 — and what it ASKED is now what the customer was asked: a "yes"
+      // that follows answers this. The owner's own words ask nothing Nomi can
+      // read, so they clear it.
+      await deps.store.markQuestionAsked?.(conversationId, candidate.origin === 'employee' ? candidate.asks ?? null : null);
+    }
+    return [{ kind: 'sent', id: candidate.id, providerMessageId: result.providerMessageId }];
   }
+  // Already called uncertain while the call ran: a failure now is no news — the owner's question stands.
+  if (current.status === 'uncertain') return [{ kind: 'uncertain', id: candidate.id }];
+  return [await failedSend(deps, candidate, result)];
+}
 
-  return [...effects, await failedSend(deps, candidate, result)];
+/** The provider call itself. A call that THROWS (a bug, never a provider's answer) may have left: uncertain. */
+export async function callProvider(send: PendingSend): Promise<SendResult> {
+  try {
+    return await send.call();
+  } catch (e) {
+    return { ok: false, retryable: false, uncertain: true, error: redactSecrets(`the send failed unexpectedly: ${String(e)}`).slice(0, 300) };
+  }
+}
+
+/**
+ * The whole tick in one go — for a caller that owns ONE store (the tests, and anything in-memory). The production
+ * drive (`src/main.ts`) runs the same three steps with the provider call outside any transaction.
+ */
+export async function driveConversationOutbound(
+  deps: Parameters<typeof prepareConversationOutbound>[0], conversationId: string,
+): Promise<readonly DriveEffect[]> {
+  const prepared = await prepareConversationOutbound(deps, conversationId);
+  if (!prepared.send) return prepared.effects;
+  const result = await callProvider(prepared.send);
+  return [...prepared.effects, ...(await finishConversationOutbound(deps, prepared.send, result))];
 }
 
 /** A provider refusal or silence: retried, dead-lettered or failed by the one rule (`onSendFailure`). */
 async function failedSend(
-  deps: { store: OutboundStore }, candidate: OutboundWorkRow, result: { readonly retryable: boolean; readonly error: string },
+  deps: { store: OutboundStore }, candidate: OutboundWorkRow,
+  result: { readonly retryable: boolean; readonly error: string; readonly uncertain?: true },
 ): Promise<DriveEffect> {
   const attempts = candidate.attempts + 1;
   const failure = onSendFailure({ retryable: result.retryable, error: result.error }, attempts);
   // Provider error text passes through redaction BEFORE any sink — persistence
   // (last_error) and logs must never carry secret-shaped content (audit M3).
   const safeError = redactSecrets(result.error);
+  // B5 — the provider may have accepted it (no answer in time, a yes with no id): never sent again by a machine.
+  // The row stops where a crash would have left it, and the owner is shown it and decides (0052).
+  if (result.uncertain === true) {
+    await deps.store.transition(candidate.id, 'uncertain', `no answer: ${safeError}`);
+    return { kind: 'uncertain', id: candidate.id };
+  }
   if (failure.kind === 'retry') {
     await deps.store.transition(candidate.id, 'queued', `retry ${attempts}: ${safeError}`);
     await deps.store.scheduleRetry(candidate.id, failure.delayMs, safeError);

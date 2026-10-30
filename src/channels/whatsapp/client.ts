@@ -7,12 +7,14 @@
  * Auth: D360-API-KEY header.
  */
 
-export type WhatsAppSendResult =
-  | { readonly ok: true; readonly providerMessageId: string }
-  | { readonly ok: false; readonly retryable: boolean; readonly error: string };
+import type { SendResult } from '../contract.js';
+import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
+
+export type WhatsAppSendResult = SendResult;
 
 /** Bounded provider timeout (audit M1): a hung socket must not stall a
- * worker slot — abort → retryable network failure → normal backoff. */
+ * worker slot. B5 (2026-10-30) — an abort is NOT retried: the message may have
+ * been accepted, so the row becomes 'uncertain' and the owner decides. */
 export const PROVIDER_TIMEOUT_MS = 15_000;
 
 export type FetchLike = (url: string, init: {
@@ -46,7 +48,8 @@ export function whatsappClient(cfg: {
         const id = /"id"\s*:\s*"([^"]+)"/.exec(text)?.[1];
         return id
           ? { ok: true, providerMessageId: id }
-          : { ok: false, retryable: false, error: `2xx without message id: ${text.slice(0, 200)}` };
+          // B5 — a yes that named nothing may still be on its way: the owner decides, nothing resends it.
+          : acceptedWithoutId('whatsapp');
       }
       // 429/5xx retry; 4xx (bad payload, auth, 24h-window violation) do not —
       // retrying a policy rejection just re-fails and burns quality rating.
@@ -56,7 +59,8 @@ export function whatsappClient(cfg: {
         error: `${res.status}: ${text.slice(0, 300)}`,
       };
     } catch (e) {
-      return { ok: false, retryable: true, error: `network: ${String(e)}` };
+      // B5 — retried only when it provably never reached the provider; a timeout may have been accepted.
+      return thrownSend('whatsapp', e);
     }
   }
 

@@ -109,13 +109,14 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
                where id = (select client_id from conversations where id = ${conv}::uuid)`.execute(tx);
   });
   const footprint = (conv: string) => q((tx) => sql<{
-    proposals: number; pending: number; orders: number; outbound: number; drafts: number; active: boolean;
+    proposals: number; pending: number; orders: number; outbound: number; settled: number; drafts: number; active: boolean;
     assigned: string | null; events: string[];
   }>`
     select (select count(*)::int from order_proposals p where p.conversation_id = c.id) as proposals,
            (select count(*)::int from order_proposals p where p.conversation_id = c.id and p.state = 'pending') as pending,
            (select count(*)::int from orders o where o.conversation_id = c.id) as orders,
            (select count(*)::int from outbound_messages o where o.conversation_id = c.id) as outbound,
+           (select count(*)::int from outbound_messages o where o.conversation_id = c.id and o.status not in ('queued', 'sending')) as settled,
            (select count(*)::int from drafts dd where dd.conversation_id = c.id) as drafts,
            c.is_active as active, c.assigned_to as assigned,
            coalesce((select array_agg(e.type order by e.id) from conversation_events e
@@ -136,8 +137,10 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     await say(wa, 'hello, I would like some gift boxes');
     const conv = await convOf(wa);
     await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
-    // Its reply is queued by the worker after the turn: wait for it, so the yes's footprint is the yes's alone.
-    await until(async () => ((await footprint(conv)).outbound >= 1 ? true : undefined), 'the first reply');
+    // Its reply is queued by the worker after the turn: wait until it has LEFT (or stopped), so the yes's footprint is
+    // the yes's alone — and so its send, which sets the pending question (0080), is done before the line below sets it.
+    // Audit batch 1 (A1): the row is visible while 'sending' now, before that write.
+    await until(async () => ((await footprint(conv)).settled >= 1 ? true : undefined), 'the first reply');
     await readyToConfirm(conv);
     const before = await footprint(conv);
     await say(wa, 'yes');
@@ -556,7 +559,8 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     await say(wa, 'hello, I would like some gift boxes');
     const conv = await convOf(wa);
     await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
-    await until(async () => ((await footprint(conv)).outbound >= 1 ? true : undefined), 'the first reply');
+    // Left, not merely queued: its send sets the pending question, which the line below sets (audit batch 1, A1).
+    await until(async () => ((await footprint(conv)).settled >= 1 ? true : undefined), 'the first reply');
     // Ready to confirm — product, quantity, the question asked — and NO e-mail on record, ever.
     await q(async (tx) => {
       await sql`update conversations set phase = 'confirmation', assigned_to = null where id = ${conv}::uuid`.execute(tx);

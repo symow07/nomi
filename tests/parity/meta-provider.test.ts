@@ -52,8 +52,15 @@ describe('meta adapter · outbound send', () => {
       sawSignal = init.signal;
       throw new DOMException('timeout', 'TimeoutError');
     } });
-    expect(await hung.sendText('1', 'x')).toMatchObject({ ok: false, retryable: true });
+    // Audit batch 1 (B5) — a timeout may have been accepted: uncertain, never retried.
+    expect(await hung.sendText('1', 'x')).toMatchObject({ ok: false, retryable: false, uncertain: true });
     expect(sawSignal).toBeInstanceOf(AbortSignal);
+    // A connection refused never left: that one is retried.
+    const refused = metaAdapter({ ...META, fetchImpl: async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) });
+    } });
+    expect(await refused.sendText('1', 'x')).toMatchObject({ ok: false, retryable: true });
+    expect(await refused.sendText('1', 'x')).not.toHaveProperty('uncertain');
   });
 });
 

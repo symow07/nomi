@@ -43,12 +43,18 @@ describe('0162 · an order reference is the workspace\'s own count', () => {
     expect(hits).toEqual([]);
   });
 
-  it('a number leaves only after its order is committed: the confirmation is queued after the transaction, never inside it', () => {
+  it('a number leaves only after its order is committed: the confirmation is queued IN its transaction, so nothing reads it before', () => {
+    // Audit batch 1 (B7, 2026-10-30): it was queued after the commit, and a queue that failed then left an order
+    // confirmed whose customer was never told. In the transaction, the drive's job is invisible until the order
+    // commits — the number still cannot leave first — and a failure undoes both.
     const op = read('src/pipeline/orderProposal.ts');
     const tx = op.indexOf('const r = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{');
-    const send = op.indexOf('if (r.sendText) await deps.kickOutbound(input.businessId, input.conversationId, r.sendText);');
+    const send = op.indexOf('if (sendText) await deps.kickOutbound(input.businessId, input.conversationId, sendText, null, null, tx);');
     expect(tx).toBeGreaterThan(-1);
-    expect(send).toBeGreaterThan(op.indexOf('  });', op.indexOf('return { outcome: \'confirmed\'', tx)));
+    expect(send).toBeGreaterThan(tx);
+    expect(send).toBeLessThan(op.indexOf('  });', op.indexOf('return { outcome: \'confirmed\'', tx)));
+    // …and main.ts queues the job through that same transaction.
+    expect(read('src/main.ts')).toMatch(/boss\.send\(QUEUES\.outbound, \{ businessId, conversationId \}, \{ singletonKey: conversationId, db: txDatabase\(tx\) \}\)/);
   });
 
   it('the migration: a count per workspace and year under row security, the reference unique per workspace, the old counter closed', () => {

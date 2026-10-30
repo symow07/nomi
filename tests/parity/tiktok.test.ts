@@ -162,3 +162,22 @@ describe('0215 · the database and the boot', () => {
     expect(unnamedRecipientProblems({ TIKTOK_APP_ID: 'x' }).join(' ')).toContain('TikTok');
   });
 });
+
+describe('Audit batch 1 · B5 — a TikTok send with no answer, or a yes naming nothing, is uncertain', () => {
+  const args = { accessToken: 'at', openId: 'oid', conversationId: 'c', body: 'Hello' };
+  it('a timeout: uncertain, never retried', async () => {
+    const r = await sendTikTokText(async () => { throw new DOMException('timeout', 'TimeoutError'); }, args);
+    expect(r).toMatchObject({ ok: false, retryable: false, uncertain: true, dead: false });
+  });
+  it('a refused connection never left: retried', async () => {
+    const r = await sendTikTokText(async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) });
+    }, args);
+    expect(r).toMatchObject({ ok: false, retryable: true });
+    expect(r).not.toHaveProperty('uncertain');
+  });
+  it('code 0 with no message id: uncertain', async () => {
+    const r = await sendTikTokText(async () => ({ status: 200, text: async () => JSON.stringify({ code: 0, data: {} }) }), args);
+    expect(r).toMatchObject({ ok: false, retryable: false, uncertain: true });
+  });
+});
