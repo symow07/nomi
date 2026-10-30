@@ -74,6 +74,11 @@ export type PilotReadiness = {
   /** G6 — the Practice checklist, for a self-serve workspace: seen of total, and whether complete. */
   readonly ready?: { readonly done: number; readonly total: number; readonly complete: boolean } | null;
   /**
+   * B16 — the same count for EVERY workspace (`loadReadiness`): Getting ready's Practice row and Going live say it
+   * as Practice and Ready for customers do. Only a self-serve workspace is held to it (`ready`).
+   */
+  readonly practice?: { readonly done: number; readonly total: number; readonly complete: boolean };
+  /**
    * What the box is pre-filled with: her stored name, or — before any row
    * exists — the one the signup locale would give her. A suggestion, not a
    * decision; `assistantNamedAt` records the decision.
@@ -97,8 +102,9 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
   // G6 — the checklist, read before the transaction below (it opens its own).
   const selfServe = await withTenantTx(db, B, async (tx) => (await sql<{ s: boolean }>`
     select signed_up_at is not null as s from businesses where id = ${B}`.execute(tx)).rows[0]?.s ?? false);
-  const rv = selfServe ? await loadReady(db, B) : null;
-  const ready = rv ? { done: readyDone(rv), total: readyTotal(rv), complete: readyComplete(rv) } : null;
+  const rv = await loadReady(db, B);
+  const practice = { done: readyDone(rv), total: readyTotal(rv), complete: readyComplete(rv) };
+  const ready = selfServe ? practice : null;
 
   return withTenantTx(db, B, async (tx) => {
     const r = (await sql<{
@@ -165,7 +171,7 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
       validation: { at: r.last_validation_at, pass: r.last_validation_pass, total: r.last_validation_total },
       backupVerifiedAt,
       readyToLaunch,
-      selfServe, ready,
+      selfServe, ready, practice,
       assistantName: r.assistant_name ?? defaultAssistantName(parseLocale(r.owner_locale ?? 'en') ?? 'en'),
     };
   });
@@ -663,7 +669,11 @@ export const practiceTasks = (rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>)
 function practiceSection(rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>, locale: Locale): string {
   const rows = practiceTasks(rb).map((x) =>
     `<div class="pr ${x.done ? 'done' : 'todo'}">${mk(x.done)} <span class="lbl">${esc(t(locale, x.label))}</span></div>`).join('');
-  return `<p class="muted">${esc(t(locale, 'runbook.practice.how')).replace('✓', shape('ok'))}</p>
+  // B16 — the screen opens with the same count as the row that led here, and its door to the checklist itself.
+  const p = rb.readiness.practice;
+  const count = p ? `<p class="note">${mk(p.complete)} ${esc(t(locale, 'pilot.ready.count', { done: p.done, total: p.total }))}
+    ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</p>` : '';
+  return `${count}<p class="muted">${esc(t(locale, 'runbook.practice.how')).replace('✓', shape('ok'))}</p>
     <div class="block">${rows}</div>
     ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}`;
 }
@@ -860,13 +870,17 @@ export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: Flash | null, _feedback?: PilotFeedback,
   viewer: Viewer = OWNER_VIEW,
 ): string {
+  // B16 — the row says the checklist's count, the one Practice, Ready for customers and Going live say; it said
+  // how many of four other tasks were done ("2 of 4 done" beside "3 of 8 seen in Practice").
+  const p = rb.readiness.practice;
   const tasks = practiceTasks(rb);
   const seen = tasks.filter((x) => x.done).length;
+  const [value, tone] = p
+    ? [p.complete ? t(locale, 'setup.state.done') : t(locale, 'pilot.ready.count', { done: p.done, total: p.total }), p.complete ? 'ok' as const : 'warn' as const]
+    : [seen === tasks.length ? t(locale, 'setup.state.done') : t(locale, 'runbook.practice.count', { done: seen, total: tasks.length }), seen === tasks.length ? 'ok' as const : 'warn' as const];
   return renderPilotReadiness(rb.readiness, locale, flash, viewer)
     + menuGroup('more', null, [
-      menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'practice', label: t(locale, SCREEN_TITLE.practice),
-        value: seen === tasks.length ? t(locale, 'setup.state.done') : t(locale, 'runbook.practice.count', { done: seen, total: tasks.length }),
-        tone: seen === tasks.length ? 'ok' : 'warn' }),
+      menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'practice', label: t(locale, SCREEN_TITLE.practice), value, tone }),
       menuRow({ href: PILOT_SCREEN_PATH.activity, icon: 'history', label: t(locale, SCREEN_TITLE.activity) }),
     ]);
 }

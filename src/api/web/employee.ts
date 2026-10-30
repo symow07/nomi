@@ -1,4 +1,5 @@
 import { rampState, type RampState } from '../../db/ramp.js';
+import { loadReadiness } from '../../db/readiness.js';
 import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -144,6 +145,9 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     growth: [], promoted: false, conditions: [], spotChecks: [], assistantNamed: false,
   };
   if (!bid.ok) return empty;
+  // B16 — the ramp's "Practice checklist complete" reads what is written down; bring it in line with what the
+  // practice copy shows first, as every other readiness count does (`loadReadiness`).
+  await loadReadiness(db, bid.value);
 
   return withTenantTx(db, bid.value, async (tx) => {
     const onboard = (await sql<{ signup_at: Date | null; assistant_named_at: Date | null }>`

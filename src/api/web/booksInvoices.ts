@@ -72,7 +72,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
   const actions = !mayPost(viewer) ? '' : v.status === 'draft' ? `
       <p><a class="deeper" href="/app/books/invoices/${esc(v.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/issue" class="pform">
-        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.invoice.issueAsk'))}">${esc(t(locale, 'books.invoice.issue'))}</button></form>
+        <button class="btn send" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.invoice.issueAsk'))}">${esc(t(locale, 'books.invoice.issue'))}</button></form>
       <form method="post" action="/app/books/invoices/${esc(v.id)}/discard" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.invoice.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>`
     : signOf(owed) > 0 ? `<div class="block" id="pay">
@@ -82,7 +82,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
         <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(owed)}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
-        <button class="btn" type="submit">${esc(t(locale, 'books.invoice.record'))}</button>
+        <button class="btn send" type="submit">${esc(t(locale, 'books.invoice.record'))}</button>
       </form></div>` : signOf(owed) < 0 ? `<div class="block" id="refund">
       <h2>${esc(t(locale, 'books.credit.refund'))}</h2>
       <p>${esc(t(locale, 'books.credit.refundExplain'))}</p>
@@ -91,7 +91,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
         <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(subDecimal('0' as Decimal, owed))}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
-        <button class="btn" type="submit">${esc(t(locale, 'books.credit.recordRefund'))}</button>
+        <button class="btn send" type="submit">${esc(t(locale, 'books.credit.recordRefund'))}</button>
       </form></div>` : '';
   const creditDoor = mayPost(viewer) && v.status !== 'draft' && v.status !== 'discarded' && compareDecimal(v.credited, v.total) < 0
     ? `<p><a class="deeper" href="/app/books/invoices/${esc(v.id)}/credit-notes/new">${esc(t(locale, 'books.credit.make'))}</a></p>` : '';
@@ -162,7 +162,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
           <th scope="col">${esc(t(locale, 'books.invoice.unitPrice'))}</th><th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.account'))}</th></tr></thead>
         <tbody>${Array.from({ length: formLines(values, INVOICE_FORM_LINES, 'label') }, (_, i) => line(i)).join('')}</tbody>
       </table></div>
-      <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
+      <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <div class="block" id="customer">
       <h2>${esc(t(locale, 'books.invoice.addCustomer'))}</h2>
@@ -179,7 +179,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         <label class="pq"><span><input type="checkbox" name="registryConfirmed" value="1" /> ${esc(t(locale, 'books.party.registryConfirm'))}</span></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.address'))}</span><textarea name="address" maxlength="400" rows="3"></textarea></label>
         ${customInputs(locale, c.fields ?? [], 'party', PARTY_CUSTOM, {})}
-        <button class="btn ghost" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
+        <button class="btn" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
       </form>
     </div>`;
 }
@@ -196,11 +196,11 @@ export function renderBank(locale: Locale, viewer: Who, c: {
   const choose = `<form method="get" action="/app/books/bank" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account">${c.accounts.map((a) =>
         `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select></label>
-      <button class="btn ghost" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
+      <button class="btn" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
   if (!c.accountId) return `<h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1><p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>${choose}`;
   const upload = owner ? `<form method="post" action="/app/books/bank/import?account=${esc(c.accountId)}" enctype="multipart/form-data" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.bank.file'))}</span><input type="file" name="statement" accept=".csv,.ofx,.qfx,.xml,text/csv,application/xml" required /></label>
-      <button class="btn" type="submit">${esc(t(locale, 'books.bank.read'))}</button></form>
+      <button class="btn send" type="submit">${esc(t(locale, 'books.bank.read'))}</button></form>
       <p class="caption muted">${esc(t(locale, 'books.bank.formats'))}</p>` : '';
   const line = (l: { bookedOn: string; amount: Decimal; currency: string; wording: string | null; reference: string | null }) =>
     `${day(locale, l.bookedOn)} · ${money(locale, l.amount, l.currency)}${l.wording ? ` · <bdi>${esc(l.wording)}</bdi>` : ''}`;
@@ -246,7 +246,7 @@ export function renderNewCreditNote(locale: Locale, inv: { readonly id: string; 
             aria-label="${esc(t(locale, 'books.credit.reduction', { currency: inv.currency }))} ${l.lineNo}" />` : ''}</td></tr>`).join('')}</tbody>
       </table></div>
       <p class="caption muted">${esc(t(locale, 'books.credit.reductionHelp'))}</p>
-      <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
+      <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <p><a class="deeper" href="/app/books/invoices/${esc(inv.id)}">${esc(inv.key)}</a></p>`;
 }
@@ -257,7 +257,7 @@ export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView)
   const actions = mayPost(viewer) && c.state === 'draft' ? `
       <p><a class="deeper" href="/app/books/credit-notes/${esc(c.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       <form method="post" action="/app/books/credit-notes/${esc(c.id)}/issue" class="pform">
-        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.issueAsk'))}">${esc(t(locale, 'books.credit.issue'))}</button></form>
+        <button class="btn send" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.issueAsk'))}">${esc(t(locale, 'books.credit.issue'))}</button></form>
       <form method="post" action="/app/books/credit-notes/${esc(c.id)}/discard" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>` : '';
   return `<h1 class="page"><bdi>${esc(c.key ?? t(locale, 'books.entry.state.draft'))}</bdi> · <bdi>${esc(c.billedTo.name)}</bdi></h1>
@@ -314,7 +314,7 @@ export function renderStatementColumns(locale: Locale, o: {
       ${pick('books.bank.columns.currency', columns('currency', g.currency, true).replace(esc(t(locale, 'books.bank.columns.none')), esc(t(locale, 'books.bank.columns.allIn', { currency: o.book }))))}
       ${pick('books.bank.columns.description', columns('description', g.description, true))}
       ${pick('books.bank.columns.reference', columns('reference', g.reference, true))}
-      <button class="btn" type="submit">${esc(t(locale, 'books.bank.columns.save'))}</button>
+      <button class="btn send" type="submit">${esc(t(locale, 'books.bank.columns.save'))}</button>
     </form>
     <p><a class="back" href="/app/books/bank?account=${esc(o.accountId)}">${esc(t(locale, 'books.bank.title'))}</a></p>`;
 }

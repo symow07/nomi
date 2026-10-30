@@ -65,7 +65,7 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
   const actions = !mayPost(viewer) ? '' : e.state === 'draft' ? `
       <p><a class="deeper" href="/app/books/entries/${esc(e.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
       ${!e.documentRef || !e.documentDate ? `<p class="caption muted">${esc(t(locale, 'books.entry.needsDocument'))}</p>` : ''}
-      <form method="post" action="/app/books/entries/${esc(e.id)}/post" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.entry.post'))}</button></form>
+      <form method="post" action="/app/books/entries/${esc(e.id)}/post" class="pform"><button class="btn send" type="submit">${esc(t(locale, 'books.entry.post'))}</button></form>
       <form method="post" action="/app/books/entries/${esc(e.id)}/discard" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.entry.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>`
     : posted && !e.reversedBy ? `
@@ -155,7 +155,7 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
           <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th>${customHeads(c.fields ?? [], 'line')}</tr></thead>
         <tbody>${Array.from({ length: formLines(values, ENTRY_FORM_LINES, 'account') }, (_, i) => line(i)).join('')}</tbody>
       </table></div>
-      <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
+      <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <p class="caption muted">${esc(t(locale, 'books.entry.draftNote'))}</p>`;
 }
@@ -171,11 +171,11 @@ export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[
         `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select>
       <select name="taxCode" aria-label="${esc(t(locale, 'books.entry.tax'))}"><option value=""></option>${c.taxCodes.map((x) =>
         `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select>
-      <button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>`;
+      <button class="btn" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>`;
   return `<h1 class="page">${esc(t(locale, 'books.orders.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.orders.lede'))}</p>
-    ${!accountsSet ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
-    ${accountsSet && c.parties.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.addCustomers'))}</span> <a class="deeper" href="/app/books/invoices/new#customer">${esc(t(locale, 'books.invoice.addCustomer'))}</a></p>` : ''}
+    ${!accountsSet ? `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
+    ${accountsSet && c.parties.length === 0 ? `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.orders.addCustomers'))}</span> <a class="deeper" href="/app/books/invoices/new#customer">${esc(t(locale, 'books.invoice.addCustomer'))}</a></p>` : ''}
     ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `<div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.document'))}</th>
         <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>

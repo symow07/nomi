@@ -57,7 +57,7 @@ describe('G22 · the page says whether she may come down at all', () => {
   it('with no rule written, it says she never offers one — the truth it never said', () => {
     const html = renderPriceRules(view(), 'en');
     expect(html).toContain(esc(t('en', 'prices.volume.none', { name: ASSISTANT_FALLBACK.en })));
-    expect(html).toContain('action="/app/business/prices/volume"');
+    expect(html).toContain('action="/app/business/prices/volume#volume"');
   });
 
   it('a rule reads as her own sentence, with the quantity and the product', () => {

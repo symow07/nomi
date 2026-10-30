@@ -436,13 +436,21 @@ export async function archiveVolumeDiscount(
 export function renderPriceRules(
   v: PriceRulesView, locale: Locale, flash: Flash | null = null,
   errors: Partial<Record<PriceRuleField, PriceRuleError>> = {},
-  draft: { productId?: string | null } = {},
+  draft: { productId?: string | null; values?: Partial<Record<PriceRuleField, string>> } = {},
   volumeErrors: Partial<Record<VolumeField, VolumeError>> = {},
+  volumeDraft: Partial<Record<VolumeField | 'productId', string>> = {},
 ): string {
   const name = assistantName(locale);
+  // B21 — a refusal belongs to the ONE form that was sent (the product's, or the answer for everything): it was
+  // said under the same field of every form on the page, the form itself could be folded shut, and the page opened
+  // at its top with what was typed gone. Now the sent form alone says it, opens, keeps what was typed, and its first
+  // refused field is where the page lands (the form posts to its own section: `#everything`, `#p-<id>`, `#volume`).
+  const refused = Object.keys(errors).length > 0;
+  const sentKey = draft.productId ?? null;
+  const firstBad = (['floor', 'maxDiscountPct', 'askAbovePct'] as const).find((f) => errors[f]);
   const err = (f: PriceRuleField): string =>
     // CC-20 — a refusal is announced as one, like every other field error.
-    errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+    errors[f] ? `<p class="perr" role="alert" id="pr-err-${f}">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   // Phase 9 (new-14) — ONE filled Save on the page: the product opened to
   // change, or else the answer for everything. Every other Save is outlined.
   const opened = draft.productId ? v.products.find((p) => p.productId === draft.productId) ?? null : null;
@@ -450,22 +458,30 @@ export function renderPriceRules(
   const form = (
     productId: string | null, current: PriceRules | null, title: string, sub: string, primary: boolean,
     heading: 'h2' | 'h3' = 'h3', close = '',
-  ): string => `
-    <form method="post" action="/app/business/prices" class="pform">
+  ): string => {
+    const sent = refused && productId === sentKey;
+    const value = (f: PriceRuleField, stored: string | null): string =>
+      esc(sent && draft.values?.[f] !== undefined ? draft.values[f]! : stored ?? '');
+    const field = (f: PriceRuleField): string => !sent || !errors[f] ? ''
+      : ` aria-invalid="true" aria-describedby="pr-err-${f}"${f === firstBad ? ' autofocus' : ''}`;
+    const fe = (f: PriceRuleField): string => (sent ? err(f) : '');
+    return `
+    <form method="post" action="/app/business/prices#${productId ? `p-${esc(productId)}` : 'everything'}" class="pform">
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
       ${title ? `<${heading} class="${heading === 'h2' ? 'pr-h2' : 'sub3'}">${esc(title)}</${heading}>` : ''}
       ${sub ? `<p class="fdesc">${esc(sub)}</p>` : ''}
       <label class="pq"><span>${esc(t(locale, productId ? 'prices.q.floor' : 'prices.q.floorAll', { name, currency: v.currency }))}</span>
-        <input name="floor" inputmode="decimal" required
-               value="${current ? esc(String(current.floor.amount)) : ''}" />${err('floor')}</label>
+        <input name="floor" inputmode="decimal" required${field('floor')}
+               value="${value('floor', current ? String(current.floor.amount) : null)}" />${fe('floor')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.q.maxDiscount', { name }))}</span>
-        <input name="maxDiscountPct" inputmode="decimal" required
-               value="${current ? esc(String(current.maxDiscountPct)) : ''}" />${err('maxDiscountPct')}</label>
+        <input name="maxDiscountPct" inputmode="decimal" required${field('maxDiscountPct')}
+               value="${value('maxDiscountPct', current ? String(current.maxDiscountPct) : null)}" />${fe('maxDiscountPct')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.q.askAbove', { name }))}</span>
-        <input name="askAbovePct" inputmode="decimal" required
-               value="${current ? esc(String(current.askAbovePct)) : ''}" />${err('askAbovePct')}</label>
+        <input name="askAbovePct" inputmode="decimal" required${field('askAbovePct')}
+               value="${value('askAbovePct', current ? String(current.askAbovePct) : null)}" />${fe('askAbovePct')}</label>
       <div class="acts"><button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'prices.save'))}</button>${close}</div>
     </form>`;
+  };
 
   // Products she cannot sell yet come first — they are the reason to be here.
   // D1 — a general floor ABOVE a product's own price cannot cover it, so that
@@ -523,7 +539,7 @@ export function renderPriceRules(
 
     <section class="fblock pr-block" id="everything">
       <h2>${esc(t(locale, 'prices.default.title'))}</h2>
-      ${allOwn ? `<details class="pr-fold"><summary>${esc(t(locale, 'prices.default.open'))}</summary>${everything}</details>` : everything}
+      ${allOwn ? `<details class="pr-fold"${refused && sentKey === null ? ' open' : ''}><summary>${esc(t(locale, 'prices.default.open'))}</summary>${everything}</details>` : everything}
     </section>
 
     ${needing.length > 0 ? `<section class="fblock pr-block">
@@ -542,7 +558,7 @@ export function renderPriceRules(
       <ul class="rows">${covered.map(productRow).join('')}</ul>
     </section>` : ''}
 
-    ${volumeSection(v, locale, volumeErrors)}
+    ${volumeSection(v, locale, volumeErrors, volumeDraft)}
     ${deeper('/app/settings/data/price-rules', t(locale, 'prices.copy'), '', 'download')}
     `;
 }
@@ -557,10 +573,16 @@ export function renderPriceRules(
  */
 function volumeSection(
   v: PriceRulesView, locale: Locale, errors: Partial<Record<VolumeField, VolumeError>>,
+  typed: Partial<Record<VolumeField | 'productId', string>> = {},
 ): string {
   const name = assistantName(locale);
   const err = (f: VolumeField): string =>
-    errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+    errors[f] ? `<p class="perr" role="alert" id="pv-err-${f}">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+  // B21 — the refused field is marked and is where the page lands; what was typed stays.
+  const firstBad = (['minQty', 'discountPct'] as const).find((f) => errors[f]);
+  const field = (f: VolumeField): string => !errors[f] ? ''
+    : ` aria-invalid="true" aria-describedby="pv-err-${f}"${f === firstBad ? ' autofocus' : ''}`;
+  const kept = (f: VolumeField): string => (firstBad && typed[f] !== undefined ? ` value="${esc(typed[f]!)}"` : '');
 
   const rows = v.volume.map((d) => `<li class="row lines">
       <div class="pr-name"><bdi>${esc(t(locale, 'prices.volume.row', {
@@ -574,24 +596,24 @@ function volumeSection(
       </form>
     </li>`).join('');
 
-  return `<section class="fblock pr-block">
+  return `<section class="fblock pr-block" id="volume">
     <h2>${esc(t(locale, 'prices.volume.title'))}</h2>
     <p class="fdesc">${esc(t(locale, 'prices.volume.sub', { name }))}</p>
     ${v.volume.length
       ? `<ul class="rows">${rows}</ul>`
       // Phase 9 (new-15) — no discount is a valid choice, not a thing waiting for her: no amber mark.
       : `<p class="fempty">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
-    <form method="post" action="/app/business/prices/volume" class="pform">
+    <form method="post" action="/app/business/prices/volume#volume" class="pform">
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
         <select name="productId">
           <option value="">${esc(t(locale, 'prices.volume.everyProduct'))}</option>
-          ${v.products.map((p) => `<option value="${esc(p.productId)}">${
+          ${v.products.map((p) => `<option value="${esc(p.productId)}"${firstBad && typed.productId === p.productId ? ' selected' : ''}>${
             esc(show.isolate(locale, productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku))}</option>`).join('')}
         </select></label>
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.minQty'))}</span>
-        <input name="minQty" inputmode="numeric" required />${err('minQty')}</label>
+        <input name="minQty" inputmode="numeric" required${field('minQty')}${kept('minQty')} />${err('minQty')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.discount'))}</span>
-        <input name="discountPct" inputmode="decimal" required />${err('discountPct')}</label>
+        <input name="discountPct" inputmode="decimal" required${field('discountPct')}${kept('discountPct')} />${err('discountPct')}</label>
       <button class="btn" type="submit">${esc(t(locale, 'prices.volume.add'))}</button>
     </form>
   </section>`;

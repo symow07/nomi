@@ -130,7 +130,10 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
-export const ACCOUNTANT_ALSO: ReadonlySet<string> = new Set(['POST /logout']);
+// B18 — and their own sign-in: the password and the language are theirs to change, like anyone's.
+export const ACCOUNTANT_ALSO: ReadonlySet<string> = new Set([
+  'POST /logout', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
+]);
 
 export const booksRouteOf = (method: string, url: string | undefined): (typeof BOOKS_ROUTES)[number] | null =>
   BOOKS_ROUTES.find((r) => r.method === method && r.url === url) ?? null;
@@ -327,7 +330,7 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
       <form method="post" action="/app/books/workbook" enctype="multipart/form-data" class="pform">
         <label class="pq"><span>${esc(t(locale, 'books.workbook.upload'))}</span>
           <input type="file" name="workbook" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required /></label>
-        <button class="btn" type="submit">${esc(t(locale, 'books.workbook.send'))}</button>
+        <button class="btn send" type="submit">${esc(t(locale, 'books.workbook.send'))}</button>
       </form>
       <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>
       <p class="caption muted">${esc(t(locale, 'books.workbook.history'))}</p>` : '';
@@ -400,6 +403,16 @@ export function renderBooksChart(locale: Locale): string {
   return `<div class="block" id="chart">
       <h2>${esc(t(locale, 'books.chart.title'))}</h2>
       <p>${esc(t(locale, 'books.chart.explain'))}</p>
-      <form method="post" action="/app/books/chart/cgnc" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.chart.apply'))}</button></form>
+      <form method="post" action="/app/books/chart/cgnc" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.chart.apply'))}</button></form>
     </div>`;
+}
+
+/**
+ * B18 — THE BOOKS, SWITCHED OFF, as an accountant reads it: every page of theirs leads to the books, and a 404 there
+ * left them going round with no way out. Said plainly, with what stays theirs: their sign-in (the rail's door).
+ */
+export function renderBooksOff(locale: Locale, business: string): string {
+  return `<h1 class="page">${esc(t(locale, 'books.off.title'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.off.body', { business }))}</p>
+    <p><a class="deeper" href="/app/settings/account">${esc(t(locale, 'account.title'))}</a></p>`;
 }

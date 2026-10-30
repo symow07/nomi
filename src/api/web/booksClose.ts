@@ -42,7 +42,7 @@ export function renderClose(locale: Locale, viewer: Who, v: CloseView): string {
         : `<a href="${ITEM_DOOR[c.item]}"><span class="pill warn">${esc(t(locale, 'books.close.waiting', { n: c.n }))}</span></a>`}</span></li>`).join('')}</ul>`;
   const lockForm = !owner(viewer) ? '' : clear && (lock === null || v.monthEnd > lock) && v.monthEnd <= v.today
     ? `<form method="post" action="/app/books/closing/lock" class="pform"><input type="hidden" name="day" value="${esc(v.monthEnd)}" />
-        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.close.lockAsk', { day: show.dateYear(locale, new Date(`${v.monthEnd}T12:00:00Z`)) }))}">${
+        <button class="btn send" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.close.lockAsk', { day: show.dateYear(locale, new Date(`${v.monthEnd}T12:00:00Z`)) }))}">${
         esc(t(locale, 'books.close.lockTo', { day: show.dateYear(locale, new Date(`${v.monthEnd}T12:00:00Z`)) }))}</button></form>`
     : `<p class="caption muted">${esc(t(locale, !clear ? 'books.close.notClear' : v.monthEnd > v.today ? 'books.close.notEnded' : 'books.close.lockedAlready'))}</p>`;
   const locked = openYears.filter((y) => y.lockDate !== null);
@@ -53,7 +53,7 @@ export function renderClose(locale: Locale, viewer: Who, v: CloseView): string {
         <h3>${esc(t(locale, 'books.close.yearSpan', span(y)))}</h3>
         <label class="pq"><span>${esc(t(locale, 'books.close.reopenTo'))}</span><input type="date" name="day" min="${esc(y.startsOn)}" max="${esc(y.lockDate!)}" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.close.why'))}</span><input name="reason" required minlength="3" maxlength="300" /></label>
-        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.close.reopenAsk'))}">${esc(t(locale, 'books.close.reopen'))}</button>
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.close.reopenAsk'))}">${esc(t(locale, 'books.close.reopen'))}</button>
       </form>`).join('')}</div>`;
   const length = (l: 'month' | 'quarter') => t(locale, `books.close.length.${l}`);
   const start = v.start ? `<div class="block" id="start">
@@ -72,18 +72,18 @@ export function renderClose(locale: Locale, viewer: Who, v: CloseView): string {
   const next = v.years[0] ? nextYear(v.years[0].endsOn) : { starts: `${v.today.slice(0, 4)}-01-01`, ends: `${v.today.slice(0, 4)}-12-31` };
   const years = `<div class="block" id="years">
       <h2>${esc(t(locale, 'books.close.years'))}</h2>
-      ${v.years.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.close.noYear'))}</span></p>` : `<ul class="rows">${v.years.map((y) =>
+      ${v.years.length === 0 ? `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.close.noYear'))}</span></p>` : `<ul class="rows">${v.years.map((y) =>
         `<li class="row"><span>${day(locale, y.startsOn)} – ${day(locale, y.endsOn)}</span><span class="pill ${y.state === 'open' ? 'ok' : 'muted'}">${esc(t(locale, `books.close.year.${y.state}` as MessageKey))}</span></li>`).join('')}</ul>`}
       ${owner(viewer) && openYears.length < 2 ? `<form method="post" action="/app/books/closing/open-year" class="pform">
         <label class="pq"><span>${esc(t(locale, 'books.trial.from'))}</span><input type="date" name="startsOn" value="${esc(next.starts)}" required /></label>
         <label class="pq"><span>${esc(t(locale, 'books.trial.to'))}</span><input type="date" name="endsOn" value="${esc(next.ends)}" required /></label>
-        <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.openYear'))}</button></form>` : ''}
+        <button class="btn" type="submit">${esc(t(locale, 'books.close.openYear'))}</button></form>` : ''}
       ${owner(viewer) && v.openingJournals !== undefined && v.openingJournals.length === 0 ? `<form method="post" action="/app/books/closing/opening-journal" class="pform">
         <p>${esc(t(locale, 'books.close.needOpening'))}</p>
-        <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.addOpening'))}</button></form>` : ''}
+        <button class="btn" type="submit">${esc(t(locale, 'books.close.addOpening'))}</button></form>` : ''}
       ${!owner(viewer) ? '' : openYears.filter((y) => y.endsOn < v.today).map((y) => v.closingJournals.length === 0
         ? `<form method="post" action="/app/books/closing/journal" class="pform"><p>${esc(t(locale, 'books.close.needJournal'))}</p>
-            <button class="btn ghost" type="submit">${esc(t(locale, 'books.close.addJournal'))}</button></form>`
+            <button class="btn" type="submit">${esc(t(locale, 'books.close.addJournal'))}</button></form>`
         : `<form method="post" action="/app/books/closing/year" class="pform"><input type="hidden" name="year" value="${esc(y.id)}" />
             <h3>${esc(t(locale, 'books.close.closeYear', { from: show.dateYear(locale, new Date(`${y.startsOn}T12:00:00Z`)), to: show.dateYear(locale, new Date(`${y.endsOn}T12:00:00Z`)) }))}</h3>
             <p>${esc(t(locale, 'books.close.closeExplain'))}</p>

@@ -1,6 +1,6 @@
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { back, esc } from './layout.js';
+import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, saveBar } from './rows.js';
 
@@ -20,6 +20,8 @@ export type AccountView = {
   readonly email: string | null; readonly passwordMin: number;
   /** The door can e-mail a link to choose a new password (PWR: the installation sends system mail). Absent: no. */
   readonly recovery?: boolean;
+  /** B18 — the accountant: their way back is the books, and the language is a door from here (they have no Setup). */
+  readonly accountant?: boolean;
 };
 
 export function renderAccount(v: AccountView, locale: Locale, flash: Flash | null, backLabel: string): string {
@@ -44,8 +46,9 @@ export function renderAccount(v: AccountView, locale: Locale, flash: Flash | nul
          ${saveBar(t(locale, 'account.save'))}
        </form>
        ${lost}`;
-  return `${back('/app/settings/setup', backLabel)}
+  return `${back(v.accountant ? '/app/books' : '/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'account.title'))}</h1>
     ${flashBanner(flash)}
-    ${body}`;
+    ${body}
+    ${v.accountant ? `<p>${deeper('/app/settings/language', t(locale, 'settings.language.title'))}</p>` : ''}`;
 }
