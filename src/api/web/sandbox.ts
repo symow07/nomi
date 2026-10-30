@@ -19,7 +19,7 @@ import { workspaceZone } from './zone.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { approvalCard, workingLine, orderCard, loadConversationDetail, bubbleClass, speakerOf, type ConversationDetail } from './inbox.js';
-import { expectTotal, NOT_YET, readinessOf, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
+import { expectTotal, readinessOf, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
 import { unitLabel } from './products.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal, type PracticeSettings } from '../../db/practice.js';
@@ -390,11 +390,9 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
   // B16 — the one count, as Ready for customers, Getting ready and Going live say it.
   const { done, total } = readinessOf(c.items, c.seen);
   const rows = c.items.map((i) => {
-    const gap = NOT_YET.has(i);
-    const ok = !gap && c.seen.has(i);
-    return `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}"><span class="mk" aria-hidden="true">${ok ? shape('ok') : gap ? '—' : shape('waiting')}</span>
-      <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span>${
-      gap ? `<span class="dt muted">${esc(t(locale, 'practice.check.notYet'))}</span>` : ''}</li>`;
+    const ok = c.seen.has(i);
+    return `<li class="chk ${ok ? 'ok' : ''}"><span class="mk" aria-hidden="true">${ok ? shape('ok') : shape('waiting')}</span>
+      <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span></li>`;
   }).join('');
   const money = (n: Decimal, currency: string | null) =>
     show.money(locale, { amount: n, currency: parseCurrency(currency ?? '') ?? c.currency ?? 'USD' });

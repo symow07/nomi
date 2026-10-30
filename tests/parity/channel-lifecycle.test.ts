@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  channelLifecycle, isConnected, canActivateChannel, precheckOwnerSend, type ChannelFacts,
+  channelLifecycle, isConnected, precheckOwnerSend, type ChannelFacts,
 } from '../../src/core/channel/lifecycle.js';
 
 /**
@@ -19,25 +19,25 @@ describe('M20.3.1 · the four states, from facts the database already holds', ()
   it('A — a fresh factory is not connected, and cannot activate', () => {
     const fresh = facts({ hasChannel: false, status: null, credentialActive: false });
     expect(channelLifecycle(fresh)).toBe('not_connected');
-    expect(canActivateChannel(fresh)).toBe(false);
+    expect(channelLifecycle(fresh) === 'ready').toBe(false);
   });
 
   it('B — connected with working credentials is READY, and only then activatable', () => {
     expect(channelLifecycle(facts())).toBe('ready');
-    expect(canActivateChannel(facts())).toBe(true);
+    expect(channelLifecycle(facts()) === 'ready').toBe(true);
   });
 
   it('C — connected AND turned on by the owner is ACTIVE', () => {
     const live = facts({ activatedAt: AT });
     expect(channelLifecycle(live)).toBe('active');
-    expect(canActivateChannel(live), 'an active channel is already on').toBe(false);
+    expect((channelLifecycle(live) === 'ready'), 'an active channel is already on').toBe(false);
   });
 
   it('D — stopped after having worked is PAUSED, never "not connected"', () => {
     // This is the exact rollback state that used to read as ready.
     const paused = facts({ status: 'disconnected', activatedAt: null, disconnectedAt: AT });
     expect(channelLifecycle(paused)).toBe('paused');
-    expect(canActivateChannel(paused)).toBe(false);
+    expect(channelLifecycle(paused) === 'ready').toBe(false);
   });
 
   it('the row-count bug: a channel row exists in EVERY state — existence proves nothing', () => {
@@ -47,7 +47,7 @@ describe('M20.3.1 · the four states, from facts the database already holds', ()
       facts({ providerConfigured: false }),
     ]) {
       expect(f.hasChannel, 'the row is present').toBe(true);
-      expect(canActivateChannel(f), 'yet it must not be activatable').toBe(false);
+      expect((channelLifecycle(f) === 'ready'), 'yet it must not be activatable').toBe(false);
     }
   });
 

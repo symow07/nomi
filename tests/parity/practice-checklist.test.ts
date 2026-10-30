@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checklistFor, NOT_YET, CHECKLIST_ITEMS, type ChecklistItem } from '../../src/db/practiceChecklist.js';
+import { checklistFor, CHECKLIST_ITEMS, type ChecklistItem } from '../../src/db/practiceChecklist.js';
 import { renderSandbox, parseTotal, type SandboxView } from '../../src/api/web/sandbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -40,7 +40,6 @@ describe('P4 · the checklist, per kind of business', () => {
   });
 
   it('RT (0095) — "how much is this?" is ticked once a shop\'s price question got a price; nothing waits on a later item', () => {
-    expect(NOT_YET.size).toBe(0);
     const seen = draw(checklistFor('retail'), ['retail_price', 'quoted']);
     const row = seen.match(/<li class="chk ok">[\s\S]*?<\/li>/g)?.find((r) => r.includes(esc(t('en', 'practice.check.retail_price')))) ?? '';
     expect(row).toContain('shape s-ok');

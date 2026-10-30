@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
-import { readinessOf, NOT_YET, type ChecklistItem } from '../../db/practiceChecklist.js';
+import { readinessOf, type ChecklistItem } from '../../db/practiceChecklist.js';
 import { loadReadiness } from '../../db/readiness.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { sendingAloneEarned } from '../../db/earned.js';
@@ -39,7 +39,7 @@ export type ReadyView = {
   readonly silenced?: boolean;
 };
 
-/** B16 — the one count (`readinessOf`): items seen of those that can pass (`NOT_YET` is not counted against the owner). */
+/** B16 — the one count (`readinessOf`): items seen, of every item. */
 export const readyDone = (v: Pick<ReadyView, 'items' | 'seen'>): number => readinessOf(v.items, v.seen).done;
 export const readyTotal = (v: Pick<ReadyView, 'items'>): number => readinessOf(v.items, new Set()).total;
 export const readyComplete = (v: Pick<ReadyView, 'items' | 'seen'>): boolean => readinessOf(v.items, v.seen).complete;
@@ -61,9 +61,9 @@ export function renderReady(v: ReadyView, locale: Locale): string {
   // (the warmth run's re-audit, w4-today-setup-06: a chore, never the waiting
   // signal's magenta), as on the checklist and Today; the marks share one
   // column, so a ✓ and a ○ start their words at the same edge.
-  const mark = (ok: boolean, gap = false) => `<span class="mk${ok || gap ? '' : ' dot todo'}" aria-hidden="true">${ok ? shape('ok') : gap ? '—' : shape('waiting')}</span>`;
-  const row = (ok: boolean, label: string, gap = false) => `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}">${mark(ok, gap)}<span class="lbl">${esc(label)}</span></li>`;
-  const checks = v.items.map((i) => row(v.seen.has(i) && !NOT_YET.has(i), t(locale, `practice.check.${i}` as MessageKey, { name }), NOT_YET.has(i))).join('');
+  const mark = (ok: boolean) => `<span class="mk${ok ? '' : ' dot todo'}" aria-hidden="true">${ok ? shape('ok') : shape('waiting')}</span>`;
+  const row = (ok: boolean, label: string) => `<li class="chk ${ok ? 'ok' : ''}">${mark(ok)}<span class="lbl">${esc(label)}</span></li>`;
+  const checks = v.items.map((i) => row(v.seen.has(i), t(locale, `practice.check.${i}` as MessageKey, { name }))).join('');
   const done = readyComplete(v);
   // Phase 9 (V1-147, V1-150, V1-108) — each thing that must be in place is
   // named as the checklists name it, with its state in words beside the mark

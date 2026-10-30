@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  windowState, windowMsLeft, sendPlan, WINDOW_MS, CLOSING_SOON_MS,
+  windowState, sendPlan, WINDOW_MS, CLOSING_SOON_MS,
 } from '../../src/core/channel/window.js';
 import {
   applyStatus, retryDelayMs, onSendFailure, isUncertainSend,
@@ -23,7 +23,6 @@ describe('M3 · 24h window compliance', () => {
     expect(windowState(hoursAgo(23), NOW)).toBe('closing_soon');
     expect(windowState(hoursAgo(25), NOW)).toBe('expired');
     expect(windowState(null, NOW)).toBe('expired');
-    expect(windowMsLeft(hoursAgo(23), NOW)).toBe(WINDOW_MS - 23 * 3600 * 1000);
     expect(WINDOW_MS - CLOSING_SOON_MS).toBe(22 * 3600 * 1000);
   });
 
