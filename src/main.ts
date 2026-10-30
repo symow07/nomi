@@ -61,13 +61,14 @@ import type { FetchLike } from './channels/whatsapp/client.js';
 import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
 import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
 import { activeWhatsAppNumber, liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
-import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
+import { withTenantTx, lockConversation, createReadOnlyDb, poolState, type Db, type Tx } from './db/client.js';
 import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
 import { advisorMemory } from './advisor/memory.js';
 import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { prepareConversationOutbound, finishConversationOutbound, callProvider, type AdapterFor, type DriveEffect, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
+import { stopClock, runningJobs } from './queue/stopClock.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
@@ -1122,14 +1123,18 @@ export async function buildProduction(
     async close() {
       if (closing) return;
       closing = true;
+      // PROGRESS "A flake to watch" (2026-10-30) — the stop, measured: each step's time, and what was still
+      // running when it began. Said only when the stop is slow, and while a step is still waiting.
+      const stop = stopClock({ running: () => runningJobs(boss), pools: () => ({ app: poolState(db), advisor: poolState(advisorDb) }) });
       // 0. CC-10 — the heartbeat first: a tick between the server closing and
       //    the workers stopping would find no /health and report a deploy as
       //    an outage. (No heartbeat worker here: a no-op.)
-      await boss.offWork(QUEUES.heartbeat).catch(() => {});
-      await a.close();                         // 1. stop accepting requests
-      await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
-      await db.destroy().catch(() => {});      // 5. release the pool
-      await advisorDb.destroy().catch(() => {});   // …and the advisor's
+      await stop.step('heartbeat', () => boss.offWork(QUEUES.heartbeat).catch(() => {}));
+      await stop.step('server', () => a.close());                         // 1. stop accepting requests
+      await stop.step('workers', () => boss.stop().catch(() => {}));       // 2–3. stop workers + pg-boss
+      await stop.step('pool', () => db.destroy().catch(() => {}));      // 5. release the pool
+      await stop.step('advisor pool', () => advisorDb.destroy().catch(() => {}));   // …and the advisor's
+      stop.done();
     },
   });
 

@@ -20,7 +20,7 @@ describe('an integration hook outlasts a graceful stop', () => {
   });
 
   it('close stops pg-boss with its defaults, so 30 s is the bound the hook must outlast', () => {
-    expect(read('src/main.ts')).toContain('await boss.stop().catch(() => {});');
+    expect(read('src/main.ts')).toContain("await stop.step('workers', () => boss.stop().catch(() => {}));");
   });
 });
 
