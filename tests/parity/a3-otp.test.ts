@@ -133,7 +133,9 @@ describe('A3 · the rules that make it safe', () => {
     expect(app).toContain('const codeMail = deps.codeMail ?? deps.systemMail ?? null;');
     expect(app).toMatch(/const otpOn = Boolean\(codeMail\);/);
     expect(app).toMatch(/if \(otpOn\) \{[\s\S]{0,400}sendCode\(reply, locale, wanted\.email, 'signup'/);
-    expect(app).toMatch(/if \(otpOn && !isKnownDevice\(/);
+    // B11 (audit batch 3) — the known-device answer is read once, before the lock and the code both ask it.
+    expect(app).toMatch(/const knownDevice = isKnownDevice\(deps\.sessionSecret, parseCookies\(req\.headers\.cookie\)\[DEVICE_COOKIE\], login\.loginId, Date\.now\(\)\);/);
+    expect(app).toMatch(/if \(otpOn && !knownDevice\)/);
   });
 
   it('nothing becomes a tenant until the code comes back — the waiting sign-up holds a HASH, never a password', () => {

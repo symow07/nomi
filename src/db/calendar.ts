@@ -331,7 +331,10 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
     const day = ymdOf(r.due_on);
     out.push({ category: 'promised', kind: `promise_${r.kind}` as CalendarKind, day, at: dayStart(day, zone), allDay: true,
       conversationId: r.conv, orderId: null, buyer: buyerOf(r), identity: null,
-      detail: { said: r.said, byAssistant: r.said_by === 'assistant', kept: r.kept_at !== null, overdue: r.kept_at === null && day < dayKey(now, zone) },
+      // B13 — the day a price ends is no promise to keep: once it has passed, the price has simply ended — done, never late.
+      detail: r.kind === 'price_end'
+        ? { said: r.said, byAssistant: r.said_by === 'assistant', kept: day < dayKey(now, zone), overdue: false }
+        : { said: r.said, byAssistant: r.said_by === 'assistant', kept: r.kept_at !== null, overdue: r.kept_at === null && day < dayKey(now, zone) },
       source: { table: 'promised_dates', id: r.id, column: 'due_on' } });
   }
 

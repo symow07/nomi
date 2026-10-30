@@ -283,14 +283,45 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(wrong.body, 'a password is never echoed').not.toContain('not-her-password');
   });
 
-  it('FIVE WRONG PASSWORDS LOCK THAT LOGIN — and the lock does not answer right-or-wrong either', async () => {
-    for (let i = 0; i < 5; i++) expect((await form('/login', { email: A.email, password: `guess-${i}-padding` })).statusCode).toBe(401);
-    const right = await form('/login', { email: A.email, password: A.password });
-    expect(right.statusCode).toBe(429);
-    expect(right.body).toContain(t('en', 'login.locked'));
-    const locked = (await admin.query(`select locked_until > now() as locked from logins where email = $1`, [A.email])).rows[0];
-    expect(locked.locked).toBe(true);
+  /** One fixed caller (B11): the lock is counted per caller and address. */
+  const formFrom = (who: string, fields: Record<string, string>, cookie = '') => prod.app.inject({
+    method: 'POST', url: '/login', payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': who, ...(cookie ? { cookie } : {}) },
+  });
+
+  it('FIVE WRONG PASSWORDS FROM ONE CALLER LOCK THAT ADDRESS FOR THAT CALLER — a real one and an unknown one alike (B11)', async () => {
+    const who = `2001:db8:b11::${RUN.slice(0, 4)}:1`;
+    const nobody = `nobody-b11-${RUN}@nowhere.example`;
+    for (const email of [A.email, nobody]) {
+      for (let i = 0; i < 5; i++) expect((await formFrom(who, { email, password: `guess-${i}-padding` })).statusCode, email).toBe(401);
+    }
+    // Audit batch 3 (B11, 2026-10-30): the real address answered 429 here and the unknown one 401 — five tries said
+    // which addresses exist. Now both say the same thing, and the right password waits too: the lock is not an oracle.
+    const real = await formFrom(who, { email: A.email, password: A.password });
+    const unknown = await formFrom(who, { email: nobody, password: 'anything-at-all' });
+    expect([real.statusCode, unknown.statusCode]).toEqual([429, 429]);
+    expect(real.body).toContain(t('en', 'login.locked'));
+    expect(unknown.body).toContain(t('en', 'login.locked'));
     expect((await form('/login', { email: B.email, password: B.password })).statusCode, 'another login is not punished').toBe(302);
+  });
+
+  it('A STRANGER CANNOT LOCK THE OWNER OUT (B11): five wrong tries from five callers lock new browsers only, and say nothing', async () => {
+    const { lookupLogin } = await import('../../src/db/accounts.js');
+    const { mintKnownDevice } = await import('../../src/security/otp.js');
+    for (let i = 0; i < 5; i++) expect((await form('/login', { email: A.email, password: `stranger-${i}-padding` })).statusCode).toBe(401);
+    const locked = (await admin.query(`select locked_until > now() as locked from logins where email = $1`, [A.email])).rows[0];
+    expect(locked.locked, 'the database still counts every wrong try, from anywhere').toBe(true);
+    // A new browser, even with the right password, is answered exactly as a wrong password: nothing said about the address.
+    const fresh = await form('/login', { email: A.email, password: A.password });
+    expect(fresh.statusCode).toBe(401);
+    expect(fresh.body).toContain(t('en', 'login.errorPassword'));
+    // Before B11 the owner's own browser got 429 for fifteen minutes. A browser this login signed in from gets in.
+    const loginId = (await lookupLogin(prod.db, A.email))!.loginId;
+    const device = `yf_dev=${mintKnownDevice(WEB_SECRET, loginId, Date.now())}`;
+    const own = await form('/login', { email: A.email, password: A.password }, device);
+    expect(own.statusCode).toBe(302);
+    expect(String(own.headers['location'])).not.toContain('/verify');
+    expect(cookieOf(own)).not.toBe('');
   });
 
   it('the environment\'s access code still opens the environment\'s business, exactly as before', async () => {

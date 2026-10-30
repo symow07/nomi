@@ -4,13 +4,14 @@ import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import { recordsOf } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
-import { loadConnection, rotateGrant } from '../db/booksConnections.js';
+import { loadConnection } from '../db/booksConnections.js';
 import { GONE, readBooks, rememberWritten, unreadAt, type UnreadRecord } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { rewriteSpreadsheet, sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
 import { sendEntriesToOdoo, type OdooEntryOut, type OdooWriteConflict } from './connectors/odoo.js';
-import { sendEntriesToXero, xeroAccess, type XeroDeps, type XeroEntryOut, type XeroWriteConflict } from './connectors/xero.js';
+import { sendEntriesToXero, type XeroDeps, type XeroEntryOut, type XeroWriteConflict } from './connectors/xero.js';
+import { qboAccessLocked, xeroAccessLocked } from './grantLock.js';
 import { qboWithAccess, sendEntriesToQbo, type QboDeps, type QboWriteConflict } from './connectors/quickbooks.js';
 
 /**
@@ -126,9 +127,9 @@ export async function writeBackXero(deps: WriteDeps, businessIdRaw: string, by: 
   const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey, bid.value, 'xero'));
   const tenantId = conn?.settings['tenantId'];
   if (!conn || conn.state === 'disconnected' || !conn.grant || !tenantId) return { kind: 'refused', reason: 'revoked' };
-  const access = await xeroAccess(deps.xero, conn.grant);
+  // B12 — refreshed and kept under the connection's lock: one refresh at a time.
+  const access = await xeroAccessLocked(deps.xero, { db: deps.db, credentialKey: deps.credentialKey, businessId: bid.value, by });
   if ('kind' in access) return { kind: 'refused', reason: access.reason };
-  await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'xero', access.grant.secret, by));
   const book = (await withTenantTx(deps.db, bid.value, (tx) => sql<{ c: string }>`select books_currency(${bid.value}::uuid) as c`.execute(tx))).rows[0]!.c;
   const entries = await postedNotSent(deps.db, bid.value, 'xero');
   if (entries.length === 0) return { kind: 'written', count: 0 };
@@ -184,12 +185,13 @@ export async function writeBackQuickbooks(deps: WriteDeps, businessIdRaw: string
   if (entries.length === 0) return { kind: 'written', count: 0 };
   // R4 — as the read: the access token used again while good, refreshed once on a 401, the grant kept first.
   const qbo = deps.quickbooks;
-  const got = await qboWithAccess(qbo, conn.grant,
-    (g) => withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', g.secret, by)),
+  // B12 — the access got under the connection's lock, which keeps a fresh grant itself.
+  const got = await qboWithAccess(qbo, conn.grant, async () => undefined,
     async (source) => {
       const r = await sendEntriesToQbo(qbo, source, book, entries);
       return 'kind' in r ? r : { kind: 'sent' as const, ...r };
-    });
+    },
+    qboAccessLocked(qbo, { db: deps.db, credentialKey: deps.credentialKey, businessId: bid.value, by }));
   if (got.kind === 'refused') return { kind: 'refused', reason: got.reason };
   const sent = got;
   await withTenantTx(deps.db, bid.value, async (tx) => {

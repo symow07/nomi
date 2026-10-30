@@ -2,7 +2,7 @@ import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
 import { reopenFor } from './whatsappTemplates.js';
-import { notePromises } from './promisedDates.js';
+import { keepFollowUps, notePromises } from './promisedDates.js';
 import { dayKey } from '../core/owner/i18n/format.js';
 import { isAllowlisted } from '../channels/allowlist.js';
 import { carriesDisclosure, autonomyReleasedFor } from '../core/conversation/disclosure.js';
@@ -336,6 +336,8 @@ export function channelStore(
         `.execute(tx);
         // 0083 — and what it promised, for when: read from the words that left.
         await notePromises(tx, id, dayKey(new Date(), await zoneOf(tx, businessId)));
+        // B13 — and the follow-ups promised before it are kept by it: the seller got back to the customer.
+        await keepFollowUps(tx, id);
       }
     },
 

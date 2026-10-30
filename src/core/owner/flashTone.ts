@@ -75,6 +75,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
   'channel.flash.number_taken', 'channel.flash.test_not_connected', 'closures.flash.ends_before_starts',
   'calendar.flash.title', 'calendar.flash.day', 'calendar.flash.time', 'calendar.flash.order', 'calendar.flash.notFound',
+  // B13 — a promise that could not be marked kept.
+  'calendar.flash.notKept',
   'closures.flash.failed', 'closures.flash.from_missing', 'closures.flash.label_missing',
   'closures.flash.not_a_date', 'closures.flash.to_missing', 'connect.flash.app_refused',
   'connect.flash.denied', 'connect.flash.expired', 'connect.flash.missing_scope',
@@ -165,6 +167,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
   'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',
+  // B13 — a promise marked kept.
+  'calendar.flash.kept',
   'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',

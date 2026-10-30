@@ -147,3 +147,21 @@ describe('C7 · half a configuration is no configuration', () => {
     }
   });
 });
+
+describe('Audit batch 3 · B5 for mail — an answer lost AFTER the message went may be a delivered mail', () => {
+  const local = { ...CONFIG, host: '127.0.0.1', password: '' };
+  it('silence after the body: uncertain, never retried', async () => {
+    const server = scriptedServer(['220 local ESMTP', '250 local', '250 ok', '250 ok', '354 go ahead']);
+    const r = await smtpDeliver(local, { to: 'buyer@gulf.test', data: 'Subject: hi' }, { connect: server.connect, timeoutMs: 200 });
+    expect(server.said.join('')).toContain('Subject: hi');
+    // Before: { retryable: true } — and the customer could get it twice.
+    expect(r).toEqual({ ok: false, retryable: false, uncertain: true, error: 'smtp: no answer after the message was sent' });
+  });
+  it('silence before the body: it never left, and is tried again', async () => {
+    const server = scriptedServer(['220 local ESMTP', '250 local', '250 ok']);
+    const r = await smtpDeliver(local, { to: 'buyer@gulf.test', data: 'Subject: hi' }, { connect: server.connect, timeoutMs: 200 });
+    expect(server.said.join('')).not.toContain('Subject: hi');
+    expect(r).toMatchObject({ ok: false, retryable: true });
+    expect(r).not.toHaveProperty('uncertain');
+  });
+});

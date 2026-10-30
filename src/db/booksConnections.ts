@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
-import type { Tx } from './client.js';
+import { withTenantTx, type Db, type Tx } from './client.js';
+import type { BusinessId } from '../core/types/ids.js';
 import { credentialFingerprint, decryptSecret, encryptSecret } from '../security/credentials.js';
 import type { ConnectRefusalReason, Grant, RevokeOutcome } from '../core/books/connector.js';
 
@@ -69,6 +70,30 @@ export async function rotateGrant(tx: Tx, credentialKey: Buffer, businessId: str
     values (${businessId}::uuid, ${system}, ${encryptSecret(secret, credentialKey)}, ${credentialFingerprint(secret)}, ${by})
     returning id::text as id`.execute(tx)).rows[0]!.id;
   await sql`update books_connections set credential_id = ${id}::uuid where business_id = ${businessId}::uuid and system = ${system}`.execute(tx);
+}
+
+/**
+ * Audit batch 3 (B12, 2026-10-30) — A GRANT IS REFRESHED BY ONE CALLER AT A TIME.
+ *
+ * Xero rotates its refresh token on every refresh, and Intuit's changes too. Two pieces of work on one connection —
+ * the morning's read and the owner's "Read it in", a write-back, the hourly sweep — each loaded the same token and
+ * each refreshed it: the second refresh used a token the first had already spent (Xero answers invalid_grant: the
+ * connection reads as revoked), or kept a grant that was no longer the newest. Now the refresh runs under a lock per
+ * connection, held in its own transaction from reading the CURRENT grant to keeping the next one: the second caller
+ * waits, then refreshes the grant the first kept. The lock covers only that step — never the reading or writing done
+ * with the access token after it. `fn` gets the live grant (null when disconnected or never connected) and `keep`,
+ * which stores the next grant in that same transaction.
+ */
+export async function refreshUnderLock<T>(
+  db: Db, credentialKey: Buffer, businessId: BusinessId, system: ConnectedSystem, by: string,
+  fn: (grant: Grant | null, keep: (secret: string) => Promise<void>) => Promise<T>,
+): Promise<T> {
+  return withTenantTx(db, businessId, async (tx) => {
+    await sql`select pg_advisory_xact_lock(hashtextextended(${`books-grant:${businessId}:${system}`}, 0))`.execute(tx);
+    const conn = await loadConnection(tx, credentialKey, businessId, system);
+    const grant = conn && conn.state !== 'disconnected' ? conn.grant : null;
+    return fn(grant, (secret) => rotateGrant(tx, credentialKey, businessId, system, secret, by));
+  });
 }
 
 /** The connection, with its grant opened; null when this system was never connected. */

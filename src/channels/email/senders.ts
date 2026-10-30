@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { MailMessage, SendResult } from '../contract.js';
 import type { OAuthFetch } from '../../connectors/oauth.js';
+import { thrownSend } from '../sendFailure.js';
 
 /**
  * C6 · M50 — the last step of an e-mail: handing it, as her, to Gmail or Outlook.
@@ -82,14 +83,15 @@ const classify = (status: number): SenderOutcome | null => {
 
 const bare = (id: string): string => id.trim().replace(/^<|>$/g, '');
 
+/** One call: its answer, or what it threw (B5 for mail: whether a SEND that threw may have left is the caller's to say). */
 async function call(fetchImpl: OAuthFetch, url: string, init: Parameters<OAuthFetch>[1]): Promise<
-  { readonly status: number; readonly text: string } | null
+  { readonly status: number; readonly text: string } | { readonly thrown: unknown }
 > {
   try {
     const res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(20_000) });
     return { status: res.status, text: await res.text().catch(() => '') };
-  } catch {
-    return null;
+  } catch (e) {
+    return { thrown: e };
   }
 }
 
@@ -102,7 +104,8 @@ export function gmailSender(fetchImpl: OAuthFetch, now: () => Date = () => new D
       method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
       body: JSON.stringify({ raw: Buffer.from(mimeMessage(message, ours, now()), 'utf8').toString('base64url') }),
     });
-    if (!sent) return { ok: false, retryable: true, error: 'provider unreachable' };
+    // Audit batch 3 (B5 for mail) — the send itself threw: retried only when it provably never reached Google.
+    if ('thrown' in sent) return thrownSend('gmail', sent.thrown);
     const bad = classify(sent.status);
     if (bad) return bad;
     let gmailId: string | null = null;
@@ -113,7 +116,7 @@ export function gmailSender(fetchImpl: OAuthFetch, now: () => Date = () => new D
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(gmailId)}?format=metadata&metadataHeaders=Message-ID`,
       { method: 'GET', headers: auth });
     try {
-      const headers = (JSON.parse(meta?.text ?? '') as { payload?: { headers?: { name?: string; value?: string }[] } })
+      const headers = (JSON.parse('text' in meta ? meta.text : '') as { payload?: { headers?: { name?: string; value?: string }[] } })
         .payload?.headers ?? [];
       const stored = headers.find((h) => h.name?.toLowerCase() === 'message-id')?.value;
       return { ok: true, providerMessageId: stored ? bare(stored) : ours };
@@ -136,7 +139,8 @@ export function graphSender(fetchImpl: OAuthFetch, now: () => Date = () => new D
       method: 'POST', headers: { ...auth, 'Content-Type': 'text/plain' },
       body: Buffer.from(mimeMessage(message, ours, now()), 'utf8').toString('base64'),
     });
-    if (!created) return { ok: false, retryable: true, error: 'provider unreachable' };
+    // Only a draft in her mailbox so far: nothing reached the customer, so a failure here is tried again.
+    if ('thrown' in created) return { ok: false, retryable: true, error: 'provider unreachable' };
     const bad = classify(created.status);
     if (bad) return bad;
     let draft: { id?: unknown; internetMessageId?: unknown } = {};
@@ -145,7 +149,8 @@ export function graphSender(fetchImpl: OAuthFetch, now: () => Date = () => new D
     const sent = await call(fetchImpl, `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(draft.id)}/send`, {
       method: 'POST', headers: { ...auth, 'Content-Length': '0' },
     });
-    if (!sent) return { ok: false, retryable: true, error: 'provider unreachable' };
+    // B5 for mail — the send itself threw: retried only when it provably never reached Microsoft.
+    if ('thrown' in sent) return thrownSend('graph', sent.thrown);
     const sendBad = classify(sent.status);
     if (sendBad) return sendBad;
     return {
