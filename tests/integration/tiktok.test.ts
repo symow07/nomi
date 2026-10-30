@@ -124,8 +124,12 @@ d('0215 · TikTok direct messages, in the production composition (requires DATAB
     expect(reply.body).toContain('AI assistant');   // the first message nobody approved says so (rule 3)
     // the delivery named the account: kept for the page
     expect((await account())?.username).toBe('westlake.canvas');
-    // and the reply is on the transcript under the id TikTok gave it
-    const ids = await q((tx) => sql<{ id: string }>`select provider_message_id as id from outbound_messages where provider_message_id like 'tt:%'`.execute(tx).then((r) => r.rows.map((x) => x.id)));
+    // and the reply is on the transcript under the id TikTok gave it — written just AFTER the call (#405, A1: the provider
+    // is called with no transaction open, and its answer recorded in the next), so it is waited for, not read at once.
+    const ids = await until(async () => {
+      const got = await q((tx) => sql<{ id: string }>`select provider_message_id as id from outbound_messages where provider_message_id like 'tt:%'`.execute(tx).then((r) => r.rows.map((x) => x.id)));
+      return got.includes(`tt:${reply.messageId}`) ? got : undefined;
+    }, 'the id TikTok gave, recorded');
     expect(ids).toContain(`tt:${reply.messageId}`);
   });
 
