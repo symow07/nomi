@@ -312,6 +312,32 @@ day. Schema 213.
   note was read, so neither attempt captured the timings. Nothing linked it to #406's change (no route it calls, no
   file before it in the order). The step-by-step measurement of `close()` is its own PR, next.
 
+- **Measured, 2026-10-30 (2 hours, cause not found).** `close()` now times each step and, when a stop takes 5 s or
+  more, says each step's time, the queues with a job running when it began, and each pool's lent/idle/waiting
+  connections; while a step waits, a line every 10 s (`src/queue/stopClock.ts`). password-recovery's `afterAll` says
+  which half (`admin.end()` or `prod.close()`) it is in, every 10 s. With that in: 7 full CI passes (runs 41047060404,
+  41047065668, 41047070603, 41051575137, 41051587230) and 2 local full runs — not one stop in any file took 5 s; locally
+  a stop is 11–16 ms with no job running and nothing lent. The flake did not recur under measurement. Without it, the
+  same day: #406 twice, #407 once (run 41049394304).
+- **What is known:** always password-recovery, never another file; always with the same files ahead of it
+  (disclosure-one-greeting → handoff-notice → deploy-watch → books-dz → money-currency); the five tests pass; 51 s for
+  the file. pg-boss's own wait is bounded at 30 s; the pools' `end()` is not (it waits for every lent connection).
+  Ruled out by reading: pg-boss's `bam` (empty on a fresh database), the sequence sweep (stops on `closing`), the
+  outbound sequencer (re-queues, never waits in place), a WhatsApp send (no adapter with the provider `disabled`), the
+  Fastify server (no `onClose` hooks), the recovery route's background asks (quick statements). Locally nothing is left
+  in the queue between those files (every job completed, none retried); CI, slower, may stop handoff-notice with a job
+  running, which pg-boss retries ~10 s later — in password-recovery's production. Not proven.
+- **Next time it fails with the measurement merged:** the `[stop]` lines in that file's stderr name the step and what
+  it waited on — read them before rerunning.
+
+**2b · A second flake to watch: an invented figure that was not held (reported 2026-10-30 by the batch-3 session).**
+- **The test:** `tests/integration/product-code-exemption.test.ts` › "an invented figure beside a product's name IS held".
+- **Failed:** main, 2026-10-15 (run 38682304137: `heldBecause` null) and PR #405, 2026-10-30 (run 41032326052:
+  `refused` 0). Locally: 12 of 12 repeats pass, and two full runs.
+- **What it looks like:** no error during the file; the writer's reply was not the scripted one, or was not refused.
+  The case only drafts: nothing is sent. Not touched (the owner's instruction). Same rule as the stop's: when it
+  recurs, keep the run's report and read the draft and its events before rerunning.
+
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
 auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was held for the owner. The

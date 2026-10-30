@@ -205,9 +205,9 @@ describe('the wiring', () => {
 
   it('and shutdown stops it BEFORE the server closes, so a deploy is never reported as an outage', () => {
     const close = main.slice(main.indexOf('async close() {'));
-    const off = close.indexOf('await boss.offWork(QUEUES.heartbeat)');
+    const off = close.indexOf("stop.step('heartbeat', () => boss.offWork(QUEUES.heartbeat)");
     expect(off).toBeGreaterThan(-1);
-    expect(off).toBeLessThan(close.indexOf('await a.close();'));
+    expect(off).toBeLessThan(close.indexOf("stop.step('server', () => a.close())"));
   });
 
   it('HEALTH_PING_URL is checked at boot when set — https, a host and a path — and never printed', () => {
