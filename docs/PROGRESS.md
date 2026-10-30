@@ -387,6 +387,17 @@ day. Schema 213.
   The case only drafts: nothing is sent. Not touched (the owner's instruction). Same rule as the stop's: when it
   recurs, keep the run's report and read the draft and its events before rerunning.
 
+**2c · A third flake to watch: the banned-words catalogue scan hit vitest's 5 s limit (2026-10-30, #411's local run).**
+- **The test:** `tests/parity/owner-language.test.ts` › "M1 · no owner-facing string is software talk (the whole
+  catalogue)" — `en` and `ar` both "Test timed out in 5000ms", in one full `npm run check` on Node 22 (8908 tests).
+- **Alone:** the file passes, about 1–1.7 s per locale. The full check run straight after passed. CI did not see it.
+- **What it looks like:** a per-locale loop over every catalogue line × every banned term, near the 5 s default once
+  the catalogue grew (each language ~5,000 keys) and the machine was busy with the rest of the suite. Not a wrong
+  answer: a slow one. Not touched yet.
+- **What makes it urgent:** it fails again anywhere (local or CI), or CI's time for that file passes 3 s. Then: time
+  the loop, and either precompile the terms into one expression or give the test its own timeout, with the measured
+  numbers in the commit. Never call a rerun a fix.
+
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting
 auto-deploy reads, and no setting reads "off". Off could not be confirmed, so #382 was held for the owner. The

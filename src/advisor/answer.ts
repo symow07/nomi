@@ -1,5 +1,5 @@
 import type { Db } from '../db/client.js';
-import type { AdvisorModel } from '../llm/ports.js';
+import type { AdvisorModel, AdvisorCallUsage } from '../llm/ports.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import type { MessageKey } from '../core/owner/i18n/messages.js';
@@ -59,28 +59,40 @@ export type Answered = {
   readonly params: Params;
   /** The customers its facts name, by id (every read says so: `Sheet.subjects`). */
   readonly subjects: readonly string[];
+  /**
+   * A4 — what the question used of the model: every call that answered, whatever it said. This module writes
+   * nothing (the wall); the route records it on the ledger (src/api/web/advisor.ts, `io.spent`).
+   */
+  readonly spent: AdvisorSpent;
 };
+
+/** A4 — the model calls one question made, and their tokens. */
+export type AdvisorSpent = { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number };
 
 const NO_PARAMS: Params = { period: null, customer: null, product: null, reference: null };
 
 /** A question, with at most the last three turns of its conversation to understand it by (§4). */
-// HARD MARKER (the owner, 2026-10-15; the isolation sweep, item 10): this makes up to two model calls a question with
-// no allowance check and no spend record. It is METERED BEFORE THE THIRD PAYING WORKSPACE — docs/LAUNCH-CHECKLIST.md.
+// A4 (audit batch 5, 2026-10-31): up to two model calls a question. The route asks the day's allowance before it
+// calls this, and records what `spent` says after (src/api/web/advisor.ts) — the isolation sweep's hard marker, met.
 export async function answerFollowUp(a: AskContext, question: string, earlier: readonly Earlier[]): Promise<Answered> {
   const say = (key: MessageKey, p: Record<string, string> = {}): string => t(a.locale, key, p);
+  const spent = { llmCalls: 0, inputTokens: 0, outputTokens: 0 };
+  const counted = (u: AdvisorCallUsage): void => { spent.llmCalls += 1; spent.inputTokens += u.inputTokens; spent.outputTokens += u.outputTokens; };
   const done = (answer: AdvisorAnswer, entry = 'unknown', params: Params = NO_PARAMS, subjects: readonly string[] = []): Answered =>
-    ({ answer, entry, params, subjects });
+    ({ answer, entry, params, subjects, spent: { ...spent } });
   const failed = (entry?: string, params?: Params): Answered => done({ kind: 'failed', text: say('advisor.failed') }, entry, params);
   const bid = parseBusinessId(a.businessId);
   if (!bid.ok) return failed();
 
-  let asked: Awaited<ReturnType<AdvisorModel['recognise']>>;
+  let asked: Awaited<ReturnType<AdvisorModel['recognise']>>['pick'];
   try {
-    asked = await a.model.recognise({
+    const r = await a.model.recognise({
       question, entries: CATALOGUE.map((e) => ({ id: e.id, ask: e.ask })),
       // Never an answer: the question, the entry and what it named, of this conversation's last three turns.
       ...(earlier.length ? { earlier: earlier.slice(-3).map((e) => ({ question: e.question, entry: e.entry, params: { ...e.params } })) } : {}),
     });
+    counted(r.usage);
+    asked = r.pick;
   } catch { return failed(); }
   const entry = asked ? entryOf(asked.id) : undefined;
   if (!asked || !entry) return done({ kind: 'unknown', text: say('advisor.unknown') });
@@ -104,7 +116,7 @@ export async function answerFollowUp(a: AskContext, question: string, earlier: r
     const lines = used.flatMap((s) => s.sheet.lines);
     const names = used.flatMap((s) => s.sheet.names);
     const based = used.map((s) => say(`advisor.title.${s.id}` as MessageKey));
-    const text = await phrase(a, ctx, question, lines, names, [], true);
+    const text = await phrase(a, ctx, question, lines, names, [], true, counted);
     return done({ kind: 'opinion', text: text ?? '', lines, phrased: text !== null, based }, entry.id, params,
       [...new Set(used.flatMap((s) => s.sheet.subjects))]);
   }
@@ -117,16 +129,19 @@ export async function answerFollowUp(a: AskContext, question: string, earlier: r
     return done({ kind: 'none', text: say(sheet.none ?? 'advisor.failed', { ...(sheet.noneParams ?? {}) }), ...(sheet.door ? { door: sheet.door } : {}) },
       entry.id, params, sheet.subjects);
   }
-  const text = await phrase(a, ctx, question, sheet.lines, sheet.names, sheet.must ?? [], false);
+  const text = await phrase(a, ctx, question, sheet.lines, sheet.names, sheet.must ?? [], false, counted);
   return done({ kind: 'fact', text: text ?? '', lines: sheet.lines, phrased: text !== null, ...(sheet.door ? { door: sheet.door } : {}) },
     entry.id, params, sheet.subjects);
 }
 
 /** The model's sentence, if it passes rule 4's check; null otherwise (the facts are then the answer). */
-async function phrase(a: AskContext, ctx: ReadCtx, question: string, facts: readonly string[], names: readonly string[], must: readonly string[], opinion: boolean): Promise<string | null> {
+async function phrase(a: AskContext, ctx: ReadCtx, question: string, facts: readonly string[], names: readonly string[], must: readonly string[], opinion: boolean,
+  counted: (u: AdvisorCallUsage) => void): Promise<string | null> {
   let text: string | null;
   try {
-    text = await a.model.phrase({ question, language: LANGUAGE[a.locale], facts, opinion });
+    const r = await a.model.phrase({ question, language: LANGUAGE[a.locale], facts, opinion });
+    counted(r.usage);
+    text = r.text;
   } catch { return null; }
   if (!text) return null;
   const known = await knownNames(ctx).catch(() => null);

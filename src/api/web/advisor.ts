@@ -8,7 +8,7 @@ import { t } from './say.js';
 import { esc, deeper, back, ORB_JS } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
-import { answerFollowUp, type AdvisorAnswer } from '../../advisor/answer.js';
+import { answerFollowUp, type AdvisorAnswer, type AdvisorSpent } from '../../advisor/answer.js';
 import type { AdvisorMemory, KeptTurn, ThreadRow, MemoryState } from '../../advisor/memory.js';
 
 /**
@@ -103,6 +103,13 @@ export type AdvisorIO = {
   readonly db: Db | null;
   /** The model that words the facts; null: this installation cannot answer yet. */
   readonly model: AdvisorModel | null;
+  /**
+   * A4 — the workspace's day's allowance, asked before a question reaches the model: true when it is used up (the
+   * same rule as every other model call, `allowanceUsed`). An answer, never a pool.
+   */
+  readonly allowanceUsed: (businessId: string) => Promise<boolean>;
+  /** A4 — what a question used of the model, recorded on the workspace's ledger. One write, of usage only; never throws. */
+  readonly spent: (businessId: string, spent: AdvisorSpent) => Promise<void>;
   /** 0130 — each person's own history (src/advisor/memory.ts); null: this installation keeps none. */
   readonly memory: AdvisorMemory | null;
   /** The provider that words the answers, as the privacy page names it, in the reader's language. */
@@ -328,12 +335,17 @@ export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
     // The conversation it continues: the one the form names (theirs, or row security finds none), else none.
     const said = typeof body.thread === 'string' ? body.thread : '';
     const earlierTurns = memory && said ? await memory.context(viewer.businessId, viewer.viewerId, said).catch(() => []) : [];
-    const answered = io.db && io.model
-      ? await answerFollowUp({ db: io.db, model: io.model, businessId: viewer.businessId, viewerId: viewer.viewerId, locale, now }, q, earlierTurns)
+    // A4 — today's allowance first: used up, the model is not asked, and the owner is told why (the re-read's words).
+    // A failed read of it asks nothing either: "could not look that up".
+    const able = io.db !== null && io.model !== null;
+    const held = able ? await io.allowanceUsed(viewer.businessId).then((u) => (u ? 'used' as const : null), () => 'unread' as const) : null;
+    const answered = able && held === null
+      ? await answerFollowUp({ db: io.db!, model: io.model!, businessId: viewer.businessId, viewerId: viewer.viewerId, locale, now }, q, earlierTurns)
         .catch(() => null)
       : null;
+    if (answered && answered.spent.llmCalls > 0) await io.spent(viewer.businessId, answered.spent);
     const answer: AdvisorAnswer = answered?.answer
-      ?? { kind: 'failed', text: t(locale, io.db && io.model ? 'advisor.failed' : 'advisor.unavailable') };
+      ?? { kind: 'failed', text: t(locale, !able ? 'advisor.unavailable' : held === 'used' ? 'advisor.allowanceUsed' : 'advisor.failed') };
     if (memory && answered) {
       const a = answered.answer;
       const thread = await memory.keep(viewer.businessId, viewer.viewerId, said || null, {

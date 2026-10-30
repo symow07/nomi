@@ -61,20 +61,21 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
   /** The phrasing: the facts as they are, unless a test says otherwise. */
   let phraseWith: ((facts: readonly string[]) => string) | null = null;
   let recogniseThrows = false;
+  const route = async (input: Parameters<AdvisorModel['recognise']>[0]) => {
+    routed.push(JSON.parse(JSON.stringify(input)) as { question: string; earlier?: unknown });
+    if (recogniseThrows) throw new Error(`the provider echoed: ${input.question}`);
+    const q = input.question.toLowerCase();
+    if (q.includes('about amira')) return { id: 'A3', period: null, customer: AMIRA, product: null, reference: null };
+    if (q.includes('about her')) {
+      // Resolves "her" only from what it is given: the earlier turns of this conversation.
+      const named = [...(input.earlier ?? [])].reverse().map((e) => e.params['customer']).find((c) => typeof c === 'string') ?? null;
+      return { id: 'A3', period: null, customer: named as string | null, product: null, reference: null };
+    }
+    return { id: 'A1', period: null, customer: null, product: null, reference: null };
+  };
   const model: AdvisorModel = {
-    recognise: async (input) => {
-      routed.push(JSON.parse(JSON.stringify(input)) as { question: string; earlier?: unknown });
-      if (recogniseThrows) throw new Error(`the provider echoed: ${input.question}`);
-      const q = input.question.toLowerCase();
-      if (q.includes('about amira')) return { id: 'A3', period: null, customer: AMIRA, product: null, reference: null };
-      if (q.includes('about her')) {
-        // Resolves "her" only from what it is given: the earlier turns of this conversation.
-        const named = [...(input.earlier ?? [])].reverse().map((e) => e.params['customer']).find((c) => typeof c === 'string') ?? null;
-        return { id: 'A3', period: null, customer: named as string | null, product: null, reference: null };
-      }
-      return { id: 'A1', period: null, customer: null, product: null, reference: null };
-    },
-    phrase: async ({ facts }) => (phraseWith ? phraseWith(facts) : facts.join(' ')),
+    recognise: async (input) => ({ pick: await route(input), usage: { inputTokens: 0, outputTokens: 0 } }),
+    phrase: async ({ facts }) => ({ text: phraseWith ? phraseWith(facts) : facts.join(' '), usage: { inputTokens: 0, outputTokens: 0 } }),
   };
 
   const build = async (key: string | null, withLogs: boolean) => {

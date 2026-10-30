@@ -81,6 +81,7 @@ const EN = {
   'advisor.unknown': 'That isn\'t something I can answer from your records yet. You can ask, for example:',
   'advisor.failed': 'I couldn\'t look that up just now. Please try again in a moment.',
   'advisor.unavailable': 'The advisor can\'t answer on this installation yet.',
+  'advisor.allowanceUsed': 'Today\'s allowance is used up, so nothing was looked up. Try again after it renews.',
   // 0130 — the advisor's memory (docs/ADVISOR-MEMORY.md §9.1–9.2).
   'advisor.memory.title': 'Keep your advisor conversations?',
   'advisor.memory.ask': 'Allow Nomi to store your advisor conversations to help analyse your business over time.',
@@ -5549,6 +5550,7 @@ const ZH: Record<MessageKey, string> = {
   'advisor.unknown': '这个问题还没法从你的记录里回答。可以这样问，例如：',
   'advisor.failed': '现在查不到，请稍后再试。',
   'advisor.unavailable': '这个安装还不能使用顾问回答问题。',
+  'advisor.allowanceUsed': '今天的额度已经用完，所以没有查询。额度恢复后再试。',
   // 0130 — the advisor's memory (docs/ADVISOR-MEMORY.md §9.1–9.2).
   'advisor.memory.title': '保存你和顾问的对话吗？',
   'advisor.memory.ask': '允许 Nomi 保存你和顾问的对话，以便长期帮助分析你的生意。',
@@ -10928,6 +10930,7 @@ const AR: Record<MessageKey, string> = {
   'advisor.unknown': 'لا يمكن الإجابة عن هذا من سجلاتك بعد. يمكن مثلًا السؤال:',
   'advisor.failed': 'تعذّر البحث الآن. يُرجى المحاولة بعد قليل.',
   'advisor.unavailable': 'لا يمكن للمستشار الإجابة في هذا التثبيت بعد.',
+  'advisor.allowanceUsed': 'رصيد اليوم مستنفد، لذلك لم يُبحث عن شيء. يُرجى المحاولة بعد تجدّده.',
   // 0130 — the advisor's memory (docs/ADVISOR-MEMORY.md §9.1–9.2).
   'advisor.memory.title': 'حفظ محادثات المستشار؟',
   'advisor.memory.ask': 'السماح لـ Nomi بحفظ محادثات المستشار للمساعدة في تحليل النشاط التجاري مع مرور الوقت.',
@@ -16308,6 +16311,7 @@ const ES: Record<MessageKey, string> = {
   'advisor.unknown': 'Eso todavía no se puede responder con tus registros. Puedes preguntar, por ejemplo:',
   'advisor.failed': 'No se pudo consultar ahora. Inténtalo de nuevo en un momento.',
   'advisor.unavailable': 'La Asesoría todavía no puede responder en esta instalación.',
+  'advisor.allowanceUsed': 'El cupo diario de hoy se agotó, así que no se consultó nada. Vuelve a intentarlo cuando se renueve.',
   // 0130 — the advisor's memory (docs/ADVISOR-MEMORY.md §9.1–9.2).
   'advisor.memory.title': '¿Guardar tus conversaciones con la Asesoría?',
   'advisor.memory.ask': 'Permite que Nomi guarde tus conversaciones con la Asesoría para ayudar a analizar tu negocio con el tiempo.',
@@ -21629,6 +21633,7 @@ const FR: Record<MessageKey, string> = {
   'advisor.unknown': 'Cette question ne trouve pas encore de réponse dans vos données. Vous pouvez demander par exemple :',
   'advisor.failed': 'La recherche n’a pas abouti. Réessayez dans un instant.',
   'advisor.unavailable': 'Le Conseil ne peut pas encore répondre sur cette installation.',
+  'advisor.allowanceUsed': 'Le quota du jour est épuisé : rien n’a été recherché. Réessayez après son renouvellement.',
   // 0130 — the advisor's memory (docs/ADVISOR-MEMORY.md §9.1–9.2).
   'advisor.memory.title': 'Conserver vos conversations avec le Conseil ?',
   'advisor.memory.ask': 'Autoriser Nomi à conserver vos conversations avec le Conseil pour aider à analyser votre activité dans la durée.',

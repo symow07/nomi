@@ -3,7 +3,7 @@ import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
-import { allowanceOf, allowanceUsed, PHOTO_READS_A_DAY } from '../../db/allowance.js';
+import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
 import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
@@ -6523,6 +6523,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,
     model: deps.advisorModel ?? null,
+    // A4 — its metering: the day's allowance, asked before a question reaches the model, and what the question used,
+    // written on the workspace's ledger. Two narrow ports on the app's pool: an answer, and one write of usage.
+    allowanceUsed: (businessId) => allowanceUsedFor(deps.db, businessId),
+    spent: (businessId, u) => recordSpendAlone(deps.db, businessId, u, { turn: false }),
     // 0130 — the advisor's memory: a narrow port (keep, open, forget), never a writable pool.
     memory: deps.advisorMemory ?? null,
     processor: (locale) => processorLabel(legalFacts.processor, locale),
