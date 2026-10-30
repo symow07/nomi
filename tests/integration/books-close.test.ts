@@ -123,6 +123,20 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     expect(await notice(await post('/app/books/closing/lock', { day: '2099-01-31' }))).toContain('today at the latest');
   });
 
+  it('B10 · A SETTING OPENS NOTHING: the app that sets nomi.closing is refused in a locked period like any write', async () => {
+    // Audit batch 3 (B10, 2026-10-30): the lock gave way to `nomi.closing = 'on'` with a current_user other than the
+    // app's — and the entry trigger is a SECURITY DEFINER, where current_user is always the owner. So these two lines
+    // posted into a locked month. A close under way is now a row only books_close_year can write (0219).
+    expect(await refused(async (q) => {
+      await q(`select set_config('nomi.closing', 'on', true)`);
+      await q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by)
+        values (current_business_id(), $1, $2, '2026-03-20', 'Through the setting', 'owner')`, [k.ve, k.fy2026]);
+    })).toMatch(/2026-03-20 is on or before the lock date 2026-03-31/);
+    // …and the row that says a close is under way is the closing function's alone: the app can neither write nor read it.
+    expect(await refused((q) => q(`insert into books_closing_marks (xact) values (txid_current())`))).toMatch(/permission denied/);
+    expect(await refused((q) => q(`select * from books_closing_marks`))).toMatch(/permission denied/);
+  });
+
   it('REOPENING IS THE OWNER\'S, WITH A REASON, AND RECORDED — staff and the accountant are refused by the database', async () => {
     expect(await notice(await post('/app/books/closing/reopen', { year: k.fy2026, day: '2026-02-28', reason: '' }))).toContain('A reopening says why.');
     for (const who of [staffId, accountantId]) {

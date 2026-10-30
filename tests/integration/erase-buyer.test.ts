@@ -167,7 +167,9 @@ const GLOBAL = new Set(['_migrations', 'backup_runs', 'backup_failures', 'signup
   // Phase 1 (0148) — the sign-up marks: one-way codes with no business at all (the owner's word, 2026-10-13).
   'signup_marks',
   // Phase 1 (0149) — refusals counted for the operator: points and reasons, no business (the owner's word, 2026-10-13).
-  'signup_refusals']);
+  'signup_refusals',
+  // 0219 (B10) — "a close is under way in transaction N": a transaction id and a time, no business; empty between closes.
+  'books_closing_marks']);
 /** Every schema but the system's and the queue's (the queue is read on its own, below). */
 const USER_SCHEMA = "n.nspname not in ('pg_catalog', 'information_schema', 'pgboss') and n.nspname not like 'pg\\_%'";
 const NAMED = "(case when n.nspname = 'public' then c.relname::text else n.nspname || '.' || c.relname end)";
