@@ -45,7 +45,7 @@ export const CATALOGUE: readonly Entry[] = [
   none('A9', 'Where customers are from; customers by country.', 'advisor.notStored.country'),
   n('A10', 'Which channel customers use most (WhatsApp, Instagram, Messenger, e-mail).'),
   // B · Conversations, and what waits
-  g('B1', 'Who is waiting for the owner; what needs the owner now.'),
+  g('B1', 'Who is waiting for the owner or for the owner\'s reply; what needs the owner now.'),
   g('B2', 'Replies the assistant drafted that wait for the owner\'s review.'),
   g('B3', 'Customers handed over and waiting for a person.'),
   g('B4', 'Replies that failed to reach a customer.'),

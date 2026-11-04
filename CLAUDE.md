@@ -247,6 +247,7 @@ Recent PRs, newest first:
 |---|---|
 | 416 | **The Split Today design, behind `SPLIT_TODAY`** (open, the owner reviews before any merge) — see §5 rule 85 |
 | 418 | **Who needs you** (0223): a wine count, a dot, bold until opened; the page is "Customers" everywhere; Needs attention under the rows that need you; Recent entries' latest event; names and messages take their own direction — see §5 rule 86 |
+| 420 | **The OpenAI format under the one client, a warm sentence before a question, a customer is 您** — see §5 rule 87 |
 | 141 | **The review pass** — every page in three languages read; no raw catalogue key on any page (walk + typed Practice labels); History names the customer; the run's 278 zh/ar lines in `docs/NATIVE-REVIEW-UI.md` — see §5 rule 39 |
 | 140 | **Names, People, Setup, the door, the live line in the headers** — see §5 rule 39 |
 | 139 | **Right to left, by design** — `src/api/web/values.ts`, every value isolated on Arabic pages, the Arabic walk — see §5 rule 38 |
