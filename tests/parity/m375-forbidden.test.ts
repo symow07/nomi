@@ -126,7 +126,7 @@ describe('M37.5 · the guard is reached by the production reply path', () => {
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
     expect(src).toContain('const clean = guardForbidden({');
     expect(src).toMatch(/if \(!clean\.ok\) \{[\s\S]{0,120}forbiddenHits = clean\.error\.terms/);
-    expect(src).toContain('reply = clean.value;');
+    expect(src).toContain('reply = addressPolitely(clean.value, catalogue);');
     expect(src).toContain('const forbiddenTerms = await tenant.catalog.forbiddenTerms()');
   });
 

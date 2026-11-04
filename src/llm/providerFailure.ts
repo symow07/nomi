@@ -26,6 +26,9 @@
  *     `rate_limit_error` with `error.details.error_code`
  *     "enforced_spend_limit_reached" — not a rate limit: retrying fails until
  *     the month turns or the limit is raised.
+ *   · OpenAI's quota: HTTP 429 with `error.code` (and `type`) "insufficient_quota",
+ *     "You exceeded your current quota…" — also not a rate limit: it answers the
+ *     same until the account is paid.
  *
  * Everything else is NOT billing: a 429 that is a rate limit, 529/503
  * overloaded, other 5xx, a timeout, an invalid request, a bad key. A body that
@@ -102,7 +105,8 @@ export function classifyProviderResponse(status: number, body: unknown): Provide
     || INSUFFICIENT_BALANCE.test(w.message) || INSUFFICIENT_BALANCE.test(w.code)
     || CREDIT_TOO_LOW.test(w.message)
     || (status === 400 && SPEND_LIMIT_SET.test(w.message.trim()))
-    || w.detailCode === 'enforced_spend_limit_reached';
+    || w.detailCode === 'enforced_spend_limit_reached'
+    || w.code === 'insufficient_quota' || w.type === 'insufficient_quota';
   if (billing) return { kind: 'billing', status, words: said };
   if (status === 529 || status === 503 || w.type === 'overloaded_error') return { kind: 'overloaded', status };
   if (status === 429) return { kind: 'rate_limited', status };

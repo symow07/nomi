@@ -27,6 +27,7 @@ import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { carriesOurJson } from '../core/safety/rawOutput.js';
+import { addressPolitely } from '../core/safety/politeChinese.js';
 import { addressesInGender } from '../core/safety/address.js';
 import { disclosureFor, withDisclosure, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
 import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
@@ -962,7 +963,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           identityViolation = honest.error;
           continue;
         }
-        reply = clean.value;
+        // The owner's rule: a customer is 您. No model call and no retry: the writer's own 你 becomes 您 here.
+        reply = addressPolitely(clean.value, catalogue);
         // G5 (2026-10-10) — this attempt said what it is: an earlier attempt's
         // failure no longer stands, so the turn is not held for it and its
         // draft is not locked as "replaced by the disclosure".

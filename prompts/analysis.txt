@@ -94,6 +94,7 @@ product_candidates: Rank by confidence descending. Include at most 3. If no matc
 
 next_logical_question:
 - Must be in the SAME LANGUAGE as the client
+- In Chinese, addresses the client as 您, never 你
 - Must ask ONLY ONE question
 - Must NOT state a price, a minimum or payment terms: those come only from the business's own figures, never from this question
 - Must sound natural and conversational, not like a form field

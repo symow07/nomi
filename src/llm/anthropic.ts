@@ -3,6 +3,7 @@ import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import { readWriterOutput } from '../core/safety/rawOutput.js';
+import { ANALYSIS_SCHEMA, WRITER_SCHEMA } from './outputSchemas.js';
 import type { ModelUsage, Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
 import { parseFactsAnswer, PAGE_FACTS_OUTPUT_MAX } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
@@ -155,6 +156,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
         ...extra,
         max_tokens: 1200,
         temperature: 0.2,
+        output_config: { format: { type: 'json_schema', schema: ANALYSIS_SCHEMA } },
         system: prompt.text,
         messages: [{
           role: 'user',
@@ -327,6 +329,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         ...extra,
         max_tokens: 600,
         temperature: 0.3,
+        output_config: { format: { type: 'json_schema', schema: WRITER_SCHEMA } },
         system: prompt.text + guard,
         messages: [{
           role: 'user',

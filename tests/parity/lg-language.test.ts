@@ -196,7 +196,7 @@ describe('LG · the fixed sentences, in English, Chinese and Arabic', () => {
     expect(orderBlockedReply(['quantity_below_moq'], quote, 'zh')).toBe('这个产品的最低起订量是100件——这个数量可以吗？');
     const confirmed = { orderReference: 'NM-1042', productName: 'Canvas tote', quantity: 500, unit: 'pcs' };
     expect(orderConfirmedReply(confirmed)).toBe("Your order is confirmed — reference NM-1042: 500 pcs of Canvas tote. We'll send you the invoice next.");
-    expect(orderConfirmedReply({ ...confirmed, language: 'zh' })).toBe('你的订单已确认——编号 NM-1042：Canvas tote，500件。接下来我们会把发票发给你。');
+    expect(orderConfirmedReply({ ...confirmed, language: 'zh' })).toBe('您的订单已确认——编号 NM-1042：Canvas tote，500件。接下来我们会把发票发给您。');
     expect(orderConfirmedReply({ ...confirmed, language: 'ar' })).toContain('NM-1042');
     // The analyser's own question is still preferred to the fixed one.
     expect(guardFallbackReply(null, 'Which colour?', 'zh')).toBe('Which colour?');
