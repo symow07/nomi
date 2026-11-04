@@ -281,7 +281,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
       }
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble">PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
-      expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');
+      expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble">CUSTOMER-WORDS');
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('<bdi>Aisha Bello</bdi>');
       for (const w of ['PERSON-WORDS', 'CUSTOMER-WORDS']) expect(msg(html, w), `${l} ${w}`).not.toMatch(/by-as|class="as"|✦/);
       expect(html.match(/class="bubble by-as"/g), l).toHaveLength(2);
@@ -310,7 +310,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
       expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as">Mira</span>');
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble">PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
-      expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');
+      expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble">CUSTOMER-WORDS');
       expect(html.match(/class="bubble by-as"/g), l).toHaveLength(1);
     }
   });

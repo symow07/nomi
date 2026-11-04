@@ -474,7 +474,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     }
     const card = page.body.slice(from, to);
     const at = (x: string) => card.indexOf(x);
-    const words = at('<bdi>ok, 5000 again please</bdi>');
+    const words = at('dir="auto">ok, 5000 again please</blockquote>');
     const product = at('<bdi>Gift box</bdi>');
     const quantity = at(esc(show.quantityOf('en', 500, 'boxes')));
     const unit = at(esc(show.money('en', usd('2.1'))));
@@ -511,7 +511,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const at = (x: string) => page.body.indexOf(x);
     const confirm = at(`/app/inbox/${conv}/order/confirm`);
     for (const [what, x] of Object.entries({
-      words: '<bdi>ok, 5000 again please</bdi>',
+      words: 'dir="auto">ok, 5000 again please</blockquote>',
       quantity: esc(show.quantityOf('en', 5000, 'boxes')),
       unit: esc(show.money('en', usd('2.1'))),
       total: esc(show.money('en', usd('10500'))),

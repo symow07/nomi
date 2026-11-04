@@ -54,7 +54,7 @@ describe('V1-547, V1-562, V1-563 · a page reached from the customer list lights
   it('the calendar still lights only the calendar; Today lights neither', () => {
     expect(page('/app/calendar', 'inbox')).toMatch(/<a href="\/app\/calendar" class="navlink active"/);
     expect(page('/app/calendar', 'inbox')).not.toMatch(/<a href="\/app\/inbox" class="navlink active"/);
-    expect(page('/app', 'home')).not.toMatch(/class="navlink active"/);
+    expect(page('/app', 'home')).not.toMatch(/\/app\/(?:inbox|calendar)" class="navlink active"/);
   });
   it('in every locale', () => {
     for (const l of LOCALES) {

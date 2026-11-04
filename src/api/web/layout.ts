@@ -2186,6 +2186,7 @@ const STYLE_PAGES = `
   .ir-hold, .ir-by { flex:none; }
   .ir-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
   [dir="rtl"] .ir-text:dir(ltr) { text-align:end; }
+  [dir="ltr"] .ir-text:dir(rtl) { text-align:end; }
   .irow.unanswered .ir-text { color:var(--color-ink); }
   .ir-when { grid-row:2; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
     color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }

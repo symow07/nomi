@@ -125,7 +125,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
       const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), l, NOW, null, OWNER_VIEW));
       const section = html.slice(html.indexOf('id="deletion"'));
       expect(section, l).toContain(esc(t(l, k('conv.deletion.waiting'), { date: formatDate(l, ASKED, 'Asia/Shanghai') })));
-      expect(section, l).toContain('<p class="voice" dir="auto">Please delete my data</bdi></p>');
+      expect(section, l).toContain('<p class="voice" dir="auto">Please delete my data</p>');
       // 0126 — the one act is the deletion itself, asked first.
       expect(section, l).toContain('action="/app/conversations/c1/deletion/erase"');
       expect(section, l).toContain('action="/app/conversations/c1/deletion/dismiss"');

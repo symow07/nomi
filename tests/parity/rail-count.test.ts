@@ -127,7 +127,7 @@ describe('the page is "Customers", in every word for it (the owner, 2026-11-05)'
   });
 
   it('no sentence sends the owner to a page by its old name', () => {
-    const old = { en: /\bInbox\b/, zh: /收件箱里|「收件箱」/, ar: /«الرسائل»|صندوق الوارد\b(?! الخاص)/, es: /(?:en|a) Mensajes\b|Bandeja de entrada/, fr: /dans Messages\b|Boîte de réception/ } as const;
+    const old = { en: /\bInbox\b/, zh: /(?<!WhatsApp )收件箱/, ar: /«الرسائل»|صندوق الوارد\b(?! الخاص)/, es: /(?:en|a) Mensajes\b|Bandeja de entrada/, fr: /dans Messages\b|Boîte de réception/ } as const;
     for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
       const hits = Object.entries(messages[l]).filter(([, v]) => old[l].test(String(v))).map(([k]) => k);
       expect(hits, l).toEqual([]);

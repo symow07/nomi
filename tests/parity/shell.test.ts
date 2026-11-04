@@ -29,9 +29,9 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     expect(page('zh')).toContain('首页'); expect(page('zh')).toContain('客户');
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
     expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('العملاء');
-    // The warmth run: "Inbox (rename from 'Customer list')", under the Customers heading.
+    // The owner, 2026-11-05: "Customers", everywhere.
     expect(page('en')).toContain('>Customers<');
-    expect(page('zh')).toContain('收件箱');
+    expect(page('zh')).not.toContain('收件箱');
     expect(page('en')).not.toContain('Customer list');
   });
 

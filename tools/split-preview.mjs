@@ -8,6 +8,7 @@
  *   node tools/split-preview.mjs shots  draws Today and Customers at a desktop and a phone width, in English and Arabic,
  *                                       into docs/design/split-today/. It opens one waiting conversation first, so
  *                                       Customers shows a bold name beside a plain one.
+ *                                       And a conversation in each script, on each page.
  *
  *   MIGRATE_DATABASE_URL  the local admin address; DATABASE_URL  the local app address (nomi_app)
  *   SPLIT_BASE  the instance, started with SPLIT_TODAY=on (default http://127.0.0.1:8787)
@@ -315,6 +316,19 @@ async function shots() {
       const cut = await page.evaluate(() => [...document.querySelectorAll('.ir-name')].filter((n) => n.scrollWidth > n.clientWidth)
         .map((n) => `${getComputedStyle(n).direction} ${n.textContent.slice(0, 12)}`));
       console.log(`  customers-${width}-${locale}: cut: ${cut.join(' | ') || 'none'}`);
+      // A message takes its direction from its own words, on either page.
+      for (const [kind, words] of [['arabic', 'أريد التحدث مع شخص'], ['latin', 'Can I talk to someone about a bulk order']]) {
+        await page.goto(`${BASE}/app/inbox`);
+        const door = await page.locator('a.ir-main', { hasText: words }).first().getAttribute('href');
+        await page.goto(`${BASE}${door}`);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: `${OUT}conversation-${width}-${locale}-${kind}.png`, fullPage: false });
+        const read = await page.evaluate((said) => {
+          const b = [...document.querySelectorAll('.bubble')].find((x) => x.textContent.includes(said));
+          return b ? getComputedStyle(b).direction : 'no bubble';
+        }, words);
+        console.log(`  conversation-${width}-${locale}-${kind}: its bubble runs ${read}`);
+      }
       await ctx.close();
     }
   }

@@ -20,5 +20,5 @@ create trigger trg_conversations_updated_at
   when (new.owner_opened_at is not distinct from old.owner_opened_at)
   execute function set_updated_at();
 
-insert into _migrations (version, name) values (222, 'owner_opened')
+insert into _migrations (version, name) values (223, 'owner_opened')
   on conflict (version) do nothing;

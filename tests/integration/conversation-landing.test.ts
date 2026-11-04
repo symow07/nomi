@@ -209,7 +209,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const said = flashSaid(res, SECRET);
     expect(said).not.toBe('');
     const html = await land(res);
-    const newest = at(html, '<bdi>line-6</bdi>');
+    const newest = at(html, '>line-6</div>');
     const notice = landing(html);                  // the page opens on the notice itself
     const approve = at(html, 'class="card draft"');
     expect(notice).toBeGreaterThan(newest);
@@ -229,7 +229,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(html).toContain('<html lang="ar" dir="rtl"');
     const notice = landing(html);
     expect(html.slice(notice)).toMatch(/^<div class="flash bad" role="alert" id="latest">/);   // a refusal, announced as one
-    expect(notice).toBeGreaterThan(at(html, '<bdi>line-6</bdi>'));
+    expect(notice).toBeGreaterThan(at(html, '>line-6</div>'));
     expect(notice).toBeLessThan(at(html, 'class="card draft"'));
     expect(html.slice(notice, at(html, 'class="card draft"'))).not.toContain('Nobody by that name');   // in Arabic, not English
   });
@@ -262,7 +262,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
       // and where it lands: on the notice, under the newest message — or, with
       // nothing to say, on the newest message itself
       const html = await land(r);
-      if (notice) expect(landing(html), what).toBeGreaterThan(at(html, '<bdi>line-6</bdi>'));
+      if (notice) expect(landing(html), what).toBeGreaterThan(at(html, '>line-6</div>'));
       else expect(html, what).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">line-6</);
     }
     expect(answered).toEqual([conv]);   // "answer now" reached the worker's door, once
