@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SPLIT_CSS } from '../../src/api/web/splitStyle.js';
 import { SPLIT_TOKENS } from '../../src/core/owner/tokens.js';
+import { inkWashDataUri } from '../../src/core/owner/brand.js';
 
 /**
  * THE SPLIT TODAY PREVIEW'S RULES, in its stylesheet (docs/DESIGN-SYSTEM.md "Do and don't"). The page itself is drawn over
@@ -30,6 +31,19 @@ describe('the Split Today sheet', () => {
     expect(rulesUsing('.sp-over')[0]).toBeDefined();
     expect(SPLIT_CSS.split('.sp-over {')[1]!.split('}')[0]).toContain(SPLIT_TOKENS.color.ochre);
     expect(SPLIT_CSS).not.toMatch(/#(?:f00|ff0000|c00|d32f2f)\b|\bred\b/i);
+  });
+
+  it('a time chart never flips right to left', () => {
+    expect(SPLIT_CSS).not.toMatch(/sp-trend[^{}]*\{[^}]*(?:transform|scale)/);
+    expect(SPLIT_CSS).not.toMatch(/\bsp-t(?:line|area|dot)[^{}]*\{[^}]*(?:transform|scale)/);
+  });
+
+  it('keeps the wash rose, and the tokens it is drawn from', () => {
+    expect(SPLIT_TOKENS.color).toMatchObject({ washInk: '#9C4F52', washHalo: '#B8767A' });
+    const doc = atob(inkWashDataUri().split('base64,')[1]!);
+    expect(doc).toContain(SPLIT_TOKENS.color.washInk);
+    expect(doc).toContain(SPLIT_TOKENS.color.washHalo);
+    expect(doc).not.toContain(SPLIT_TOKENS.color.magenta);
   });
 
   it('holds the brief\'s colours exactly', () => {

@@ -25,7 +25,8 @@ Each colour has one job. A colour used for anything else is a defect.
 |---|---|---|
 | paper | `#F7F3EE` | The page |
 | surface | `#FFFDFA` | A panel |
-| ink | `#25201C` | Text, and the wash |
+| ink | `#25201C` | Text |
+| washInk, washHalo | `#9C4F52`, `#B8767A` | The header's wash, nothing else |
 | secondary | `#665D55` | Quieter text; the edge of an outlined button |
 | border | `#E8E1D8` | Hairlines |
 | neutral | `#EDE7DF` | A customer's initial; a plain chip; the rail's current page |
@@ -59,7 +60,7 @@ Two voices, both under the SIL Open Font License and served by the product (`ass
 
 | Voice | Latin | Arabic | Chinese | Used for |
 |---|---|---|---|---|
-| Serif | Newsreader | Noto Naskh Arabic | Noto Serif SC | "Today", panel headings, a customer's name on the decision, the question, big money |
+| Serif | Newsreader | Noto Naskh Arabic | Noto Serif SC | Headings and big numbers: "Today", panel headings, a customer's name on the decision, the question, big money |
 | Sans | Noto Sans | Noto Sans Arabic | Noto Sans SC | Everything else |
 
 | Size (px) | Token | Used for |
@@ -88,9 +89,15 @@ Radius: panel 14, control 10, thumbnail 8, chip fully round.
 
 ## The wash
 
-A soft band of ink noise behind the page's header, fading to nothing at its foot (`inkWashDataUri` in
-`src/core/owner/brand.ts`). It appears once per page and runs edge to edge. It is ink, not a brand colour, because wine
-is the mark's and magenta is Send's.
+Rose ink brushed on rice paper, behind "Today" (`inkWashDataUri` in `src/core/owner/brand.ts`; the owner's reference,
+2026-11-04). It hangs from the top edge with a torn, watery foot, and fades to nothing downward and away to the far side.
+
+- It appears once per page and runs edge to edge. It is 176 px tall and keeps its own proportions. Squeezed into the
+  header, it turns into streaks.
+- Right to left, it is mirrored so it stays behind the title. It is decoration; a time chart never is (see The trend).
+- It is drawn from `washInk` and `washHalo`, a rose of its own. Wine stays the mark's and magenta stays Send's.
+- It stays faint enough for AA. `tools/split-preview.mjs shots` hides the text and prints the worst pixel behind the
+  title, the subtitle and the panel headings. Lowest on 2026-11-04, before it was shortened to 176 px: 6.98:1. The title and subtitle are ink, never secondary.
 
 ## Rows
 
@@ -101,6 +108,14 @@ One customer, one line, one door to the conversation: photo, name, product thumb
 - With no value, the value's place stays empty. Never "$0".
 - On a phone, a row takes two lines: name and value, then chip and days.
 - The customer on the decision card is not listed again under it.
+
+**Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron, opening the
+invoice. It lists issued invoices and payments, newest first. A payment's chip says "Payment"; an invoice's says where it
+stands. Green is settled, ochre is overdue, the rest are plain.
+
+On a wide screen both columns end level. The sheets stretch to the taller one, and Recent entries shows as many whole rows
+as the column has room for, at least five. Keyboard focus inside the list reveals the rest, so focus never lands on a
+hidden row. Below 1101 px, where the panels stack, it shows five.
 
 ## Chips
 
@@ -151,8 +166,11 @@ Asked → Price given → Sample → Order, this month, in the workspace's time 
 ## The trend
 
 One line, one colour, no legend: profit so far this fiscal year, by month. Jade, 2 px, with a faint wash under it and
-the latest month marked. Each point names its month and figure on hover, and the whole chart has a text label. Right to
-left, it runs from the right.
+the latest month marked. Each point names its month and figure on hover, and the whole chart has a text label.
+
+**A time chart never flips.** Time runs left to right on every page, Arabic included, with the newest month on the right.
+Mirrored, a year of rising profit reads as a fall. The chart carries `dir="ltr"` and no transform; tests hold it. The stage
+strip is a sequence, not a time chart, and does run from the right.
 
 ## The mark
 
@@ -171,7 +189,8 @@ From 720 px down: Sales first, Books below, a tab bar at the foot.
 
 ## Right to left
 
-Arabic mirrors the whole page by logical properties alone. The trend is the one thing flipped by hand.
+Arabic mirrors the whole page by logical properties alone. Two exceptions: the trend stays left to right, because time
+charts never flip, and the wash is mirrored by hand to stay behind the title.
 
 - Every figure goes through `show.*`, which isolates it (`src/api/web/values.ts`).
 - A customer's name goes in `<bdi>`, not `dir="auto"`, so a Latin name still lines up with the page's edge.
@@ -189,6 +208,8 @@ Arabic mirrors the whole page by logical properties alone. The trend is the one 
 
 **Don't**
 
+- Don't flip a time chart right to left.
+- Don't use serif for running text. It's for what a person says, headings and big numbers.
 - Don't use a second magenta on a screen, or magenta on anything but Send.
 - Don't use wine on anything but the mark.
 - Don't use red. Overdue is ochre.

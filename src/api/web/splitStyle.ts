@@ -40,16 +40,22 @@ html[lang="ar"] .split { --font-voice:${serif.ar}; }
   font-size:var(--font-size-small); text-decoration:none; border-radius:${K.radius.control}px; }
 .split .sp-me:hover { background:${K.color.neutral}; }
 
-/* The page */
+/* The page: a keyboard's focus never lands under the phone's tab bar */
+html:has(body.split) { scroll-padding-block-end:96px; }
 .split main.wide { max-inline-size:none; padding:0; }
 .sp { padding-block-end:${K.space[32]}px; }
 .sp-head { position:relative; display:flex; align-items:flex-start; justify-content:space-between; gap:${K.space[16]}px;
-  padding:${K.space[32]}px ${GUT} ${K.space[24]}px;
+  padding:${K.space[32]}px ${GUT} ${K.space[24]}px; }
+.sp-head { isolation:isolate; }
+/* The wash keeps its own proportions, so it stays a brushed blot and never a row of streaks. It hangs past the header's foot and fades out by itself; the panels paint over what is left. It is decoration, so it follows the title to the other side, right to left. */
+.sp-head::before { content:""; position:absolute; z-index:-1; inset-block-start:0; inset-inline:0; block-size:176px; pointer-events:none;
   background:url("${inkWashDataUri()}") top center / max(100%, 1100px) 100% no-repeat; }
+html[dir="rtl"] .sp-head::before { transform:scaleX(-1); }
+.sp-panels { position:relative; }
 .sp-headmark { display:none; }
 .split h1.page { margin:0; font-family:var(--font-voice); font-size:${K.size.title}px; font-weight:400; line-height:1.1; letter-spacing:-0.01em; color:var(--color-ink); }
 html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:0; line-height:1.3; }
-.sp-sub { margin:${K.space[4]}px 0 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+.sp-sub { margin:${K.space[4]}px 0 0; font-size:var(--font-size-small); color:var(--color-ink); }
 .sp-new { flex:none; margin:0; }
 .sp-panels { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:${K.space[24]}px; padding-inline:${GUT}; align-items:start; }
 .sp-panels.is-one { grid-template-columns:minmax(0, 720px); }
@@ -139,9 +145,22 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-rval { font-size:var(--font-size-small); text-align:end; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
 .sp-rday { font-size:var(--font-size-caption); color:var(--color-ink-secondary); text-align:end; white-space:nowrap; }
 .sp-chip { justify-self:start; padding:2px ${K.space[8]}px; font-size:var(--font-size-caption); line-height:1.5; white-space:nowrap; color:var(--color-ink-secondary); background:${K.color.neutral}; border-radius:${K.radius.chip}px; }
-.sp-chip.is-order { color:${K.color.jade}; background:${K.color.jadeWash}; }
+.sp-chip.is-order, .sp-chip.is-done { color:${K.color.jade}; background:${K.color.jadeWash}; }
 .sp-chip.is-waiting { color:${K.color.ochreText}; background:${K.color.ochreWash}; }
 .sp-row .go { justify-self:end; color:var(--color-ink-secondary); }
+.sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) 96px 72px 60px 16px; }
+
+/* Both columns end level: the sheets stretch to the taller one, and Recent entries shows as many whole rows as fit */
+@media (min-width: 1101px) {
+  .sp-panels { align-items:stretch; }
+  .sp-panel { display:flex; flex-direction:column; }
+  .sp-panel > .sp-sheet { flex:1 1 auto; display:flex; flex-direction:column; }
+  .sp-entries { flex:1 1 0; display:flex; flex-direction:column; }
+  .sp-entries .sp-rows { flex:1 1 0; min-block-size:265px; contain:size; display:flex; flex-direction:column; flex-wrap:wrap; overflow:clip; }
+  .sp-entries .sp-rows > li { inline-size:100%; }
+  .sp-entries .sp-rows:focus-within { contain:none; flex-wrap:nowrap; overflow:visible; }
+}
+@media (max-width: 1100px) { .sp-entries .sp-rows > li:nth-child(n+6) { display:none; } }
 
 /* The list of who else waits sits on the sheet, at its edge */
 .split .tw-list { background:transparent; box-shadow:none; }
@@ -159,7 +178,6 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-tline { fill:none; stroke:${K.color.jade}; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .sp-tdot { fill:${K.color.jade}; stroke:var(--color-surface); stroke-width:2; }
 .sp-trend svg { display:block; inline-size:100%; block-size:auto; overflow:visible; }
-html[dir="rtl"] .sp-trend svg { transform:scaleX(-1); }
 .sp-owed { margin:${K.space[4]}px 0 0; font-size:var(--font-size-small); font-variant-numeric:lining-nums; }
 .sp-over { margin:${K.space[4]}px 0 0; font-family:var(--font-voice); font-size:${K.size.name}px; font-weight:700; color:${K.color.ochre}; }
 .sp-note { margin:${K.space[4]}px 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -205,6 +223,7 @@ html[dir="rtl"] .sp-trend svg { transform:scaleX(-1); }
   .sp-rval { grid-area:val; }
   .sp-rday { grid-area:day; }
   .sp-row .go { grid-area:go; }
+  .sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) auto 14px; grid-template-areas:"face name val go" "face chip day go"; }
   .sp-money { grid-template-columns:minmax(0, 1fr) 110px; }
   .sp-big { font-size:${K.size.moneyPhone}px; }
   .sp-phonedoor { display:block; padding:${K.space[16]}px ${K.space[16]}px 0; }

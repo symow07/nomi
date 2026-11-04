@@ -294,7 +294,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
       at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
     ];
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(page).not.toContain('class="card takeover');   // the fix wave (w4-conversation-03): the draft card's "I'll reply" is the take-over
+    expect(page).not.toContain('class="card takeover');   // the fix wave (w4-conversation-03): the draft card's "Hand to me" is the take-over
     expect(page).toMatch(/id="latest" class="msg (?:inbound|outbound)">/);
     expect(at(page, 'We can commit to 5000 units')).toBeLessThan(at(page, 'class="card draft"'));
 

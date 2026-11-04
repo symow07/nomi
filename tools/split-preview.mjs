@@ -188,14 +188,14 @@ async function seed() {
     const month = i + 1;
     if (year === today.getUTCFullYear() && month - 1 >= today.getUTCMonth()) break;
     const day = `${year}-${String(month).padStart(2, '0')}-15`;
-    await pay(await issue('Lumen Wholesale', day, sold), day, sold);
+    await pay(await issue('Lumen Wholesale', day.replace(/-\d\d$/, '-08'), sold), day, sold);
     await cost(`${year}-${String(month).padStart(2, '0')}-20`, spent);
   }
   // This month: in 18,400, out 9,150. The first three payments wait on the bank page, matched by its rule.
   const dayOf = (n) => iso(new Date(today.getTime() - n * 86_400_000));
   const thisMonth = (n) => { const d = dayOf(n); return d.slice(0, 7) === iso(today).slice(0, 7) ? d : `${iso(today).slice(0, 7)}-01`; };
   const paid = [['Fatima Zahra', '8200'], ['Rania Belhaj', '5600'], ['Lumen Wholesale', '4600']];
-  for (const [party, amount] of paid) { const on = thisMonth(1); await pay(await issue(party, on, amount), on, amount); }
+  for (const [party, amount] of paid) { const on = thisMonth(1); await pay(await issue(party, thisMonth(3), amount), on, amount); }
   await cost(thisMonth(1), '9150');
   // Owed: four invoices, 12,300; one late by nine days.
   const karimOrder = karim.orderId;
@@ -212,6 +212,75 @@ async function seed() {
   await db.destroy();
   await a.end();
   console.log('Seeded. Restart the instance with SPLIT_TODAY=on (the workspace\'s facts are cached for a minute).');
+}
+
+/** Both columns end level: the two sheets' feet, in CSS pixels. */
+async function measureColumns(page, locale) {
+  const feet = await page.evaluate(() => [...document.querySelectorAll('.sp-panel > .sp-sheet')].map((e) => Math.round(e.getBoundingClientRect().bottom * 10) / 10));
+  const rows = await page.evaluate(() => {
+    const list = document.querySelector('.sp-entries .sp-rows');
+    if (!list) return { all: 0, whole: 0 };
+    const box = list.getBoundingClientRect();
+    const items = [...list.children];
+    return { all: items.length, whole: items.filter((li) => { const r = li.getBoundingClientRect(); return r.top >= box.top - 1 && r.bottom <= box.bottom + 1 && r.left < box.right && r.right > box.left && r.width > 0; }).length };
+  });
+  console.log(`  columns ${locale}: feet ${feet.join(' / ')}, difference ${Math.abs(feet[0] - feet[1]).toFixed(1)} px; entries showing ${rows.whole} of ${rows.all}`);
+}
+
+const channel = (c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+
+/** The wash stays faint: the text hidden, the worst pixel actually behind the title and the line under it. */
+async function measureWash(browser, page, locale, width) {
+  const boxes = await page.evaluate(() => [...document.querySelectorAll('.sp-head h1, .sp-head .sp-sub, .sp-phead h2')].map((e) => {
+    const range = document.createRange(); range.selectNodeContents(e);
+    const r = range.getBoundingClientRect();
+    return { name: e.tagName === 'H1' ? 'title' : e.tagName === 'H2' ? `heading ${e.textContent.trim()}` : 'subtitle', ink: getComputedStyle(e).color.match(/\d+/g).slice(0, 3).map(Number), clip: { x: r.x, y: r.y, width: r.width, height: r.height } };
+  }));
+  const veil = await page.addStyleTag({ content: '.sp-head h1, .sp-head .sp-sub, .sp-head h1 *, .sp-head .sp-sub *, .sp-phead h2, .sp-phead h2 * { color:transparent !important; }' });
+  const probe = await browser.newPage();
+  for (const b of boxes) {
+    const png = (await page.screenshot({ clip: b.clip, fullPage: true })).toString('base64');
+    const paper = await probe.evaluate(async (data) => {
+      const img = new Image(); img.src = `data:image/png;base64,${data}`; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      const px = []; for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2]]);
+      return px;
+    }, png);
+    const worst = Math.min(...paper.map((p) => contrast(p, b.ink)));
+    console.log(`  wash ${width} ${locale} ${b.name}: worst contrast ${worst.toFixed(2)}:1 ${worst >= 4.5 ? 'passes AA' : 'FAILS AA'}`);
+  }
+  await probe.close();
+  await veil.evaluate((e) => e.remove());
+}
+
+/** The phone's tab bar must not cover "Also waiting for you": at rest, once a row is brought into view, and at the page's foot. */
+async function measureTabBar(page, locale) {
+  const read = () => page.evaluate(() => {
+    const bar = document.querySelector('nav.side').getBoundingClientRect().top;
+    const also = document.querySelector('.sp-also');
+    const box = (e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom) }; };
+    return { bar: Math.round(bar), head: box(also.querySelector('h3') ?? also), rows: [...also.querySelectorAll('a')].map(box), foot: box(document.querySelector('.sp-panels')) };
+  });
+  const rest = await read();
+  await page.screenshot({ path: `${OUT}today-phone-${locale}-rest.png` });
+  await page.evaluate(() => { const rows = document.querySelectorAll('.sp-also a'); rows[rows.length - 1].scrollIntoView({ block: 'nearest' }); });
+  await page.waitForTimeout(300);
+  const nearest = await read();
+  await page.screenshot({ path: `${OUT}today-phone-${locale}-also.png` });
+  // A keyboard's focus: what the browser scrolls to on Tab.
+  await page.evaluate(() => { window.scrollTo(0, 0); const rows = document.querySelectorAll('.sp-also a'); rows[rows.length - 1].focus(); });
+  await page.waitForTimeout(300);
+  const focused = await read();
+  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, document.documentElement.scrollHeight); });
+  await page.waitForTimeout(300);
+  const end = await read();
+  const last = (m) => m.rows.at(-1);
+  console.log(`  tab bar ${locale}: bar top ${rest.bar}; at rest the heading ends ${rest.head.bottom} (${rest.head.bottom <= rest.bar ? 'clear' : 'COVERED'}), the last row ends ${last(rest).bottom}`);
+  console.log(`  tab bar ${locale}: row scrolled into view ends ${last(nearest).bottom} (${last(nearest).bottom <= nearest.bar ? 'clear' : 'COVERED'}); focused by keyboard ends ${last(focused).bottom} (${last(focused).bottom <= focused.bar ? 'clear' : 'COVERED'}); page's foot ${end.foot.bottom} (${end.foot.bottom <= end.bar ? 'clear' : 'COVERED'})`);
 }
 
 async function shots() {
@@ -234,6 +303,9 @@ async function shots() {
       await page.screenshot({ path: file, fullPage: false });
       await page.screenshot({ path: `${OUT}today-${width}-${locale}-full.png`, fullPage: true });
       console.log(`${file}  dir=${dir || 'ltr'}${wide ? '  WIDER THAN THE SCREEN' : ''}`);
+      if (width === 'desktop') await measureColumns(page, locale);
+      await measureWash(browser, page, locale, width);
+      if (width === 'phone') await measureTabBar(page, locale);
       await ctx.close();
     }
   }

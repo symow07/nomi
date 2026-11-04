@@ -396,7 +396,7 @@ export const railRose = (since: string, newestAt: number | null): boolean => {
  * may be about: handed over and nobody's yet, a reply waiting for the
  * reader's tap, an order waiting, a deletion asked. A conversation the reader
  * (or a colleague) already holds is in their "Needs you", but nobody is newly
- * waiting in it: answering from the phone or pressing "I'll reply" makes the
+ * waiting in it: answering from the phone or pressing "Hand to me" makes the
  * conversation the reader's, and that is no news (w4-whole-04).
  */
 const GENUINELY_WAITING = sql<boolean>`(c.assigned_to = ${WAITING_HUMAN_AGENT}

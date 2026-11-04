@@ -267,7 +267,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
           at(html, 'class="card sbx-trust'), at(html, 'id="compose"'),
         ];
         expect(order, l).toEqual([...order].sort((a, b) => a - b));
-        // the fix wave (w4-conversation-03) — under the draft card its "I'll reply" is the take-over
+        // the fix wave (w4-conversation-03) — under the draft card its "Hand to me" is the take-over
         expect(html, l).not.toContain('class="card takeover');
         expect(notices(html), l).toBe(1);
         expect(marks(html), l).toBe(1);

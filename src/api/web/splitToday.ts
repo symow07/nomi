@@ -4,8 +4,9 @@ import { moneyFromRow } from '../../core/types/money.js';
 import { dayKey } from '../../core/owner/i18n/format.js';
 import { sellsByQuantity } from '../../core/owner/sellingStyle.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
+import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { zoneOf } from '../../db/zone.js';
-import { RECENT_CUSTOMERS, decisionExtras, loadSplitBooks, loadSplitSales, type DecisionExtras, type RecentCustomer, type SplitBooks, type SplitSales } from '../../db/splitToday.js';
+import { RECENT_CUSTOMERS, decisionExtras, loadSplitBooks, loadSplitSales, type DecisionExtras, type BooksEntry, type RecentCustomer, type SplitBooks, type SplitSales } from '../../db/splitToday.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { esc, deeper, conversationUrl, LIVE_SLOT, signalMark } from './layout.js';
 import { t, tn, assistantName, businessName, outreachShown } from './say.js';
@@ -108,7 +109,7 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
       <div class="sp-acts">
         <button class="sp-btn sp-send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
         <label class="sp-btn" for="reply">${esc(t(locale, 'split.edit'))}</label>
-        <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'split.handToMe'))}</button>
+        <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
       </div>
       ${window ? `<p class="sp-window">${window}</p>` : ''}
     </form>
@@ -158,7 +159,7 @@ function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Loca
 
 // ── Books ────────────────────────────────────────────────────────────────────
 
-/** The year's profit, month by month: one line, in jade, the last month marked. Mirrored right to left by the sheet. */
+/** The year's profit, month by month: one line, in jade, the last month marked. Time runs left to right on every page: a time chart never flips right to left. */
 function trendChart(b: SplitBooks, locale: Locale): string {
   if (b.trend.length < 2) return '';
   const W = 160, H = 76, PAD = 5;
@@ -173,12 +174,26 @@ function trendChart(b: SplitBooks, locale: Locale): string {
   const tell = (p: SplitBooks['trend'][number]): string => t(locale, 'split.trend.point', { month: show.month(locale, p.month), money: booksMoney(locale, p.value.toFixed(2), b.currency) });
   const last = b.trend[b.trend.length - 1]!;
   const hits = b.trend.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="7" fill="transparent"><title>${esc(tell(p))}</title></circle>`).join('');
-  return `<figure class="sp-trend"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(`${t(locale, 'split.trend.label')}. ${tell(last)}`)}">
+  return `<figure class="sp-trend" dir="ltr"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(`${t(locale, 'split.trend.label')}. ${tell(last)}`)}">
     <path class="sp-tarea" d="${area}"/>
     <path class="sp-tline" d="${line}"/>
     <circle cx="${x(b.trend.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.5" class="sp-tdot"/>
     ${hits}
   </svg></figure>`;
+}
+
+/** One invoice or payment, in the row Recent customers uses. Green is settled, ochre is late, the rest plain. */
+function entryRow(e: BooksEntry, locale: Locale): string {
+  const mood = e.status === null || e.status === 'paid' ? ' is-done' : e.status === 'overdue' ? ' is-waiting' : '';
+  const word = e.status === null ? t(locale, 'split.entry.payment') : t(locale, `books.invoice.status.${e.status}` as MessageKey);
+  return `<li><a class="sp-row sp-entry" href="/app/books/invoices/${esc(e.invoiceId)}">
+    ${face({ clientId: e.clientId ?? e.invoiceId, name: e.party, photo: e.photo }, 's')}
+    <span class="sp-rname"><bdi>${esc(e.party)}</bdi></span>
+    <span class="sp-chip${mood}">${esc(word)}</span>
+    <span class="sp-rval">${esc(booksMoney(locale, e.amount, e.currency))}</span>
+    <span class="sp-rday">${esc(show.dayMonth(locale, e.on))}</span>
+    ${GO}
+  </a></li>`;
 }
 
 function booksPanel(b: SplitBooks, locale: Locale): string {
@@ -223,6 +238,10 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     </section>
     ${b.matched > 0 ? `<a class="sp-card sp-door" href="/app/books/bank">${signalMark('ok')}<span>${esc(tn(locale, 'split.matched', b.matched))}</span>${GO}</a>` : ''}
     <a class="sp-card sp-door" href="/app/books/closing">${solarSvg('ni', 'calendar', 22)}<span>${esc(year)}</span>${GO}</a>
+    ${b.entries.length ? `<section class="sp-card sp-entries" aria-labelledby="sp-et">
+      <div class="sp-phead"><h3 class="sp-cap" id="sp-et">${esc(t(locale, 'split.entries'))}</h3>${deeper('/app/books/invoices', t(locale, 'split.viewAll'))}</div>
+      <ul class="sp-rows">${b.entries.map((e) => entryRow(e, locale)).join('')}</ul>
+    </section>` : ''}
     </div>
   </section>`;
 }
@@ -272,9 +291,9 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
         <ul class="sp-rows">${recent.map((r) => recentRow(r, waiting, locale, now, zone)).join('')}</ul>
       </section>` : ''}
       ${lead ? `<div class="sp-card today-worth">${lead}</div>` : ''}
+      ${parts.finishSetup ? `<div class="sp-card">${parts.finishSetup}</div>` : ''}
+      ${parts.live ? `<div class="sp-card">${renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced))}</div>` : ''}
       </div>
-      ${parts.finishSetup}
-      ${parts.live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
     </section>
     ${data.books ? booksPanel(data.books, locale) : ''}
   </div>

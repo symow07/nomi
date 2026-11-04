@@ -1887,7 +1887,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
    * where a PERSON must answer: the conversation waits for a person, or a
    * colleague holds it. On a conversation the assistant holds — answered, or
    * with a reply waiting under the draft card — it is gone. The reader is never
-   * an option in the list: taking it yourself is its own button ("I'll reply"),
+   * an option in the list: taking it yourself is its own button ("Hand to me"),
    * which for a conversation a colleague holds posts the same hand-to with your
    * own id ("Confier à [moi]" was not French).
    */
@@ -1918,7 +1918,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   switch (d.ownership) {
     case 'AI':
       // The fix wave (w4-conversation-03) — with a reply waiting, the draft card above is the whole
-      // story and its "I'll reply" the take-over: a second card under it repeated "it waits for your OK".
+      // story and its "Hand to me" the take-over: a second card under it repeated "it waits for your OK".
       if (d.pendingDraft) return '';
       // Phase 9 (conversation-new-06) — with nothing waiting, the card says so itself: in a dashed box
       // of its own the line read as an empty drop zone, narrower than the cards around it.

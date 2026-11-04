@@ -475,6 +475,8 @@ export const SPLIT_TOKENS = {
     magenta: '#9A0F5E',
     onSend: '#FFFFFF',
     neutral: '#EDE7DF',
+    washInk: '#9C4F52',
+    washHalo: '#B8767A',
   },
   size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 40, title: 44, titlePhone: 36, moneyPhone: 34 },
   radius: { panel: 14, control: 10, thumb: 8, chip: 999 },

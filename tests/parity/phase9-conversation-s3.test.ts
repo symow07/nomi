@@ -89,7 +89,7 @@ describe('V1-262 · the same act has one name on every page', () => {
       expect(withDraft, l).toContain(`>${esc(t(l, 'card.handToMe'))}</button>`);
       expect(without, l).toContain(`>${esc(t(l, 'takeover.action.take'))}</button>`);
     }
-    expect(t('en', 'card.handToMe')).toBe('I’ll reply');
+    expect(t('en', 'card.handToMe')).toBe('Hand to me');
   });
 });
 

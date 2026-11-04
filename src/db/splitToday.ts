@@ -8,6 +8,8 @@ import { notOwnerTesting } from './handled.js';
 import { faceVersions } from './faces.js';
 import { productPhotoPath } from './productPhotos.js';
 import { defaultPeriod } from './booksReports.js';
+import { statusOf, type InvoiceStatus } from './booksInvoices.js';
+import { parseDecimal } from '../core/types/decimal.js';
 
 /**
  * THE SPLIT TODAY PREVIEW'S FIGURES (2026-11-04, behind `SPLIT_TODAY=on`). A read model: it writes nothing and every
@@ -155,6 +157,23 @@ export type OverdueCustomer = {
   readonly photo: string | null;
 };
 
+/** The latest invoices and payments, newest first: who, how much, where it stands, when. */
+export type BooksEntry = {
+  readonly kind: 'invoice' | 'payment';
+  readonly invoiceId: string;
+  readonly party: string;
+  readonly amount: string;
+  readonly currency: string;
+  readonly on: string;
+  /** Where an invoice stands; a payment is simply a payment. */
+  readonly status: InvoiceStatus | null;
+  readonly clientId: string | null;
+  readonly photo: string | null;
+};
+
+/** More than a page can show: the sheet draws as many whole rows as its column has room for. */
+export const RECENT_ENTRIES = 14;
+
 export type SplitBooks = {
   readonly currency: string;
   readonly moneyIn: string;
@@ -171,6 +190,7 @@ export type SplitBooks = {
   /** Bank lines not yet matched for which the rule found a posted payment: what the bank page offers to approve. */
   readonly matched: number;
   readonly year: { readonly startsOn: string; readonly endsOn: string; readonly state: 'open' | 'closed' } | null;
+  readonly entries: readonly BooksEntry[];
 };
 
 export async function loadSplitBooks(tx: Tx, businessId: string, today: string): Promise<SplitBooks> {
@@ -233,6 +253,28 @@ export async function loadSplitBooks(tx: Tx, businessId: string, today: string):
           and abs(e.entry_date - s.booked_on) <= 7
           and not exists (select 1 from statement_matches m where m.journal_line_id = jl.id and m.unmatched_at is null))`.execute(tx)).rows[0]!.n;
 
+  const entryRows = (await sql<{ kind: 'invoice' | 'payment'; invoice_id: string; party: string; amount: string; currency: string; on_day: string; state: string;
+    total: string; credited: string; paid: string; due_date: string | null; client_id: string | null }>`
+    select e.*, invoice_total(e.invoice_id)::text as total, invoice_credited(e.invoice_id)::text as credited, invoice_paid(e.invoice_id)::text as paid
+      from (
+        select 'invoice' as kind, i.id as invoice_id, coalesce(i.party_name, pa.name) as party, invoice_total(i.id)::text as amount, i.currency, i.issue_date::text as on_day,
+               i.state, i.due_date::text as due_date, o.client_id::text as client_id, i.created_at as at
+          from invoices i left join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id
+         where i.business_id = ${businessId}::uuid and i.state = 'issued'
+        union all
+        select 'payment', i.id, coalesce(i.party_name, pa.name), pay.amount::text, pay.currency, pay.paid_on::text,
+               i.state, i.due_date::text, o.client_id::text, pay.created_at
+          from invoice_payments pay join invoices i on i.id = pay.invoice_id left join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id
+         where pay.business_id = ${businessId}::uuid
+      ) e
+     order by e.on_day desc, e.at desc limit ${RECENT_ENTRIES}`.execute(tx)).rows;
+  const entryFaces = await faceVersions(tx, entryRows.flatMap((r) => (r.client_id ? [r.client_id] : [])));
+  const entries: BooksEntry[] = entryRows.map((r) => ({
+    kind: r.kind, invoiceId: r.invoice_id, party: r.party, amount: r.amount, currency: r.currency, on: r.on_day,
+    status: r.kind === 'payment' ? null : statusOf(r.state, parseDecimal(r.total)!, parseDecimal(r.credited)!, parseDecimal(r.paid)!, r.due_date, today),
+    clientId: r.client_id, photo: r.client_id ? entryFaces.get(r.client_id) ?? null : null,
+  }));
+
   const y = (await sql<{ starts_on: string; ends_on: string; state: 'open' | 'closed' }>`
     select starts_on::text as starts_on, ends_on::text as ends_on, state from fiscal_years
      where business_id = ${businessId}::uuid and starts_on <= ${today}::date and ends_on >= ${today}::date`.execute(tx)).rows[0];
@@ -244,6 +286,7 @@ export async function loadSplitBooks(tx: Tx, businessId: string, today: string):
       worst: w ? { invoiceId: w.id, party: w.party, owed: w.owed, currency: w.currency, daysLate: w.days, conversationId: w.conversation_id, clientId: w.client_id, photo } : null,
     },
     matched,
+    entries,
     year: y ? { startsOn: y.starts_on, endsOn: y.ends_on, state: y.state } : null,
   };
 }

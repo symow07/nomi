@@ -194,6 +194,36 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     expect(html).toContain('class="sp-over"');
   });
 
+  it('lists the latest invoices and payments: who, how much, where it stands, when', async () => {
+    const html = withoutIsolates(await today());
+    const rows = html.split('class="sp-row sp-entry"').slice(1);
+    expect(rows).toHaveLength(3);   // the overdue invoice, the paid one, its payment
+    expect(rows.every((r) => r.includes('Karim Haddad'))).toBe(true);
+    const all = rows.join('');
+    expect(all).toContain('<span class="sp-chip is-waiting">Overdue</span>');
+    expect(all).toContain('<span class="sp-chip is-done">Paid</span>');
+    expect(all).toContain('<span class="sp-chip is-done">Payment</span>');
+    expect(all).toContain('$2,100');
+    expect(all).toContain('$1,000');
+    expect(html.match(/<a class="sp-row sp-entry" href="\/app\/books\/invoices\/[0-9a-f-]{36}"/g)).toHaveLength(3);
+  });
+
+  it('a time chart never flips: in Arabic the year still runs left to right, the newest month on the right', async () => {
+    const html = await today(cookie, app, 'ar');
+    const line = /class="sp-tline" d="M([^"]+)"/.exec(html)?.[1];
+    expect(line).toBeDefined();
+    const points = line!.split('L').map((p) => p.split(' ').map(Number) as [number, number]);
+    expect(points.length).toBeGreaterThan(1);
+    for (let i = 1; i < points.length; i++) expect(points[i]![0]).toBeGreaterThan(points[i - 1]![0]);
+    // Profit rose this year: the newest point stands highest, on the right, as on an English page.
+    expect(points.at(-1)![1]).toBeLessThan(points[0]![1]);
+    expect(html).toContain('<figure class="sp-trend" dir="ltr">');
+    const css = linkedCss(html);
+    expect(css).not.toMatch(/sp-trend[^{}]*\{[^}]*(?:scaleX|transform)/);
+    const dot = /<circle cx="([\d.]+)" cy="[\d.]+" r="3\.5" class="sp-tdot"/.exec(html);
+    expect(Number(dot?.[1])).toBe(points.at(-1)![0]);
+  });
+
   it('the number matched is the number the bank page offers', async () => {
     const { openLines, bankAccounts } = await import('../../src/db/bankStatements.js');
     const offered = await tx(async (x) => {
