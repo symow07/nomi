@@ -109,13 +109,15 @@ One customer, one line, one door to the conversation: photo, name, product thumb
 - On a phone, a row takes two lines: name and value, then chip and days.
 - The customer on the decision card is not listed again under it.
 
-**Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron, opening the
-invoice. It lists issued invoices and payments, newest first. A payment's chip says "Payment"; an invoice's says where it
-stands. Green is settled, ochre is overdue, the rest are plain.
+**Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron. At most five, newest
+first, then "View all".
 
-On a wide screen both columns end level. The sheets stretch to the taller one, and Recent entries shows as many whole rows
-as the column has room for, at least five. Keyboard focus inside the list reveals the rest, so focus never lands on a
-hidden row. Below 1101 px, where the panels stack, it shows five.
+- One row per invoice, with where it stands now (Paid, Open, Overdue) and its issue date, from the invoice itself.
+- A payment gets its own row only when it belongs to no invoice: money on a bank line that isn't matched to an invoice's
+  payment, and isn't one the bank page offers to approve. Its chip says "Payment", and it opens the bank page.
+- Green is settled, ochre is overdue, the rest are plain.
+
+The two columns don't have to end level.
 
 ## Chips
 

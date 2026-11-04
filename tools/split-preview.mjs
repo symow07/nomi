@@ -16,6 +16,7 @@
  * The customers' photos and product pictures are DRAWN here, as flat stand-ins, because a local instance has no channel
  * to give it one: no real person's face is in this repository. Customers left without one show the neutral initial.
  * Run `npm run build` first: the books are written by `dist/`.
+ * Sign in once before seeding: the owner's row is made at the first sign-in, and the seed names it.
  */
 import pg from 'pg';
 import { chromium } from 'playwright';
@@ -209,22 +210,11 @@ async function seed() {
   for (const [i, [party, amount]] of paid.entries()) {
     await q(`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values ($1, $2, $3, $4, $5, 'USD', $6, $7)`, [BIZ, imp, k.bank, thisMonth(1), amount, party, `split-${i}`]);
   }
+  // Money the bank received for no invoice: Recent entries lists it as a payment.
+  await q(`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values ($1, $2, $3, $4, 640, 'USD', 'Transfer from S. Idrissi', 'split-unmatched')`, [BIZ, imp, k.bank, thisMonth(2)]);
   await db.destroy();
   await a.end();
   console.log('Seeded. Restart the instance with SPLIT_TODAY=on (the workspace\'s facts are cached for a minute).');
-}
-
-/** Both columns end level: the two sheets' feet, in CSS pixels. */
-async function measureColumns(page, locale) {
-  const feet = await page.evaluate(() => [...document.querySelectorAll('.sp-panel > .sp-sheet')].map((e) => Math.round(e.getBoundingClientRect().bottom * 10) / 10));
-  const rows = await page.evaluate(() => {
-    const list = document.querySelector('.sp-entries .sp-rows');
-    if (!list) return { all: 0, whole: 0 };
-    const box = list.getBoundingClientRect();
-    const items = [...list.children];
-    return { all: items.length, whole: items.filter((li) => { const r = li.getBoundingClientRect(); return r.top >= box.top - 1 && r.bottom <= box.bottom + 1 && r.left < box.right && r.right > box.left && r.width > 0; }).length };
-  });
-  console.log(`  columns ${locale}: feet ${feet.join(' / ')}, difference ${Math.abs(feet[0] - feet[1]).toFixed(1)} px; entries showing ${rows.whole} of ${rows.all}`);
 }
 
 const channel = (c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
@@ -303,7 +293,6 @@ async function shots() {
       await page.screenshot({ path: file, fullPage: false });
       await page.screenshot({ path: `${OUT}today-${width}-${locale}-full.png`, fullPage: true });
       console.log(`${file}  dir=${dir || 'ltr'}${wide ? '  WIDER THAN THE SCREEN' : ''}`);
-      if (width === 'desktop') await measureColumns(page, locale);
       await measureWash(browser, page, locale, width);
       if (width === 'phone') await measureTabBar(page, locale);
       await ctx.close();

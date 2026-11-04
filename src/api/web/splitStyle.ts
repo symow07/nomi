@@ -150,17 +150,6 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-row .go { justify-self:end; color:var(--color-ink-secondary); }
 .sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) 96px 72px 60px 16px; }
 
-/* Both columns end level: the sheets stretch to the taller one, and Recent entries shows as many whole rows as fit */
-@media (min-width: 1101px) {
-  .sp-panels { align-items:stretch; }
-  .sp-panel { display:flex; flex-direction:column; }
-  .sp-panel > .sp-sheet { flex:1 1 auto; display:flex; flex-direction:column; }
-  .sp-entries { flex:1 1 0; display:flex; flex-direction:column; }
-  .sp-entries .sp-rows { flex:1 1 0; min-block-size:265px; contain:size; display:flex; flex-direction:column; flex-wrap:wrap; overflow:clip; }
-  .sp-entries .sp-rows > li { inline-size:100%; }
-  .sp-entries .sp-rows:focus-within { contain:none; flex-wrap:nowrap; overflow:visible; }
-}
-@media (max-width: 1100px) { .sp-entries .sp-rows > li:nth-child(n+6) { display:none; } }
 
 /* The list of who else waits sits on the sheet, at its edge */
 .split .tw-list { background:transparent; box-shadow:none; }

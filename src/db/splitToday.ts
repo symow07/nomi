@@ -157,13 +157,19 @@ export type OverdueCustomer = {
   readonly photo: string | null;
 };
 
-/** The latest invoices and payments, newest first: who, how much, where it stands, when. */
+/**
+ * The latest entries, newest first: one row per invoice, with where it stands now, and money the bank received that belongs
+ * to no invoice yet. A payment recorded against an invoice is that invoice's "Paid", never a row of its own.
+ */
 export type BooksEntry = {
   readonly kind: 'invoice' | 'payment';
-  readonly invoiceId: string;
-  readonly party: string;
+  /** The invoice, or the bank line. */
+  readonly id: string;
+  /** From the invoice; a bank line's own wording, which it may not have. */
+  readonly party: string | null;
   readonly amount: string;
   readonly currency: string;
+  /** The day on the record: an invoice's issue date, a bank line's booked date. */
   readonly on: string;
   /** Where an invoice stands; a payment is simply a payment. */
   readonly status: InvoiceStatus | null;
@@ -171,8 +177,7 @@ export type BooksEntry = {
   readonly photo: string | null;
 };
 
-/** More than a page can show: the sheet draws as many whole rows as its column has room for. */
-export const RECENT_ENTRIES = 14;
+export const RECENT_ENTRIES = 5;
 
 export type SplitBooks = {
   readonly currency: string;
@@ -253,25 +258,33 @@ export async function loadSplitBooks(tx: Tx, businessId: string, today: string):
           and abs(e.entry_date - s.booked_on) <= 7
           and not exists (select 1 from statement_matches m where m.journal_line_id = jl.id and m.unmatched_at is null))`.execute(tx)).rows[0]!.n;
 
-  const entryRows = (await sql<{ kind: 'invoice' | 'payment'; invoice_id: string; party: string; amount: string; currency: string; on_day: string; state: string;
-    total: string; credited: string; paid: string; due_date: string | null; client_id: string | null }>`
-    select e.*, invoice_total(e.invoice_id)::text as total, invoice_credited(e.invoice_id)::text as credited, invoice_paid(e.invoice_id)::text as paid
-      from (
-        select 'invoice' as kind, i.id as invoice_id, coalesce(i.party_name, pa.name) as party, invoice_total(i.id)::text as amount, i.currency, i.issue_date::text as on_day,
-               i.state, i.due_date::text as due_date, o.client_id::text as client_id, i.created_at as at
-          from invoices i left join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id
-         where i.business_id = ${businessId}::uuid and i.state = 'issued'
-        union all
-        select 'payment', i.id, coalesce(i.party_name, pa.name), pay.amount::text, pay.currency, pay.paid_on::text,
-               i.state, i.due_date::text, o.client_id::text, pay.created_at
-          from invoice_payments pay join invoices i on i.id = pay.invoice_id left join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id
-         where pay.business_id = ${businessId}::uuid
-      ) e
-     order by e.on_day desc, e.at desc limit ${RECENT_ENTRIES}`.execute(tx)).rows;
+  // A bank line belongs to an invoice once it is matched to that invoice's payment, or when the bank page's rule (the same one
+  // as `matched` above) would offer one to approve.
+  const entryRows = (await sql<{ kind: 'invoice' | 'payment'; id: string; party: string | null; amount: string; currency: string; on_day: string; state: string | null;
+    total: string | null; credited: string | null; paid: string | null; due_date: string | null; client_id: string | null }>`
+    select e.* from (
+      select 'invoice' as kind, i.id::text as id, coalesce(i.party_name, pa.name) as party, invoice_total(i.id)::text as amount, i.currency, i.issue_date::text as on_day,
+             i.state, invoice_total(i.id)::text as total, invoice_credited(i.id)::text as credited, invoice_paid(i.id)::text as paid,
+             i.due_date::text as due_date, o.client_id::text as client_id, i.created_at as at
+        from invoices i join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id
+       where i.business_id = ${businessId}::uuid and i.state = 'issued'
+      union all
+      select 'payment', s.id::text, s.wording, s.figure::text, s.currency, s.booked_on::text,
+             null, null, null, null, null, null, s.booked_on::timestamptz
+        from (select id, business_id, account_id, currency, booked_on, wording, amount as figure from statement_lines where business_id = ${businessId}::uuid) s
+       where s.figure > 0
+         and not exists (select 1 from statement_matches m join journal_lines jl on jl.id = m.journal_line_id join invoice_payments ip on ip.entry_id = jl.entry_id
+                          where m.statement_line_id = s.id and m.unmatched_at is null)
+         and not exists (select 1 from journal_lines jl join journal_entries je on je.id = jl.entry_id join invoice_payments ip on ip.entry_id = jl.entry_id
+                          where jl.business_id = s.business_id and jl.account_id = s.account_id and je.state = 'posted' and jl.currency = s.currency
+                            and jl.debit = s.figure and abs(je.entry_date - s.booked_on) <= 7
+                            and not exists (select 1 from statement_matches m where m.journal_line_id = jl.id and m.unmatched_at is null))
+    ) e
+    order by e.on_day desc, e.at desc limit ${RECENT_ENTRIES}`.execute(tx)).rows;
   const entryFaces = await faceVersions(tx, entryRows.flatMap((r) => (r.client_id ? [r.client_id] : [])));
   const entries: BooksEntry[] = entryRows.map((r) => ({
-    kind: r.kind, invoiceId: r.invoice_id, party: r.party, amount: r.amount, currency: r.currency, on: r.on_day,
-    status: r.kind === 'payment' ? null : statusOf(r.state, parseDecimal(r.total)!, parseDecimal(r.credited)!, parseDecimal(r.paid)!, r.due_date, today),
+    kind: r.kind, id: r.id, party: r.party, amount: r.amount, currency: r.currency, on: r.on_day,
+    status: r.kind === 'payment' ? null : statusOf(r.state!, parseDecimal(r.total!)!, parseDecimal(r.credited!)!, parseDecimal(r.paid!)!, r.due_date, today),
     clientId: r.client_id, photo: r.client_id ? entryFaces.get(r.client_id) ?? null : null,
   }));
 

@@ -182,13 +182,15 @@ function trendChart(b: SplitBooks, locale: Locale): string {
   </svg></figure>`;
 }
 
-/** One invoice or payment, in the row Recent customers uses. Green is settled, ochre is late, the rest plain. */
+/** One invoice, or money the bank received for no invoice yet, in the row Recent customers uses. Green is settled, ochre is late, the rest plain. */
 function entryRow(e: BooksEntry, locale: Locale): string {
   const mood = e.status === null || e.status === 'paid' ? ' is-done' : e.status === 'overdue' ? ' is-waiting' : '';
   const word = e.status === null ? t(locale, 'split.entry.payment') : t(locale, `books.invoice.status.${e.status}` as MessageKey);
-  return `<li><a class="sp-row sp-entry" href="/app/books/invoices/${esc(e.invoiceId)}">
-    ${face({ clientId: e.clientId ?? e.invoiceId, name: e.party, photo: e.photo }, 's')}
-    <span class="sp-rname"><bdi>${esc(e.party)}</bdi></span>
+  const who = e.party ?? t(locale, 'split.entry.fromBank');
+  const door = e.kind === 'invoice' ? `/app/books/invoices/${esc(e.id)}` : '/app/books/bank';
+  return `<li><a class="sp-row sp-entry" href="${door}">
+    ${face({ clientId: e.clientId ?? e.id, name: who, photo: e.photo }, 's')}
+    <span class="sp-rname"><bdi>${esc(who)}</bdi></span>
     <span class="sp-chip${mood}">${esc(word)}</span>
     <span class="sp-rval">${esc(booksMoney(locale, e.amount, e.currency))}</span>
     <span class="sp-rday">${esc(show.dayMonth(locale, e.on))}</span>

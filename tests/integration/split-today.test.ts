@@ -6,6 +6,7 @@ import { hashCode } from '../../src/api/web/people.js';
 import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
 import { unisolatedFigures, withoutIsolates } from '../parity/isolates.js';
 import { sheetLinks, linkedCss } from '../parity/linked-css.js';
+import * as show from '../../src/api/web/values.js';
 
 /**
  * THE SPLIT TODAY PREVIEW, over Postgres and the owner's routes (the owner's locked design, 2026-11-04).
@@ -39,6 +40,8 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
   let app: import('fastify').FastifyInstance;
   let plain: import('fastify').FastifyInstance;
   let cookie = '';
+  let paidLateOn = '';
+  let bankAccount = '';
   let staffCookie = '';
   let plainCookie = '';
   let aisha = '';
@@ -125,6 +128,12 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
       const paid = await invoice(iso(new Date()), null, '1000');
       const p = await inv.recordPayment(x, BIZ, paid, 'owner', { paidOn: iso(new Date()), amount: dec('1000'), journalId: k.bq, accountId: k.bank });
       if (p.kind !== 'recorded') throw new Error(`pay: ${JSON.stringify(p)}`);
+      bankAccount = k.bank;
+      // Issued days ago, paid today: one row, "Paid", under the invoice's own date.
+      paidLateOn = daysAgo(6);
+      const late = await invoice(paidLateOn, null, '300');
+      const lp = await inv.recordPayment(x, BIZ, late, 'owner', { paidOn: iso(new Date()), amount: dec('300'), journalId: k.bq, accountId: k.bank });
+      if (lp.kind !== 'recorded') throw new Error(`pay: ${JSON.stringify(lp)}`);
       const imp = randomUUID();
       await sql`insert into statement_imports (id, business_id, account_id, format, sha256, added, refused, imported_by) values (${imp}::uuid, ${BIZ}, ${k.bank}, 'csv', ${createHash('sha256').update(RUN).digest('hex')}, 1, 0, 'owner')`.execute(x);
       await sql`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values (${BIZ}, ${imp}::uuid, ${k.bank}, ${iso(new Date())}::date, 1000, 'USD', 'Karim', ${`split-${RUN}`})`.execute(x);
@@ -184,7 +193,8 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
 
   it('reads the books: in, out, profit, what is owed, who is late, what matched, the year', async () => {
     const html = withoutIsolates(await today());
-    expect(html).toContain('In $1,000');
+    // The invoice issued six days ago is this month's unless the month is younger than that.
+    expect(html).toContain(paidLateOn.slice(0, 7) === iso(new Date()).slice(0, 7) ? 'In $1,300' : 'In $1,000');
     expect(html).toContain('1 invoice');
     expect(html).toContain('$2,100');
     expect(html).toContain('Karim Haddad');
@@ -194,18 +204,41 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     expect(html).toContain('class="sp-over"');
   });
 
-  it('lists the latest invoices and payments: who, how much, where it stands, when', async () => {
+  it('one row per invoice with where it stands now; a payment only when it belongs to no invoice', async () => {
     const html = withoutIsolates(await today());
-    const rows = html.split('class="sp-row sp-entry"').slice(1);
-    expect(rows).toHaveLength(3);   // the overdue invoice, the paid one, its payment
-    expect(rows.every((r) => r.includes('Karim Haddad'))).toBe(true);
-    const all = rows.join('');
-    expect(all).toContain('<span class="sp-chip is-waiting">Overdue</span>');
-    expect(all).toContain('<span class="sp-chip is-done">Paid</span>');
-    expect(all).toContain('<span class="sp-chip is-done">Payment</span>');
-    expect(all).toContain('$2,100');
-    expect(all).toContain('$1,000');
+    const rows = html.split('class="sp-row sp-entry"').slice(1).map((r) => r.split('</a>')[0]!);
+    expect(rows).toHaveLength(4);   // three invoices, and the 777 no payment answers
+    expect(rows.filter((r) => r.includes('<span class="sp-chip is-done">Paid</span>'))).toHaveLength(2);
+    const overdue = rows.filter((r) => r.includes('<span class="sp-chip is-waiting">Overdue</span>'));
+    expect(overdue).toHaveLength(1);
+    expect(overdue[0]).toContain('$2,100');
+    // The 1000 and the 300 are their invoices' "Paid": neither payment has a row, and the 1000 on the bank line is on offer to approve.
+    const payments = rows.filter((r) => r.includes('<span class="sp-chip is-done">Payment</span>'));
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toContain('Nobody');
+    expect(payments[0]).toContain('$777');
     expect(html.match(/<a class="sp-row sp-entry" href="\/app\/books\/invoices\/[0-9a-f-]{36}"/g)).toHaveLength(3);
+    expect(html.match(/<a class="sp-row sp-entry" href="\/app\/books\/bank"/g)).toHaveLength(1);
+  });
+
+  it('a payment dated after its invoice: "Paid", under the date on the invoice', async () => {
+    const html = withoutIsolates(await today());
+    const row = html.split('class="sp-row sp-entry"').slice(1).map((r) => r.split('</a>')[0]!).find((r) => r.includes('$300'));
+    expect(row).toContain('<span class="sp-chip is-done">Paid</span>');
+    expect(row).toContain(show.dayMonth('en', paidLateOn));
+    expect(row).not.toContain(show.dayMonth('en', iso(new Date())));
+  });
+
+  it('at most five, however many there are', async () => {
+    await tx(async (x) => {
+      const imp = randomUUID();
+      await sql`insert into statement_imports (id, business_id, account_id, format, sha256, added, refused, imported_by) values (${imp}::uuid, ${BIZ}, ${bankAccount}, 'csv', ${createHash('sha256').update(`${RUN}-more`).digest('hex')}, 3, 0, 'owner')`.execute(x);
+      for (const n of [611, 622, 633]) {
+        await sql`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values (${BIZ}, ${imp}::uuid, ${bankAccount}, ${iso(new Date())}::date, ${n}, 'USD', 'Transfer', ${`split-${RUN}-${n}`})`.execute(x);
+      }
+    });
+    const html = withoutIsolates(await today());
+    expect(html.split('class="sp-row sp-entry"').slice(1)).toHaveLength(5);
   });
 
   it('a time chart never flips: in Arabic the year still runs left to right, the newest month on the right', async () => {
