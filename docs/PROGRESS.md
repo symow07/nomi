@@ -13,6 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)
+
+**What changed.** The second of three pull requests for the owner's decision of 2026-11-04 to move the model (rule 87). Nothing switches on merge: production keeps its three `LLM_*` variables until the owner changes them, and the new prompts run on the provider it has.
+
+- The OpenAI format is translated at the fetch; the rest of the code speaks one format. The address decides.
+- The analyser and the writer ask for a strict schema where the provider is known to read it.
+- The writer puts one warm sentence, naming what was asked, before a question. A hello alone does not count.
+- Every Chinese word a customer reads says 您, whoever wrote it. Owner pages, terms and refunds keep 你.
+
+**Decided by me, reported.**
+- The polite form is a rewrite on the writer's accepted words, not a refusal: a retry costs a call, and the rewrite cannot change a figure.
+- `withoutOutputFormat` strips the schema for every other provider until PR 3 proves Anthropic's.
+
+**Found on the way, left for the owner.**
+- An identity reply says "I'll hand this conversation over" and nothing hands it over: `prompts/response.txt` tells the writer to say so, while rule 19 answers an identity question without a hand-off. It predates this work.
+- The check `check-advisor-model` reads `谁在等我回复？` as B7 now and then, where it expects B1. The two entries overlap and either answers the question; the check exits 1 on a run where it happens.
+- Three full integration runs of this tree, on a Mac at load average 100+: one all green (1,958 of 1,958); one where `surface-walk`'s GET walk passed its 5 s limit (about 1.2 s in the others); one where `turn-once`'s two-process test counted 1 answer, not 2. Neither test touches what this changes. `turn-once`'s cause is not proven.
+- GitHub's secret scanning (turned on 2026-11-04) has one open alert, a Telegram-shaped example in `docs/archive/first-run-guide.md`, left for the owner.
+
 ## A stop says what it left behind and how long it really took (2026-11-04; no migration)
 
 The owner's yes to the next measurement of the stop flake; the evidence and how to read it are under "A flake to watch".
