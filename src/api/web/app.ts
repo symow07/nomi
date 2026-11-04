@@ -3398,7 +3398,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!doc || !(PAPER_TYPES as readonly string[]).includes(doc.mediaType)) return reply.callNotFound();
     if (doc.mediaType === 'application/pdf' && !deps.pdfReadable) return flashTo(reply, back, 'books.flash.paperNotRead', { why: t(localeOf(req), 'books.papers.pdfNotRead') });
     const read = await deps.documentReader.read({ base64: doc.bytes.toString('base64'), mediaType: doc.mediaType as PaperType });
-    await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, inputTokens: read.usage.inputTokens, outputTokens: read.usage.outputTokens }, { turn: false, photoReads: 1 });
+    await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, ...read.usage }, { turn: false, photoReads: 1 });
     const raw = read.cutOff ? null : parseReadingAnswer(read.answer);
     const checked = raw ? checkReading(raw) : null;
     await withTenantTx(deps.db, bid, (tx) => keepReading(tx, bid, id, personOf(s).id, {
@@ -4332,7 +4332,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!deps.draftTranslator) return flashTo(reply, back, 'inbox.flash.translate.unavailable');
     if (allowanceUsed(await withTenantTx(deps.db, bid.value, (tx) => allowanceOf(tx)))) return flashTo(reply, back, 'inbox.flash.translate.allowance');
     const done = await deps.draftTranslator.translate({ text: draft.draft_text, toLanguage: TRANSLATE_INTO[locale] }).catch(() => null);
-    if (done) await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, inputTokens: done.usage.inputTokens, outputTokens: done.usage.outputTokens }, { turn: false });
+    if (done) await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, ...done.usage }, { turn: false });
     if (!done) return flashTo(reply, back, 'inbox.flash.translate.failed');
     await withTenantTx(deps.db, bid.value, (tx) => sql`
       update drafts set translation = ${done.text.slice(0, 8000)}, translation_locale = ${locale}, translated_at = now()

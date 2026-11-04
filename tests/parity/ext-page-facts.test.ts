@@ -98,7 +98,7 @@ describe('EXT · the model, faked', () => {
     expect(sent[0]!.temperature).toBe(0);
     expect(sent[0]!.messages[0]!.content).toEqual([{ type: 'text', text: 'We ship within 2 days.' }]);
     expect(out.facts).toEqual([{ fact: 'Ships in 2 days.', quote: 'We ship' }]);
-    expect(out.usage).toEqual({ inputTokens: 3, outputTokens: 4 });
+    expect(out.usage).toEqual({ inputTokens: 3, outputTokens: 4, cachedInputTokens: 0 });
   });
 });
 

@@ -12,6 +12,7 @@ import { t } from '../core/owner/i18n/messages.js';
 import type { ChannelAdapter, SendResult } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
+import { carriesOurJson } from '../core/safety/rawOutput.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 
 /**
@@ -436,6 +437,7 @@ export async function prepareConversationOutbound(
   const tiktokRefused = onTikTok && (!ctx.tiktok || !tiktokMaySend(ctx.tiktok, now).send);
   const gate = gateOutbound({
     origin: candidate.origin,
+    ...(carriesOurJson(candidate.body) ? { garbled: true } : {}),
     ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
     ...(candidate.automated === true ? { automated: true } : {}),
     assignedTo: ctx.assignedTo,

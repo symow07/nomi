@@ -405,12 +405,13 @@ export class FakeAnalyzer implements Analyzer {
 export class FakeReplyWriter implements ReplyWriter {
   calls = 0;
   /** queue of replies; last one repeats */
-  replies: string[] = ['Happy to help with that.'];
+  replies: (string | null)[] = ['Happy to help with that.'];
   /** A5.3 — what the writer was handed, most recent last. */
   inputs: Parameters<ReplyWriter['write']>[0][] = [];
-  async write(input?: Parameters<ReplyWriter['write']>[0]): Promise<{ reply: string; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
+  async write(input?: Parameters<ReplyWriter['write']>[0]): Promise<{ reply: string | null; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
     if (input) this.inputs.push(input);
-    const reply = this.replies[Math.min(this.calls, this.replies.length - 1)] ?? '';
+    const at = this.replies[Math.min(this.calls, this.replies.length - 1)];
+    const reply = at === undefined ? '' : at;
     this.calls++;
     return { reply, promptVersion: 'resp@1', modelId: 'fake-model', usage: { inputTokens: 300, outputTokens: 80 } };
   }

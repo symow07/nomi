@@ -616,8 +616,10 @@ export function detectSignals(input: {
   // 0075 — "delete my data" goes to a person, and nothing is said to the buyer.
   // The buyer's own data as the object, never "delete that line from the quote"
   // (core/safety/deletion.ts, both lists in tests/parity/deletion-requests).
-  if (asksForDeletion(text)) {
+  if (asksForDeletion(text) || analysis?.wantsDeletion === true) {
     out.push({ kind: 'deletion_requested' });
+  } else if (analysis?.wantsDeletion === null && !out.some((s) => s.kind === 'not_answered')) {
+    out.push({ kind: 'not_answered' });
   }
 
   if (LOGISTICS_PHRASES.some((p) => t.includes(p))) {

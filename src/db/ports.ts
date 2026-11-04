@@ -248,6 +248,7 @@ export interface AuditRepo {
     measure?: {
       readonly path: AnswerPath; readonly analyserAvoidable: boolean;
       readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number;
+      readonly cachedInputTokens?: number;
       /** N2a — her own reading beside the model's. Null when no model analysed the message. */
       readonly ownUnderstanding?: { readonly own: OwnUnderstanding; readonly agrees: Agreement; readonly onEverything: boolean } | null;
     };

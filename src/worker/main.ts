@@ -12,7 +12,7 @@ import { decideBatch } from '../core/conversation/batching.js';
 import {
   recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor, stillWaiting, turnRecorded,
 } from '../db/fragments.js';
-import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
+import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision, usageOf } from '../llm/anthropic.js';
 import {
   breaker, failoverClient, fallbackSwitchedOn, llmClient, llmFallbackFrom, llmProviderFrom, requestExtrasFor,
   type ProviderObserver,
@@ -150,7 +150,8 @@ export async function startWorker(
     const res = await client.messages.create({
       model: p.model, ...requestExtrasFor(p), max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the word OK.' }],
     }, { timeout: 20_000, maxRetries: 0 });
-    return { tokens: res.usage.input_tokens + res.usage.output_tokens };
+    const used = usageOf(res.usage);
+    return { tokens: used.inputTokens + used.outputTokens };
   };
   const health = modelHealth({
     db,
@@ -200,7 +201,7 @@ export async function startWorker(
       }, { timeout: 20_000, maxRetries: 0 });
       if (env.PILOT_BUSINESS_ID) {
         await recordSpendAlone(db, env.PILOT_BUSINESS_ID,
-          { llmCalls: 1, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens }, { turn: false });
+          { llmCalls: 1, ...usageOf(res.usage) }, { turn: false });
       }
     }),
     readBalance: models.balance ?? (scripted || !balanceAt ? null : deepSeekBalanceReader(balanceAt, llm.apiKey)),

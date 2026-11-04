@@ -687,6 +687,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         answer_path: t.measure?.path ?? null,
         llm_calls: t.measure?.llmCalls ?? null,
         input_tokens: t.measure?.inputTokens ?? null,
+        cached_input_tokens: t.measure?.cachedInputTokens ?? null,
         output_tokens: t.measure?.outputTokens ?? null,
         analyser_avoidable: t.measure?.analyserAvoidable ?? null,
         own_understanding: t.measure?.ownUnderstanding ? JSON.stringify(t.measure.ownUnderstanding) : null,

@@ -470,7 +470,7 @@ import type { Db } from './client.js';
 // 219 = a locked period is locked to the app too: a close under way is a row only the closing function writes, never a setting (0219).
 // 220 = a page of her site read again: one paid reading, the old one replaced, or its knowledge replaced only when the new one is approved (0220).
 // 221 = a year locked and closed on the workspace's own day, not the database's UTC one (0221).
-export const REQUIRED_SCHEMA_VERSION = 221;
+export const REQUIRED_SCHEMA_VERSION = 222;
 
 export type SchemaState = {
   readonly required: number;

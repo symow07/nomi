@@ -96,7 +96,7 @@ d('T7 · every paid call is on the ledger — the worker (requires DATABASE_URL)
       looks++;
       return {
         searchText: 'canvas tote bag', attributes: ['canvas', 'tote bag'],
-        promptVersion: 'test@1', modelId: 'fake-vision', usage: { inputTokens: 700, outputTokens: 40 },
+        promptVersion: 'test@1', modelId: 'fake-vision', usage: { inputTokens: 700, outputTokens: 40, cachedInputTokens: 600 },
       };
     },
   };
@@ -188,12 +188,18 @@ d('T7 · every paid call is on the ledger — the worker (requires DATABASE_URL)
   it('a customer\'s photo: looking at it is a call, with its tokens — not a second turn', async () => {
     const before = await ledger();
     const seen = looks;
+    const cachedOnLedger = () => inTenant(prod.db, BIZ, (tx) => sql<{ n: number }>`
+      select coalesce(sum(cached_input_tokens), 0)::int as n from usage_ledger where business_id = ${BIZ}::uuid`
+      .execute(tx).then((r) => r.rows[0]!.n));
+    const cachedBefore = await cachedOnLedger();
     const w = sim.inboundImage({ from: `9717${runDigits(RUN, 6)}3`, caption: 'this one?' });
     expect((await post(w)).statusCode).toBe(200);
     const turn = await turnOf(wamidOf(w));
     expect(looks).toBe(seen + 1);
     const after = await settled(before, 1, turn.calls + 1);
     expect(minus(after, before)).toEqual({ turns: 1, calls: turn.calls + 1, input: turn.input + 700, output: turn.output + 40 });
+    // 0222 — the part read from the cache stays beside the input.
+    expect((await cachedOnLedger()) - cachedBefore).toBeGreaterThanOrEqual(600);
   }, 200_000);
 
   it('a turn that fails after its model calls is still paid for — and counted as a turn once, when it is kept', async () => {

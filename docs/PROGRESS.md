@@ -27,6 +27,20 @@ The owner's yes to the next measurement of the stop flake; the evidence and how 
 - **Tried by hand** on throwaway copies of the file: a connection back after 4 s read "ended after 3891 ms"; one that
   never came back read "still out after 40003 ms", and the hook stayed inside 45 s. Both files passed.
 
+## Three fixes before the model changes: deletion replies, the writer's raw text, the metering (2026-11-04, 0222)
+
+The owner's order: these first, then the provider change (PR 2), then its fallback (PR 3). The comparison behind that
+decision is in the private notes, not here.
+
+- **A reply about deleting a customer's data never goes out alone.** `wants_deletion` in the analysis, read before the
+  writer; `promisesDeletion` widened to any reply about deleting their data. CLAUDE.md rule 18. The limit: when every
+  layer misses and the reply never mentions the data, it goes out.
+- **Nothing of the writer's JSON reaches a customer**, and "Thanks for your message" no longer stands in for an answer
+  nobody gave: a refusal, an empty answer or a cut-off is a silent hand-off. Rule 84.
+- **Every model call counts all its input** (`usageOf`, 0222). Rule 29. **What changes for an owner:** the allowance
+  reads the same column, so a workspace's 1,000,000 tokens a day now buys fewer turns than G2's sum said; that sum was
+  made on the short figures.
+
 ## The old settings addresses land on the profile; nothing is killed by name (2026-11-04; no migration)
 
 The owner's two follow-ups to the cleanup below.

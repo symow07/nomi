@@ -42,6 +42,17 @@ const analyse = async (text: string | null, seen: Seen = {}) =>
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
+describe('wants_deletion — read like wants_person', () => {
+  it('true and false are read as they are; anything else could not be read', async () => {
+    expect((await analyse(answer({ wants_deletion: true }))).wantsDeletion).toBe(true);
+    expect((await analyse(answer({ wants_deletion: false }))).wantsDeletion).toBe(false);
+    expect((await analyse(answer({ wants_deletion: 'true' }))).wantsDeletion).toBeNull();
+    expect((await analyse(answer({}))).wantsDeletion).toBeNull();
+    expect((await analyse('not json')).wantsDeletion).toBeNull();
+  });
+  it('the prompt asks it', () => expect(read('prompts/analysis.txt')).toMatch(/"wants_deletion": true or false/));
+});
+
 describe('wants_person — only a real boolean is an answer', () => {
   it('true and false are read as they are', async () => {
     expect((await analyse(answer({ wants_person: true }))).wantsPerson).toBe(true);

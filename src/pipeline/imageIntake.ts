@@ -49,7 +49,7 @@ export type ImageIntakeOutcome = (
   | { readonly kind: 'refused'; readonly reason: 'media_failed' | 'ambiguous'; readonly retryable: boolean }
 ) & {
   /** T7 — what looking cost (the vision call), for the ledger. Absent when nothing was called. */
-  readonly usage?: { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number };
+  readonly usage?: { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number; readonly cachedInputTokens?: number };
 };
 
 /** How a photo is spoken about in the turn text. Not owner-facing copy. */

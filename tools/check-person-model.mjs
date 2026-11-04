@@ -122,13 +122,16 @@ const candidates = [
   { productId: 'p2', sku: 'WIG-02', name: 'Human hair wig', category: 'hair', moq: 10 },
 ];
 const times = [];
+let lastDeletion;   // wants_deletion in the answer `ask` just read
 const ask = async (text, recentMessages = []) => {
   const t0 = Date.now();
   try {
     const r = await analyzer.analyze({ text, state, candidates, recentMessages });
     times.push(Date.now() - t0);
+    lastDeletion = r.analysis.wantsDeletion;
     return r.analysis.wantsPerson;
   } catch (e) {
+    lastDeletion = undefined;
     return `failed (${String(e?.status ?? e?.name ?? 'error')})`;
   }
 };
@@ -152,17 +155,49 @@ for (const [expected, history, text] of WITH_HISTORY) {
   console.log(`  ${mark} layer 2 ${String(got).padEnd(5)} (asked for ${expected})  after ${history.length} · ${JSON.stringify(text)}`);
 }
 
-console.log('\nThe 45 passing mentions of deletion — none is a deletion request; these would hand off as asking for a person:');
-let mentions = 0, handed = 0;
+// 2026-11-04 — wants_deletion: a request in words the fixed check does not know, in each language the
+// disclosure has, must come back true. An unreadable answer here is a silent hand-off on every turn.
+const DELETION_NAMED = [
+  "Can you get rid of everything about me? I don't want to be in your files.",
+  'Forget me, please. Take me out of whatever you keep.',
+  '把我的东西都清掉，我不想留在你们那里。',
+  'تخلصوا من كل ما يخصني، لا أريد أن أبقى في ملفاتكم.',
+  'Deshazte de todo lo que tengas sobre mí, no quiero estar en tus archivos.',
+  'Débarrassez-vous de tout ce que vous avez sur moi, je ne veux plus être dans vos fichiers.',
+  'Livre-se de tudo o que tem sobre mim, não quero estar nos seus arquivos.',
+];
+console.log('\nA deletion request the fixed check may not know — wants_deletion must be true:');
+for (const text of DELETION_NAMED) {
+  await ask(text);
+  const got = lastDeletion;
+  if (got !== true && got !== false) unreadable++;
+  else if (got !== true) wrong++;
+  console.log(`  ${got === true ? 'ok ' : 'XX '} wants_deletion ${String(got).padEnd(5)} · ${JSON.stringify(text)}`);
+}
+
+console.log('\nOrdinary questions — wants_deletion must be false:');
+for (const text of ['Hi, how much is the canvas tote?', '这个包多少钱？', 'كم سعر هذه الحقيبة؟', 'Please stop messaging me.']) {
+  await ask(text);
+  const got = lastDeletion;
+  if (got !== true && got !== false) unreadable++;
+  else if (got !== false) wrong++;
+  console.log(`  ${got === false ? 'ok ' : 'XX '} wants_deletion ${String(got).padEnd(5)} · ${JSON.stringify(text)}`);
+}
+
+console.log('\nThe 45 passing mentions of deletion — none is a deletion request; these would hand off as asking for a person or as a deletion:');
+let mentions = 0, handed = 0, deletionFired = 0;
 for (const [lang, texts] of Object.entries(NOT_REQUESTS)) {
   for (const text of texts) {
     mentions++;
     const l1 = asksForPerson(text);
     const got = await ask(text);
+    const deletion = lastDeletion;
     if (got !== true && got !== false) unreadable++;
-    if (l1 || got !== false) {
+    if (deletion !== true && deletion !== false) unreadable++;
+    if (deletion !== false) deletionFired++;
+    if (l1 || got !== false || deletion !== false) {
       handed++;
-      console.log(`  ${lang} · layer 1 ${l1 ? 'hands off' : '—'} · layer 2 ${String(got)}  ${JSON.stringify(text)}`);
+      console.log(`  ${lang} · layer 1 ${l1 ? 'hands off' : '—'} · layer 2 ${String(got)} · wants_deletion ${String(deletion)}  ${JSON.stringify(text)}`);
     }
   }
 }
@@ -171,6 +206,6 @@ if (handed === 0) console.log('  (none)');
 const sorted = [...times].sort((a, b) => a - b);
 const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
 console.log(`\nNamed and with history: ${NAMED.length + WITH_HISTORY.length} asked, ${wrong} answered the other way.`
-  + ` Passing mentions: ${mentions} asked, ${handed} would hand off.`
+  + ` Passing mentions: ${mentions} asked, ${handed} would hand off, ${deletionFired} of them read as a deletion.`
   + ` Unreadable or failed: ${unreadable}. Median answer: ${median} ms.`);
 process.exit(unreadable === 0 && wrong === 0 ? 0 : 1);

@@ -49,6 +49,7 @@ try {
   const r = await client.query(
     `select answer_path as path, model_id, coalesce(llm_calls, 0) as llm_calls,
             coalesce(input_tokens, 0) as input_tokens, coalesce(output_tokens, 0) as output_tokens,
+            coalesce(cached_input_tokens, 0) as cached_input_tokens,
             coalesce(analyser_avoidable, false) as analyser_avoidable
        from turns
       where created_at > now() - ($1 || ' days')::interval
@@ -62,6 +63,7 @@ try {
   const measured = r.rows.filter((x) => x.path !== null && x.model_id !== 'scripted').map((x) => ({
     path: x.path, modelId: x.model_id, llmCalls: Number(x.llm_calls),
     inputTokens: Number(x.input_tokens), outputTokens: Number(x.output_tokens),
+    cachedInputTokens: Number(x.cached_input_tokens),
     analyserAvoidable: x.analyser_avoidable === true,
   }));
   const unmeasured = r.rows.length - measured.length - scripted;

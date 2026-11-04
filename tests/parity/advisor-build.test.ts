@@ -532,7 +532,7 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
       phrase: async () => ({ text: 'x', usage: { inputTokens: 1, outputTokens: 1 } }),
     });
     await ask('POST', io({ model: counted(512), spent: async (b, s) => { spent.push([b, s]); } }), { q: 'what is the meaning of life' });
-    expect(spent).toEqual([['00000000-0000-4000-8000-000000000001', { llmCalls: 1, inputTokens: 512, outputTokens: 7 }]]);
+    expect(spent).toEqual([['00000000-0000-4000-8000-000000000001', { llmCalls: 1, inputTokens: 512, outputTokens: 7, cachedInputTokens: 0 }]]);
     // A call that failed outright reported nothing to record: nothing is written.
     spent.length = 0;
     await ask('POST', io({ model: model(new Error('timeout')), spent: async (b, s) => { spent.push([b, s]); } }), { q: 'how are sales' });

@@ -45,6 +45,13 @@ export type Analysis = {
    * still means what it meant.
    */
   readonly wantsPerson?: boolean | null;
+  /**
+   * Is the customer asking the business to delete what it holds about them, in
+   * words the fixed check does not know? The same three answers: `true` is the
+   * silent hand-off (`deletion_requested`), `null` could not be read
+   * (`not_answered`), absent means this analyser was not asked.
+   */
+  readonly wantsDeletion?: boolean | null;
 };
 
 export type TurnInput = {

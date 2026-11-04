@@ -67,7 +67,7 @@ export type Answered = {
 };
 
 /** A4 — the model calls one question made, and their tokens. */
-export type AdvisorSpent = { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number };
+export type AdvisorSpent = { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number; readonly cachedInputTokens: number };
 
 const NO_PARAMS: Params = { period: null, customer: null, product: null, reference: null };
 
@@ -76,8 +76,8 @@ const NO_PARAMS: Params = { period: null, customer: null, product: null, referen
 // calls this, and records what `spent` says after (src/api/web/advisor.ts) — the isolation sweep's hard marker, met.
 export async function answerFollowUp(a: AskContext, question: string, earlier: readonly Earlier[]): Promise<Answered> {
   const say = (key: MessageKey, p: Record<string, string> = {}): string => t(a.locale, key, p);
-  const spent = { llmCalls: 0, inputTokens: 0, outputTokens: 0 };
-  const counted = (u: AdvisorCallUsage): void => { spent.llmCalls += 1; spent.inputTokens += u.inputTokens; spent.outputTokens += u.outputTokens; };
+  const spent = { llmCalls: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
+  const counted = (u: AdvisorCallUsage): void => { spent.llmCalls += 1; spent.inputTokens += u.inputTokens; spent.outputTokens += u.outputTokens; spent.cachedInputTokens += u.cachedInputTokens ?? 0; };
   const done = (answer: AdvisorAnswer, entry = 'unknown', params: Params = NO_PARAMS, subjects: readonly string[] = []): Answered =>
     ({ answer, entry, params, subjects, spent: { ...spent } });
   const failed = (entry?: string, params?: Params): Answered => done({ kind: 'failed', text: say('advisor.failed') }, entry, params);

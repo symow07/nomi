@@ -8,16 +8,25 @@
  * (docs/DATA-DELETION-RUNBOOK.md). A cheerful "Done, I've deleted your data!" from a
  * model would be a promise to a person that the code cannot keep.
  *
- * Two layers, both deterministic:
+ * Three layers, the first and last deterministic:
  *
  * 1. `asksForDeletion` — the buyer's own words, BEFORE any model call. A hit is
  *    the `deletion_requested` signal, scored like a request for a person, so
  *    the turn is gated (no analysis, no writer) and becomes a SILENT hand-off.
  *
- * 2. `promisesDeletion` — the reply, AFTER it was written. A buyer who asked in
- *    words layer 1 did not know still must not be promised anything: a reply
- *    that promises or claims a deletion is thrown away and the turn becomes the
- *    same silent hand-off.
+ * 2. `wants_deletion` — the analysis the turn already makes (prompts/analysis.txt,
+ *    read in detectSignals before any reply is written), for words layer 1 does
+ *    not know: "Get rid of everything about me." True is the same silent hand-off.
+ *
+ * 3. `promisesDeletion` — the reply, AFTER it was written. A reply that promises
+ *    a deletion, or merely talks about deleting their data ("I'll pass your
+ *    request on so they can remove your information"), is thrown away and the
+ *    turn becomes the same silent hand-off. Since 2026-11-04: real models answered
+ *    in those words in all six languages, and such a sentence is an answer to a
+ *    request only a person may answer.
+ *
+ * The limit, stated: when every layer misses and the reply never mentions the
+ * data ("I'll pass this to the team"), it goes out.
  *
  * ── PRECISION FIRST. A PASSING MENTION IS NOT A REQUEST. ────────────────────
  *
@@ -217,15 +226,55 @@ const PROMISE_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Layer 2: does this reply promise or claim that the buyer's data is (or will
- * be) deleted? Returns the words that matched, or null. It reads the reply the
+ * A reply ABOUT deleting their data, whoever is to do it and whether or not it
+ * promises anything. The object is theirs ("your data", "de vos données") or the
+ * data as such in a phrase that can only mean this ("data deletion", 删除请求), so
+ * a line on a quote, a logo, an e-mail in the cc pass. Each is in
+ * tests/parity/deletion-corpus.ts with what it must leave alone.
+ */
+const ABOUT_PATTERNS: readonly RegExp[] = [
+  // English — remove your information, your data to be deleted, deletion request, from our records
+  /\b(?:delet|eras|remov|wip|purg)\w*\s+(?:\w+\s+){0,3}?your\s+(?:personal\s+)?(?:data|information|info|details|records|contact details)\b/,
+  /\byour\s+(?:personal\s+)?(?:data|information|info|details|records)\s+(?:\w+\s+){0,4}?(?:delet|eras|remov|wip|purg)/,
+  /\b(?:deletion|erasure|removal)\s+(?:request|of\s+(?:all\s+)?(?:your|the\s+data|the\s+information|data|information))\b/,
+  /\b(?:data|information)\s+(?:deletion|erasure|removal)\b/,
+  /\b(?:delet|eras|remov|wip|purg)\w*\s+(?:\w+\s+){0,4}?from\s+our\s+(?:records|files|database|systems?)\b/,
+  /\b(?:delete|erase|remove|get rid of)\s+everything\s+(?:about|on|we)\b/,
+  // Chinese — within one clause: the act beside the data, either way round
+  /(?:删除|删掉|清除|抹掉|移除|注销)[^，。！？；,.!?;]{0,10}(?:数据|资料|信息|记录|隐私|账号|账户)/,
+  /(?:数据|资料|信息|隐私|账号|账户)[^，。！？；,.!?;]{0,6}(?:删除|删掉|清除|抹掉|移除|注销)/,
+  /删除(?:请求|申请|要求)/,
+  // Arabic (normalised)
+  /(?:حذف|مسح|ازاله|ازالة|شطب)\s+(?:(?:كل|جميع)\s+)?(?:ال)?(?:بيانات|معلومات|سجلات|حساب)/,
+  /طلب\s+(?:ال)?(?:حذف|مسح)/,
+  // French
+  /\b(?:suppression|effacement|retrait)\s+(?:de\s+|des\s+|d'\s*)?(?:toutes\s+)?(?:vos\s+|tes\s+)?(?:donn[ée]es|informations|coordonn[ée]es)/,
+  /\b(?:supprim|effac|retir)\w*\s+(?:\S+\s+){0,2}?(?:vos|tes)\s+(?:donn[ée]es|informations|coordonn[ée]es)/,
+  /\b(?:vos|tes)\s+(?:donn[ée]es|informations|coordonn[ée]es)\s+(?:\S+\s+){0,3}?(?:supprim|effac|retir)/,
+  // Spanish
+  /\b(?:eliminaci[oó]n|supresi[oó]n|borrado)\s+(?:de\s+)?(?:todos\s+)?(?:tus\s+|sus\s+|los\s+)?(?:datos|informaci[oó]n)/,
+  /\b(?:elimin|borr|suprim|quit)\S*\s+(?:\S+\s+){0,2}?(?:tus|sus)\s+(?:datos|informaci[oó]n)/,
+  /\b(?:tus|sus)\s+datos\s+(?:\S+\s+){0,3}?(?:elimin|borr|suprim)/,
+  /\bse\s+(?:elimine|borre|suprima)\s+todo\b/,
+  // Portuguese
+  /\b(?:remo[çc][ãa]o|exclus[ãa]o|elimina[çc][ãa]o|apagamento)\s+(?:de\s+|d[oa]s?\s+)?(?:todos\s+)?(?:os\s+)?(?:seus\s+|teus\s+)?dados/,
+  /\b(?:apag|exclu|remov|delet|elimin)\S*\s+(?:\S+\s+){0,2}?(?:os\s+)?(?:seus|teus)\s+dados/,
+  // German / Russian / Turkish
+  /\bl[öo]schung\s+(?:ihrer|deiner|der)\s+daten/,
+  /удален\S*\s+(?:ваших|твоих)\s+данных/,
+  /(?:verilerinizin|bilgilerinizin)\s+silinmesi/,
+];
+
+/**
+ * Layer 3: does this reply promise a deletion, or talk about deleting the
+ * buyer's data? Returns the words that matched, or null. It reads the reply the
  * buyer would read — a reply that merely offers a person, or says the team
- * will be in touch, promises nothing and passes.
+ * will be in touch, says nothing of the kind and passes.
  */
 export function promisesDeletion(reply: string): string | null {
   const t = normalizeForDeletion(reply ?? '');
   if (!t) return null;
-  for (const p of PROMISE_PATTERNS) {
+  for (const p of [...PROMISE_PATTERNS, ...ABOUT_PATTERNS]) {
     const m = p.exec(t);
     if (m) return m[0];
   }

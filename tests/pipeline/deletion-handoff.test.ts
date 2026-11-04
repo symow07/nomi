@@ -335,3 +335,51 @@ describe('0076 · the 45 passing mentions, through the real turn: none hands off
     }
   }
 });
+
+describe('2026-11-04 · the analysis reads a request the fixed check does not know', () => {
+  const asked = "Can you get rid of everything about me? I don't want to be in your files.";
+
+  it('wants_deletion true: the writer is never asked, and it is the same silent hand-off', async () => {
+    const p = ports();
+    p.analyzer.next = { ...analysis(), wantsDeletion: true };
+    const { r, fx } = await run(p, asked);
+    expect(p.analyzer.calls).toBe(1);
+    expect(p.replyWriter.calls).toBe(0);
+    expectSilentHandoff(p, r, fx);
+  });
+
+  it('wants_deletion unreadable: a person has it in silence, and it is not written down as a request', async () => {
+    const p = ports();
+    p.analyzer.next = { ...analysis(), wantsDeletion: null };
+    const { r, fx } = await run(p, asked);
+    expect(p.replyWriter.calls).toBe(0);
+    expect(r.reply).toBeNull();
+    expect(r.answerPath).toBe('silent');
+    expect(fx.outbound).toBeNull();
+    expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('not_answered');
+    expect(p.tenant.deletionAsksNoted).toEqual([]);
+  });
+
+  it('false, and absent (an analyser that was not asked): answered as usual', async () => {
+    for (const over of [{ wantsDeletion: false }, {}]) {
+      const p = ports();
+      p.analyzer.next = { ...analysis(), ...over };
+      const { r, fx } = await run(p, 'Could you send me the catalogue?');
+      expect(p.replyWriter.calls).toBe(1);
+      expect(r.reply).not.toBeNull();
+      expect(fx.outbound).not.toBeNull();
+    }
+  });
+
+  for (const [mode, grant] of [['auto', 'auto'], ['draft', 'draft']] as const) {
+    it(`${mode}: every layer but the reply missed it, and a reply about removing their data is thrown away`, async () => {
+      const p = ports();
+      p.tenant.grantRows = CAPABILITIES.filter((c) => c !== 'confirm_order').map((capability) => ({ capability, mode: grant, timeWindow: null }));
+      p.replyWriter.replies = ["I'll pass your request to the team so they can review it and remove your information where possible."];
+      const { r, fx } = await run(p, asked);
+      expect(p.replyWriter.calls).toBe(1);
+      expect(r.deletionPromiseWithheld).not.toBeNull();
+      expectSilentHandoff(p, r, fx);
+    });
+  }
+});

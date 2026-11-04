@@ -12,6 +12,8 @@ import type { OutboundRow } from '../../outbound/sequencer.js';
  */
 
 export type GateInput = {
+  /** The message still carries our own JSON (`carriesOurJson`, read by the worker from the body). */
+  readonly garbled?: boolean;
   /**
    * Who authored the queued message. Owner-authored text is the owner
    * speaking — the takeover/pause gates are FOR him, not against him.
@@ -171,6 +173,7 @@ export const GATE_REFUSALS = [
   'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
   'language_not_reviewed', // 0153 — the buyer's language has no signed disclosure: nothing automated reaches them
   'tiktok_limit',         // 0215 — TikTok's messages per window are used: nothing more until the customer writes
+  'garbled',              // 2026-11-04 — the assistant's message still carries our own JSON: it never reaches a customer
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -185,6 +188,9 @@ export type GateDecision =
   | { readonly allow: false; readonly reason: GateRefusal };
 
 export function gateOutbound(g: GateInput): GateDecision {
+  // 2026-11-04 — the last net (core/safety/rawOutput.ts), whatever path queued it. Never the owner's own words.
+  if (g.garbled === true && g.origin !== 'owner') return { allow: false, reason: 'garbled' };
+
   // D4 (2026-10-12) — frozen on lapse, first: a lapsed workspace sends nothing, whoever writes it and
   // whatever it is, so nothing else about this message matters.
   if (g.frozen) return { allow: false, reason: 'frozen' };
