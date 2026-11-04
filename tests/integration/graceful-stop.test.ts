@@ -50,7 +50,11 @@ d('a stop never waits for ever (requires DATABASE_URL)', { timeout: 60_000 }, ()
       // what it was doing, now and when the stop began: a transaction held open, with no statement running
       const gaveUp = lines.filter((l) => l.includes('[stop] gave up on pool'));
       expect(gaveUp).toHaveLength(1);
-      expect(gaveUp[0]!.match(/app pool 1 lent \(no statement running\)/g)).toHaveLength(2);
+      // Only this test's connection is pinned: anything else out as the stop began (the boot's own health check, on a
+      // slow runner) is said too, and is no failure. A failure prints the line, since the mock above keeps it off the log.
+      const [now, atStart] = gaveUp[0]!.split('When it began:');
+      expect(now, gaveUp[0]).toMatch(/app pool \d+ lent \(.*no statement running/);
+      expect(atStart, gaveUp[0]).toMatch(/app pool \d+ lent \(.*no statement running/);
       expect(lines.filter((l) => l.includes('pool, left behind'))).toEqual([]);   // still out
 
       // Given back, the step really ends, and how long it took is said.
