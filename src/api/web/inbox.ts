@@ -133,6 +133,8 @@ export type ConversationSummary = {
   readonly deletionWaiting?: boolean;
   /** 0080 — a customer said yes to an order and it waits for the owner's tap. Absent = none. */
   readonly orderWaiting?: boolean;
+  /** 0223 — not opened since what it needs the owner for last arrived. */
+  readonly unopened?: boolean;
   readonly latestMessage: string | null;
   /** A — the last contact: when the newest message was written, either way. */
   readonly latestAt: Date | null;
@@ -265,7 +267,7 @@ export async function loadInboxList(
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null; last_origin: string | null;
       pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
-      answered_by: string | null; assistants: number; deletion_waiting: boolean; order_waiting: boolean; live: boolean;
+      answered_by: string | null; assistants: number; deletion_waiting: boolean; order_waiting: boolean; live: boolean; unopened: boolean;
     }>`
       select c.id::text as id, c.client_id::text as client_id, cl.display_name as buyer, cl.country, c.channel, c.is_active as live,
              -- Phase 9 (V1-005) — the name only once chosen (rule 7, chosenName):
@@ -289,7 +291,12 @@ export async function loadInboxList(
              q.unit_price_usd as unit_price, q.currency as quote_currency,
              sig.kind as handoff_reason,
              ${DELETION_WAITING} as deletion_waiting,
-             ${ORDER_WAITING} as order_waiting
+             ${ORDER_WAITING} as order_waiting,
+             -- 0223 — not opened since what it needs the owner for last arrived.
+             (c.owner_opened_at is null or c.owner_opened_at < greatest(
+               (select max(m.sent_at) from messages m where m.conversation_id = c.id and m.direction = 'inbound'),
+               (select max(d.created_at) from drafts d where d.conversation_id = c.id and d.status = 'pending'),
+               (select max(s.created_at) from conversation_signals s where s.conversation_id = c.id and s.resolved_at is null))) as unopened
         from conversations c
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
@@ -331,6 +338,7 @@ export async function loadInboxList(
         handoffReason: r.handoff_reason,
         deletionWaiting: r.deletion_waiting,
         orderWaiting: r.order_waiting,
+        unopened: r.unopened,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         // G18 — in the currency the quote was made in. Rebuilding it as dollars
@@ -1302,13 +1310,17 @@ export const buyersHref = (o: {
  * name sit on the right and the time on the left. The name and the message
  * each take their own direction from their own words (`dir="auto"`) and keep
  * the page's alignment while they fit (`match-parent`), so an English message
- * on an Arabic page is cut at its end, never at its start.
+ * on an Arabic page is cut at its end, never at its start. The element that cuts
+ * must take the direction itself: `dir="auto"` reads past a `<bdi>` inside it and
+ * finds no words, so a name is a `<bdi>` of its own (2026-11-04).
  */
 export type RowState = 'needs' | 'yours' | 'hers';
 export const rowState = (c: ConversationSummary): RowState =>
   c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
-export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: agentMark(16, 'am') };
+export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: '<span class="row-dot"></span>', yours: shape('you'), hers: agentMark(16, 'am') };
+/** The owner's rule (2026-11-04): a row that needs you is bold until it is opened. Bold means that and nothing else. */
+const isNew = (c: ConversationSummary): boolean => rowState(c) === 'needs' && c.unopened === true;
 
 export type RowOptions = {
   readonly now: Date;
@@ -1378,13 +1390,13 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
   ].filter(Boolean).join(' · ');
   const current = o.pane?.current === true;
   // CC-25 — a customer opens on the newest message, the reply waiting under it.
-  return `<a class="crow is-${state}${c.unanswered ? ' unanswered' : ''}${current ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
+  return `<a class="crow is-${state}${c.unanswered ? ' unanswered' : ''}${isNew(c) ? ' is-new' : ''}${current ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
       <span class="cr-mark" aria-hidden="true">${ROW_MARK[state]}</span>
-      <span class="cr-l1"><span class="cr-name" dir="auto"><bdi>${markHit(c.buyer ?? t(locale, 'common.buyer'), o.query)}</bdi></span>${detail ? `<span class="cr-detail">${detail}</span>` : ''}</span>
+      <span class="cr-l1"><bdi class="cr-name">${markHit(c.buyer ?? t(locale, 'common.buyer'), o.query)}</bdi>${detail ? `<span class="cr-detail">${detail}</span>` : ''}</span>
       <span class="cr-when">${when}</span>
       <span class="cr-l2">${c.latestMessage ? `${speaker}<span class="cr-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : ''}</span>
       <span class="cr-why">${why ? `<bdi>${esc(why)}</bdi>` : ''}</span>
-      ${said ? `<span class="sr">${esc(said)}</span>` : ''}
+      ${said ? `<span class="sr">${esc(said)}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}
     </a>`;
 }
 
@@ -1434,7 +1446,7 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
     : noReply ? t(locale, 'buyers.row.noReply')
     : state === 'hers' && c.answeredBy ? t(locale, 'buyers.group.hers', { name: c.answeredBy }) : '';
   const why = state === 'needs'
-    ? `<span class="ir-wait">${signalMark('waiting')}<bdi>${esc(reason)}</bdi></span>`
+    ? `<span class="ir-wait"><bdi>${esc(reason)}</bdi></span>`
     : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
   // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
   const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
@@ -1467,11 +1479,11 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
     ? faceLink({ clientId: c.clientId, name: c.buyer, photo: c.photo ?? null }, { size: 'm', label: t(locale, 'buyers.row.card', { who }), className: 'ir-face' })
     : `<span class="ir-face">${face({ clientId: c.conversationId, name: c.buyer }, 'm')}</span>`;
   // CC-25 — a customer opens on the newest message, the reply waiting under it.
-  return `<div class="irow is-${state}${c.unanswered ? ' unanswered' : ''}${current ? ' on' : ''}">${theFace}<a class="ir-main" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
-      <span class="ir-l1"><span class="ir-name" dir="auto"><bdi>${markHit(who, o.query)}</bdi></span>${regular}</span>
+  return `<div class="irow is-${state}${c.unanswered ? ' unanswered' : ''}${isNew(c) ? ' is-new' : ''}${current ? ' on' : ''}"><span class="ir-slot" aria-hidden="true">${state === 'needs' ? '<span class="row-dot"></span>' : ''}</span>${theFace}<a class="ir-main" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
+      <span class="ir-l1"><bdi class="ir-name">${markHit(who, o.query)}</bdi>${regular}</span>
       ${spent}
       <span class="ir-l2">${why}${glimpse}</span>
-      <span class="ir-when">${when}</span>${said ? `<span class="sr">${esc(said)}</span>` : ''}
+      <span class="ir-when">${when}</span>${said ? `<span class="sr">${esc(said)}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}
     </a></div>`;
 }
 
@@ -1517,7 +1529,7 @@ export function attentionBand(items: readonly AttentionItem[], locale: Locale, n
   const row = (a: AttentionItem): string => {
     const who = a.name ?? t(locale, 'common.buyer');
     return `<li class="arow">${faceLink({ clientId: a.clientId, name: a.name, photo: a.photo }, { size: 's', label: t(locale, 'buyers.row.card', { who }), className: 'ar-face' })}`
-      + `<a class="ar-main" href="${conversationUrl(a.conversationId)}"><span class="ar-name" dir="auto"><bdi>${esc(who)}</bdi></span>`
+      + `<a class="ar-main" href="${conversationUrl(a.conversationId)}"><bdi class="ar-name">${esc(who)}</bdi>`
       + `<span class="ar-line">${esc(t(locale, `buyers.attention.${a.kind}` as MessageKey, { date: sinceDate(locale, a.since, now) }))}</span></a></li>`;
   };
   const first = items.slice(0, ATTENTION_SHOWN);
@@ -1842,7 +1854,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-      <blockquote class="unsure-q" dir="auto"><bdi>${esc(p.said)}</bdi></blockquote>` : ''}
+      <blockquote class="unsure-q" dir="auto">${esc(p.said)}</blockquote>` : ''}
       <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
@@ -2260,7 +2272,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
       ${nums.length ? `<p class="muted">${esc(t(locale, 'card.foreign.figures'))} ${nums.map((n) => `<bdi dir="ltr">${esc(n)}</bdi>`).join(', ')}</p>` : ''}
       ${tr ? `<p class="k">${esc(t(locale, 'card.foreign.translation', { language: languageName(locale, locale) }))}</p>
-      <blockquote class="said" dir="auto"><bdi>${esc(tr)}</bdi></blockquote>`
+      <blockquote class="said" dir="auto">${esc(tr)}</blockquote>`
         : to.translate ? `<form method="post" action="${esc(to.translate)}"><input type="hidden" name="draftId" value="${esc(p.draftId)}" />
       <button class="btn" type="submit">${esc(t(locale, 'card.foreign.translate', { language: languageName(locale, locale) }))}</button></form>` : ''}
     </div>`;
@@ -2688,7 +2700,7 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'maybeYes.what'))}</div>
           ${said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-          <blockquote class="unsure-q" dir="auto"><bdi>${esc(said)}</bdi></blockquote>` : ''}
+          <blockquote class="unsure-q" dir="auto">${esc(said)}</blockquote>` : ''}
           ${offer ? `<p class="muted">${esc(t(locale, 'maybeYes.offer'))}</p>
           <ul class="rows">
             <li class="row"><span class="muted">${esc(t(locale, 'order.field.product'))}</span> <bdi>${esc(offer.productName)}</bdi></li>

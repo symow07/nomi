@@ -217,7 +217,7 @@ function waitingItem(locale: Locale, c: ConversationSummary, who: FaceOf | undef
     ? faceLink(who, { size: 's', label: name, className: 'tw-face' })
     : `<span class="tw-face">${face({ clientId: c.conversationId, name: c.buyer }, 's')}</span>`;
   return `<li class="tw-item">${theFace}<a class="tw-go" href="${conversationUrl(c.conversationId)}">`
-    + `<span class="tw-who"><span class="tw-name" dir="auto"><bdi>${esc(name)}</bdi></span>`
+    + `<span class="tw-who"><bdi class="tw-name">${esc(name)}</bdi>`
     + `<span class="tw-why"><bdi>${esc(why)}</bdi></span></span>`
     + `${GO}</a></li>`;
 }

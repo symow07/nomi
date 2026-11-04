@@ -142,8 +142,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
 
   it('V1-182 · the searched word is marked in the name it matched, by weight and a line', () => {
     const h = list('en', { query: 'haddad', conversations: LIST.conversations.slice(0, 2), page: { from: 1, to: 2, total: 2, next: null, prev: null } });
-    expect(rowOf(h, 'c-wait')).toContain('<bdi>Omar <mark class="hit">Haddad</mark></bdi>');
-    expect(rowOf(h, 'c-review')).toContain('<bdi>Leila <mark class="hit">Haddad</mark></bdi>');
+    expect(rowOf(h, 'c-wait')).toContain('<bdi class="ir-name">Omar <mark class="hit">Haddad</mark></bdi>');
+    expect(rowOf(h, 'c-review')).toContain('<bdi class="ir-name">Leila <mark class="hit">Haddad</mark></bdi>');
     const byProduct = list('en', { query: 'string', conversations: LIST.conversations.slice(0, 1), page: { from: 1, to: 1, total: 1, next: null, prev: null } });
     // phase 4 — the row shows no product; found BY it, the product stands where the message would
     expect(byProduct).toContain('<bdi class="ir-text">LED <mark class="hit">String</mark> Lights 10m</bdi>');
@@ -220,11 +220,11 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(CSS).toMatch(/\.search \.btn \{ align-self:stretch; \}/);
   });
 
-  it('V1-172 · the rail\'s number says what it counts', () => {
+  it('the rail\'s number is a figure, and its link says what it counts', () => {
     for (const l of LOCALES) {
       const page = withWorkspace({ ...SCOPE, needsYou: 3 }, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/inbox', bodyHtml: '' }));
-      // The warmth run: on a wide screen the words; on a phone's tile the figure alone, at the icon's corner.
-      expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true"><span class="nl-long">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
+      // The owner, 2026-11-04: the figure alone, beside the word; at the icon's corner on a phone.
+      expect(withoutIsolates(page), l).toContain('<span class="navcount" aria-hidden="true">3</span>');
     }
   });
 });

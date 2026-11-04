@@ -412,16 +412,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         badge.setAttribute('aria-hidden', 'true');
         (entry.querySelector('.nl-body') || entry).appendChild(badge);
       }
-      /* The words where there is room, the figure on a phone's tile, as the page draws them. */
-      while (badge.firstChild) badge.removeChild(badge.firstChild);
-      var long = doc.createElement('span');
-      long.className = 'nl-long';
-      long.textContent = String(said.words || said.shown);
-      var short = doc.createElement('span');
-      short.className = 'nl-short';
-      short.textContent = String(said.shown);
-      badge.appendChild(long);
-      badge.appendChild(short);
+      badge.textContent = String(said.shown);
       entry.setAttribute('aria-label', String(said.label));
     } else {
       if (badge && badge.parentNode) badge.parentNode.removeChild(badge);

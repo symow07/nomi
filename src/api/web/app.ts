@@ -1,6 +1,7 @@
 import type { Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
+import { markConversationOpened } from '../../db/conversationOpened.js';
 import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
@@ -4209,6 +4210,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     const me = personOf(s).id;
     const people = await loadPeople(deps.db, s.businessId);
+    // 0223 — opened: before the list beside it is read, so this row is not bold there.
+    if (bid.ok) await markConversationOpened(deps.db, bid.value, conversationId);
     // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
     const list = await loadInboxList(deps.db, s.businessId, 'all', me);
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => {

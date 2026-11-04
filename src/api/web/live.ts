@@ -14,7 +14,7 @@ import type { LiveWatch } from './flash.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn } from './say.js';
-import { isolate } from './values.js';
+import { isolate, railFigure } from './values.js';
 
 /**
  * CC-26 — THE PAGE LEARNS THAT SOMETHING NEW ARRIVED, AND SAYS SO.
@@ -449,14 +449,12 @@ export async function railAnswer(db: Db, bid: BusinessId, viewerId: string, sinc
  * message. The script writes these as text and never as markup.
  */
 export type RailSaid = {
-  readonly n: number; readonly mark: string; readonly shown: string; readonly words: string; readonly label: string;
+  readonly n: number; readonly mark: string; readonly shown: string; readonly label: string;
   readonly toast?: { readonly say: string; readonly door: string };
 };
 export function railSaid(locale: Locale, a: RailAnswer): RailSaid {
   const said = {
-    n: a.n, mark: `${a.n}.${a.at}`, shown: isolate(locale, String(a.n)),
-    // w4-whole-05 — the rail's words as the shell draws them ("2 waiting"), so a live update reads as a reload would.
-    words: isolate(locale, t(locale, 'nav.waiting', { n: a.n })),
+    n: a.n, mark: `${a.n}.${a.at}`, shown: railFigure(locale, a.n),
     label: `${t(locale, 'nav.inbox')}, ${tn(locale, 'nav.needsYou', a.n)}`,
   };
   if (!a.newest) return said;

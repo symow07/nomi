@@ -222,3 +222,6 @@ export const phone = (locale: Locale, p: string): string => isolate(locale, p);
 
 /** An order's number or reference: "PO-2231", "LND-7". */
 export const orderNumber = (locale: Locale, ref: string): string => isolate(locale, ref);
+
+/** The rail's count, as the owner set it (2026-11-04): the figure, "9+" above nine. */
+export const railFigure = (locale: Locale, n: number): string => isolate(locale, n > 9 ? '9+' : String(n));

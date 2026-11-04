@@ -571,8 +571,8 @@ describe('the rail\'s answer: the count every page shows, and who arrived when i
       const quiet = railSaid(l, { status: 200, n: 2, at: 1700, newest: null });
       expect(quiet.n).toBe(2);
       expect(quiet.mark).toBe('2.1700');
-      // the rail's words, as the shell draws them, so a live update reads as a reload would (w4-whole-05)
-      expect(withoutIsolates(quiet.words)).toBe(withoutIsolates(t(l, 'nav.waiting', { n: 2 })));
+      // the rail's figure, as the shell draws it, so a live update reads as a reload would (w4-whole-05)
+      expect(withoutIsolates(quiet.shown)).toBe('2');
       expect(quiet.toast, l).toBeUndefined();
       // the entry's spoken name, word for word as the shell says it on the page drawn with that count
       expect(quiet.label).toBe(`${t(l, 'nav.inbox')}, ${tn(l, 'nav.needsYou', 2)}`);

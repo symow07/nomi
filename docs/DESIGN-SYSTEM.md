@@ -33,7 +33,7 @@ Each colour has one job. A colour used for anything else is a defect.
 | jade | `#3F6B5C` | Money in, done. `jadeWash` `#E6EDE9` behind a chip |
 | ochre | `#B8862F` | Waiting, overdue: marks, and the bold "1 overdue" |
 | ochreText | `#7C5A14` | Waiting, overdue: any smaller text. `ochreWash` `#F6EEDC` behind a chip |
-| wine | `#5A0A2E` | **The mark only** |
+| wine | `#5A0A2E` | The mark, the rail's count, and the dot on a row that needs you |
 | magenta | `#9A0F5E` | **Send only**, with `onSend` `#FFFFFF` on it |
 
 Contrast, measured:
@@ -109,10 +109,17 @@ One customer, one line, one door to the conversation: photo, name, product thumb
 - On a phone, a row takes two lines: name and value, then chip and days.
 - The customer on the decision card is not listed again under it.
 
+**Who needs you.** No pill and no banner.
+
+- The rail and the phone's tab bar: a small count beside Customers, a white figure on wine. Hidden at nothing, "9+" above nine; the link's spoken name says the true number.
+- The Customers list: a small wine dot at the start of each row that needs you, with its reason in words. Its name is bold until the conversation is opened, and bold again when something new arrives. Those rows come first.
+
+**A cut name.** A long name is cut at its end in either direction: the element that cuts is itself a `<bdi>`. Never `dir="auto"` around a lone `<bdi>`: `dir="auto"` reads past it and finds no words.
+
 **Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron. At most five, newest
 first, then "View all".
 
-- One row per invoice, with where it stands now (Paid, Open, Overdue) and its issue date, from the invoice itself.
+- One row per invoice, with where it stands now (Paid, Open, Overdue) and its latest event's date: the day it was paid for Paid, its issue date for Open and Overdue.
 - A payment gets its own row only when it belongs to no invoice: money on a bank line that isn't matched to an invoice's
   payment, and isn't one the bank page offers to approve. Its chip says "Payment", and it opens the bank page.
 - Green is settled, ochre is overdue, the rest are plain.
@@ -213,7 +220,7 @@ charts never flip, and the wash is mirrored by hand to stay behind the title.
 - Don't flip a time chart right to left.
 - Don't use serif for running text. It's for what a person says, headings and big numbers.
 - Don't use a second magenta on a screen, or magenta on anything but Send.
-- Don't use wine on anything but the mark.
+- Don't use wine on anything but the mark, the rail's count and a waiting row's dot.
 - Don't use red. Overdue is ochre.
 - Don't add a drop shadow, a watermark stamp or a repeating seal.
 - Don't put a badge or stage in colour without its word.

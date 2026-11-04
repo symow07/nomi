@@ -73,10 +73,10 @@ const htmlOf = (ok = true) => ({ type: 'basic', status: ok ? 200 : 500, ok, text
 // The warmth run's re-audit (w4-whole-03, -05): the mark carries the moment the latest customer began
 // to wait, and the answer the rail's words, so a live update reads as a reload would.
 const rail = (n: number, toast?: { say: string; door: string }) =>
-  json({ n, mark: `${n}.${n * 100}`, shown: String(n), words: `${n} waiting`, label: `Inbox, ${n} customers need you`, ...(toast ? { toast } : {}) });
-/** The rail's number as drawn: its words where there is room, its figure on a phone's tile. */
-const shownOf = (b: Nd): string[] => b.children.map((c) => `${c.attrs['class']}:${c.textContent}`);
-const drawn = (n: number): string[] => [`nl-long:${n} waiting`, `nl-short:${n}`];
+  json({ n, mark: `${n}.${n * 100}`, shown: String(n), label: `Inbox, ${n} customers need you`, ...(toast ? { toast } : {}) });
+/** The rail's number as drawn: the figure alone, wherever it sits. */
+const shownOf = (b: Nd): string => b.textContent;
+const drawn = (n: number): string => String(n);
 const ROSE = { say: 'Amina Yusuf is waiting for you', door: DOOR };
 
 /** A page in a workspace: the rail with its Inbox entry, a main, the slot that asks. Optionally Today's region. */
