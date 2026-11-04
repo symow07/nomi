@@ -27,10 +27,15 @@ BASEURL="http://127.0.0.1:${APPPORT}"
 # message and failed it, while this run's server was still starting. Refuse,
 # and say what to stop, before touching anything.
 if curl -s -o /dev/null --max-time 2 "$BASEURL/health"; then
-  echo "FAIL: something already answers on :$APPPORT — an earlier run? Stop it first (see its 'Stop everything' line)." >&2; exit 1
+  echo "FAIL: something already answers on :$APPPORT. If it is your earlier run, use its 'Stop everything' line. If not, leave it: pass your own PORT, PGPORT and SK." >&2; exit 1
 fi
 if pg_isready -h 127.0.0.1 -p "$PGPORT" >/dev/null 2>&1; then
-  echo "FAIL: a Postgres already listens on :$PGPORT — an earlier run? pg_ctl -D $SK/pg stop" >&2; exit 1
+  echo "FAIL: a Postgres already listens on :$PGPORT. If it is your earlier run, use its 'Stop everything' line. If not, leave it: pass your own PORT, PGPORT and SK." >&2; exit 1
+fi
+# $SK is shared by every worktree on this Mac unless it is set, so a free port does not make it free: a Postgres can be
+# running from it on another port. That one is someone's. Never wipe it (CLAUDE.md §2).
+if pg_ctl -D "$SK/pg" status >/dev/null 2>&1; then
+  echo "FAIL: a Postgres is running from $SK/pg. If it is your earlier run, use its 'Stop everything' line. If not, leave it: pass your own PORT, PGPORT and SK." >&2; exit 1
 fi
 
 rm -rf "$SK"; mkdir -p "$SK"

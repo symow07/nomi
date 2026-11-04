@@ -13,14 +13,28 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The old settings addresses land on the profile; nothing is killed by name (2026-11-04; no migration)
+
+The owner's two follow-ups to the cleanup below.
+
+- **The redirect:** `/app/settings/zone` and `/currency` now go to `/app/settings/profile`, where the zone and the
+  currency live, not to My business. Still 301 for a link and 303 for a form, and still nothing saved.
+- **The rule (CLAUDE.md §2, "Destructive actions"):** never kill a process by name, pattern or port; kill only PIDs you
+  started yourself; never touch another worktree's or session's temp folders. Written after that cleanup's session ran
+  `pkill` by name, which killed another session's integration run and deleted its temporary Postgres.
+- **What already broke the rule, fixed with it:** `SKILL.md` freed a port with `lsof | xargs kill`; CLAUDE.md said to
+  `kill` a stuck `git fetch` found through `ps`; `smoke.sh` could wipe the shared `/tmp/yf-run` while a Postgres ran from
+  it on another port. It now refuses, and says to pass your own `PORT`, `PGPORT` and `SK`.
+- **Left alone:** `tools/backup.sh` uses `pkill -P` on its own watchdog's PID. That is by parent PID, not by name.
+
 ## Cleanup: two old routes, verify-remote, three flakes (2026-11-04; no migration)
 
 The owner's brief, one PR.
 
 - **The two old routes are gone.** `POST /app/settings/zone` and `/currency` no longer save anything. An old link gets a
   301 to `/app/business`; an old form gets a 303 there, so nothing is saved and nothing is posted again. The zone and
-  the currency are saved by the profile's one form, `POST /app/settings`, with the same rules, so a person who wants
-  them still goes to `/app/settings/profile`. The brief said `/app/business`, and that is what is built. Two flash
+  the currency are saved by the profile's one form, `POST /app/settings`, with the same rules. (The redirect's target
+  moved to `/app/settings/profile` the same day, above.) Two flash
   lines nothing can say any more left the catalogue and the review list.
 - **`verify-remote.sh` passes against a running app** (15 checks, on the smoke instance). The script lives at
   `.claude/skills/run-nomi/`, not `tools/`. Three markers were gone, as noted below, and a fourth check was looking on

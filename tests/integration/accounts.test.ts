@@ -230,16 +230,16 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(await zoneOfName(C.factory)).toBe('America/Denver');
     // The cached facts were let go: the next page is drawn in the new zone.
     expect((await get('/app/settings/profile', cookieC)).body).toContain('<option value="America/Denver" selected>');
-    // The old address saves nothing: an old form, or an old link, lands on My business.
+    // The old address saves nothing: an old form, or an old link, lands on the profile, where the zone lives.
     const oldForm = await form('/app/settings/zone', { zone: 'America/Chicago' }, cookieC);
-    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/business']);
+    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/profile']);
     expect(await zoneOfName(C.factory)).toBe('America/Denver');
     const oldLink = await get('/app/settings/zone', cookieC);
-    expect([oldLink.statusCode, oldLink.headers['location']]).toEqual([301, '/app/business']);
+    expect([oldLink.statusCode, oldLink.headers['location']]).toEqual([301, '/app/settings/profile']);
     // …and a stranger gets the same address, which sends them to the door; nothing is saved.
     const stranger = await form('/app/settings/currency', { currency: 'SAR' });
-    expect([stranger.statusCode, stranger.headers['location']]).toEqual([303, '/app/business']);
-    const door = await get('/app/business', '');
+    expect([stranger.statusCode, stranger.headers['location']]).toEqual([303, '/app/settings/profile']);
+    const door = await get('/app/settings/profile', '');
     expect([door.statusCode, door.headers['location']]).toEqual([302, '/login']);
 
     // …and every "today" the database decides is the workspace's own.
