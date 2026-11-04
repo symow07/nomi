@@ -90,11 +90,14 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
       await sql`update client_channels set last_inbound_at = now() - interval '1 minute' where client_id in (${a.clientId}::uuid, ${t.clientId}::uuid)`.execute(x);
       await sql`update conversations set assigned_to = null where id in (${aisha}::uuid, ${tester}::uuid)`.execute(x);
       await sql`update conversations set owner_testing = true where id = ${tester}::uuid`.execute(x);
+      const product = (await sql<{ id: string }>`insert into products (business_id, sku, name, unit, is_active)
+        values (${BIZ}, ${`S-${RUN}`}, 'Travel Cosmetic Bag', 'pcs', true) returning id::text as id`.execute(x)).rows[0]!.id;
+      await sql`update conversation_state set identified_product_id = ${product}::uuid where conversation_id = ${aisha}::uuid`.execute(x);
       for (const [c, id] of [[aisha, 'a'], [tester, 't']] as const) {
         await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
                   values (${c}::uuid, ${`split-${id}-${RUN}`}, 'inbound', 'text', 'How much for 5,000?', now() - interval '1 minute')`.execute(x);
-        await sql`insert into quotes (business_id, conversation_id, quantity, inputs, unit_price_usd, discount_pct, total_usd, requires_human, applied_rules, engine_version)
-                  values (${BIZ}, ${c}::uuid, 5000, '{}'::jsonb, 1.45, 0, 7250, false, '{}', 'split-test')`.execute(x);
+        await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, discount_pct, total_usd, requires_human, applied_rules, engine_version)
+                  values (${BIZ}, ${c}::uuid, ${product}::uuid, 5000, '{}'::jsonb, 1.45, 0, 7250, false, '{}', 'split-test')`.execute(x);
       }
       draftId = (await sql<{ id: string }>`insert into drafts (business_id, conversation_id, capability, draft_text, status)
         values (${BIZ}, ${aisha}, 'quote', 'Hello Aisha, 5,000 come to $1.45 each, $7,250.00 in total.', 'pending') returning id::text as id`.execute(x)).rows[0]!.id;
@@ -125,6 +128,8 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
       const imp = randomUUID();
       await sql`insert into statement_imports (id, business_id, account_id, format, sha256, added, refused, imported_by) values (${imp}::uuid, ${BIZ}, ${k.bank}, 'csv', ${createHash('sha256').update(RUN).digest('hex')}, 1, 0, 'owner')`.execute(x);
       await sql`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values (${BIZ}, ${imp}::uuid, ${k.bank}, ${iso(new Date())}::date, 1000, 'USD', 'Karim', ${`split-${RUN}`})`.execute(x);
+      // A line no payment answers: it is not a match, whatever the day.
+      await sql`insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values (${BIZ}, ${imp}::uuid, ${k.bank}, ${iso(new Date())}::date, 777, 'USD', 'Nobody', ${`split-${RUN}-2`})`.execute(x);
     });
     app = compose(true); await app.ready();
     plain = compose(false); await plain.ready();
@@ -160,7 +165,15 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     expect(html).toContain(`action="/app/inbox/${aisha}/act"`);
     expect(html).toContain('class="reading"');
     expect(html).toContain('goes on Instagram, as written');
-    expect(html).toMatch(/notlive/);
+  });
+
+  it('says so where sending is not switched on: the notice stays on the page', async () => {
+    const off = compose(true, { messagingEnabled: false, provider: 'disabled' }); await off.ready();
+    const html = await today(await login(off, CODE), off);
+    await off.close();
+    expect(html).toContain('class="muted notlive"');
+    expect(html).toContain('Sending is not switched on here yet');
+    expect(html.match(/class="sp-btn sp-send"/g)).toHaveLength(1);
   });
 
   it('counts real rows: a conversation marked as the owner testing counts for nothing', async () => {
@@ -230,7 +243,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     const other = await tx((x) => sql<{ id: string }>`insert into drafts (business_id, conversation_id, capability, draft_text, status)
       values (${BIZ}, ${tester}, 'quote', 'A reply nobody sends.', 'pending') returning id::text as id`.execute(x).then((r) => r.rows[0]!.id));
     const r = await app.inject({ method: 'POST', url: `/app/inbox/${tester}/takeover`, headers: { cookie, ...FORM }, payload: new URLSearchParams({ draftId: other, edit: 'A reply nobody sends.' }).toString() });
-    expect(r.statusCode).toBe(303);
+    expect(r.statusCode).toBe(302);
     expect(kicked).toEqual([]);
   });
 
@@ -238,11 +251,11 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     const before = kicked.length;
     const r = await app.inject({ method: 'POST', url: `/app/inbox/${aisha}/act`, headers: { cookie, ...FORM },
       payload: new URLSearchParams({ draftId, command: 'send', edit: 'Hello Aisha, 5,000 come to $1.45 each, $7,250.00 in total.' }).toString() });
-    expect(r.statusCode).toBe(303);
+    expect(r.statusCode).toBe(302);
     expect(String(r.headers.location)).toContain(`/app/inbox/${aisha}`);
     const row = await tx((x) => sql<{ status: string }>`select status from drafts where id = ${draftId}::uuid`.execute(x).then((q) => q.rows[0]!));
     expect(row.status).not.toBe('pending');
     expect(kicked.length).toBeGreaterThan(before);
-    expect(await today()).not.toContain('sp-send');
+    expect(await today()).not.toContain(draftId);
   });
 });
