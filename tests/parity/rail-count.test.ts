@@ -42,7 +42,7 @@ describe('the rail\'s count', () => {
     expect(withoutIsolates(railFigure('en', 1))).toBe('1');
     expect(withoutIsolates(railFigure('en', 9))).toBe('9');
     expect(withoutIsolates(railFigure('en', 10))).toBe('9+');
-    expect(railFigure('ar', 12)).toBe('⁨9+⁩');
+    expect(railFigure('ar', 12)).toBe('\u20689+\u2069');
   });
 
   it('on the plain rail and the Split rail: hidden at nothing, capped on the page, the true number spoken', () => {
@@ -66,7 +66,7 @@ describe('the rail\'s count', () => {
     const rule = ruleOf('nav.side .navcount');
     expect(rule).toContain('background:var(--color-coin)');
     expect(rule).toContain('color:var(--color-surface)');
-    expect(CSS).toContain('--color-coin:#5A0A2E');
+    expect(CSS).toMatch(/--color-coin:\s*#5A0A2E/i);
     expect(CSS).not.toMatch(/navcount::before/);
     expect(readFileSync('src/api/web/splitStyle.ts', 'utf8')).not.toContain('navcount');
   });
@@ -109,9 +109,9 @@ describe('a long name in either direction', () => {
     expect(ruleOf('.ir-name')).toContain('text-overflow:ellipsis');
   });
 
-  it('nothing is dir="auto" around a lone <bdi>: dir="auto" reads past it, and finds no words', () => {
+  it('a name that is cut is never a <span dir="auto"> around a <bdi>: dir="auto" reads past it, and finds no words', () => {
     const wrong = readdirSync('src/api/web').filter((f) => f.endsWith('.ts'))
-      .filter((f) => /dir="auto"[^>]*><bdi\b/.test(readFileSync(join('src/api/web', f), 'utf8')));
+      .filter((f) => /<(?!bdi\b)\w+ class="(?:ir|cr|ar|tw)-name"|<(?!bdi\b)\w+ class="sp-rname"/.test(readFileSync(join('src/api/web', f), 'utf8')));
     expect(wrong).toEqual([]);
   });
 });

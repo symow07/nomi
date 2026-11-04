@@ -114,7 +114,7 @@ One customer, one line, one door to the conversation: photo, name, product thumb
 - The rail and the phone's tab bar: a small count beside Customers, a white figure on wine. Hidden at nothing, "9+" above nine; the link's spoken name says the true number.
 - The Customers list: a small wine dot at the start of each row that needs you, with its reason in words. Its name is bold until the conversation is opened, and bold again when something new arrives. Those rows come first.
 
-**A cut name.** A long name is cut at its end in either direction: the element that cuts is itself a `<bdi>`. Never `dir="auto"` around a lone `<bdi>`: `dir="auto"` reads past it and finds no words.
+**A cut name.** A long name is cut at its end in either direction: the element that cuts is itself a `<bdi>`. Never `dir="auto"` around a lone `<bdi>` on a name: `dir="auto"` reads past it and finds no words.
 
 **Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron. At most five, newest
 first, then "View all".

@@ -245,9 +245,9 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     for (const name of ['Cy', 'Fay', 'Gus']) expect(at(name), name).toBeGreaterThan(-1);
     for (const name of ['Hal', 'Ivy', 'Jo', 'Kim', 'Ade', 'Bo', 'Tan']) expect(at(name), name).toBe(-1);
     // each with its line; the one who spent most first, then the most recent
-    expect(b).toMatch(/Cy<\/bdi><\/span><span class="ar-line">Regular, no order since /);
-    expect(b).toMatch(/Fay<\/bdi><\/span><span class="ar-line">Price given [^<]+, no word since/);
-    expect(b).toMatch(/Gus<\/bdi><\/span><span class="ar-line">Question sent [^<]+, no answer yet/);
+    expect(b).toMatch(/Cy<\/bdi><span class="ar-line">Regular, no order since /);
+    expect(b).toMatch(/Fay<\/bdi><span class="ar-line">Price given [^<]+, no word since/);
+    expect(b).toMatch(/Gus<\/bdi><span class="ar-line">Question sent [^<]+, no answer yet/);
     expect(at('Cy')).toBeLessThan(at('Fay'));
     expect(at('Fay')).toBeLessThan(at('Gus'));
     // the same in the other lens; never on a search, a narrowing, or a later page

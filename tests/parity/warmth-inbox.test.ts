@@ -167,10 +167,10 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
     expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{ position:absolute;/);
   });
 
-  it('a customer waiting for the owner keeps the waiting signal — magenta ○ and its words; a deletion request its own', () => {
+  it('a customer waiting for the owner keeps its words beside the row\'s dot; a deletion request its own', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const wait = /<span class="ir-wait"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span><bdi>([^<]+)<\/bdi><\/span>/;
+      const wait = /<span class="ir-wait"><bdi>([^<]+)<\/bdi><\/span>/;
       expect(wait.exec(rowOf(h, 2))?.[1], l).toBe(shown(l, 'takeover.reason.human_requested'));
       expect(wait.exec(rowOf(h, 1))?.[1], l).toBe(shown(l, 'buyers.badge.deletion'));
       for (const n of [3, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-wait');
@@ -254,7 +254,7 @@ describe('phase 4 · the "needs attention" band', () => {
       for (const a of BAND) {
         const at = h.indexOf(`href="/app/customers/${a.clientId}" data-card`);
         expect(at, `${l} ${a.kind}`).toBeGreaterThan(-1);
-        expect(h, l).toContain(`<a class="ar-main" href="/app/inbox/${a.conversationId}#latest"><span class="ar-name" dir="auto"><bdi>${esc(a.name!)}</bdi></span>`);
+        expect(h, l).toContain(`<a class="ar-main" href="/app/inbox/${a.conversationId}#latest"><bdi class="ar-name">${esc(a.name!)}</bdi>`);
         expect(h, l).toContain(`<span class="ar-line">${shown(l, `buyers.attention.${a.kind}`, { date: show.shortWhen(l, a.since, NOW) })}</span>`);
       }
       expect(h, l).toContain('<span class="face face-s');
@@ -389,8 +389,8 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
       title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: renderInboxList({ ...LIST, attention: BAND }, 'ar', NOW),
     })));
     expect(page).toContain('<html lang="ar" dir="rtl"');
-    expect(rowOf(page, 2)).toContain('<span class="ir-name" dir="auto"><bdi>Alexandre Dupont</bdi></span>');
-    expect(page).toContain('<span class="ar-name" dir="auto"><bdi>Carlos Mendes</bdi></span>');
+    expect(rowOf(page, 2)).toContain('<bdi class="ir-name">Alexandre Dupont</bdi>');
+    expect(page).toContain('<bdi class="ar-name">Carlos Mendes</bdi>');
     expect(unisolatedFigures(page.slice(page.indexOf('<main')))).toEqual([]);
     expect(CSS).toContain('[dir="rtl"] .ir-text:dir(ltr) { text-align:end; }');
   });

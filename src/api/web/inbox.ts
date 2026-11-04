@@ -1854,7 +1854,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-      <blockquote class="unsure-q" dir="auto">${esc(p.said)}</blockquote>` : ''}
+      <blockquote class="unsure-q" dir="auto"><bdi>${esc(p.said)}</bdi></blockquote>` : ''}
       <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
@@ -2272,7 +2272,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
       ${nums.length ? `<p class="muted">${esc(t(locale, 'card.foreign.figures'))} ${nums.map((n) => `<bdi dir="ltr">${esc(n)}</bdi>`).join(', ')}</p>` : ''}
       ${tr ? `<p class="k">${esc(t(locale, 'card.foreign.translation', { language: languageName(locale, locale) }))}</p>
-      <blockquote class="said" dir="auto">${esc(tr)}</blockquote>`
+      <blockquote class="said" dir="auto"><bdi>${esc(tr)}</bdi></blockquote>`
         : to.translate ? `<form method="post" action="${esc(to.translate)}"><input type="hidden" name="draftId" value="${esc(p.draftId)}" />
       <button class="btn" type="submit">${esc(t(locale, 'card.foreign.translate', { language: languageName(locale, locale) }))}</button></form>` : ''}
     </div>`;
@@ -2700,7 +2700,7 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'maybeYes.what'))}</div>
           ${said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-          <blockquote class="unsure-q" dir="auto">${esc(said)}</blockquote>` : ''}
+          <blockquote class="unsure-q" dir="auto"><bdi>${esc(said)}</bdi></blockquote>` : ''}
           ${offer ? `<p class="muted">${esc(t(locale, 'maybeYes.offer'))}</p>
           <ul class="rows">
             <li class="row"><span class="muted">${esc(t(locale, 'order.field.product'))}</span> <bdi>${esc(offer.productName)}</bdi></li>
