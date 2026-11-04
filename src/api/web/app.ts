@@ -29,6 +29,8 @@ import { loadCustomerCard } from '../../db/customerCard.js';
 import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
+import { loadSplitData, renderSplitToday } from './splitToday.js';
+import { face } from './faces.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { loadProformaPage, renderProformaPage } from './proforma.js';
 import { makeProformaLink, stopProformaLink, proformaUrl } from '../../db/proformaLinks.js';
@@ -571,6 +573,8 @@ export type WebDeps = {
    * sets). Absent or false — every normal installation — it is no page.
    */
   readonly componentGallery?: boolean;
+  /** The Split Today preview (`SPLIT_TODAY=on`): Today drawn as the Sales and Books panels. Off, Today is what it was. */
+  readonly splitToday?: boolean;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -1060,7 +1064,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * CC-26 — `live` is the page's live region (`liveRegion`), for the pages
    * that watch for something new while they are open.
    */
-  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string; wide?: boolean }): string =>
+  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string; wide?: boolean; split?: { readonly me: string } }): string =>
     shell({ ...o, locale: localeOf(req), path: req.url });
 
   /**
@@ -1199,7 +1203,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * Wrap an authed page: verify session or redirect to /login. A render hands
    * back its body — or its body and, CC-26, the live region it watches with.
    */
-  type Drawn = string | { readonly bodyHtml: string; readonly live?: string; readonly title?: string };
+  type Drawn = string | { readonly bodyHtml: string; readonly live?: string; readonly title?: string; readonly wide?: boolean; readonly split?: { readonly me: string } };
   const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale, reply: FastifyReply) => Promise<Drawn> | Drawn) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
@@ -4106,6 +4110,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       loadInsights(deps.db, s.businessId, personOf(s).id),
       loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
+    // The Split Today preview: the same three read models, drawn as two panels, with the figures it adds.
+    if (deps.splitToday) {
+      const person = personOf(s);
+      const now = new Date();
+      const data = await loadSplitData(deps.db, s.businessId, { showBooks: booksShown() && booksMay(person, 'see'), needs: today.needs.rows }, now);
+      return {
+        title: t(locale, 'split.title'), wide: true,
+        split: { me: `<a class="sp-me" href="/app/settings/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>` },
+        bodyHtml: renderSplitToday(snapshot, locale, today, renderInsights(insights, locale, { bare: true }), data, now),
+        live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
+      };
+    }
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.

@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
+import { SPLIT_CSS } from './splitStyle.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
@@ -2780,6 +2781,8 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
+/** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
+const SPLIT_SHEET = sheet('split', SPLIT_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2964,6 +2967,8 @@ export function shell(input: {
   readonly live?: string;
   /** The design pass — a page drawn as panes (a conversation) takes the whole width, not the reading column. */
   readonly wide?: boolean;
+  /** The Split Today preview (`SPLIT_TODAY=on`), only ever on Today: its sheet, its rail, and who is signed in at the rail's foot. */
+  readonly split?: { readonly me: string };
 }): string {
   const { locale } = input;
   const name = assistantName(locale);
@@ -3023,6 +3028,23 @@ export function shell(input: {
     return shellWith(input, `<div class="navgroup">${booksEntry}${accountEntry}</div><div class="navfoot">${foot}</div>`);
   }
   const toBooks = role === 'owner' && booksShown() ? switchTo('/app/books', 'nav.toBooks') : '';
+  // The preview's rail: one flat list. A phone's tab bar holds five, so with the books there the advisor's entry waits on the page's foot.
+  if (input.split) {
+    const flat = (id: string, label: string, extra = '', icon?: RailIcon) => {
+      const on = id === here;
+      const count = id === 'inbox' ? needsYouCount() : null;
+      const badge = count ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: count })))}</span>`
+        + `<span class="nl-short">${esc(isolate(locale, String(count)))}</span></span>` : '';
+      const aria = count ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', count))}"` : '';
+      const href = byId(id)?.href ?? '/app/books';
+      return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}
+       >${railIcon(icon ?? NAV_ICON[id] ?? 'home-2')}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
+    };
+    const books = role === 'owner' && booksShown();
+    return shellWith(input, `<div class="navgroup">${flat('home', t(locale, 'split.title'))}${flat('inbox', t(locale, 'nav.customers'))}${flat('calendar', t(locale, 'nav.calendar'))}${
+      books ? flat('books', t(locale, 'nav.books'), '', 'notebook-minimalistic') : ''}${flat('advisor', t(locale, 'nav.advisor'), books ? ' sp-notab' : '')}</div>
+      <div class="navfoot">${flat('settings', t(locale, 'nav.settings'))}${input.split.me}</div>`);
+  }
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
     <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
       <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
@@ -3087,9 +3109,9 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
-${TYPE_SLOT}
+${TYPE_SLOT}${input.split ? `\n${linkTo(SPLIT_SHEET)}` : ''}
 ${scriptTo(LIVE_JS)}</head>
-<body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
+<body${input.split ? ' class="split"' : ''}><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(32, null)}</span>${brandname}</div>
     ${nav}

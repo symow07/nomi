@@ -1006,6 +1006,7 @@ export async function buildProduction(
       metaReview: metaReviewFrom(process.env),
       // V1-006 — the component gallery, for a local instance only (the run-nomi smoke script sets it).
       componentGallery: process.env['COMPONENT_GALLERY'] === 'on',
+      splitToday: process.env['SPLIT_TODAY'] === 'on',
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,

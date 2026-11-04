@@ -2191,13 +2191,51 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   const to: ApprovalTargets = targets ?? { act: `/app/inbox/${cid}/act`, handTo: `/app/inbox/${cid}/takeover`, translate: `/app/inbox/${cid}/translate` };
   const name = assistantName(locale);
   const channel = d.channel ? channelName(locale, d.channel) : null;
-  const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
-  const r = d.reading ?? null;
+  const { closing, state, foreign, how, window } = approvalChecks(d, p, locale, now, to);
 
   // Who drafted it, and where Send sends it. Who asked and when is the
   // transcript's caption directly above the card; it is not said twice.
   const top = `<div class="top"><span class="as">${
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
+
+  return `<section class="card draft" id="approve" aria-labelledby="approve-h">
+      <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
+      ${top}
+      ${closing}
+      ${state}
+      ${foreign}
+      <form method="post" action="${esc(to.act)}" class="approve">
+        <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
+        <label for="reply" class="sr">${esc(t(locale, 'card.reply'))}</label>
+        ${p.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
+        ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
+             CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
+        <div class="acts">
+          <button class="${NEEDS_ACT}" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
+          <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
+        </div>
+        ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of
+             the two answers and sits on its own line under them, with the window; it puts
+             the reply away for good, so it asks first. What it does when pressed is unchanged. */ ''}<div class="acts-more">
+          <button class="btn" type="submit" name="command" value="不回"
+            onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'card.noReply.confirm'))}">${esc(t(locale, 'card.noReply'))}</button>
+          ${window ? `<p class="src">${window}</p>` : ''}
+        </div>
+      </form>
+      ${how}
+    </section>`;
+}
+
+/**
+ * Everything the card checks before Send — what made the reply wait, the window's clock, a language the owner may not
+ * read, each figure's and claim's source — one definition, drawn by the card above and by the Split Today preview's
+ * decision card, so neither can lose one. `statesPrice`: the reply's own words carry a price or a total.
+ */
+export function approvalChecks(d: ConversationDetail, p: NonNullable<ConversationDetail['pendingDraft']>, locale: Locale, now: Date, to: ApprovalTargets) {
+  const name = assistantName(locale);
+  const channel = d.channel ? channelName(locale, d.channel) : null;
+  const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
+  const r = d.reading ?? null;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
   const waits = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
@@ -2333,32 +2371,8 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
         esc(t(locale, 'card.closingIn', { channel, left: show.timeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
     : '';
 
-  return `<section class="card draft" id="approve" aria-labelledby="approve-h">
-      <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
-      ${top}
-      ${closing}
-      ${state}
-      ${foreign}
-      <form method="post" action="${esc(to.act)}" class="approve">
-        <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
-        <label for="reply" class="sr">${esc(t(locale, 'card.reply'))}</label>
-        ${p.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
-        ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
-             CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
-        <div class="acts">
-          <button class="${NEEDS_ACT}" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
-          <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
-        </div>
-        ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of
-             the two answers and sits on its own line under them, with the window; it puts
-             the reply away for good, so it asks first. What it does when pressed is unchanged. */ ''}<div class="acts-more">
-          <button class="btn" type="submit" name="command" value="不回"
-            onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'card.noReply.confirm'))}">${esc(t(locale, 'card.noReply'))}</button>
-          ${window ? `<p class="src">${window}</p>` : ''}
-        </div>
-      </form>
-      ${how}
-    </section>`;
+  const statesPrice = read.lines.some((l) => l.kind === 'figure' && (l.source === 'price' || l.source === 'total'));
+  return { closing, state, foreign, how, window, statesPrice };
 }
 
 /**

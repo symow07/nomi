@@ -6,7 +6,9 @@
   "variable/noto-sans-sc": "5.3.0",
   "noto-serif": "5.3.0",
   "noto-naskh-arabic": "5.3.0",
-  "noto-serif-sc": "5.3.0"
+  "noto-serif-sc": "5.3.0",
+  "variable/newsreader": "5.3.0",
+  "variable/noto-naskh-arabic": "5.3.0"
  },
  "faces": [
   {
@@ -1946,6 +1948,36 @@
    "set": "zh",
    "unicodeRange": "U+0020-007E,U+00A0-00FF,U+0152-0153,U+02BB,U+0304,U+2002,U+200B-200F,U+2013-2014,U+2018-201A,U+201C-201E,U+2022,U+2026,U+202A-202E,U+2032-2033,U+2039-203A,U+2060-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF",
    "file": "noto-serif-sc-latin-400-normal.af0c95a3e897cfab.woff2"
+  },
+  {
+   "family": "Newsreader Variable",
+   "weight": [
+    200,
+    800
+   ],
+   "set": "split",
+   "file": "newsreader-latin-opsz-normal.6e4f2958c3a7c4a8.woff2",
+   "unicodeRange": "U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+200B-200F,U+2013-2014,U+2018-201A,U+201C-201E,U+2022,U+2026,U+202A-202E,U+2032-2033,U+2039-203A,U+2044,U+2060-206F,U+20AC,U+2122,U+2212,U+2215,U+FEFF"
+  },
+  {
+   "family": "Newsreader Variable",
+   "weight": [
+    200,
+    800
+   ],
+   "set": "split",
+   "file": "newsreader-latin-ext-opsz-normal.45683de03de37187.woff2",
+   "unicodeRange": "U+0100-0130,U+0134-0148,U+014A-0151,U+0154-017E,U+018F,U+0192,U+01A0-01A1,U+01AF-01B0,U+01C4-01CC,U+01E6-01E7,U+01EA-01EB,U+01FA-021B,U+022A-022D,U+0230-0233,U+0237,U+0259,U+02B9-02BA,U+02C7,U+02DD,U+0304,U+0308,U+1E80-1E85,U+1E9E,U+1EF2-1EF9,U+2020,U+20A1,U+20A3-20A4,U+20A6-20A7,U+20A9,U+20AB,U+20AD,U+20B1-20B2,U+20B5,U+20B9-20BA,U+20BC-20BD"
+  },
+  {
+   "family": "Noto Naskh Arabic Variable",
+   "weight": [
+    400,
+    700
+   ],
+   "set": "split",
+   "file": "noto-naskh-arabic-arabic-wght-normal.2a10d33e1f7129ab.woff2",
+   "unicodeRange": "U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010,U+204F,U+2E41,U+FB50-FBC2,U+FBD3-FD8F,U+FD92-FDC7,U+FDCF,U+FDF0-FDFF,U+FE70-FE74,U+FE76-FEFC,U+10EFD-10EFF"
   }
  ]
 }

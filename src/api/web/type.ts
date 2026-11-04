@@ -44,7 +44,7 @@ type Face = {
   readonly family: string;
   /** A number for a file drawn at one weight; [first, last] for a variable file. */
   readonly weight: number | readonly [number, number];
-  readonly set: 'base' | 'zh';
+  readonly set: 'base' | 'zh' | 'split';
   readonly file: string; readonly unicodeRange: string;
 };
 
@@ -73,7 +73,9 @@ const BASE = [...FACES.filter((f) => f.set === 'base'), ...SWITCH_HAN];
 /** The Latin and Arabic faces, and the switch's Chinese: every page's. */
 export const TYPE_CSS = BASE.map(face).join('\n');
 /** …and every Chinese face with them: a page with Chinese words. */
-export const TYPE_ZH_CSS = FACES.map(face).join('\n');
+export const TYPE_ZH_CSS = FACES.filter((f) => f.set !== 'split').map(face).join('\n');
+/** The Split Today preview's two serif faces (`tools/fonts-split.mjs`): carried by its own sheet and nothing else. */
+export const SPLIT_FACES_CSS = FACES.filter((f) => f.set === 'split').map(face).join('\n');
 
 /** Every code point a Chinese face draws that the first sheet does not. */
 const ZH_ONLY = (() => {

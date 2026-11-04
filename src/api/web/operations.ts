@@ -351,11 +351,15 @@ export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>
   ATTENTION_PRIORITY.some((k) => attentionCount(s, k) > 0);
 
 
-export function renderOperationsHome(
+/**
+ * What Today says before anything else — every notice that sending is held, every door to what waits for the owner —
+ * one definition, drawn by Today and by the Split Today preview, so neither can lose one.
+ */
+export function homeParts(
   s: OperationsSnapshot, locale: Locale, today: TodayData,
   /** "Worth your attention" — the insight lines, bare, joined to the first zone. */
   lead = '',
-): string {
+) {
   const name = assistantName(locale);
   // Whether this installation carries messages at all — a fact about where
   // Nomi runs, said in its own words, never as "nothing is connected".
@@ -481,6 +485,17 @@ export function renderOperationsHome(
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
     : '';
 
+  // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
+  const notLive = !live ? `<p class="muted notlive">${todoMark()} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
+  return { name, live, reachable, holding, stopped, silenced, refusing, budget, more, quietNow, calm, head, startCard, finishSetup, notLive };
+}
+
+export function renderOperationsHome(
+  s: OperationsSnapshot, locale: Locale, today: TodayData,
+  /** "Worth your attention" — the insight lines, bare, joined to the first zone. */
+  lead = '',
+): string {
+  const { live, reachable, holding, stopped, silenced, refusing, budget, more, quietNow, calm, head, startCard, finishSetup, name, notLive } = homeParts(s, locale, today, lead);
   // ── HOME, top to bottom (the home run). The greeting: the assistant is "ready for the day" only when it is.
   const greeting = `<section class="block home-hello" aria-labelledby="home-hi">
     ${renderGreeting(today, locale, { state: holding ? 'held' : !live ? 'notLive' : !reachable ? 'noChannel' : 'ready' })}
@@ -508,8 +523,6 @@ export function renderOperationsHome(
   const reach = !reachable && (today.handled?.total ?? 0) === 0
     ? `${renderHandled(today, locale, { ready: false, reachable: false })}${deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name }))}`
     : renderHandled(today, locale, { ready: calm && !holding });
-  // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
-  const notLive = !live ? `<p class="muted notlive">${todoMark()} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
   const counted = (today.handled?.total ?? 0) > 0 || Object.values(today.tally ?? {}).some((n) => n > 0);
   const wins = `<section class="home-tile home-wins td" aria-labelledby="today-done">
     ${reach}

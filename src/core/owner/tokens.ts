@@ -453,3 +453,30 @@ export const DESIGN_TOKENS = {
  * product has is `motionMs`, `motionEase`, `motionTravelPx` and `motionScale`
  * above, drawn by the shell's stylesheet (`MOTION_CSS`, layout.ts).
  */
+
+/**
+ * THE SPLIT TODAY PREVIEW'S TOKENS (2026-11-04; docs/DESIGN-SYSTEM.md). Apart from `DESIGN_TOKENS` on purpose: they
+ * reach only the page drawn while `SPLIT_TODAY=on`, through `/assets/split.<hash>.css`, and nothing else moves.
+ *
+ *   jade      money in, done
+ *   ochre     waiting, overdue: marks and large type (3:1 on the surface)
+ *   ochreText the same ochre, darkened until small type reads (4.5:1 on the surface and on its wash)
+ *   wine      the mark, and nothing else
+ *   magenta   Send, and nothing else: one on a screen
+ */
+export const SPLIT_TOKENS = {
+  color: {
+    jade: '#3F6B5C',
+    jadeWash: '#E6EDE9',
+    ochre: '#B8862F',
+    ochreText: '#7C5A14',
+    ochreWash: '#F6EEDC',
+    wine: '#5A0A2E',
+    magenta: '#9A0F5E',
+    neutral: '#EDE7DF',
+    wash: '#25201C',
+  },
+  size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 40, title: 44, titlePhone: 36 },
+  radius: { panel: 14, control: 10, thumb: 8, chip: 999 },
+  space: { 4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 32: 32 },
+} as const;
