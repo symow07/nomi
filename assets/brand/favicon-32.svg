@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>Nomi</title>
+  <path fill="#F5F1EA" d="M0 16a16 16 0 1 0 32 0a16 16 0 1 0-32 0z"/>
+  <path fill="#5A0A2E" fill-rule="evenodd" d="M2 16a14 14 0 1 0 28 0a14 14 0 1 0-28 0zM4.25 16a11.75 11.75 0 1 0 23.5 0a11.75 11.75 0 1 0-23.5 0zM5.5 16a10.5 10.5 0 1 0 21 0a10.5 10.5 0 1 0-21 0zM9 9h14v14h-14zM10 10h12v12h-12zM12 12h8v8h-8z"/>
+</svg>
