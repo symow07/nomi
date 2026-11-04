@@ -97,7 +97,7 @@ Rose ink brushed on rice paper, behind "Today" (`inkWashDataUri` in `src/core/ow
 - Right to left, it is mirrored so it stays behind the title. It is decoration; a time chart never is (see The trend).
 - It is drawn from `washInk` and `washHalo`, a rose of its own. Wine stays the mark's and magenta stays Send's.
 - It stays faint enough for AA. `tools/split-preview.mjs shots` hides the text and prints the worst pixel behind the
-  title, the subtitle and the panel headings. Lowest on 2026-11-04, before it was shortened to 176 px: 6.98:1. The title and subtitle are ink, never secondary.
+  title, the subtitle and the panel headings. The title and subtitle are ink, never secondary.
 
 ## Rows
 
