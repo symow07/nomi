@@ -125,7 +125,8 @@ curl -s -b /tmp/jar http://127.0.0.1:8787/app | grep -o 'id="home-hi"'   # Home 
 kill <server-pid>; pg_ctl -D /tmp/yf-run/pg stop      # the exact command is printed by the script
 ```
 
-If the PID is lost, free the port: `lsof -ti:8787 -sTCP:LISTEN | xargs -r kill`.
+Kill only the PID your own run printed. If it is lost, or you did not start what holds the port, leave it: it may be
+another session's. Run on your own `PORT`, `PGPORT` and `SK` instead (CLAUDE.md §2).
 
 ### The pre-pilot walkthrough
 
@@ -236,4 +237,4 @@ Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_a
 - **`server exited during startup` in the script**: read `/tmp/yf-run/app.log`. Most
   often an env-shape failure — the log prints `environment invalid:` with the offending
   var (e.g. `CREDENTIAL_KEY: invalid shape` if it isn't 64 hex chars).
-- **Port already in use**: a previous run is still up — `lsof -ti:8787 -sTCP:LISTEN | xargs -r kill` and `pg_ctl -D /tmp/yf-run/pg stop`.
+- **Port already in use**: a previous run is still up, and it may be another session's. If it is yours, use its "Stop everything" line; if not, leave it and pass your own `PORT`, `PGPORT` and `SK`.

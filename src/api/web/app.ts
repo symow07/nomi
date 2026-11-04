@@ -868,12 +868,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
   });
   // The zone and the currency ride with the profile's one form (`POST /app/settings`); no page posts to these two any
-  // more. An old link lands on My business (and a stranger, from there, on the door). An old form saves nothing and is
-  // not posted again: 303, not 308.
+  // more. An old link lands on that page, where they live (and a stranger, from there, on the door). An old form saves
+  // nothing and is not posted again: 303, not 308.
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
     if (path !== '/app/settings/zone' && path !== '/app/settings/currency') return;
-    return reply.redirect('/app/business', req.method === 'GET' || req.method === 'HEAD' ? 301 : 303);
+    return reply.redirect('/app/settings/profile', req.method === 'GET' || req.method === 'HEAD' ? 301 : 303);
   });
 
   /**

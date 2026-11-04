@@ -93,6 +93,11 @@ is social media as the sales channel, not manufacturing.
 - You do not permanently delete things. Move them (e.g. to the scratchpad)
   and let the user delete. This includes iCloud `* 2.ts` duplicates and stale
   git refs.
+- **Never kill a process by name, pattern or port** (the owner, 2026-11-04). No `pkill`, `killall`, `kill $(pgrep …)`
+  or `lsof … | xargs kill`. Kill only PIDs you started yourself. **Never touch another worktree's or session's temp
+  folders.** Other sessions run on this Mac at the same time, with the same script names: a cleanup by name killed one's
+  integration run and deleted its temporary Postgres (2026-11-04). If you did not start it, leave it and say so; if it
+  holds a port, use your own `PORT`, `PGPORT` and `SK`.
 - **Never edit an applied migration.** G20 checksums (`tools/migrate.mjs`)
   catch it. Write a new migration instead.
 
@@ -116,8 +121,8 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`, and that
 - The checkout lives in an **iCloud-synced Desktop**: it spawns `* 2.ts`
   duplicates that break `tsc`, and `.git/refs/heads/main 2` that breaks
   `git pull`. Move them to the scratchpad. `git fetch`/`pull` can hang for an
-  hour there: run them with a time cap, and `kill` the stuck `git fetch` (see
-  `ps`). The user has the steps to move the repo to `~/dev/nomi`; if it has
+  hour there: always run them with a time cap (`timeout 120 git fetch …`), which ends
+  its own stuck fetch. The user has the steps to move the repo to `~/dev/nomi`; if it has
   moved, the Railway CLI needs `railway link` again (its link is keyed by
   directory path) and the memory folder key changes.
 - Ad-hoc production reads: `psql` inside `railway run --service Postgres`,
