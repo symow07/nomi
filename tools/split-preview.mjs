@@ -72,6 +72,9 @@ async function seed() {
 
   const img = await pngs({ ...FACES, ...THUMBS });
   await q(`update businesses set name = 'Lumen & Co.', books_area = true where id = $1`, [BIZ]);
+  await q(`update people set name = 'Moe' where business_id = $1 and is_owner`, [BIZ]);
+  // The demo's own conversations stay out of the figures: this page shows the customers laid below.
+  await q(`update conversations set owner_testing = true where business_id = $1`, [BIZ]);
   for (const [productId, _] of Object.entries(THUMBS)) {
     const token = randomBytes(32).toString('base64url');
     await q(`insert into product_images (product_id, url, is_primary, sort_order, token, media_type, bytes) values ($1, $2, true, 0, $3, 'image/png', $4)`,
@@ -86,8 +89,8 @@ async function seed() {
     const when = ago(c.hours);
     await q(`insert into clients (id, business_id, display_name, country, preferred_language, created_at, last_seen_at) values ($1, $2, $3, $4, 'en', $5, $5)`, [client, BIZ, c.name, c.country ?? null, when]);
     await q(`insert into client_channels (client_id, channel, channel_user_id, last_inbound_at) values ($1, $2, $3, $4)`, [client, c.channel, `split-${client.slice(0, 8)}`, when]);
-    await q(`insert into conversations (id, business_id, client_id, channel, phase, is_active, created_at, updated_at) values ($1, $2, $3, $4, 'new', true, $5, $5)`, [conv, BIZ, client, c.channel, when]);
-    await q(`insert into conversation_state (conversation_id, phase, identified_product_id, product_confidence, inquiry_quantity, inquiry_unit, turn_count, last_message_at) values ($1, 'new', $2, 0.9, $3, 'pcs', 2, $4)`, [conv, c.product ?? null, c.qty ?? null, when]);
+    await q(`insert into conversations (id, business_id, client_id, channel, phase, is_active, created_at, updated_at) values ($1, $2, $3, $4, 'warm_intake', true, $5, $5)`, [conv, BIZ, client, c.channel, when]);
+    await q(`insert into conversation_state (conversation_id, phase, identified_product_id, product_confidence, inquiry_quantity, inquiry_unit, turn_count, last_message_at) values ($1, 'warm_intake', $2, 0.9, $3, 'pcs', 2, $4)`, [conv, c.product ?? null, c.qty ?? null, when]);
     await q(`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values ($1, $2, 'inbound', 'text', $3, $4)`, [conv, `split-${conv.slice(0, 8)}-in`, c.asked ?? 'Hello, how much is this?', when]);
     if (FACES[c.face]) {
       const version = randomBytes(6).toString('hex');
@@ -121,12 +124,12 @@ async function seed() {
   await customer({ name: 'Aisha Bello', channel: 'instagram', face: 'aisha', hours: 0.7, product: P.cosmetic, qty: 5000, unit: 1.45, asked: 'Hi! How much for 5,000 of the travel cosmetic bags?',
     draft: 'Hello Aisha, 5,000 Travel Cosmetic Bags come to $1.45 each, $7,250.00 in total. Shall I put that together for you?' });
   const karim = await customer({ name: 'Karim Haddad', channel: 'instagram', face: 'karim', hours: 24 * 20, product: P.mug, qty: 2500, unit: 0.84, order: true, given: 'That comes to $0.84 each, $2,100.00 in total.' });
-  await customer({ name: 'Fatima Zahra', channel: 'instagram', face: 'fatima', hours: 48, product: P.tote, qty: 5000, unit: 1.64, order: true, given: 'That comes to $1.64 each, $8,200.00 in total.' });
-  await customer({ name: 'Omar El Amrani', channel: 'whatsapp', hours: 72, product: P.thermos, qty: 1500, unit: 2.6, given: 'That comes to $2.60 each, $3,900.00 in total.', draft: 'Hello Omar, yes, the 1,500 thermos flasks can go in black.' });
-  await customer({ name: 'Rania Belhaj', channel: 'instagram', face: 'rania', hours: 96, product: P.cosmetic, qty: 4000, unit: 1.4, order: true, given: 'That comes to $1.40 each, $5,600.00 in total.' });
-  await customer({ name: 'Youssef Tazi', channel: 'whatsapp', hours: 80, product: P.tote, sample: true });
+  await customer({ name: 'Fatima Zahra', channel: 'instagram', face: 'fatima', hours: 42, product: P.tote, qty: 5000, unit: 1.64, order: true, given: 'That comes to $1.64 each, $8,200.00 in total.' });
+  await customer({ name: 'Omar El Amrani', channel: 'whatsapp', hours: 66, product: P.thermos, qty: 1500, unit: 2.6, given: 'That comes to $2.60 each, $3,900.00 in total.', draft: 'Hello Omar, yes, the 1,500 thermos flasks can go in black.' });
+  await customer({ name: 'Rania Belhaj', channel: 'instagram', face: 'rania', hours: 68, product: P.cosmetic, qty: 4000, unit: 1.4, order: true, given: 'That comes to $1.40 each, $5,600.00 in total.' });
+  await customer({ name: 'Youssef Tazi', channel: 'whatsapp', hours: 69, product: P.tote, sample: true });
   for (const [i, name] of ['Lina Saad', 'Hana Idrissi', 'Mehdi Alaoui', 'Sara Bennani', 'Nour Fassi', 'Adam Lahlou'].entries()) {
-    await customer({ name, channel: 'instagram', hours: 12 + i * 8, product: i % 2 ? P.tote : P.mug, ...(i < 3 ? { qty: 1000 + i * 500, unit: 1.1, given: 'That comes to $1.10 each.' } : {}) });
+    await customer({ name, channel: 'instagram', hours: 70 + i * 3, product: i % 2 ? P.tote : P.mug, ...(i < 3 ? { qty: 1000 + i * 500, unit: 1.1, given: 'That comes to $1.10 each.' } : {}) });
   }
 
   // ── A year of books, through the books' own functions, as the app's role.
@@ -198,8 +201,8 @@ async function seed() {
   const karimOrder = karim.orderId;
   await issue('Karim Haddad', dayOf(39), '2100', dayOf(9), karimOrder);
   await issue('Omar El Amrani', dayOf(10), '3900', dayOf(-20));
-  await issue('Lumen Wholesale', dayOf(6), '3700', dayOf(-24));
-  await issue('Fatima Zahra', dayOf(3), '2600', dayOf(-27));
+  await issue('Lumen Wholesale', dayOf(7), '3700', dayOf(-24));
+  await issue('Fatima Zahra', dayOf(6), '2600', dayOf(-27));
   // The bank's statement: the three payments' lines, not yet matched.
   const imp = randomUUID();
   await q(`insert into statement_imports (id, business_id, account_id, format, sha256, added, refused, imported_by) values ($1, $2, $3, 'csv', $4, 3, 0, 'owner')`, [imp, BIZ, k.bank, randomBytes(32).toString('hex')]);
@@ -218,6 +221,7 @@ async function shots() {
   for (const [width, size] of Object.entries(sizes)) {
     for (const locale of ['en', 'ar']) {
       const ctx = await browser.newContext({ ...size, locale });
+      await ctx.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
       const page = await ctx.newPage();
       await page.goto(`${BASE}/login?with=code`);
       await page.fill('input[name="code"]', CODE);

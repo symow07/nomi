@@ -31,7 +31,7 @@ import { woff2Characters, parseUnicodeRange, isIgnorable } from '../../tools/lib
  */
 
 const FONTS = new URL('../../assets/fonts/', import.meta.url);
-type Face = { family: string; weight: number | [number, number]; set: 'base' | 'zh'; file: string; unicodeRange: string };
+type Face = { family: string; weight: number | [number, number]; set: 'base' | 'zh' | 'split'; file: string; unicodeRange: string };
 const manifest = async () => JSON.parse(await readFile(new URL('faces.json', FONTS), 'utf8')) as { faces: Face[]; versions: Record<string, string> };
 const first = (stack: string) => /^"([^"]+)"/.exec(stack)?.[1];
 const page = (locale: 'en' | 'zh' | 'ar' | 'es', body = '') => shell({ title: 'T', active: 'home', locale, path: '/app', bodyHtml: body });
@@ -104,12 +104,13 @@ describe('the faces are the product\'s own', () => {
     const { faces, versions } = await manifest();
     expect(faces.length).toBeGreaterThan(200);
     for (const f of faces) {
-      if (SANS.includes(f.family)) expect(f.weight, f.file).toEqual([300, 700]);
+      if (f.set === 'split') expect(Array.isArray(f.weight), f.file).toBe(true);   // the Split Today preview's two variable serifs
+      else if (SANS.includes(f.family)) expect(f.weight, f.file).toEqual([300, 700]);
       else expect(f.weight, f.file).toBe(400);
       expect(f.file).toMatch(/^[a-z0-9-]+\.[0-9a-f]{16}\.woff2$/);
       expect(existsSync(new URL(f.file, FONTS)), f.file).toBe(true);
     }
-    expect(Object.keys(versions).sort()).toEqual(['noto-naskh-arabic', 'noto-serif', 'noto-serif-sc', 'variable/noto-sans', 'variable/noto-sans-arabic', 'variable/noto-sans-sc']);
+    expect(Object.keys(versions).sort()).toEqual(['noto-naskh-arabic', 'noto-serif', 'noto-serif-sc', 'variable/newsreader', 'variable/noto-naskh-arabic', 'variable/noto-sans', 'variable/noto-sans-arabic', 'variable/noto-sans-sc']);
     // …and nothing in the folder that the manifest does not name, but the manifest and the licence
     const listed = new Set([...faces.map((f) => f.file), 'faces.json', 'OFL.txt']);
     expect((await readdir(FONTS)).filter((n) => !listed.has(n))).toEqual([]);

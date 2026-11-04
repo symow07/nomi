@@ -224,12 +224,12 @@ export async function loadSplitBooks(tx: Tx, businessId: string, today: string):
 
   // The rule `openLines` offers (bankStatements.ts), counted: the same account and currency, the same amount, within a week.
   const matched = (await sql<{ n: number }>`
-    select count(*)::int as n from statement_lines s
-     where s.business_id = ${businessId}::uuid
-       and not exists (select 1 from statement_matches m where m.statement_line_id = s.id and m.unmatched_at is null)
+    select count(*)::int as n
+      from (select id, business_id, account_id, currency, booked_on, amount as figure from statement_lines where business_id = ${businessId}::uuid) s
+     where not exists (select 1 from statement_matches m where m.statement_line_id = s.id and m.unmatched_at is null)
        and exists (select 1 from journal_lines jl join journal_entries e on e.id = jl.entry_id
         where jl.business_id = s.business_id and jl.account_id = s.account_id and e.state = 'posted' and jl.currency = s.currency
-          and (case when s.amount > 0 then jl.debit = s.amount else jl.credit = -s.amount end)
+          and (case when s.figure > 0 then jl.debit = s.figure else jl.credit = -s.figure end)
           and abs(e.entry_date - s.booked_on) <= 7
           and not exists (select 1 from statement_matches m where m.journal_line_id = jl.id and m.unmatched_at is null))`.execute(tx)).rows[0]!.n;
 

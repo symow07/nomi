@@ -54,15 +54,20 @@ export async function loadSplitData(db: Db, businessId: string, opts: { readonly
 /** Money in the books' currency; a currency the product cannot format is written as it stands. */
 const booksMoney = (locale: Locale, amount: string, currency: string): string => {
   const m = moneyFromRow(amount, currency);
-  return m ? show.money(locale, m) : `${amount} ${currency}`;
+  return m ? whole(show.money(locale, m)) : `${amount} ${currency}`;
 };
+
+/** "$7,250", not "$7,250.00": a summary drops cents that say nothing. "$1.45" and "Rp 150.000" stay exactly as they are. */
+function whole(money: string): string {
+  return money.replace(/[.,]00(?=\D*$)/u, '');
+}
 
 /** A first name only where the name begins with a letter: "+34 612…" and "@shop" are not names to address. */
 const addressable = (name: string | null): string | null => (name && /^\p{L}/u.test(name.trim()) ? shortName(name) : null);
 
 const thumbOf = (src: string | null, small = false): string =>
   src ? `<img class="sp-thumb${small ? ' sp-thumb-s' : ''}" src="${esc(src)}" alt="" width="${small ? 28 : 36}" height="${small ? 28 : 36}" loading="lazy" decoding="async">`
-    : `<span class="sp-thumb${small ? ' sp-thumb-s' : ''}" aria-hidden="true"></span>`;
+    : small ? '<span class="sp-thumb sp-thumb-s sp-thumb-none" aria-hidden="true"></span>' : '';
 
 // ── Sales ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +85,7 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
   const product = productName(locale, d.product);
   const unit = d.reading?.quantity?.unit || t(locale, 'product.unit.pcs');
   const deal = d.quote && statesPrice
-    ? [d.quote.quantity > 1 ? show.quantityOf(locale, d.quote.quantity, unit) : null, show.money(locale, d.quote.total)].filter(Boolean).join(' · ')
+    ? [d.quote.quantity > 1 ? show.quantityOf(locale, d.quote.quantity, unit) : null, whole(show.money(locale, d.quote.total))].filter(Boolean).join(' · ')
     : product ?? '';
   const channel = d.channel ? channelName(locale, d.channel) : null;
   const who = extras.clientId ? { clientId: extras.clientId, name: d.buyer, photo: extras.photo } : null;
@@ -88,12 +93,12 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
     <div class="sp-who">
       ${who ? faceLink(who, { size: 'xl', label: name }) : face({ clientId: d.conversationId, name: d.buyer }, 'xl')}
       <div class="sp-who-t">
-        <a class="sp-name" href="${conversationUrl(d.conversationId)}" dir="auto">${esc(name)}</a>
-        ${deal || thumb ? `<p class="sp-deal">${product || thumb ? thumbOf(thumb) : ''}<span><bdi>${esc(deal)}</bdi></span></p>` : ''}
+        <a class="sp-name" href="${conversationUrl(d.conversationId)}"><bdi>${esc(name)}</bdi></a>
+        ${deal || thumb ? `<p class="sp-deal">${thumbOf(thumb)}<span><bdi>${esc(deal)}</bdi></span></p>` : ''}
         <p class="sp-from">${esc(t(locale, 'card.drafted', { name: assistantName(locale) }))}${channel ? ` · ${esc(t(locale, 'card.goes', { channel }))}` : ''}</p>
       </div>
     </div>
-    <h3 class="sp-q" id="sp-q" dir="auto">${esc(question)}</h3>
+    <h3 class="sp-q" id="sp-q">${esc(question)}</h3>
     ${closing}${state}${foreign}
     <form method="post" action="${esc(to.act)}" class="sp-form">
       <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
@@ -103,7 +108,7 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
       <div class="sp-acts">
         <button class="sp-btn sp-send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
         <label class="sp-btn" for="reply">${esc(t(locale, 'split.edit'))}</label>
-        <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
+        <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'split.handToMe'))}</button>
       </div>
       ${window ? `<p class="sp-window">${window}</p>` : ''}
     </form>
@@ -118,7 +123,7 @@ const stageRow = (cls: string, label: string, n: number, value: string | null, l
 
 function stageStrip(sales: SplitSales, ordersWaiting: number, locale: Locale): string {
   const done = (n: number): string => (n > 0 ? 'is-done' : '');
-  const money = (m: SplitSales['price']['value']): string | null => (m ? show.money(locale, m) : null);
+  const money = (m: SplitSales['price']['value']): string | null => (m ? whole(show.money(locale, m)) : null);
   // A sample is a stage of a business that sells by quantity, or of one whose customers asked for one (docs/DESIGN-SYSTEM.md).
   const sampled = sellsByQuantity(sales.kind) || sales.sample.count > 0;
   return `<section class="sp-card" aria-labelledby="sp-month">
@@ -142,10 +147,10 @@ function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Loca
   const when = days === null ? '' : days <= 0 ? t(locale, 'split.title') : tn(locale, 'split.days', days);
   return `<li><a class="sp-row" href="${conversationUrl(r.conversationId)}">
     ${face({ clientId: r.clientId, name: r.name, photo: r.photo }, 's')}
-    <span class="sp-rname" dir="auto">${esc(name)}</span>
+    <span class="sp-rname"><bdi>${esc(name)}</bdi></span>
     ${thumbOf(r.thumb, true)}
     ${chip}
-    <span class="sp-rval">${r.value ? esc(show.money(locale, r.value)) : ''}</span>
+    <span class="sp-rval">${r.value ? esc(whole(show.money(locale, r.value))) : ''}</span>
     <span class="sp-rday">${esc(when)}</span>
     ${GO}
   </a></li>`;
@@ -156,7 +161,7 @@ function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Loca
 /** The year's profit, month by month: one line, in jade, the last month marked. Mirrored right to left by the sheet. */
 function trendChart(b: SplitBooks, locale: Locale): string {
   if (b.trend.length < 2) return '';
-  const W = 160, H = 64, PAD = 5;
+  const W = 160, H = 76, PAD = 5;
   const values = b.trend.map((p) => p.value);
   const lo = Math.min(0, ...values), hi = Math.max(0, ...values);
   const span = hi - lo || 1;
@@ -169,9 +174,9 @@ function trendChart(b: SplitBooks, locale: Locale): string {
   const last = b.trend[b.trend.length - 1]!;
   const hits = b.trend.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="7" fill="transparent"><title>${esc(tell(p))}</title></circle>`).join('');
   return `<figure class="sp-trend"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(`${t(locale, 'split.trend.label')}. ${tell(last)}`)}">
-    <path d="${area}" fill="var(--sp-jade)" fill-opacity="0.1"/>
-    <path d="${line}" fill="none" stroke="var(--sp-jade)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${x(b.trend.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.5" fill="var(--sp-jade)" stroke="var(--color-surface)" stroke-width="2"/>
+    <path class="sp-tarea" d="${area}"/>
+    <path class="sp-tline" d="${line}"/>
+    <circle cx="${x(b.trend.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.5" class="sp-tdot"/>
     ${hits}
   </svg></figure>`;
 }
@@ -185,7 +190,7 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     : '';
   const late = w ? `<div class="sp-late">
       ${w.clientId ? face({ clientId: w.clientId, name: w.party, photo: w.photo }, 's') : face({ clientId: w.invoiceId, name: w.party }, 's')}
-      <span class="sp-late-n" dir="auto">${esc(w.party)}</span>
+      <span class="sp-late-n"><bdi>${esc(w.party)}</bdi></span>
       <span>${esc(booksMoney(locale, w.owed, w.currency))}</span>
       <span class="sp-late-d">${esc(tn(locale, 'split.owed.late', w.daysLate))}</span>
       ${remind}
@@ -203,6 +208,7 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     : t(locale, 'split.year.none');
   return `<section class="sp-panel sp-books" aria-labelledby="sp-books">
     <div class="sp-phead"><h2 id="sp-books">${solarSvg('ni', 'notebook-minimalistic', 22)}${esc(t(locale, 'nav.books'))}</h2>${deeper('/app/books', t(locale, 'split.viewAll'))}</div>
+    <div class="sp-sheet">
     <section class="sp-card sp-money" aria-labelledby="sp-mt">
       <h3 id="sp-mt">${esc(t(locale, 'split.money.title'))}</h3>
       <div>
@@ -217,6 +223,7 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     </section>
     ${b.matched > 0 ? `<a class="sp-card sp-door" href="/app/books/bank">${signalMark('ok')}<span>${esc(tn(locale, 'split.matched', b.matched))}</span>${GO}</a>` : ''}
     <a class="sp-card sp-door" href="/app/books/closing">${solarSvg('ni', 'calendar', 22)}<span>${esc(year)}</span>${GO}</a>
+    </div>
   </section>`;
 }
 
@@ -236,8 +243,8 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
   const alsoHead = data.decision
     ? people ? `<h3 class="sp-cap">${esc(t(locale, 'split.alsoWaiting'))}</h3>` : ''
     : parts.head;
-  const also = alsoHead || parts.more || lead || people
-    ? `<div class="sp-also">${alsoHead}${people}${parts.more ? `<div class="doors">${parts.more}</div>` : ''}${lead ? `<div class="today-worth">${lead}</div>` : ''}</div>` : '';
+  const also = alsoHead || parts.more || people
+    ? `<div class="sp-also">${alsoHead}${people}${parts.more ? `<div class="doors">${parts.more}</div>` : ''}</div>` : '';
   const showBooks = data.books !== null;
   // The customer on the decision card is not listed under it as well.
   const recent = data.sales.recent.filter((r) => r.conversationId !== decidedId).slice(0, RECENT_CUSTOMERS);
@@ -256,6 +263,7 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
     <section class="sp-panel sp-sales" aria-labelledby="sp-sales">
       <div class="sp-phead"><h2 id="sp-sales">${solarSvg('ni', 'chat-round', 22)}${esc(t(locale, 'split.sales'))}</h2>${deeper('/app/inbox', t(locale, 'split.viewAll'))}</div>
       ${notices}
+      <div class="sp-sheet">
       ${data.decision ? decisionCard(data.decision.detail, data.decision.extras, locale, now) : ''}
       ${also ? `<div class="sp-card">${also}</div>` : ''}
       ${stageStrip(data.sales, ordersWaiting, locale)}
@@ -263,6 +271,8 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
         <div class="sp-phead"><h3 class="sp-cap" id="sp-recent">${esc(t(locale, 'split.recent'))}</h3>${deeper('/app/inbox?filter=all', t(locale, 'split.viewAll'))}</div>
         <ul class="sp-rows">${recent.map((r) => recentRow(r, waiting, locale, now, zone)).join('')}</ul>
       </section>` : ''}
+      ${lead ? `<div class="sp-card today-worth">${lead}</div>` : ''}
+      </div>
       ${parts.finishSetup}
       ${parts.live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
     </section>

@@ -455,6 +455,7 @@ describe('one family on every screen: Solar, no emoji', () => {
         const t = m[0];
         if (f === 'icons.ts' && /viewBox="0 0 24 24"/.test(t)) continue;   // solarSvg
         if (/viewBox='0 0 16 16'|viewBox='0 0 24 24'/.test(t)) continue;   // a mark's shape (marks.ts) and the fold's mask, drawn as images
+        if (f === 'splitToday.ts' && /role="img"/.test(t)) continue;       // the Split Today trend: a chart of the books' figures, not an icon
         found.push(`${f}: ${t.slice(0, 70)}`);
       }
     }

@@ -473,10 +473,10 @@ export const SPLIT_TOKENS = {
     ochreWash: '#F6EEDC',
     wine: '#5A0A2E',
     magenta: '#9A0F5E',
+    onSend: '#FFFFFF',
     neutral: '#EDE7DF',
-    wash: '#25201C',
   },
-  size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 40, title: 44, titlePhone: 36 },
+  size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 40, title: 44, titlePhone: 36, moneyPhone: 34 },
   radius: { panel: 14, control: 10, thumb: 8, chip: 999 },
   space: { 4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 32: 32 },
 } as const;

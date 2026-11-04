@@ -97,3 +97,20 @@ export function faviconDataUri(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): st
     `<path fill="${tokens.color.coin}" fill-rule="evenodd" d="${FAVICON_COIN}"/></svg>`;
   return `data:image/svg+xml;base64,${btoa(doc)}`;
 }
+
+/**
+ * The soft wash behind the Split Today header (docs/DESIGN-SYSTEM.md): cloudy noise in the brand's ink, fading to nothing
+ * downward, stretched to the band's box. Base64, as the favicon's: the served sheet stays free of drawing words.
+ */
+export function inkWashDataUri(): string {
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="220" viewBox="0 0 1400 220" preserveAspectRatio="none">
+<filter id="w" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.0028 0.014" numOctaves="4" seed="23"/>
+<feColorMatrix values="0 0 0 0 0.3 0 0 0 0 0.24 0 0 0 0 0.2 0.46 0 0 0 -0.14"/>
+</filter>
+<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="white"/><stop offset="0.5" stop-color="gray"/><stop offset="1" stop-color="black"/></linearGradient>
+<mask id="m"><rect width="1400" height="220" fill="url(#f)"/></mask>
+<rect width="1400" height="220" filter="url(#w)" mask="url(#m)"/>
+</svg>`;
+  return `data:image/svg+xml;base64,${btoa(doc)}`;
+}

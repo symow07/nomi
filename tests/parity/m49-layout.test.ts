@@ -154,6 +154,7 @@ describe('M49 · the two voices are on the right axis', () => {
    */
   const ALLOWED = new Map<string, string>([
     ['layout.ts', 'declares .voice, .bubble and .proposed — the components speech is made of'],
+    ['splitStyle.ts', 'the Split Today preview, the owner\'s locked design: serif headings, on that one page behind its flag'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
     ['conversations.ts', 'the buyer\'s own message that asked for their data to be deleted (0076)'],
