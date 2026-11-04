@@ -13,6 +13,20 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## A stop says what it left behind and how long it really took (2026-11-04; no migration)
+
+The owner's yes to the next measurement of the stop flake; the evidence and how to read it are under "A flake to watch".
+
+- **The give-up line** now says what each lent connection was doing (connecting, running a statement, or holding on
+  with none running) and what was running when the stop began.
+- **A second line** says when the step left behind really ended: `[stop] pool, left behind, ended after N ms`.
+- **`password-recovery`'s `afterAll`** waits to hear it, up to 40 s from its start, inside the suite's 45 s, because
+  the process would otherwise end first. Only a slow stop waits at all.
+- **The test's burst of unawaited asks is left as it is, on purpose:** it is the lead, and fixing it would remove the
+  signal before anyone has read it.
+- **Tried by hand** on throwaway copies of the file: a connection back after 4 s read "ended after 3891 ms"; one that
+  never came back read "still out after 40003 ms", and the hook stayed inside 45 s. Both files passed.
+
 ## The old settings addresses land on the profile; nothing is killed by name (2026-11-04; no migration)
 
 The owner's two follow-ups to the cleanup below.
@@ -463,6 +477,19 @@ day. Schema 213.
   - **The cost:** this hook can no longer fail, so a slow stop would pass unseen. So under CI each `[stop]` line is a
     GitHub warning, shown on the run's page. **A "Slow stop" warning on a green run is the evidence this hunt never
     got: read it and report the step.**
+- **The first evidence, 2026-11-04.** #415's CI run 41805982271, job 126492987181, in password-recovery: `[stop] gave up
+  on pool after 2001 ms — no job running; app pool 1 lent, 0 idle, 0 waiting`. The file took 7.3 s, not about 5 s.
+  - **What it says:** one connection was out when the pool closed. `boss.stop()` was quick, and it would have waited
+    for a running handler, which points away from a job.
+  - **The lead, not proven:** the file's last test sends five `/login/forgot` asks, and each starts a background query
+    nobody waits for (`requestRecoveryLink`, app.ts). `close()` runs milliseconds later.
+  - **Why it is not yet the answer:** a statement ends at 30 s and a connection attempt at 10 s, so neither alone
+    explains more than 45 s. It may be a slow query on a busy machine and nothing to do with the old hang.
+  - **Not reproduced:** 15 local runs of the file with the limits on gave no `[stop]` line.
+- **How to read the next warning** (lines since the section at the top of this file):
+  - `ended after N ms`, a few seconds: a slow query, not the old hang.
+  - `still out after 40… ms` (no "ended" line): the old hang, caught. The words in brackets name the cause: `running: …`
+    is that statement, `no statement running` is a transaction someone is holding open, `connecting` is the connection.
 
 **2b · A second flake to watch: an invented figure that was not held (reported 2026-10-30 by the batch-3 session).**
 - **The test:** `tests/integration/product-code-exemption.test.ts` › "an invented figure beside a product's name IS held".

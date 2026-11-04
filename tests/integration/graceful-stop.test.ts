@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import pg from 'pg';
 import { sql } from 'kysely';
 import { offlineModels } from '../pipeline/fakes.js';
 
@@ -46,11 +47,41 @@ d('a stop never waits for ever (requires DATABASE_URL)', { timeout: 60_000 }, ()
       expect(out).toBe('stopped');
       expect(Date.now() - began).toBeLessThan(20_000);
       const lines = said.mock.calls.map((c) => String(c[0]));
-      expect(lines.filter((l) => l.includes('[stop] gave up on pool') && l.includes('app pool 1 lent'))).toHaveLength(1);
+      // what it was doing, now and when the stop began: a transaction held open, with no statement running
+      const gaveUp = lines.filter((l) => l.includes('[stop] gave up on pool'));
+      expect(gaveUp).toHaveLength(1);
+      expect(gaveUp[0]!.match(/app pool 1 lent \(no statement running\)/g)).toHaveLength(2);
+      expect(lines.filter((l) => l.includes('pool, left behind'))).toEqual([]);   // still out
+
+      // Given back, the step really ends, and how long it took is said.
+      giveBack();
+      await held.catch(() => {});
+      await prod.leftBehind();
+      expect(said.mock.calls.map((c) => String(c[0])).filter((l) => /\[stop\] pool, left behind, (ended|failed) after \d+ ms/.test(l))).toHaveLength(1);
     } finally {
       giveBack();
       await held.catch(() => {});
       said.mockRestore();
+    }
+  });
+
+  it('reads what a real pool\'s connections are doing: pg\'s private fields are where this expects them', async () => {
+    const { lentDoing } = await import('../../src/db/client.js');
+    const pool = new pg.Pool({ connectionString: DATABASE_URL!, max: 2 });
+    try {
+      expect(lentDoing(pool)).toEqual([]);
+      const connecting = pool.connect();
+      expect(lentDoing(pool)).toEqual(['connecting']);
+      const client = await connecting;
+      expect(lentDoing(pool)).toEqual(['no statement running']);
+      const running = client.query('select   pg_sleep(0.2),\n  $1::text as secret', ['a value never read']);
+      expect(lentDoing(pool)).toEqual(['running: select pg_sleep(0.2), $1::text as secret']);
+      await running;
+      expect(lentDoing(pool)).toEqual(['no statement running']);
+      client.release();
+      expect(lentDoing(pool)).toEqual([]);
+    } finally {
+      await pool.end();
     }
   });
 });
