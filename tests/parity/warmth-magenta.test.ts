@@ -100,8 +100,8 @@ describe('"needs you" reads without the hue: the needs dot', () => {
     for (const d of ['color:var(--color-needs)', 'background:currentColor', 'border-radius:var(--radius-chip)', 'overflow:hidden', 'text-indent:1em']) expect(dot, d).toContain(d);
   });
 
-  it('every needs-you element carries it: the waiting signal, the pills, the card\'s flag, the rail\'s count, the three acts', () => {
-    for (const sel of ['.pill.warn', '.pill.reason', '.chip.draft', '.draft .held-why', '.pc-wait', 'nav.side .navcount']) {
+  it('every needs-you element carries it: the waiting signal, the pills, the card\'s flag, the three acts', () => {
+    for (const sel of ['.pill.warn', '.pill.reason', '.chip.draft', '.draft .held-why', '.pc-wait']) {
       expect(SIGNAL_BEFORE.waiting, sel).toContain(sel);
       expect(bodyOf(`${sel}::before`), sel).toContain(NEEDS_DOT);
     }
@@ -118,7 +118,7 @@ describe('"needs you" reads without the hue: the needs dot', () => {
     expect(act).toContain('color:var(--color-surface)');
     expect(act).toContain('border-color:transparent');           // its edge is its fill
     const count = rules.find((r) => r.sel === 'nav.side .navcount')!.body;
-    expect(count).toContain('background:var(--color-needs)');
+    expect(count).toContain('background:var(--color-coin)');   // wine, the owner's choice of 2026-11-04
     expect(count).toContain('color:var(--color-surface)');
   });
 

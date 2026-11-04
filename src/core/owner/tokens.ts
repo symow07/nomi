@@ -241,8 +241,8 @@ export const DESIGN_TOKENS = {
    *                touch toward violet, held clear of `needs` (ΔE00 12.5) and of
    *                `assistant` (10.3).
    *   coin         #5A0A2E, the coin in the mark — the seal's "o" (the owner,
-   *                2026-10-31) — and nothing else: drawn only by `brand.ts`.
-   *                A dark wine, darker than `needs`, never a meaning.
+   *                2026-10-31), drawn by `brand.ts`; and the rail's count and a
+   *                waiting row's dot (the owner, 2026-11-04). A dark wine.
    *   coinGround   #F5F1EA, the cream disc behind the coin in the favicon (the
    *                owner, 2026-11-04): wine alone is lost on a dark tab bar.
    *                Not a neutral of the pages; drawn only by `brand.ts`.
@@ -274,7 +274,7 @@ export const DESIGN_TOKENS = {
     warnLine: '#E9BDBA',
     /** DECORATIVE: the advisor orb's glow only (above). Never a button, chip, state or text. */
     orbGlow: '#A1127A',
-    /** DECORATIVE: the coin in the mark (the seal's "o", 2026-10-31) and nothing else. Never a button, chip, state or text. */
+    /** The coin in the mark (the seal's "o", 2026-10-31), the rail's count and a waiting row's dot (the owner, 2026-11-04). Never a button, chip, or text. */
     coin: '#5A0A2E',
     /** DECORATIVE: the cream disc behind the coin in the favicon, so it reads on a dark tab bar, and nothing else. */
     coinGround: '#F5F1EA',
@@ -461,7 +461,7 @@ export const DESIGN_TOKENS = {
  *   jade      money in, done
  *   ochre     waiting, overdue: marks and large type (3:1 on the surface)
  *   ochreText the same ochre, darkened until small type reads (4.5:1 on the surface and on its wash)
- *   wine      the mark, and nothing else
+ *   wine      the mark; the rail's count and a waiting row's dot use the app's same `coin`
  *   magenta   Send, and nothing else: one on a screen
  */
 export const SPLIT_TOKENS = {

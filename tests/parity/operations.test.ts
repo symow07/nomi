@@ -139,7 +139,7 @@ describe('Home, in its zones (render)', () => {
     // The owner's words: "N waiting for you", in the waiting signal's colour with its shape (was nav.needsYou).
     expect(html).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${tn('en', 'today.waiting', 7)}</span></h2>`);
     expect(html).toContain('href="/app/inbox/c-1#latest"');
-    expect(html).toContain('<bdi>Maya Rahman</bdi>');
+    expect(html).toContain('<bdi class="tw-name">Maya Rahman</bdi>');
     expect(html).toContain(t('en', 'buyers.badge.reviewShort'));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));   // the stored reason, never inferred
     // The warmth run — each face opens the customer's card (was: the Inbox's row mark ○/●).
@@ -273,7 +273,7 @@ describe('Phase 9 · Today claims nothing it cannot know (V1-088)', () => {
   it('a customer waiting is named in the card while the wins tile says what will appear there — never "nothing happened", in every locale', () => {
     for (const l of LOCALES) {
       const html = renderOperationsHome(live(populated), l, { ...busy, handled: { total: 0, people: [] } });
-      expect(html, l).toContain('<bdi>Maya Rahman</bdi>');
+      expect(html, l).toContain('<bdi class="tw-name">Maya Rahman</bdi>');
       expect(html, l).toContain(esc(t(l, 'home.wins.title')));
       expect(html, l).toContain(esc(t(l, 'home.wins.ahead')));
     }

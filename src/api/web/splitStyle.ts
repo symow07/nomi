@@ -35,7 +35,6 @@ html[lang="ar"] .split { --font-voice:${serif.ar}; }
 .split nav.side { background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
 .split nav.side a.navlink.active { background:${K.color.neutral}; box-shadow:none; color:var(--color-ink); }
 .split nav.side a.navlink.active .ni { color:var(--color-ink); }
-.split nav.side .navcount { color:${K.color.ochreText}; background:${K.color.ochreWash}; border:1px solid ${K.color.ochre}; }
 .split .sp-me { display:flex; align-items:center; gap:${K.space[8]}px; min-height:44px; padding:${K.space[4]}px ${K.space[8]}px; color:var(--color-ink);
   font-size:var(--font-size-small); text-decoration:none; border-radius:${K.radius.control}px; }
 .split .sp-me:hover { background:${K.color.neutral}; }
@@ -141,7 +140,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-rows li:first-child .sp-row { border-block-start:0; }
 .sp-row:hover .sp-rname { text-decoration:underline; }
 .sp-row .face { inline-size:36px; block-size:36px; font-size:var(--font-size-small); }
-.sp-rname { font-size:var(--font-size-small); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sp-rname { display:block; text-align:match-parent; font-size:var(--font-size-small); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sp-rval { font-size:var(--font-size-small); text-align:end; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
 .sp-rday { font-size:var(--font-size-caption); color:var(--color-ink-secondary); text-align:end; white-space:nowrap; }
 .sp-chip { justify-self:start; padding:2px ${K.space[8]}px; font-size:var(--font-size-caption); line-height:1.5; white-space:nowrap; color:var(--color-ink-secondary); background:${K.color.neutral}; border-radius:${K.radius.chip}px; }
@@ -186,7 +185,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
   .split nav.side { position:fixed; inset-block:auto 0; inset-inline:0; z-index:5; padding:${K.space[4]}px ${K.space[4]}px calc(${K.space[4]}px + env(safe-area-inset-bottom));
     background:var(--color-surface); border-inline-end:0; border-block-end:0; border-block-start:1px solid var(--color-border); animation:none; }
   .split nav.side .brand, .split .sp-me, .split nav.side a.navlink.sp-notab { display:none; }
-  .split nav.side a.navlink, .split nav.side a.navlink.sub { min-block-size:56px; gap:${K.space[4]}px; animation:none; }
+  .split nav.side a.navlink { min-block-size:56px; gap:${K.space[4]}px; animation:none; }
   .split nav.side a.navlink.active { background:transparent; font-weight:600; }
   .split nav.side .ni { inline-size:24px; block-size:24px; }
   .split .business-name { display:none; }

@@ -45,21 +45,21 @@ describe('V1-547, V1-562, V1-563 · a page reached from the customer list lights
     for (const [path, active] of [['/app/contacts', 'contacts'], ['/app/prospects', 'prospects'], ['/app/sequences', 'sequences'],
       ['/app/contacts/suppress', 'contacts'], ['/app/sequences/x', 'sequences']] as const) {
       const html = page(path, active);
-      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
-      expect(html, path).not.toMatch(/<a href="\/app\/calendar" class="navlink sub active"/);
+      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink active"/);
+      expect(html, path).not.toMatch(/<a href="\/app\/calendar" class="navlink active"/);
       // …and the phone row lights Customers, as it did.
-      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
+      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink active"/);
     }
   });
   it('the calendar still lights only the calendar; Today lights neither', () => {
-    expect(page('/app/calendar', 'inbox')).toMatch(/<a href="\/app\/calendar" class="navlink sub active"/);
-    expect(page('/app/calendar', 'inbox')).not.toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
-    expect(page('/app', 'home')).not.toMatch(/class="navlink sub active"/);
+    expect(page('/app/calendar', 'inbox')).toMatch(/<a href="\/app\/calendar" class="navlink active"/);
+    expect(page('/app/calendar', 'inbox')).not.toMatch(/<a href="\/app\/inbox" class="navlink active"/);
+    expect(page('/app', 'home')).not.toMatch(/\/app\/(?:inbox|calendar)" class="navlink active"/);
   });
   it('in every locale', () => {
     for (const l of LOCALES) {
       expect(shell({ title: 'T', active: 'contacts', locale: l, path: '/app/contacts', bodyHtml: '' }), l)
-        .toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
+        .toMatch(/<a href="\/app\/inbox" class="navlink active"/);
     }
   });
 });

@@ -167,10 +167,10 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
     expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{ position:absolute;/);
   });
 
-  it('a customer waiting for the owner keeps the waiting signal — magenta ○ and its words; a deletion request its own', () => {
+  it('a customer waiting for the owner keeps its words beside the row\'s dot; a deletion request its own', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const wait = /<span class="ir-wait"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span><bdi>([^<]+)<\/bdi><\/span>/;
+      const wait = /<span class="ir-wait"><bdi>([^<]+)<\/bdi><\/span>/;
       expect(wait.exec(rowOf(h, 2))?.[1], l).toBe(shown(l, 'takeover.reason.human_requested'));
       expect(wait.exec(rowOf(h, 1))?.[1], l).toBe(shown(l, 'buyers.badge.deletion'));
       for (const n of [3, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-wait');
@@ -254,11 +254,24 @@ describe('phase 4 · the "needs attention" band', () => {
       for (const a of BAND) {
         const at = h.indexOf(`href="/app/customers/${a.clientId}" data-card`);
         expect(at, `${l} ${a.kind}`).toBeGreaterThan(-1);
-        expect(h, l).toContain(`<a class="ar-main" href="/app/inbox/${a.conversationId}#latest"><span class="ar-name" dir="auto"><bdi>${esc(a.name!)}</bdi></span>`);
+        expect(h, l).toContain(`<a class="ar-main" href="/app/inbox/${a.conversationId}#latest"><bdi class="ar-name">${esc(a.name!)}</bdi>`);
         expect(h, l).toContain(`<span class="ar-line">${shown(l, `buyers.attention.${a.kind}`, { date: show.shortWhen(l, a.since, NOW) })}</span>`);
       }
       expect(h, l).toContain('<span class="face face-s');
       expect(h, l).toContain('src="/app/faces/'); // a kept photo is drawn from its version, never fetched
+    }
+  });
+
+  it('sits under the rows that need you, above everyone else; with nobody waiting, under the calm line (the owner, 2026-11-05)', () => {
+    const waiting = conv(1, 'WAITING-ROW', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' });
+    const quiet = conv(2, 'QUIET-ROW');
+    for (const l of LOCALES) {
+      const page = html(l, { attention: BAND, conversations: [waiting, quiet] });
+      expect(page.indexOf('WAITING-ROW'), l).toBeGreaterThan(-1);
+      expect(page.indexOf('class="attn"'), l).toBeGreaterThan(page.indexOf('WAITING-ROW'));
+      expect(page.indexOf('class="attn"'), l).toBeLessThan(page.indexOf('QUIET-ROW'));
+      const calm = html(l, { attention: BAND, conversations: [], filter: 'pending' });
+      expect(calm.indexOf('class="attn"'), l).toBeGreaterThan(calm.indexOf('class="empty"'));
     }
   });
 
@@ -272,11 +285,11 @@ describe('phase 4 · the "needs attention" band', () => {
       expect(more!.match(/class="arow"/g), l).toHaveLength(3);
       expect(attentionBand(many.slice(0, 5), l, NOW), l).not.toContain('<details');
       expect(attentionBand([], l, NOW), l).toBe('');
-      // on the page: above the switch, in both lenses
+      // on the page: under the switch, in both lenses (the owner, 2026-11-05)
       for (const lens of ['waiting', 'value'] as const) {
         const page = html(l, { lens, attention: BAND });
         expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(-1);
-        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeLessThan(page.indexOf('class="tabs lens"'));
+        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(page.indexOf('class="tabs lens"'));
         expect(html(l, { lens, attention: [] }), `${l} ${lens}`).not.toContain('class="attn"');
       }
     }
@@ -389,8 +402,8 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
       title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: renderInboxList({ ...LIST, attention: BAND }, 'ar', NOW),
     })));
     expect(page).toContain('<html lang="ar" dir="rtl"');
-    expect(rowOf(page, 2)).toContain('<span class="ir-name" dir="auto"><bdi>Alexandre Dupont</bdi></span>');
-    expect(page).toContain('<span class="ar-name" dir="auto"><bdi>Carlos Mendes</bdi></span>');
+    expect(rowOf(page, 2)).toContain('<bdi class="ir-name">Alexandre Dupont</bdi>');
+    expect(page).toContain('<bdi class="ar-name">Carlos Mendes</bdi>');
     expect(unisolatedFigures(page.slice(page.indexOf('<main')))).toEqual([]);
     expect(CSS).toContain('[dir="rtl"] .ir-text:dir(ltr) { text-align:end; }');
   });

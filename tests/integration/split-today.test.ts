@@ -129,7 +129,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
       const p = await inv.recordPayment(x, BIZ, paid, 'owner', { paidOn: iso(new Date()), amount: dec('1000'), journalId: k.bq, accountId: k.bank });
       if (p.kind !== 'recorded') throw new Error(`pay: ${JSON.stringify(p)}`);
       bankAccount = k.bank;
-      // Issued days ago, paid today: one row, "Paid", under the invoice's own date.
+      // Issued days ago, paid today: one row, "Paid", under the day it was paid.
       paidLateOn = daysAgo(6);
       const late = await invoice(paidLateOn, null, '300');
       const lp = await inv.recordPayment(x, BIZ, late, 'owner', { paidOn: iso(new Date()), amount: dec('300'), journalId: k.bq, accountId: k.bank });
@@ -221,12 +221,16 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     expect(html.match(/<a class="sp-row sp-entry" href="\/app\/books\/bank"/g)).toHaveLength(1);
   });
 
-  it('a payment dated after its invoice: "Paid", under the date on the invoice', async () => {
+  it('the latest event\'s date: "Paid" under the day it was paid, "Overdue" under its issue date', async () => {
     const html = withoutIsolates(await today());
     const row = html.split('class="sp-row sp-entry"').slice(1).map((r) => r.split('</a>')[0]!).find((r) => r.includes('$300'));
     expect(row).toContain('<span class="sp-chip is-done">Paid</span>');
-    expect(row).toContain(show.dayMonth('en', paidLateOn));
-    expect(row).not.toContain(show.dayMonth('en', iso(new Date())));
+    expect(row).toContain(show.dayMonth('en', iso(new Date())));
+    expect(row).not.toContain(show.dayMonth('en', paidLateOn));
+    const rows = html.split('class="sp-row sp-entry"').slice(1).map((r) => r.split('</a>')[0]!);
+    expect(rows.find((r) => r.includes('$2,100'))).toContain(show.dayMonth('en', daysAgo(40)));
+    // Newest first by that date: the invoice paid today stands ahead of the one issued 40 days ago.
+    expect(rows.findIndex((r) => r.includes('$300'))).toBeLessThan(rows.findIndex((r) => r.includes('$2,100')));
   });
 
   it('at most five, however many there are', async () => {

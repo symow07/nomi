@@ -148,7 +148,7 @@ function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Loca
   const when = days === null ? '' : days <= 0 ? t(locale, 'split.title') : tn(locale, 'split.days', days);
   return `<li><a class="sp-row" href="${conversationUrl(r.conversationId)}">
     ${face({ clientId: r.clientId, name: r.name, photo: r.photo }, 's')}
-    <span class="sp-rname"><bdi>${esc(name)}</bdi></span>
+    <bdi class="sp-rname">${esc(name)}</bdi>
     ${thumbOf(r.thumb, true)}
     ${chip}
     <span class="sp-rval">${r.value ? esc(whole(show.money(locale, r.value))) : ''}</span>
@@ -190,7 +190,7 @@ function entryRow(e: BooksEntry, locale: Locale): string {
   const door = e.kind === 'invoice' ? `/app/books/invoices/${esc(e.id)}` : '/app/books/bank';
   return `<li><a class="sp-row sp-entry" href="${door}">
     ${face({ clientId: e.clientId ?? e.id, name: who, photo: e.photo }, 's')}
-    <span class="sp-rname"><bdi>${esc(who)}</bdi></span>
+    <bdi class="sp-rname">${esc(who)}</bdi>
     <span class="sp-chip${mood}">${esc(word)}</span>
     <span class="sp-rval">${esc(booksMoney(locale, e.amount, e.currency))}</span>
     <span class="sp-rday">${esc(show.dayMonth(locale, e.on))}</span>

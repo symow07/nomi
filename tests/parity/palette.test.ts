@@ -101,16 +101,17 @@ describe('the palette', () => {
     expect(magentas).toEqual(['assistant', 'brand', 'coin', 'needs', 'orbGlow']);
   });
 
-  it('the coin is decorative and the mark\'s alone: named by the mark, never a role, never a rule of the stylesheet', async () => {
-    // The seal (2026-10-31): the wine of the coin in the seal's "o". The mark draws it through its variable
-    // (the favicon, a document of its own, reads the token); nothing else names it.
-    const naming = (await sources(SRC)).filter(({ src }) => /\bcoin(?:Ground)?:|--color-coin|color\.coin|5A0A2E|F5F1EA/i.test(src)).map(({ f }) => f).sort();
-    expect(naming).toEqual(['brand.ts', 'tokens.ts']);
+  it('the coin is the mark, and the count and dot that say someone waits: no other rule of the stylesheet, and no role', async () => {
+    // The seal (2026-10-31): the wine of the coin in the seal's "o". The mark draws it through its variable (the favicon, a
+    // document of its own, reads the token). The owner, 2026-11-04: the rail's count and a waiting row's dot wear it too.
+    const naming = (await sources(SRC)).filter(({ src }) => /\bcoin(?:Ground)?:|--color-coin|color\.coin|5A0A2E|F5F1EA/i.test(src)).map(({ f }) => f);
+    expect(naming.sort()).toEqual(['brand.ts', 'layout.ts', 'tokens.ts']);
     expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('coin');
     expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('coinGround');
     expect(cssVariables().match(/--color-coin:/g)).toHaveLength(1);
     const layout = readFileSync(join(SRC_PATH, 'api/web/layout.ts'), 'utf8');
-    expect(layout).not.toMatch(/--color-coin/);
+    const wearing = [...layout.matchAll(/^\s*([^{}\n]+?) \{[^}]*--color-coin[^}]*\}/gm)].map((m) => m[1]!.trim());
+    expect(wearing.sort()).toEqual(['.row-dot', 'nav.side .navcount']);
   });
 
   it('the orb\'s glow is decorative and the advisor\'s alone: named by the orb, drawn by one rule (the nav mark\'s light), never a role', async () => {
@@ -172,11 +173,10 @@ describe('the palette', () => {
   });
 
   // The warmth pass — the deep magenta is a text colour, and a FILL in exactly three places: the act that
-  // answers what waits (`.btn.send.needs`), the rail's count (the identity system: the needs fill, so it
-  // reads with the colour removed) and the rail's dot when a customer newly waits. Never a link, a
+  // answers what waits (`.btn.send.needs`) and the rail's dot when a customer newly waits. Never a link, a
   // heading, a border or a shadow.
-  it('the deep magenta is text, the fill of the act that answers what waits, the rail\'s count and dot — nothing else', async () => {
-    const FILLS = ['.btn.send.needs', 'nav.side .navcount', 'nav.side a.navlink[data-fresh]::after'];
+  it('the deep magenta is text, the fill of the act that answers what waits, and the rail\'s dot — nothing else', async () => {
+    const FILLS = ['.btn.send.needs', 'nav.side a.navlink[data-fresh]::after'];
     const wrong: string[] = [];
     const filled = new Set<string>();
     for (const { f, src } of await sources(WEB)) {

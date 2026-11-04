@@ -169,7 +169,7 @@ export type BooksEntry = {
   readonly party: string | null;
   readonly amount: string;
   readonly currency: string;
-  /** The day on the record: an invoice's issue date, a bank line's booked date. */
+  /** The latest event on the record: a paid invoice's last payment, any other's issue date, a bank line's booked date. */
   readonly on: string;
   /** Where an invoice stands; a payment is simply a payment. */
   readonly status: InvoiceStatus | null;
@@ -263,7 +263,11 @@ export async function loadSplitBooks(tx: Tx, businessId: string, today: string):
   const entryRows = (await sql<{ kind: 'invoice' | 'payment'; id: string; party: string | null; amount: string; currency: string; on_day: string; state: string | null;
     total: string | null; credited: string | null; paid: string | null; due_date: string | null; client_id: string | null }>`
     select e.* from (
-      select 'invoice' as kind, i.id::text as id, coalesce(i.party_name, pa.name) as party, invoice_total(i.id)::text as amount, i.currency, i.issue_date::text as on_day,
+      select 'invoice' as kind, i.id::text as id, coalesce(i.party_name, pa.name) as party, invoice_total(i.id)::text as amount, i.currency,
+             -- The latest event, as the owner set it: a paid invoice's last payment, any other's issue date.
+             (case when invoice_total(i.id) - invoice_credited(i.id) - invoice_paid(i.id) <= 0
+                   then coalesce((select max(ip.paid_on) from invoice_payments ip where ip.invoice_id = i.id and ip.kind <> 'refund'), i.issue_date)
+                   else i.issue_date end)::text as on_day,
              i.state, invoice_total(i.id)::text as total, invoice_credited(i.id)::text as credited, invoice_paid(i.id)::text as paid,
              i.due_date::text as due_date, o.client_id::text as client_id, i.created_at as at
         from invoices i join parties pa on pa.id = i.party_id left join orders o on o.id = i.source_order_id

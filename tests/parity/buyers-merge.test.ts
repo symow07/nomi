@@ -167,7 +167,7 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     // phase 4 — the face opens the customer's card; the rest of the row opens the conversation
     expect(m[3]).toContain('href="/app/customers/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01" data-card');
     const row = m[4]!;
-    expect(row).toContain('<span class="ir-name" dir="auto"><bdi>Buyer c-hers</bdi></span>');
+    expect(row).toContain('<bdi class="ir-name">Buyer c-hers</bdi>');
     expect(row).toContain('<span class="ir-spent"><bdi aria-hidden="true">$1,240.00</bdi>');
     expect(row).toContain('<span class="ir-text" dir="auto">last words of c-hers</span>');
     expect(row).toMatch(/<span class="ir-when">[^]*13:30<\/span>/);
@@ -189,7 +189,7 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     for (const id of ['c-del', 'c-wait', 'c-review']) {
       const m = rowOf(h, id)!;
       expect(m[1], id).toBe('needs');
-      expect(m[4], id).toMatch(/<span class="ir-wait"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span><bdi>[^<]+<\/bdi><\/span>/);
+      expect(m[4], id).toMatch(/<span class="ir-wait"><bdi>[^<]+<\/bdi><\/span>/);
     }
     expect(rowOf(h, 'c-yours')![1]).toBe('yours');
     expect(rowOf(h, 'c-hers')![1]).toBe('hers');
@@ -224,7 +224,8 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     }
     const css = read('src/api/web/layout.ts');
     expect(css).toMatch(/\.irow\.unanswered \.ir-text \{ color:var\(--color-ink\); \}/);
-    expect(css).toMatch(/\.irow\.unanswered \.ir-name \{ font-weight:600; \}/);
+    // Bold is the owner's "not opened yet" (2026-11-04), and says nothing else.
+    expect(css).toMatch(/\.irow\.is-new \.ir-name \{ font-weight:700; \}/);
   });
 
   it('with several assistants, the row names the one answering once, not twice', () => {
@@ -353,7 +354,7 @@ describe('A · three languages, right to left', () => {
     expect(page).toContain('<html lang="ar" dir="rtl"');
     // the name and the message each take their own direction, so an English message is cut at its end
     expect(html('ar')).toContain('<span class="ir-text" dir="auto">');
-    expect(html('ar')).toContain('<span class="ir-name" dir="auto"><bdi>Buyer c-hers</bdi></span>');
+    expect(html('ar')).toContain('<bdi class="ir-name">Buyer c-hers</bdi>');
     // the position says "to", not a dash two numbers would reorder around
     expect(t('ar', 'buyers.page.position')).not.toMatch(/[–-]/);
     expect(html('ar')).toContain(esc(t('ar', 'buyers.page.position', { from: '51', to: '56', total: '130' })));

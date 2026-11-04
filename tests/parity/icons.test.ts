@@ -94,7 +94,6 @@ const PLACES: readonly { place: string; px: number; line: string | null }[] = [
   { place: 'the nav', px: 28, line: null },
   { place: 'a menu row', px: 24, line: null },
   { place: 'the empty calendar', px: 28, line: null },
-  { place: 'the nav\'s heading', px: 20, line: 'nav.side .navhead .ni.sl > *' },
   { place: 'the card\'s close', px: 20, line: '.sheet-x > .xi.sl > *' },
   { place: 'a download', px: 22, line: '.dl-get > .ni.sl > *' },
   { place: 'a date with no face', px: 22, line: '.dl-who.dl-only .kind-icon.sl > *' },
@@ -239,7 +238,6 @@ describe('the line: the nav\'s weight at every size', () => {
     expect(bodyOf('nav.side .ni')).toContain('inline-size:28px; block-size:28px;');
     expect(bodyOf('.sr-menu > .ni')).toContain('inline-size:24px; block-size:24px;');
     expect(bodyOf('.cal-empty-ic')).toContain('inline-size:28px; block-size:28px;');
-    expect(bodyOf('nav.side .navhead .ni')).toContain('inline-size:20px; block-size:20px;');
     expect(bodyOf('.sheet-x > .xi')).toContain('inline-size:20px; block-size:20px;');
     expect(bodyOf('.dl-get > .ni')).toContain('inline-size:22px; block-size:22px;');
     expect(bodyOf('.dl-who.dl-only .kind-icon')).toContain('inline-size:22px; block-size:22px; padding:0;');
@@ -319,22 +317,13 @@ describe('the rail, in Solar\'s Linear set', () => {
     expect(phoneBlock).not.toContain('ni-lit');
   });
 
-  it('the heading "Customers" draws Solar\'s group at 20 px, centred in the 28 px column', () => {
-    const nav = navOf(page('home', '/app'));
-    const head = /<span class="navhead" id="nav-customers">(<svg[\s\S]*?<\/svg>)/.exec(nav)?.[1] ?? '';
-    expect(head).toBe(railIcon('users-group-rounded'));
-    expect(bodyOf('nav.side .navhead .ni')).toContain('margin-inline:var(--space-4)');   // 4 + 20 + 4 = the entries' 28
-    expect(bodyOf('.navhead')).toContain('gap:var(--space-16)');
-    expect(bodyOf('.navhead .ni')).toBe('');
-  });
-
   it('airy: each entry 52 px tall, 16 px from its icon to its word and 8 px to the next; a phone\'s tile 64 px', () => {
     const row = bodyOf('nav.side a.navlink');
     expect(row).toContain('min-height: 52px');
     expect(row).toContain('padding-block: calc((52px - 1lh) / 2)');
     expect(row).toContain('gap: var(--space-16)');
     expect(row).toContain('margin-bottom: var(--space-8)');
-    expect(phoneBlock).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*gap:var\(--space-8\);[^}]*min-height:64px/);
+    expect(phoneBlock).toMatch(/nav\.side a\.navlink \{[^}]*gap:var\(--space-8\);[^}]*min-height:64px/);
   });
 
   it('the icon sits level with its word\'s FIRST line; on a phone, over its word', () => {

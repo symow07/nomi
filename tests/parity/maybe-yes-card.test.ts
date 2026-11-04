@@ -66,7 +66,7 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
     for (const locale of LOCALES) {
       const card = cardOf(renderConversationDetail(base(), locale, NOW, null, OWNER_VIEW));
       expect(card, locale).toContain(esc(t(locale, 'maybeYes.title')));
-      const words = card.indexOf('<bdi>ok, 5000 again please</bdi>');
+      const words = card.indexOf('dir="auto">ok, 5000 again please</blockquote>');
       const facts = [
         '<bdi>Gift box</bdi>',
         `<bdi>${esc(show.quantityOf(locale, 500, 'boxes'))}</bdi>`,
@@ -99,7 +99,7 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
 
   it('no price on record: it says so, and still shows their words', () => {
     const card = cardOf(renderConversationDetail(base({ maybeYes: { said: '那就这么定了吧', offer: null } }), 'zh', NOW, null, OWNER_VIEW));
-    expect(card).toContain('<bdi>那就这么定了吧</bdi>');
+    expect(card).toContain('dir="auto">那就这么定了吧</blockquote>');
     expect(card).toContain(esc(t('zh', 'maybeYes.noOffer')));
   });
 
@@ -179,7 +179,7 @@ describe('the order card — a real yes — shows their words and the unit price
     for (const locale of LOCALES) {
       const html = renderConversationDetail(proposal('yes, go ahead with the 40'), locale, NOW, null, OWNER_VIEW);
       const confirm = html.indexOf('order/confirm');
-      const words = html.indexOf('<bdi>yes, go ahead with the 40</bdi>');
+      const words = html.indexOf('dir="auto">yes, go ahead with the 40</blockquote>');
       const unit = html.indexOf(esc(t(locale, 'order.field.unitPrice')));
       expect(words, locale).toBeGreaterThan(-1);
       expect(unit, locale).toBeGreaterThan(-1);

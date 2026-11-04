@@ -134,7 +134,7 @@ describe('M35 · the facts that justify the quote, with their source', () => {
   it('taught facts are shown in the second voice — a person said them', () => {
     const html = renderProof(VIEW);
     // <bdi> isolates the text from the page direction — see proof.ts.
-    expect(html).toMatch(/<p class="voice"><bdi>Double-stitched handles/);
+    expect(html).toMatch(/<p class="voice" dir="auto">Double-stitched handles/);
     expect(visible(html)).toContain('Confirmed by the business');
   });
 

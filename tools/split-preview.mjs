@@ -5,8 +5,10 @@
  *   node tools/split-preview.mjs seed   lays customers, a waiting reply, orders and a year of books over the demo
  *                                       workspace of a LOCAL database, through the books' own functions. Refuses
  *                                       anything but 127.0.0.1, and a database it has already seeded.
- *   node tools/split-preview.mjs shots  draws Today at a desktop and a phone width, in English and Arabic, into
- *                                       docs/design/split-today/.
+ *   node tools/split-preview.mjs shots  draws Today and Customers at a desktop and a phone width, in English and Arabic,
+ *                                       into docs/design/split-today/. It opens one waiting conversation first, so
+ *                                       Customers shows a bold name beside a plain one.
+ *                                       And a conversation in each script, on each page.
  *
  *   MIGRATE_DATABASE_URL  the local admin address; DATABASE_URL  the local app address (nomi_app)
  *   SPLIT_BASE  the instance, started with SPLIT_TODAY=on (default http://127.0.0.1:8787)
@@ -118,12 +120,17 @@ async function seed() {
         [id, `SPLIT-${id.slice(0, 6)}`, BIZ, client, conv, c.product, c.qty, c.unit, (c.qty * c.unit).toFixed(2), quote, when]);
       c.orderId = id;
     }
+    if (c.handoff) await q(`update conversations set assigned_to = 'unclaimed' where id = $1`, [conv]);
     if (c.sample) await q(`insert into sample_requests (business_id, conversation_id, asked_text, requested_at) values ($1, $2, 'Could you send me a sample first?', $3)`, [BIZ, conv, when]);
     return c;
   }
 
   await customer({ name: 'Aisha Bello', channel: 'instagram', face: 'aisha', hours: 0.7, product: P.cosmetic, qty: 5000, unit: 1.45, asked: 'Hi! How much for 5,000 of the travel cosmetic bags?',
     draft: 'Hello Aisha, 5,000 Travel Cosmetic Bags come to $1.45 each, $7,250.00 in total. Shall I put that together for you?' });
+  // Three who wait for a person: two long names, one in each direction, to show where a name is cut; and the one the shots open.
+  await customer({ name: 'Bartholomew Featherstonehaugh-Cholmondeley Imports', channel: 'instagram', hours: 3, product: P.tote, handoff: true, asked: 'Can I talk to someone about a bulk order?' });
+  await customer({ name: 'عبد الرحمن بن محمد الحسيني العلوي الإدريسي للتجارة والتوزيع', channel: 'whatsapp', hours: 5, product: P.mug, handoff: true, asked: 'أريد التحدث مع شخص من فريقكم' });
+  await customer({ name: 'Imane Chraibi', channel: 'instagram', hours: 6, product: P.cosmetic, handoff: true, asked: 'Could someone call me?' });
   const karim = await customer({ name: 'Karim Haddad', channel: 'instagram', face: 'karim', hours: 24 * 20, product: P.mug, qty: 2500, unit: 0.84, order: true, given: 'That comes to $0.84 each, $2,100.00 in total.' });
   await customer({ name: 'Fatima Zahra', channel: 'instagram', face: 'fatima', hours: 42, product: P.tote, qty: 5000, unit: 1.64, order: true, given: 'That comes to $1.64 each, $8,200.00 in total.' });
   await customer({ name: 'Omar El Amrani', channel: 'whatsapp', hours: 66, product: P.thermos, qty: 1500, unit: 2.6, given: 'That comes to $2.60 each, $3,900.00 in total.', draft: 'Hello Omar, yes, the 1,500 thermos flasks can go in black.' });
@@ -295,6 +302,33 @@ async function shots() {
       console.log(`${file}  dir=${dir || 'ltr'}${wide ? '  WIDER THAN THE SCREEN' : ''}`);
       await measureWash(browser, page, locale, width);
       if (width === 'phone') await measureTabBar(page, locale);
+      // Customers: opened as the owner opens it, one row plain among the bold.
+      await page.goto(`${BASE}/app/inbox`);
+      const opened = await page.locator('a.ir-main', { hasText: 'Imane Chraibi' }).first().getAttribute('href');
+      await page.goto(`${BASE}${opened}`);
+      await page.goto(`${BASE}/app/inbox`);
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${OUT}customers-${width}-${locale}.png`, fullPage: false });
+      // The rows themselves, at their first: on a phone the card above them fills the first screen.
+      await page.evaluate(() => { const row = document.querySelector('.irow'); if (row) window.scrollTo(0, row.getBoundingClientRect().top + window.scrollY - 200); });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${OUT}customers-${width}-${locale}-rows.png`, fullPage: false });
+      const cut = await page.evaluate(() => [...document.querySelectorAll('.ir-name')].filter((n) => n.scrollWidth > n.clientWidth)
+        .map((n) => `${getComputedStyle(n).direction} ${n.textContent.slice(0, 12)}`));
+      console.log(`  customers-${width}-${locale}: cut: ${cut.join(' | ') || 'none'}`);
+      // A message takes its direction from its own words, on either page.
+      for (const [kind, words] of [['arabic', 'أريد التحدث مع شخص'], ['latin', 'Can I talk to someone about a bulk order']]) {
+        await page.goto(`${BASE}/app/inbox`);
+        const door = await page.locator('a.ir-main', { hasText: words }).first().getAttribute('href');
+        await page.goto(`${BASE}${door}`);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: `${OUT}conversation-${width}-${locale}-${kind}.png`, fullPage: false });
+        const read = await page.evaluate((said) => {
+          const b = [...document.querySelectorAll('.bubble')].find((x) => x.textContent.includes(said));
+          return b ? getComputedStyle(b).direction : 'no bubble';
+        }, words);
+        console.log(`  conversation-${width}-${locale}-${kind}: its bubble runs ${read}`);
+      }
       await ctx.close();
     }
   }

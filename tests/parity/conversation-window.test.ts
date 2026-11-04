@@ -99,8 +99,8 @@ describe('CC-25 · the conversation page', () => {
   it('the newest window: the door back at the top, the newest message marked, the approval under it, the rest after', () => {
     const html = renderConversationDetail(detail(), 'en', NOW, null);
     const door = html.indexOf(`href="/app/inbox/${CONV}?before=1790000000123_${ID}#latest"`);
-    const first = html.indexOf('<bdi>m-401</bdi>');
-    const newest = html.indexOf('<bdi>m-450</bdi>');
+    const first = html.indexOf('>m-401</div>');
+    const newest = html.indexOf('>m-450</div>');
     const marked = html.indexOf('id="latest"');
     const draft = html.indexOf('class="card draft"');
     const own = html.indexOf('class="card takeover');
@@ -128,7 +128,7 @@ describe('CC-25 · the conversation page', () => {
     expect(html).toContain(`href="/app/inbox/${CONV}#latest"`);
     expect(html).toContain(t('en', 'inbox.log.latest'));
     expect(html).toContain(`?before=1790000000000_${ID}#latest`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>m-400<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">m-400</);
     for (const gone of ['class="card draft"', 'class="card takeover', 'class="ctx"', 'class="block knew"', t('en', 'unheard.title'), 'class="as-hand"']) {
       expect(html, gone).not.toContain(gone);
     }
@@ -181,7 +181,7 @@ describe('CC-25 · the practice page reads the same window', () => {
   it('the door back pages Practice back; the newest line is marked', () => {
     const html = renderSandbox(view(), 'en', { flash: null });
     expect(html).toContain(`href="/app/sandbox?before=1790000000123_${ID}#latest"`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">p-50</);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));
     const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
     expect(older).toContain('href="/app/sandbox#latest"');

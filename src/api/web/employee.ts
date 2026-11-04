@@ -912,7 +912,7 @@ export function renderEmployeeScreen(
                 <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
                 <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
                 <div class="muted sclabel">${esc(t(locale, s.wasAuto ? 'spotcheck.sentAlone' : 'spotcheck.sheReplied', { name }))}</div>
-                <div class="proposed"><bdi>${esc(s.reply)}</bdi></div>
+                <div dir="auto" class="proposed">${esc(s.reply)}</div>
                 <form method="post" action="${act}" class="acts">
                   <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
                   <button class="btn danger" name="answer" value="有问题">${esc(t(locale, 'spotcheck.problem'))}</button>

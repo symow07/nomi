@@ -91,7 +91,7 @@ export function renderChatPage(o: {
   const l = o.locale;
   const embed = o.embed ?? null;
   const self = `/chat/${esc(o.key)}${embed ? `?v=${esc(embed)}` : ''}`;
-  const line = (x: ChatLine, i: number) => `<li class="chat-line${x.mine ? ' mine' : ''}"${i === o.lines.length - 1 ? ' id="latest"' : ''}><span class="chat-who">${esc(x.mine ? t(l, 'chat.you') : o.business)} · ${esc(show.when(l, x.at, o.now))}</span><bdi dir="auto">${esc(x.text)}</bdi></li>`;
+  const line = (x: ChatLine, i: number) => `<li class="chat-line${x.mine ? ' mine' : ''}"${i === o.lines.length - 1 ? ' id="latest"' : ''}><span class="chat-who">${esc(x.mine ? t(l, 'chat.you') : o.business)} · ${esc(show.when(l, x.at, o.now))}</span><div dir="auto">${esc(x.text)}</div></li>`;
   const notice = o.notice ? `<p role="alert">${esc(t(l, o.notice === 'off' ? 'chat.off' : 'chat.tooLong'))}</p>` : '';
   const body = `<h1>${esc(t(l, 'chat.title', { business: o.business }))}</h1>
     <p>${esc(t(l, 'chat.lede', { business: o.business }))}</p>

@@ -190,7 +190,7 @@ describe('CC-25 · the conversation page lands on the notice, under the newest m
     for (const l of LOCALES) {
       for (const flash of [SENT, REFUSED]) {
         const html = renderConversationDetail(detail(), l, NOW, flash);
-        const newest = at(html, '<bdi>m-450</bdi>');
+        const newest = at(html, '>m-450</div>');
         const notice = landing(html);
         const draft = at(html, 'class="card draft"');
         expect(notice, l).toBeGreaterThan(newest);
@@ -212,13 +212,13 @@ describe('CC-25 · the conversation page lands on the notice, under the newest m
     const html = renderConversationDetail(detail(), 'en', NOW, null);
     expect(notices(html)).toBe(0);
     expect(marks(html)).toBe(1);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>m-450<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">m-450</);
   });
 
   it('while she holds the conversation, it sits over her own reply box', () => {
     const html = renderConversationDetail(detail({ ownership: 'OWNER_CONTROLLED', pendingDraft: null }), 'en', NOW, SENT);
     const notice = landing(html);
-    expect(notice).toBeGreaterThan(at(html, '<bdi>m-450</bdi>'));
+    expect(notice).toBeGreaterThan(at(html, '>m-450</div>'));
     expect(notice).toBeLessThan(at(html, `action="/app/inbox/${CONV}/reply"`));
     expect(notice).toBeLessThan(at(html, 'class="card takeover'));
   });
@@ -262,7 +262,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
       {
         const html = renderSandbox(practice(), l, { flash: SENT });
         const order = [
-          at(html, 'class="timeline"'), at(html, '<bdi>p-50</bdi>'), landing(html),
+          at(html, 'class="timeline"'), at(html, '>p-50</div>'), landing(html),
           at(html, 'class="card draft"'),
           at(html, 'class="card sbx-trust'), at(html, 'id="compose"'),
         ];
@@ -271,10 +271,10 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
         expect(html, l).not.toContain('class="card takeover');
         expect(notices(html), l).toBe(1);
         expect(marks(html), l).toBe(1);
-        expect(html.slice(at(html, '<bdi>p-50</bdi>'), at(html, 'class="card draft"')), l).not.toMatch(/class="card|<form/);
+        expect(html.slice(at(html, '>p-50</div>'), at(html, 'class="card draft"')), l).not.toMatch(/class="card|<form/);
         // after an action with nothing to say — a line sent, a case loaded — the newest line is the landing
         const quiet = renderSandbox(practice(), l, { flash: null });
-        expect(quiet, l).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
+        expect(quiet, l).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">p-50</);
         expect(at(quiet, 'id="latest"'), l).toBeLessThan(at(quiet, 'class="card draft"'));
       }
     }
@@ -284,7 +284,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
     const html = renderSandbox(practice({ ownership: 'OWNER_CONTROLLED' }), 'en', { flash: SENT });
     expect(html).not.toContain('action="/app/sandbox/act"');
     const notice = landing(html);
-    expect(notice).toBeGreaterThan(at(html, '<bdi>p-50</bdi>'));
+    expect(notice).toBeGreaterThan(at(html, '>p-50</div>'));
     expect(notice).toBeLessThan(at(html, 'action="/app/sandbox/reply"'));
   });
 

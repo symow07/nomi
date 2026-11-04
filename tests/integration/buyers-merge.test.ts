@@ -252,7 +252,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     // a search looks at everyone, in the lens it was made in (phase 4: the lens keeps the search)
     expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?q=zhang">');
     // the other workspace's Zhang Wei is not here: one row, and it is this workspace's
-    expect(r.body.match(/<span class="ir-name" dir="auto"><bdi><mark class="hit">Zhang<\/mark> Wei<\/bdi><\/span>/g)?.length).toBe(1);
+    expect(r.body.match(/<bdi class="ir-name"><mark class="hit">Zhang<\/mark> Wei<\/bdi>/g)?.length).toBe(1);
   });
 
   it('…and by number, however it is typed, and by the product asked about', async () => {
@@ -301,7 +301,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(page.body).toContain('Zhang Wei');
     expect(page.body).toContain('About this customer');
     expect(page.body).toContain('<a class="back" href="/app/inbox">');
-    expect(page.body).toMatch(/href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
+    expect(page.body).toMatch(/href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page"/);
     const conversation = await get(`/app/inbox/${zhang}`);
     expect(conversation.body).toContain(`href="/app/conversations/${zhang}"`);
     const missing = await get(`/app/conversations/${randomUUID()}`);

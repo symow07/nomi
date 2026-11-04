@@ -6,7 +6,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, setupState, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
-import { isolate } from './values.js';
+import { isolate, railFigure } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
@@ -312,7 +312,7 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   ok: ['.pill.ok', '.pill.taught', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
   // The warmth run's re-audit (w4-whole-06): magenta's ○ is a CUSTOMER waiting for you — a reply, a hand-over,
   // an order, a deletion asked. A chore or a check carries the same ○ in the secondary ink (TODO_BEFORE).
-  waiting: ['.pill.warn', '.pill.reason', '.draft .held-why', '.chip.draft', '.pc-wait', 'nav.side .navcount'],
+  waiting: ['.pill.warn', '.pill.reason', '.draft .held-why', '.chip.draft', '.pc-wait'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
 };
 /**
@@ -355,7 +355,7 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
      with its words, so the larger words it stands in name theirs. */
   svg.sl * { vector-effect:non-scaling-stroke; }
   svg.sl > * { stroke-width:1.75px; }
-  nav.side .navhead .ni.sl > *, .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
+  .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
   .face-s .face-i svg.sl > * { stroke-width:1.65px; }
   .mo-e .kind-icon.sl > *, .face-xs .face-i svg.sl > *, .dl-say .am.sl > * { stroke-width:1.6px; }
   .am.sl > *, .mi.sl > *, .go > .gi.sl > *, .ir-reg .ni.sl > *, .dl-who .kind-icon.sl > * { stroke-width:1.5px; }
@@ -634,17 +634,6 @@ ${FACE_CSS}
     position:sticky; top:0; height:100vh; overflow-y:auto; }
   .navgroup + .navgroup { margin-top: var(--space-12); }
   .navfoot { margin-top:auto; padding-top: var(--space-16); }
-  .navhub { display:flex; flex-direction:column; }
-  /* THE WARMTH RUN — "Customers" heads its two pages: its own shape and word,
-     not a door (the two under it are). */
-  /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
-     in weight, its shape small, and nothing to press. */
-  /* The Solar nav (2026-10-05) — its shape at 20 px, centred in the entries' 28 px icon column (4 + 20 + 4)
-     with the entries' 16 px before its word, so its word starts where theirs do; its line is the 20 px one
-     (the Solar run's rule above). (The rule names the rail: the rail's own size for its icons would outrank it.) */
-  .navhead { display:flex; align-items:center; gap:var(--space-16); padding: var(--space-12) var(--space-12) var(--space-4);
-    font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
-  nav.side .navhead .ni { inline-size:20px; block-size:20px; margin-inline:var(--space-4); }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -678,14 +667,13 @@ ${FACE_CSS}
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
      together: the row starts at the top, its padding centres one line in the row's height, and the icon
-     sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
+     sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under its word. */
   /* The Solar nav (2026-10-05) — airier, as the owner asked: each entry 52 px tall (it was 44), 16 px between
      the icon and its word (12), and 8 px between entries (4). */
   nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-16); padding: var(--space-8) var(--space-12);
     padding-block: calc((52px - 1lh) / 2);
     min-height: 52px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-8); }
-  nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   /* The Solar nav (2026-10-05) — Solar's Linear drawings at 28 px (the Icons run's 24, sized up 15 per cent):
      a 1.5-unit line on a 24-unit square, so 1.75 px, between the stems of the 15 px words beside it at 500
      (1.5 to 1.6 px) and at 600 (1.9). Every icon in the ink, the wordmark's near-black, whatever the
@@ -709,12 +697,10 @@ ${FACE_CSS}
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
     box-shadow: var(--shadow-lift1); }
   nav.side a.navlink.active .ni { color: var(--color-nav-active); }
-  .nl-short { display:none; }
-  /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
-     magenta under white words and the white needs dot before them — is the badge's own shape and reads
-     with the colour removed. On a phone's tile the badge is the figure alone. */
-  nav.side .navcount { display:inline-flex; align-items:center; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-8);
-    font-size:var(--font-size-caption); font-weight:700; color:var(--color-surface); background:var(--color-needs);
+  /* The rail's one number: customers waiting for the owner. Wine under a white figure, the owner's choice; the row's dot is
+     the same wine. Hidden at nothing; on a phone it rides the icon's corner. */
+  nav.side .navcount { display:inline-flex; align-items:center; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-4);
+    font-size:var(--font-size-caption); font-weight:700; color:var(--color-surface); background:var(--color-coin);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
      chrome; the language switch and log out are the first rows of Setup, and
@@ -1311,8 +1297,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     /* The groups dissolve into the one row of five: Today, Inbox, Calendar,
        the assistant, Settings — each its icon over its word. "Customers", the
        wide rail's heading, is not an entry. */
-    .navgroup, .navfoot, .navhub { display:contents; }
-    .navhead { display:none; }
+    .navgroup, .navfoot { display:contents; }
     /* The mark belongs to the product, so it sits with the product's nav — small,
        and without the word beside it. */
     nav.side .brand { display:flex; padding:0; margin-inline-end:var(--space-4); }
@@ -1320,7 +1305,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
+    nav.side a.navlink { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
       gap:var(--space-8); margin:0; padding:var(--space-4) 2px; min-height:64px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
@@ -1328,17 +1313,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     nav.side .ni { margin-block:0; }
     /* The count rides the icon's corner on a phone: the word keeps its room. Cut out of the tile by a
-       ring of the tile's own white, so on the filled Inbox it stays a count, not part of the shape. */
+       ring of the tile's own white, so on the filled entry it stays a count, not part of the shape. */
     nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4);
       box-shadow:0 0 0 2px var(--color-surface); }
-    nav.side .navcount::before { content:none; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
     /* Phase 9 (V1-014) — the entries sit edge to edge (each keeps its own padding), so "Customers" can carry its count on the one line. */
     nav.side { gap:0; }
     nav.side .navcount { margin-inline-start:var(--space-4); }
-    .nl-long { display:none; }
-    .nl-short { display:inline; }
     @supports (animation-timeline: scroll()) {
       @media (prefers-reduced-motion: no-preference) {
         nav.side { animation: nav-compact linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
@@ -2147,7 +2129,7 @@ const STYLE_PAGES = `
   .is-hers .cr-mark { color:var(--color-assistant); }
   .cr-l1 { grid-row:1; grid-column:2; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
   .cr-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
-  .crow.unanswered .cr-name { font-weight:600; }
+  .crow.is-new .cr-name { font-weight:700; }
   .cr-detail { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .cr-when { grid-row:1; grid-column:3; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
@@ -2180,13 +2162,16 @@ const STYLE_PAGES = `
   .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
   .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
   @media (prefers-reduced-motion: no-preference) { .irow { transition:background-color var(--motion-fast) var(--motion-ease); } }
-  .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
+  .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-4) 10px; }
   .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
     align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
   .ir-main:focus-visible { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .ir-l1 { grid-row:1; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
   .ir-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
-  .irow.unanswered .ir-name { font-weight:600; }
+  /* A row that needs you: a dot at its start, always; its name bold until it is opened. */
+  .irow.is-new .ir-name { font-weight:700; }
+  .row-dot { display:block; inline-size:var(--space-8); block-size:var(--space-8); border-radius:var(--radius-chip); background:var(--color-coin); }
+  .irow > .ir-slot { flex:none; display:inline-flex; align-items:center; justify-content:center; inline-size:var(--space-16); margin-inline-start:var(--space-4); }
   .ir-reg { flex:none; display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap;
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .ir-reg .ni { inline-size:1.15em; block-size:1.15em; flex:none; color:var(--color-ink); }
@@ -2198,10 +2183,10 @@ const STYLE_PAGES = `
     white-space:nowrap; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   /* Why they need you comes before the message, whole where it fits: the message takes what is left. */
   .ir-wait { flex:0 0 auto; max-width:100%; overflow:hidden; text-overflow:ellipsis; color:var(--color-needs); font-weight:600; }
-  .ir-wait .dot { margin-inline-end:var(--space-4); }
   .ir-hold, .ir-by { flex:none; }
   .ir-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
   [dir="rtl"] .ir-text:dir(ltr) { text-align:end; }
+  [dir="ltr"] .ir-text:dir(rtl) { text-align:end; }
   .irow.unanswered .ir-text { color:var(--color-ink); }
   .ir-when { grid-row:2; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
     color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
@@ -2985,22 +2970,20 @@ export function shell(input: {
    * not setting up, not the calendar: a number that is not a customer waiting
    * is the kind of badge the owner ruled out.
    */
-  const entry = (n: typeof NAV[number], sub = false) => {
+  const entry = (n: typeof NAV[number]) => {
     const on = n.id === here;
     // The advisor run — the assistant's entry (its name, or "Team") left the rail for Settings; every entry
     // is its own word now, one name at every width.
     const label = t(locale, `nav.${n.id}` as MessageKey);
     const waiting = n.id === 'inbox' ? needsYouCount() : null;
-    // Phase 9 (V1-172) — the number says what it counts ("3 waiting") where
-    // there is room; on a phone's tile it is the figure alone, on the icon's corner.
-    const badge = waiting ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: waiting })))}</span>`
-      + `<span class="nl-short">${esc(isolate(locale, String(waiting)))}</span></span>` : '';
+    // The owner, 2026-11-04 — a small count, hidden at 0, "9+" above 9. The link's label says the true number in words.
+    const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, waiting))}</span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it).
     const mark = railIcon(NAV_ICON[n.id] ?? 'home-2');
-    return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
+    return `<a href="${n.href}" class="navlink${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
@@ -3033,8 +3016,7 @@ export function shell(input: {
     const flat = (id: string, label: string, extra = '', icon?: RailIcon) => {
       const on = id === here;
       const count = id === 'inbox' ? needsYouCount() : null;
-      const badge = count ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: count })))}</span>`
-        + `<span class="nl-short">${esc(isolate(locale, String(count)))}</span></span>` : '';
+      const badge = count ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, count))}</span>` : '';
       const aria = count ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', count))}"` : '';
       const href = byId(id)?.href ?? '/app/books';
       return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}
@@ -3046,10 +3028,7 @@ export function shell(input: {
       <div class="navfoot">${flat('settings', t(locale, 'nav.settings'))}${input.split.me}</div>`);
   }
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
-    <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
-      <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
-      ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
-    </div>
+    <div class="navgroup">${entry(byId('inbox'))}${entry(byId('calendar'))}</div>
     <div class="navgroup">${entry(byId('advisor'))}</div>
     <div class="navfoot">${toBooks}${entry(byId('settings'))}</div>`;
   return shellWith(input, nav);

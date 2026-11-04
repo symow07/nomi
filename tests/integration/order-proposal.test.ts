@@ -277,7 +277,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(page.body).toContain('customer@example.com');
     // 2026-10-14 — before either button: their words as they wrote them (the message the proposal was made from,
     // `order_proposals.turn_message_id` → `messages.external_id`), and the unit price beside the total.
-    const words = page.body.indexOf('<blockquote class="unsure-q" dir="auto"><bdi>yes</bdi></blockquote>');
+    const words = page.body.indexOf('<blockquote class="unsure-q" dir="auto">yes</blockquote>');
     const unit = page.body.indexOf('$2.10');
     const confirm = page.body.indexOf(`/app/inbox/${confirmConv}/order/confirm`);
     expect(words, 'their words, verbatim').toBeGreaterThan(-1);
@@ -474,7 +474,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     }
     const card = page.body.slice(from, to);
     const at = (x: string) => card.indexOf(x);
-    const words = at('<bdi>ok, 5000 again please</bdi>');
+    const words = at('dir="auto">ok, 5000 again please</blockquote>');
     const product = at('<bdi>Gift box</bdi>');
     const quantity = at(esc(show.quantityOf('en', 500, 'boxes')));
     const unit = at(esc(show.money('en', usd('2.1'))));
@@ -511,7 +511,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const at = (x: string) => page.body.indexOf(x);
     const confirm = at(`/app/inbox/${conv}/order/confirm`);
     for (const [what, x] of Object.entries({
-      words: '<bdi>ok, 5000 again please</bdi>',
+      words: 'dir="auto">ok, 5000 again please</blockquote>',
       quantity: esc(show.quantityOf('en', 5000, 'boxes')),
       unit: esc(show.money('en', usd('2.1'))),
       total: esc(show.money('en', usd('10500'))),
