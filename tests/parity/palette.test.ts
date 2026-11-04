@@ -59,6 +59,8 @@ describe('the palette', () => {
       'orbGlow',
       // The seal (2026-10-31): the coin in the mark, decorative and the mark's alone — the fifth, and the last.
       'coin',
+      // The favicon (2026-11-04): the cream disc behind that coin, so it reads on a dark tab bar. Not a magenta.
+      'coinGround',
     ].sort());
     expect(C['ink']).toBe('#25201C');
     expect(C['inkSecondary']).toBe('#665D55');
@@ -71,6 +73,7 @@ describe('the palette', () => {
     expect(C['brand']).toBe('#9A0F5E');
     expect(C['orbGlow']).toBe('#A1127A');
     expect(C['coin']).toBe('#5A0A2E');
+    expect(C['coinGround']).toBe('#F5F1EA');
     // three shades with three jobs: never one value again
     expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(3);
     expect(C['needsWash']).not.toBe(C['assistantWash']);
@@ -101,9 +104,10 @@ describe('the palette', () => {
   it('the coin is decorative and the mark\'s alone: named by the mark, never a role, never a rule of the stylesheet', async () => {
     // The seal (2026-10-31): the wine of the coin in the seal's "o". The mark draws it through its variable
     // (the favicon, a document of its own, reads the token); nothing else names it.
-    const naming = (await sources(SRC)).filter(({ src }) => /\bcoin:|--color-coin|color\.coin|5A0A2E/i.test(src)).map(({ f }) => f).sort();
+    const naming = (await sources(SRC)).filter(({ src }) => /\bcoin(?:Ground)?:|--color-coin|color\.coin|5A0A2E|F5F1EA/i.test(src)).map(({ f }) => f).sort();
     expect(naming).toEqual(['brand.ts', 'tokens.ts']);
     expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('coin');
+    expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('coinGround');
     expect(cssVariables().match(/--color-coin:/g)).toHaveLength(1);
     const layout = readFileSync(join(SRC_PATH, 'api/web/layout.ts'), 'utf8');
     expect(layout).not.toMatch(/--color-coin/);

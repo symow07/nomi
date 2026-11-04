@@ -45,17 +45,20 @@ const SMALL_SEAL =
   'M1 1h30v30H1zM3 3v26h26V3zM5 5h11v10h-3V8H8v7H5zM5 17h17v10h-3V20h-4v7h-3V20H8v7H5zM24 17h3v3h-3zM24 22h3v5h-3z';
 const SMALL_COIN = 'M17 10a5 5 0 1 0 10 0a5 5 0 1 0-10 0zM20 8h4v4h-4z';
 /**
- * The favicon: the coin alone, on a 16 grid — the disc, one paper ring, the
- * hole. Crisp at 16 px and, doubled, at 32 (a tab on a sharp screen). The coin's
+ * The favicon: the coin alone, on a 16 grid — the disc, one ring, the hole —
+ * on a cream disc a pixel wider all round (the owner, 2026-11-04): wine alone
+ * is lost on a dark tab bar, and the cream's rim is what gives it an edge there.
+ * Crisp at 16 px and, doubled, at 32 (a tab on a sharp screen). The coin's
  * square rim is in the 32 px entry of `/favicon.ico` only.
  */
-const FAVICON_COIN = 'M0 8a8 8 0 1 0 16 0a8 8 0 1 0-16 0zM1.5 8a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0zM2.5 8a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0-11 0zM5 5h6v6h-6z';
+const FAVICON_GROUND = 'M0 8a8 8 0 1 0 16 0a8 8 0 1 0-16 0z';
+const FAVICON_COIN = 'M1 8a7 7 0 1 0 14 0a7 7 0 1 0-14 0zM2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0-11.5 0zM3.25 8a4.75 4.75 0 1 0 9.5 0a4.75 4.75 0 1 0-9.5 0zM5 5h6v6h-6z';
 
 /** Exported for the source-parity test, not for drawing with. */
 export const MARK_GEOMETRY = {
   detail: { seal: DETAIL_SEAL, coin: DETAIL_COIN },
   small: { seal: SMALL_SEAL, coin: SMALL_COIN },
-  favicon: { coin: FAVICON_COIN },
+  favicon: { ground: FAVICON_GROUND, coin: FAVICON_COIN },
 } as const;
 
 const svg = (grid: number, size: number, seal: string, coin: string, label: string | null): string =>
@@ -80,8 +83,8 @@ export const markSmall = (size = 32, label: string | null = 'Nomi'): string =>
  * exists for the browsers that ask for it by name; this is what a page names).
  *
  * This is the ONE place the mark cannot use `var(--…)`: a data-URI SVG is its
- * own document and cannot see the page's custom properties, so the colour must
- * be literal. It is therefore READ FROM the tokens rather than typed in —
+ * own document and cannot see the page's custom properties, so the colours must
+ * be literal. They are therefore READ FROM the tokens rather than typed in —
  * `brand.test.ts` asserts every hex in this URI is a token value.
  *
  * BASE64, not percent-encoding: this product bans `%` in owner-facing copy, and
@@ -90,6 +93,7 @@ export const markSmall = (size = 32, label: string | null = 'Nomi'): string =>
 export function faviconDataUri(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
   const doc =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">` +
+    `<path fill="${tokens.color.coinGround}" d="${FAVICON_GROUND}"/>` +
     `<path fill="${tokens.color.coin}" fill-rule="evenodd" d="${FAVICON_COIN}"/></svg>`;
   return `data:image/svg+xml;base64,${btoa(doc)}`;
 }

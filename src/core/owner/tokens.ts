@@ -243,6 +243,9 @@ export const DESIGN_TOKENS = {
    *   coin         #5A0A2E, the coin in the mark — the seal's "o" (the owner,
    *                2026-10-31) — and nothing else: drawn only by `brand.ts`.
    *                A dark wine, darker than `needs`, never a meaning.
+   *   coinGround   #F5F1EA, the cream disc behind the coin in the favicon (the
+   *                owner, 2026-11-04): wine alone is lost on a dark tab bar.
+   *                Not a neutral of the pages; drawn only by `brand.ts`.
    * Five magentas is the CEILING — brand, needs, assistant, orbGlow, coin —
    * and `palette.test.ts` holds it.
    *
@@ -273,6 +276,8 @@ export const DESIGN_TOKENS = {
     orbGlow: '#A1127A',
     /** DECORATIVE: the coin in the mark (the seal's "o", 2026-10-31) and nothing else. Never a button, chip, state or text. */
     coin: '#5A0A2E',
+    /** DECORATIVE: the cream disc behind the coin in the favicon, so it reads on a dark tab bar, and nothing else. */
+    coinGround: '#F5F1EA',
   },
   /**
    * A colour by the JOB it does, named after one of the palette's own (never a

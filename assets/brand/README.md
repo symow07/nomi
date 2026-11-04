@@ -10,8 +10,10 @@ hole, a rim round its edge and a rim round its hole.
                    whole pixel; its coin is a disc and a hole, no rims (at 32 px
                    the coin is ten pixels and a rim is a haze). Draw it at 32 or 16.
 `mark-mono.svg`    `currentColor` — one colour: print, a real chop.
-`favicon.svg`      the coin alone on a 16 grid: disc, one paper ring, the hole.
-`favicon-32.svg`   the coin alone on a 32 grid, both rims: the 32 px entry of
+`favicon.svg`      the coin alone on a 16 grid: disc, one ring, the hole, on a
+                   cream disc (`coinGround`, `#F5F1EA`) a pixel wider all round,
+                   so it reads on a dark tab bar.
+`favicon-32.svg`   the same on a 32 grid, both rims: the 32 px entry of
                    `/favicon.ico`.
 `retired-figure/`  the figure mark (head, shoulders, body) it replaced. A record;
                    nothing draws it.

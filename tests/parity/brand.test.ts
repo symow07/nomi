@@ -30,7 +30,7 @@ describe('M30 · the inline mark cannot drift from assets/brand/', () => {
     expect(pathsOf(await src('mark-detail')), 'mark-detail.svg has drifted from brand.ts').toEqual([detail.seal, detail.coin]);
     expect(pathsOf(await src('mark-mono')), 'mark-mono.svg has drifted from brand.ts').toEqual([detail.seal, detail.coin]);
     expect(pathsOf(await src('mark-small')), 'mark-small.svg has drifted from brand.ts').toEqual([small.seal, small.coin]);
-    expect(pathsOf(await src('favicon')), 'favicon.svg has drifted from brand.ts').toEqual([favicon.coin]);
+    expect(pathsOf(await src('favicon')), 'favicon.svg has drifted from brand.ts').toEqual([favicon.ground, favicon.coin]);
     // the sources carry the same two colours as the tokens
     for (const f of ['mark-detail', 'mark-small']) {
       const svg = await src(f);
@@ -107,9 +107,18 @@ describe('M30 · the favicon', () => {
   it('is the COIN alone — no letters, because a favicon is 16px', () => {
     const svg = decoded();
     expect(svg).toContain('viewBox="0 0 16 16"');
-    expect(pathsOf(svg)).toEqual([MARK_GEOMETRY.favicon.coin]);
+    expect(pathsOf(svg)).toEqual([MARK_GEOMETRY.favicon.ground, MARK_GEOMETRY.favicon.coin]);
     expect(svg).toContain(`fill="${DESIGN_TOKENS.color.coin}"`);
     expect(svg).not.toContain(MARK_GEOMETRY.small.seal);
+  });
+
+  it('sits on the cream disc, drawn first and wider than the coin, so it reads on a dark tab bar', () => {
+    const svg = decoded();
+    expect(DESIGN_TOKENS.color.coinGround).toBe('#F5F1EA');
+    expect(svg.indexOf(`fill="${DESIGN_TOKENS.color.coinGround}"`)).toBeGreaterThan(-1);
+    expect(svg.indexOf(`fill="${DESIGN_TOKENS.color.coinGround}"`)).toBeLessThan(svg.indexOf(`fill="${DESIGN_TOKENS.color.coin}"`));
+    expect(MARK_GEOMETRY.favicon.ground).toContain('a8 8 ');   // the whole 16 grid
+    expect(MARK_GEOMETRY.favicon.coin).toMatch(/^M1 8a7 7 /);  // the coin, a pixel inside it
   });
 
   it('takes its colours FROM the tokens — the one place the mark cannot use var()', () => {

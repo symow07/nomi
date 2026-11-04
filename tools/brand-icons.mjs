@@ -16,7 +16,8 @@
  *   apple-touch-icon (180)    as icon-192, at the size an iPhone asks for
  *   favicon.ico               16 (the coin on its 16 grid), 32 (the coin with
  *                             both rims, its 32 grid), 48 (the 32 grid drawn
- *                             larger) — PNG entries, transparent
+ *                             larger) — PNG entries, transparent outside the
+ *                             cream disc behind the coin
  *
  * Colours come from the tokens (`--color-brand`, `--color-coin`, the paper),
  * so a palette change is one run of this away. The browser is Playwright's
@@ -29,7 +30,7 @@ import { DESIGN_TOKENS } from '../dist/core/owner/tokens.js';
 const C = DESIGN_TOKENS.color;
 const brandDir = new URL('../assets/brand/', import.meta.url);
 const read = (f) => readFileSync(new URL(f, brandDir), 'utf8')
-  .replaceAll('#9A0F5E', C.brand).replaceAll('#5A0A2E', C.coin);
+  .replaceAll('#9A0F5E', C.brand).replaceAll('#5A0A2E', C.coin).replaceAll('#F5F1EA', C.coinGround);
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
