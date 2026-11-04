@@ -16536,3 +16536,11 @@ the labels page and a customer's panel, Saved replies, Surveys, Turns, Channels 
   customer or the owner), precio dado, prix donné; Arabic plural forms of عميل (عميلان، عملاء، عميلًا); French keeps
   the impersonal «cela vous attend» in `turn.rules`.
 
+
+## The Split Today preview (2026-11-04)
+
+New lines in zh, ar, es and fr, none read by a native reader. Not a gate. They appear only behind `SPLIT_TODAY=on`.
+
+- **Keys:** `split.alsoWaiting`, `split.chip.waiting`, `split.days.*`, `split.edit`, `split.handToMe`, `split.matched.*`, `split.money.in`, `split.money.out`, `split.money.profit`, `split.money.title`, `split.month`, `split.new`, `split.owed.invoices.*`, `split.owed.late.*`, `split.owed.none`, `split.owed.other.*`, `split.owed.overdue.*`, `split.owed.title`, `split.q.price`, `split.q.price.anon`, `split.q.reply`, `split.q.reply.anon`, `split.recent`, `split.remind`, `split.sales`, `split.stage.asked`, `split.stage.order`, `split.stage.price`, `split.stage.sample`, `split.title`, `split.trend.label`, `split.trend.point`, `split.viewAll`, `split.year.closed`, `split.year.none`, `split.year.open`.
+- **Choices to check:** "Hand to me" as 交给我 / التحويل إليّ / Pásamelo / Me le passer (the owner's decision, 2026-11-04: the same words everywhere, so the conversation page's card, its take-over and an order's card changed from 我来回复 / تولّي الرد / Respondo yo / Je m’en occupe and from "I'll answer them" too); "Owed to you" as 别人欠你的 / المستحق لك / Lo que te deben / Ce qui vous est dû; "Remind" as 提醒 / تذكير / Recordar / Relancer, which opens the place to remind from and sends nothing.
+- **Added 2026-11-04:** "Recent entries" as 最近的账目 / أحدث القيود / Últimos movimientos / Dernières écritures; a payment's chip as 收款 / دفعة / Pago / Paiement. "From the bank", for a bank line with no wording, as 来自银行 / من البنك / Del banco / De la banque.

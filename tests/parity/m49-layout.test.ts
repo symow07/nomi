@@ -144,22 +144,20 @@ describe('M49 · one vertical rhythm', () => {
 
 describe('M49 · the two voices are on the right axis', () => {
   /**
-   * Serif is what a PERSON says: her drafts, a buyer's words, an answer she
-   * wrote herself. Everything the PRODUCT says is sans — including headings
-   * about her, which is where it had drifted: "No buyer can reach Lily yet",
-   * "Lily is learning from your corrections", "Before she talks to real
-   * buyers". Inconsistent serif and sans was the loudest unpolished signal on
-   * these pages, and the rule drifted immediately last time because it was
-   * applied by hand. So it is pinned here.
+   * THE SERIF (the owner, 2026-11-04): what a PERSON says — her drafts, a customer's words, an answer she wrote herself —
+   * and, since the Split Today design, HEADINGS AND BIG NUMBERS. Running text the product writes stays sans. Before, every
+   * heading was sans and this test held it, because mixed serif and sans drifted whenever it was applied by hand. So the
+   * list is still pinned here: a file reaches for the serif only with its reason, and a page's own sheet says on what.
    */
   const ALLOWED = new Map<string, string>([
     ['layout.ts', 'declares .voice, .bubble and .proposed — the components speech is made of'],
+    ['splitStyle.ts', 'the Split Today design: headings and big numbers'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
     ['conversations.ts', 'the buyer\'s own message that asked for their data to be deleted (0076)'],
   ]);
 
-  it('only speech components use the serif', async () => {
+  it('only speech, headings and big numbers use the serif', async () => {
     const files = (await readdir(WEB_DIR)).filter((f) => f.endsWith('.ts'));
     const rogue: string[] = [];
     for (const f of files) {
@@ -170,16 +168,12 @@ describe('M49 · the two voices are on the right axis', () => {
     expect(rogue, `serif reached a product surface:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 
-  it('and no PRODUCT heading is set in it', async () => {
-    const files = (await readdir(WEB_DIR)).filter((f) => f.endsWith('.ts'));
-    const rogue: string[] = [];
-    for (const f of files) {
-      const src = await readFile(new URL(f, WEB_DIR), 'utf8');
-      for (const [i, line] of src.split('\n').entries()) {
-        if (/<h[123][^>]*class="[^"]*\bvoice\b/.test(line)) rogue.push(`${f}:${i + 1}`);
-      }
-    }
-    expect(rogue, `a heading in the speech serif:\n  ${rogue.join('\n  ')}`).toEqual([]);
+  it('and on the Split Today sheet it is on headings and big numbers alone, never running text', async () => {
+    const src = await readFile(new URL('splitStyle.ts', WEB_DIR), 'utf8');
+    const selectors = [...src.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map((m) => m[1]!.trim());
+    expect(selectors.length).toBeGreaterThan(0);
+    const HEADINGS_AND_NUMBERS = ['h1.page', '.sp-phead h2', '.sp-card h3', '.sp-name', '.sp-profit', '.sp-over'];
+    for (const selector of selectors) expect(HEADINGS_AND_NUMBERS.some((h) => selector.includes(h)), selector).toBe(true);
   });
 });
 

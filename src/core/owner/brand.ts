@@ -1,4 +1,4 @@
-import { DESIGN_TOKENS } from './tokens.js';
+import { DESIGN_TOKENS, SPLIT_TOKENS } from './tokens.js';
 
 /**
  * M30 — the Nomi mark, inlined.
@@ -95,5 +95,43 @@ export function faviconDataUri(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): st
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">` +
     `<path fill="${tokens.color.coinGround}" d="${FAVICON_GROUND}"/>` +
     `<path fill="${tokens.color.coin}" fill-rule="evenodd" d="${FAVICON_COIN}"/></svg>`;
+  return `data:image/svg+xml;base64,${btoa(doc)}`;
+}
+
+/**
+ * The wash behind the Split Today header (docs/DESIGN-SYSTEM.md; the owner's reference, 2026-11-04): rose ink brushed on rice
+ * paper, hanging from the top edge with a torn, watery foot, fading to nothing downward and away to the far side. A pale halo
+ * first, the ink over it. Base64, as the favicon's: the served sheet stays free of drawing words.
+ */
+export function inkWashDataUri(): string {
+  const { washInk: ink, washHalo: halo } = SPLIT_TOKENS.color;
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="220" viewBox="0 0 1400 220" preserveAspectRatio="none">
+<defs>
+<linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${ink}" stop-opacity="0.36"/><stop offset="0.3" stop-color="${ink}" stop-opacity="0.26"/><stop offset="0.5" stop-color="${ink}" stop-opacity="0.11"/><stop offset="0.62" stop-color="${ink}" stop-opacity="0"/></linearGradient>
+<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${halo}" stop-opacity="0.22"/><stop offset="0.58" stop-color="${halo}" stop-opacity="0.13"/><stop offset="0.78" stop-color="${halo}" stop-opacity="0"/></linearGradient>
+<linearGradient id="c" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e6e6e6"/><stop offset="0.3" stop-color="white"/><stop offset="0.62" stop-color="#b0b0b0"/><stop offset="0.86" stop-color="#2a2a2a"/><stop offset="1" stop-color="black"/></linearGradient>
+<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="white"/><stop offset="0.55" stop-color="white"/><stop offset="0.94" stop-color="black"/></linearGradient>
+<mask id="e"><rect x="-200" y="-100" width="1800" height="420" fill="url(#c)"/></mask>
+<mask id="f"><rect width="1400" height="220" fill="url(#d)"/></mask>
+<filter id="g" x="-10%" y="-40%" width="120%" height="180%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.0042 0.011" numOctaves="5" seed="34" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="210" xChannelSelector="R" yChannelSelector="G" result="s"/>
+<feComponentTransfer in="s" result="t"><feFuncA type="linear" slope="1.9" intercept="-0.05"/></feComponentTransfer>
+<feGaussianBlur in="t" stdDeviation="0.8" result="u"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="4" seed="39"/>
+<feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0.3" result="v"/>
+<feComposite in="u" in2="v" operator="in"/>
+</filter>
+<filter id="h" x="-10%" y="-40%" width="120%" height="180%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.0028 0.012" numOctaves="4" seed="45" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="190" xChannelSelector="R" yChannelSelector="G"/>
+<feGaussianBlur stdDeviation="3"/>
+</filter>
+</defs>
+<g mask="url(#f)"><g mask="url(#e)">
+<rect x="-100" y="-60" width="1600" height="340" fill="url(#b)" filter="url(#h)"/>
+<rect x="-100" y="-60" width="1600" height="340" fill="url(#a)" filter="url(#g)"/>
+</g></g>
+</svg>`;
   return `data:image/svg+xml;base64,${btoa(doc)}`;
 }

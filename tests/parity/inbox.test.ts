@@ -544,7 +544,7 @@ describe('Release hardening · a permanent change asks first', () => {
   /**
    * Phase 9 (V1-237, the owner's call given to the builder, 2026-10-03) — one
    * act on the card puts the reply away for good: "No reply needed". Phase 5's
-   * rule keeps asking for what erases, so it asks; Send and "I'll reply" never do.
+   * rule keeps asking for what erases, so it asks; Send and "Hand to me" never do.
    */
   it('only "No reply needed" asks first: it puts this reply away for good; Send and I\'ll reply never ask', () => {
     const start = withDraft.indexOf('id="approve"');
