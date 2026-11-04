@@ -17,6 +17,12 @@ import type { PoolState } from '../db/client.js';
  * pg-boss's 30 s bounds its wait for running jobs but not the closing of its own pool. A step given a limit is left
  * behind when it passes it, and says so. Under CI the lines are warnings on the run's page, because a stop that gave up
  * no longer fails anything and a line in a green log is read by nobody.
+ *
+ * WHAT A STEP LEFT BEHIND REALLY TOOK (2026-11-04). The first such line on CI gave up on the pool at 2 s with one
+ * connection lent, and could not say whether that connection was two seconds from coming back or never would. So the
+ * line now says what each lent connection was doing and what was running when the stop began (by then pg-boss has
+ * stopped, so "now" says little about jobs), and a second line says when the step really ended. `leftBehind()` is for
+ * whoever can wait to hear it: a process that exits at once never does.
  */
 export type Running = { readonly queue: string; readonly jobs: number };
 export type Pools = Readonly<Record<string, PoolState | null>>;
@@ -24,6 +30,8 @@ export type Pools = Readonly<Record<string, PoolState | null>>;
 export type StopClock = {
   /** `limitMs`: stop waiting after this long, say so, and go on. The answer is then undefined. */
   step<T>(name: string, run: () => Promise<T>, limitMs?: number): Promise<T | undefined>;
+  /** Settles once every step left behind has ended, however it ended. Never rejects. */
+  leftBehind(): Promise<void>;
   done(): void;
 };
 
@@ -46,11 +54,20 @@ export const describeRunning = (r: readonly Running[]): string =>
   r.length === 0 ? 'no job running' : r.map((x) => `${x.queue} ×${x.jobs}`).join(', ');
 
 export const describePools = (p: Pools): string =>
-  Object.entries(p).map(([name, s]) => (s ? `${name} pool ${s.borrowed} lent, ${s.idle} idle, ${s.waiting} waiting` : `${name} pool ?`)).join('; ');
+  Object.entries(p).map(([name, s]) => {
+    if (!s) return `${name} pool ?`;
+    const doing = s.lent?.length ? ` (${s.lent.join(', ')})` : '';
+    return `${name} pool ${s.borrowed} lent${doing}, ${s.idle} idle, ${s.waiting} waiting`;
+  }).join('; ');
+
+/** A line about a stop: under CI, a warning on the run's page. */
+export const sayStop = (line: string): void => {
+  console.error(process.env['GITHUB_ACTIONS'] ? `::warning title=Slow stop::${line}` : line);
+};
 
 export function stopClock(deps: StopClockDeps): StopClock {
   const now = deps.now ?? Date.now;
-  const log = deps.log ?? ((line: string) => console.error(process.env['GITHUB_ACTIONS'] ? `::warning title=Slow stop::${line}` : line));
+  const log = deps.log ?? sayStop;
   const slowMs = deps.slowMs ?? 5_000;
   const every = deps.every ?? 10_000;
   const setTimer = deps.setTimer ?? ((f, ms) => setInterval(f, ms));
@@ -58,6 +75,7 @@ export function stopClock(deps: StopClockDeps): StopClock {
   const began = now();
   const atStart = `${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}`;
   const steps: string[] = [];
+  const left: Promise<void>[] = [];
   return {
     async step(name, run, limitMs) {
       const s = now();
@@ -69,8 +87,12 @@ export function stopClock(deps: StopClockDeps): StopClock {
         if (limitMs === undefined) return await work;
         const first = await Promise.race([work, new Promise<typeof passed>((done) => { limit = setTimeout(() => done(passed), limitMs); })]);
         if (first !== passed) return first as Awaited<typeof work>;
-        work.catch(() => {});   // left behind: whatever it ends with, nobody is waiting for it now
-        log(`[stop] gave up on ${name} after ${now() - s} ms — ${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}`);
+        log(`[stop] gave up on ${name} after ${now() - s} ms — ${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}. When it began: ${atStart}`);
+        // Left behind: whatever it ends with, nobody is waiting for it now. Only when it ends is said.
+        left.push(work.then(
+          () => { log(`[stop] ${name}, left behind, ended after ${now() - s} ms`); },
+          () => { log(`[stop] ${name}, left behind, failed after ${now() - s} ms`); },
+        ));
         return undefined;
       } finally {
         clearTimeout(limit);
@@ -78,6 +100,7 @@ export function stopClock(deps: StopClockDeps): StopClock {
         steps.push(`${name} ${now() - s} ms`);
       }
     },
+    leftBehind: async () => { await Promise.all(left); },
     done() {
       const total = now() - began;
       if (total >= slowMs) log(`[stop] slow: ${total} ms — ${steps.join(' · ')}. When it began: ${atStart}`);

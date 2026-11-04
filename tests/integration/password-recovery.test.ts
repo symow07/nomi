@@ -83,7 +83,9 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
     });
   }, 90_000);
   // PROGRESS "A flake to watch" — this hook outlasted 45 s three times in CI. Which half waits is said while it waits
-  // (close() reports its own steps, src/queue/stopClock.ts).
+  // (close() reports its own steps, src/queue/stopClock.ts). close() can leave a step behind now, and this process
+  // would end before it did, so the hook waits to hear how long it really took, up to 40 s from the start, inside the
+  // suite's 45. "Still out" at the end of that is what the old hang would look like. Only a slow stop waits at all.
   afterAll(async () => {
     const began = Date.now();
     let at = 'admin.end()';
@@ -92,6 +94,18 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
       await admin?.end();
       at = 'prod.close()';
       await prod?.close();
+      at = 'what close() left behind';
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const stillOut = await Promise.race([
+        (prod?.leftBehind() ?? Promise.resolve()).then(() => false),
+        new Promise<boolean>((done) => { timer = setTimeout(() => done(true), Math.max(0, 40_000 - (Date.now() - began))); }),
+      ]);
+      clearTimeout(timer);
+      if (stillOut) {
+        const { sayStop, describePools } = await import('../../src/queue/stopClock.js');
+        const { poolState } = await import('../../src/db/client.js');
+        sayStop(`[stop] password-recovery: still out after ${Date.now() - began} ms — ${describePools({ app: poolState(prod.db) })}`);
+      }
     } finally { clearInterval(watch); }
   });
 

@@ -52,18 +52,53 @@ describe('a graceful stop, measured', () => {
     const c = stopClock(h.deps);
     const left = await c.step('pool', () => new Promise<string>(() => {}), 5);
     expect(left).toBeUndefined();
-    expect(h.lines).toEqual(['[stop] gave up on pool after 0 ms — message.inbound ×1; app pool 1 lent, 2 idle, 0 waiting; advisor pool ?']);
+    expect(h.lines).toEqual(['[stop] gave up on pool after 0 ms — message.inbound ×1; app pool 1 lent, 2 idle, 0 waiting; advisor pool ?. '
+      + 'When it began: message.inbound ×1; app pool 1 lent, 2 idle, 0 waiting; advisor pool ?']);
     expect(h.timers.size).toBe(0);
     expect(await c.step('advisor pool', async () => 'closed', 5)).toBe('closed');
     expect(h.lines).toHaveLength(1);                 // within its limit: nothing said
   });
 
-  it('a step left behind that fails later is nobody\'s unhandled rejection', async () => {
+  it('a step left behind that fails later is said, and is nobody\'s unhandled rejection', async () => {
     const h = harness();
     let fail!: (e: Error) => void;
-    await stopClock(h.deps).step('pool', () => new Promise<void>((_ok, no) => { fail = no; }), 1);
+    const c = stopClock(h.deps);
+    await c.step('pool', () => new Promise<void>((_ok, no) => { fail = no; }), 1);
+    h.advance(3_000);
     fail(new Error('too late'));
+    await c.leftBehind();                            // never rejects
+    expect(h.lines[1]).toBe('[stop] pool, left behind, failed after 3000 ms');
     await new Promise((r) => setTimeout(r, 5));      // vitest fails the run on an unhandled rejection
+  });
+
+  it('a step left behind says how long it really took, and leftBehind() waits for it', async () => {
+    const h = harness();
+    let end!: () => void;
+    const c = stopClock(h.deps);
+    await c.step('pool', () => new Promise<void>((ok) => { end = ok; }), 1);
+    let heard = false;
+    const waiting = c.leftBehind().then(() => { heard = true; });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(heard).toBe(false);                       // still out
+    expect(h.lines).toHaveLength(1);
+    h.advance(61_000);
+    end();
+    await waiting;
+    expect(h.lines[1]).toBe('[stop] pool, left behind, ended after 61000 ms');
+  });
+
+  it('with nothing left behind, leftBehind() settles at once and nothing is said', async () => {
+    const h = harness();
+    const c = stopClock(h.deps);
+    await c.step('pool', async () => {}, 1_000);
+    await c.leftBehind();
+    expect(h.lines).toEqual([]);
+  });
+
+  it('says what each lent connection was doing, only when it knows', () => {
+    expect(describePools({ app: { borrowed: 2, idle: 0, waiting: 0, lent: ['connecting', 'running: select 1'] } }))
+      .toBe('app pool 2 lent (connecting, running: select 1), 0 idle, 0 waiting');
+    expect(describePools({ app: { borrowed: 0, idle: 1, waiting: 0, lent: [] } })).toBe('app pool 0 lent, 1 idle, 0 waiting');
   });
 
   it('every step of close() has a limit, and together they end before the suite\'s hook gives up', () => {

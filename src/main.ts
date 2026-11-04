@@ -68,7 +68,7 @@ import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { prepareConversationOutbound, finishConversationOutbound, callProvider, type AdapterFor, type DriveEffect, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
-import { stopClock, runningJobs } from './queue/stopClock.js';
+import { stopClock, type StopClock, runningJobs } from './queue/stopClock.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
@@ -436,6 +436,8 @@ export function loadDotEnv(path = '.env'): void {
 /** ── Composition ────────────────────────────────────────────────────────── */
 
 export type Production = {
+  /** Settles once every step `close()` gave up on has really ended (src/queue/stopClock.ts). */
+  leftBehind(): Promise<void>;
   readonly app: FastifyInstance;
   readonly db: Db;
   readonly boss: PgBoss;
@@ -1110,6 +1112,7 @@ export async function buildProduction(
   };
 
   let closing = false;
+  let stopping: StopClock | null = null;
   /** The minute's sweep gives way to the next minute, and looks up few domains at a time. */
   const SWEEP_BUDGET_MS = 40_000;
   const DOMAIN_CHECKS_PER_SWEEP = 3;
@@ -1121,12 +1124,14 @@ export async function buildProduction(
     channels: channelsHere, reportError: errors.report,
     // 0217 — the operator's mailbox is asked only where the operator's mail leaves through one (SYSTEM_SMTP_*).
     alarms: () => alarmReasons(db, { operatorBusinessId: PILOT_BUSINESS_ID, operatorMailbox: systemSmtp !== null }),
+    leftBehind: () => stopping?.leftBehind() ?? Promise.resolve(),
     async close() {
       if (closing) return;
       closing = true;
       // PROGRESS "A flake to watch" (2026-10-30) — the stop, measured: each step's time, and what was still
       // running when it began. Said only when the stop is slow, and while a step is still waiting.
       const stop = stopClock({ running: () => runningJobs(boss), pools: () => ({ app: poolState(db), advisor: poolState(advisorDb) }) });
+      stopping = stop;
       // 0. CC-10 — the heartbeat first: a tick between the server closing and
       //    the workers stopping would find no /health and report a deploy as
       //    an outage. (No heartbeat worker here: a no-op.)

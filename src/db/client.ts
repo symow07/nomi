@@ -31,10 +31,30 @@ const intEnv = (name: string, fallback: number): number => {
  * pool, and `Pool.end()` waits for every borrowed connection to come back.
  */
 const POOLS = new WeakMap<Db, pg.Pool>();
-export type PoolState = { readonly borrowed: number; readonly idle: number; readonly waiting: number };
+export type PoolState = {
+  readonly borrowed: number; readonly idle: number; readonly waiting: number;
+  /** What each borrowed connection is doing. */
+  readonly lent?: readonly string[];
+};
+type PoolClientInside = { readonly _connected?: boolean; readonly _activeQuery?: { readonly text?: string } | null };
+/**
+ * What each connection a pool has out is doing: still connecting, running a statement (its first words, which hold no
+ * values: they travel apart as parameters), or holding on with none running. pg has no public way to ask, so this reads
+ * its private fields; `tests/integration/graceful-stop.test.ts` holds them on the real pool, so an upgrade that moves
+ * them fails there.
+ */
+export const lentDoing = (pool: pg.Pool): string[] => {
+  const p = pool as unknown as { readonly _clients?: readonly PoolClientInside[]; readonly _idle?: readonly { readonly client: PoolClientInside }[] };
+  const idle = new Set((p._idle ?? []).map((i) => i.client));
+  return (p._clients ?? []).filter((c) => !idle.has(c)).map((c) => {
+    if (!c._connected) return 'connecting';
+    if (!c._activeQuery) return 'no statement running';
+    return `running: ${(c._activeQuery.text ?? '?').replace(/\s+/g, ' ').trim().slice(0, 60)}`;
+  });
+};
 export const poolState = (db: Db): PoolState | null => {
   const p = POOLS.get(db);
-  return p ? { borrowed: p.totalCount - p.idleCount, idle: p.idleCount, waiting: p.waitingCount } : null;
+  return p ? { borrowed: p.totalCount - p.idleCount, idle: p.idleCount, waiting: p.waitingCount, lent: lentDoing(p) } : null;
 };
 
 export function createDb(connectionString: string): Db {
