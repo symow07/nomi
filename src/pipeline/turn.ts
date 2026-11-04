@@ -26,6 +26,7 @@ import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
+import { carriesOurJson } from '../core/safety/rawOutput.js';
 import { addressesInGender } from '../core/safety/address.js';
 import { disclosureFor, withDisclosure, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
 import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
@@ -274,7 +275,7 @@ export type TurnResult = {
   notice: Notice | null;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
-  usage: { llmCalls: number; inputTokens: number; outputTokens: number };
+  usage: { llmCalls: number; inputTokens: number; outputTokens: number; cachedInputTokens: number };
   fingerprint: DecisionFingerprint;
 };
 
@@ -289,7 +290,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const { tenant, retriever, analyzer, replyWriter } = ports;
   const t0 = Date.now();
   const timings = { retrievalMs: 0, analyzerMs: 0, replyMs: 0, totalMs: 0 };
-  const usage = { llmCalls: 0, inputTokens: 0, outputTokens: 0 };
+  const usage = { llmCalls: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
 
   const state = await tenant.conversations.loadState(req.conversationId);
   if (!state) throw new Error(`conversation not found: ${req.conversationId}`);
@@ -351,6 +352,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     usage.llmCalls++;
     usage.inputTokens += a.usage.inputTokens;
     usage.outputTokens += a.usage.outputTokens;
+    usage.cachedInputTokens += a.usage.cachedInputTokens ?? 0;
     analysis = a.analysis;
     promptVersion = a.promptVersion;
     modelId = a.modelId;
@@ -607,6 +609,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let confirmBlockedReasons: readonly string[] = [];
   /** 0075 — the words of a reply, or of an attempt at one, that promised the buyer a deletion. */
   let deletionPromiseWithheld: string | null = null;
+  let writerGaveNothing = false;
   let knowledge: readonly KnowledgeSnippet[] = [];
   let knowledgeUsed: readonly string[] = [];
   let catalogue: readonly string[] = [];
@@ -893,7 +896,14 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
         usage.outputTokens += w.usage.outputTokens;
+        usage.cachedInputTokens += w.usage.cachedInputTokens ?? 0;
         promptVersion = promptVersion ?? w.promptVersion;
+        // No words to send, or our own JSON still in them: below the switch this
+        // is a person's. No second attempt and no stand-in pretends otherwise.
+        if (w.reply === null || carriesOurJson(w.reply)) {
+          writerGaveNothing = true;
+          break;
+        }
         // 0075 — the writer read this as a request to delete the buyer's data
         // and promised it. Whatever else the attempt got wrong, that reading
         // decides the turn: no second attempt and no stand-in — layer 2, below
@@ -959,7 +969,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         identityViolation = null;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
-      if (reply === null && deletionPromiseWithheld === null && lastViolation === 'gendered_address') {
+      if (writerGaveNothing) {
+        // Handed to a person below, whatever an earlier attempt tripped.
+        reply = null;
+      } else if (reply === null && deletionPromiseWithheld === null && lastViolation === 'gendered_address') {
         // Rule 6 (2026-10-14, the owner) — the last attempt still addressed the buyer as a man or a woman. Not a
         // draft held for the owner, which the buyer would wait on in silence: "a buyer who gets nothing is not a
         // pass". The conversation goes to a person and the buyer hears that it has (`address_unwritten`, below).
@@ -1021,6 +1034,27 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   }
 
   /**
+   * NO WORDS, OR OUR OWN JSON IN THEM (2026-11-04). The writer refused, returned
+   * nothing or was cut off, or what it returned still carries our fields after
+   * the parser read it (src/core/safety/rawOutput.ts). Nobody answered, so the
+   * customer is told nothing and a person is: the silent `not_answered` hand-off,
+   * not a stock thank-you. Read on the finished reply too, whatever produced it.
+   */
+  if (reply !== null && carriesOurJson(reply)) writerGaveNothing = true;
+  if (writerGaveNothing && deletionPromiseWithheld === null) {
+    signals = [...signals.filter((s) => s.kind !== 'not_answered'), { kind: 'not_answered' }];
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
+    newState = stateAfter(decision);
+    reply = null;
+    replyDeterministic = true;
+    answerPath = 'silent';
+    knowledgeUsed = [];
+    quote = null;
+    quoteInputs = null;
+    quoteRefusal = null;
+  }
+
+  /**
    * RULE 6 — A REPLY THAT COULD NOT BE WRITTEN WITHOUT A GENDER IS A PERSON'S, AND THE BUYER IS TOLD SO.
    *
    * The writer was asked twice and both times addressed the buyer as a man or a woman (src/core/safety/address.ts).
@@ -1029,7 +1063,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
    * its own reason: the ordinary hand-off sentence — which addresses nobody in a gender — reaches the buyer, the
    * owner is alerted, and no quote is recorded as told.
    */
-  if (addressHandOver && deletionPromiseWithheld === null) {
+  if (addressHandOver && deletionPromiseWithheld === null && !writerGaveNothing) {
     signals = [...signals.filter((s) => s.kind !== 'address_unwritten'), { kind: 'address_unwritten' }];
     decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
     newState = stateAfter(decision);
@@ -1141,7 +1175,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     hold,
     asks: reply !== null ? decision.pendingQuestion : null,
     deletionPromiseWithheld,
-    deletionAsked: textOnlySignals.some((s) => s.kind === 'deletion_requested') || deletionPromiseWithheld !== null,
+    deletionAsked: textOnlySignals.some((s) => s.kind === 'deletion_requested') || deletionPromiseWithheld !== null
+      || analysis?.wantsDeletion === true,
     optedOut: optingOut,
     notice: reply === null ? null : notice,
     timings, usage,
@@ -1336,6 +1371,7 @@ export async function commitTurn(
     measure: {
       path: r.answerPath, analyserAvoidable: r.analyserAvoidable,
       llmCalls: r.usage.llmCalls, inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens,
+      cachedInputTokens: r.usage.cachedInputTokens,
       ownUnderstanding: r.ownUnderstanding,
     },
   });

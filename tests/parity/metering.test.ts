@@ -68,7 +68,7 @@ describe('T7 · the ledger has one clock, UTC', () => {
 describe('T7 · what a turn costs', () => {
   it('the production model has its list price, dated', () => {
     expect(MODEL_PRICES_PER_MTOK['deepseek-flash']).toEqual({
-      input: moneyOf('0.3', 'USD'), output: moneyOf('1.2', 'USD'), asOf: '2026-09-29',
+      input: moneyOf('0.3', 'USD'), cachedInput: moneyOf('0.006', 'USD'), output: moneyOf('1.2', 'USD'), asOf: '2026-11-04',
     });
     expect(estimateCost('deepseek-flash', 1_000_000, 1_000_000)).toEqual(moneyOf('1.5', 'USD'));
   });

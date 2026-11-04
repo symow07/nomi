@@ -240,6 +240,8 @@ export interface Database {
     answer_path: string | null;
     llm_calls: number | null;
     input_tokens: number | null;
+    /** 0222 — the part of input_tokens read from the cache. Null on turns from before it. */
+    cached_input_tokens: number | null;
     output_tokens: number | null;
     analyser_avoidable: boolean | null;
     /** N2a — her own rules' reading of the message and where it agrees with the model's. A shadow. */

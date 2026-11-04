@@ -104,7 +104,7 @@ describe('EXT · the model, faked', () => {
       .extract({ lines: ['A 1'], currency: 'USD' });
     expect(sent[0]!.temperature).toBe(0);
     expect(out.items).toHaveLength(1);
-    expect(out.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+    expect(out.usage).toEqual({ inputTokens: 10, outputTokens: 5, cachedInputTokens: 0 });
   });
 });
 

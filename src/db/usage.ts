@@ -22,9 +22,16 @@ import { loggableMessage } from '../security/loggable.js';
  * reader (`LEDGER_DAY`), and a turn's calls are written in a transaction of
  * their own. `turns` counts turns; a photo, a note or a page read adds calls
  * and tokens, never a turn.
+ *
+ * 0222 — `input_tokens` is ALL the input, cached or not, from that migration on;
+ * `cached_input_tokens` is the part of it read from the cache, priced apart.
+ * Earlier rows left out whatever the provider cached, and stay as they are.
  */
 
-export type Spent = { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number };
+export type Spent = {
+  readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number;
+  readonly cachedInputTokens?: number;
+};
 
 /** The ledger's day, for the writer and every reader alike: UTC. */
 export const LEDGER_DAY = sql`(now() at time zone 'UTC')::date`;
@@ -38,11 +45,13 @@ export type SpendOpts = { readonly turn: boolean; readonly photoReads?: number }
 export async function recordSpend(tx: Tx, businessId: string, spent: Spent, opts: SpendOpts): Promise<void> {
   if (spent.llmCalls <= 0 && !opts.turn) return;
   await sql`
-    insert into usage_ledger as u (business_id, day, llm_calls, input_tokens, output_tokens, turns, photo_reads)
+    insert into usage_ledger as u (business_id, day, llm_calls, input_tokens, cached_input_tokens, output_tokens, turns, photo_reads)
     values (${businessId}::uuid, ${LEDGER_DAY}, ${Math.max(0, spent.llmCalls)}, ${Math.max(0, spent.inputTokens)},
+            ${Math.max(0, spent.cachedInputTokens ?? 0)},
             ${Math.max(0, spent.outputTokens)}, ${opts.turn ? 1 : 0}, ${Math.max(0, opts.photoReads ?? 0)})
     on conflict (business_id, day) do update set
       llm_calls = u.llm_calls + excluded.llm_calls, input_tokens = u.input_tokens + excluded.input_tokens,
+      cached_input_tokens = u.cached_input_tokens + excluded.cached_input_tokens,
       output_tokens = u.output_tokens + excluded.output_tokens, turns = u.turns + excluded.turns,
       photo_reads = u.photo_reads + excluded.photo_reads`.execute(tx);
 }

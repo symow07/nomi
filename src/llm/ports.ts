@@ -12,6 +12,13 @@ import type { Speaker } from '../core/owner/assistants.js';
  * swappable per-tenant later without touching the engine.
  */
 
+/** What one call used. `inputTokens` is ALL input; `cachedInputTokens` the part of it read from the cache. */
+export type ModelUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cachedInputTokens?: number;
+};
+
 export interface Analyzer {
   analyze(input: {
     text: string;
@@ -24,7 +31,7 @@ export interface Analyzer {
     analysis: Analysis;
     promptVersion: string;   // provenance for the turns table (ADR-0010 Q1)
     modelId: string;
-    usage: { inputTokens: number; outputTokens: number };
+    usage: ModelUsage;
   }>;
 }
 
@@ -44,7 +51,7 @@ export interface VisionDescriber {
     attributes: readonly string[];      // e.g. ['canvas', 'tote', 'natural color']
     promptVersion: string;
     modelId: string;
-    usage: { inputTokens: number; outputTokens: number };
+    usage: ModelUsage;
   }>;
 }
 
@@ -104,8 +111,8 @@ export interface ReplyWriter {
      * asks how many first. ABSENT for a business that asks how many first.
      */
     priceFirst?: boolean;
-  }): Promise<{ reply: string; promptVersion: string; modelId: string;
-    usage: { inputTokens: number; outputTokens: number } }>;
+  }): Promise<{ reply: string | null; promptVersion: string; modelId: string;
+    usage: ModelUsage }>;
 }
 
 /**
@@ -151,7 +158,7 @@ export interface PageTranscriber {
     cutOff?: boolean;
     promptVersion: string;
     modelId: string;
-    usage: { inputTokens: number; outputTokens: number };
+    usage: ModelUsage;
   }>;
 }
 
@@ -182,7 +189,7 @@ export interface AdvisorModel {
 }
 
 /** A4 — one advisor call's tokens, as the provider counted them. */
-export type AdvisorCallUsage = { readonly inputTokens: number; readonly outputTokens: number };
+export type AdvisorCallUsage = ModelUsage;
 
 /**
  * G10 (decision 38) — a reply the business is about to send, translated so its
@@ -193,7 +200,7 @@ export interface DraftTranslator {
   translate(input: { text: string; toLanguage: string }): Promise<{
     text: string;
     modelId: string;
-    usage: { inputTokens: number; outputTokens: number };
+    usage: ModelUsage;
   } | null>;
 }
 
@@ -207,7 +214,7 @@ export interface PageFactsReader {
   read(input: { readonly text: string }): Promise<{
     readonly facts: readonly import('../core/owner/pageFacts.js').PageFact[];
     readonly promptVersion: string; readonly modelId: string;
-    readonly usage: { inputTokens: number; outputTokens: number };
+    readonly usage: ModelUsage;
   }>;
 }
 
@@ -227,6 +234,6 @@ export interface DocumentReader {
     readonly cutOff: boolean;
     readonly promptVersion: string;
     readonly modelId: string;
-    readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+    readonly usage: ModelUsage;
   }>;
 }

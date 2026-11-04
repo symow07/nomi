@@ -19,7 +19,7 @@ import { product } from './fixtures.js';
  * that makes the whole class of bug impossible to ship again.
  */
 
-const usage = { llmCalls: 1, inputTokens: 10, outputTokens: 5 };
+const usage = { llmCalls: 1, inputTokens: 10, outputTokens: 5, cachedInputTokens: 0 };
 
 /**
  * Typed fixtures, per M22. Casting a whole object literal with `as never`

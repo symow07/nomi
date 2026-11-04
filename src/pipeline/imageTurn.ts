@@ -33,7 +33,7 @@ export type ImageInquiryResult =
   | { readonly kind: 'no_match'; readonly searchText: string; readonly usage: Usage }
   | { readonly kind: 'media_failed'; readonly retryable: boolean; readonly usage: Usage };
 
-type Usage = { llmCalls: number; inputTokens: number; outputTokens: number };
+type Usage = { llmCalls: number; inputTokens: number; outputTokens: number; cachedInputTokens: number };
 
 /** "5000 pcs" / "5k" / "2万个" in a caption → quantity. Deterministic. */
 export function parseCaptionQuantity(caption: string | null): number | null {
@@ -62,7 +62,7 @@ export async function computeImageInquiry(
   deps: ImageTurnDeps,
   input: { readonly mediaId: string; readonly caption: string | null },
 ): Promise<ImageInquiryResult> {
-  const usage: Usage = { llmCalls: 0, inputTokens: 0, outputTokens: 0 };
+  const usage: Usage = { llmCalls: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
 
   const media = await deps.media(input.mediaId);
   if (!media.ok) return { kind: 'media_failed', retryable: media.retryable, usage };
@@ -73,6 +73,7 @@ export async function computeImageInquiry(
   usage.llmCalls += 1;
   usage.inputTokens += seen.usage.inputTokens;
   usage.outputTokens += seen.usage.outputTokens;
+  usage.cachedInputTokens += seen.usage.cachedInputTokens ?? 0;
   if (!seen.searchText) return { kind: 'media_failed', retryable: false, usage };
 
   const query = [seen.searchText, input.caption ?? ''].join(' ').trim();

@@ -56,21 +56,30 @@ export function analyserWasAvoidable(f: {
  * invoice is the truth; this exists so a report can say "about half a cent a
  * message" without anybody opening a billing page. Dated, because prices move.
  */
-export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { readonly input: Money; readonly output: Money; readonly asOf: string }>> = {
+export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, {
+  readonly input: Money; readonly output: Money; readonly asOf: string;
+  /** What input read from the cache costs. Absent: the full input price, so the estimate stays a ceiling. */
+  readonly cachedInput?: Money;
+}>> = {
   'claude-haiku-4-5': { input: usd('1'), output: usd('5'), asOf: '2026-09' },
   // T7 — DeepSeek's own page (api-docs.deepseek.com, Models & Pricing), read
   // 2026-09-29: input on a cache miss and output, at PEAK — off-peak is half —
-  // so the estimate is a ceiling. Production's LLM_MODEL is this id.
-  'deepseek-flash': { input: usd('0.3'), output: usd('1.2'), asOf: '2026-09-29' },
+  // so the estimate is a ceiling. Production's LLM_MODEL is this id. The cache-hit
+  // price read from the same page 2026-11-04.
+  'deepseek-flash': { input: usd('0.3'), cachedInput: usd('0.006'), output: usd('1.2'), asOf: '2026-11-04' },
 };
 
 /** The currency travels with the amount (M43a): an estimate is money, not a bare number. */
-export function estimateCost(modelId: string | null, inputTokens: number, outputTokens: number): Money | null {
+export function estimateCost(modelId: string | null, inputTokens: number, outputTokens: number, cachedInputTokens = 0): Money | null {
   const p = modelId ? MODEL_PRICES_PER_MTOK[modelId] : undefined;
   if (!p || p.input.currency !== p.output.currency) return null;
+  const cached = Math.min(cachedInputTokens, inputTokens);
   return {
     // A1 — exact: tokens × price per million, to eight decimals (an estimate of fractions of a cent).
-    amount: divDecimal(addDecimal(mulDecimal(fromInteger(inputTokens), p.input.amount), mulDecimal(fromInteger(outputTokens), p.output.amount)), decimal('1000000'), 8),
+    amount: divDecimal(addDecimal(addDecimal(
+      mulDecimal(fromInteger(inputTokens - cached), p.input.amount),
+      mulDecimal(fromInteger(cached), (p.cachedInput ?? p.input).amount)),
+      mulDecimal(fromInteger(outputTokens), p.output.amount)), decimal('1000000'), 8),
     currency: p.input.currency,
   };
 }
@@ -78,6 +87,8 @@ export function estimateCost(modelId: string | null, inputTokens: number, output
 export type MeasuredTurn = {
   readonly path: AnswerPath; readonly modelId: string | null;
   readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number;
+  /** 0222 — the part of inputTokens read from the cache. Absent on turns from before it. */
+  readonly cachedInputTokens?: number;
   readonly analyserAvoidable: boolean;
 };
 
@@ -112,7 +123,7 @@ export function summarizePaths(turns: readonly MeasuredTurn[]): PathSummary {
     calls += t.llmCalls; tin += t.inputTokens; tout += t.outputTokens;
     if (t.analyserAvoidable) avoidable++;
     if (t.llmCalls > 0 && cost !== null) {
-      const c = estimateCost(t.modelId, t.inputTokens, t.outputTokens);
+      const c = estimateCost(t.modelId, t.inputTokens, t.outputTokens, t.cachedInputTokens ?? 0);
       cost = c === null || (cost !== undefined && cost.currency !== c.currency)
         ? null
         : { amount: addDecimal(cost?.amount ?? decimal('0'), c.amount), currency: c.currency };

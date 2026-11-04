@@ -71,7 +71,7 @@ export interface CatalogExtractor {
   extract(input: { readonly lines: readonly string[]; readonly currency: string }): Promise<{
     readonly items: readonly ExtractedLine[];
     readonly promptVersion: string; readonly modelId: string;
-    readonly usage: { inputTokens: number; outputTokens: number };
+    readonly usage: { readonly inputTokens: number; readonly outputTokens: number; readonly cachedInputTokens?: number };
   }>;
 }
 

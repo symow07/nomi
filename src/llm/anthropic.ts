@@ -2,7 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
+import { readWriterOutput } from '../core/safety/rawOutput.js';
+import type { ModelUsage, Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
 import { parseFactsAnswer, PAGE_FACTS_OUTPUT_MAX } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
 import { parseExtractorAnswer } from '../core/onboard/extract.js';
@@ -72,6 +73,24 @@ export type RequestExtras = { readonly thinking?: { readonly type: 'disabled' } 
  */
 const firstText = (content: readonly { readonly type: string }[]): { type: 'text'; text: string } | undefined =>
   content.find((b): b is { type: 'text'; text: string } => b.type === 'text');
+
+/**
+ * What a call used, whatever the provider cached. `input_tokens` leaves out what
+ * was read from or written to the cache, so a provider that caches by itself
+ * looked far cheaper on the ledger and the allowance than it was. All input is
+ * input; the part read from the cache is kept beside it, to be priced as such.
+ */
+export function usageOf(u: {
+  readonly input_tokens: number; readonly output_tokens: number;
+  readonly cache_read_input_tokens?: number | null; readonly cache_creation_input_tokens?: number | null;
+}): ModelUsage {
+  const cached = u.cache_read_input_tokens ?? 0;
+  return {
+    inputTokens: u.input_tokens + cached + (u.cache_creation_input_tokens ?? 0),
+    outputTokens: u.output_tokens,
+    cachedInputTokens: cached,
+  };
+}
 
 const stripFences = (s: string): string =>
   s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -166,10 +185,11 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
           },
           recommendedPhase: state.phase,
           wantsPerson: null,
+          wantsDeletion: null,
         };
       }
       return { analysis, promptVersion: prompt.version, modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+        usage: usageOf(res.usage) };
     },
   };
 }
@@ -227,6 +247,7 @@ function parseAnalysis(j: Record<string, unknown>, currentPhase: Phase): Analysi
     // key, "true" in quotes, null or anything else is an answer that cannot be
     // read, and hands off (core/scoring/detect.ts).
     wantsPerson: typeof j['wants_person'] === 'boolean' ? j['wants_person'] : null,
+    wantsDeletion: typeof j['wants_deletion'] === 'boolean' ? j['wants_deletion'] : null,
   };
 }
 
@@ -314,15 +335,11 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
       }, REPLY_REQUEST);
 
       const block = firstText(res.content);
-      const raw = block?.type === 'text' ? stripFences(block.text) : '';
-      let reply: string;
-      try {
-        reply = String((JSON.parse(raw) as Record<string, unknown>)['reply_text'] ?? raw);
-      } catch {
-        reply = raw || 'Thanks for your message — let me get back to you shortly.';
-      }
+      // Null when there are no words to send: a refusal, an empty answer, one cut
+      // short. The turn hands it to a person; nothing stands in for an answer.
+      const reply = readWriterOutput(block?.type === 'text' ? block.text : null, res.stop_reason);
       return { reply, promptVersion: prompt.version, modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+        usage: usageOf(res.usage) };
     },
   };
 }
@@ -367,7 +384,7 @@ export function anthropicVision(client: Anthropic, model: string = MODEL, extra:
       } catch { /* unparseable vision output = no description; caller falls back */ }
 
       return { searchText, attributes, promptVersion: prompt.version, modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+        usage: usageOf(res.usage) };
     },
   };
 }
@@ -425,7 +442,7 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
         modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+        usage: usageOf(res.usage),
       };
     },
   };
@@ -469,7 +486,7 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
             : ''),
         messages: [{ role: 'user', content: question.slice(0, 1000) }],
       }, ADVISOR_REQUEST);
-      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
+      const usage = usageOf(res.usage);
       const block = firstText(res.content);
       const raw = block?.type === 'text' ? block.text : '';
       const json = /\{[\s\S]*\}/.exec(raw)?.[0];
@@ -503,7 +520,7 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
           'Output only the answer.',
         messages: [{ role: 'user', content: `QUESTION: ${question.slice(0, 1000)}\n\nFACTS:\n${facts.map((f) => `- ${f}`).join('\n')}` }],
       }, ADVISOR_REQUEST);
-      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
+      const usage = usageOf(res.usage);
       const block = firstText(res.content);
       const out = block?.type === 'text' ? block.text.trim() : '';
       if (!out || res.stop_reason === 'max_tokens') return { text: null, usage };
@@ -530,7 +547,7 @@ export function anthropicDraftTranslator(client: Anthropic, model: string = MODE
       const block = firstText(res.content);
       const out = block?.type === 'text' ? block.text.trim() : '';
       if (!out || res.stop_reason === 'max_tokens') return null;
-      return { text: out, modelId: model, usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+      return { text: out, modelId: model, usage: usageOf(res.usage) };
     },
   };
 }
@@ -567,7 +584,7 @@ export function anthropicCatalogExtractor(client: Anthropic, model: string = MOD
         items: parseExtractorAnswer(block?.type === 'text' ? block.text : ''),
         promptVersion: PROMPT_VERSION,
         modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+        usage: usageOf(res.usage),
       };
     },
   };
@@ -600,7 +617,7 @@ export function anthropicPageFactsReader(client: Anthropic, model: string = MODE
         facts: parseFactsAnswer(block?.type === 'text' ? block.text : ''),
         promptVersion: PROMPT_VERSION,
         modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+        usage: usageOf(res.usage),
       };
     },
   };
@@ -641,7 +658,7 @@ export function anthropicDocumentReader(client: Anthropic, model: string = MODEL
         cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
         modelId: model,
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+        usage: usageOf(res.usage),
       };
     },
   };
