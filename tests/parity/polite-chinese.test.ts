@@ -71,6 +71,8 @@ describe('the prompts say so, and ask for the warm sentence', () => {
     expect(writer).toMatch(/never send a question on its own/);
     expect(writer).toMatch(/no figure, no promise and no claim/);
     expect(writer).toMatch(/Say hello at most once/);
+    expect(writer).toMatch(/A hello does not count as that sentence/);
+    expect(writer).toMatch(/never write «obrigado» or «obrigada»/);
   });
 
   it('the examples it gives break no rule of its own', () => {

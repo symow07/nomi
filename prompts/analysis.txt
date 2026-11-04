@@ -74,6 +74,7 @@ RULES:
 wants_person: is the client asking to reach a PERSON on the BUSINESS's side? Always a JSON boolean, true or false, never a string.
 - true when they ask to speak, talk, chat, meet or be put through to a human, a real person, an agent, a representative, customer service, the manager, the boss, the owner, someone in charge, a named person who works for the business, or simply "someone" there — in any language, however politely or indirectly. Asking to be phoned, or to phone the business, is true too.
   Examples, all true: "Can I talk to someone?", "I'd like to speak with a person", "put me through to your manager", "is there anyone there who can actually help me?", "please call me", "我要找你们经理", "转人工", "能不能让你们老板跟我谈", "有没有人能帮我？", "أريد التحدث مع مديركم", "أريد أحدًا يساعدني", "ممكن أكلم موظف؟"
+- true when the latest message says yes to an offer, in the conversation history, of a person on the business's side calling or talking to them: after "Would you like our manager to call you?", "Yes please" is true
 - false when the person is on the CLIENT's own side, or nothing is being asked for:
   - their own colleagues, manager, boss, team, customer or company: "my manager approved it", "I'll speak to someone in my team and get back to you", "a real person from our team will pick up the order", "我们经理会确认价格", "我问一下经理再回复你", "مديري وافق على السعر", "أحتاج التحدث مع شخص في شركتي أولاً"
   - a name, or how to address them: "you can call me Ahmed", "叫我小王就行", "اسمي أحمد"
