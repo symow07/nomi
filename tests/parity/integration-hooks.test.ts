@@ -19,8 +19,8 @@ describe('an integration hook outlasts a graceful stop', () => {
     expect(runner).toContain('`--hookTimeout=${HOOK_TIMEOUT_MS}`');
   });
 
-  it('close stops pg-boss with its defaults, so 30 s is the bound the hook must outlast', () => {
-    expect(read('src/main.ts')).toContain("await stop.step('workers', () => boss.stop().catch(() => {}));");
+  it('close stops pg-boss with its defaults, so 30 s is its wait for running jobs, and the step\'s limit is past it', () => {
+    expect(read('src/main.ts')).toContain("await stop.step('workers', () => boss.stop().catch(() => {}), 32_000);");
   });
 });
 

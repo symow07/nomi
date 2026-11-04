@@ -1129,11 +1129,13 @@ export async function buildProduction(
       // 0. CC-10 — the heartbeat first: a tick between the server closing and
       //    the workers stopping would find no /health and report a deploy as
       //    an outage. (No heartbeat worker here: a no-op.)
-      await stop.step('heartbeat', () => boss.offWork(QUEUES.heartbeat).catch(() => {}));
-      await stop.step('server', () => a.close());                         // 1. stop accepting requests
-      await stop.step('workers', () => boss.stop().catch(() => {}));       // 2–3. stop workers + pg-boss
-      await stop.step('pool', () => db.destroy().catch(() => {}));      // 5. release the pool
-      await stop.step('advisor pool', () => advisorDb.destroy().catch(() => {}));   // …and the advisor's
+      //    Each step has a limit, 42 s in all: a job or a connection that never comes back cannot hold a stop for ever
+      //    (a deploy's SIGTERM ends the process at 10 s whatever happens here).
+      await stop.step('heartbeat', () => boss.offWork(QUEUES.heartbeat).catch(() => {}), 1_000);
+      await stop.step('server', () => a.close(), 5_000);                         // 1. stop accepting requests
+      await stop.step('workers', () => boss.stop().catch(() => {}), 32_000);     // 2–3. stop workers + pg-boss (its own wait for running jobs is 30 s)
+      await stop.step('pool', () => db.destroy().catch(() => {}), 2_000);        // 5. release the pool
+      await stop.step('advisor pool', () => advisorDb.destroy().catch(() => {}), 2_000);   // …and the advisor's
       stop.done();
     },
   });

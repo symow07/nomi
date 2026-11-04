@@ -12,12 +12,18 @@ import type { PoolState } from '../db/client.js';
  * Quiet when the stop is quick. When it is slow: a line every `every` ms while a step is still waiting (so a hook that
  * gives up first still leaves the evidence), and one line at the end with every step. Never throws: a stop that
  * cannot be measured still stops.
+ *
+ * NO STEP WAITS FOR EVER (2026-11-04). `Pool.end()` waits for every connection lent out, with no limit of its own, and
+ * pg-boss's 30 s bounds its wait for running jobs but not the closing of its own pool. A step given a limit is left
+ * behind when it passes it, and says so. Under CI the lines are warnings on the run's page, because a stop that gave up
+ * no longer fails anything and a line in a green log is read by nobody.
  */
 export type Running = { readonly queue: string; readonly jobs: number };
 export type Pools = Readonly<Record<string, PoolState | null>>;
 
 export type StopClock = {
-  step<T>(name: string, run: () => Promise<T>): Promise<T>;
+  /** `limitMs`: stop waiting after this long, say so, and go on. The answer is then undefined. */
+  step<T>(name: string, run: () => Promise<T>, limitMs?: number): Promise<T | undefined>;
   done(): void;
 };
 
@@ -44,7 +50,7 @@ export const describePools = (p: Pools): string =>
 
 export function stopClock(deps: StopClockDeps): StopClock {
   const now = deps.now ?? Date.now;
-  const log = deps.log ?? ((line: string) => console.error(line));
+  const log = deps.log ?? ((line: string) => console.error(process.env['GITHUB_ACTIONS'] ? `::warning title=Slow stop::${line}` : line));
   const slowMs = deps.slowMs ?? 5_000;
   const every = deps.every ?? 10_000;
   const setTimer = deps.setTimer ?? ((f, ms) => setInterval(f, ms));
@@ -53,12 +59,21 @@ export function stopClock(deps: StopClockDeps): StopClock {
   const atStart = `${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}`;
   const steps: string[] = [];
   return {
-    async step(name, run) {
+    async step(name, run, limitMs) {
       const s = now();
       const t = setTimer(() => log(`[stop] still waiting on ${name} after ${now() - s} ms — ${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}`), every);
+      let limit: ReturnType<typeof setTimeout> | undefined;
+      const passed = Symbol('limit');
       try {
-        return await run();
+        const work = run();
+        if (limitMs === undefined) return await work;
+        const first = await Promise.race([work, new Promise<typeof passed>((done) => { limit = setTimeout(() => done(passed), limitMs); })]);
+        if (first !== passed) return first as Awaited<typeof work>;
+        work.catch(() => {});   // left behind: whatever it ends with, nobody is waiting for it now
+        log(`[stop] gave up on ${name} after ${now() - s} ms — ${describeRunning(safe(deps.running, []))}; ${describePools(safe(deps.pools, {}))}`);
+        return undefined;
       } finally {
+        clearTimeout(limit);
         clearTimer(t);
         steps.push(`${name} ${now() - s} ms`);
       }

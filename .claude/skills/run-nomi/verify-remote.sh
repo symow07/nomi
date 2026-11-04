@@ -115,18 +115,21 @@ case "$BASE" in https://*)
 esac
 
 check_page() {  # check_page <path> <marker> <label>
-  local body; body="$(curl -sS --max-time 25 -b "$JAR" "$BASE$1" 2>/dev/null)" || fail "GET $1 failed"
+  # In English, whatever this machine's language: the markers are English. tests/parity/verify-remote-markers.test.ts
+  # holds each one to the catalogue, so a page's new words fail there, not here on the day this is needed.
+  local body; body="$(curl -sS --max-time 25 -H 'Accept-Language: en' -b "$JAR" "$BASE$1" 2>/dev/null)" || fail "GET $1 failed"
   case "$body" in *"$2"*) ok "$3" ;; *) fail "$3 — marker '$2' missing from $1" ;; esac
 }
-check_page /app            'id="home-hi"'  "Home renders"
-check_page /app/onboarding "Practice before launch"  "Pilot runbook renders"
-check_page /app/onboarding "Running version"         "deployment info visible to the owner"
-check_page /app/inbox      "Buyers"                  "Buyers renders"
-check_page /app/business   "My business"             "My business renders"
-check_page /app/knowledge  "What she knows"          "Knowledge renders"
+# Each page's own title, not a word from the rail, which every page carries.
+check_page /app                      'id="home-hi"'                 "Today renders"
+check_page /app/onboarding           '<h1 class="page">Checklist'   "Checklist renders"
+check_page /app/onboarding/technical 'Running version'              "deployment info visible to the owner"
+check_page /app/inbox                '<h1 class="page">Inbox'       "Inbox renders"
+check_page /app/business             '<h1 class="page">My business' "My business renders"
+check_page /app/knowledge            '<h1 class="page">What '       "Knowledge renders"
 
 # Report the running build (informational, not a gate).
-BUILD="$(curl -sS --max-time 25 -b "$JAR" "$BASE/app/onboarding" 2>/dev/null \
+BUILD="$(curl -sS --max-time 25 -H 'Accept-Language: en' -b "$JAR" "$BASE/app/onboarding/technical" 2>/dev/null \
   | grep -oE 'Running version</span><b class="n mono">[^<]*' | sed 's/.*mono">//')"
 [ -n "$BUILD" ] && echo "  running version: $BUILD"
 

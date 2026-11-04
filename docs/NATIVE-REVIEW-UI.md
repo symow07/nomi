@@ -12773,20 +12773,10 @@ Reviewer: ______  Date: ______
 - en: That is not a currency this workspace can sell in. Nothing was changed.
 - **zh: 这里不能用这种货币卖货，什么都没有改。**
 
-#### `settings.flash.currencySaved`
-
-- en: Currency saved. Every price from now on is in it.
-- **zh: 货币已保存，之后的价格都用这种货币。**
-
 #### `settings.flash.zoneInvalid`
 
 - en: That time zone was not recognised. Nothing was changed.
 - **zh: 没有识别出这个时区，什么都没有改。**
-
-#### `settings.flash.zoneSaved`
-
-- en: Time zone saved. Dates and times now follow it.
-- **zh: 时区已保存，日期和时间现在按这个时区显示。**
 
 #### `settings.profile.title` (changed)
 
@@ -14795,20 +14785,10 @@ Reviewer: ______  Date: ______
 - en: That is not a currency this workspace can sell in. Nothing was changed.
 - **ar: هذه العملة غير متاحة للبيع هنا. لم يتغير شيء.**
 
-#### `settings.flash.currencySaved`
-
-- en: Currency saved. Every price from now on is in it.
-- **ar: تم حفظ العملة، وكل الأسعار من الآن بها.**
-
 #### `settings.flash.zoneInvalid`
 
 - en: That time zone was not recognised. Nothing was changed.
 - **ar: لم يُتعرَّف على هذه المنطقة الزمنية. لم يتغير شيء.**
-
-#### `settings.flash.zoneSaved`
-
-- en: Time zone saved. Dates and times now follow it.
-- **ar: تم حفظ المنطقة الزمنية، وتتبعها التواريخ والأوقات الآن.**
 
 #### `settings.workingHours.ph` (changed)
 
