@@ -6,6 +6,7 @@ import { shell } from '../../src/api/web/layout.js';
 import { railFigure } from '../../src/api/web/values.js';
 import { railSaid } from '../../src/api/web/live.js';
 import { withWorkspace } from '../../src/api/web/say.js';
+import { messages, t } from '../../src/core/owner/i18n/messages.js';
 import { withZone } from '../../src/api/web/zone.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
@@ -113,5 +114,23 @@ describe('a long name in either direction', () => {
     const wrong = readdirSync('src/api/web').filter((f) => f.endsWith('.ts'))
       .filter((f) => /<(?!bdi\b)\w+ class="(?:ir|cr|ar|tw)-name"|<(?!bdi\b)\w+ class="sp-rname"/.test(readFileSync(join('src/api/web', f), 'utf8')));
     expect(wrong).toEqual([]);
+  });
+});
+
+describe('the page is "Customers", in every word for it (the owner, 2026-11-05)', () => {
+  it('the rail, the phone tab, the page title and the way back all say it', () => {
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+      for (const k of ['nav.inbox', 'nav.conversations', 'nav.short.inbox', 'inbox.detail.back'] as const) {
+        expect(t(l, k), `${l} ${k}`).toBe(t(l, 'nav.customers'));
+      }
+    }
+  });
+
+  it('no sentence sends the owner to a page by its old name', () => {
+    const old = { en: /\bInbox\b/, zh: /收件箱里|「收件箱」/, ar: /«الرسائل»|صندوق الوارد\b(?! الخاص)/, es: /(?:en|a) Mensajes\b|Bandeja de entrada/, fr: /dans Messages\b|Boîte de réception/ } as const;
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+      const hits = Object.entries(messages[l]).filter(([, v]) => old[l].test(String(v))).map(([k]) => k);
+      expect(hits, l).toEqual([]);
+    }
   });
 });

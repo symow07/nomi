@@ -185,7 +185,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
   .split nav.side { position:fixed; inset-block:auto 0; inset-inline:0; z-index:5; padding:${K.space[4]}px ${K.space[4]}px calc(${K.space[4]}px + env(safe-area-inset-bottom));
     background:var(--color-surface); border-inline-end:0; border-block-end:0; border-block-start:1px solid var(--color-border); animation:none; }
   .split nav.side .brand, .split .sp-me, .split nav.side a.navlink.sp-notab { display:none; }
-  .split nav.side a.navlink, .split nav.side a.navlink.sub { min-block-size:56px; gap:${K.space[4]}px; animation:none; }
+  .split nav.side a.navlink { min-block-size:56px; gap:${K.space[4]}px; animation:none; }
   .split nav.side a.navlink.active { background:transparent; font-weight:600; }
   .split nav.side .ni { inline-size:24px; block-size:24px; }
   .split .business-name { display:none; }

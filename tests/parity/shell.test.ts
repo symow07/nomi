@@ -30,7 +30,7 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
     expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('العملاء');
     // The warmth run: "Inbox (rename from 'Customer list')", under the Customers heading.
-    expect(page('en')).toContain('>Inbox<');
+    expect(page('en')).toContain('>Customers<');
     expect(page('zh')).toContain('收件箱');
     expect(page('en')).not.toContain('Customer list');
   });
@@ -76,7 +76,7 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     });
     expect(html.match(/class="navlink[^"]* active"/g)).toHaveLength(1);
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(html).toContain('href="/app/calendar" class="navlink sub active"');
+    expect(html).toContain('href="/app/calendar" class="navlink active"');
     // and My business, a row of Settings now, lights Settings
     const mine = shell({ title: 'T', active: 'factory', locale: 'en', path: '/app/business', avatar: '👩', bodyHtml: '' });
     expect(mine).toContain('href="/app/settings" class="navlink active"');
@@ -234,8 +234,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
   // 64 since the Solar nav (2026-10-05), for its 28 px icons and the air between icon and word.
   it('on a phone the destinations are one row of targets, each as wide as its word', () => {
     const phone = style.slice(style.indexOf('@media (max-width: 720px)'));
-    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex:1 1 auto/);
-    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*min-height:64px/);
+    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*flex:1 1 auto/);
+    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*min-height:64px/);
     // never three ragged rows: the ROW does not wrap. (V1 step three lets the
     // words INSIDE one entry wrap, so "Setup 2/5" can break under its word.)
     expect(phone).not.toMatch(/nav\.side \{[^}]*flex-wrap/);

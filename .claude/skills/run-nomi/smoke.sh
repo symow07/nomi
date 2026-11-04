@@ -191,7 +191,7 @@ PASS — Nomi is running and the owner walkthrough was driven end-to-end.
 
 Drive more:
   curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What your assistant knows'
-  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
+  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Customers'
 
 Stop everything:
   kill $APP_PID; pg_ctl -D $SK/pg stop

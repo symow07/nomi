@@ -149,6 +149,6 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(word).not.toContain('min-width:0');
     expect(word).toContain('max-inline-size:100%');
     // On a phone each entry is a tile, icon over word, and never breaks in two; the figure rides the icon's corner.
-    expect(phoneBlock()).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex-direction:column; flex-wrap:nowrap; white-space:nowrap/);
+    expect(phoneBlock()).toMatch(/nav\.side a\.navlink \{[^}]*flex-direction:column; flex-wrap:nowrap; white-space:nowrap/);
   });
 });

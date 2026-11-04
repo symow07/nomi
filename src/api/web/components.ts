@@ -78,11 +78,11 @@ export function renderComponents(locale: Locale): string {
   const at = (m: number) => esc(show.time(locale, new Date(Date.UTC(2026, 9, 3, 9, m))));
   const speech = `
     <div class="timeline">
-      <div class="msg inbound"><div dir="auto" class="${bubbleClass('buyer')}"><bdi>${s('sample.buyer')}</bdi></div><div class="ts muted">${at(12)} · <bdi>Aisha Bello</bdi></div></div>
-      <div class="msg outbound"><div dir="auto" class="${bubbleClass('assistant')}"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${at(13)} · ${byAssistant(assistantName(locale))}</div></div>
-      <div class="msg outbound"><div dir="auto" class="${bubbleClass('person')}"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${at(20)} · ${esc(t(locale, 'conv.by.you'))}</div></div>
+      <div class="msg inbound"><div dir="auto" class="${bubbleClass('buyer')}">${s('sample.buyer')}</div><div class="ts muted">${at(12)} · <bdi>Aisha Bello</bdi></div></div>
+      <div class="msg outbound"><div dir="auto" class="${bubbleClass('assistant')}">${s('sample.reply')}</div><div class="ts muted">${at(13)} · ${byAssistant(assistantName(locale))}</div></div>
+      <div class="msg outbound"><div dir="auto" class="${bubbleClass('person')}">${s('sample.reply')}</div><div class="ts muted">${at(20)} · ${esc(t(locale, 'conv.by.you'))}</div></div>
     </div>
-    <div dir="auto" class="proposed"><bdi>${s('sample.reply')}</bdi></div>`;
+    <div dir="auto" class="proposed">${s('sample.reply')}</div>`;
 
   // The warmth run's parts (w4-settings-a-21): faces in their five sizes and tints, a menu row with
   // and without its line, and the one small card that says a customer newly waits.

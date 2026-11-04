@@ -277,7 +277,7 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(page.body).toContain('customer@example.com');
     // 2026-10-14 — before either button: their words as they wrote them (the message the proposal was made from,
     // `order_proposals.turn_message_id` → `messages.external_id`), and the unit price beside the total.
-    const words = page.body.indexOf('<blockquote class="unsure-q" dir="auto"><bdi>yes</bdi></blockquote>');
+    const words = page.body.indexOf('<blockquote class="unsure-q" dir="auto">yes</blockquote>');
     const unit = page.body.indexOf('$2.10');
     const confirm = page.body.indexOf(`/app/inbox/${confirmConv}/order/confirm`);
     expect(words, 'their words, verbatim').toBeGreaterThan(-1);

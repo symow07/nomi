@@ -355,7 +355,7 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
      with its words, so the larger words it stands in name theirs. */
   svg.sl * { vector-effect:non-scaling-stroke; }
   svg.sl > * { stroke-width:1.75px; }
-  nav.side .navhead .ni.sl > *, .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
+  .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
   .face-s .face-i svg.sl > * { stroke-width:1.65px; }
   .mo-e .kind-icon.sl > *, .face-xs .face-i svg.sl > *, .dl-say .am.sl > * { stroke-width:1.6px; }
   .am.sl > *, .mi.sl > *, .go > .gi.sl > *, .ir-reg .ni.sl > *, .dl-who .kind-icon.sl > * { stroke-width:1.5px; }
@@ -634,17 +634,6 @@ ${FACE_CSS}
     position:sticky; top:0; height:100vh; overflow-y:auto; }
   .navgroup + .navgroup { margin-top: var(--space-12); }
   .navfoot { margin-top:auto; padding-top: var(--space-16); }
-  .navhub { display:flex; flex-direction:column; }
-  /* THE WARMTH RUN — "Customers" heads its two pages: its own shape and word,
-     not a door (the two under it are). */
-  /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
-     in weight, its shape small, and nothing to press. */
-  /* The Solar nav (2026-10-05) — its shape at 20 px, centred in the entries' 28 px icon column (4 + 20 + 4)
-     with the entries' 16 px before its word, so its word starts where theirs do; its line is the 20 px one
-     (the Solar run's rule above). (The rule names the rail: the rail's own size for its icons would outrank it.) */
-  .navhead { display:flex; align-items:center; gap:var(--space-16); padding: var(--space-12) var(--space-12) var(--space-4);
-    font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
-  nav.side .navhead .ni { inline-size:20px; block-size:20px; margin-inline:var(--space-4); }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -678,14 +667,13 @@ ${FACE_CSS}
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
      together: the row starts at the top, its padding centres one line in the row's height, and the icon
-     sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
+     sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under its word. */
   /* The Solar nav (2026-10-05) — airier, as the owner asked: each entry 52 px tall (it was 44), 16 px between
      the icon and its word (12), and 8 px between entries (4). */
   nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-16); padding: var(--space-8) var(--space-12);
     padding-block: calc((52px - 1lh) / 2);
     min-height: 52px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-8); }
-  nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   /* The Solar nav (2026-10-05) — Solar's Linear drawings at 28 px (the Icons run's 24, sized up 15 per cent):
      a 1.5-unit line on a 24-unit square, so 1.75 px, between the stems of the 15 px words beside it at 500
      (1.5 to 1.6 px) and at 600 (1.9). Every icon in the ink, the wordmark's near-black, whatever the
@@ -1309,8 +1297,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     /* The groups dissolve into the one row of five: Today, Inbox, Calendar,
        the assistant, Settings — each its icon over its word. "Customers", the
        wide rail's heading, is not an entry. */
-    .navgroup, .navfoot, .navhub { display:contents; }
-    .navhead { display:none; }
+    .navgroup, .navfoot { display:contents; }
     /* The mark belongs to the product, so it sits with the product's nav — small,
        and without the word beside it. */
     nav.side .brand { display:flex; padding:0; margin-inline-end:var(--space-4); }
@@ -1318,7 +1305,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
+    nav.side a.navlink { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
       gap:var(--space-8); margin:0; padding:var(--space-4) 2px; min-height:64px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
@@ -1326,7 +1313,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     nav.side .ni { margin-block:0; }
     /* The count rides the icon's corner on a phone: the word keeps its room. Cut out of the tile by a
-       ring of the tile's own white, so on the filled Inbox it stays a count, not part of the shape. */
+       ring of the tile's own white, so on the filled entry it stays a count, not part of the shape. */
     nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4);
       box-shadow:0 0 0 2px var(--color-surface); }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
@@ -2982,7 +2969,7 @@ export function shell(input: {
    * not setting up, not the calendar: a number that is not a customer waiting
    * is the kind of badge the owner ruled out.
    */
-  const entry = (n: typeof NAV[number], sub = false) => {
+  const entry = (n: typeof NAV[number]) => {
     const on = n.id === here;
     // The advisor run — the assistant's entry (its name, or "Team") left the rail for Settings; every entry
     // is its own word now, one name at every width.
@@ -2995,7 +2982,7 @@ export function shell(input: {
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it).
     const mark = railIcon(NAV_ICON[n.id] ?? 'home-2');
-    return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
+    return `<a href="${n.href}" class="navlink${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
@@ -3040,10 +3027,7 @@ export function shell(input: {
       <div class="navfoot">${flat('settings', t(locale, 'nav.settings'))}${input.split.me}</div>`);
   }
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
-    <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
-      <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
-      ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
-    </div>
+    <div class="navgroup">${entry(byId('inbox'))}${entry(byId('calendar'))}</div>
     <div class="navgroup">${entry(byId('advisor'))}</div>
     <div class="navfoot">${toBooks}${entry(byId('settings'))}</div>`;
   return shellWith(input, nav);

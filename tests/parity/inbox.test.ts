@@ -63,7 +63,7 @@ describe('M9.3 · inbox list (localized)', () => {
   // product and its quantity left the row (the conversation's strip and the card carry them).
   it('en: localized chrome', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
-    expect(html).toContain('Inbox'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
+    expect(html).toContain('Customers'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
     expect(html).toContain('Needs you');
     expect(html).not.toContain('保温杯');
   });

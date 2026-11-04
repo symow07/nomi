@@ -25,12 +25,12 @@ const page = (path: string, locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
 
 describe('the rail', () => {
   // THE WARMTH RUN (2026-10-03), phase 1 — daily work at the top, management at the foot.
-  it('in groups: Today; the customers (Inbox, Calendar); the advisor; Settings at the foot — and no Log out', () => {
+  it('in groups: Today; Customers and Calendar; the advisor; Settings at the foot — and no Log out', () => {
     const html = page('/app/inbox/c-1');
     const nav = html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
     const at = (s: string) => nav.indexOf(s);
-    expect(at('href="/app"')).toBeLessThan(at('id="nav-customers"'));
-    expect(at('id="nav-customers"')).toBeLessThan(at('href="/app/inbox"'));
+    expect(at('href="/app"')).toBeLessThan(at('href="/app/inbox"'));
+    expect(nav).not.toContain('navhead');
     expect(at('href="/app/inbox"')).toBeLessThan(at('href="/app/calendar"'));
     expect(at('href="/app/calendar"')).toBeLessThan(at('href="/app/advisor"'));
     expect(at('href="/app/advisor"')).toBeLessThan(at('<div class="navfoot">'));
@@ -42,16 +42,15 @@ describe('the rail', () => {
     expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni sl"'))).toBe(true);
   });
 
-  it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
+  it('the customer list is "Customers" and carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
-    expect(html).toMatch(/<span class="navhead" id="nav-customers"><svg[^>]*>[\s\S]*?<\/svg><span>Customers<\/span><\/span>/);
-    expect(html).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page" aria-label="Inbox, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true">3<\/span><\/span><\/a>/);
-    expect(html).toMatch(/<a href="\/app\/calendar" class="navlink sub" data-nav="calendar"\s*><svg/);
+    expect(html).toMatch(/<a href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page" aria-label="Customers, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Customers<\/span><span class="navcount" aria-hidden="true">3<\/span><\/span><\/a>/);
+    expect(html).toMatch(/<a href="\/app\/calendar" class="navlink" data-nav="calendar"\s*><svg/);
     const cal = page('/app/calendar');
-    expect(cal).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
+    expect(cal).toMatch(/<a href="\/app\/calendar" class="navlink active" data-nav="calendar" aria-current="page"/);
     // nobody waiting: no number at all, not a zero
     const calm = withWorkspace({ ...SCOPE, needsYou: 0 }, () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-    expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink sub" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><\/span><\/a>/);
+    expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Customers<\/span><\/span><\/a>/);
   });
 
   // The warmth run: "Log out leaves the rail entirely" — it is the foot of Settings.
@@ -76,13 +75,12 @@ describe('the rail', () => {
     expect(html).not.toContain('<title>Setup ·');
   });
 
-  it('in Arabic the Customers head and its pages speak Arabic; on a phone the groups dissolve into the one row', () => {
+  it('in Arabic its pages speak Arabic; on a phone the groups dissolve into the one row', () => {
     const ar = page('/app/inbox/c-1', 'ar');
     expect(ar).toContain(`>${t('ar', 'nav.customers')}</span>`);
     const css = linkedCss(ar);
     const phone = css.slice(css.indexOf('@media (max-width: 720px)'));
-    expect(phone).toMatch(/\.navgroup, \.navfoot, \.navhub \{ display:contents; \}/);
-    expect(phone).toMatch(/\.navhead \{ display:none; \}/);
+    expect(phone).toMatch(/\.navgroup, \.navfoot \{ display:contents; \}/);
   });
 });
 

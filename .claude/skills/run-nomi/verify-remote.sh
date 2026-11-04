@@ -124,7 +124,7 @@ check_page() {  # check_page <path> <marker> <label>
 check_page /app                      'id="home-hi"'                 "Today renders"
 check_page /app/onboarding           '<h1 class="page">Checklist'   "Checklist renders"
 check_page /app/onboarding/technical 'Running version'              "deployment info visible to the owner"
-check_page /app/inbox                '<h1 class="page">Inbox'       "Inbox renders"
+check_page /app/inbox '<h1 class="page">Customers'       "Customers renders"
 check_page /app/business             '<h1 class="page">My business' "My business renders"
 check_page /app/knowledge            '<h1 class="page">What '       "Knowledge renders"
 

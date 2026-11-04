@@ -370,7 +370,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   }
 
   /* Phase 8: the rail's question, from every page. The number is redrawn in
-     place; a rise also marks Inbox and says who and why in one small card. */
+     place; a rise also marks Customers and says who and why in one small card. */
   var SHOWN = 6000;
   var LEAVE = 250;
   var card = 0;

@@ -352,7 +352,7 @@ export function renderProof(v: ProofView): string {
         <h2>${esc(t(l, 'proof.taught.title'))}</h2>
         ${v.taught.map((k) => `<div class="taught">
           <div class="f-l">${esc(k.label)}</div>
-          <p class="voice"><bdi>${esc(k.content)}</bdi></p>
+          <p class="voice" dir="auto">${esc(k.content)}</p>
           <div class="f-s">${esc(sourceLabel('taught'))}</div>
         </div>`).join('')}
       </section>`

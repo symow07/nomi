@@ -181,8 +181,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-165 · the area is Customers: its empty Mine speaks of customers, not conversations', () => {
     expect(t('en', 'inbox.empty.mine')).toBe('No customer is in your hands right now.');
     expect(t('en', 'inbox.empty.mine')).not.toMatch(/conversation/i);
-    // The warmth run: the list's rail entry is "Inbox" (the owner renamed it), under Customers.
-    expect(t('en', 'nav.conversations')).toBe('Inbox');
+    // The owner, 2026-11-05: the list is "Customers", everywhere.
+    expect(t('en', 'nav.conversations')).toBe('Customers');
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
@@ -511,7 +511,7 @@ describe('an order', () => {
     expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('inbox');
     for (const l of LOCALES) {
       const page = withWorkspace(SCOPE, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/orders/o1', bodyHtml: orderPage(l) }));
-      expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
+      expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
     // the fix wave (w4-whole-13) — it opens the conversation, and says so

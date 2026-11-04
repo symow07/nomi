@@ -513,7 +513,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer, now: D
     return `<div class="block" id="deletion">${head}
       <p>${state('warn', 'data.ask.state.waiting')}${esc(t(locale, 'conv.deletion.waiting', { date: date(ask.askedAt) }))}</p>
       ${waitedLong(ask.askedAt)}
-      ${ask.words ? `<p class="voice"><bdi dir="auto">${esc(ask.words)}</bdi></p>` : ''}
+      ${ask.words ? `<p class="voice" dir="auto">${esc(ask.words)}</p>` : ''}
       ${decide}
     </div>`;
   }

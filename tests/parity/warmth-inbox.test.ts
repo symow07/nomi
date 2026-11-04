@@ -262,6 +262,19 @@ describe('phase 4 · the "needs attention" band', () => {
     }
   });
 
+  it('sits under the rows that need you, above everyone else; with nobody waiting, under the calm line (the owner, 2026-11-05)', () => {
+    const waiting = conv(1, 'WAITING-ROW', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' });
+    const quiet = conv(2, 'QUIET-ROW');
+    for (const l of LOCALES) {
+      const page = html(l, { attention: BAND, conversations: [waiting, quiet] });
+      expect(page.indexOf('WAITING-ROW'), l).toBeGreaterThan(-1);
+      expect(page.indexOf('class="attn"'), l).toBeGreaterThan(page.indexOf('WAITING-ROW'));
+      expect(page.indexOf('class="attn"'), l).toBeLessThan(page.indexOf('QUIET-ROW'));
+      const calm = html(l, { attention: BAND, conversations: [], filter: 'pending' });
+      expect(calm.indexOf('class="attn"'), l).toBeGreaterThan(calm.indexOf('class="empty"'));
+    }
+  });
+
   it('five, then the rest folded under "N more"; no band when nobody is slipping', () => {
     const many = Array.from({ length: 8 }, (_, i): AttentionItem => ({ ...BAND[i % 3]!, clientId: CLIENT(60 + i), conversationId: ID(60 + i) }));
     for (const l of LOCALES) {
@@ -272,11 +285,11 @@ describe('phase 4 · the "needs attention" band', () => {
       expect(more!.match(/class="arow"/g), l).toHaveLength(3);
       expect(attentionBand(many.slice(0, 5), l, NOW), l).not.toContain('<details');
       expect(attentionBand([], l, NOW), l).toBe('');
-      // on the page: above the switch, in both lenses
+      // on the page: under the switch, in both lenses (the owner, 2026-11-05)
       for (const lens of ['waiting', 'value'] as const) {
         const page = html(l, { lens, attention: BAND });
         expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(-1);
-        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeLessThan(page.indexOf('class="tabs lens"'));
+        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(page.indexOf('class="tabs lens"'));
         expect(html(l, { lens, attention: [] }), `${l} ${lens}`).not.toContain('class="attn"');
       }
     }

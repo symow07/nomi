@@ -296,11 +296,11 @@ describe('Phase 9 · Today', () => {
     expect(t('ar', 'insight.action.follow_up')).not.toBe(t('ar', 'common.goAhead'));
   });
   // The warmth run: "Inbox (rename from 'Customer list')", under Customers, with its shape.
-  it('V1-097 · the rail\'s list entry is the Inbox, under Customers, the page it opens', () => {
-    expect(t('en', 'nav.conversations')).toBe('Inbox');
+  it('V1-097 · the rail\'s list entry is Customers, the page it opens, with no heading repeating it', () => {
+    expect(t('en', 'nav.conversations')).toBe('Customers');
     for (const l of LOCALES) {
       const nav = navOf(page(l, '/app/inbox', ''));
-      expect(nav, l).toMatch(new RegExp(`<span class="navhead" id="nav-customers"><svg[^>]*>[\\s\\S]*?</svg><span>${esc(t(l, 'nav.customers'))}</span></span>`));
+      expect(nav, l).not.toContain('navhead');
       expect(nav, l).toContain(`>${esc(t(l, 'nav.conversations'))}<`);
       expect(t(l, 'nav.conversations'), l).not.toBe(t(l, 'pane.label'));
     }

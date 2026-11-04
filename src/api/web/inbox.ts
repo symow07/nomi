@@ -400,7 +400,7 @@ function receivedBubble(locale: Locale, m: TimelineMessage): string {
     + `<div class="heard-label muted">${icon('file', 'mi')}${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
     // CH7 — matched to a product of hers: the turn answered about it, and she sees which.
     + (m.about ? `<div class="muted small">${esc(t(locale, 'received.about', { name: m.about }))}</div>` : '')
-    + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
+    + (m.text.trim() ? `<div class="said" dir="auto">${esc(m.text)}</div>` : '')
     + `</div>`;
 }
 
@@ -506,7 +506,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
     // wrapper must not: `.bubble` is pre-wrap for exactly that reason, and a
     // multi-element bubble would render this file's own indentation as blank
     // lines inside it.
-    : `<div class="said"><bdi>${esc(m.text)}</bdi></div>`;
+    : `<div class="said" dir="auto">${esc(m.text)}</div>`;
   // "Heard as" over "She could not make out the words" contradicts itself, so
   // when there is nothing to label the line speaks for itself.
   const label = heardNothing ? null
@@ -515,7 +515,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
     + (label ? `<div class="heard-label muted">${icon('voice', 'mi')}${esc(label)}</div>` : '')
     + player
     + body
-    + (m.originalTranscript ? `<div class="orig muted"><bdi>${esc(m.originalTranscript)}</bdi></div>` : '')
+    + (m.originalTranscript ? `<div class="orig muted" dir="auto">${esc(m.originalTranscript)}</div>` : '')
     + (m.id ? `<details class="fixheard"><summary>${esc(t(locale, 'voice.correct'))}</summary>`
         + `<form method="post" action="/app/inbox/${encodeURIComponent(conversationId)}/heard">`
         + `<input type="hidden" name="messageId" value="${esc(m.id)}" />`
@@ -1635,6 +1635,7 @@ export function renderInboxList(
     <p class="caption muted lens-says">${esc(t(locale, lens === 'value' ? 'buyers.lens.valueSays' : 'buyers.lens.waitingSays'))}</p>`;
 
   // The band: slipping relationships, on the first page of the whole list only (the route reads it there).
+  // The owner, 2026-11-05 — under the rows that need you: on a phone it filled the first screen above them.
   const band = attentionBand(data.attention ?? [], locale, now);
 
   // M38 — the wider list: everyone the assistant may write to. D — a door only
@@ -1643,7 +1644,7 @@ export function renderInboxList(
   // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
   // S1 — and the saved replies a person answers with, kept here, under Buyers.
   const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/surveys', t(locale, 'surveys.title'))}</div>`;
-  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}${labelRow}`;
+  const head = `<div class="lhead">${title}${search}</div>${found}${lensBar}${labelRow}`;
 
   if (data.conversations.length === 0) {
     const all = esc(buyersHref({ lens }));
@@ -1662,7 +1663,7 @@ export function renderInboxList(
           <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div>`}</div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
-    return `${head}${body}${doors}`;
+    return `${head}${body}${band}${doors}`;
   }
 
   // A5's rule, for the channel: named on every row only once there is more than one.
@@ -1680,7 +1681,7 @@ export function renderInboxList(
     const spent = data.conversations.filter((c) => c.spent);
     const quoted = data.conversations.filter((c) => !c.spent && c.quoted);
     const none = data.conversations.filter((c) => !c.spent && !c.quoted);
-    rows = `${group('', spent, false)}${group(t(locale, 'buyers.lens.quoted'), quoted, true)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
+    rows = `${group('', spent, false)}${band}${group(t(locale, 'buyers.lens.quoted'), quoted, true)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
   } else {
     // Phase D — an owner thinks in people, and the question that orders them is
     // "who is speaking now?" — headed on the whole list; a narrowing's own chip
@@ -1690,6 +1691,7 @@ export function renderInboxList(
     rows = `${group(t(locale, 'buyers.group.order'), g.orders, true)}
     ${group(t(locale, 'buyers.group.deletion'), g.deletion, true)}
     ${group(t(locale, 'buyers.group.needsYou'), g.needsYou, heads)}
+    ${band}
     ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), g.yours, heads)}
     ${group(t(locale, 'buyers.group.hersWaiting', { name }), g.hersWaiting, heads)}
     ${group(t(locale, 'buyers.group.hers', { name }), g.hersRest, heads)}`;
@@ -1854,11 +1856,11 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-      <blockquote class="unsure-q" dir="auto"><bdi>${esc(p.said)}</bdi></blockquote>` : ''}
+      <blockquote class="unsure-q" dir="auto">${esc(p.said)}</blockquote>` : ''}
       <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
-      <div dir="auto" class="proposed"><bdi>${esc(willSend)}</bdi></div>
+      <div dir="auto" class="proposed">${esc(willSend)}</div>
       <div class="acts">
         <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
@@ -2272,7 +2274,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
       ${nums.length ? `<p class="muted">${esc(t(locale, 'card.foreign.figures'))} ${nums.map((n) => `<bdi dir="ltr">${esc(n)}</bdi>`).join(', ')}</p>` : ''}
       ${tr ? `<p class="k">${esc(t(locale, 'card.foreign.translation', { language: languageName(locale, locale) }))}</p>
-      <blockquote class="said" dir="auto"><bdi>${esc(tr)}</bdi></blockquote>`
+      <blockquote class="said" dir="auto">${esc(tr)}</blockquote>`
         : to.translate ? `<form method="post" action="${esc(to.translate)}"><input type="hidden" name="draftId" value="${esc(p.draftId)}" />
       <button class="btn" type="submit">${esc(t(locale, 'card.foreign.translate', { language: languageName(locale, locale) }))}</button></form>` : ''}
     </div>`;
@@ -2583,7 +2585,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : m.photo ? `<div class="bubble sent-photo"><img src="${esc(m.photo)}" alt="${esc(t(locale, 'photo.sent.alt'))}" loading="lazy" /></div>`
-            : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
+            : `<div dir="auto" class="${bubbleClass(speakerOf(m))}">${esc(m.text)}</div>`}
           ${m.unconfirmed ? `<p class="note muted" role="note">${esc(t(locale, 'conv.senderUnconfirmed'))}</p>` : ''}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
@@ -2700,7 +2702,7 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'maybeYes.what'))}</div>
           ${said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
-          <blockquote class="unsure-q" dir="auto"><bdi>${esc(said)}</bdi></blockquote>` : ''}
+          <blockquote class="unsure-q" dir="auto">${esc(said)}</blockquote>` : ''}
           ${offer ? `<p class="muted">${esc(t(locale, 'maybeYes.offer'))}</p>
           <ul class="rows">
             <li class="row"><span class="muted">${esc(t(locale, 'order.field.product'))}</span> <bdi>${esc(offer.productName)}</bdi></li>

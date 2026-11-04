@@ -73,7 +73,7 @@ const htmlOf = (ok = true) => ({ type: 'basic', status: ok ? 200 : 500, ok, text
 // The warmth run's re-audit (w4-whole-03, -05): the mark carries the moment the latest customer began
 // to wait, and the answer the rail's words, so a live update reads as a reload would.
 const rail = (n: number, toast?: { say: string; door: string }) =>
-  json({ n, mark: `${n}.${n * 100}`, shown: String(n), label: `Inbox, ${n} customers need you`, ...(toast ? { toast } : {}) });
+  json({ n, mark: `${n}.${n * 100}`, shown: String(n), label: `Customers, ${n} customers need you`, ...(toast ? { toast } : {}) });
 /** The rail's number as drawn: the figure alone, wherever it sits. */
 const shownOf = (b: Nd): string => b.textContent;
 const drawn = (n: number): string => String(n);
@@ -86,11 +86,11 @@ function page(o: {
 }) {
   const root = new Nd('HTML');
   const nav = root.appendChild(new Nd('NAV', { class: 'side' }));
-  const entry = nav.appendChild(new Nd('A', { class: 'navlink sub', 'data-nav': 'inbox', href: '/app/inbox' }));
+  const entry = nav.appendChild(new Nd('A', { class: 'navlink', 'data-nav': 'inbox', href: '/app/inbox' }));
   if (o.count) {
     const badge = entry.appendChild(new Nd('SPAN', { class: 'navcount', 'aria-hidden': 'true' }));
     badge.textContent = String(o.count);
-    entry.setAttribute('aria-label', `Inbox, ${o.count} customers need you`);
+    entry.setAttribute('aria-label', `Customers, ${o.count} customers need you`);
   }
   const main = root.appendChild(new Nd('MAIN'));
   main.appendChild(new Nd('SECTION', { class: 'zone', said: 'before' }));
@@ -168,7 +168,7 @@ describe('phase 8 · the rail: a customer newly waiting marks Inbox, and its num
     await p.advance(20_000);
     expect(p.entry.getAttribute('data-fresh')).toBe('1');
     expect(shownOf(p.badge()!)).toEqual(drawn(3));
-    expect(p.entry.getAttribute('aria-label')).toBe('Inbox, 3 customers need you');
+    expect(p.entry.getAttribute('aria-label')).toBe('Customers, 3 customers need you');
     expect(p.entry.querySelectorAll('span.navcount')).toHaveLength(1);
     await p.advance(20_000);
     expect(p.asked).toEqual(['/app/live/rail?since=2', '/app/live/rail?since=3.300']);

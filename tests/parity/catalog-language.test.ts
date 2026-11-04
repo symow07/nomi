@@ -101,8 +101,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     expect(hits, hits.join('\n')).toEqual([]);
   });
 
-  // THE WARMTH RUN (2026-10-03) — the owner named the list "Inbox" again
-  // ("rename from 'Customer list'"); the name retired now is "Customer list".
+  // THE WARMTH RUN (2026-10-03) retired "Customer list"; the owner named the page "Customers" on 2026-11-05.
   it('the retired surface names are gone', () => {
     const retired: Record<Locale, RegExp> = { en: /\bCustomer list\b/i, zh: /客户列表/, ar: /قائمة العملاء/, es: /lista de clientes/i, fr: /liste des clients/i };
     for (const l of LOCALES) {

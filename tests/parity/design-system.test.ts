@@ -220,7 +220,7 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
     expect(html).toMatch(/<textarea id="reply" name="edit"[^>]*>HERDRAFT-092/);
     expect(linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })))
       .toMatch(/\.approve textarea \{[^}]*font-family:var\(--font-voice\)/);
-    expect(html).toMatch(/class="msg inbound">\s*<div dir="auto" class="bubble"><bdi>BUYERWORDS-5000/);   // V1: a person's words keep their own direction
+    expect(html).toMatch(/class="msg inbound">\s*<div dir="auto" class="bubble">BUYERWORDS-5000/);   // V1: a person's words keep their own direction
     // the actions around the speech are the product speaking: plain .btn, no voice class
     expect(html).toMatch(/class="btn send needs"[^>]*>Send/);
     expect(html).not.toMatch(/class="[^"]*voice[^"]*"[^>]*>Send/);
@@ -232,16 +232,19 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
    * <bdi>, and a Latin draft rendered with a displaced "?" on the Arabic page
    * while inbox's identical component rendered correctly.
    */
-  it('every speech element wraps its text in <bdi>', async () => {
+  // The owner, 2026-11-05: a `dir="auto"` element skips a <bdi> inside it when it looks for its direction, so a
+  // message wrapped in one always read as left to right. The element that holds the words is the isolate.
+  it('every speech element takes its direction from its own words', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
     const offences: string[] = [];
     for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
       const src = await readFile(new URL(f, dir), 'utf8');
       for (const line of src.split('\n')) {
-        if (/class="(proposed|bubble)"/.test(line) && !line.includes('<bdi>')) {
+        if (/class="(proposed|bubble)"/.test(line) && !line.includes('dir="auto"')) {
           offences.push(`${f}: ${line.trim().slice(0, 70)}`);
         }
+        if (/dir="auto"[^>]*>(\$\{[^}]*\})?\s*<bdi/.test(line)) offences.push(`${f}, a bdi inside dir="auto": ${line.trim().slice(0, 70)}`);
       }
     }
     expect(offences, `speech without bidi isolation: ${offences.join(' · ')}`).toEqual([]);

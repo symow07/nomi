@@ -70,7 +70,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
   };
   /** The transcript's words, in the order the page prints them. */
   // The transcript's bubbles only: the approval card quotes the newest question again (the design pass).
-  const said = (html: string) => [...html.matchAll(/class="bubble(?: by-as)?"><bdi>(m-\d{3})<\/bdi>/g)].map((m) => m[1]!);
+  const said = (html: string) => [...html.matchAll(/class="bubble(?: by-as)?">(m-\d{3})</g)].map((m) => m[1]!);
   /** Where "Earlier messages" goes, without the fragment the browser keeps to itself. */
   const earlierOf = (html: string, conv: string) =>
     new RegExp(`href="(/app/inbox/${conv}\\?before=[^"#]+)#latest"`).exec(html)?.[1] ?? null;
@@ -81,7 +81,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
    */
   const latestDoor = (conv: string) => `<a class="deeper" href="/app/inbox/${conv}#latest"`;
   /** The message `id="latest"` sits on. */
-  const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>(m-\d{3})<\/bdi>/.exec(html)?.[1] ?? null;
+  const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">(m-\d{3})</.exec(html)?.[1] ?? null;
   /** The cursor the page hands out for the window before this one. */
   const cursorOf = (html: string, conv: string) => /before=([^"#&]+)/.exec(earlierOf(html, conv) ?? '')?.[1] ?? '';
   /** What the owner reads and taps — the page without its stylesheets, whose `width:100%` is layout. */
@@ -155,7 +155,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
     expect(said(html)).not.toContain('m-400');
     expect(said(html)).not.toContain('m-001');
     expect(markedLatest(html)).toBe('m-450');
-    const newest = html.indexOf('<bdi>m-450</bdi>');
+    const newest = html.indexOf('>m-450</div>');
     const draft = html.indexOf('class="card draft"');
     const takeover = html.indexOf('class="card takeover');
     expect(draft).toBeGreaterThan(newest);
@@ -260,8 +260,8 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
 
   it('a short conversation has no door at all, and its newest message is marked', async () => {
     const html = await page(`/app/inbox/${short}`);
-    expect(html).toContain('<bdi>s-3</bdi>');
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>s-3<\/bdi>/);
+    expect(html).toContain('>s-3</div>');
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">s-3</);
     expect(html).not.toContain('?before=');
     expect(html).not.toContain(latestDoor(short));
   });

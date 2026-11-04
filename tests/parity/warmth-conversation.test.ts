@@ -270,16 +270,16 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
   });
   /** One message of the transcript: the assistant's label over it (w4-conversation-17), its bubble and its caption. */
   const msg = (html: string, words: string): string =>
-    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*(?:<div class="msg-by">.*?</div>\\s*)?<div dir="auto" class="[^"]+"><bdi>${words}</bdi></div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
+    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*(?:<div class="msg-by">.*?</div>\\s*)?<div dir="auto" class="[^"]+">${words}</div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
 
   it('the assistant\'s bubble is on its wash with "✦ name" over it; the customer\'s and a person\'s keep the plain bubble', () => {
     for (const l of LOCALES) {
       const html = page(thread(), l);
       for (const w of ['ASSISTANT-WORDS', 'FIRST-WORDS']) {
-        expect(msg(html, w), `${l} ${w}`).toContain(`class="bubble by-as"><bdi>${w}`);
+        expect(msg(html, w), `${l} ${w}`).toContain(`class="bubble by-as">${w}`);
         expect(msg(html, w), `${l} ${w}`).toContain('<span class="as">Mira</span>');
       }
-      expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
+      expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble">PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('<bdi>Aisha Bello</bdi>');
@@ -306,9 +306,9 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     };
     for (const l of LOCALES) {
       const html = plain(withAssistantName('Mira', () => renderSandbox(view, l, { flash: null, now: NOW })));
-      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('class="bubble by-as"><bdi>ASSISTANT-WORDS');
+      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('class="bubble by-as">ASSISTANT-WORDS');
       expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as">Mira</span>');
-      expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
+      expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble">PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');
       expect(html.match(/class="bubble by-as"/g), l).toHaveLength(1);
