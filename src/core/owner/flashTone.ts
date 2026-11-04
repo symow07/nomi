@@ -243,10 +243,6 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'practice.sent',
   // P4 — Practice's two switches, done.
   'practice.flash.alone', 'practice.flash.levels', 'practice.flash.stopped', 'practice.flash.started',
-  // TZ — the workspace's zone, saved.
-  'settings.flash.zoneSaved',
-  // CUR — the workspace's currency, saved.
-  'settings.flash.currencySaved',
 ]);
 
 /**

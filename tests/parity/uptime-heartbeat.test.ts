@@ -207,7 +207,7 @@ describe('the wiring', () => {
     const close = main.slice(main.indexOf('async close() {'));
     const off = close.indexOf("stop.step('heartbeat', () => boss.offWork(QUEUES.heartbeat)");
     expect(off).toBeGreaterThan(-1);
-    expect(off).toBeLessThan(close.indexOf("stop.step('server', () => a.close())"));
+    expect(off).toBeLessThan(close.indexOf("stop.step('server', () => a.close()"));
   });
 
   it('HEALTH_PING_URL is checked at boot when set — https, a host and a path — and never printed', () => {

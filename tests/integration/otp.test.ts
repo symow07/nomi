@@ -197,7 +197,8 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     const [toTaken, toFresh] = [outbox.slice(before).find((m) => m.to === A.email), outbox.slice(before).find((m) => m.to !== A.email)];
     expect(toTaken?.subject).toBe(t('en', 'signup.taken.mail.subject'));
     expect(toTaken?.text).toContain('/login');
-    expect(`${toTaken?.subject} ${toTaken?.text}`).not.toMatch(/\d{6}/);
+    // (the address is left out: this run's random id can hold six digits in a row)
+    expect(`${toTaken?.subject} ${toTaken?.text}`.replaceAll(A.email, '')).not.toMatch(/\d{6}/);
     expect(toFresh?.subject).toMatch(/\d{6}/);
     // and no second workspace for the taken address
     expect((await admin.query(`select 1 from businesses where name = 'Copycat'`)).rowCount).toBe(0);

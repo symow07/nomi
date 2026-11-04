@@ -46,13 +46,21 @@ const NOW = new Date('2026-07-17T11:30:00Z'); // 19:30 Beijing
  * emit, including the ones these cards never contained.
  */
 
-/** Whole-word for Latin terms, substring for CJK — unchanged from M1. */
-const containsBanned = (text: string, banned: string): boolean => {
+/**
+ * Whole-word for Latin terms, substring for CJK — unchanged from M1. Compiled once per term: flake 2c (PROGRESS) was
+ * this file building a RegExp, a failure message and a full `expect()` for every key × every term — some 150,000
+ * assertions a language, 1–1.7 s alone, past vitest's 5 s when the machine was busy.
+ */
+const matcherFor = (banned: string): ((lower: string) => boolean) => {
   const needle = banned.toLowerCase();
+  if (!/^[a-z ]+$/.test(needle)) return (lower) => lower.includes(needle);
+  const word = new RegExp(`\\b${needle}\\b`);
+  return (lower) => word.test(lower);
+};
+const MATCHERS = BANNED_OWNER_TERMS.map((banned) => ({ banned, found: matcherFor(banned) }));
+const bannedIn = (text: string): readonly string[] => {
   const lower = text.toLowerCase();
-  return /^[a-z ]+$/.test(needle)
-    ? new RegExp(`\\b${needle}\\b`).test(lower)
-    : lower.includes(needle);
+  return MATCHERS.filter((m) => m.found(lower)).map((m) => m.banned);
 };
 
 /* ── the rule, over every string we can say ──────────────────────────────── */
@@ -61,17 +69,25 @@ describe('M1 · no owner-facing string is software talk (the whole catalogue)', 
   for (const locale of LOCALES) {
     it(`${locale}: no message in the catalogue contains a banned term`, () => {
       const table = messages[locale];
+      const found: string[] = [];
       for (const [key, value] of Object.entries(table)) {
         // The named exceptions: buyer-facing strings whose whole job is to say
         // that a machine wrote the reply. The rule is about owner-facing
         // software talk; see HONEST_ABOUT_AI_KEYS for why these are not that.
         if (HONEST_ABOUT_AI_KEYS.includes(key)) continue;
-        for (const banned of BANNED_OWNER_TERMS) {
-          expect(containsBanned(value, banned), `"${banned}" in ${locale} ${key}: "${value}"`).toBe(false);
-        }
+        for (const banned of bannedIn(value)) found.push(`"${banned}" in ${locale} ${key}: "${value}"`);
       }
+      expect(found).toEqual([]);
     });
   }
+
+  it('the scan itself finds a banned term: as a whole word in Latin, as a substring in Chinese', () => {
+    const latin = BANNED_OWNER_TERMS.find((b) => /^[a-z ]+$/.test(b.toLowerCase()))!;
+    const cjk = BANNED_OWNER_TERMS.find((b) => /\p{Script=Han}/u.test(b))!;
+    expect(bannedIn(`Ask the ${latin} today`)).toContain(latin);
+    expect(bannedIn(`Ask the x${latin}x today`)).not.toContain(latin);
+    expect(bannedIn(`请问${cjk}吗`)).toContain(cjk);
+  });
 
   it('the catalogue is complete — no locale falls back to English by omission', () => {
     const keys = Object.keys(messages.en) as MessageKey[];
@@ -169,9 +185,7 @@ describe('M1 · no live surface renders software talk', () => {
   for (const [name, html] of Object.entries(LIVE_SURFACES)) {
     it(`${name}: contains no banned term`, () => {
       const text = ownerReads(html);
-      for (const banned of BANNED_OWNER_TERMS) {
-        expect(containsBanned(text, banned), `"${banned}" found in ${name}`).toBe(false);
-      }
+      expect(bannedIn(text), `banned terms found in ${name}`).toEqual([]);
     });
   }
 });

@@ -47,6 +47,34 @@ describe('a graceful stop, measured', () => {
       + 'When it began: message.inbound ×1; app pool 1 lent, 2 idle, 0 waiting; advisor pool ?']);
   });
 
+  it('a step past its limit is left behind, says so, and the next step runs', async () => {
+    const h = harness();
+    const c = stopClock(h.deps);
+    const left = await c.step('pool', () => new Promise<string>(() => {}), 5);
+    expect(left).toBeUndefined();
+    expect(h.lines).toEqual(['[stop] gave up on pool after 0 ms — message.inbound ×1; app pool 1 lent, 2 idle, 0 waiting; advisor pool ?']);
+    expect(h.timers.size).toBe(0);
+    expect(await c.step('advisor pool', async () => 'closed', 5)).toBe('closed');
+    expect(h.lines).toHaveLength(1);                 // within its limit: nothing said
+  });
+
+  it('a step left behind that fails later is nobody\'s unhandled rejection', async () => {
+    const h = harness();
+    let fail!: (e: Error) => void;
+    await stopClock(h.deps).step('pool', () => new Promise<void>((_ok, no) => { fail = no; }), 1);
+    fail(new Error('too late'));
+    await new Promise((r) => setTimeout(r, 5));      // vitest fails the run on an unhandled rejection
+  });
+
+  it('every step of close() has a limit, and together they end before the suite\'s hook gives up', () => {
+    const main = readFileSync('src/main.ts', 'utf8');
+    const steps = [...main.matchAll(/await stop\.step\('([^']+)', .*?, ([\d_]+)\);/g)].map((m) => ({ name: m[1], ms: Number(m[2]!.replaceAll('_', '')) }));
+    expect(steps.map((x) => x.name)).toEqual(['heartbeat', 'server', 'workers', 'pool', 'advisor pool']);
+    expect(main.match(/await stop\.step\(/g)).toHaveLength(steps.length);
+    const hook = Number(/HOOK_TIMEOUT_MS = ([\d_]+)/.exec(readFileSync('tools/run-integration.mjs', 'utf8'))![1]!.replaceAll('_', ''));
+    expect(steps.reduce((sum, x) => sum + x.ms, 0)).toBeLessThan(hook);
+  });
+
   it('a step still waiting says so, with what is running now, and its timer ends with it', async () => {
     const h = harness();
     const c = stopClock(h.deps);

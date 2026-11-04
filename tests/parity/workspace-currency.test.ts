@@ -214,9 +214,9 @@ describe('CUR · the currency changes only until the first price, and only by th
     expect(html).not.toContain('name="currency"');
     expect(html).toContain(t('en', 'staff.ownerDecides'));
   });
-  it('the route is the owner\'s, and the check and the write share one lock', () => {
+  it('saving it is the owner\'s, and the check and the write share one lock', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toMatch(/app\.post\('\/app\/settings\/currency'[\s\S]{0,200}ownerOnly\(req, reply, 'price_rules'/);
+    expect(app).toMatch(/b\['currency'\] !== '' && personOf\(s\)\.isOwner\) \{\s+const c = await saveCurrency\(/);
     const settings = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
     expect(settings).toMatch(/for update[\s\S]{0,300}hasPrices\(tx, bid\.value\)[\s\S]{0,200}update businesses set currency/);
   });

@@ -80,7 +80,7 @@ On success it prints `PASS` and leaves the server running, e.g.:
 PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → buyer turn → take over → owner reply → hand back
-                rehearsal observed by the runbook: Practice before launch · 3/5
+                rehearsal observed by the runbook: take-over, owner reply and hand-back ticked
                 sandbox channel credentials: 0 (must be 0 — nothing delivered)
   health:       {"ok":true,"db":true,"worker":true,"provider":"disabled"}
   URL:          http://127.0.0.1:8787
@@ -105,8 +105,8 @@ Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE
 The script leaves a logged-in cookie jar. These return the expected marker text:
 
 ```bash
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/knowledge  | grep -o 'What she knows'
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/onboarding | grep -o 'Getting ready'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/knowledge  | grep -o 'What your assistant knows'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/onboarding | grep -o 'Checklist'
 curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/sandbox    | grep -o 'This is practice only'
 ```
 

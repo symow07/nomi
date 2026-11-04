@@ -95,14 +95,19 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('THE OWNER CHANGES IT UNTIL THE FIRST PRICE — and no further', async () => {
-    const saved = await form('/app/settings/currency', { currency: 'SAR' }, cookie);
-    expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'settings.flash.currencySaved'));
+    const name = (await one<{ name: string }>(`select name from businesses where id = $1`, [bid])).name;
+    const saved = await form('/app/settings', { name, currency: 'SAR' }, cookie);
+    expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('SAR');
-    const back = await form('/app/settings/currency', { currency: 'AED' }, cookie);
-    expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.currencySaved'));
-    const bad = await form('/app/settings/currency', { currency: 'CHF' }, cookie);
+    const back = await form('/app/settings', { name, currency: 'AED' }, cookie);
+    expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
+    const bad = await form('/app/settings', { name, currency: 'CHF' }, cookie);
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
     expect((await get('/app/settings/profile')).body).toContain('<option value="AED" selected>');
+    // The old address saves nothing: an old form lands on My business, and the currency stays.
+    const oldForm = await form('/app/settings/currency', { currency: 'SAR' }, cookie);
+    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/business']);
+    expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
   });
 
   it('PHASE 3 · the profile\'s one form saves the zone and the currency with the rest', async () => {
@@ -135,7 +140,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     pid = (await one<{ id: string }>(`select id::text as id from products where business_id = $1 and name = 'Oud oil'`, [bid])).id;
 
     // Now there is a price: the currency is fixed.
-    const fixed = await form('/app/settings/currency', { currency: 'SAR' }, cookie);
+    const name = (await one<{ name: string }>(`select name from businesses where id = $1`, [bid])).name;
+    const fixed = await form('/app/settings', { name, currency: 'SAR' }, cookie);
     expect(flashSaid(fixed, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyFixed'));
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
     expect((await get('/app/settings/profile')).body).toContain(t('en', 'settings.currency.fixed'));

@@ -13,6 +13,26 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Cleanup: two old routes, verify-remote, three flakes (2026-11-04; no migration)
+
+The owner's brief, one PR.
+
+- **The two old routes are gone.** `POST /app/settings/zone` and `/currency` no longer save anything. An old link gets a
+  301 to `/app/business`; an old form gets a 303 there, so nothing is saved and nothing is posted again. The zone and
+  the currency are saved by the profile's one form, `POST /app/settings`, with the same rules, so a person who wants
+  them still goes to `/app/settings/profile`. The brief said `/app/business`, and that is what is built. Two flash
+  lines nothing can say any more left the catalogue and the review list.
+- **`verify-remote.sh` passes against a running app** (15 checks, on the smoke instance). The script lives at
+  `.claude/skills/run-nomi/`, not `tools/`. Three markers were gone, as noted below, and a fourth check was looking on
+  the wrong page: "Running version" moved to `/app/onboarding/technical`. Each page is now checked by its own title,
+  not a word from the rail. `tests/parity/verify-remote-markers.test.ts` holds the markers to the catalogue, so they
+  cannot rot unseen again. Not run against production: that needs the access code, which is the owner's.
+- **Flake 2c, the banned-words scan: cause found, fixed.** See 2c below.
+- **A new flake, and it was mine: `otp.test.ts`.** Batch 5's test said the "address taken" mail holds no six digits in a
+  row, and read the address too. The address holds this run's random id, so about one run in ten had six digits by
+  chance. It failed main's scheduled run 41635082081 on 2026-11-03. The address is now left out of what is read.
+- **The stop: cause NOT found; it can no longer hang.** See 2 below.
+
 ## Audit batch 5 — the advisor metered, the owner's words kept, one turn per message (2026-10-31, 0221)
 
 - **A4 — the advisor is metered** (blocked the third paying workspace). Before each question the advisor asks today's
@@ -42,10 +62,10 @@ under "Decided" below.
   the list, one "Name missing" mark per row; dead code (`canActivateChannel`, `windowMsLeft`, Practice's empty
   `NOT_YET`); operator docs and `verify-remote.sh` say `/app/business`.
 - **Not done, and why:** `/app/settings/zone` and `/app/settings/currency` stay — no page posts to them, but three
-  integration tests and the staff-permission list do; removing them is its own change.
+  integration tests and the staff-permission list do; removing them is its own change. (Done 2026-11-04, above.)
 - **Found on the way:** `verify-remote.sh` checks four page markers the catalogue no longer has ("Practice before
   launch", "Buyers", "What she knows", and the old My factory one, fixed here). It has been failing on those since
-  the positioning rewrite; its markers want a pass against a running instance.
+  the positioning rewrite; its markers want a pass against a running instance. (Done 2026-11-04, above.)
 
 ## Read the page again (2026-10-30, 0220; the owner's follow-up to #410's B19)
 
@@ -412,6 +432,23 @@ day. Schema 213.
   running, which pg-boss retries ~10 s later — in password-recovery's production. Not proven.
 - **Next time it fails with the measurement merged:** the `[stop]` lines in that file's stderr name the step and what
   it waited on — read them before rerunning.
+- **The hunt again, 2026-11-04 — the cause is still not found. Do not read this as solved.**
+  - **No recurrence:** about 26 CI runs since the measurement merged (#408), so no `[stop]` line has ever been captured.
+  - **Not reproduced:** the failing order (handoff-notice, then password-recovery) ran 12 times locally, with other work
+    loading the machine. Every password-recovery took 6–7 s, and no stop reached 5 s.
+  - **One thing corrected:** "locally nothing is left in the queue" above is wrong. handoff-notice leaves one
+    `message.outbound` drive every time, and the next production picks it up. Here that takes under 100 ms. Whether it
+    can take longer on CI is not shown.
+  - **What is proven:** a connection nobody gives back made `close()` wait for ever, because `Pool.end()` has no limit.
+    `tests/integration/graceful-stop.test.ts` holds one back: without the pool step's limit it is still waiting at 20 s,
+    with it the stop ends in about 3 s. This is one way to outlast 45 s. Nothing shows it is what happened on CI.
+  - **What changed:** every step of `close()` has a limit, 42 s in all, under the hook's 45 s (a test holds the sum). A
+    step past its limit is left behind, with a `[stop] gave up on …` line naming what was running and lent. A deploy is
+    unchanged: SIGTERM still ends the process at 10 s, and pg-boss's wait for running jobs is untouched, so nothing on
+    the send path moved.
+  - **The cost:** this hook can no longer fail, so a slow stop would pass unseen. So under CI each `[stop]` line is a
+    GitHub warning, shown on the run's page. **A "Slow stop" warning on a green run is the evidence this hunt never
+    got: read it and report the step.**
 
 **2b · A second flake to watch: an invented figure that was not held (reported 2026-10-30 by the batch-3 session).**
 - **The test:** `tests/integration/product-code-exemption.test.ts` › "an invented figure beside a product's name IS held".
@@ -431,6 +468,11 @@ day. Schema 213.
 - **What makes it urgent:** it fails again anywhere (local or CI), or CI's time for that file passes 3 s. Then: time
   the loop, and either precompile the terms into one expression or give the test its own timeout, with the measured
   numbers in the commit. Never call a rerun a fix.
+- **Cause found and fixed, 2026-11-04.** For each of about 5,280 lines and each of about 20 banned terms, the test built
+  a new regular expression, a failure message and an `expect()`: over 100,000 assertions per language. Now each term is
+  compiled once, the offenders are collected, and they are asserted once. 1–1.7 s per language became 5–10 ms. The
+  timeout was not raised. A new control test proves the scan still finds a banned term, as a whole word in Latin script
+  and as a substring in Chinese.
 
 **3 · Railway's deploys for `nomi` (read-only, 2026-10-23).** The last deployment is still #353 (`2ecdad05`,
 2026-10-14). Nothing is staged or waiting. But the service's source is `symow07/nomi`, branch `main`, the setting

@@ -864,6 +864,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/business${u.slice(LEGACY_BUSINESS.length)}`,
       req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
   });
+  // The zone and the currency ride with the profile's one form (`POST /app/settings`); no page posts to these two any
+  // more. An old link lands on My business (and a stranger, from there, on the door). An old form saves nothing and is
+  // not posted again: 303, not 308.
+  app.addHook('onRequest', async (req, reply) => {
+    const path = req.url.split('?')[0];
+    if (path !== '/app/settings/zone' && path !== '/app/settings/currency') return;
+    return reply.redirect('/app/business', req.method === 'GET' || req.method === 'HEAD' ? 301 : 303);
+  });
 
   /**
    * A5.2 — the assistant's name, for this request. Every sentence that says
@@ -6662,24 +6670,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},
       await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
   })));
-  // TZ — the workspace's zone: every date on its pages, "today", the daily
-  // ceiling and night-shift windows follow it at once (the facts are evicted).
-  app.post('/app/settings/zone', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const r = await saveZone(deps.db, s.businessId, String((req.body as { zone?: string } | undefined)?.zone ?? ''));
-    facts.evict(s.businessId);
-    return flashTo(reply, '/app/settings/profile#zone', r === 'saved' ? 'settings.flash.zoneSaved' : 'settings.flash.zoneInvalid');
-  });
-  // CUR — the workspace's one currency: money, so the owner's (Phase 4); only
-  // until the first price is set.
-  app.post('/app/settings/currency', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/profile#currency');
-    if (!s) return reply;
-    const r = await saveCurrency(deps.db, s.businessId, String((req.body as { currency?: string } | undefined)?.currency ?? ''));
-    return flashTo(reply, '/app/settings/profile#currency',
-      r === 'saved' ? 'settings.flash.currencySaved' : r === 'fixed' ? 'settings.flash.currencyFixed' : 'settings.flash.currencyInvalid');
-  });
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.

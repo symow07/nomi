@@ -136,8 +136,6 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/products/add/confirm', `text=${encodeURIComponent('Staff mug $0.20 MOQ 10')}`],
     ['/app/settings/rate', 'rate=9.99'],
     ['/app/settings/samples', 'price=0&credited=on'],
-    // CUR — the workspace's one currency is money too.
-    ['/app/settings/currency', 'currency=SAR'],
     // K5 — whether the business states prices at all is money too.
     ['/app/products/prices-to-me', 'on=1'],
     // RT, HS — whether a price comes before the quantity, and what may be

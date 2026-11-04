@@ -172,7 +172,7 @@ cat <<EOF
 
 PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
-                → My factory (+ the 4 surfaces it contains)
+                → My business (+ the 4 surfaces it contains)
                 → buyer turn → take over → owner reply → hand back
                 rehearsal observed by the runbook: take-over, owner reply and hand-back ticked
                 sandbox channel credentials: $CREDS (must be 0 — nothing delivered)
@@ -185,8 +185,8 @@ PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   server PID:   $APP_PID            (LEFT RUNNING)
 
 Drive more:
-  curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What she knows'
-  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Buyers'
+  curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What your assistant knows'
+  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
 
 Stop everything:
   kill $APP_PID; pg_ctl -D $SK/pg stop
