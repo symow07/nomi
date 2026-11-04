@@ -64,6 +64,9 @@ const ANALYSIS = JSON.stringify({
   intent: { primary_intent: 'inquiry', product_candidates: [], quantity_mentioned: null, next_logical_question: null, missing_fields: [] },
   phase: { recommended_phase: 'clarification' },
   wants_person: false,
+  wants_deletion: false,
+  // The same stub answers the writer: its words, or it would be a person's turn.
+  reply_text: 'Happy to help with that.',
 });
 const REFUSAL = JSON.stringify({ error: { message: 'Insufficient Balance', type: 'unknown_error', param: null, code: 'invalid_request_error' } });
 

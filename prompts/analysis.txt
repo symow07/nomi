@@ -86,7 +86,9 @@ wants_deletion: is the client asking the BUSINESS to delete, erase, remove or fo
 - true in any words and any language: "Get rid of everything about me", "I don't want to be in your files", "forget me", "把我的资料都删了", "别再保存我的信息", "امسحوا كل ما لديكم عني", "supprimez mes données", "borren mis datos", "apaguem os meus dados"
 - false when what is to be removed is something else: a line on a quote, a logo, an item from an order, a colleague from the cc, a typo in an address they want corrected
 - false when they only ask to stop being messaged and say nothing about their data: "stop messaging me", "unsubscribe", "别再发了"
-- When you cannot tell whether they want their own data deleted, answer true: a person reads it.
+- false for a question about what the business does with data, asking for nothing to be done to theirs: "Do you delete data after an order?", "你们的隐私政策说会删除数据吗？", "هل تحذفون البيانات بعد الطلب؟"
+- false for one thing they just sent by mistake: "照片发错了，删了吧" (the wrong photo), "ignore my last message"
+- When they ask for something to be done to what you hold about THEM and you cannot tell whether that means deleting it, answer true: a person reads it.
 
 product_candidates: Rank by confidence descending. Include at most 3. If no match from catalog, return empty array. Do not invent products not in the catalog.
 
