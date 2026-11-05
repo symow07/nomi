@@ -43,7 +43,7 @@ const row = (id: string, over: Partial<ConversationSummary> = {}): ConversationS
 const panel = (over: Partial<CustomerPanel> = {}): CustomerPanel => ({
   clientId: 'cl-1', name: 'Aisha Bello', country: 'NG', channel: 'whatsapp', address: '2345000000261', language: 'en',
   firstWrote: ago(35), conversations: 1, askedAbout: [],
-  prices: [{ unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' }],
+  prices: [{ unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here', toldAt: null }],
   samples: [], promised: [], orders: [], activity: [{ kind: 'waiting', at: ago(33) }], ...over,
 });
 
@@ -156,8 +156,8 @@ describe('V1-234, V1-266, conversation-missed-05 · the customer panel\'s doors'
     for (const l of LOCALES) {
       const html = renderCustomerPanel(panel({
         prices: [
-          { unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here' },
-          { unitPrice: usd('1.5'), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before' },
+          { unitPrice: usd('1.45'), name: 'LED String Lights 10m', nameZh: null, at: ago(33), conversationId: 'conv-here', toldAt: null },
+          { unitPrice: usd('1.5'), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before', toldAt: null },
         ],
       }), [], l, NOW, 'conv-here');
       // the fix wave (w4-whole-13) — the panel is "About this customer" (its label, its door's words); its door onward is the full page

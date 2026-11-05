@@ -264,6 +264,8 @@ export type InboundJob = {
 };
 
 export type OutboundJob = {
+  /** 0224 — the quote whose figure the reply carries, if any. */
+  quoteId?: string | null;
   businessId: string;
   conversationId: string;
   reply: string;

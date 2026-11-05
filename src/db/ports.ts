@@ -188,6 +188,8 @@ export interface DraftRepo {
     asks?: PendingQuestion | null;
     /** 0135 — the line that answers a stop: approved unchanged, it reaches a buyer a person holds. */
     notice?: 'handoff' | 'opt_out' | null;
+    /** 0224 — the quote whose figure this reply carries; carried to the message when the owner sends it unchanged. */
+    quoteId?: string | null;
   }): Promise<{ draftId: string }>;
 }
 

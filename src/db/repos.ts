@@ -760,10 +760,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async create(input) {
       const r = await sql<{ id: string }>`
         insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status,
-                            replaced_by_disclosure, asks, notice)
+                            replaced_by_disclosure, asks, notice, quote_id)
         values (${businessId}, ${input.conversationId}, ${input.capability},
                 ${input.draftText}, ${input.turnMessageId}, 'pending',
-                ${input.replacedByDisclosure ?? false}, ${input.asks ?? null}, ${input.notice ?? null})
+                ${input.replacedByDisclosure ?? false}, ${input.asks ?? null}, ${input.notice ?? null}, ${input.quoteId ?? null}::uuid)
         returning id
       `.execute(tx);
       return { draftId: r.rows[0]!.id };

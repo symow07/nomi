@@ -1096,11 +1096,11 @@ export async function buildProduction(
       // the draft marked sent, or none of them does. A queue that failed after the commit left a draft "sent" that
       // nothing would send and nobody could approve again; and the row, written once here, is never mistaken for a
       // retried job's — two identical replies approved minutes apart both go.
-      kickOutbound: async (businessId, conversationId, reply, asks, notice, tx) => {
+      kickOutbound: async (businessId, conversationId, reply, asks, notice, tx, quoteId) => {
         const bid = parseBusinessId(businessId);
         if (!bid.ok) throw new Error('kickOutbound: not a business id');
         await enqueueOutboundRow(tx, bid.value, conversationId, reply, 'employee', null, asks ?? null,
-          notice === 'opt_out' || notice === 'handoff' ? notice : null, true, null, false);
+          notice === 'opt_out' || notice === 'handoff' ? notice : null, true, null, false, quoteId ?? null);
         await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId, db: txDatabase(tx) });
       },
       // M16.1: bare re-drive tick — delivers an owner takeover reply through the
@@ -1152,7 +1152,9 @@ export async function buildProduction(
   // Outbound drive: consumes both reply jobs (from turn effects) and bare
   // re-drive ticks (from status webhooks / wait-recheck).
   // 0080 — `asks`: the question the reply asks, written on its outbound row.
-  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null; approved?: boolean };
+  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null; approved?: boolean;
+    /** 0224 — the quote whose figure a turn's reply carries, if any (set with `reply`). */
+    quoteId?: string | null };
   type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor; mediaOrigin?: string | null };
   /**
    * P3 — PRACTICE'S SENDS (docs/PRACTICE.md). A practice copy's replies go
@@ -1189,7 +1191,9 @@ export async function buildProduction(
             'employee', null, job.data.asks ?? null,
             // 0135 — only the two notices; anything else a job says is not one.
             job.data.notice === 'opt_out' || job.data.notice === 'handoff' ? job.data.notice : null,
-            job.data.approved === true);
+            job.data.approved === true, null, true,
+            // 0224 — the quote it carries.
+            job.data.quoteId ?? null);
         }
         const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
         const practice = await isPracticeCopy(tx, businessId.value);

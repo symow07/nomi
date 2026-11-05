@@ -16576,3 +16576,15 @@ section only where this installation runs the service (D18, `src/core/legal/reci
   Apple, Google or Mozilla — carries the alert, encrypted, and cannot read it).
 - **To check:** that "directly, never through Nomi" and "cannot read it" read as plain fact; that the Arabic addresses
   nobody in a gender (the owner-side sweep passes); that the French avoids a personal pronoun for the service.
+## Block 1's records: told prices, a price taken off, a practice photo or voice note (2026-11-06)
+
+New lines in zh, ar, es and fr, none read by a native reader. Not a gate.
+
+- **Keys:** `panel.toldOn` (the customer panel: "Told {when}" beside a price whose message reached the customer);
+  `product.tier.remove.button`, `product.tier.remove.confirm`, `product.tier.removed`, `product.tier.notRemoved` (a
+  larger-order price taken off a product; the first price never); `sandbox.media.label`, `sandbox.media.caption`,
+  `sandbox.media.send`, `practice.flash.media_sent`, `practice.flash.media_refused` (a photo or a voice note sent in
+  Practice as a customer would).
+- **To check:** that "the next lower band" reads as what a shop owner would say about quantity prices; that the Arabic
+  media line names {name} with no verb agreeing with it (the owner-side sweep passes); that "Told" reads as "the
+  customer was told this price", not as a command.

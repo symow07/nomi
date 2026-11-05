@@ -21,6 +21,7 @@ import { t, tn, assistantName } from './say.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
+import { removePriceTier } from '../../db/priceTiers.js';
 import { namesWanted, type ScriptLanguage } from '../../core/onboard/scriptNames.js';
 import { languageCalled } from './namesWanted.js';
 import { scriptNeeds } from '../../db/setup.js';
@@ -773,9 +774,15 @@ export function renderProductDetail(
   </div>`;
 
   // Phase 9 (V1-314) — the prices are read, not pressed: hairline rows, not boxes.
+  // 0224 (Block 1 #6) — every band after the first can be taken off by the owner; it asks first, and says what happens.
+  const firstQty = d.tiers[0]?.minQty ?? null;
+  const takeOff = (tr: (typeof d.tiers)[number]): string => viewer.isOwner && firstQty !== null && tr.minQty > firstQty
+    ? ` <form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/tiers/remove" class="inline tier-remove">${fromField}<input type="hidden" name="minQty" value="${tr.minQty}" />
+        <button class="btn ghost danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'product.tier.remove.confirm', { qty: show.quantityOf(locale, tr.minQty, d.unit) }))}">${esc(t(locale, 'product.tier.remove.button'))}</button></form>`
+    : '';
   const tiers = d.tiers.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><ul class="rows">${d.tiers.map((tr) =>
-        `<li class="row"><span>${esc(tierLabel(tr))}</span><b>${iso(perUnit(locale, tr.unitPrice, d.unit))}</b></li>`).join('')}</ul></div>`
+    ? `<div class="block" id="prices"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><ul class="rows">${d.tiers.map((tr) =>
+        `<li class="row"><span>${esc(tierLabel(tr))}</span><b>${iso(perUnit(locale, tr.unitPrice, d.unit))}</b>${takeOff(tr)}</li>`).join('')}</ul></div>`
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   // Phase 9 (V1-313) — the names already on record stand above the box that adds more.
@@ -1264,6 +1271,27 @@ async function updateProductTx(
  * False when nothing was taken off: the product's own name, a name no longer
  * on record, or another business's product.
  */
+/**
+ * 0224 (Block 1 #6) — takes one larger-order price off a product of this business, never its first; the figure that
+ * went is kept on the audit trail. Through the one function (`remove_price_tier`): the app role deletes nothing directly.
+ */
+export async function removeProductTier(db: Db, businessIdRaw: string, productId: string, actor: string, minQtyRaw: string): Promise<boolean> {
+  const bid = parseBusinessId(businessIdRaw);
+  const minQty = /^\d{1,9}$/.test(minQtyRaw.trim()) ? Number(minQtyRaw.trim()) : null;
+  if (!bid.ok || !isUuid(productId) || minQty === null || minQty < 2) return false;
+  return withTenantTx(db, bid.value, async (tx) => {
+    const was = (await sql<{ price: string; currency: string }>`
+      select unit_price_usd::text as price, currency from price_tiers where product_id = ${productId}::uuid and min_qty = ${minQty}`.execute(tx)).rows[0] ?? null;
+    if (!was || !(await removePriceTier(tx, productId, minQty))) return false;
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'product_edited', ${actor},
+              ${JSON.stringify({ productId, changes: { tiers: { removed: { minQty, price: was.price, currency: was.currency } } } })}::jsonb)
+    `.execute(tx);
+    return true;
+  });
+}
+
 export async function removeProductName(db: Db, businessIdRaw: string, productId: string, actor: string, alias: string): Promise<boolean> {
   const bid = parseBusinessId(businessIdRaw);
   const word = alias.trim();

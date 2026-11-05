@@ -12,9 +12,9 @@ import { type Money, moneyFromRow } from '../core/types/money.js';
  *
  *   Asked about     — the product each turn's analysis found, counted per customer;
  *   Prices worked   — their quotes, each a door to the conversation it was worked
- *   out               out in. (The plan said "Told a price"; a quote is not
- *                     linked to the message that carried it, so the panel says
- *                     what the row proves: the price was worked out.)
+ *   out               out in; since 0224 a quote whose figure reached the
+ *                     customer says so ("Told", with when): the sent message
+ *                     carries the quote it quoted (`messages.quote_id`).
  *   On record       — their samples and orders;
  *   Activity        — who acted, newest first: the assistant (✦), a person (▪),
  *                     nobody yet (●, the needs dot). Read from the sent rows' own origin and the
@@ -45,7 +45,9 @@ export type CustomerPanel = {
   readonly firstWrote: Date | null;
   readonly conversations: number;
   readonly askedAbout: readonly { readonly name: string | null; readonly nameZh: string | null; readonly count: number; readonly lastAt: Date }[];
-  readonly prices: readonly { readonly unitPrice: Money; readonly name: string | null; readonly nameZh: string | null; readonly at: Date; readonly conversationId: string }[];
+  readonly prices: readonly { readonly unitPrice: Money; readonly name: string | null; readonly nameZh: string | null; readonly at: Date; readonly conversationId: string;
+    /** 0224 — when a message carrying this quote's figure reached the customer; null: worked out, not (yet) told. */
+    readonly toldAt: Date | null }[];
   readonly samples: readonly { readonly askedAt: Date; readonly handledAt: Date | null }[];
   /** 0083 — what was promised them and not yet kept, soonest first: the sentence as sent, its day, who said it. */
   readonly promised: readonly { readonly said: string; readonly dueOn: string; readonly byAssistant: boolean; readonly conversationId: string }[];
@@ -91,8 +93,10 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
      order by max(t.created_at) desc limit 5`.execute(tx)).rows
     .map((r) => ({ name: r.name, nameZh: r.name_zh, count: r.n, lastAt: r.last_at }));
 
-  const prices = (await sql<{ unit_price_usd: string; currency: string; at: Date; conversation_id: string; name: string | null; name_zh: string | null }>`
-    select q.unit_price_usd, q.currency, q.created_at as at, q.conversation_id::text as conversation_id, p.name, p.name_zh
+  const prices = (await sql<{ unit_price_usd: string; currency: string; at: Date; conversation_id: string; name: string | null; name_zh: string | null; told_at: Date | null }>`
+    select q.unit_price_usd, q.currency, q.created_at as at, q.conversation_id::text as conversation_id, p.name, p.name_zh,
+           -- 0224 — the first message that carried this quote's figure to the customer, if one left.
+           (select min(m.sent_at) from messages m where m.quote_id = q.id and m.direction = 'outbound') as told_at
       from quotes q join conversations c on c.id = q.conversation_id
       left join products p on p.id = q.product_id
      where c.client_id = ${client}::uuid
@@ -100,7 +104,7 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
     // G18 — a quote in a currency this build cannot price is left off, never shown in dollars.
     .flatMap((r) => {
       const unitPrice = moneyFromRow(r.unit_price_usd, r.currency);
-      return unitPrice ? [{ unitPrice, name: r.name, nameZh: r.name_zh, at: r.at, conversationId: r.conversation_id }] : [];
+      return unitPrice ? [{ unitPrice, name: r.name, nameZh: r.name_zh, at: r.at, conversationId: r.conversation_id, toldAt: r.told_at }] : [];
     });
 
   const samples = (await sql<{ asked_at: Date; handled_at: Date | null }>`
