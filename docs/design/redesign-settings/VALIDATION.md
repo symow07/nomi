@@ -14,7 +14,7 @@ The scripted pre-pilot passes all 14 scenarios before and after. Its forbidden-w
 
 Eight focused route tests cover authenticated bookmark moves/query preservation, permissions, complete profile refusals, single-use code cookies, personal/workspace history, export-only pages, sample separation and disabled Books/technical setup. Existing integration expectations now use the canonical GET pages; original POST and download assertions remain. Dedicated route tests still exercise old GETs directly. A reproduced malformed selling-bookmark redirect loop was corrected; 16 focused route/selling tests pass, including unchanged original POST question names and the correct parent subject selected on nested question pages.
 
-Final Node 22 check passes 9,301 assertions, trust passes 44 and build passes. The frozen full isolated integration run passes 2,075 of 2,075 across 273 files, none skipped (978.44 seconds). Source/test/tool changes were frozen at `89f76f6d`; later documentation does not change that tested code. Exact-head CI and tools/gated-merge.sh are separate release requirements.
+Final Node 22 check passes 9,301 assertions, trust passes 44 and build passes. The frozen full isolated integration run passes 2,075 of 2,075 across 273 files, none skipped (978.44 seconds). Source/test/tool changes were frozen at `89f76f6d`; later documentation does not change that tested code. Both exact-head CI checks passed and `tools/gated-merge.sh` merged #434 at `28b6afd8`. CI annotations contain only the platform runner notice, with no application/slow-stop warning.
 
 ## Boundaries
 

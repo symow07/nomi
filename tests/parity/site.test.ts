@@ -1,3 +1,4 @@
+import {markSmall} from '../../src/core/owner/brand.js';
 import { describe, it, expect } from 'vitest';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc, NEEDS_DOT } from '../../src/api/web/layout.js';
@@ -160,7 +161,7 @@ describe('Phase 9 · the site says one thing, the product\'s way', () => {
     for (const l of LOCALES) {
       const html = page(l);
       const card = html.slice(html.indexOf('<figure'), html.indexOf('</figure>'));
-      expect(card, l).toContain(`<span class="site-who"><span>${esc(t(l, 'card.drafted'))}</span>`);   // its name tag, no mark (the icons run)
+      expect(card, l).toContain(`<span class="site-who"><span>${markSmall(18,null)}${esc(t(l, 'card.drafted'))}</span>`);   // its name tag, no mark (the icons run)
       expect(card, l).toContain(`<span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span>`);
       expect(card, l).not.toContain('site-fake');
       expect(card, l).not.toMatch(/<(button|a)\b/);

@@ -13,13 +13,21 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 8: Public pages (2026-11-06; no migration)
+
+The final area completes the approved eight-area implementation. Sign-in and signup use the unchanged large seal over minimal centred forms. Website sections are flat, legal pages have a readable measure and clear headings, and customer proof/proforma pages retain paper layouts. Public chat keeps its original composer and send path. All 19 public routes, exact visible text, legal wording/accepted-terms version, original forms and token/privacy headers remain unchanged. Schema remains 223.
+
+All four local gates passed on the combined implementation: check 9,301, trust 44, build and full isolated integration 2,075/2,075 with none skipped. Public evidence includes 38 English before/after desktop/phone views, six comparison/accessibility/print groups, 14/14 scripted pre-pilot scenarios before and after, a visually inspected A4 proforma, and a final 16-visit check of all eight area entrances. Incorporating merged Settings #434 leaves the verified source/test/tool tree unchanged. No live model call, real customer send or deployment was part of this work.
+
+Review index, desktop/phone images, moves and all 141 mapped pages: `docs/design/redesign/README.md`. The design gallery and the requested first-message refusal screenshot are the two explicit exclusions; guide-video frames remain outside scope. The final Public PR uses exact-head CI and `tools/gated-merge.sh`, as every prior area did. No further redesign area remains.
+
 ## Approved redesign, Area 7: Settings (2026-11-06; no migration)
 
-Implemented on `codex/redesign-settings`, based on merged Assistant #433. Settings has seven focused groups and native phone group/subject choosers. Business profile keeps its complete original write and separate business-type form; sample requests move to Customers. Assistant identity leaves Team, which retains people/codes/rotation. Personal history consent and owner workspace policy are separate; notifications gather the existing browser, email and owner-number controls. Original commands, downloads, callbacks, grants, confirmations and signed Undo remain authoritative. Schema remains 223.
+Merged through `tools/gated-merge.sh` in #434 at `28b6afd8`, with both exact-head CI checks green. Settings has seven focused groups and native phone group/subject choosers. Business profile keeps its complete original write and separate business-type form; sample requests move to Customers. Assistant identity leaves Team, which retains people/codes/rotation. Personal history consent and owner workspace policy are separate; notifications gather the existing browser, email and owner-number controls. Original commands, downloads, callbacks, grants, confirmations and signed Undo remain authoritative. Schema remains 223.
 
 All four local gates passed: check 9,301, trust 44, build, and full isolated integration 2,075/2,075 with none skipped. The review includes 154 before/154 after English desktop/phone visits, enabled-chat supplements, 28 final selling recaptures, 59 preserved original form contracts, eight read-only groups, seven actual local command groups and unchanged snapshots of 15 source/authority tables. Scripted pre-pilot passes 14/14 before and after. No paid calls, real sends or production changes. Images and moves: `docs/design/redesign-settings/README.md`.
 
-Next: Settings exact-head CI/gated merge, then Public. Public has passed all four local gates on the combined implementation.
+Next: Public, the final approved area. It has passed all four local gates on the combined implementation.
 
 ## Approved redesign, Area 6: Assistant (2026-11-06; no migration)
 

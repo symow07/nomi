@@ -66,11 +66,11 @@ function giveVisitor(reply: FastifyReply, key: string, deps: WebChatDeps): strin
 
 const CSS = `
   .chat-lines { list-style:none; margin:var(--space-16) 0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
-  .chat-line { max-width:85%; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); background:var(--color-sand);
+  .chat-line { max-width:85%; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border);
     white-space:pre-wrap; overflow-wrap:anywhere; }
-  .chat-line.mine { align-self:flex-end; background:var(--color-assistant-wash); }
+  .chat-line.mine { align-self:flex-end; background:var(--color-paper); }
   .chat-who { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .chat-form textarea { width:100%; min-height:6em; font:inherit; padding:var(--space-8); box-sizing:border-box; }
+  .chat-form textarea { width:100%; min-height:6em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); }
   .chat-form button { margin-top:var(--space-8); min-height:44px; padding:0 var(--space-16); font:inherit; }
   .chat-foot { margin-top:var(--space-24); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 `;

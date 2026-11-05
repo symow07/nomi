@@ -2665,10 +2665,11 @@ ${cssVariables()}
   a { color:var(--color-ink); text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
   a:focus-visible, button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   ::selection { background:var(--color-brand); color:var(--color-surface); }
+  main { overflow-wrap:anywhere; }
   .updated { margin-top:var(--space-48); }
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
-           border-radius:var(--radius-card); background:var(--color-brand);
-           color:var(--color-surface); cursor:pointer; }
+           border-radius:var(--radius-control); background:var(--color-ink);
+           color:var(--color-surface); cursor:pointer; min-height:44px; }
 `;
 
 /**
@@ -3060,20 +3061,19 @@ const cardSheet = (locale: Locale): string =>
  * whether an e-mail address has an account.
  */
 const DOOR_STYLE = `
-  .login { max-width: var(--measure-form); margin: 10vh auto; padding: 0 var(--space-16); }
+  .login { max-width: var(--measure-form); margin: 6vh auto var(--space-48); padding: 0 var(--space-16); }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:var(--space-16); }
-  .login .card { padding: var(--space-24); }
-  .login .brand { flex-direction:column; justify-content:center; gap:var(--space-4); text-align:center;
-    font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }
+  .login .card { padding:var(--space-24) 0 0; border:0; background:transparent; box-shadow:none; }
+  .login .brand { flex-direction:column; justify-content:center; gap:var(--space-12); text-align:center;
+    font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-24); padding:0; }
   /* Phase 9 (V1-040 and public-missed-10) — above: the site's mark and name, centred like
      the pill above them and the links below. */
   .login .brand small { margin-top:0; }
   .login h1 { font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-8); }
-  /* w4-public-10 — a heading in even lines, so no word is left on its own (es, fr). */
-  .login h1 { text-wrap:balance; }
+  .login h1 { text-wrap:balance; text-align:center; margin-bottom:var(--space-24); }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
   /* No word or character left alone on a line (V1-056): a short lead in even lines, the rest pretty. */
-  .login .lead { text-wrap:balance; }
+  .login .lead { text-wrap:balance; font-size:var(--font-size-base); }
   .login .hint, .login .err, .login .fld-err { text-wrap:pretty; }
   /* V1-031, V1-045, V1-049 — a field, a list and a button are drawn in the page's face,
      not the browser's own. */
@@ -3087,9 +3087,9 @@ const DOOR_STYLE = `
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
   button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-control);
-    background:var(--color-brand); color:var(--color-surface); font-weight:600;
+    background:var(--color-ink); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
-  button:hover { box-shadow:var(--shadow-lift2); }
+  button:hover { background:var(--color-ink); box-shadow:none; }
   select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
@@ -3111,10 +3111,12 @@ const DOOR_STYLE = `
   label.check .err-field { outline:2px solid var(--color-warn); outline-offset:2px; }
 ${markBefore('failed', ['.err', '.fld-err'])}
   .hint { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
-  label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
+  label { color:var(--color-ink); font-size:var(--font-size-base); display:block; }
   details { margin-top:var(--space-24); border-top:1px solid var(--color-border); padding-top:var(--space-16); }
   summary { cursor:pointer; color:var(--color-ink-secondary); font-size:var(--font-size-caption); min-height:44px; display:flex; align-items:center; }
   details form { margin-top:var(--space-8); }
+  .login button[type=submit] { width:100%; }
+  .login .hint,.login .err { background:transparent; border:0; padding-inline:0; }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
   .login .other.small { margin-top:var(--space-8); }
   /* V1-038, V1-039 — the door's foot is where to read more, not a slogan. */
@@ -3162,7 +3164,7 @@ ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
-  <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
+  <div class="brand">${markDetail(72, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">${card}</div>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>

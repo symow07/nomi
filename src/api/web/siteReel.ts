@@ -215,7 +215,7 @@ const REEL_CSS = `
   .rl-play { position:absolute; inset-inline:0; inset-block-end:0; block-size:2px; background:var(--color-brand);
     transform-origin:left center; transform:scaleX(0); animation:rl-play ${CYCLE}s linear infinite both; animation-delay:inherit; }
   [dir="rtl"] .rl-play { transform-origin:right center; }
-  @keyframes rl-beat { 0%, 24% { background:var(--color-surface); box-shadow:var(--shadow-lift1); } 25%, 100% { background:transparent; box-shadow:none; } }
+  @keyframes rl-beat { 0%, 24% { background:var(--color-surface); box-shadow:none; } 25%, 100% { background:transparent; box-shadow:none; } }
   @keyframes rl-dot { 0%, 24% { background:var(--color-brand); transform:scale(1.2); } 25%, 100% { background:var(--color-border); transform:none; } }
   @keyframes rl-play { 0% { transform:scaleX(0); } 25% { transform:scaleX(1); } 25.01%, 100% { transform:scaleX(0); } }
   .rl-coming { display:inline-block; margin-inline-start:var(--space-8); padding:1px var(--space-8); border-radius:var(--radius-chip);
@@ -223,7 +223,7 @@ const REEL_CSS = `
   .rl-note { margin-top:var(--space-24); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 
   .rl-phone { margin:0; justify-self:center; inline-size:100%; max-width:var(--measure-form); background:var(--color-surface);
-    border-radius:var(--radius-panel); box-shadow:var(--shadow-lift2); overflow:hidden; display:flex; flex-direction:column; }
+    border-radius:var(--radius-panel); box-shadow:none; overflow:hidden; display:flex; flex-direction:column; }
   .rl-top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:var(--space-8);
     padding:var(--space-12) var(--space-16); border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .rl-mark { padding:1px var(--space-8); border-radius:var(--radius-chip); border:1px dashed var(--color-border);
@@ -237,7 +237,7 @@ const REEL_CSS = `
   .rl-late { align-self:center; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .rl-bubble { margin:0; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); max-width:85%;
     background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-small);
-    align-self:flex-start; box-shadow:var(--shadow-lift1); }
+    align-self:flex-start; box-shadow:none; }
   .rl-bubble.rl-mine { align-self:flex-end; background:var(--color-assistant-wash); }
   .rl-disclose { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .rl-stack { display:grid; justify-items:end; }
@@ -246,7 +246,7 @@ const REEL_CSS = `
     border-radius:var(--radius-card); background:var(--color-assistant-wash); }
   .rl-typing i { inline-size:6px; block-size:6px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); opacity:0.6; }
   .rl-card, .rl-ledger { align-self:flex-end; inline-size:85%; padding:var(--space-12); border-radius:var(--radius-card);
-    background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-lift1);
+    background:var(--color-surface); border:1px solid var(--color-border); box-shadow:none;
     display:flex; flex-direction:column; gap:var(--space-8); }
   .rl-card.rl-mine { background:var(--color-assistant-wash); }
   .rl-ledger { align-self:stretch; inline-size:auto; }
@@ -268,7 +268,7 @@ const REEL_CSS = `
   .rl-price b { color:var(--color-ink); font-size:var(--font-size-base); }
   .rl-act { display:flex; justify-content:flex-end; overflow:hidden; }
   .rl-btn { position:relative; display:inline-flex; padding:var(--space-4) var(--space-16); border-radius:var(--radius-control);
-    background:var(--color-brand); color:var(--color-surface); font-size:var(--font-size-small); font-weight:600; }
+    background:var(--color-ink); color:var(--color-surface); font-size:var(--font-size-small); font-weight:600; }
   .rl-ring { position:absolute; inset:-6px; border-radius:var(--radius-control); border:2px solid var(--color-brand); opacity:0; pointer-events:none; }
   .rl-doc { align-self:flex-end; display:inline-flex; align-items:center; gap:var(--space-8); margin:0; padding:var(--space-8) var(--space-12);
     border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border); font-size:var(--font-size-small); font-weight:600; }

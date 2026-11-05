@@ -166,8 +166,8 @@ describe('a public page is set in the product\'s type, and still needs nothing f
       const fs = faces(html);
       expect(fs.length, l).toBeGreaterThan(0);
       expect(fs.map((f) => f.family), l).toContain(l === 'zh' ? 'Noto Sans SC' : l === 'ar' ? 'Noto Sans Arabic' : 'Noto Sans');
-      // the Sans only: the privacy page sets nothing in the voice
-      expect(fs.some((f) => /Serif|Naskh/.test(f.family)), l).toBe(false);
+      // The approved legal heading uses the existing serif; body copy remains sans.
+      expect(fs.some((f) => /Newsreader|Serif|Naskh/.test(f.family)), l).toBe(true);
       for (const f of fs) expect(existsSync(new URL(f.file, FONTS)), f.file).toBe(true);
     }
     // an English page carries no Chinese slice beyond the two that draw the switch's 中文, and no Arabic beyond its العربية

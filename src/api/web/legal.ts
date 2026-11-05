@@ -40,7 +40,17 @@ export const TERMS_VERSION: string = createHash('sha256')
  * returns to the same page (`path`).
  */
 const SHELL = (locale: Locale, title: string, body: string, home: string, path: string, css: string = PUBLIC_TOP_CSS): string =>
-  publicDocument({ locale, title: `${title} · Nomi`, body: `${publicTop(locale, home, path)}${body}`, extraCss: css });
+  publicDocument({ locale, title: `${title} · Nomi`, mainClass:'legal', body: `${publicTop(locale, home, path)}<article class="legal-copy">${body}</article>`, extraCss: css + LEGAL_READING_CSS });
+
+const LEGAL_READING_CSS=`
+  main.legal{max-width:var(--measure-prose);padding-block:var(--space-48);}
+  .legal-copy{padding-top:var(--space-24);}
+  .legal-copy h1{font-family:var(--font-voice);font-weight:400;line-height:1.15;margin-bottom:var(--space-32);}
+  .legal-copy h2{padding-top:var(--space-24);border-top:1px solid var(--color-border);margin-top:var(--space-48);}
+  .legal-copy p,.legal-copy li{font-size:var(--font-size-base);line-height:1.8;}
+  .legal-copy a{color:var(--color-accent);}
+  .legal-copy .updated{font-size:var(--font-size-small);}
+`;
 
 /** A sentence from the catalogue with one placeholder made a link — the rest escaped. */
 const withLink = (l: Locale, key: string, param: string, href: string, label: string): string =>
