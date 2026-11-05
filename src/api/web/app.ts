@@ -2578,16 +2578,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.connections'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderBooksConnections(locale,personOf(s),{sheets,odoo,xero,quickbooks})}));
   });
   // The old GET addresses remain guarded aliases; commands and downloads keep their contracts.
-  app.get('/app/books/entries',async(req,reply)=>reply.redirect('/app/books/advanced/entries'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/new',async(req,reply)=>reply.redirect('/app/books/advanced/entries/new'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/:id',async(req,reply)=>reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/:id/edit',async(req,reply)=>reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}/edit`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/trial-balance',async(req,reply)=>reply.redirect('/app/books/advanced/trial-balance'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/closing',async(req,reply)=>reply.redirect('/app/books/year-end'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/fec',async(req,reply)=>reply.redirect('/app/books/reports/fec'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/papers',async(req,reply)=>reply.redirect('/app/books/spending'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/papers/:id',async(req,reply)=>reply.redirect(`/app/books/spending/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/fields',async(req,reply)=>reply.redirect('/app/settings/books/fields'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/entries'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/new',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/entries/new'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/:id',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/:id/edit',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}/edit`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/trial-balance',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/trial-balance'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/closing',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/year-end'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/fec',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/reports/fec'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/papers',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/spending'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/papers/:id',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/spending/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/fields',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/settings/books/fields'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
   app.get('/app/books/books.csv', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');

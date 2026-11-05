@@ -13,13 +13,21 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 5: Books (2026-11-06; no migration)
+
+Implemented and locally verified; exact-head CI and the gated merge are next. Schema remains 223. Books opens with Needs you, source-backed money readers and three direct actions. Get paid, Spending, Bank, Reports and Year-end have focused navigation; ledger work stays behind Advanced. Connections, account choices, tax details, starting balances and extra fields move to Settings → Books. Old GET bookmarks authenticate before redirecting; existing command and original-download endpoints remain authoritative.
+
+Local check (9,300), trust (44), build and full isolated integration (2,058; none skipped) passed. Browser evidence contains 136 English desktop/phone visits before and after, 20 supplementary views, full invoice/bank/receipt paging, 20 read-only action groups, seven actual scripted receipt workflow checks and four final phone controls. Nineteen financial/source table snapshots stayed unchanged after the read-only pass. Cash figures require explicit account scope; invoices and credits retain currency, refund, date and issuer-detail distinctions. Images, moves and limits: `docs/design/redesign-books/README.md`. All work used local synthetic data, no paid calls, production changes or customer sends.
+
+Next: gated Books release, then Assistant, Settings and public pages. Assistant is in an isolated worktree.
+
 ## Approved redesign, Area 4: Products (2026-11-06; no migration)
 
-Implemented on `codex/redesign-products`; release uses the exact-head CI gate after Customers. Schema remains 223. All products, Add products and Price limits share focused navigation. Search and bounded pages cover the whole catalogue, including inactive records. Product edits, names and photos keep filtered-list return context. Import reviews put editable rows first on phones, retain safe original-source access, explicit confirmations and exact typed fields. The old price-limit GET redirects; POST handlers and pricing authority remain unchanged.
+Merged through `tools/gated-merge.sh` in #431 at `a4bda905`, with exact-head CI green. Schema remains 223. All products, Add products and Price limits share focused navigation. Search and bounded pages cover the whole catalogue, including inactive records. Product edits, names and photos keep filtered-list return context. Import reviews put editable rows first on phones, retain safe original-source access, explicit confirmations and exact typed fields. The old price-limit GET redirects; POST handlers and pricing authority remain unchanged.
 
 Local check (9,267), trust (44), build and full isolated integration (2,032; none skipped) passed. Browser comparison covers 76 English visits before and after, all 207 fixture products across five pages, 20 read-only checks, 20 command/source groups, and six correct error-focus cases with script on/off. GET-only snapshots of 10 tables stayed unchanged. Images, moves and limits: `docs/design/redesign-products/README.md`. All fixtures and scripted reads were local; no paid calls, production changes or customer sends.
 
-Next: exact-head Products merge after Customers, then Books, Assistant, Settings and public pages in the approved order. Books is being prepared and validated in an isolated worktree.
+Next: Books, Assistant, Settings and public pages in the approved order. Books is being validated and Assistant is being implemented in isolated worktrees.
 
 ## Approved redesign, Area 3: Customers (2026-11-06; no migration)
 
