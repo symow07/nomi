@@ -4,13 +4,13 @@ Public pages use the same paper, ink and magenta identity with layouts suited to
 
 All 19 public routes remain in place. No legal text, accepted-terms version, marketing claim, form contract, token validation or consent changes. All screenshots use English and local synthetic data.
 
-[Login desktop](login-desktop.png) · [Login phone](login-phone.png)  
-[Signup desktop](signup-desktop.png) · [Signup phone](signup-phone.png)  
-[Site desktop](site-desktop.png) · [Site phone](site-phone.png)  
-[Privacy desktop](privacy-desktop.png) · [Privacy phone](privacy-phone.png)  
-[Proforma desktop](proforma-desktop.png) · [Proforma phone](proforma-phone.png)  
-[Chat desktop](chat-desktop.png) · [Chat phone](chat-phone.png)  
-[Proof desktop](proof-desktop.png) · [Proof phone](proof-phone.png)  
+[Login desktop](login-desktop.png) · [Login phone](login-phone.png)
+[Signup desktop](signup-desktop.png) · [Signup phone](signup-phone.png)
+[Site desktop](site-desktop.png) · [Site phone](site-phone.png)
+[Privacy desktop](privacy-desktop.png) · [Privacy phone](privacy-phone.png)
+[Proforma desktop](proforma-desktop.png) · [Proforma phone](proforma-phone.png)
+[Chat desktop](chat-desktop.png) · [Chat phone](chat-phone.png)
+[Proof desktop](proof-desktop.png) · [Proof phone](proof-phone.png)
 
 [A4 proforma print](proforma-print.png)
 
