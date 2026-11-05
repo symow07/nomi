@@ -10,9 +10,11 @@ The signup form, phone proforma, phone chat and website, login, and legal readin
 
 The scripted pre-pilot passes all 14 scenarios before and after using local scripted ports, with no real provider calls or customer sends. The 38-view comparison and six verification groups also pass after incorporating Settings; its after walkthrough remains 14/14.
 
+A final composed preview was restarted from the verified build. All eight area entrances passed at desktop and phone sizes (16 visits): HTTP 200, English UI, correct selected primary area, no document overflow and no browser errors.
+
 ## Repository checks
 
-The initial Public-only check passes 9,299 assertions; trust passes 44 and build passes. Final composed checks and full isolated integration will run after incorporating Settings. Exact-head CI and tools/gated-merge.sh remain required before merge.
+The final combined implementation passes check (9,301 assertions), trust (44), build, and all 2,075 isolated integration tests across 273 files, none skipped (978.38 seconds). The final run includes the Settings implementation and its route/navigation regressions. The tested source/test/tool tree is `bd2d9615`; later documentation and the main merge must preserve that tree. Exact-head CI and tools/gated-merge.sh remain required before merge.
 
 ## Boundaries
 
