@@ -13,6 +13,6 @@ The [complete approved map](page-map.tsv) accounts for all 141 original pages an
 | Books | [Review](../redesign-books/README.md) | [#432](https://github.com/symow07/nomi/pull/432) |
 | Assistant | [Review](../redesign-assistant/README.md) | [#433](https://github.com/symow07/nomi/pull/433) |
 | Settings | [Review](../redesign-settings/README.md) | [#434](https://github.com/symow07/nomi/pull/434) |
-| Public pages | [Review](../redesign-public/README.md) | Release gate pending |
+| Public pages | [Review](../redesign-public/README.md) | [#435](https://github.com/symow07/nomi/pull/435) |
 
 Each area's review links its desktop and phone images and states its validation limits. All screenshots use English owner UI with local synthetic data. Scripted provider ports replace paid calls and real delivery. Schema remains 223. There is no production deployment in this work.
