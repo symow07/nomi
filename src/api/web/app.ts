@@ -10,7 +10,10 @@ import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
 import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOverviewPaper, readOverviewHistoryPapers, readOverviewBankLines, readOverviewCashEntries, readOverviewSuppliers, readOverviewSupplierEntries, readOverviewProfitEntries, type BooksOverviewOptions } from '../../db/booksOverview.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
-import { booksArea, booksSettingsArea } from './booksArea.js';
+import { booksArea } from './booksArea.js';
+import { renderAssistantsSection } from './assistants.js';
+import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
+import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
@@ -99,7 +102,7 @@ import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
 import {
-  loadChannels, renderChannelScreen, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
+  loadChannels, renderChannelScreen, renderNotificationNumber, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
   channelScreenHref, channelScreenTitle, screenOfChannel,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber, hostChannelsFor,
 } from './channels.js';
@@ -191,6 +194,7 @@ import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { markPromiseKept } from '../../db/promisedDates.js';
+import { settingsProfileValue } from './settings.js';
 import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
@@ -922,7 +926,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * the same transaction, and forgotten with the rest when the profile is
    * saved (`/app/settings` evicts).
    */
-  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
+  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null; readonly exportTrade?: boolean }>(deps.factsTtlMs);
   /**
    * B0 (0177) — the signed-in person, for the DATABASE: every tenant transaction from here to the reply says who is
    * asking (`app.viewer_id`), and the database shows an accountant no row of the sales side, whatever a route forgets.
@@ -949,7 +953,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // A6 — who is looking, for the mode switch the shell offers (never cached: it is this request's person).
     const who = personOf(s);
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
-    const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null }) => {
+    const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null; readonly exportTrade?: boolean }) => {
       const f = { ...f0, viewerRole };
       // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
       if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
@@ -969,8 +973,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (hit !== undefined) return withNeeds(hit);
     withTenantTx(deps.db, bid.value, async (tx) => ({
       ...(await workspaceFacts(tx, bid.value)),
-      business: (await sql<{ name: string | null }>`
-        select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
+      ...await (async()=>{const b=(await sql<{name:string|null;kind:string|null}>`select name,kind from businesses where id=${bid.value}::uuid`.execute(tx)).rows[0];return {business:b?.name??null,exportTrade:tradesForExport(b?.kind??null)};})(),
     })).then(
       // B0 — read as an accountant, the workspace's facts lack what the database keeps from them: never the cache's.
       (f) => { if (viewerRole !== 'accountant') facts.set(s.businessId, f, now); withNeeds(f); },
@@ -1093,14 +1096,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   /** The Split rail's foot: who is signed in. */
   const splitRail = (person: { readonly id: string; readonly name: string }): { readonly me: string } => ({
-    me: `<a class="sp-me" href="/app/settings/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
+    me: `<a class="sp-me" href="/app/settings/personal/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
   });
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; booksPath?:string; live?: string; wide?: boolean; split?: { readonly me: string } }): string => {
     const locale = localeOf(req), s = sessionOf(req), path = o.booksPath??req.url.split('?')[0]!;
     const bodyHtml = s && booksShown() && (path === '/app/books' || path.startsWith('/app/books/'))
       ? booksArea(o.bodyHtml, locale, o.booksPath??path, personOf(s))
-      : s && booksShown() && (path === '/app/settings/books' || path.startsWith('/app/settings/books/'))
-        ? booksSettingsArea(o.bodyHtml, locale, path)
+      : s && (path === '/app/settings' || settingsGroup(path)) && path !== '/app/settings/components'
+        ? settingsArea((settingsGroup(path) ? settingsPageLinks(locale,settingsGroup(path)!,path,personOf(s)) : '') + o.bodyHtml, locale, path, personOf(s))
         : s && assistantSection(path) ? assistantArea(o.bodyHtml, locale, path) : o.bodyHtml;
     return shell({ ...o, bodyHtml, locale, path: o.booksPath??req.url });
   };
@@ -2471,7 +2474,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   }
 
-  app.get('/app/settings/account', authed('settings', async (s, req, locale, reply) => {
+  app.get('/app/settings/personal/account', authed('settings', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
@@ -2489,7 +2492,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * cannot be undone from inside the product. Staff are told whose decision it
    * is rather than shown a form that turns them away.
    */
-  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
+  app.get('/app/settings/business/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => renderDataRights(
       { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null,
         // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.
@@ -4506,7 +4509,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // CH2 — what to check at each step of connecting a Page, and why.
   // Phase 9 — it lights Setup, where the Channels page it belongs to sits, and
   // speaks of the step list only where this installation shows one (CH1).
-  app.get('/app/help/meta', authed('settings', async (_s, _req, locale) => ({
+  app.get('/app/settings/channels/meta/help', authed('settings', async (_s, _req, locale) => ({
     title: t(locale, 'help.meta.title'),
     bodyHtml: renderMetaHelp(locale, { statusShown: !!(deps.metaConnect?.login && deps.metaConnect.credentialKey) }),
   })));
@@ -5139,7 +5142,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       viewer: personOf(s), canAsk: !!deps.systemMail, contact: deps.legalContact ?? null, ...more,
     });
   // Phase 9 — the tab says the page's own name, like its heading.
-  app.get('/app/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => ({
+  app.get('/app/settings/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => ({
     title: t(locale, 'channel.connect.title'), bodyHtml: guide(s, locale, { flash: takeFlash(req, reply) }) })));
   // Phase 9 — the guide's first step: the number goes to Nomi's team.
   app.post('/app/channels/whatsapp/ask', async (req, reply) => {
@@ -5352,7 +5355,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
   });
   for (const screen of CHANNEL_SCREENS) {
-    app.get(channelScreenHref(screen), async (req, reply) => {
+    if(screen==='alerts') continue;
+    app.get(settingsHref(channelScreenHref(screen)), async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
@@ -5411,14 +5415,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   // THE WARMTH RUN, phase 7 — My business is a menu; each row's value is read
   // through the loader of the page it opens (`loadBusinessMenu`).
-  app.get('/app/business', authed('factory', async (s, req, locale, reply) => {
-    const flash = takeFlash(req, reply);
-    const [view, menu] = await Promise.all([
-      loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: false }),
-      loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner),
-    ]);
-    return renderFactory({ ...view, menu }, locale, flash, personOf(s));
-  }));
   // …and the screens a level down, each one former section of the page,
   // unchanged in substance: where customers reach you (the channels' one
   // home), who may be messaged, going live, what is promised, how you sell.
@@ -5428,11 +5424,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     how: (l) => t(l, 'factory.sellhow.title'),
   };
   for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
-    app.get(BUSINESS_SCREEN_PATH[screen], authed('factory', async (s, req, locale, reply) => {
+    if(screen==='how') continue;
+    app.get(settingsHref(BUSINESS_SCREEN_PATH[screen]), authed('factory', async (s, req, locale, reply) => {
       const flash = takeFlash(req, reply);
       const [view, menu] = await Promise.all([
         loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: screen === 'ready' }),
-        screen === 'how' ? loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner) : Promise.resolve(undefined),
+        Promise.resolve(undefined),
       ]);
       // KS6 — the approval the first connection waits for leads the channels' home.
       const bid = parseBusinessId(s.businessId);
@@ -5967,17 +5964,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── HS (0096) How you sell: one question a page, every line ticked ────────
   // Money and going live are the owner's (rule 11): every route is `price_rules`.
   // Phase 9 — the tab says "How you sell", like its heading and its questions' pages.
-  app.get(HS_BASE, async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', BUSINESS_SCREEN_PATH.how);
-    if (!s) return reply;
+  app.get('/app/settings/business/selling', async (req, reply) => {
+    const s = sessionOf(req);if(!s)return reply.redirect('/login');
     const locale = localeOf(req);
+    if(!personOf(s).isOwner){const view=await loadFactory(deps.db,s.businessId,whatsappConfigured,await businessOffer(s.businessId),{rehearse:false});const menu=await loadBusinessMenu(deps.db,s.businessId,false);return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'hs.title'),active:'settings',bodyHtml:renderBusinessScreen('how',{...view,menu},locale,takeFlash(req,reply),personOf(s))}));}
     const v = await loadHub(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderHub(v, locale, takeFlash(req, reply)) : '',
     }));
   });
-  const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? ''));
-  app.get(`${HS_BASE}/:q`, async (req, reply) => {
+  const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? '').replaceAll('-','_'));
+  app.get('/app/settings/business/selling/:q', async (req, reply) => {
     const q = hsQuestion(req);
     const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
     if (!s) return reply;
@@ -6001,7 +5998,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderQuestion(v, locale, null, r.errors, body) : '' }));
   });
-  app.get(`${HS_BASE}/:q/confirm`, async (req, reply) => {
+  app.get('/app/settings/business/selling/:q/confirm', async (req, reply) => {
     const q = hsQuestion(req);
     const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
     if (!s) return reply;
@@ -6178,13 +6175,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s)),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true),
     }));
   });
   // …and each row's screen: one former section, under its way back. Each is
   // its own route, so every walk of the GET routes opens every one of them.
   for (const screen of EMPLOYEE_SCREENS) {
-    if (screen === 'month' || dailyAssistantScreen(screen)) continue; // Daily work has its own area.
+    if (screen === 'month' || dailyAssistantScreen(screen) || ['next','replies','one-kind'].includes(screen)) continue; // Daily work has its own area.
     app.get(screenHref(screen), async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
@@ -6197,7 +6194,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ]);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: screenTitle(locale, screen), active: 'settings',
-        bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}),
+        bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}) + (screen === 'name' && personOf(s).isOwner ? renderAssistantsSection(await loadAssistants(deps.db,s.businessId),locale) : ''),
       }));
     });
   }
@@ -6539,6 +6536,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/business/prices', movedPage('/app/products/price-limits'));
+  for(const [old,destination] of Object.entries(SETTINGS_MOVES)) app.get(old,movedPage(destination));
+  for(const suffix of ['', '/confirm'])app.get('/app/business/selling/:q'+suffix,(req,reply)=>movedPage(settingsHref('/app/business/selling/'+String((req.params as {q:string}).q)+suffix))(req,reply));
   app.get('/app/replies', movedPage('/app/inbox/replies'));
   app.get('/app/replies/:id', (req, reply) => movedPage(`/app/inbox/replies/${encodeURIComponent((req.params as { id: string }).id)}`)(req, reply));
   app.get('/app/analytics', movedPage('/app/results'));
@@ -6728,7 +6727,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // G6 — and the installation's: it describes this deployment, not a
   // workspace, so only the owner of the installation's own workspace reaches
   // it. Anyone else is told there is no such page.
-  app.get('/app/onboarding/technical', {
+  app.get('/app/settings/channels/technical', {
     preHandler: async (req, reply) => {
       const s = sessionOf(req);
       if (s && s.businessId !== deps.businessId) return reply.callNotFound();
@@ -6868,49 +6867,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    // The advisor run — the assistant's row says how much it does alone as it stands (the control's own reading).
-    const e = await loadEmployee(deps.db, s.businessId);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.settings'), active: 'settings',
-      bodyHtml: renderSettingsHome(locale, takeFlash(req, reply), { alone: aloneInForce(e, locale) }),
-    }));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'nav.settings'),active:'settings',bodyHtml:renderSettingsIndex(locale,takeFlash(req,reply),personOf(s))}));
   });
-  app.get('/app/settings/setup', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const locale = localeOf(req);
-    const flash = takeFlash(req, reply);
-    const owner = personOf(s).isOwner;
-    const bid = parseBusinessId(s.businessId);
-    // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [people, phones, ways, login, billing, data, advisorKept] = await Promise.all([
-      loadPeople(deps.db, s.businessId),
-      loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
-      // The warmth run, phase 8 — the row says how notifications reach this reader.
-      loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()).catch(() => undefined),
-      bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
-      owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
-      owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
-      // 0130 — the advisor's history row says whether this person's is kept now.
-      deps.advisorMemory ? deps.advisorMemory.state(s.businessId, personOf(s).id, new Date()).then((m) => m.keep).catch(() => false) : Promise.resolve(false),
-    ]);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.setup'), active: 'settings',
-      bodyHtml: renderSetup({
-        people: people.length, viewer: personOf(s),
-        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? {
-          // Phase 9 (w4-settings-a-02, w4-today-setup-25) — null when no way can reach this reader: the row says so.
-          way: ways ? alertWayNow(ways, phones) : null,
-        } : {}) } : null,
-        signIn: { email: login?.email ?? null },
-        billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
-        dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
-        advisorKept,
-      }, locale, flash),
-    }));
-  });
+  app.get('/app/settings/personal', authed('settings',(s,req,locale,reply)=>({title:t(locale,'settingsArea.personal'),bodyHtml:renderSettingsGroup(locale,'personal',personOf(s),takeFlash(req,reply))})));
   // Phase 7 — the language switch, a tap down from Setup's Language row.
-  app.get('/app/settings/language', authed('settings', (_s, _req, locale) => ({
+  app.get('/app/settings/personal/language', authed('settings', (_s, _req, locale) => ({
     title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale, viewerRole() === 'accountant'),
   })));
   // The design pass (UI-PASS 7) — the business profile, on its own page.
@@ -6923,12 +6884,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
   const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
   // Phase 9 (w4-settings-a-10) — opened from the channels screen's card, its way back leads there.
-  app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
+  app.get('/app/settings/personal/notifications', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'alerts.title'),
     bodyHtml: renderPhoneAlerts({
       ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
       ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
-    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)),
+    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)) + renderNotificationNumber(await loadChannels(deps.db,s.businessId,whatsappConfigured,deps.templateState??'none',hostChannels(s.businessId).number),locale,personOf(s)),
   })));
   app.post('/app/settings/alerts/channel', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -6969,18 +6930,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/settings/alerts', n > 0 ? 'alerts.flash.tested' : 'alerts.flash.testNone');
   });
 
-  app.get('/app/settings/profile', authed('settings', async (s, req, locale, reply) => ({
+  app.get('/app/settings/business/profile', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'settings.profile.title'),
     bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},
-      await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
+      await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)) + `<section id="business-kind" class="sa-subject">${renderBusinessKind(await loadBusinessKind(deps.db,s.businessId),locale,null,t(locale,'settingsArea.business'),null,true)}</section>`,
   })));
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.
-  app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
-    const flash = takeFlash(req, reply);
-    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.factory'));
-  }));
+  app.get('/app/settings/business', authed('settings', (s,req,locale,reply) => ({title:t(locale,'settingsArea.business'),bodyHtml:renderSettingsGroup(locale,'business',personOf(s),takeFlash(req,reply))})));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
@@ -6995,13 +6953,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     const r = await saveBusinessKind(deps.db, s.businessId, typed, personOf(s).id);
     facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
-    return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
+    return flashTo(reply, '/app/settings/business/profile#business-kind', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
 
   // ── M37.5 · the words she may never say ───────────────────────────────────
   // Reached from settings. Without this surface the guard would be M35 again:
   // something buyers are subject to that no owner can configure.
-  app.get('/app/settings/forbidden', authed('settings', async (sess, req, locale, reply) =>
+  app.get('/app/settings/assistant/words', authed('settings', async (sess, req, locale, reply) =>
     renderForbidden(await loadForbidden(deps.db, sess.businessId), locale,
       takeFlash(req, reply))));
 
@@ -7017,9 +6975,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
-  app.get('/app/settings/rate', authed('settings', async (sess, req, locale, reply) =>
-    renderRate(await loadRates(deps.db, sess.businessId), locale,
-      takeFlash(req, reply), personOf(sess))));
+  app.get('/app/settings/business/currency', authed('settings', async (sess, req, locale, reply) =>
+    `${settingsProfileValue(locale,'currency',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),await loadCurrencyChoice(deps.db,sess.businessId))}${renderRate(await loadRates(deps.db, sess.businessId), locale,takeFlash(req, reply), personOf(sess),null,true)}`));
 
   app.post('/app/settings/rate', async (req, reply) => {
     // Phase 4 — the rate she honours converts every price: money, hers.
@@ -7035,9 +6992,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // M44 — the days her factory is shut. She states them; nothing is assumed.
-  app.get('/app/settings/closures', authed('settings', async (sess, req, locale, reply) =>
-    renderClosures(await loadClosures(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
+  app.get('/app/settings/business/hours', authed('settings', async (sess, req, locale, reply) =>
+    `${settingsProfileValue(locale,'hours',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),null)}${renderClosures(await loadClosures(deps.db, sess.businessId), locale,takeFlash(req, reply),null,true)}`));
 
   app.post('/app/settings/closures', async (req, reply) => {
     const s = sessionOf(req);
@@ -7186,7 +7142,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const teamBid = (raw: string): BusinessId | null => { const b = parseBusinessId(raw); return b.ok ? b.value : null; };
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
   // since G9a the page too, not only the form's POST.
-  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
+  app.get('/app/settings/team', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
     // A code is shown ONCE: read from the cookie the POST set, and cleared in
     // the same response. Never in a URL, never stored.
     const cookie = parseCookies(req.headers.cookie)[ISSUED_COOKIE];
@@ -7194,7 +7150,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (cookie !== undefined) writeCookie(reply, ISSUED_COOKIE, '', { path: ISSUED_PATH, maxAgeSec: 0 });
     return renderPeople({
       people: await loadPeople(deps.db, sess.businessId), justIssued,
-      assistants: await loadAssistants(deps.db, sess.businessId),
       business: businessName(),
       // S3 (0198) — hand-offs in turn.
       ...(teamBid(sess.businessId) ? { rotation: await withTenantTx(deps.db, teamBid(sess.businessId)!, (tx) => rotationOf(tx, teamBid(sess.businessId)!)) } : {}),
@@ -7242,7 +7197,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // A5 — who answers buyers. Owner-only by the same rule as people: it is the team.
   const teamFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
-    flashTo(reply, '/app/settings/people#assistants', key, params);
+    flashTo(reply, '/app/settings/assistant/name#assistants', key, params);
 
   app.post('/app/settings/people/assistants', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
@@ -8096,7 +8051,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // G6 — her terms on a proforma. Owner-only under the price-rules decision:
   // staff negotiate inside her commercial terms, they do not set them.
-  app.get('/app/settings/terms', authed('settings', async (sess, req, locale, reply) =>
+  app.get('/app/settings/business/terms', authed('settings', async (sess, req, locale, reply) =>
     renderTerms(await loadTerms(deps.db, sess.businessId), locale,
       takeFlash(req, reply), personOf(sess))));
 
@@ -8115,10 +8070,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.
-  app.get('/app/settings/samples', authed('settings', async (sess, req, locale, reply) =>
+  app.get('/app/settings/business/samples', authed('settings', async (sess, req, locale, reply) =>
     renderSamples(await loadSamples(deps.db, sess.businessId), locale,
       takeFlash(req, reply),
-      new Date(), personOf(sess))));
+      new Date(), personOf(sess), null, 'policy')));
+  app.get('/app/customers/samples', authed('customers', async (sess, req, locale, reply) =>
+    customerArea(renderSamples(await loadSamples(deps.db, sess.businessId), locale, takeFlash(req, reply), new Date(), personOf(sess), null, 'requests'), locale, 'samples')));
 
   app.post('/app/settings/samples', async (req, reply) => {
     // Phase 4 — what a sample costs is a price. Recording an address or
@@ -8131,8 +8088,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
     });
     const kept = keptFrom(locale, `samples.flash.${r.code}`, b);
-    if (kept) return sentBack(req, reply, 'settings', renderSamples(await loadSamples(deps.db, s.businessId), locale, null, new Date(), personOf(s), kept));
-    return flashTo(reply, '/app/settings/samples', `samples.flash.${r.code}` as MessageKey);
+    if (kept) return sentBack(req, reply, 'settings', renderSamples(await loadSamples(deps.db, s.businessId), locale, null, new Date(), personOf(s), kept, 'policy'));
+    return flashTo(reply, '/app/settings/business/samples', `samples.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/samples/:id/address', async (req, reply) => {
@@ -8141,7 +8098,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const address = String((req.body as { address?: string } | undefined)?.address ?? '');
     const r = await saveSampleAddress(deps.db, s.businessId, (req.params as { id: string }).id, address);
-    return flashTo(reply, '/app/settings/samples', r.code === 'saved' ? 'samples.flash.address' : 'samples.flash.failed');
+    return flashTo(reply, '/app/customers/samples', r.code === 'saved' ? 'samples.flash.address' : 'samples.flash.failed');
   });
 
   app.post('/app/settings/samples/:id/handled', async (req, reply) => {
@@ -8149,7 +8106,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const r = await markSampleHandled(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id, new Date());
-    return flashTo(reply, '/app/settings/samples', r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed');
+    return flashTo(reply, '/app/customers/samples', r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed');
   });
 
   app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -80,7 +81,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     return withTenantTx(db, await bid(), fn);
   };
   const get = (cookie: string, url: string, extra = '') =>
-    app.inject({ method: 'GET', url, headers: { cookie: [cookie, extra].filter(Boolean).join('; ') } });
+    app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: [cookie, extra].filter(Boolean).join('; ') } });
   const post = (cookie: string, url: string, fields: Record<string, string> = {}) => app.inject({
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
@@ -133,11 +134,11 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('her accounts page offers Gmail and Outlook to connect — to her, not to staff', async () => {
-    const owner = await get(ownerCookie, '/app/channels/email');
+    const owner = await get(ownerCookie, '/app/settings/channels/email');
     expect(owner.body).toContain(esc(t('en', 'connect.title')));
     expect(owner.body).toContain('action="/app/connect/google/start"');
     expect(owner.body).toContain('action="/app/connect/microsoft/start"');
-    const staff = await get(staffCookie, '/app/channels/email');
+    const staff = await get(staffCookie, '/app/settings/channels/email');
     expect(staff.body).not.toContain('/start"');
     const tried = await get(staffCookie, '/app/connect/google/start');
     expect(flashSaid(tried, SECRET)).toContain('Only the owner');
@@ -187,7 +188,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     expect(row.refresh_token_ciphertext.startsWith('v1.')).toBe(true);
     expect(row.refresh_token_ciphertext).not.toContain(`refresh-g-${RUN}`);
     expect(row.fingerprint).toBe(credentialFingerprint(`refresh-g-${RUN}`));
-    const page = await get(ownerCookie, '/app/channels/email');
+    const page = await get(ownerCookie, '/app/settings/channels/email');
     expect(page.body).toContain(`<bdi>lily@${DOMAIN}</bdi>`);
     expect(page.body).not.toContain(`refresh-g-${RUN}`);
   });
@@ -283,7 +284,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     const r = await transport.send({ to: 'buyer@gulf.test', subject: 'Hello', text: 'Hi', headers: {}, tag: null });
     expect(r).toEqual({ ok: false, retryable: false, error: 'the mail account must be connected again' });
     expect((await live())!.last_error).toBe('revoked');
-    const page = await get(ownerCookie, '/app/channels/email');
+    const page = await get(ownerCookie, '/app/settings/channels/email');
     expect(page.body).toContain(esc(t('en', 'connect.state.attention')));
     refreshAnswer = { status: 200, body: { access_token: 'access-1', expires_in: 3600 } };
   });
@@ -394,7 +395,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
       fingerprint: credentialFingerprint(`refresh-send-${RUN}`), scopes: 'gmail.send', by: 'Lily',
     }));
     expect(await readNewMail(deps, B)).toEqual({ outcome: 'not_reading' });
-    const page = await get(ownerCookie, '/app/channels/email');
+    const page = await get(ownerCookie, '/app/settings/channels/email');
     expect(page.body).toContain('Sends only.');
     expect(page.body).toContain('name="read"');
   });

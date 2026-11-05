@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -35,9 +36,9 @@ d('0215 · connecting a TikTok account (requires DATABASE_URL + MIGRATE_DATABASE
   const session = (r: { headers: Record<string, unknown> }) => cookiesOf(r).find((c) => c.startsWith('yf_session=')) ?? '';
   const notice = async (r: { headers: Record<string, unknown> }) => {
     const to = String(r.headers['location']).split('#')[0]!;
-    return (await app.inject({ method: 'GET', url: to, headers: { cookie: `${owner}; ${cookiesOf(r).join('; ')}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(to), headers: { cookie: `${owner}; ${cookiesOf(r).join('; ')}` } })).body;
   };
-  const screen = async (who = owner) => (await app.inject({ method: 'GET', url: '/app/channels/tiktok', headers: { cookie: who } })).body;
+  const screen = async (who = owner) => (await app.inject({ method: 'GET', url: '/app/settings/channels/tiktok', headers: { cookie: who } })).body;
   const connect = async (openId: string, o: { nonce?: string } = {}) => {
     const start = await app.inject({ method: 'GET', url: '/app/connect/tiktok/start', headers: { cookie: owner } });
     const to = new URL(String(start.headers['location']));

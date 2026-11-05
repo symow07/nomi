@@ -147,7 +147,7 @@ d('Phase 1 · open sign-up, scored (requires DATABASE_URL + MIGRATE_DATABASE_URL
     const { business, cookies } = await signUp(b, shop('throwaway', `box${RUN}@mailinator.com`));
     expect(await risk(business)).toEqual({ tier: 'medium', reasons: ['fresh_email'] });
     expect(await billing(business)).toEqual({ card: true, trial: null });
-    const welcome = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie: cookies } });
+    const welcome = await prod.app.inject({ method: 'GET', url: '/app/settings/business', headers: { cookie: cookies } });
     expect(welcome.body).toContain(t('en', 'signup.welcome.card'));
   });
 

@@ -133,9 +133,9 @@ describe('HS · the pages, in every language', () => {
       expect(hub, l).not.toMatch(/\bhs\.[a-zA-Z_.]+/);
       // Phase 7 — opened from My business › How you sell, a menu of the same name:
       // the page is named for what it holds, and leads back to that menu.
-      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/business/how-you-sell">${BACK}${t(l, 'factory.sellhow.title')}</a></div>`);
+      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/settings/business/selling">${BACK}${t(l, 'factory.sellhow.title')}</a></div>`);
       expect(hub, l).toContain(`<h1 class="page">${t(l, 'hs.questions.title')}</h1>`);
-      for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/business/selling/${q}"`);
+      for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/settings/business/selling/${q.replaceAll('_','-')}"`);
       for (const q of [...CATALOGUE_QUESTIONS, ...SERVICE_QUESTIONS]) {
         const html = renderQuestion(view(q, q === 'offered' || q === 'area' || q === 'duration' || q === 'next_step'
           ? { order: SERVICE_QUESTIONS, facts: { kind: 'agency', profile: 'services', pricesToOwner: false, zone: 'UTC' } } : {}), l, null);
@@ -171,17 +171,19 @@ describe('HS · the pages, in every language', () => {
   });
   it('phase 7 · My business › How you sell shows the owner the door and where she is; staff do not see it; Setup does not hold it', () => {
     const owner = renderBusinessScreen('how', SET_UP, 'en');
-    expect(owner).toContain('href="/app/business/selling"');
+    expect(owner).toContain('href="/app/settings/business/selling"');
     expect(owner).toContain('3 of 8 answered');
     expect(renderFactory(SET_UP, 'en')).toContain('3 of 8 answered');      // the menu's row says it too
     expect(renderBusinessScreen('how', { ...SET_UP, menu: { ...SET_UP.menu!, howYouSell: null } }, 'en', null, { isOwner: false }))
-      .not.toContain('href="/app/business/selling"');
-    expect(renderSetup({ people: 1 }, 'en', null)).not.toContain('href="/app/business/selling"');
+      .not.toContain('href="/app/settings/business/selling"');
+    expect(renderSetup({ people: 1 }, 'en', null)).not.toContain('href="/app/settings/business/selling"');
   });
   it('every route is the owner\'s (rule 11)', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // Phase 9 — the hub draws its own tab title ("How you sell"), so it calls the same gate directly.
-    expect(app).toMatch(/app\.get\(HS_BASE, async \(req, reply\) => \{\s*const s = await ownerOnly\(req, reply, 'price_rules'/);
+    expect(app).toContain("app.get('/app/settings/business/selling',");
+    expect(app).toContain("if(!personOf(s).isOwner)");
+    expect(app).toContain("app.get('/app/settings/business/selling/:q',");
     for (const route of ['`${HS_BASE}/:q`', '`${HS_BASE}/:q/confirm`', '`${HS_BASE}/:q/skip`']) {
       const at = app.indexOf(`app.post(${route}`);
       expect(at, route).toBeGreaterThan(0);
@@ -208,7 +210,7 @@ describe('Phase 9 · B5 · How you sell', () => {
       const html = hub(l);
       expect(html, l).toContain(bare(t(l, 'hs.count', { done: '0', total: '9' })));
       // every question is a row with its door and its state — never the waiting colour for a setting
-      expect(html.match(/<a class="srow sr-menu" href="\/app\/business\/selling\/[a-z_]+">/g), l).toHaveLength(9);
+      expect(html.match(/<a class="srow sr-menu" href="\/app\/settings\/business\/selling\/[a-z-]+">/g), l).toHaveLength(9);
       expect(html.split(`<span class="sr-value"><bdi>${t(l, 'hs.state.open')}</bdi></span>`).length - 1, l).toBe(9);
       expect(html, l).not.toContain('sr-value warn');
       const some = hub(l, { price: { state: 'answered', answer: { q: 'price', quantityFirst: true } } });

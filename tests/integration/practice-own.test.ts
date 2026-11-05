@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -125,9 +126,10 @@ d('P5 · every workspace practises on its own copy, and no other reaches it (req
 
   it('every workspace is offered the door', async () => {
     // The warmth run (phase 7): Practice is a row of the assistant's menu; My business is what you sell.
-    for (const url of ['/app/settings/assistant']) {
-      const r = await app.inject({ method: 'GET', url, headers: { cookie: other } });
-      if (r.statusCode === 200) expect(r.body, url).toContain('href="/app/assistant/practice');
+    for (const url of ['/app/assistant']) {
+      const r = await app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: other } });
+      expect(r.statusCode).toBe(200);
+      expect(r.body, url).toContain('href="/app/assistant/practice');
     }
   });
 });

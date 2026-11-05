@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
@@ -41,7 +42,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     // Each ticked box posts its own name, as the page renders them.
     payload: new URLSearchParams({ ...fields, ...Object.fromEntries(channels.map((c) => [`channel_${c}`, 'on'])) }).toString(),
   });
-  const get = (url: string, cookie: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string, cookie: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   // A1 + A3 — NAMED, not "the first one that is not empty". Sign-up sets the
   // session AND (A1) the welcome notice, so "first non-empty" started picking
   // the notice and every page after it rendered as signed-out.
@@ -163,7 +164,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
   });
 
   it('A2 · SHE CAN CHANGE WHAT KIND OF BUSINESS IT IS — and a workspace that was never asked can answer for the first time', async () => {
-    const page = await get('/app/settings/business', cookieB);
+    const page = await get('/app/settings/business/profile', cookieB);
     expect(page.body).toContain('<option value="agency" selected>');
     expect(page.body).toContain('<option value="AE" selected>');
 
@@ -181,9 +182,9 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
 
     // The environment's business was made long before sign-up asked anything.
     const pilot = cookieOf(await form('/login', { code: prod.ownerAccessCode }));
-    const never = await get('/app/settings/business', pilot);
+    const never = await get('/app/settings/business/profile', pilot);
     expect(never.statusCode).toBe(200);
-    expect(never.body).not.toContain(' selected>');
+    expect(never.body.match(/<select[^>]+name="kind"[^>]*>([\s\S]*?)<\/select>/)?.[1]).not.toContain(' selected>');
   });
 
   it('TZ · EACH WORKSPACE KEEPS ITS OWN TIME — given where the country has one zone, asked where it has several, changed on the profile', async () => {
@@ -220,7 +221,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
 
     // The owner changes it on the profile; a value that is not a zone changes nothing.
     const cookieC = cookieOf(made);
-    const profile = await get('/app/settings/profile', cookieC);
+    const profile = await get('/app/settings/business/profile', cookieC);
     expect(profile.body).toContain('<option value="America/Chicago" selected>');
     const saved = await form('/app/settings', { name: C.factory, zone: 'America/Denver' }, cookieC);
     expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
@@ -229,7 +230,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.zoneInvalid'));
     expect(await zoneOfName(C.factory)).toBe('America/Denver');
     // The cached facts were let go: the next page is drawn in the new zone.
-    expect((await get('/app/settings/profile', cookieC)).body).toContain('<option value="America/Denver" selected>');
+    expect((await get('/app/settings/business/profile', cookieC)).body).toContain('<option value="America/Denver" selected>');
     // The old address saves nothing: an old form, or an old link, lands on the profile, where the zone lives.
     const oldForm = await form('/app/settings/zone', { zone: 'America/Chicago' }, cookieC);
     expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/profile']);
@@ -239,7 +240,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     // …and a stranger gets the same address, which sends them to the door; nothing is saved.
     const stranger = await form('/app/settings/currency', { currency: 'SAR' });
     expect([stranger.statusCode, stranger.headers['location']]).toEqual([303, '/app/settings/profile']);
-    const door = await get('/app/settings/profile', '');
+    const door = await get('/app/settings/business/profile', '');
     expect([door.statusCode, door.headers['location']]).toEqual([302, '/login']);
 
     // …and every "today" the database decides is the workspace's own.
@@ -360,7 +361,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
   });
 
   it('SHE CHANGES HER PASSWORD ONLY AGAINST THE ONE SHE HAS NOW, and the old one stops working', async () => {
-    const page = await get('/app/settings/account', cookieB);
+    const page = await get('/app/settings/personal/account', cookieB);
     expect(page.body).toContain(B.email);
     expect(page.body).not.toContain(A.email);
 
@@ -371,7 +372,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(flash(changed)).toBe(t('en', 'account.flash.changed'));
     const reissued = cookieOf(changed);
     expect(reissued, 'the page she is on is re-issued a session dated after the change').not.toBe('');
-    expect((await get('/app/settings/account', reissued)).statusCode).toBe(200);
+    expect((await get('/app/settings/personal/account', reissued)).statusCode).toBe(200);
 
     expect((await form('/login', { email: B.email, password: B.password })).statusCode).toBe(401);
     expect((await form('/login', { email: B.email, password: 'a-brand-new-password' })).statusCode).toBe(302);
@@ -382,7 +383,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect([old.statusCode, old.headers['location']], 'every other session ends').toEqual([302, '/login']);
 
     const pilot = cookieOf(await form('/login', { code: prod.ownerAccessCode }));
-    expect((await get('/app/settings/account', pilot)).body, 'a code has no password to change').toContain(t('en', 'account.codeOnly'));
+    expect((await get('/app/settings/personal/account', pilot)).body, 'a code has no password to change').toContain(t('en', 'account.codeOnly'));
   });
 
   it('THE CLOCK LOOKS AT EVERY FACTORY WITH SOMETHING TO DO, not only the one the environment names — and not at idle ones', async () => {

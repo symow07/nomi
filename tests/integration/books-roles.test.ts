@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -25,7 +26,7 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
   const login = (code: string) => app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,
     headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-  const get = (url: string, who: keyof typeof cookies) => app.inject({ method: 'GET', url, headers: { cookie: cookies[who] } });
+  const get = (url: string, who: keyof typeof cookies) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: cookies[who] } });
 
   let ACCOUNTANT_ALSO: ReadonlySet<string> = new Set();
   beforeAll(async () => {

@@ -119,7 +119,7 @@ describe('G6 · the settings page', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/terms'");
     const app = await src('src/api/web/app.ts');
-    expect(app).toContain("app.get('/app/settings/terms'");
+    expect(app).toContain("app.get('/app/settings/business/terms'");
     expect(app).toMatch(/app\.post\('\/app\/settings\/terms'[\s\S]{0,200}ownerOnly\(req, reply, 'price_rules'/);
   });
 

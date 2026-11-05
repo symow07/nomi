@@ -149,7 +149,7 @@ describe('D4 · at 60 days the app flags it, and still decides nothing', () => {
       const html = withoutIsolates(renderOperationsHome(today, l, QUIET));
       const first = html.slice(html.indexOf('aria-labelledby="today-now"'), html.indexOf('</section>', html.indexOf('aria-labelledby="today-now"')));
       expect(first, l).toContain(esc(tn(l, 'today.deletion.long', 1)));
-      expect(first, l).toContain('href="/app/settings/data#buyers"');
+      expect(first, l).toContain('href="/app/settings/business/data#buyers"');
       expect(first, l).not.toContain(esc(t(l, 'today.calm.title')));
       expect(first, l).not.toContain(esc(t(l, 'today.needs.none')));
     }

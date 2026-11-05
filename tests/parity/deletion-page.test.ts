@@ -436,7 +436,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
       expect(owner, l).toContain(ERASE);
       expect(owner, l).not.toContain('name="note"');
       // The way back is the owner's, on Your data.
-      expect(owner, l).toContain('href="/app/settings/data#buyers"');
+      expect(owner, l).toContain('href="/app/settings/business/data#buyers"');
       const staff = withoutIsolates(renderCustomerFile(open, l, NOW, null, STAFF));
       expect(staff, l).toContain(line);
       expect(staff, l).not.toContain(ERASE);

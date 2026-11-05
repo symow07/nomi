@@ -202,12 +202,12 @@ describe('phase 4 · Setup says which values are states', () => {
   it('done or on ✓, waiting ○, did not happen ✕ — and a value that only names something carries none', () => {
     expect(valueOf('/app/guide')).toBe(' warn');               // 2 of 5 done
     expect(valueOf('/app/onboarding')).toBe(' warn');          // name not confirmed
-    expect(valueOf('/app/settings/alerts')).toBe(' ok');       // a phone gets them
+    expect(valueOf('/app/settings/personal/notifications')).toBe(' ok');       // a phone gets them
     expect(valueOf('/app/settings/billing')).toBe(' bad');     // a payment failed
-    expect(valueOf('/app/settings/data')).toBe(' warn');       // two requests wait
-    expect(valueOf('/app/settings/language')).toBe('');        // a language is a name, not a state
-    expect(valueOf('/app/settings/people')).toBe('');
-    expect(valueOf('/app/settings/account')).toBe('');
+    expect(valueOf('/app/settings/business/data')).toBe(' warn');       // two requests wait
+    expect(valueOf('/app/settings/personal/language')).toBe('');        // a language is a name, not a state
+    expect(valueOf('/app/settings/team')).toBe('');
+    expect(valueOf('/app/settings/personal/account')).toBe('');
     // phase 7 — the profile, the kind and the channels are My business's rows
     // now; their states are held in warmth-settings-business.test.ts.
   });

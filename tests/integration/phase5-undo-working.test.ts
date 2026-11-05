@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
@@ -51,7 +52,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
   const landing = async (r: { statusCode: number; headers: Record<string, unknown> }) => {
     expect(r.statusCode).toBe(302);
     const flash = cookieOf(r, FLASH_COOKIE);
-    return prod.app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: `${cookie}; ${flash}` } });
+    return prod.app.inject({ method: 'GET', url: settingsHref(String(r.headers['location'])), headers: { cookie: `${cookie}; ${flash}` } });
   };
   const one = async <T>(q: string, args: unknown[]): Promise<T> => (await admin.query(q, args)).rows[0] as T;
   const UNDO = (action: string) => `<form method="post" action="${action}" class="undo">`;
@@ -146,7 +147,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     const cid = c.conversationId as string;
     const fid = `wamid.p5.${RUN}`;
     await admin.query(`insert into message_fragments (id, business_id, conversation_id, text) values ($1, $2, $3, 'Do you have 60x60 in grey?')`, [fid, bid, cid]);
-    const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie, accept: 'application/json' } });
+    const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie, accept: 'application/json' } });
 
     const pageNow = (await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body;
     expect(pageNow).toContain('class="block working" role="status"');
@@ -185,7 +186,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     const b = parseBusinessId(bid); if (!b.ok) throw new Error('fixture');
     const c = await withTenantTx(prod.db, b.value, (tx) => ensureConversation(tx, b.value, `+9716${RUN.replace(/\D/g, '').padEnd(8, '3').slice(0, 8)}`, 'Rana'));
     const cid = c.conversationId as string;
-    const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie, accept: 'application/json' } });
+    const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie, accept: 'application/json' } });
     const page = async () => (await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body;
     const working = async () => (await get(`/app/live/conversation/${cid}?since=0.0.00000000`)).json() as { working?: boolean };
 

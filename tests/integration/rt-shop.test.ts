@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
@@ -54,7 +55,7 @@ d('RT · a shop, end to end (requires DATABASE_URL)', () => {
   };
   const post = (url: string, payload: string) =>
     prod.app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const audit = (action: string) => q((tx) => sql<{ detail: Record<string, unknown> }>`
     select detail from channel_audit where business_id = ${BIZ}::uuid and action = ${action} order by at, id`
     .execute(tx).then((r) => r.rows.map((x) => x.detail)));

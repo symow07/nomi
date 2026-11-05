@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -34,7 +35,7 @@ d('0081 · a product may have no minimum (requires DATABASE_URL)', () => {
     const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
     return withTenantTx(db, bid.value, fn);
   };
-  const get = (url: string, extra: Record<string, string> = {}) => app.inject({ method: 'GET', url, headers: { cookie, ...extra } });
+  const get = (url: string, extra: Record<string, string> = {}) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie, ...extra } });
   const post = (url: string, fields: Record<string, string>) =>
     app.inject({ method: 'POST', url, payload: new URLSearchParams(fields).toString(), headers: { cookie, ...FORM } });
   const moqOf = (where: string) => tx((t) => sql<{ moq: number | null }>`

@@ -97,7 +97,7 @@ d('E1 · the owner\'s copy of their papers (requires DATABASE_URL + MIGRATE_DATA
   it('NOT DOWNLOADED, NOT CLOSED: a workspace holding papers refuses with its own reason, and nothing is erased', async () => {
     expect(await close(BIZ, NAME)).toEqual({ outcome: 'papers_first' });
     expect((await admin.query(`select is_active from businesses where id = $1`, [BIZ])).rows[0].is_active).toBe(true);
-    const page = (await app.inject({ method: 'GET', url: '/app/settings/data', headers: { cookie } })).body;
+    const page = (await app.inject({ method: 'GET', url: '/app/settings/business/data', headers: { cookie } })).body;
     expect(page).toContain('id="papers"');
     expect(page).toContain('href="/app/settings/data/papers.zip"');
     // no file kept as history here, so nothing is said about keeping one longer (history-kept.test.ts says it)
@@ -135,7 +135,7 @@ d('E1 · the owner\'s copy of their papers (requires DATABASE_URL + MIGRATE_DATA
     const receipt = (await admin.query(`select made_by, papers from books_exports where business_id = $1 and kind = 'papers_zip' order by made_at desc limit 1`, [BIZ])).rows[0];
     expect(receipt.papers).toBe(3);
     expect(['owner', OWNER]).toContain(receipt.made_by);
-    expect((await app.inject({ method: 'GET', url: '/app/settings/data', headers: { cookie } })).body).toContain('Your copy holds every paper.');
+    expect((await app.inject({ method: 'GET', url: '/app/settings/business/data', headers: { cookie } })).body).toContain('Your copy holds every paper.');
   });
 
   it('A PAPER ADDED AFTER THE COPY makes it old; downloaded again, the workspace closes', async () => {

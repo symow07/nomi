@@ -13,13 +13,21 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 6: Assistant (2026-11-06; no migration)
+
+Merged through `tools/gated-merge.sh` in #433 at `694cb4f9`, with both exact-head CI checks green. Schema remains 223. Daily work has Overview, Knowledge, Practice, Check replies, Activity and Ask Nomi. Knowledge separates unanswered questions, taught facts, products and source readings. Complete bounded pages, literal filters and return context keep large lists reachable. Source sentences precede unticked AI proposals; review shows the exact recorded reply. Existing advisor, allowance, authority and command services remain authoritative, including signed Undo.
+
+Local check (9,299), trust (44), build and final full isolated integration (2,067; none skipped) passed. Browser evidence covers 70 English desktop/phone visits before and after, nine read-only workflow groups, six actual local command groups and unchanged snapshots of ten source/authority tables. No paid calls, production changes or customer sends. Images, moves and limits: `docs/design/redesign-assistant/README.md`.
+
+Next: grouped Settings and public pages, one PR per area. Settings is being implemented in an isolated worktree.
+
 ## Approved redesign, Area 5: Books (2026-11-06; no migration)
 
-Implemented and locally verified; exact-head CI and the gated merge are next. Schema remains 223. Books opens with Needs you, source-backed money readers and three direct actions. Get paid, Spending, Bank, Reports and Year-end have focused navigation; ledger work stays behind Advanced. Connections, account choices, tax details, starting balances and extra fields move to Settings → Books. Old GET bookmarks authenticate before redirecting; existing command and original-download endpoints remain authoritative.
+Merged through `tools/gated-merge.sh` in #432 at `12198069`, with exact-head CI green. Schema remains 223. Books opens with Needs you, source-backed money readers and three direct actions. Get paid, Spending, Bank, Reports and Year-end have focused navigation; ledger work stays behind Advanced. Connections, account choices, tax details, starting balances and extra fields move to Settings → Books. Old GET bookmarks authenticate before redirecting; existing command and original-download endpoints remain authoritative.
 
 Local check (9,300), trust (44), build and full isolated integration (2,058; none skipped) passed. Browser evidence contains 136 English desktop/phone visits before and after, 20 supplementary views, full invoice/bank/receipt paging, 20 read-only action groups, seven actual scripted receipt workflow checks and four final phone controls. Nineteen financial/source table snapshots stayed unchanged after the read-only pass. Cash figures require explicit account scope; invoices and credits retain currency, refund, date and issuer-detail distinctions. Images, moves and limits: `docs/design/redesign-books/README.md`. All work used local synthetic data, no paid calls, production changes or customer sends.
 
-Next: gated Books release, then Assistant, Settings and public pages. Assistant is in an isolated worktree.
+Next: Assistant, Settings and public pages. Assistant is being verified and Settings implemented in isolated worktrees.
 
 ## Approved redesign, Area 4: Products (2026-11-06; no migration)
 

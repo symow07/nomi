@@ -191,13 +191,15 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect((await requests()).every((r) => !r.asked_text.includes('one more sample'))).toBe(true);
   });
 
-  it('the page shows the waiting buyer, and says she has stated nothing', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/samples', headers: { cookie } });
+  it('customer requests show the waiting buyer and Settings says she has stated nothing', async () => {
+    const res = await app.inject({ method: 'GET', url: '/app/customers/samples', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed');
     expect(res.body).toContain('can you send a sample first');
     // No name has been confirmed on this tenant, so the page says "your assistant".
-    expect(res.body).toContain(esc(t('en', 'samples.empty')));
+    const policy = await app.inject({method: 'GET', url: '/app/settings/business/samples', headers: {cookie}});
+    expect(policy.statusCode).toBe(200);
+    expect(policy.body).toContain(esc(t('en', 'samples.empty')));
   });
 
   it('THE CONVERSATION says the sample was asked for, and why nothing was said', async () => {
@@ -276,7 +278,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect(after).toHaveLength(1);              // archived, not erased
     expect(after[0]!.handled_at).not.toBeNull();
 
-    const page = await app.inject({ method: 'GET', url: '/app/settings/samples', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/customers/samples', headers: { cookie } });
     expect(page.body).toContain('Nobody has asked for a sample yet');
 
     // and the conversation stops carrying it too

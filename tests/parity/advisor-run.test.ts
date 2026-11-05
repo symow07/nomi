@@ -45,14 +45,14 @@ const scope = { name: 'Lily', several: false, outreach: false, setup: null } as 
 describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one level in', () => {
   it('its address is under Settings, and every screen under it', () => {
     expect(ASSISTANT_HOME).toBe('/app/settings/assistant');
-    for (const s of EMPLOYEE_SCREENS) expect(screenHref(s)).toBe(dailyAssistantScreen(s) ?? `${ASSISTANT_HOME}/${s}`);
+    for (const s of EMPLOYEE_SCREENS) expect(screenHref(s)).toBe(dailyAssistantScreen(s) ?? ({next:ASSISTANT_HOME+'#progress', replies:ASSISTANT_HOME+'#reply-types', 'one-kind':ASSISTANT_HOME+'#reply-types'} as Record<string,string>)[s] ?? `${ASSISTANT_HOME}/${s}`);
   });
 
   for (const l of LOCALES) {
     it(`${l} · Settings opens on the assistant: its own slot, its name, and how much it does alone as it stands — then My business and Setup`, () => {
       const html = withWorkspace(scope, () => renderSettingsHome(l, null, { alone: 'IN-FORCE' }));
       const rows = [...html.matchAll(/<li><a class="srow[^"]*" href="([^"]+)">/g)].map((m) => m[1]);
-      expect(rows.slice(0, 3), l).toEqual([ASSISTANT_HOME, '/app/business', '/app/settings/setup']);
+      expect(rows.slice(0, 3), l).toEqual([ASSISTANT_HOME, '/app/settings/business', '/app/settings']);
       expect(html, l).toContain(`<a class="srow sr-menu sr-two" href="${ASSISTANT_HOME}">${agentMark(24, 'ni')}<span class="sr-main"><span class="sr-label">Lily</span><span class="sr-desc">IN-FORCE</span></span>`);
     });
 
@@ -74,7 +74,7 @@ describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one le
       expect(html, l).toContain(`<form method="post" action="${ASSISTANT_HOME}/autonomy" class="levels">`);
       const doors = [...html.matchAll(/<a class="srow sr-menu(?: sr-two)?" href="([^"]+)">/g)].map((m) => m[1]);
       expect(doors, l).toEqual([
-        screenHref('talk'), '/app/assistant/knowledge', screenHref('learning'), '/app/settings/forbidden',
+        screenHref('talk'), '/app/assistant/knowledge', screenHref('learning'), '/app/settings/assistant/words',
         screenHref('name'), screenHref('replies'), screenHref('one-kind'), '/app/assistant/practice',
         screenHref('month'), screenHref('next'), screenHref('history'),
       ]);

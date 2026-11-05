@@ -63,7 +63,7 @@ const sameHash = (a: string, b: string): boolean => {
  * outbound/unsubscribe.ts) makes each token useless as the other.
  */
 export const ISSUED_COOKIE = 'yf_issued';
-export const ISSUED_PATH = '/app/settings/people';
+export const ISSUED_PATH = '/app/settings/team';
 /** Long enough to land on the page; short enough that a forgotten tab forgets it. */
 export const ISSUED_TTL_MS = 5 * 60 * 1000;
 

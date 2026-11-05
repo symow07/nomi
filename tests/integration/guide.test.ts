@@ -54,11 +54,12 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
     // (w4-today-setup-06) a step to do is a chore: the to-do ○ in the secondary ink, never the waiting signal
     expect(r.body.match(/<span class="pill"><span class="dot todo shape s-chore" aria-hidden="true"><\/span> /g)?.length).toBeGreaterThanOrEqual(5);
     expect(r.body).not.toContain('class="pill warn"');
-    for (const href of ['/app/settings/profile', '/app/products', '/app/onboarding#name', '/app/business/channels', '/app/inbox']) expect(r.body).toContain(`href="${href}"`);
+    for (const href of ['/app/settings/business/profile', '/app/products', '/app/onboarding#name', '/app/settings/channels', '/app/inbox']) expect(r.body).toContain(`href="${href}"`);
   });
 
-  it('SETUP and TODAY lead to it', async () => {
-    expect((await app.inject({ method: 'GET', url: '/app/settings/setup', headers: { cookie } })).body).toContain('href="/app/guide"');
+  it('old Setup opens Settings, while Today leads to Get started', async () => {
+    const old = await app.inject({method: 'GET', url: '/app/settings/setup', headers: {cookie}});
+    expect([old.statusCode,old.headers['location']]).toEqual([302,'/app/settings']);
     expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie } })).body).toContain('href="/app/get-started#profile"');
   });
 

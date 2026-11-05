@@ -47,31 +47,31 @@ describe('B18 · the accountant keeps their own sign-in', () => {
   it('their sign-in page leads back to the books and on to the language; the language page back to it', () => {
     const acct = renderAccount({ email: 'a@x.example', passwordMin: 12, accountant: true }, 'en', null, t('en', 'nav.books'));
     expect(acct).toContain('href="/app/books"');
-    expect(acct).toContain('href="/app/settings/language"');
+    expect(acct).toContain('href="/app/settings/personal/language"');
     expect(acct).toContain('action="/app/settings/account/password"');
     const owner = renderAccount({ email: 'o@x.example', passwordMin: 12 }, 'en', null, t('en', 'nav.setup'));
-    expect(owner).toContain('href="/app/settings/setup"');
-    expect(owner).not.toContain('href="/app/settings/language"');
-    expect(renderLanguage('en', true)).toContain('href="/app/settings/account"');
-    expect(renderLanguage('en')).toContain('href="/app/settings/setup"');
+    expect(owner).toContain('href="/app/settings"');
+    expect(owner).not.toContain('href="/app/settings/personal/language"');
+    expect(renderLanguage('en', true)).toContain('href="/app/settings/personal/account"');
+    expect(renderLanguage('en')).toContain('href="/app/settings"');
   });
   it('their rail is the books\' with a door to their sign-in, on every page they reach — never the sales side', () => {
     const page = (path: string) => withWorkspace(scope({ business: 'Atlas Soap', viewerRole: 'accountant' }), () =>
       shell({ title: 'T', active: 'settings', locale: 'en', path, bodyHtml: '<h1 class="page">T</h1>' }));
-    for (const path of ['/app/settings/account', '/app/settings/language', '/app/books']) {
+    for (const path of ['/app/settings/personal/account', '/app/settings/personal/language', '/app/books']) {
       const html = page(path);
       expect(html, path).toContain('data-nav="books"');
       expect(html, path).toContain('data-nav="account"');
       expect(html, path).not.toContain('data-nav="inbox"');
     }
-    expect(page('/app/settings/account')).toMatch(/href="\/app\/settings\/account" class="navlink active"/);
+    expect(page('/app/settings/personal/account')).toMatch(/href="\/app\/settings\/personal\/account" class="navlink active"/);
   });
   it('the books switched off: a page that says so, in every language, with the way to their sign-in', () => {
     for (const l of LOCALES) {
       const html = renderBooksOff(l, 'Atlas Soap');
       expect(html, l).toContain(t(l, 'books.off.title'));
       expect(html, l).toContain('Atlas Soap');
-      expect(html, l).toContain('href="/app/settings/account"');
+      expect(html, l).toContain('href="/app/settings/personal/account"');
     }
   });
 });

@@ -147,7 +147,7 @@ describe('Phase 9 · the shell', () => {
     expect(css).toContain('.brand { flex-wrap:wrap; }');
   });
   it('V1-105 · on a phone every page says whose workspace it is', () => {
-    for (const path of ['/app', '/app/settings', '/app/guide', '/app/onboarding', '/app/onboarding/technical', '/app/ready'])
+    for (const path of ['/app', '/app/settings', '/app/guide', '/app/onboarding', '/app/settings/channels/technical', '/app/ready'])
       expect(page('zh', path, '<h1 class="page">x</h1>'), path).toContain('<p class="business-name"><bdi>义乌宏发日用品厂 (demo)</bdi></p>');
   });
   // THE WARMTH RUN (2026-10-03) — on a phone the five entries are five tiles,
@@ -168,24 +168,20 @@ describe('Phase 9 · the shell', () => {
     // sell's pages lead back to its menu, the products and the channels to the
     // rows of My business that open them.
     const cases: [string, string, MessageKey][] = [
-      ['/app/settings/closures', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/rate', '/app/business/how-you-sell', 'factory.sellhow.title'],
-      ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
-      // Phase 9 (w4-business-assistant-05) — /app/channels answers with its home; each channel's screen draws its own way back.
-      ['/app/settings/forbidden', '/app/settings/assistant', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
-      ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
-      // The warmth run, phase 9 — the checklist's two screens and the machine room lead back to the checklist.
-      ['/app/onboarding/practice', '/app/onboarding', 'nav.onboarding'], ['/app/onboarding/activity', '/app/onboarding', 'nav.onboarding'],
-      ['/app/onboarding/technical', '/app/onboarding', 'nav.onboarding'],
-      ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
-      // Phase 7b: knowledge is a row of the assistant's menu, and leads back to it.
-      ['/app/knowledge', '/app/settings/assistant', 'nav.employee'],
-      // The advisor run — the assistant's settings are a row of Settings, and lead back to it.
-      ['/app/settings/assistant', '/app/settings', 'nav.settings'],
-      // S1 — the saved replies lead back to Buyers.
-      ['/app/replies', '/app/inbox', 'nav.inbox'],
-      ['/app/labels', '/app/inbox', 'nav.inbox'],
-      // S6 — the surveys too.
-      ['/app/surveys', '/app/inbox', 'nav.inbox'],
+      ...['hours','currency','samples','terms'].map(s=>['/app/settings/business/'+s,'/app/settings/business','settingsArea.business'] as [string,string,MessageKey]),
+      ['/app/settings/assistant/words','/app/settings/assistant','nav.employee'],
+      ['/app/settings/assistant','/app/settings','nav.settings'],
+      ['/app/settings/team','/app/settings','nav.settings'],
+      ['/app/settings/business','/app/settings','nav.settings'],
+      ['/app/settings/channels/technical','/app/settings/channels','settingsArea.channels'],
+      ['/app/knowledge','/app/assistant','nav.assistant'],
+      ['/app/replies','/app/inbox','nav.inbox'],
+      ['/app/labels','/app/customers','nav.customers'],
+      ['/app/surveys','/app/customers','nav.customers'],
+      ['/app/guide','/app','nav.home'], ['/app/onboarding','/app','nav.home'],
+      ['/app/ready','/app/assistant/practice','assistantArea.practice'],
+      ['/app/onboarding/practice','/app/assistant/practice','assistantArea.practice'],
+      ['/app/onboarding/activity','/app/results','nav.home'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
@@ -441,7 +437,7 @@ describe('Phase 9 · Before going live', () => {
     for (const boxy of ['border:', 'background', 'text-align:center', 'padding:']) expect(v, boxy).not.toContain(boxy);
   });
   it('V1-131 · the business profile row opens the profile', () => {
-    expect(renderPilotReadiness(pr(), 'en', null)).toContain('<a class="deeper" href="/app/settings/profile">');
+    expect(renderPilotReadiness(pr(), 'en', null)).toContain('<a class="deeper" href="/app/settings/business/profile">');
   });
   it('V1-132, V1-137 · the name in the box is a suggestion; the page to change it later is named as it is', () => {
     for (const l of LOCALES) {
@@ -495,7 +491,7 @@ describe('Phase 9 · Before going live', () => {
 // ── The machine room ────────────────────────────────────────────────────────
 describe('Phase 9 · Technical details', () => {
   it('V1-141 · the tab is named by the page\'s heading', () => {
-    const h = page('en', '/app/onboarding/technical', inScope(() => renderPilotTechnical('en')));
+    const h = page('en', '/app/settings/channels/technical', inScope(() => renderPilotTechnical('en')));
     expect(h).toContain(`<title>${t('en', 'pilot.technical.title')} · 义乌宏发日用品厂 (demo)</title>`);
   });
   it('V1-143 · an Arabic value is in the page\'s face, at its labels\' size', () => {
@@ -564,7 +560,7 @@ describe('Phase 9 · Setup', () => {
     const h = setupHtml('en');
     expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
     expect(h).not.toContain('href="/app/settings/business"');
-    expect(h).not.toContain('href="/app/business/selling"');
+    expect(h).not.toContain('href="/app/settings/business/selling"');
   });
   it('today-onboarding-new-24 · alerts not on here say so as the alerts page does — no unexplained "here"', () => {
     expect(t('en', 'setup.value.unavailable')).toBe('Not switched on yet');
@@ -584,7 +580,7 @@ describe('Phase 9 · Setup', () => {
   it('V1-154 · Log out is a button, the last thing on Settings', () => {
     const home = inScope(() => renderSettingsHome('en', null));
     expect(home).toMatch(new RegExp(`<form class="scard sr-foot" method="post" action="/logout">\\s*<button class="srow sr-menu sr-out" type="submit">[\\s\\S]*${t('en', 'header.logout')}`));
-    expect(home.lastIndexOf('/logout')).toBeGreaterThan(home.lastIndexOf('href="/app/settings/setup"'));
+    expect(home.lastIndexOf('/logout')).toBeGreaterThan(home.lastIndexOf('href="/app/settings"'));
     expect(setupHtml('en')).not.toContain('/logout');
   });
   it('V1-157 · Chinese names the people page and the billing group for what they are', () => {

@@ -130,7 +130,7 @@ describe('phase 6 · nothing waits for something that never comes', () => {
     expect(html).not.toContain('/assets/guide/');
     expect(html).toContain('<details class="gs-help" open>');
     expect(html).toContain(t('en', 'guide.profile.cap.1'));
-    expect(html).toContain('data-first-step href="/app/settings/profile"');
+    expect(html).toContain('data-first-step href="/app/settings/business/profile"');
   });
 });
 

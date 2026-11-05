@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -45,7 +46,7 @@ d('The IDOR audit · one business, or one person, never reaches another\'s (requ
     return withTenantTx(db, bid.value, fn);
   };
   const get = (cookie: string, url: string, headers: Record<string, string> = {}) =>
-    app.inject({ method: 'GET', url, headers: { cookie, ...headers } });
+    app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie, ...headers } });
   const post = (cookie: string, url: string, payload = '') => app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
   const credentials = (business: string) => as(business, (t) => sql<{ ref: string }>`
     select external_ref as ref from channel_credentials where business_id = ${business}`.execute(t).then((r) => r.rows.map((x) => x.ref)));
@@ -109,8 +110,8 @@ d('The IDOR audit · one business, or one person, never reaches another\'s (requ
   });
 
   it('what {name} may promise: the owner sees the price floor and the price rules; a member of staff sees none of them', async () => {
-    const owner = (await get(ownerCookie, '/app/business/promises')).body;
-    const staff = (await get(staffCookie, '/app/business/promises')).body;
+    const owner = (await get(ownerCookie, '/app/settings/assistant/promises')).body;
+    const staff = (await get(staffCookie, '/app/settings/assistant/promises')).body;
     // (with no volume discount written, the ceiling and the ask line are not stated to anyone: the list holds the
     // floor and "nothing comes off a price")
     expect(owner).toContain('7.25');

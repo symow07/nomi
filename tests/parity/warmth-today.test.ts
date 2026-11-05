@@ -322,7 +322,7 @@ describe('4 · the wins — what the assistant handled, then the figures', () =>
       // nobody able to write yet: the way there, and the setup step's door
       const off = zone(render(l, { ...day(0), tally: zeros, sending: [] }), 'today-done');
       expect(bare(off), l).toContain(bare(`<p class="td-ready">${esc(t(l, 'home.wins.connect', { name: 'Lily' }))}</p>`));
-      expect(off, l).toContain('href="/app/business/channels"');
+      expect(off, l).toContain('href="/app/settings/channels"');
     }
   });
 
@@ -378,7 +378,7 @@ describe('the home run · never empty: a brand-new workspace still has a page', 
       }
       expect(zone(html, 'home-schedule'), l).toContain('href="/app/calendar"');
       expect(zone(html, 'today-done'), l).toContain('<p class="td-ready">');
-      expect(zone(html, 'today-done'), l).toContain('href="/app/business/channels"');
+      expect(zone(html, 'today-done'), l).toContain('href="/app/settings/channels"');
     }
   });
 });

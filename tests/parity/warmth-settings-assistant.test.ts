@@ -1,3 +1,4 @@
+import {settingsPageLinks} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
@@ -121,9 +122,9 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
       }
       // a short value at the row's end; where it stands as a sentence, the line under the name (never a value cut short)
       const row = (href: string) => all.find((r) => /^<a class="srow sr-menu(?: sr-two)?" href="([^"]+)"/.exec(r)?.[1] === href) ?? '';
-      for (const href of ['/app/assistant/knowledge#sources', '/app/assistant/knowledge', '/app/assistant/knowledge?view=needs-answer', '/app/settings/forbidden',
+      for (const href of ['/app/assistant/knowledge#sources', '/app/assistant/knowledge', '/app/assistant/knowledge?view=needs-answer', '/app/settings/assistant/words',
         '/app/settings/assistant/name', '/app/assistant/review', '/app/assistant/activity']) expect(row(href), `${l}: ${href}`).toContain('<span class="sr-value');
-      for (const href of ['/app/settings/assistant/replies', '/app/settings/assistant/one-kind', '/app/assistant/practice', '/app/settings/assistant/month', '/app/settings/assistant/next'])
+      for (const href of ['/app/settings/assistant#reply-types', '/app/settings/assistant#reply-types', '/app/assistant/practice', '/app/settings/assistant/month', '/app/settings/assistant#progress'])
         expect(row(href), `${l}: ${href}`).toContain('<span class="sr-desc">');
       // a waiting thing is said in the waiting colour, with its shape (the stylesheet draws ○ before .sr-value.warn)
       expect(html).toMatch(/href="\/app\/assistant\/review">[\s\S]*?<span class="sr-value warn"/);
@@ -174,7 +175,7 @@ describe('phase 7 · every former section, one tap away, its words and controls 
       expect(on('next')).toContain(esc(t(l, 'employee.promo.current')));
       expect(on('history')).toContain('<ul class="growth">');
       // and the pages it always opened, each a row of its own
-      for (const page of ['/app/assistant/knowledge', '/app/settings/forbidden', '/app/assistant/practice']) expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
+      for (const page of ['/app/assistant/knowledge', '/app/settings/assistant/words', '/app/assistant/practice']) expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
     });
   }
 
@@ -185,7 +186,7 @@ describe('phase 7 · every former section, one tap away, its words and controls 
 
   it('the hub links every screen it lists, with daily tools and monthly results in their approved areas', () => {
     const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings/assistant')!.routes;
-    const html = landing(base, 'en');
+    const html = landing(base, 'en') + settingsPageLinks('en','assistant','/app/settings/assistant',{isOwner:true});
     for (const r of routes) expect(html, r).toContain(`href="${r}"`);
     for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'home' : ['checks','history','talk','learning'].includes(s) ? 'assistant' : 'settings');
   });
@@ -195,10 +196,10 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
   for (const l of LOCALES) {
     it(`${l} · read from My business, opened there, edited nowhere here`, () => {
       const html = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }));
-      for (const page of ['/app/settings/profile', '/app/business/how-you-sell', '/app/products', '/app/assistant/knowledge', '/app/business/promises']) {
+      for (const page of ['/app/settings/business/profile', '/app/settings/business/selling', '/app/products', '/app/assistant/knowledge', '/app/settings/assistant/promises']) {
         expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
       }
-      expect(html, l).not.toContain('href="/app/business/selling"');
+      expect(html, l).not.toContain('href="/app/settings/business/selling/price"');
       for (const tag of ['<form', '<input', '<textarea', '<select', 'method="post"']) expect(html, `${l}: ${tag}`).not.toContain(tag);
       // summarised: counts and a few names, not the lists themselves
       expect(withoutIsolates(html)).toContain(withoutIsolates(esc(tn(l, 'her.talk.products', 24))));
@@ -211,17 +212,17 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       const row = (href: string) => [...html.matchAll(/<li(?: id="[^"]*")?>([\s\S]*?)<\/li>/g)].map((m) => m[1]!).find((r) => r.includes(`href="${href}"`)) ?? '';
       expect(row('/app/assistant/knowledge'), l).toContain(esc(withAssistantName('Lily', () => t(l, 'nav.knowledge'))));
       expect(withoutIsolates(row('/app/assistant/knowledge')), l).toContain(withoutIsolates(esc(tn(l, 'knowledge.product.facts', 5))));
-      expect(row('/app/business/promises'), l).toContain(esc(t(l, 'factory.promise.title')));
+      expect(row('/app/settings/assistant/promises'), l).toContain(esc(t(l, 'factory.promise.title')));
       // The names on the line under the row's name, which wraps; never a long value a phone cuts short.
-      expect(row('/app/business/promises'), l).toContain(`<span class="sr-desc">${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}</span>`);
-      expect(row('/app/business/promises'), l).not.toContain('sr-value');
+      expect(row('/app/settings/assistant/promises'), l).toContain(`<span class="sr-desc">${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}</span>`);
+      expect(row('/app/settings/assistant/promises'), l).not.toContain('sr-value');
       // The profile says where it stands as My business does — in words, no tone for a setting (w4-business-assistant-02) —
       // and not the business's name again.
-      expect(row('/app/settings/profile'), l).toContain(`<span class="sr-value"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
-      expect(row('/app/settings/profile'), l).not.toContain('sr-desc');
+      expect(row('/app/settings/business/profile'), l).toContain(`<span class="sr-value"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
+      expect(row('/app/settings/business/profile'), l).not.toContain('sr-desc');
       // Products are called Products, How you sell opens its own menu, as My business's rows do.
       expect(row('/app/products'), l).toContain(`<span class="sr-label">${esc(t(l, 'nav.products'))}</span>`);
-      expect(row('/app/business/how-you-sell'), l).toContain(`<span class="sr-label">${esc(t(l, 'factory.sellhow.title'))}</span>`);
+      expect(row('/app/settings/business/selling'), l).toContain(`<span class="sr-label">${esc(t(l, 'factory.sellhow.title'))}</span>`);
       // The lede names all five, and never says "only My business".
       expect(t(l, 'her.talk.lede')).not.toMatch(/My business|我的生意|نشاطي التجاري|Mi negocio|Mon activité/);
     });
@@ -244,9 +245,9 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
   });
   it('a member of staff reads How you sell, and is sent only where staff may look (its menu), never to the questions', () => {
     const html = screen('talk', base, 'en', ctx, STAFF, { talk });
-    expect(html).not.toContain('href="/app/business/selling"');
+    expect(html).not.toContain('href="/app/settings/business/selling/price"');
     // How you sell's own menu, which staff may open (the questions on it stay the owner's).
-    expect(html).toContain('href="/app/business/how-you-sell"');
+    expect(html).toContain('href="/app/settings/business/selling"');
     expect(html).toContain(esc(t('en', 'factory.sellhow.title')));
     expect(html).toContain(esc(t('en', 'hs.progress', { done: 3, total: 8 })));
   });
@@ -265,7 +266,7 @@ describe('phase 7 · every screen starts with its way back', () => {
       // the pages that were always their own: the shell adds the way back where a page draws none
       const main = (path: string) => { const h = shell({ title: 'x', active: 'settings', locale: l, path, bodyHtml: '<h1 class="page">x</h1>' }); return h.slice(h.indexOf('<main'), h.indexOf('</main>')); };
       expect(main('/app/assistant/knowledge'), l).not.toContain('class="back"');
-      expect(BACK_TO['/app/settings/forbidden']?.href).toBe('/app/settings/assistant');
+      expect(BACK_TO['/app/settings/assistant/words']?.href).toBe('/app/settings/assistant');
     });
   }
   it('Practice draws its own, first — its transcript\'s "earlier" link is drawn the same way and would hide the shell\'s', () => {
@@ -302,7 +303,7 @@ describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13
       const stopped = control(landing({ ...base, stopped: true }, l));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.body'))));
-      expect(stopped).toContain('href="/app/business/ready#stop"');
+      expect(stopped).toContain('href="/app/settings/assistant/ready#stop"');
       expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf('name="level"'));
       const staff = control(landing({ ...base, stopped: true }, l, STAFF));
       expect(staff).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
@@ -331,6 +332,6 @@ describe('phase 7 · staff read where things stand; no form that would refuse th
   }
   it('a business with several assistants keeps the same page; the owner changes names where they all are (A5)', () => {
     const named = screen('name', base, 'en', ctx);
-    expect(named).toContain(`href="/app/settings/people#assistants">${esc(t('en', 'people.title'))}`);
+    expect(named).toContain(`href="/app/settings/assistant/name#assistants">${esc(t('en', 'people.title'))}`);
   });
 });

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
@@ -26,7 +27,7 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
   let app: import('fastify').FastifyInstance;
   let db: import('../../src/db/client.js').Db;
   let cookie = '';
-  const get = (url: string, c = cookie) => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: c ? { cookie: c } : {} });
+  const get = (url: string, c = cookie) => app.inject({ method: 'GET', url:settingsHref(assistantPageUrl(url)), headers: c ? { cookie: c } : {} });
   const post = (url: string, payload: string, c = cookie) => app.inject({ method: 'POST', url, payload, headers: { ...(c ? { cookie: c } : {}), ...FORM } });
   /** The next transaction id the database would hand out: any transaction that writes moves it; reading never does. */
   const horizon = async () => BigInt((await sql<{ x: string }>`select pg_snapshot_xmax(pg_current_snapshot())::text as x`.execute(db)).rows[0]!.x);

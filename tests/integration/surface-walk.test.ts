@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -344,7 +345,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           target = target.replace(`:${m[1]}`, encodeURIComponent(v));
         }
         if (skip) continue;
-        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=${locale}` } });
         if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
         const html = res.body;
         if (!html.includes('<nav class="side">')) continue;   // a download or a fragment, not a page
@@ -363,9 +364,12 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
         // Phase 4 of the UI rebuild — graphite fills ONE act on a page: the one it exists for.
         const fills = html.match(/class="btn send\b/g)?.length ?? 0;
-        if (fills > 1 && target !== '/app/settings/components') problems.push(`${at}: ${fills} filled buttons — one primary act per page`);
+        // Profile contains two independent original commands: profile and business type.
+        const maxFills = settingsHref(target) === '/app/settings/business/profile' ? 2 : 1;
+        if (fills > maxFills && target !== '/app/settings/components') problems.push(`${at}: ${fills} filled buttons — one primary act per page`);
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
           const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;
+          if ((f[0].match(/class="btn send\b/g)?.length ?? 0) > 1) problems.push(`${at}: multiple primary actions in ${action}`);
           if (TAKES.test(action) && !UNDONE.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);
         }
         if (target !== '/app/settings/components') {
@@ -414,7 +418,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         target = target.replace(`:${m[1]}`, encodeURIComponent(v));
       }
       if (skip) continue;
-      const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=ar` } });
+      const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=ar` } });
       if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
       if (!res.body.includes('<nav class="side">')) continue;
       pages++;
@@ -458,7 +462,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           target = target.replace(`:${m[1]}`, encodeURIComponent(v));
         }
         if (skip) continue;
-        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=${locale}` } });
         if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
         pages++;
         const at = `${locale} ${target}`;

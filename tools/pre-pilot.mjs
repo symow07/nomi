@@ -594,7 +594,7 @@ const scenarios = [
       const hers = await eventOf(conv2, 'forbidden_in_her_text');
       ok(hers.payload.hits?.[0]?.path === 'taught_answer', `wrong path: ${JSON.stringify(hers.payload.hits)}`);
       const page = await get(`/app/inbox/${conv2}`);
-      ok(page.body.includes('/app/knowledge'), 'her own words are not shown to her with a way to fix them');
+      ok(/href="\/app\/(?:assistant\/)?knowledge"/.test(page.body), 'her own words are not shown to her with a way to fix them');
       return { conv, note: 'stopped in both paths' };
     },
   },

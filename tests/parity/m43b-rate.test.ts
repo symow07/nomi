@@ -159,7 +159,7 @@ describe('M43b · the surface', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/rate'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/settings/rate'");
+    expect(app).toContain("app.get('/app/settings/business/currency'");
     expect(app).toContain("app.post('/app/settings/rate'");
   });
 

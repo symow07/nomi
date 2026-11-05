@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
@@ -42,7 +43,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': visitor, ...(c ? { cookie: c } : {}) },
     payload: new URLSearchParams(fields).toString(),
   });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const cookieOf = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
       .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
@@ -103,7 +104,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
     const bad = await form('/app/settings', { name, currency: 'CHF' }, cookie);
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
-    expect((await get('/app/settings/profile')).body).toContain('<option value="AED" selected>');
+    expect((await get('/app/settings/business/profile')).body).toContain('<option value="AED" selected>');
     // The old address saves nothing: an old form lands on the profile, where the currency lives, and it stays.
     const oldForm = await form('/app/settings/currency', { currency: 'SAR' }, cookie);
     expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/profile']);
@@ -144,7 +145,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const fixed = await form('/app/settings', { name, currency: 'SAR' }, cookie);
     expect(flashSaid(fixed, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyFixed'));
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
-    expect((await get('/app/settings/profile')).body).toContain(t('en', 'settings.currency.fixed'));
+    expect((await get('/app/settings/business/profile')).body).toContain(t('en', 'settings.currency.fixed'));
   });
 
   it('A FLOOR AND A NEW PRICE are in dirhams too; a shop has no sample price to state (audit B14)', async () => {
@@ -163,12 +164,12 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('THE RATE PAGE HAS NOTHING TO CONVERT for a workspace selling in its country\'s own money', async () => {
-    expect((await get('/app/settings/rate')).body).toContain(t('en', 'rate.none', { from: currencyInLine('en', 'AED') }));
+    expect((await get('/app/settings/business/currency')).body).toContain(t('en', 'rate.none', { from: currencyInLine('en', 'AED') }));
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
-    // Phase 7 — the rate's row is How you sell's, and absent there too.
-    expect((await get('/app/business/how-you-sell')).body).not.toContain('href="/app/settings/rate"');
+    // Currency remains navigable, but no exchange-rate command is offered without a currency pair.
+    expect((await get('/app/settings/business/currency')).body).not.toContain('action="/app/settings/rate"');
   });
 
   it('A QUOTE FROM THOSE ROWS IS IN DIRHAMS, and the same figure in dollars does not leave', async () => {

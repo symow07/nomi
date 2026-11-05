@@ -1,3 +1,4 @@
+import { settingsHref } from './settingsNavigation.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { dailyAssistantScreen } from './assistantArea.js';
 import { rampState, type RampState } from '../../db/ramp.js';
@@ -284,7 +285,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** Phase 7 — the screens one row each opens, in the menu's order. */
 export const EMPLOYEE_SCREENS = ['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
-export const screenHref = (s: EmployeeScreen): string => dailyAssistantScreen(s) ?? `${ASSISTANT_HOME}/${s}`;
+export const screenHref = (s: EmployeeScreen): string => dailyAssistantScreen(s) ?? settingsHref(`${ASSISTANT_HOME}/${s}`);
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
@@ -354,7 +355,7 @@ export type TalkAbout = {
 };
 
 /** What a screen may be given beyond the profile and the month's counts. */
-export type ScreenExtras = { readonly talk?: TalkAbout };
+export type ScreenExtras = { readonly talk?: TalkAbout; readonly embedded?: boolean };
 
 const countRow = (value: number, label: string): string =>
   `<div class="hrow"><span class="hnum">${value}</span><span class="hlabel">${esc(label)}</span></div>`;
@@ -717,10 +718,13 @@ const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string 
  * said in plain words (w4-business-assistant-02).
  */
 export function renderEmployee(
-  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
+  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW, focused = false,
 ): string {
   const name = assistantName(locale);
   const st = standing(e, locale);
+  if(focused) return `<h1 class="page">${esc(t(locale,'settingsArea.permissions'))}</h1>${flashBanner(flash)}<p class="lede">${esc(t(locale,'settingsArea.permissionHint'))}</p>${levelControl(e,locale,viewer)}
+    <details class="sa-subject" id="progress"><summary>${esc(t(locale,'employee.promo.title'))}</summary>${renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true})}</details>
+    <details class="sa-subject" id="reply-types"><summary>${esc(t(locale,'her.handles.title'))}</summary>${renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})}${renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true})}</details>`;
   const nothingYet = t(locale, 'her.menu.nothingYet');
   const met = e.conditions.filter((c) => c.met).length;
   const capList = (caps: readonly string[]) => formatList(locale, caps.map((c) => capabilityName(locale, c)));
@@ -789,7 +793,7 @@ export function renderEmployeeScreen(
   const dailyTool = screen === 'checks' || screen === 'history' || screen === 'talk' || screen === 'learning';
   const returnTo = screen === 'month' ? '/app' : dailyTool ? '/app/assistant' : ASSISTANT_HOME;
   const returnLabel = screen === 'month' ? t(locale, 'split.title') : dailyTool ? t(locale, 'nav.assistant') : name;
-  const head = `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  const head = extras.embedded ? '' : `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
 
   switch (screen) {
     // Two doors, one data: what the assistant answers from, each line opening

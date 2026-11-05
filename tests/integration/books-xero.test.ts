@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -35,7 +36,7 @@ d('D8 · the shop\'s own Xero (requires DATABASE_URL + MIGRATE_DATABASE_URL)', {
   const session = (r: { headers: Record<string, unknown> }) => cookiesOf(r).find((c) => c.startsWith('yf_session=')) ?? '';
   const notice = async (r: { headers: Record<string, unknown> }) => {
     const to = String(r.headers['location']).split('#')[0]!;
-    return (await app.inject({ method: 'GET', url: to, headers: { cookie: `${owner}; ${cookiesOf(r).join('; ')}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(to), headers: { cookie: `${owner}; ${cookiesOf(r).join('; ')}` } })).body;
   };
   const press = (url: string, who = owner, payload?: string) => app.inject({ method: 'POST', url, headers: { cookie: who,
     ...(payload ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) }, ...(payload ? { payload } : {}) });

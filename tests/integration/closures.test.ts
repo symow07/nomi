@@ -87,7 +87,7 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
   });
 
   it('the page shows it, in her own words', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/closures', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/settings/business/hours', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('春节');
   });
@@ -222,7 +222,7 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
     const html = renderConversationDetail(detail!, 'en', new Date('2027-01-20T09:00:00Z'), null);
     expect(html).toContain('No delivery date was promised');
     expect(html).toContain('春节');
-    expect(html).toContain('/app/settings/closures');
+    expect(html).toContain('/app/settings/business/hours');
   });
 
   it('what she typed wrong does not become a closure', async () => {

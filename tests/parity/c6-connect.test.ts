@@ -325,7 +325,7 @@ describe('C6 · the accounts page', () => {
     // Phase 9 — not connected yet waits on nothing: the plain pill; the row says where to connect it.
     expect(row('instagram')).toContain(`class="pill stop">${esc(t('en', 'connect.state.notConnected'))}`);
     expect(row('instagram')).toContain(esc(t('en', 'connect.inbound.below')));
-    expect(row('instagram')).toContain('href="/app/help/meta"');
+    expect(row('instagram')).toContain('href="/app/settings/channels/meta/help"');
     // The button itself stays on the reach card, beside the rule it answers to.
     expect(html).not.toContain('/app/channels/messenger/connect');
   });

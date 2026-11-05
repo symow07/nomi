@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
@@ -63,9 +64,9 @@ d('E3 · imported history, kept as a document and never in the books (requires D
   };
   const flashOf = async (r: { headers: Record<string, unknown> }) => {
     const set = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).join('; ');
-    return (await app.inject({ method: 'GET', url: String(r.headers['location']).split('#')[0]!, headers: { cookie: `${owner}; ${set}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(String(r.headers['location']).split('#')[0]!), headers: { cookie: `${owner}; ${set}` } })).body;
   };
-  const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie: owner } });
+  const get = (url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: owner } });
   const entry = (key: string, date: string, label: string, amount: string) => ({
     key, journal: 'VE', date, label, documentRef: null, documentDate: null, state: 'posted' as const, lines: [
       { account: '3421', party: null, taxCode: null, currency: 'MAD', debit: amount as never, credit: null, label: null },
@@ -208,7 +209,7 @@ d('E3 · imported history, kept as a document and never in the books (requires D
   });
 
   it('THE DATA PAGE SAYS IT IS KEPT LONGER, in plain words: a file kept whole, until its newest entry\'s date (the owner, 2026-10-23)', async () => {
-    const data = (await get('/app/settings/data')).body;
+    const data = (await get('/app/settings/business/data')).body;
     expect(data).toContain('id="papers"');
     expect(data).toContain('Files imported as history are kept whole, until the date their newest entry requires. A file cannot be split, so its older entries are kept longer than their own date would need');
     // its own date: the file's newest entry is 2026-02-15, so all of it waits for 2036, h-1's 2025 included

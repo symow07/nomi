@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -59,7 +60,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     return withTenantTx(db, b.value, fn);
   };
   const get = (url: string, cookie = owner, headers: Record<string, string> = {}) =>
-    app.inject({ method: 'GET', url, headers: { ...(cookie ? { cookie } : {}), ...headers } });
+    app.inject({ method: 'GET', url: settingsHref(url), headers: { ...(cookie ? { cookie } : {}), ...headers } });
   const customerRecord = async (conversationId: string) => {
     const moved = await get(`/app/conversations/${conversationId}`);
     expect(moved.statusCode).toBe(302);

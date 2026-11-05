@@ -36,7 +36,7 @@ describe('the checker catches each way the rule breaks — and passes what keeps
 });
 
 describe('the one exception has a hard cap: one filled button on its page, on the first incomplete step only', () => {
-  const button = '<a class="btn send" data-first-step href="/app/settings/profile">Do it now</a>';
+  const button = '<a class="btn send" data-first-step href="/app/settings/business/profile">Do it now</a>';
   it('the first step\'s button alone passes; a second, or another filled button beside it, does not', () => {
     expect(buttonsAndDoors(`<p>${button}</p><a class="deeper" href="/app/guide#profile">Watch</a>`)).toEqual([]);
     expect(buttonsAndDoors(button + button)).toEqual(['2 first-step buttons on one page: the cap is one']);
@@ -45,7 +45,7 @@ describe('the one exception has a hard cap: one filled button on its page, on th
     // A plain button in a form beside it is not filled: it stays.
     expect(buttonsAndDoors(`${button}<form method="post" action="/x"><button class="btn">Save</button></form>`)).toEqual([]);
     // Without the mark, it is a link dressed as a button like any other.
-    expect(buttonsAndDoors('<a class="btn send" href="/app/settings/profile">Do it now</a>')).toEqual(['a link drawn as a button: /app/settings/profile']);
+    expect(buttonsAndDoors('<a class="btn send" href="/app/settings/business/profile">Do it now</a>')).toEqual(['a link drawn as a button: /app/settings/business/profile']);
   });
 
   it('Getting started: the first incomplete step\'s "Do it now" is the button, every later step\'s a door; none once all are done', () => {

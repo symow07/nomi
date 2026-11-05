@@ -2339,7 +2339,7 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: assistantName(locale) }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: assistantName(locale) }))}</div>
-          <div class="rf-d"><a href="/app/business">${esc(t(locale, 'unlisted.do'))}</a></div>
+          <div class="rf-d"><a href="/app/settings/business">${esc(t(locale, 'unlisted.do'))}</a></div>
         </div>
       </div>`
     : '';
@@ -2460,7 +2460,7 @@ export function renderConversationDetail(
             from: show.date(locale, d.leadTimeBlocked.from),
             to: show.date(locale, d.leadTimeBlocked.to),
           }))}</div>
-          <div class="rf-d"><a href="/app/settings/closures">${
+          <div class="rf-d"><a href="/app/settings/business/hours">${
             esc(t(locale, 'closures.blocked.action'))}</a></div>
         </div>
       </div>`
@@ -2475,7 +2475,7 @@ export function renderConversationDetail(
         ${stateHead('bad', t(locale, 'herwords.title'))}
         ${d.herWords.map((w) => `<div class="rf">
           <div class="rf-y muted"><bdi>${esc(t(locale, `herwords.${w.path}` as MessageKey, { terms: quoted(locale, w.terms), name: assistantName(locale) }))}</bdi></div>
-          <div class="rf-d"><a href="${w.path === 'taught_answer' ? '/app/knowledge' : '/app/settings/forbidden'}">${
+          <div class="rf-d"><a href="${w.path === 'taught_answer' ? '/app/assistant/knowledge' : '/app/settings/assistant/words'}">${
             esc(t(locale, `herwords.action.${w.path}` as MessageKey))}</a></div>
         </div>`).join('')}
       </div>`
@@ -2491,7 +2491,7 @@ export function renderConversationDetail(
         ${stateHead('warn', t(locale, 'samples.asked.title'))}
         ${d.sampleAsked.policyStated || d.sampleAsked.samplesPage === false ? '' : `<div class="rf">
           <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: assistantName(locale) }))}</div>
-          <div class="rf-d"><a href="/app/settings/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
+          <div class="rf-d"><a href="/app/settings/business/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
         </div>`}
       </div>`
     : '';

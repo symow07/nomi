@@ -257,7 +257,7 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
       expect(visible(panel), l).not.toMatch(/\bNomi\b/);
       expect(panel, l).not.toContain('dot warn');
       expect(panel, l).not.toContain('<h3');
-      expect(panel, l).toContain('href="/app/help/meta"');
+      expect(panel, l).toContain('href="/app/settings/channels/meta/help"');
     }
     expect(t('en', 'meta.panel.title')).toBe('Instagram and Messenger');
   });
@@ -294,7 +294,7 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     for (const l of LOCALES) {
       const guide = renderConnectGuide(l);
       // Phase 9 — the guide is reached from WhatsApp's own screen, and leads back to it.
-      expect(guide, l).toContain(`<a class="back" href="/app/channels/whatsapp">${BACK}${esc(t(l, 'reach.channel.whatsapp'))}</a>`);
+      expect(guide, l).toContain(`<a class="back" href="/app/settings/channels/whatsapp">${BACK}${esc(t(l, 'reach.channel.whatsapp'))}</a>`);
       expect(guide, l).toContain(esc(t(l, 'nav.channels')));
     }
     expect(app).toContain("title: t(locale, 'channel.connect.title'), bodyHtml: guide(s, locale, { flash: takeFlash(req, reply) })");
@@ -341,7 +341,7 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
       const html = page(l);
       expect(html, l).toContain('<div class="block" id="alerts">');
       // Phase 9 (w4-settings-a-10) — opened from here, Notifications leads back here.
-      expect(html, l).toContain(`href="/app/settings/alerts?from=channels">${esc(t(l, 'meta.phoneAlerts'))}`);
+      expect(html, l).toContain(`href="/app/settings/personal/notifications?from=channels">${esc(t(l, 'meta.phoneAlerts'))}`);
       // never "you are alerted on …" from the number alone, and no "once WhatsApp is approved"
     }
     expect(page('en')).not.toContain('You are alerted on');

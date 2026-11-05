@@ -222,7 +222,7 @@ describe('M44 · the surface', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/closures'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/settings/closures'");
+    expect(app).toContain("app.get('/app/settings/business/hours'");
     expect(app).toContain("app.post('/app/settings/closures'");
     expect(app).toContain("app.post('/app/settings/closures/:id/remove'");
   });

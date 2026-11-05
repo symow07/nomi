@@ -212,6 +212,8 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
 
   // Area 2 uses flat list and conversation sections: these exact selectors may be square, not arbitrary radii.
   const FLAT: Readonly<Record<string, string>> = {
+    '.settings-area .scard': 'focused settings fields on a flat page',
+    '.settings-area .card': 'settings sections separated by rules',
     '.il-main.sp-sheet': 'one flat Inbox list surface',
     '.customer-record .pcard': 'customer overview composed into the flat full record',
     '.customer-record .pc-facts>div': 'facts within the overview, not nested cards',

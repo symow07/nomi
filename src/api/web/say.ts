@@ -56,6 +56,7 @@ export type RequestScope = {
   readonly frozen?: boolean;
   /** A6 (0176) — the books are switched on for this workspace. */
   readonly books?: boolean;
+  readonly exportTrade?: boolean;
   /** A6 — who is looking, for which mode's switch the shell offers: the owner, the team, or the accountant. */
   readonly viewerRole?: 'owner' | 'team' | 'accountant';
 };
@@ -98,6 +99,7 @@ export const withNeedsYou = <T>(needsYou: number | null, fn: () => T): T => {
 export const workspaceFrozen = (): boolean => scope.getStore()?.frozen ?? false;
 
 /** A6 — are the books switched on for this workspace? Outside a scope: no. */
+export const exportSettingsShown = (): boolean => scope.getStore()?.exportTrade ?? true;
 export const booksShown = (): boolean => scope.getStore()?.books ?? false;
 /** A6 — who is looking. Outside a scope (a fragment drawn in a test): the owner, as every page was before roles. */
 export const viewerRole = (): 'owner' | 'team' | 'accountant' => scope.getStore()?.viewerRole ?? 'owner';
