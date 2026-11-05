@@ -79,7 +79,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
   });
 
   it('the page shows it, with the date she set it', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/rate', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/settings/business/currency', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('7.15');
     expect(res.body).toContain('You set this on');
@@ -91,7 +91,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
     expect(r).toHaveLength(2);
     expect(r.map((x) => Number(x.rate))).toEqual([7.15, 7.22]);
 
-    const page = await app.inject({ method: 'GET', url: '/app/settings/rate', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/business/currency', headers: { cookie } });
     expect(page.body).toContain('7.22');
     expect(page.body).toContain('What you set before');
     expect(page.body).toContain('7.15');

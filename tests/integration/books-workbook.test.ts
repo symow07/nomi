@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -47,7 +48,7 @@ d('B2 · the Nomi workbook, in and out (requires DATABASE_URL + MIGRATE_DATABASE
   };
   const flashOf = async (r: { headers: Record<string, unknown> }) => {
     const set = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).join('; ');
-    const page = await app.inject({ method: 'GET', url: String(r.headers['location']).split('#')[0]!, headers: { cookie: `${owner}; ${set}` } });
+    const page = await app.inject({ method: 'GET', url: settingsHref(String(r.headers['location']).split('#')[0]!), headers: { cookie: `${owner}; ${set}` } });
     return page.body;
   };
   const download = async (who = owner) => {

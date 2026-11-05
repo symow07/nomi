@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
@@ -44,7 +45,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
   const post = (cookie: string, url: string, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { ...FORM, cookie }, payload: new URLSearchParams(fields).toString() });
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   let pilotCookie = '';
   /** With a sender, a browser not seen before is asked for the code mailed to it (A3). */
   const signIn = async (email: string, password: string): Promise<string> => {
@@ -121,13 +122,13 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     for (const cookie of [pilotCookie, shops['before']!.cookie]) {
       const r = await get(cookie, '/app/connect/meta/start');
       expect(flashSaid(r, SECRET)).not.toBe(t('en', 'connect.flash.approval'));
-      expect((await get(cookie, '/app/business/channels')).body).not.toContain('id="approval"');
+      expect((await get(cookie, '/app/settings/channels')).body).not.toContain('id="approval"');
     }
   });
 
   it('THE OWNER ASKS once, naming where the business can be seen; the operator hears at once and the daily list counts it', async () => {
     const { cookie, id } = shops['asks']!;
-    const page = await get(cookie, '/app/business/channels');
+    const page = await get(cookie, '/app/settings/channels');
     expect(page.body).toContain('id="approval"');
     expect(page.body).toContain('action="/app/channels/approval"');
     expect(page.body.indexOf('id="approval"')).toBeLessThan(page.body.indexOf('<span class="sr-label">WhatsApp</span>'));
@@ -150,7 +151,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     const again = await post(cookie, '/app/channels/approval', { page: '@another' });
     expect(flashSaid(again, SECRET)).toBe(t('en', 'approval.flash.already'));
     expect((await admin.query(`select page from connection_approvals where business_id = $1`, [id])).rows[0].page).toBe('https://facebook.com/SoapHouse');
-    expect((await get(cookie, '/app/business/channels')).body).toContain(t('en', 'approval.where'));
+    expect((await get(cookie, '/app/settings/channels')).body).toContain(t('en', 'approval.where'));
     const { signupDigestAlert } = await import('../../src/pipeline/signupDigest.js');
     expect((await signupDigestAlert(db, PILOT, new Date()))?.approvals).toBeGreaterThanOrEqual(1);
   });
@@ -174,7 +175,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     // Now the routes let it through: Meta is not configured here, so that is what the page says.
     const start = await get(cookie, '/app/connect/meta/start');
     expect(flashSaid(start, SECRET)).toBe(t('en', 'connect.flash.not_configured'));
-    expect((await get(cookie, '/app/business/channels')).body).not.toContain('id="approval"');
+    expect((await get(cookie, '/app/settings/channels')).body).not.toContain('id="approval"');
   });
 
   it('A REFUSAL is said on the page, with the legal contact; refusing needs an ask', async () => {
@@ -182,7 +183,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     expect(await op.decideConnection(admin, { businessId: id, decision: 'refused', by: 'operator' })).toBe('no_ask');
     expect(flashSaid(await post(cookie, '/app/channels/approval', { page: '@soap.house' }), SECRET)).toBe(t('en', 'approval.flash.asked'));
     expect(await op.decideConnection(admin, { businessId: id, decision: 'refused', by: 'operator', note: 'sells look like counterfeits' })).toBe('refused');
-    const page = (await get(cookie, '/app/business/channels')).body;
+    const page = (await get(cookie, '/app/settings/channels')).body;
     expect(page).toContain(t('en', 'approval.refused'));
     expect(page).toContain('legal@nomi.example');
     expect(page).not.toContain('counterfeits');
@@ -215,7 +216,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
   });
   it('PHASE 9 · CONNECT WHATSAPP: the number goes to the operator; a wrong one comes back marked, and nothing is sent', async () => {
     const { cookie, email } = shops['before']!;
-    const page = await get(cookie, '/app/channels/whatsapp/connect');
+    const page = await get(cookie, '/app/settings/channels/whatsapp/connect');
     expect(page.body).toContain('action="/app/channels/whatsapp/ask"');
     expect(page.body).not.toContain('action="/app/channels/whatsapp/test"');
     const before = outbox.length;

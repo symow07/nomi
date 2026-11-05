@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -88,11 +89,11 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     expect(await rows()).toEqual([]); // a buyer's message never creates an assistant
   });
 
-  it('opening the team page makes the main one, once, with the name she always had', async () => {
-    const a = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+  it('opening assistant identity makes the main one, once, with the name she always had', async () => {
+    const a = await app.inject({ method: 'GET', url: '/app/settings/assistant/name', headers: { cookie: ownerCookie } });
     expect(a.statusCode).toBe(200);
     expect(a.body).toContain('id="assistants"');
-    await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    await app.inject({ method: 'GET', url: '/app/settings/assistant/name', headers: { cookie: ownerCookie } });
     const r = await rows();
     expect(r.map((x) => [x.name, x.role, x.is_default])).toEqual([['Lily', 'sales', true]]);
   });
@@ -109,8 +110,8 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     const home = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
     expect(home.body).not.toContain('Lily');
     // The advisor run — the assistant is Settings' first row; one nobody named is "Your assistant" there.
-    const settings = await app.inject({ method: 'GET', url: '/app/settings', headers: { cookie: ownerCookie } });
-    expect(settings.body).toContain('<span class="sr-label">Your assistant</span>');
+    const settings = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: ownerCookie } });
+    expect(settings.body).toContain('Your assistant');
     expect(settings.body).not.toContain('Lily');
     const c = await startConversation('whatsapp', `+8613${RUN}09`);
     const speaker = await tx((t) => tenantRepos(t, bid.value).conversations.speaker(c.conversationId as never));
@@ -274,7 +275,7 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     const flashCookie = ([] as string[]).concat(res.headers['set-cookie'] as string | string[] ?? [])
       .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_flash='))!;
     const landed = await app.inject({
-      method: 'GET', url: String(res.headers['location']), headers: { cookie: `${ownerCookie}; ${flashCookie}` },
+      method: 'GET', url: settingsHref(String(res.headers['location'])), headers: { cookie: `${ownerCookie}; ${flashCookie}` },
     });
     expect(landed.body).toContain('Sara');
     expect(landed.body).not.toContain('Lily');
@@ -301,7 +302,7 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
   it('a sales assistant is refused all three', async () => {
     const add = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
     const issued = String(add.headers['set-cookie'] ?? '').split(';')[0]!;
-    const page = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: `${ownerCookie}; ${issued}` } });
     const code = /class="code"><bdi>([^<]+)</.exec(page.body)?.[1] ?? '';
     const staff = await login(code);
     expect(staff).not.toBe('');

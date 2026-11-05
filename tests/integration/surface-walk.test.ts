@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -344,7 +345,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           target = target.replace(`:${m[1]}`, encodeURIComponent(v));
         }
         if (skip) continue;
-        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=${locale}` } });
         if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
         const html = res.body;
         if (!html.includes('<nav class="side">')) continue;   // a download or a fragment, not a page
@@ -414,7 +415,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         target = target.replace(`:${m[1]}`, encodeURIComponent(v));
       }
       if (skip) continue;
-      const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=ar` } });
+      const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=ar` } });
       if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
       if (!res.body.includes('<nav class="side">')) continue;
       pages++;
@@ -458,7 +459,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           target = target.replace(`:${m[1]}`, encodeURIComponent(v));
         }
         if (skip) continue;
-        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        const res = await app.inject({ method: 'GET', url: settingsHref(target), headers: { cookie: `${cookie}; yf_locale=${locale}` } });
         if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
         pages++;
         const at = `${locale} ${target}`;

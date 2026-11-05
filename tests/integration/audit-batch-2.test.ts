@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -27,7 +28,7 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
   let conv = '';
   const session = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
-  const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie: owner } });
+  const get = (url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: owner } });
   const post = (url: string, payload = '') => app.inject({ method: 'POST', url, payload, headers: { cookie: owner, 'content-type': 'application/x-www-form-urlencoded' } });
   const be = (fields: { kind?: string | null; country?: string | null; ice?: string | null }) => admin.query(
     `update businesses set kind = $2, country = $3, legal_ice = $4 where id = $1`, [BIZ, fields.kind ?? null, fields.country ?? null, fields.ice ?? null]);
@@ -71,12 +72,12 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
       for (const url of EXPORT_PAGES) expect((await get(url)).statusCode, `${kind} GET ${url}`).toBe(404);
       expect((await post('/app/settings/terms', 'payment=T%2FT&incoterm=FOB')).statusCode, kind).toBe(404);
       expect((await post('/app/settings/samples', 'price=5&credited=on')).statusCode, kind).toBe(404);
-      const how = await get('/app/business/how-you-sell');
+      const how = await get('/app/settings/business/selling');
       expect(how.statusCode, kind).toBe(200);
       for (const url of EXPORT_PAGES) expect(how.body, `${kind} how-you-sell ${url}`).not.toContain(`href="${url}"`);
       const page = await get(`/app/inbox/${conv}`);
       expect(page.statusCode, kind).toBe(200);
-      expect(page.body, `${kind} sample card`).not.toContain('href="/app/settings/samples"');
+      expect(page.body, `${kind} sample card`).not.toContain('href="/app/settings/business/samples"');
     }
     expect((await admin.query(`select 1 from trade_terms where business_id = $1`, [BIZ])).rowCount).toBe(0);
     expect((await admin.query(`select 1 from sample_policy where business_id = $1`, [BIZ])).rowCount).toBe(0);
@@ -86,9 +87,9 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
     for (const kind of ['manufacturer', 'trading', 'wholesale', null]) {
       await be({ kind });
       for (const url of EXPORT_PAGES) expect((await get(url)).statusCode, `${kind} GET ${url}`).toBe(200);
-      const how = (await get('/app/business/how-you-sell')).body;
+      const how = (await get('/app/settings/business/selling')).body;
       for (const url of EXPORT_PAGES) expect(how, `${kind} how-you-sell ${url}`).toContain(`href="${url}"`);
-      expect((await get(`/app/inbox/${conv}`)).body, `${kind} sample card`).toContain('href="/app/settings/samples"');
+      expect((await get(`/app/inbox/${conv}`)).body, `${kind} sample card`).toContain('href="/app/settings/business/samples"');
     }
   });
 

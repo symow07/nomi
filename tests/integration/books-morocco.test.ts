@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -31,7 +32,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
   const notice = async (r: { headers: Record<string, unknown> }) => {
     const set = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).join('; ');
-    return (await app.inject({ method: 'GET', url: String(r.headers['location']).split('#')[0]!, headers: { cookie: `${owner}; ${set}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(String(r.headers['location']).split('#')[0]!), headers: { cookie: `${owner}; ${set}` } })).body;
   };
   const post = (url: string, who = owner) => app.inject({ method: 'POST', url, payload: '', headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
 
@@ -132,11 +133,11 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
       payload: new URLSearchParams(fields).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
     const stored = async () => (await admin.query(`select legal_ice, legal_if, legal_rc, legal_rc_court from businesses where id = $1`, [BIZ])).rows[0];
     // shown on the profile, a Moroccan business's, empty
-    const profile = (await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: owner } })).body;
+    const profile = (await app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie: owner } })).body;
     expect(profile).toContain('id="identifiers"');
     expect(profile).toContain('action="/app/settings/identifiers"');
     // staff see them and change nothing; nor does the accountant
-    const seen = (await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: staff } })).body;
+    const seen = (await app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie: staff } })).body;
     expect(seen).toContain('id="identifiers"');
     expect(seen).not.toContain('action="/app/settings/identifiers"');
     for (const who of [staff, accountant]) {
@@ -159,7 +160,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     // saved: spaces out of the ICE, the IF and the RC as typed
     expect(await notice(await form({ ice: '001234567 0000 89', tax_id: ' 40 123 456 ', rc: '123456', rc_court: 'Tribunal de commerce de Casablanca' }))).toContain('Identifiers saved.');
     expect(await stored()).toEqual({ legal_ice: '001234567000089', legal_if: '40 123 456', legal_rc: '123456', legal_rc_court: 'Tribunal de commerce de Casablanca' });
-    expect((await app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie: staff } })).body).toContain('001234567000089');
+    expect((await app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie: staff } })).body).toContain('001234567000089');
     // the FEC carries them on every line, the eighteen untouched; the page no longer says anything is missing
     const r = await app.inject({ method: 'GET', url: `/app/books/fec/${year}.txt`, headers: { cookie: owner } });
     const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));

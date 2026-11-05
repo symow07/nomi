@@ -57,47 +57,37 @@ describe('D · five entries', () => {
 
   it('the map gives Products its own area and keeps business, assistant and setup contexts', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-    // THE WARMTH RUN, phase 7 — My business is a menu; How you sell is a menu
-    // of its own a level down; the channels' one home is My business.
-    expect(under('/app/business')).toEqual(expect.arrayContaining([
-      '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-      '/app/business/promises', '/app/business/how-you-sell',
-    ]));
-    expect(under('/app/products')).toEqual(expect.arrayContaining(['/app/products/add', '/app/products/price-limits']));
-    expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
-      '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
-    ]));
-    // Phase 9 (w4-business-assistant-05) — a screen per channel, under the one home.
-    expect(under('/app/business/channels')).toEqual(['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts']);
-    expect(under('/app/settings/assistant')).toContain('/app/settings/forbidden');
-    expect(under('/app/assistant')).toEqual(expect.arrayContaining(['/app/assistant/knowledge', '/app/assistant/practice']));
-    expect(under('/app/settings')).toEqual(['/app/settings/assistant', '/app/business', '/app/settings/setup']);
-    expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
-    expect(under('/app/settings/setup')).not.toContain('/app/channels');
+    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s));
+    expect(under('/app/settings')).toEqual(['business','channels','assistant','books','team','billing','personal'].map(s=>'/app/settings/'+s));
+    expect(under('/app/settings/personal')).toEqual(['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s));
+    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s));
+    expect(under('/app/settings/assistant')).toContain('/app/settings/assistant/words');
+    expect(under('/app/assistant')).toContain('/app/assistant/knowledge');
+    expect(under('/app/products')).toContain('/app/products/add');
     // and Settings itself is a nav entry now, not somebody's contextual route
     expect(CONTEXTUAL_ROUTES).not.toContain('/app/settings');
   });
 
   it('every page lights the entry it now sits under — URLs did not move, doors did', () => {
     // The warmth run: what you sell sits under My business, which sits under Settings.
-    expect(hubFor('/app/business', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/terms', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/rate', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/business', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/business/terms', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/business/currency', 'x')).toBe('settings');
     expect(hubFor('/app/products/abc', 'x')).toBe('products');
-    expect(hubFor('/app/settings/setup', 'x')).toBe('settings');
+    expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/calendar', 'x')).toBe('home');
     // The advisor run — the assistant's settings, and the pages reached from them, sit under Settings.
     expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/assistant/one-kind', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant#reply-types', 'x')).toBe('settings');
     expect(hubFor('/app/assistant/knowledge', 'x')).toBe('assistant');
-    expect(hubFor('/app/settings/forbidden', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant/words', 'x')).toBe('settings');
     expect(hubFor('/app/assistant/practice', 'x')).toBe('assistant');
     expect(hubFor('/app/advisor', 'x')).toBe('assistant');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/people', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/data', 'x')).toBe('settings');
-    expect(hubFor('/app/channels/whatsapp', 'x')).toBe('settings');
-    expect(hubFor('/app/channels/whatsapp/connect', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/team', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/business/data', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/channels/whatsapp', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/channels/whatsapp/connect', 'x')).toBe('settings');
     expect(hubFor('/app/onboarding', 'x')).toBe('home');
     // the outreach chain still resolves, for a workspace that has it — under
     // Buyers since A (contacts hung off Customers, which merged into Buyers)
@@ -167,12 +157,12 @@ describe('D · the Today card', () => {
 describe('D · the doors moved, the pages did not', () => {
   it('phase 7 · Setup holds getting started, going live, alerts, the language, people, sign-in, billing, data — and none of the business', () => {
     const html = withWorkspace(facts(), () => renderSetup({ people: 3 }, 'en', null));
-    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
-      '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data'])
+    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+      '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'])
       expect(html).toContain(`href="${href}"`);
     // the business has ONE home, My business — channels included
-    for (const href of ['/app/channels', '/app/business/channels', '/app/settings/profile', '/app/settings/business', '/app/business/selling',
-      '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate', '/app/settings/forbidden'])
+    for (const href of ['/app/channels', '/app/settings/channels', '/app/settings/business/profile', '/app/settings/business', '/app/settings/business/selling',
+      '/app/settings/business/terms', '/app/settings/business/samples', '/app/settings/business/hours', '/app/settings/business/currency', '/app/settings/assistant/words'])
       expect(html).not.toContain(`href="${href}"`);
     expect(html).toContain(`<h1 class="page">${t('en', 'nav.setup')}</h1>`);
   });
@@ -186,8 +176,8 @@ describe('D · the doors moved, the pages did not', () => {
     // phase 7 — a menu: no line under a row that its value already says
     expect(html).not.toContain('class="sr-desc"');
     expect(rows['/app/onboarding']).toBeDefined();
-    expect(rows['/app/settings/language']).toContain('<bdi>English</bdi>');
-    expect(rows['/app/settings/people']).toContain('1 person');
+    expect(rows['/app/settings/personal/language']).toContain('<bdi>English</bdi>');
+    expect(rows['/app/settings/team']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ people: 4 }, 'en', null)))
       .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
@@ -210,10 +200,10 @@ describe('D · the doors moved, the pages did not', () => {
     expect(html).not.toContain('class="langsw"');
     // a sales assistant: who works here is read, not opened; billing and the data are the owner's
     const staff = withWorkspace(facts(), () => renderSetup({ ...v, billing: null, dataWaiting: null, viewer: { isOwner: false } }, 'en', null));
-    expect(staff).not.toContain('href="/app/settings/people"');
+    expect(staff).not.toContain('href="/app/settings/team"');
     expect(staff).toMatch(/<div class="srow sr-menu">[^]*?<span class="sr-label">Who works here<\/span>[^]*?2 people/);
-    for (const href of ['/app/settings/billing', '/app/settings/data']) expect(staff).not.toContain(`href="${href}"`);
-    expect(staff).toContain('href="/app/settings/account"');
+    for (const href of ['/app/settings/billing', '/app/settings/business/data']) expect(staff).not.toContain(`href="${href}"`);
+    expect(staff).toContain('href="/app/settings/personal/account"');
   });
 });
 

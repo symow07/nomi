@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
@@ -54,7 +55,7 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     return withTenantTx(prod.db, b.value, fn);
   };
   const post = (url: string, payload: string) => prod.app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const answer = (question: string) => q((tx) => sql<{ state: string; told_id: string | null }>`
     select state, told_id::text as told_id from selling_answers where business_id = ${BIZ}::uuid and question = ${question}`
     .execute(tx).then((x) => x.rows[0]));
@@ -109,7 +110,7 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
   afterAll(async () => { await prod?.close(); });
 
   it('THE HUB: a brand is asked the catalogue questions; a question that is not its own is no page', async () => {
-    const hub = await get('/app/business/selling');
+    const hub = await get('/app/settings/business/selling');
     expect(hub.statusCode).toBe(200);
     for (const question of ['price', 'minimum', 'returns', 'delivery', 'payment', 'certifications', 'hours', 'words']) {
       expect(hub.body, question).toContain(`href="/app/business/selling/${question}"`);
@@ -119,8 +120,8 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     expect(notOurs.statusCode).toBe(302);
     expect(notOurs.headers['location']).toBe('/app/business/selling');
     // My business opens it: its How you sell row, then the questions (phase 7).
-    expect((await get('/app/business')).body).toContain('href="/app/business/how-you-sell"');
-    expect((await get('/app/business/how-you-sell')).body).toContain('href="/app/business/selling"');
+    expect((await get('/app/settings/business')).body).toContain('href="/app/settings/business/selling"');
+    expect((await get('/app/settings/business/selling')).body).toContain('href="/app/settings/business/selling"');
   });
 
   it('AN ANSWER IS A DRAFT UNTIL ITS LINES ARE TICKED; then each goes to its own row, and the next question opens', async () => {
@@ -241,18 +242,18 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     expect((await post('/app/business/selling/payment/confirm', 'line:told:payment=on')).statusCode).toBe(302);
     expect(await q((tx) => sql<{ n: number }>`select count(*)::int as n from trade_terms where business_id = ${BIZ}::uuid`
       .execute(tx).then((x) => x.rows[0]!.n))).toBe(0);
-    const hub = await get('/app/business/selling');
+    const hub = await get('/app/settings/business/selling');
     expect(hub.body).toContain('Answered');
     expect(hub.body).toContain('Left for later');
     // My business carries the door and where she is (phase 7 — it was Setup's):
     // price, words, minimum, returns, hours, payment.
-    const menu = await get('/app/business');
-    const how = await get('/app/business/how-you-sell');
-    expect(how.body).toContain('href="/app/business/selling"');
+    const menu = await get('/app/settings/business');
+    const how = await get('/app/settings/business/selling');
+    expect(how.body).toContain('href="/app/settings/business/selling"');
     // CK (0110) added "What you sell" to a shop's questions: nine now.
     expect(menu.body).toContain('6 of 9 answered');
     expect(how.body).toContain('6 of 9 answered');
-    expect((await get('/app/settings/setup')).body).not.toContain('href="/app/business/selling"');
+    expect((await get('/app/settings')).body).not.toContain('href="/app/settings/business/selling"');
   });
 
   it('A REFUSED ANSWER is shown back with its problem, and nothing is kept', async () => {

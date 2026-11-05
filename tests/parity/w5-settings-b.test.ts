@@ -140,7 +140,7 @@ describe('V1-006 (part: categories), V1-525, w4-settings-b-outreach-07 · what t
       const html = profile(l, { ...bare, whatYouSell: { category: 'cosmetics' } });
       expect(html, l).toContain(esc(t(l, 'settings.field.whatYouSell')));
       expect(html, l).toContain(`<span class="fr-value">${esc(t(l, 'hs.category.cosmetics'))}</span>`);
-      expect(html, l).toContain(`href="/app/business/selling/product_claims"`);
+      expect(html, l).toContain(`href="/app/settings/business/selling/product-claims"`);
       expect(html, l).not.toContain('href="/app/products"');
     }
   });

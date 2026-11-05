@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -32,7 +33,7 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   let shopCookie = '';
   const cookieOf = (r: { headers: Record<string, unknown> }) => ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
     .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL });
@@ -69,12 +70,12 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   afterAll(async () => { await app?.close(); await db?.destroy(); await admin?.end(); });
 
   it('THE MACHINE ROOM is the installation\'s: 404 for a workspace that signed itself up, and no door to it', async () => {
-    expect((await get(shopCookie, '/app/onboarding/technical')).statusCode).toBe(404);
-    expect((await get(pilotCookie, '/app/onboarding/technical')).statusCode).toBe(200);
+    expect((await get(shopCookie, '/app/settings/channels/technical')).statusCode).toBe(404);
+    expect((await get(pilotCookie, '/app/settings/channels/technical')).statusCode).toBe(200);
     const ready = await get(shopCookie, '/app/get-started');
-    expect(ready.body).not.toContain('href="/app/onboarding/technical"');
+    expect(ready.body).not.toContain('href="/app/settings/channels/technical"');
     // Phase 9 — the installation's own workspace keeps the page, but no owner's page links to it.
-    expect((await get(pilotCookie, '/app/get-started')).body).not.toContain('href="/app/onboarding/technical"');
+    expect((await get(pilotCookie, '/app/get-started')).body).not.toContain('href="/app/settings/channels/technical"');
   });
 
   it('PHASE 9 · V1-007 · a mistyped /app address keeps a signed-in owner in the workspace; signed out it is the door page', async () => {

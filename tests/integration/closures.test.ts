@@ -87,7 +87,7 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
   });
 
   it('the page shows it, in her own words', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/closures', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/settings/business/hours', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('春节');
   });

@@ -108,7 +108,7 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
   });
 
   it('the page shows her term and the floor', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/forbidden', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/settings/assistant/words', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Guangzhou Textile');
     expect(res.body).toContain('Rude words and insults, kept out of every reply');
@@ -157,7 +157,7 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
       { term: 'Guangzhou Textile', archived: true },
       { term: 'Guangzhou Textile', archived: false },
     ]);
-    const page = await app.inject({ method: 'GET', url: '/app/settings/forbidden', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant/words', headers: { cookie } });
     expect(page.body).toContain('they copied our catalogue');
   });
 

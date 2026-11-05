@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -53,7 +54,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
   });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   /** The sentence a redirect carries back to her. */
   const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const write = (who: string, subject: string, body: string) =>
@@ -274,7 +275,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
       select enabled, daily_cap from outreach_settings where business_id = ${BIZ} and channel = 'email'
        order by at desc, id desc limit 1`.execute(x).then((r) => r.rows[0]!));
     expect(setting).toEqual({ enabled: true, daily_cap: 1 });
-    expect((await get('/app/channels/email')).body).toMatch(/name="cap"[^>]*value="1"/);
+    expect((await get('/app/settings/channels/email')).body).toMatch(/name="cap"[^>]*value="1"/);
 
     const third = addr('third');
     await addAndAttest(third, 'Third Buyer');

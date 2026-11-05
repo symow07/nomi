@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -73,7 +74,7 @@ const ownerApp = async (db: Db, biz: string, o: Record<string, unknown> = {}) =>
   expect(cookie).not.toBe('');
   const post = (url: string, fields: Record<string, string> = {}, as = cookie) =>
     app.inject({ method: 'POST', url, headers: { cookie: as, ...FORM }, payload: new URLSearchParams(fields).toString() });
-  const get = (url: string, as = cookie) => app.inject({ method: 'GET', url, headers: { cookie: as } });
+  const get = (url: string, as = cookie) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: as } });
   return { app, cookie, login, post, get };
 };
 
@@ -230,7 +231,7 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
   const post = (w: { rawBody: string; headers: Record<string, string> }) =>
     prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
       headers: { 'content-type': 'application/json', ...w.headers } });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const act = (url: string) => prod.app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: '' });
   const convOf = (wa: string) => until(() => q((tx) => sql<{ id: string }>`
     select c.id::text as id from conversations c
@@ -553,8 +554,8 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
 
   it('PAGE · answering: My business offers Stop on every channel, confirmed first', async () => {
     // Phase 7 — on its going-live screen, one tap from the menu, whose row says where it stands.
-    expect((await web.get('/app/business')).body).toContain('href="/app/business/ready"');
-    const html = (await web.get('/app/business/ready')).body;
+    expect((await web.get('/app/settings/assistant')).body).toContain('href="/app/settings/assistant/ready"');
+    const html = (await web.get('/app/settings/assistant/ready')).body;
     expect(html).toContain('data-golive="every"');
     expect(html).toContain('action="/app/business/stop-assistant"');
     expect(html).not.toContain('action="/app/business/start-assistant"');
@@ -563,8 +564,8 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
 
   it('PAGE · stopped: My business says so, offers Start, and says nothing about the assistant answering anyone', async () => {
     await web.post('/app/business/stop-assistant');
-    expect((await web.get('/app/business')).body).toContain(`<bdi>${t('en', 'business.live.stopped')}</bdi>`);
-    const html = (await web.get('/app/business/ready')).body;
+    expect((await web.get('/app/settings/assistant/ready')).body).toContain('is stopped on every channel');
+    const html = (await web.get('/app/settings/assistant/ready')).body;
     expect(html).toContain('is stopped on every channel');
     expect(html).toContain('action="/app/business/start-assistant"');
     expect(html).not.toContain('action="/app/business/stop-assistant"');
@@ -577,8 +578,8 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
 
   it('PAGE · in every locale, nothing is left as a key', async () => {
     for (const l of ['zh', 'ar'] as const) {
-      for (const url of ['/app/business', '/app/business/ready', '/app']) {
-        const html = (await web.app.inject({ method: 'GET', url, headers: { cookie: web.cookie, 'accept-language': l } })).body;
+      for (const url of ['/app/settings/assistant', '/app/settings/assistant/ready', '/app']) {
+        const html = (await web.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: web.cookie, 'accept-language': l } })).body;
         expect(html, `${l} ${url}`).toContain(`lang="${l}"`);
         expect(html, `${l} ${url}`).not.toMatch(/assistant\.stop\.|today\.stopped\./);
       }

@@ -58,7 +58,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
     // Phase 7 — going live is a screen of its own under My business.
-    const page = async () => (await app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } })).body;
+    const page = async () => (await app.inject({ method: 'GET', url: '/app/settings/assistant/ready', headers: { cookie } })).body;
     return { app, cookie, page };
   };
   const connectInstagram = (biz: string) => tx(biz, (x) => sql`
@@ -108,7 +108,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     // (w4-business-assistant-14) the screen's answer line says it once; the line under it is only for a stop.
     expect(html).toContain(esc(t('en', 'factory.ready.answer.nothing', { name: 'your assistant' })));
     expect(html).not.toContain('data-golive="none"');
-    expect(html).toContain('href="/app/business/channels"');
+    expect(html).toContain('href="/app/settings/channels"');
     expect(html).not.toContain(noChannel());
     expect(html).not.toContain('data-golive="elsewhere"');
   });

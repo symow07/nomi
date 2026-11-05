@@ -123,7 +123,7 @@ describe('w4-whole-11 · connected by the one definition, on My business too', (
   const wired: FactoryView = { ...FIRST_DAY, connection: { ...FIRST_DAY.connection, connected: { whatsapp: true, instagram: false, messenger: false, email: false } } };
   for (const l of LOCALES) {
     it(`${l} · a number connected that this installation cannot carry is Connected, and its block is Nomi's team's, never "connect it"`, () => {
-      const row = /href="\/app\/business\/channels">[\s\S]*?<\/a>/.exec(menu(wired, l))?.[0] ?? '';
+      const row = /href="\/app\/settings\/channels">[\s\S]*?<\/a>/.exec(menu(wired, l))?.[0] ?? '';
       expect(row).toContain(`<span class="sr-value ok"><bdi>${say(l, 'reach.channel.whatsapp')}</bdi>`);
       const home = screen('channels', wired, l);
       expect(home).toContain(`<span class="sr-value ok"><bdi>${say(l, 'connect.state.connected')}</bdi>`);
@@ -143,7 +143,7 @@ describe('w4-whole-11 · connected by the one definition, on My business too', (
 
 describe('w4-business-assistant-17 · a channel\'s screen is one column', () => {
   it('its rules and ledes stop where its cards do', () => {
-    const css = linkedCss(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app/channels/whatsapp', bodyHtml: '' }));
+    const css = linkedCss(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app/settings/channels/whatsapp', bodyHtml: '' }));
     expect(css).toMatch(/\.ch-screen \{ max-width:var\(--measure-prose\); \}/);
     for (const s of ['whatsapp', 'meta', 'email', 'alerts'] as const) expect(inScope(() => renderChannelScreen(s, BARE, 'en', null))).toContain('<div class="ch-screen">');
   });
@@ -209,7 +209,7 @@ describe('V1-423 · what customers asked, and what the assistant cannot answer y
     it(`${l}`, () => {
       const html = lily(() => renderEmployeeScreen('learning', ASSISTANT, l, null, QUIET));
       expect(html).toContain(esc(t(l, 'her.teach.none')));
-      expect(html).toContain(`href="/app/business/ready#rehearsal">${esc(lily(() => t(l, 'factory.rehearsal.title', { name: 'Lily' })))}`);
+      expect(html).toContain(`href="/app/settings/assistant/ready#rehearsal">${esc(lily(() => t(l, 'factory.rehearsal.title', { name: 'Lily' })))}`);
       expect(screen('ready', { ...SET_UP, rehearsal: { ...SET_UP.rehearsal!, findings: [{ reason: 'nothing_taught', productName: 'Cup', probeId: null }] } }, l))
         .toContain('id="rehearsal"');
     });
@@ -224,8 +224,8 @@ describe('w4-business-assistant-29 · each row says its own thing', () => {
         const row = new RegExp(`href="${href}">[\\s\\S]*?</a>`).exec(html)?.[0] ?? '';
         return /<span class="sr-(?:desc|value)[^>]*>([\s\S]*?)<\/span>/.exec(row.replace(/<span class="sr-label">[^<]*<\/span>/, ''))?.[1] ?? '';
       };
-      expect(line('/app/settings/assistant/replies')).not.toBe(line('/app/settings/assistant/next'));
-      expect(line('/app/settings/assistant/one-kind')).not.toBe('');
+      expect(line('/app/settings/assistant#reply-types')).not.toBe(line('/app/settings/assistant#progress'));
+      expect(line('/app/settings/assistant#reply-types')).not.toBe('');
     });
   }
 });
@@ -242,9 +242,9 @@ describe('w4-business-assistant-31 · the assistant\'s "can talk about" rows are
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const html = lily(() => renderEmployeeScreen('talk', ASSISTANT, l, null, QUIET, undefined, { talk }));
-      expect(html).toMatch(new RegExp(`href="/app/settings/profile">[\\s\\S]*?<span class="sr-value"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi>`));
-      expect(html).toContain('href="/app/business/how-you-sell"');
-      expect(html).not.toContain('href="/app/business/selling"');
+      expect(html).toMatch(new RegExp(`href="/app/settings/business/profile">[\\s\\S]*?<span class="sr-value"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi>`));
+      expect(html).toContain('href="/app/settings/business/selling"');
+      expect(html).not.toContain('href="/app/settings/business/selling/price"');
       expect(menu({ ...SET_UP, profile: { ...SET_UP.profile, location: null } }, l)).toContain(`<bdi>${esc(t(l, 'setup.state.toDo'))}</bdi>`);
     });
   }

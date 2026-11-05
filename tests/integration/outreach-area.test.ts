@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -38,7 +39,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
     return withTenantTx(db, bid.value, fn);
   };
   const area = (on: boolean) => tx((t) => sql`update businesses set outreach_area = ${on} where id = ${BIZ}::uuid`.execute(t));
-  const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
 
   beforeAll(async () => {
     await seedRunTenant();
@@ -84,7 +85,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
     }
     // and the pages around it still answer — Buyers, where its door would hang
     // (A: Customers merged into Buyers; the old address is a redirect there)
-    expect((await get('/app/business/channels')).statusCode).toBe(200);
+    expect((await get('/app/settings/channels')).statusCode).toBe(200);
     expect((await get('/app/inbox?filter=all')).statusCode).toBe(200);
     expect((await get('/app/conversations')).statusCode).toBe(302);
   });
@@ -155,12 +156,12 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
     for (const route of ['/app/customers/outreach/suppress', '/app/customers/outreach/write'])
       expect((await get(route)).statusCode, route).toBe(200);
     // and the switch on the channels page is back
-    expect((await get('/app/channels/whatsapp')).body).toContain('action="/app/channels/outreach"');
+    expect((await get('/app/settings/channels/whatsapp')).body).toContain('action="/app/channels/outreach"');
   });
 
   it('OFF again: gone at once, nothing deleted', async () => {
     await area(false);
     expect((await get('/app/contacts')).statusCode).toBe(404);
-    expect(((await get('/app/channels/whatsapp')).body + (await get('/app/channels/email')).body).match(STRAY)?.[0] ?? null).toBeNull();
+    expect(((await get('/app/settings/channels/whatsapp')).body + (await get('/app/settings/channels/email')).body).match(STRAY)?.[0] ?? null).toBeNull();
   });
 });

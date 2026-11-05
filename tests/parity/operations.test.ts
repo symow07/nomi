@@ -192,7 +192,7 @@ describe('Home, in its zones (render)', () => {
     // The quiet-day run — said as the way there, never as "no customer can reach".
     expect(html).toContain(t('en', 'home.wins.connect'));
     // Phase 9 (w4-today-setup-16) — the way forward is the setup step's own door.
-    expect(html).toContain('href="/app/business/channels"');
+    expect(html).toContain('href="/app/settings/channels"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
     expect(html).toContain(`<h2 id="today-now" class="tw-head home-calm">${t('en', 'today.needs.none')}</h2>`);

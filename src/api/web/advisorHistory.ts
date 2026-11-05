@@ -38,6 +38,8 @@ export type AdvisorHistoryIO = {
 };
 
 export const HISTORY_PAGE = '/app/settings/advisor-history';
+export const PERSONAL_HISTORY_PAGE = '/app/settings/personal/advisor-history';
+export const HISTORY_POLICY_PAGE = '/app/settings/assistant/history-policy';
 export const HISTORY_FILE = '/app/settings/advisor-history/history.csv';
 
 export type HistoryPage = {
@@ -48,7 +50,7 @@ export type HistoryPage = {
 };
 
 /** The page. */
-export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flash | null): string {
+export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flash | null, part:'all'|'mine'|'workspace' = 'all'): string {
   const s = v.state;
   const say = (k: MessageKey, p: Record<string, string> = {}) => esc(t(locale, k, p));
   const button = (action: string, name: string, value: string, label: string, confirm?: string) =>
@@ -74,7 +76,7 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
       </li></ul>` : ''}
       <div class="doors">${deeper('/app/advisor', t(locale, 'advisor.history.open'))}</div>
     </section>`;
-  if (!v.isOwner) return `<h1 class="page">${say('advisor.history.title')}</h1>${flashBanner(flash)}${mine}`;
+  if (!v.isOwner || part === 'mine') return `<h1 class="page">${say(part==='mine'?'settingsArea.history':'advisor.history.title')}</h1>${flashBanner(flash)}${mine}`;
 
   const workspace = `<section class="block" id="workspace">
       <h2>${say('advisor.history.workspace')}</h2>
@@ -93,7 +95,7 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
           t(locale, 'advisor.memory.ownerDeleteConfirm', { name: p.name }))}
       </li>`).join('')}</ul>`}
     </section>`;
-  return `<h1 class="page">${say('advisor.history.title')}</h1>${flashBanner(flash)}${workspace}${mine}${team}`;
+  return `<h1 class="page">${say(part==='workspace'?'settingsArea.historyPolicy':'advisor.history.title')}</h1>${flashBanner(flash)}${workspace}${part==='workspace'?'':mine}${team}`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,15 +105,16 @@ export function advisorHistoryRoutes(app: FastifyInstance, io: AdvisorHistoryIO)
   const OFF: MemoryState = { workspaceOn: false, consent: null, since: null, keep: false, ask: false, keyProblem: null, person: false };
   const stateOf = (v: HistoryViewer) => (io.memory ? io.memory.state(v.businessId, v.personId, new Date()).catch(() => OFF) : Promise.resolve(OFF));
 
-  app.get(HISTORY_PAGE, { logLevel: 'warn' }, async (req, reply) => {
+  for(const path of [PERSONAL_HISTORY_PAGE,HISTORY_POLICY_PAGE])app.get(path, { logLevel: 'warn' }, async (req, reply) => {
     const v = io.viewer(req);
     if (!v) return reply.redirect('/login');
+    if(path===HISTORY_POLICY_PAGE&&!v.isOwner)return reply.redirect(PERSONAL_HISTORY_PAGE);
     const locale = io.locale(req);
     const state = await stateOf(v);
-    const team = v.isOwner && io.memory ? await io.memory.team(v.businessId, v.personId).catch(() => []) : [];
+    const team = path===HISTORY_POLICY_PAGE && v.isOwner && io.memory ? await io.memory.team(v.businessId, v.personId).catch(() => []) : [];
     return reply.type('text/html; charset=utf-8').send(io.page(req, {
       title: t(locale, 'advisor.history.title'), active: 'settings',
-      bodyHtml: renderAdvisorHistory(locale, { state, isOwner: v.isOwner, team, processor: io.processor(locale) }, io.takeFlash(req, reply)),
+      bodyHtml: renderAdvisorHistory(locale, { state, isOwner: v.isOwner, team, processor: io.processor(locale) }, io.takeFlash(req, reply),path===HISTORY_POLICY_PAGE?'workspace':'mine'),
     }));
   });
 
@@ -119,23 +122,23 @@ export function advisorHistoryRoutes(app: FastifyInstance, io: AdvisorHistoryIO)
   app.post(`${HISTORY_PAGE}/me`, { logLevel: 'warn' }, async (req, reply) => {
     const v = io.viewer(req);
     if (!v) return reply.redirect('/login');
-    if (!io.memory) return io.flashTo(reply, HISTORY_PAGE, 'advisor.flash.failed');
+    if (!io.memory) return io.flashTo(reply, PERSONAL_HISTORY_PAGE, 'advisor.flash.failed');
     const on = String((req.body as { on?: unknown } | undefined)?.on ?? '') === 'on';
     const state = await stateOf(v);
-    if (on && (!state.workspaceOn || !state.person || state.keyProblem)) return io.flashTo(reply, HISTORY_PAGE, 'advisor.flash.failed');
-    if (!on && !state.keep) return reply.redirect(HISTORY_PAGE);
+    if (on && (!state.workspaceOn || !state.person || state.keyProblem)) return io.flashTo(reply, PERSONAL_HISTORY_PAGE, 'advisor.flash.failed');
+    if (!on && !state.keep) return reply.redirect(PERSONAL_HISTORY_PAGE);
     const r = await io.memory.consent(v.businessId, v.personId, on ? 'granted' : 'withdrawn', io.locale(req));
-    return io.flashTo(reply, HISTORY_PAGE, r !== 'ok' ? 'advisor.flash.failed' : on ? 'advisor.flash.on' : 'advisor.flash.deleted');
+    return io.flashTo(reply, PERSONAL_HISTORY_PAGE, r !== 'ok' ? 'advisor.flash.failed' : on ? 'advisor.flash.on' : 'advisor.flash.deleted');
   });
 
   // D1 — the workspace's switch, the owner's alone (the database refuses anyone else: NE022). Off deletes everyone's.
   app.post(`${HISTORY_PAGE}/workspace`, { logLevel: 'warn' }, async (req, reply) => {
     const v = io.viewer(req);
     if (!v) return reply.redirect('/login');
-    if (!v.isOwner || !io.memory) return io.flashTo(reply, HISTORY_PAGE, 'advisor.flash.failed');
+    if (!v.isOwner || !io.memory) return io.flashTo(reply, HISTORY_POLICY_PAGE, 'advisor.flash.failed');
     const on = String((req.body as { on?: unknown } | undefined)?.on ?? '') === 'on';
     const r = await io.memory.workspace(v.businessId, v.personId, on);
-    return io.flashTo(reply, HISTORY_PAGE, r !== 'ok' ? 'advisor.flash.failed' : on ? 'advisor.flash.workspaceOn' : 'advisor.flash.workspaceOff');
+    return io.flashTo(reply, HISTORY_POLICY_PAGE, r !== 'ok' ? 'advisor.flash.failed' : on ? 'advisor.flash.workspaceOn' : 'advisor.flash.workspaceOff');
   });
 
   // D2 — a team member's history, deleted whole and unread, by the owner. The notice reads the same whether
@@ -144,11 +147,11 @@ export function advisorHistoryRoutes(app: FastifyInstance, io: AdvisorHistoryIO)
     const v = io.viewer(req);
     if (!v) return reply.redirect('/login');
     const id = (req.params as { id: string }).id;
-    if (!v.isOwner || !io.memory || !UUID.test(id) || id === v.personId) return io.flashTo(reply, HISTORY_PAGE, 'advisor.flash.failed');
+    if (!v.isOwner || !io.memory || !UUID.test(id) || id === v.personId) return io.flashTo(reply, HISTORY_POLICY_PAGE, 'advisor.flash.failed');
     const member = (await io.memory.team(v.businessId, v.personId).catch(() => [])).find((p) => p.id === id);
-    if (!member) return io.flashTo(reply, HISTORY_PAGE, 'advisor.flash.failed');
+    if (!member) return io.flashTo(reply, HISTORY_POLICY_PAGE, 'advisor.flash.failed');
     const r = await io.memory.forget(v.businessId, v.personId, id, null);
-    return io.flashTo(reply, `${HISTORY_PAGE}#team`, r === 'ok' ? 'advisor.flash.ownerDeleted' : 'advisor.flash.failed', { name: member.name });
+    return io.flashTo(reply, `${HISTORY_POLICY_PAGE}#team`, r === 'ok' ? 'advisor.flash.ownerDeleted' : 'advisor.flash.failed', { name: member.name });
   });
 
   // D4 — their own history, and no one else's: the person is the transaction's, and row security answers.

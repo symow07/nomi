@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -75,7 +76,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
   })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
   const get = (app: import('fastify').FastifyInstance, cookie: string, url: string) =>
-    app.inject({ method: 'GET', url, headers: { cookie } });
+    app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const post = (app: import('fastify').FastifyInstance, cookie: string, url: string, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The Getting ready row for the channel item, done or not. */
@@ -140,7 +141,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
 
   it('My business shows the channel she uses, and no WhatsApp list of who may be messaged', async () => {
     // Phase 7 — the channels' one home is My business › Where customers reach you.
-    expect((await get(ig, igOwner, '/app/business')).body).toContain('href="/app/business/channels"');
+    expect((await get(ig, igOwner, '/app/business')).body).toContain('href="/app/settings/channels"');
     const html = (await get(ig, igOwner, '/app/business/channels')).body;
     expect(html).toContain(esc(t('en', 'reach.channel.instagram')));
     // Phase 9 — Instagram and Messenger are one row (one Page connects both), its value the one that answers.
@@ -151,7 +152,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(html).toContain('cannot answer customers who write here until it is connected');   // WhatsApp's line, while Instagram answers
     // the list of who may be messaged is WhatsApp's alone
     expect(html).not.toContain('action="/app/business/allowlist/add"');
-    expect(html).not.toContain('href="/app/business/allowlist"');
+    expect(html).not.toContain('href="/app/settings/channels/whatsapp/test-numbers"');
     expect(html).not.toContain('Add your own number first');
     // WhatsApp is still listed — the Channels page shows it too — but it does
     // not claim nobody can be answered while Instagram is answering.
@@ -191,7 +192,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(ready).not.toContain(t('en', 'meta.cred.appSecret'));
     expect(ready).not.toContain(t('en', 'meta.cred.verifyToken'));
     expect(ready).not.toContain(esc(t('en', 'runbook.deploy.title')));
-    expect(ready).not.toContain('href="/app/onboarding/technical"');   // phase 9: the page stays, the door goes
+    expect(ready).not.toContain('href="/app/settings/channels/technical"');   // phase 9: the page stays, the door goes
 
     const tech = await get(ig, igOwner, '/app/onboarding/technical');
     expect(tech.statusCode).toBe(200);
@@ -206,7 +207,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(flashSaid(staff, SECRET)).toBe(t('en', 'staff.notAllowed'));
     expect(staff.body).not.toContain(t('en', 'meta.cred.appSecret'));
 
-    const anon = await ig.inject({ method: 'GET', url: '/app/onboarding/technical' });
+    const anon = await ig.inject({ method: 'GET', url: '/app/settings/channels/technical' });
     expect(anon.statusCode).toBe(302);
     expect(anon.headers['location']).toBe('/login');
   });
@@ -214,7 +215,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
   it('a WhatsApp business still sees its list of who may be messaged, and completes the step', async () => {
     expect(await channelsStep(WA_BIZ)).toBe(false);
     const before = (await get(wa, waOwner, '/app/business/channels')).body;
-    expect(before).not.toContain('href="/app/business/allowlist"');   // nothing connected yet
+    expect(before).not.toContain('href="/app/settings/channels/whatsapp/test-numbers"');   // nothing connected yet
 
     const r = await post(wa, waOwner, '/app/channels/whatsapp/connect');
     expect(flashSaid(r, SECRET)).not.toBe('');
@@ -222,7 +223,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(channelRow((await get(wa, waOwner, '/app/get-started')).body, true)).toBe(true);
 
     // Phase 7 — the list is a level under where customers reach you.
-    expect((await get(wa, waOwner, '/app/business/channels')).body).toContain('href="/app/business/allowlist"');
+    expect((await get(wa, waOwner, '/app/business/channels')).body).toContain('href="/app/settings/channels/whatsapp/test-numbers"');
     const html = (await get(wa, waOwner, '/app/business/allowlist')).body;
     expect(html).toContain('action="/app/business/allowlist/add"');
     expect(html).toContain('Add your own number first');

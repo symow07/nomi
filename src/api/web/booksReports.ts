@@ -88,7 +88,7 @@ export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: F
   return `<h1 class="page">${esc(t(locale, 'books.fec.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.fec.lede'))}</p>
     ${gaps.length === 0 ? '' : `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.fec.identityMissing', { which: gaps.map((g) => t(locale, name[g])).join(' · ') }))}</span>
-      <a class="deeper" href="/app/settings/profile#identifiers">${esc(t(locale, 'settings.ids.title'))}</a></p>`}
+      <a class="deeper" href="/app/settings/business/profile#identifiers">${esc(t(locale, 'settings.ids.title'))}</a></p>`}
     ${years.length === 0 ? `<p class="muted">${esc(t(locale, 'books.close.noYear'))}</p>` : years.map((y) => `<div class="block">
       <h2>${d(y.startsOn)} – ${d(y.endsOn)}</h2>
       <p>${y.state === 'open' ? `<span class="pill warn long">${esc(t(locale, 'books.fec.open'))}</span>` : `<span class="pill ok">${esc(t(locale, 'books.close.year.closed'))}</span>`}</p>

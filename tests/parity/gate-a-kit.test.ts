@@ -1,3 +1,4 @@
+import { SETTINGS_MOVES } from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,7 @@ const RUNBOOKS = ['docs/GATE-A-KIT.md', 'docs/LIVE-VERIFICATION.md'] as const;
 const NAMED = new Map([...readdirSync(`${ROOT}src/api/web`).filter((f) => f.endsWith('.ts'))
   .flatMap((f) => [...readFileSync(`${ROOT}src/api/web/${f}`, 'utf8').matchAll(/export const ([A-Z_]+) = '(\/[^']+)'/g)])]
   .map((m) => [m[2]!, m[1]!]));
-const served = (path: string): boolean => app.includes(`app.get('${path}'`) || (NAMED.has(path) && app.includes(`app.get(${NAMED.get(path)},`));
+const served = (path: string): boolean => Boolean(SETTINGS_MOVES[path]) || app.includes(`app.get('${path}'`) || (NAMED.has(path) && app.includes(`app.get(${NAMED.get(path)},`));
 
 for (const doc of RUNBOOKS) describe(`Gate A · ${doc} names only what exists`, () => {
   const text = readFileSync(`${ROOT}${doc}`, 'utf8');

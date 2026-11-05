@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
@@ -54,7 +55,7 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   };
   const cookieOf = (r: { headers: Record<string, unknown> }) => ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
     .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url:settingsHref(assistantPageUrl(url)), headers: { cookie } });
   const post = (cookie: string, url: string, body: Record<string, string>) =>
     app.inject({ method: 'POST', url:url.replace('/app/assistant/knowledge/readings/','/app/knowledge/from-page/'), headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
   const occurrences = (html: string, s: string) => html.split(s).length - 1;
@@ -117,7 +118,7 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
     expect((await get(shopCookie, '/app/onboarding/practice')).body).toContain(t('en', 'practice.checklist.count', { done: 1, total }));
     expect((await get(shopCookie, '/app/sandbox')).body).toContain(t('en', 'practice.checklist.count', { done: 1, total }));
     // Going live: "Finish getting ready" says how far the checklist is.
-    expect((await get(shopCookie, '/app/business/ready')).body).toContain(said);
+    expect((await get(shopCookie, '/app/settings/assistant/ready')).body).toContain(said);
   });
 
   it('B18 · books switched off: an accountant lands on a page that says so — no 404, no loop', async () => {
@@ -135,12 +136,12 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   });
 
   it('B18 · an accountant changes their own password and language', async () => {
-    const account = await get(accountantCookie, '/app/settings/account');
+    const account = await get(accountantCookie, '/app/settings/personal/account');
     expect(account.statusCode).toBe(200);
-    expect(account.body).toContain('href="/app/settings/language"');
+    expect(account.body).toContain('href="/app/settings/personal/language"');
     expect(account.body).toContain('data-nav="account"');
     expect(account.body).not.toContain('data-nav="inbox"');
-    expect((await get(accountantCookie, '/app/settings/language')).statusCode).toBe(200);
+    expect((await get(accountantCookie, '/app/settings/personal/language')).statusCode).toBe(200);
     // The password form posts and comes back to their own page (it was sent to the books, "the books only").
     const pw = await post(accountantCookie, '/app/settings/account/password', { current: 'x', next: 'y' });
     expect([pw.statusCode, pw.headers['location']]).toEqual([302, '/app/settings/account']);

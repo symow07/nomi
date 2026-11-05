@@ -352,7 +352,7 @@ describe('the Notifications page, in every language', () => {
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.number')));
       // (w4-settings-a-03) …and the door to where the number and the channel are set.
-      expect(html).toContain(`<a class="way-door" href="/app/channels/alerts">${esc(t(l, 'channels.alerts.title'))}${GO}</a>`);
+      expect(html).toContain(`<a class="way-door" href="/app/settings/personal/notifications#whatsapp">${esc(t(l, 'channels.alerts.title'))}${GO}</a>`);
       expect(html).not.toContain(esc(t(l, 'alerts.way.whatsapp.early')));
       // (w4-settings-a-01) what the plan rests on: WhatsApp is the intended way, the default the day Meta approves.
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.plan')));
@@ -465,9 +465,9 @@ describe('the Notifications page, in every language', () => {
     expect(ar).not.toContain('<span class="way-n">WhatsApp</span>');
     for (const l of LOCALES) {
       const fromChannels = renderPhoneAlerts(view(ownerWays()), l, null, 'channels');
-      expect(fromChannels).toContain(`<a class="back" href="/app/channels/alerts">${BACK}${esc(t(l, 'channels.alerts.title'))}</a>`);
+      expect(fromChannels).toContain(`<a class="back" href="/app/settings/personal/notifications#whatsapp">${BACK}${esc(t(l, 'channels.alerts.title'))}</a>`);
       expect(fromChannels).toContain('<input type="hidden" name="from" value="channels" />');
-      expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings/setup">`);
+      expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings">`);
     }
   });
 
@@ -503,12 +503,12 @@ describe('the Notifications page, in every language', () => {
       renderSetup({ people: 1, alerts: { available: true, phones: 0, way } }, 'en', null));
     const html = row('email');
     // Setup is a menu since phase 7: the row is drawn by `menuRow` (its icon, its value in its own direction).
-    expect(html).toMatch(new RegExp(`href="/app/settings/alerts"><svg[\\s\\S]*?</svg><span class="sr-main"><span class="sr-label">${t('en', 'alerts.title')}</span>`));
+    expect(html).toMatch(new RegExp(`href="/app/settings/personal/notifications"><svg[\\s\\S]*?</svg><span class="sr-main"><span class="sr-label">${t('en', 'alerts.title')}</span>`));
     expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
     expect(row('whatsapp')).toContain(`<span class="sr-value"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
     // Phase 9 (w4-settings-a-02) — nothing reaches them: the row says so, and names no way.
     expect(row(null)).toContain(`<span class="sr-desc">${t('en', 'setup.alerts.nothing')}</span>`);
-    expect(/href="\/app\/settings\/alerts">([\s\S]*?)<\/a>/.exec(row(null))![1]).not.toContain('sr-value');
+    expect(/href="\/app\/settings\/personal\/notifications">([\s\S]*?)<\/a>/.exec(row(null))![1]).not.toContain('sr-value');
     // the way it reaches them now — the e-mail a Browser with no phone falls back to
     const ways = ownerWays({ choice: 'browser' });
     expect(alertWayNow(ways, { publicKey: 'K', phones: [] })).toBe('email');

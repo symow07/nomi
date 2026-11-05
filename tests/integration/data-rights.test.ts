@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -36,7 +37,7 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
   const login = async (code: string) => String((await app.inject({
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
   })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const post = (cookie: string, url: string, payload = '') =>
     app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
 
@@ -89,7 +90,7 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
     const added = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
     const issued = String(added.headers['set-cookie'] ?? '').split(';')[0]!;
     const page = await app.inject({
-      method: 'GET', url: String(added.headers['location']),
+      method: 'GET', url: settingsHref(String(added.headers['location'])),
       headers: { cookie: `${ownerCookie}; ${issued}` },
     });
     const code = page.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
@@ -158,7 +159,7 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
 
   it('A SALES ASSISTANT gets neither the page nor the file', async () => {
     expect(staffCookie, 'fixture: staff must be signed in').not.toBe('');
-    const page = await get(staffCookie, '/app/settings/data');
+    const page = await get(staffCookie, '/app/settings/business/data');
     expect(page.statusCode).toBe(302);
     expect(flashSaid(page, SECRET)).toContain('Only the owner');
     const file = await get(staffCookie, '/app/settings/data/buyers.csv');

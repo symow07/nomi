@@ -30,7 +30,7 @@ import { GO } from './icons.js';
  */
 
 /** Where the certifications are switched on and off: My business › What you promise customers. */
-export const CERTS_HOME = '/app/business/promises';
+export const CERTS_HOME = '/app/settings/assistant/promises';
 
 const KINDS: readonly KnowledgeKind[] = [
   'specification', 'material', 'production_note', 'faq', 'buyer_answer', 'usage', 'restriction',

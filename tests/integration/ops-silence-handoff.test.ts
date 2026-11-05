@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -92,7 +93,7 @@ d('Silence · WAITING — the emergency switch hides nobody (requires DATABASE_U
   const post = (w: { rawBody: string; headers: Record<string, string> }) =>
     prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
       headers: { 'content-type': 'application/json', ...w.headers } });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const convOf = (wa: string) => until(() => q((tx) => sql<{ id: string }>`
     select c.id::text as id from conversations c
       join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
@@ -209,7 +210,7 @@ d('Silence · DOOR — nothing takes a waiting buyer off Needs you during the si
   const kicked: string[] = [];
   const post = (url: string, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
-  const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
@@ -271,8 +272,8 @@ d('Silence · DOOR — nothing takes a waiting buyer off Needs you during the si
 
   it('DOOR · My business says sending is paused, and nothing says the assistant is answering', async () => {
     // Phase 7 — on its going-live screen; the menu's row says it in a word.
-    expect((await get('/app/business')).body).toContain(`<bdi>${t('en', 'business.live.paused')}</bdi>`);
-    const html = (await get('/app/business/ready')).body;
+    expect((await get('/app/settings/business')).body).toContain(`<bdi>${t('en', 'business.live.paused')}</bdi>`);
+    const html = (await get('/app/settings/assistant/ready')).body;
     expect(html).toContain('data-golive="silenced"');
     expect(html).toContain('this was not you');
     expect(html).not.toContain('replies go out as soon as they are sent');

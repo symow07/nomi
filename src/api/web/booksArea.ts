@@ -28,9 +28,3 @@ export function booksArea(body:string,locale:Locale,path:string,viewer:Who):stri
  const settings=booksMay({id:viewer.id??'',name:'',...viewer},'post')?`<a class="ba-settings" href="/app/settings/books">${esc(t(locale,'booksArea.settings'))}</a>`:'';
  return `<div class="books-area"><nav class="ba-nav" aria-label="${esc(t(locale,'nav.sections'))}">${links}${settings}</nav><details class="area-chooser ba-chooser"><summary>${esc(t(locale,sections.find(([key])=>key===current)![2]))}</summary><nav aria-label="${esc(t(locale,'nav.sections'))}">${links}${settings}</nav></details><div class="ba-content">${body}</div></div>`;
 }
-export function booksSettingsArea(body:string,locale:Locale,path:string):string {
- const entries:readonly [string,MessageKey][]=[['','booksArea.setup'],['/connections','booksArea.connections'],['/accounts','booksArea.accounts'],['/starting-balances','booksArea.opening'],['/tax','booksArea.taxDetails'],['/fields','booksArea.fields']];
- const current=path.split(/[?#]/)[0]!;
- const links=entries.map(([suffix,key])=>`<a href="/app/settings/books${suffix}"${current==='/app/settings/books'+suffix?' aria-current="page"':''}>${esc(t(locale,key))}</a>`).join('');
- return `<div class="books-area books-settings"><nav class="ba-nav" aria-label="${esc(t(locale,'booksArea.settings'))}">${links}<a class="ba-settings" href="/app/books">${esc(t(locale,'booksArea.backBooks'))}</a></nav><details class="area-chooser ba-chooser"><summary>${esc(t(locale,'booksArea.settings'))}</summary><nav>${links}</nav></details><div class="ba-content">${body}</div></div>`;
-}

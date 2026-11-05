@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -72,7 +73,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       + `Content-Type: image/png\r\n\r\n\x89PNG-not-really\r\n--${BOUNDARY}--\r\n`,
   });
 
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   let openImport = '';
 
   const tx = async <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
@@ -242,8 +243,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const where = async (url: string, payload = '') => String((await post(staffCookie, url, payload)).headers['location']);
     expect(await where('/app/onboarding/attest', 'which=owner_ready')).toBe('/app/onboarding');
     // Phase 7 — the list is a screen of its own under My business.
-    expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/business/allowlist');
-    expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels/whatsapp');
+    expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/settings/channels/whatsapp/test-numbers');
+    expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/settings/channels/whatsapp');
     expect(await where(`/app/products/${PID}/edit`, 'moq=1')).toBe(`/app/products/${PID}`);
     expect(await where('/app/products/add/confirm', 'text=x')).toBe('/app/products');
     expect(await where(`${openImport}/save`, 'next=add')).toBe('/app/products');
@@ -275,7 +276,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     // (w4-whole-11) this installation carries no WhatsApp message (messaging off), so a number that is wired reads
     // Connected and says Nomi's team switches it on — with nothing to press, for the owner too; never a form for staff.
     for (const c of [ownerCookie, staffCookie]) {
-      const wa = await get(c, '/app/channels/whatsapp');
+      const wa = await get(c, '/app/settings/channels/whatsapp');
       expect(wa.statusCode).toBe(200);
       expect(wa.body).toContain('Nomi’s team switches that on');
       expect(wa.body).not.toMatch(/action="\/app\/channels\/whatsapp\/(test|disconnect|reconnect)"/);
@@ -284,7 +285,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const product = (await get(staffCookie, `/app/products/${PID}`)).body;
     expect(product).toContain('Canvas tote');
     expect(product).toContain('500');
-    const factory = (await get(staffCookie, '/app/business/allowlist')).body;
+    const factory = (await get(staffCookie, '/app/settings/channels/whatsapp/test-numbers')).body;
     expect(factory).toContain(digits(LISTED));
     // Nor a door that opens only onto a refusal: the price limits are an owner page.
     for (const url of ['/app/get-started', '/app/products', `/app/products/${PID}`, '/app/business']) {
@@ -295,7 +296,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
 
   it('staff still do the sample job: the address and "handled" are not the owner’s', async () => {
     // The page offers them both to staff, beside the policy they may only read.
-    const page = (await get(staffCookie, '/app/settings/samples')).body;
+    const page = (await get(staffCookie, '/app/customers/samples')).body;
     expect(page).toContain(`action="/app/settings/samples/${sampleId}/address"`);
     expect(page).toContain(`action="/app/settings/samples/${sampleId}/handled"`);
     const addr = await post(staffCookie, `/app/settings/samples/${sampleId}/address`, 'address=Dubai%2C%20Warehouse%207');
@@ -392,7 +393,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(form.headers['location']).toBe('/app/business/prices');
     // Only that address: a path that merely starts with the same letters is not it.
     expect((await get(ownerCookie, `${LEGACY_BUSINESS}ish`)).statusCode).toBe(404);
-    expect((await get(ownerCookie, '/app/business')).statusCode).toBe(200);
+    expect((await get(ownerCookie, '/app/settings/business')).statusCode).toBe(200);
   });
 
   it('the positioning rewrite: the export downloads as customers.csv, and the old name still works', async () => {
@@ -405,7 +406,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   });
 
   it('the people page names what is now the owner’s', async () => {
-    const page = (await get(ownerCookie, '/app/settings/people')).body;
+    const page = (await get(ownerCookie, '/app/settings/team')).body;
     expect(page).toContain('Change prices, products, price limits and terms');
     expect(page).toContain('Get ready to go live');
   });

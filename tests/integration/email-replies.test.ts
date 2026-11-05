@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -54,7 +55,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
   });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const until = async (cond: () => boolean | Promise<boolean>, what: string, ms = 45_000) => {
     const end = Date.now() + ms;
@@ -294,12 +295,12 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       const row = await firstMailTo('nadia');
       expect(row).toEqual({ status: 'canceled', cancel_reason: 'canceled: no_postal_address' });
       expect(transport.sent.filter((m) => m.to === addr('nadia'))).toEqual([]);
-      expect((await get('/app/settings/profile')).body).toContain(esc(t('en', 'settings.need.postalAddress')));
+      expect((await get('/app/settings/business/profile')).body).toContain(esc(t('en', 'settings.need.postalAddress')));
     } finally {
       // the address back, for what follows
       await post('/app/settings', { name: 'Reply Factory', postal_address: POSTAL });
     }
-    expect((await get('/app/settings/profile')).body).not.toContain(esc(t('en', 'settings.need.postalAddress')));
+    expect((await get('/app/settings/business/profile')).body).not.toContain(esc(t('en', 'settings.need.postalAddress')));
   }, 60_000);
 
   it('0133 · UNSUBSCRIBING WORKS: the link in the mail stops every further follow-up and first mail to that person', async () => {

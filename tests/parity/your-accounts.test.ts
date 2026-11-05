@@ -67,7 +67,7 @@ describe('CH1 · each step drawn from what is there', () => {
     for (const l of LOCALES) {
       const html = renderYourAccounts(base, l);
       for (const id of ['page', 'instagram', 'connect', 'permissions', 'subscription', 'test-message']) {
-        expect(html, `${l} ${id}`).toContain(`href="/app/help/meta#${id}"`);
+        expect(html, `${l} ${id}`).toContain(`href="/app/settings/channels/meta/help#${id}"`);
       }
       expect(html, l).toContain(`<span class="sr">${t(l, 'accounts.mark.done')}</span>`);
     }
@@ -141,7 +141,7 @@ describe('Phase 9 · B5 · Connecting Messenger and Instagram', () => {
       expect(html, l).toContain(`${BACK}${t(l, 'meta.panel.title')}</a></div>\n    <h1 class="page">`);
     }
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/help/meta', authed('settings',");   // it lights Setup, where Channels sits
+    expect(app).toContain("app.get('/app/settings/channels/meta/help', authed('settings',");   // it lights Setup, where Channels sits
   });
 
   it('V1-458 · a link to Meta looks like a link and says it leaves', () => {

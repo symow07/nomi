@@ -1,3 +1,4 @@
+import { settingsHref } from './settingsNavigation.js';
 import { zoneChoices, zoneLabel, zoneLabelsAmong, zonePlace, zoneKept, zoneCity, zonesKeptApart, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
@@ -339,7 +340,7 @@ export const menuRow = (r: MenuRow): string => {
     + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
-    ? `<li><a class="${cls}" href="${r.href}">${inner}${GO}</a></li>`
+    ? `<li><a class="${cls}" href="${settingsHref(r.href)}">${inner}${GO}</a></li>`
     : `<li><div class="${cls}">${inner}</div></li>`;
 };
 
@@ -916,16 +917,16 @@ export async function setRate(
   });
 }
 
-export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
+export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null, embedded = false): string {
   const name = assistantName(locale);
   // Phase 9 (V1-529, V1-530) — the page leads back where it is reached from:
   // since phase 7, My business › How you sell.
-  const backTo = back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'));
+  const backTo = embedded ? '' : back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'));
   if (!v.pair) {
     // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state,
     // drawn as one: the currency by its name, and the door to where it is set.
     return `${backTo}
-    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    ${embedded ? `<h2>${esc(t(locale,'rate.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'rate.title'))}</h1>`}
     ${flashBanner(flash)}
     <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyInLine(locale, v.currency) }))}
       <div>${deeper('/app/settings/profile#zone', t(locale, 'settings.profile.title'))}</div></div>`;
@@ -934,7 +935,7 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate, from: r.from, to: r.to }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
   return `${backTo}
-    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    ${embedded ? `<h2>${esc(t(locale,'rate.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'rate.title'))}</h1>`}
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
@@ -1084,7 +1085,7 @@ function dateParts(locale: Locale, name: 'from' | 'to', label: string, kept: Kep
   return `<div class="dparts" role="group" aria-label="${esc(label)}">${parts}</div>`;
 }
 
-export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
+export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null, embedded = false): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
@@ -1094,8 +1095,8 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.example.sample') });
   // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
   // from (phase 7: How you sell); the intro is the settings pages' one lede.
-  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
-    <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
+  return `${embedded ? '' : back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
+    ${embedded ? `<h2>${esc(t(locale,'closures.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'closures.title'))}</h1>`}
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
     <p class="muted small closure-said measure-prose">${esc(example)}</p>
@@ -1323,7 +1324,7 @@ export async function markSampleHandled(
 }
 
 export function renderSamples(
-  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null,
+  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null, mode: 'all'|'policy'|'requests' = 'all',
 ): string {
   const name = assistantName(locale);
   const stated = v.policy
@@ -1357,10 +1358,10 @@ export function renderSamples(
       </li>`).join('')}</ul>`;
 
   // Phase 9 (V1-534) — reached from How you sell ("Samples ›"), and back there.
-  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
-    <h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
+  return `${back(mode==='all'?HOW_YOU_SELL:mode==='requests'?'/app/customers':'/app/settings/business', t(locale, mode==='all'?'factory.sellhow.title':mode==='requests'?'nav.customers':'settingsArea.business'))}
+    <h1 class="page">${esc(t(locale, mode==='requests'?'settingsArea.sampleRequests':mode==='policy'?'settingsArea.samplesPolicy':'samples.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block">
+    ${mode==='requests'?'':`<section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
@@ -1373,9 +1374,15 @@ export function renderSamples(
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>`),
         ])}
       </form>` : ownerDecides(locale)}
-    </section>
-    <section class="block">
+    </section>`}
+    ${mode==='policy'?deeper('/app/customers/samples',t(locale,'settingsArea.sampleRequests')):`<section class="block">
       <h2>${esc(t(locale, 'samples.requests.title'))}</h2>
       ${waiting}
-    </section>`;
+    </section>${deeper('/app/settings/business/samples',t(locale,'settingsArea.samplesPolicy'))}`}`;
+}
+
+/** Read current profile values without inventing a second partial profile write. */
+export function settingsProfileValue(locale:Locale,subject:'hours'|'currency',p:BusinessProfile,z:ZoneChoice|null,c:CurrencyChoice|null):string {
+ const row=(key:MessageKey,value:string|null)=>`<dt>${esc(t(locale,key))}</dt><dd><bdi>${esc(value||t(locale,'settingsArea.notSet'))}</bdi></dd>`;
+ return `<h1 class="page">${esc(t(locale,subject==='hours'?'settingsArea.hours':'settingsArea.currency'))}</h1><p class="lede">${esc(t(locale,subject==='hours'?'settingsArea.hoursHint':'settingsArea.currencyHint'))}</p><dl class="sa-value">${subject==='hours'?row('settings.field.workingHours',p.workingHours)+row('settings.zone.label',z?.zone??null):row('settings.currency.label',c?.currency??null)}</dl>${deeper('/app/settings/business/profile'+(subject==='hours'?'#pf-working_hours':'#zone'),t(locale,'settingsArea.changeProfile'))}`;
 }

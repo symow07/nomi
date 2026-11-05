@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -14,7 +15,7 @@ const FORM={'content-type':'application/x-www-form-urlencoded'};
 d('Area 4 complete Products catalogue and command return context',()=>{
  let db:Db,app:ReturnType<typeof Fastify>,owner='',staff='',accountant='',photoToken='';let calls=0;
  const tx=<T>(fn:(t:Tx)=>Promise<T>,biz=B)=>{const b=parseBusinessId(biz);if(!b.ok)throw Error('fixture');return withTenantTx(db,b.value,fn);};
- const get=(url:string,cookie=owner)=>app.inject({method:'GET',url,headers:{cookie}});
+ const get=(url:string,cookie=owner)=>app.inject({method:'GET',url: settingsHref(url),headers:{cookie}});
  const post=(url:string,payload:string,cookie=owner)=>app.inject({method:'POST',url,payload,headers:{cookie,...FORM}});
  beforeAll(async()=>{
   await seedRunTenant();db=createDb(process.env['DATABASE_URL']!);

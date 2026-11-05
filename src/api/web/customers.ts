@@ -9,17 +9,18 @@ import { renderCustomerCard, customerValueNote } from './customerCard.js';
 import { esc, back, conversationUrl } from './layout.js';
 import { face } from './faces.js';
 import { channelName } from './inbox.js';
-import { t, outreachShown } from './say.js';
+import { t, outreachShown, exportSettingsShown } from './say.js';
 import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
 
-export type CustomerSection = 'all'|'orders'|'outreach'|'labels'|'feedback';
+export type CustomerSection = 'all'|'orders'|'outreach'|'labels'|'feedback'|'samples';
 const sections:readonly [CustomerSection,string,MessageKey][] = [
  ['all','/app/customers','customers.all'], ['orders','/app/customers/orders','customers.orders'],
+ ['samples','/app/customers/samples','settingsArea.sampleRequests'],
  ['outreach','/app/customers/outreach','customers.followups'], ['labels','/app/customers/labels','customers.labels'], ['feedback','/app/customers/feedback','customers.feedback'],
 ];
 export function customerArea(body:string,locale:Locale,current:CustomerSection):string {
- const visible=sections.filter(([key])=>key!=='outreach'||outreachShown());
+ const visible=sections.filter(([key])=>(key!=='outreach'||outreachShown())&&(key!=='samples'||exportSettingsShown()));
  const links=visible.map(([key,href,label])=>`<a href="${href}"${key===current?' aria-current="page"':''}>${esc(t(locale,label))}</a>`).join('');
  const selected=visible.find(([key])=>key===current)??visible[0]!;
  return `<div class="customer-area"><nav class="ca-nav" aria-label="${esc(t(locale,'nav.sections'))}">${links}</nav><details class="area-chooser ca-chooser"><summary>${esc(t(locale,selected[2]))}</summary><nav aria-label="${esc(t(locale,'nav.sections'))}">${links}</nav></details>${body}</div>`;

@@ -183,7 +183,7 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
   const now = alertWayNow(w, v);
   const wanted = wantedWay(w);
   const can: Record<AlertChannel, boolean> = { email: w.email !== null, browser: pushOn, whatsapp: whatsappReachableFor(w) };
-  const reach = `<a class="way-door" href="/app/channels/alerts">${esc(t(locale, 'channels.alerts.title'))}${GO}</a>`;
+  const reach = `<a class="way-door" href="/app/settings/personal/notifications#whatsapp">${esc(t(locale, 'channels.alerts.title'))}${GO}</a>`;
   const note: Record<AlertChannel, string> = {
     email: esc(w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none')),
     browser: esc(!pushOn ? t(locale, 'alerts.phone.off')

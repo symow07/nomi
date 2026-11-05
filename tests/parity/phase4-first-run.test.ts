@@ -136,7 +136,7 @@ describe('F2 / F4 · Getting ready is the checklist; the machine room is one doo
       const html = renderPilotRunbook(rb, l, null);
       for (const k of ['meta.cred.accessToken', 'meta.cred.appSecret', 'meta.cred.verifyToken', 'meta.title', 'runbook.deploy.title', 'runbook.engine.title'] as const)
         expect(html.includes(t(l, k)), `${l}/${k}`).toBe(false);
-      expect(html).not.toContain('href="/app/onboarding/technical"');
+      expect(html).not.toContain('href="/app/settings/channels/technical"');
       // the checklist and practice stay
       expect(html).toContain(t(l, 'pilot.prelaunch'));
       expect(html).toContain(t(l, 'runbook.practice.title'));
@@ -145,6 +145,6 @@ describe('F2 / F4 · Getting ready is the checklist; the machine room is one doo
 
   it('the technical page is no hub\'s contextual route since phase 9 (no owner\'s page links to it); its address stays in Today', () => {
     expect(CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/onboarding')?.routes).not.toContain('/app/onboarding/technical');
-    expect(hubFor('/app/onboarding/technical', 'x')).toBe('home');
+    expect(hubFor('/app/onboarding/technical', 'x')).toBe('settings');
   });
 });

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -64,7 +65,7 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
 
   const post = (cookie: string, url: string, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const n = async (q: string, p: unknown[]) => Number((await admin.query(q, p)).rows[0].n);
   /** Everything of one customer that the contract erases, counted. */
   const footprint = async (c: Customer) => ({
@@ -299,7 +300,7 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
   });
 
   it('AN OPEN REQUEST FROM BEFORE: deleted now, from Your data, no note asked again — and it lands back on Your data', async () => {
-    const page = (await get(owner, '/app/settings/data')).body;
+    const page = (await get(owner, '/app/settings/business/data')).body;
     expect(page).toContain(`action="/app/conversations/${C.open.conv}/deletion/erase"`);
     const res = await post(owner, `/app/conversations/${C.open.conv}/deletion/erase`, { asked: '1', from: 'data' });
     expect(String(res.headers['location'])).toBe('/app/settings/data#buyers');
@@ -356,7 +357,7 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
     for (const personal of [C.chat.phone, C.chat.email, C.chat.name]) expect(notices[0]!.text).not.toContain(personal);
 
     // Your data says it is done, and what stayed.
-    const data = (await get(owner, '/app/settings/data')).body;
+    const data = (await get(owner, '/app/settings/business/data')).body;
     expect(data).toContain(esc(t('en', 'data.buyers.kept')));
     expect(data).not.toContain(C.chat.name);
   });
@@ -382,7 +383,7 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
   });
 
   it('CLOSING: the installation\'s own workspace is never closed from inside it — by the route, and by the database', async () => {
-    const page = (await get(pilotCookie, '/app/settings/data')).body;
+    const page = (await get(pilotCookie, '/app/settings/business/data')).body;
     expect(page).toContain(esc(t('en', 'data.deletion.protected')));
     expect(page).not.toContain('action="/app/settings/data/close"');
     const res = await post(pilotCookie, '/app/settings/data/close', { name: `Erasure Pilot ${RUN}`, asked: '1' });

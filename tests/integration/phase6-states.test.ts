@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
@@ -46,7 +47,7 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   const landing = async (r: { statusCode: number; headers: Record<string, unknown> }) => {
     expect(r.statusCode).toBe(302);
     const flash = cookieOf(r, FLASH_COOKIE);
-    return prod.app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: `${cookie}; ${flash}` } });
+    return prod.app.inject({ method: 'GET', url: settingsHref(String(r.headers['location'])), headers: { cookie: `${cookie}; ${flash}` } });
   };
   const one = async <T>(q: string, args: unknown[]): Promise<T> => (await admin.query(q, args)).rows[0] as T;
   const UNDO = (action: string) => `<form method="post" action="${action}" class="undo">`;
@@ -80,7 +81,7 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     await prod?.close();
   });
 
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
 
   it('A CLOSURE WITH ITS DAYS BACK TO FRONT: the same page, 400, the reason under the last day, everything typed still there', async () => {
     const r = await form('/app/settings/closures', { label: 'Eid', from: '2026-12-04', to: '2026-12-01' }, cookie);
