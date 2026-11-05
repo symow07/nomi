@@ -1,16 +1,16 @@
 # Nomi design system: the Split Today
 
-For anyone building or reviewing a Nomi page in this look. The one page drawn in it so far is **Today**, as a preview: on
-branch `design-split-today`, behind `SPLIT_TODAY=on`. With the flag off, nothing here is reached.
+For anyone building or reviewing a Nomi page in this look. Two pages are drawn in it so far, **Today** and the **Inbox**,
+behind `SPLIT_TODAY=on` (on in production). With the flag off, nothing here is reached.
 
 | What | Where |
 |---|---|
 | Tokens | `SPLIT_TOKENS` in `src/core/owner/tokens.ts` |
 | Rules | `src/api/web/splitStyle.ts`, linked only by a page drawn with `body.split` |
-| The page | `src/api/web/splitToday.ts` |
-| Its figures | `src/db/splitToday.ts` |
-| Tests | `tests/parity/split-today.test.ts`, `tests/integration/split-today.test.ts` |
-| Screenshots | `docs/design/split-today/` |
+| The pages | `src/api/web/splitToday.ts`, `src/api/web/splitInbox.ts` |
+| Their figures | `src/db/splitToday.ts`, `src/db/customerStage.ts`, `src/db/buyersList.ts` |
+| Tests | `tests/parity/split-today.test.ts`, `tests/parity/split-inbox.test.ts`, and the same two names under `tests/integration/` |
+| Screenshots | `docs/design/split-today/`, `docs/design/split-inbox/` |
 
 To see it locally: `npm run build`, start the app with `SPLIT_TODAY=on`, then `node tools/split-preview.mjs seed` and
 `shots` (the tool's header has the variables). It refuses any database but a local one.
@@ -111,8 +111,8 @@ One customer, one line, one door to the conversation: photo, name, product thumb
 
 **Who needs you.** No pill and no banner.
 
-- The rail and the phone's tab bar: a small count beside Customers, a white figure on wine. Hidden at nothing, "9+" above nine; the link's spoken name says the true number.
-- The Customers list: a small wine dot at the start of each row that needs you, with its reason in words. Its name is bold until the conversation is opened, and bold again when something new arrives. Those rows come first.
+- The rail and the phone's tab bar: a small count beside Inbox, a white figure on wine. Hidden at nothing, "9+" above nine; the link's spoken name says the true number.
+- The Inbox: a small wine dot at the start of each row that needs you, with its reason in words. Its name is bold until the conversation is opened, and bold again when something new arrives. Those rows come first.
 
 **A cut name.** A long name is cut at its end in either direction: the element that cuts is itself a `<bdi>`. Never `dir="auto"` around a lone `<bdi>` on a name: `dir="auto"` reads past it and finds no words.
 
@@ -125,6 +125,35 @@ first, then "View all".
 - Green is settled, ochre is overdue, the rest are plain.
 
 The two columns don't have to end level.
+
+## The Inbox
+
+The address stays `/app/inbox`. Same head as Today (the mark, the serif title on the wash, the live line), then one sheet.
+No cards and no banner.
+
+**Views**, each with its count, in this order:
+
+| View | Who is in it |
+|---|---|
+| Needs you | The rail's number, the same rows |
+| Gone quiet | Customers the attention rules name: no answer, a price unanswered, a sample with no word. The reason is on the row |
+| With your assistant | Open, nobody holds them, nothing waits for you |
+| With your team | A person holds them |
+| Everyone | All of them, the latest first |
+
+"Did not send" and "Deletion requests" appear as tabs of their own when they hold someone, or when asked for.
+
+- The page opens on Needs you while someone waits, otherwise on Everyone. A search looks across everyone.
+- The sheet's head holds the search, the stage filter (the chip's own words; Sample only where a sample exists) and the
+  order. Labels are filters here too, where the business has any.
+
+**A row** is Today's: photo or initial, name, product thumbnail, stage chip, value, days quiet, chevron.
+
+- A row that needs you has the wine dot and its reason in words. The name is bold until the conversation is opened.
+- The row is one door to the conversation; the photo is its own door to the customer's card.
+- The stage comes from one definition, `STAGE_OF_CONVERSATION` in `src/db/customerStage.ts`, the same one Today reads.
+  Value is the figure on record. A price the assistant worked out and never gave does not make a stage or a value.
+- On a phone: two lines (name and value, then chip, reason and days), with the tab bar at the foot.
 
 ## Chips
 
@@ -191,9 +220,9 @@ redraw it.
 
 From 720 px down: Sales first, Books below, a tab bar at the foot.
 
-- Five tabs: Today, Customers, Calendar, Books, Settings. Advisor moves to a door at the page's foot.
+- Five tabs: Today, Inbox, Calendar, Books, Settings. Advisor moves to a door at the page's foot.
 - With books hidden, Advisor keeps its tab.
-- The rail's one number stays, on Customers.
+- The rail's one number stays, on Inbox.
 - The page leaves room for the tab bar, so nothing is ever under it.
 
 ## Right to left

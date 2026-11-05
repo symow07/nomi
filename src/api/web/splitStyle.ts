@@ -141,6 +141,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-row:hover .sp-rname { text-decoration:underline; }
 .sp-row .face { inline-size:36px; block-size:36px; font-size:var(--font-size-small); }
 .sp-rname { display:block; text-align:match-parent; font-size:var(--font-size-small); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* A name in the other direction keeps the page's edge: its own "end" is the page's "start". */
+[dir="rtl"] .sp-rname:dir(ltr), [dir="ltr"] .sp-rname:dir(rtl) { text-align:end; }
 .sp-rval { font-size:var(--font-size-small); text-align:end; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
 .sp-rday { font-size:var(--font-size-caption); color:var(--color-ink-secondary); text-align:end; white-space:nowrap; }
 .sp-chip { justify-self:start; padding:2px ${K.space[8]}px; font-size:var(--font-size-caption); line-height:1.5; white-space:nowrap; color:var(--color-ink-secondary); background:${K.color.neutral}; border-radius:${K.radius.chip}px; }
@@ -149,6 +151,49 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-row .go { justify-self:end; color:var(--color-ink-secondary); }
 .sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) 96px 72px 60px 16px; }
 
+
+/* The Inbox: its views over one flat sheet of Today's rows */
+.si-body { position:relative; padding-inline:${GUT}; }
+.si-tabs { display:flex; gap:${K.space[4]}px; margin-block-end:${K.space[12]}px; overflow-x:auto; scrollbar-width:none; border-block-end:1px solid var(--color-border); }
+.si-tab { display:inline-flex; flex:none; align-items:center; gap:${K.space[8]}px; min-block-size:44px; padding-inline:${K.space[12]}px; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-decoration:none; white-space:nowrap; border-block-end:2px solid transparent; }
+.si-tab:hover { color:var(--color-ink); }
+.si-tab.on { color:var(--color-ink); font-weight:600; border-block-end-color:var(--color-ink); }
+.si-tab:focus-visible, .si-fil:focus-visible, .si-door:focus-visible::after { outline:2px solid var(--color-ink); outline-offset:-2px; }
+.si-tabn { font-size:var(--font-size-caption); font-weight:400; font-variant-numeric:lining-nums tabular-nums; }
+.si-tools { display:grid; gap:${K.space[8]}px; padding:${K.space[16]}px ${K.space[20]}px ${K.space[8]}px; border-block-end:1px solid var(--color-border); }
+.si-search { display:flex; gap:${K.space[8]}px; margin:0; }
+.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 ${K.space[12]}px; box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-border); border-radius:${K.radius.control}px; }
+.split .si-search input[type="search"]:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
+.si-filters { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:0 ${K.space[16]}px; }
+.si-fils { display:flex; align-items:center; gap:${K.space[4]}px; min-inline-size:0; overflow-x:auto; scrollbar-width:none; }
+.si-fil { position:relative; isolation:isolate; display:inline-flex; flex:none; align-items:center; min-block-size:44px; padding-inline:${K.space[12]}px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); text-decoration:none; white-space:nowrap; border-radius:${K.radius.control}px; }
+.si-fil:hover { color:var(--color-ink); }
+.si-fil.on { color:var(--color-ink); font-weight:600; }
+/* The chosen one is a chip within its 44 px of reach. */
+.si-fil.on::before { content:""; position:absolute; z-index:-1; inset-block:${K.space[8]}px; inset-inline:0; background:${K.color.neutral}; border-radius:${K.radius.chip}px; }
+.si-found { margin:0 0 ${K.space[8]}px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+.si-list { padding-inline:${K.space[20]}px; }
+.si-group + .si-group { border-block-start:1px solid var(--color-border); }
+.si-group > .sp-cap { margin:0; padding-block:${K.space[12]}px ${K.space[4]}px; font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); }
+.si-group > h2.sp-cap + .sp-rows li:first-child .sp-row { border-block-start:0; }
+.si-row { position:relative; grid-template-columns:8px 36px minmax(0, 1fr) 28px 96px 88px 40px 16px; }
+.si-row .si-face { position:relative; z-index:1; display:block; line-height:0; border-radius:50%; }
+.si-row:hover .sp-rname { text-decoration:underline; }
+.si-dot { display:flex; align-items:center; justify-content:center; }
+.split .si-dot .row-dot { flex:none; inline-size:8px; block-size:8px; border-radius:50%; background:${K.color.wine}; }
+.si-who { min-inline-size:0; }
+.si-door { display:block; color:inherit; text-decoration:none; }
+.si-door::after { content:""; position:absolute; inset:0; border-radius:${K.radius.thumb}px; }
+.si-row.is-new .sp-rname { font-weight:700; }
+.si-why { display:block; font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
+.si-row.is-needs .si-why { color:${K.color.ochreText}; }
+.si-empty { margin:0; padding-block:${K.space[24]}px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+.si-empty strong { color:var(--color-ink); font-weight:600; }
+.si-emptydoor { padding-block-end:${K.space[24]}px; }
+.si-pager { display:flex; align-items:center; justify-content:space-between; gap:${K.space[12]}px; min-block-size:44px; padding-inline:${K.space[20]}px; font-size:var(--font-size-small); }
+.si-pager .deeper, .si-pager .back { margin:0; }
+.si-doors { display:flex; flex-wrap:wrap; gap:${K.space[4]}px ${K.space[20]}px; padding-block-start:${K.space[16]}px; font-size:var(--font-size-small); }
+.si-doors .deeper { margin:0; }
 
 /* The list of who else waits sits on the sheet, at its edge */
 .split .tw-list { background:transparent; box-shadow:none; }
@@ -212,6 +257,21 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
   .sp-rday { grid-area:day; }
   .sp-row .go { grid-area:go; }
   .sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) auto 14px; grid-template-areas:"face name val go" "face chip day go"; }
+  .si-body { padding-inline:${K.space[12]}px; }
+  .si-tools { padding:${K.space[12]}px ${K.space[12]}px ${K.space[4]}px; }
+  .si-filters { flex-direction:column; align-items:stretch; }
+  .si-list, .si-pager { padding-inline:${K.space[12]}px; }
+  .si-tab { padding-inline:${K.space[8]}px; }
+  .si-fil { padding-inline:${K.space[8]}px; }
+  .si-doors { padding-inline:${K.space[4]}px; }
+  .si-row { grid-template-columns:8px 36px 28px auto minmax(0, 1fr) auto 14px; grid-template-areas:"dot face thumb name name val go" "dot face thumb chip why day go"; gap:${K.space[4]}px ${K.space[8]}px; }
+  .si-dot { grid-area:dot; }
+  .si-row .si-face { grid-area:face; }
+  .si-who { display:contents; }
+  .si-door { grid-area:name; min-inline-size:0; }
+  .si-why { grid-area:why; align-self:center; min-inline-size:0; }
+  .si-row .sp-chip { justify-self:start; align-self:center; }
+  .si-row .sp-rday { align-self:center; }
   .sp-money { grid-template-columns:minmax(0, 1fr) 110px; }
   .sp-big { font-size:${K.size.moneyPhone}px; }
   .sp-phonedoor { display:block; padding:${K.space[16]}px ${K.space[16]}px 0; }

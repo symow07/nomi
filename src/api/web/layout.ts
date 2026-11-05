@@ -1029,7 +1029,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tw-name, .tw-why { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
   .tw-name { font-weight:600; font-size:var(--font-size-small); }
   /* A Latin name on an Arabic page keeps the page's side, as the Inbox's row does. */
-  [dir="rtl"] .tw-name:dir(ltr) { text-align:end; }
+  [dir="rtl"] .tw-name:dir(ltr), [dir="ltr"] .tw-name:dir(rtl) { text-align:end; }
   .tw-why { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .tw-go .go { flex:none; }
   /* 2 · what the assistant handled: the headline in its name, then the faces,
@@ -3023,7 +3023,7 @@ export function shell(input: {
        >${railIcon(icon ?? NAV_ICON[id] ?? 'home-2')}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
     };
     const books = role === 'owner' && booksShown();
-    return shellWith(input, `<div class="navgroup">${flat('home', t(locale, 'split.title'))}${flat('inbox', t(locale, 'nav.customers'))}${flat('calendar', t(locale, 'nav.calendar'))}${
+    return shellWith(input, `<div class="navgroup">${flat('home', t(locale, 'split.title'))}${flat('inbox', t(locale, 'nav.inbox'))}${flat('calendar', t(locale, 'nav.calendar'))}${
       books ? flat('books', t(locale, 'nav.books'), '', 'notebook-minimalistic') : ''}${flat('advisor', t(locale, 'nav.advisor'), books ? ' sp-notab' : '')}</div>
       <div class="navfoot">${flat('settings', t(locale, 'nav.settings'))}${input.split.me}</div>`);
   }
@@ -3096,7 +3096,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${setupStrip(locale, input.active, input.path)}${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${input.split ? '' : setupStrip(locale, input.active, input.path)}${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }

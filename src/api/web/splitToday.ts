@@ -59,7 +59,7 @@ const booksMoney = (locale: Locale, amount: string, currency: string): string =>
 };
 
 /** "$7,250", not "$7,250.00": a summary drops cents that say nothing. "$1.45" and "Rp 150.000" stay exactly as they are. */
-function whole(money: string): string {
+export function whole(money: string): string {
   return money.replace(/[.,]00(?=\D*$)/u, '');
 }
 
@@ -138,14 +138,20 @@ function stageStrip(sales: SplitSales, ordersWaiting: number, locale: Locale): s
   </section>`;
 }
 
+/** How long since the last word, either way: "Today", or the days in the workspace's own calendar. */
+export function quietWords(locale: Locale, lastAt: Date | null, now: Date, zone: string): string {
+  if (!lastAt) return '';
+  const days = Math.round((Date.parse(dayKey(now, zone)) - Date.parse(dayKey(lastAt, zone))) / 86_400_000);
+  return days <= 0 ? t(locale, 'split.title') : tn(locale, 'split.days', days);
+}
+
 function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Locale, now: Date, zone: string): string {
   const name = r.name ?? t(locale, 'common.buyer');
   const isWaiting = waiting.has(r.conversationId);
   const chip = isWaiting
     ? `<span class="sp-chip is-waiting">${esc(t(locale, 'split.chip.waiting'))}</span>`
     : `<span class="sp-chip${r.stage === 'order' ? ' is-order' : ''}">${esc(t(locale, `split.stage.${r.stage}`))}</span>`;
-  const days = r.lastAt ? Math.round((Date.parse(dayKey(now, zone)) - Date.parse(dayKey(r.lastAt, zone))) / 86_400_000) : null;
-  const when = days === null ? '' : days <= 0 ? t(locale, 'split.title') : tn(locale, 'split.days', days);
+  const when = quietWords(locale, r.lastAt, now, zone);
   return `<li><a class="sp-row" href="${conversationUrl(r.conversationId)}">
     ${face({ clientId: r.clientId, name: r.name, photo: r.photo }, 's')}
     <bdi class="sp-rname">${esc(name)}</bdi>

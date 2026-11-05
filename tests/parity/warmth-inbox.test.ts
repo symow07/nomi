@@ -108,7 +108,7 @@ describe('phase 4 · one customer, one row', () => {
     expect(page).toMatch(/max\(m\.sent_at\)\)[\s\S]*where c2\.client_id = ch\.client_id/);
     // and every count is of customers
     await readBuyerCounts(r.tx);
-    expect(r.seen[1]!.sql.match(/count\(distinct c\.client_id\)/g)).toHaveLength(4);
+    expect(r.seen[1]!.sql.match(/count\(distinct c\.client_id\)/g)).toHaveLength(7);
   });
 });
 

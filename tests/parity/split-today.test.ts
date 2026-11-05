@@ -22,8 +22,8 @@ describe('the Split Today sheet', () => {
     for (const selector of uses) expect(selector).toMatch(/\.sp-send/);
   });
 
-  it('wine is the mark and nothing else', () => {
-    expect(rulesUsing(SPLIT_TOKENS.color.wine)).toEqual(['.split .mark']);
+  it('wine is the mark and the dot on a row that needs you, and nothing else', () => {
+    expect(rulesUsing(SPLIT_TOKENS.color.wine)).toEqual(['.split .mark', '.split .si-dot .row-dot']);
     expect(SPLIT_CSS).not.toContain('--color-coin');
   });
 

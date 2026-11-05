@@ -25,13 +25,13 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   });
 
   it('names them in the owner’s language, in every locale', () => {
-    expect(page('en')).toContain('>Home<'); expect(page('en')).toContain('Customers');   // THE HOME RUN
-    expect(page('zh')).toContain('首页'); expect(page('zh')).toContain('客户');
+    expect(page('en')).toContain('>Home<'); expect(page('en')).toContain('>Inbox<');   // THE HOME RUN
+    expect(page('zh')).toContain('首页'); expect(page('zh')).toContain('收件箱');
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
-    expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('العملاء');
-    // The owner, 2026-11-05: "Customers", everywhere.
-    expect(page('en')).toContain('>Customers<');
-    expect(page('zh')).not.toContain('收件箱');
+    expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('الرسائل');
+    // The owner, 2026-11-05: "Inbox", everywhere.
+    expect(page('en')).toContain('>Inbox<');
+    expect(page('zh')).toContain('收件箱');
     expect(page('en')).not.toContain('Customer list');
   });
 

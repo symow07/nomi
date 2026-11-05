@@ -31,6 +31,8 @@ import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
+import { renderSplitInbox } from './splitInbox.js';
+import { stageOf } from '../../db/customerStage.js';
 import { face } from './faces.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { loadProformaPage, renderProformaPage } from './proforma.js';
@@ -320,7 +322,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, booksShown, viewerRole, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, needsYouCount, outreachShown, booksShown, viewerRole, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 import { saveMorningSetting } from '../../db/morningSummary.js';
@@ -1065,6 +1067,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * CC-26 — `live` is the page's live region (`liveRegion`), for the pages
    * that watch for something new while they are open.
    */
+  /** The Split rail's foot: who is signed in. */
+  const splitRail = (person: { readonly id: string; readonly name: string }): { readonly me: string } => ({
+    me: `<a class="sp-me" href="/app/settings/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
+  });
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string; wide?: boolean; split?: { readonly me: string } }): string =>
     shell({ ...o, locale: localeOf(req), path: req.url });
 
@@ -4118,7 +4124,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const data = await loadSplitData(deps.db, s.businessId, { showBooks: booksShown() && booksMay(person, 'see'), needs: today.needs.rows }, now);
       return {
         title: t(locale, 'split.title'), wide: true,
-        split: { me: `<a class="sp-me" href="/app/settings/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>` },
+        split: splitRail(person),
         bodyHtml: renderSplitToday(snapshot, locale, today, renderInsights(insights, locale, { bare: true }), data, now),
         live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
       };
@@ -4138,7 +4144,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown; label?: unknown };
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown; label?: unknown; stage?: unknown };
     const requested = query.filter;
     // The warmth run, phase 4 — two lenses on one list, the lens in the address.
     const lens = lensOf(query.lens);
@@ -4158,6 +4164,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const mark = bid.ok ? await buyersMark(deps.db, bid.value) : null;
     // The "needs attention" band sits on the first page of the whole list, not on a find or a narrowing.
     const firstPage = query.after === undefined && query.before === undefined;
+    // The Inbox in the Split look (`SPLIT_TODAY=on`): five views, a stage filter, Today's rows. The list is the same list.
+    if (deps.splitToday) {
+      const view: InboxFilter = requested === 'pending' || requested === 'blocked' || requested === 'deletion' || requested === 'quiet' || requested === 'assistant' || requested === 'team' || requested === 'all'
+        ? requested
+        // It opens on who needs the owner while someone does; a find looks across everyone.
+        : !searching && (needsYouCount() ?? 0) > 0 ? 'pending' : 'all';
+      const shown = await loadInboxList(deps.db, s.businessId, view, me, { ...ask, stage: query.stage, views: true });
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'nav.inbox'), active: 'inbox', wide: true, split: splitRail(personOf(s)),
+        bodyHtml: renderSplitInbox(shown, locale, new Date(), await loadPeople(deps.db, s.businessId)),
+        ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter: view, lens, q: shown.query ?? '', label: shown.label?.id ?? null, stage: stageOf(query.stage), explicit: true }))) } : {}),
+      }));
+    }
     const data = await loadInboxList(deps.db, s.businessId, filter, me, { ...ask, attention: firstPage && !searching && filter === 'all' });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',

@@ -416,7 +416,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.body).toContain('href="/app/analytics"');
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
-    expect(inbox.body).toContain('Customers');         // English default
+    expect(inbox.body).toContain('Inbox');             // English default
   });
 
   it('ADR-0008 i18n: login/home localize by cookie & Accept-Language, /locale switches', async () => {
@@ -763,13 +763,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?filter=all');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    // The owner, 2026-11-05: the list is "Customers" (it was "Inbox", and "Customer list" before that).
-    expect(res.body).toContain('<h1 class="page">Customers</h1>');   // English default, one word
-    // One list, one word. Since the positioning rewrite that word is "Customers":
-    // one heading says it, and "Buyers" is gone. (The rail's "Customers" heading
-    // over Conversations and Calendar is the design pass's, outside <main>.)
+    // The owner, 2026-11-05: the list is "Inbox" (it was "Inbox", and "Customer list" before that).
+    expect(res.body).toContain('<h1 class="page">Inbox</h1>');   // English default, one word
+    // One list, one word: one heading says it, and "Buyers" is gone.
     const main = res.body.slice(res.body.indexOf('<main'));
-    expect(main.match(/<h1[^>]*>Customers<\/h1>/g)?.length).toBe(1);
+    expect(main.match(/<h1[^>]*>Inbox<\/h1>/g)?.length).toBe(1);
     expect(main).not.toMatch(/\bBuyers?\b/);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');

@@ -181,8 +181,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-165 · the area is Customers: its empty Mine speaks of customers, not conversations', () => {
     expect(t('en', 'inbox.empty.mine')).toBe('No customer is in your hands right now.');
     expect(t('en', 'inbox.empty.mine')).not.toMatch(/conversation/i);
-    // The owner, 2026-11-05: the list is "Customers", everywhere.
-    expect(t('en', 'nav.conversations')).toBe('Customers');
+    // The owner, 2026-11-05: the list is "Inbox", everywhere.
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 

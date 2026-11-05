@@ -11,7 +11,8 @@ import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { tradesForExport } from '../../core/owner/sellingStyle.js';
+import { sellsByQuantity, tradesForExport } from '../../core/owner/sellingStyle.js';
+import { stageFacts, stageOf, type Stage } from '../../db/customerStage.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
@@ -135,6 +136,10 @@ export type ConversationSummary = {
   readonly orderWaiting?: boolean;
   /** 0223 — not opened since what it needs the owner for last arrived. */
   readonly unopened?: boolean;
+  /** The Inbox's row (2026-11-05): how far it has got, its figure and the product's photo (`stageFacts`). Absent: not asked for. */
+  readonly stage?: Stage;
+  readonly value?: Money | null;
+  readonly thumb?: string | null;
   readonly latestMessage: string | null;
   /** A — the last contact: when the newest message was written, either way. */
   readonly latestAt: Date | null;
@@ -206,6 +211,12 @@ export type InboxList = {
   readonly channels?: number;
   /** Phase 4 — the order the list is in: who is waiting now (the default), or who matters most. */
   readonly lens?: BuyersLens;
+  /** The stage the list is narrowed to. */
+  readonly stage?: Stage | null;
+  /** The Inbox's view counts, of everything. Absent: not asked for. */
+  readonly views?: { readonly quiet: number; readonly assistant: number; readonly team: number; readonly everyone: number };
+  /** Whether a sample is a stage here: a business that sells by quantity, or one a customer really asked for one. */
+  readonly sampled?: boolean;
   /**
    * Phase 4 — the "needs attention" band: customers slipping away, never
    * anyone waiting for the owner (`src/db/inboxAttention.ts`). Absent or
@@ -237,6 +248,10 @@ export type InboxAsk = {
   readonly attention?: boolean;
   /** S2 — a label's id: only the buyers carrying it. */
   readonly label?: unknown;
+  /** The Inbox's stage filter. */
+  readonly stage?: unknown;
+  /** The restyled Inbox: read each row's stage, figure and photo, and the views' counts. */
+  readonly views?: boolean;
 };
 
 /**
@@ -260,7 +275,11 @@ export async function loadInboxList(
   return withTenantTx(db, bid.value, async (tx) => {
     const labels = (await listLabels(tx, bid.value)).map((l) => ({ id: l.id, name: l.name, buyers: l.buyers }));
     const label = isLabelId(ask.label) ? (labels.find((l) => l.id === ask.label) ?? null) : null;
-    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before, label: label?.id ?? null });
+    const stage = stageOf(ask.stage);
+    // Who has gone quiet is the band's own verdict; the view lists those customers and nobody else.
+    const attention = ask.attention === true || ask.views === true || filter === 'quiet' ? await readAttention(tx, new Date(), viewerId) : [];
+    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before, label: label?.id ?? null, stage,
+      ...(filter === 'quiet' ? { among: attention.map((a) => a.clientId) } : {}) });
     const rows = page.ids.length === 0 ? [] : (await sql<{
       id: string; client_id: string; buyer: string | null; country: string | null; channel: string;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -322,6 +341,7 @@ export async function loadInboxList(
     const clientIds = rows.map((r) => r.client_id);
     const [values, photos] = await Promise.all([customerValues(tx, clientIds), faceVersions(tx, clientIds)]);
     const quotes = lens === 'value' ? await lastQuoteGiven(tx, clientIds.filter((id) => !values.get(id)?.spent)) : new Map<string, Money>();
+    const facts = ask.views === true ? await stageFacts(tx, page.ids) : null;
     const conversations = page.ids.flatMap((id): ConversationSummary[] => {
       const r = byId.get(id);
       if (!r) return [];
@@ -353,15 +373,21 @@ export async function loadInboxList(
         spent: values.get(r.client_id)?.spent ?? null,
         regular: values.get(r.client_id)?.regular === true,
         ...(quotes.has(r.client_id) ? { quoted: quotes.get(r.client_id)! } : {}),
+        ...(facts ? { stage: facts.get(r.id)?.stage ?? 'asked', value: facts.get(r.id)?.value ?? null, thumb: facts.get(r.id)?.thumb ?? null } : {}),
       }];
     });
 
     // A9 — THE COUNTS ARE OF EVERYTHING, never of the page: `defaultFilter`
     // decides which tab opens from `waitingCount`.
     const counts = await readBuyerCounts(tx, viewerId);
-    const attention = ask.attention === true ? await readAttention(tx, new Date(), viewerId) : [];
+    const sampled = ask.views === true ? (await sql<{ kind: string | null; any: boolean }>`
+      select b.kind, exists (select 1 from sample_requests s where s.business_id = b.id) as any from businesses b where b.id = ${bid.value}::uuid`.execute(tx)).rows[0] : null;
     return {
-      filter, lens, conversations, attention,
+      filter, lens, conversations, attention, stage,
+      ...(ask.views === true ? {
+        views: { quiet: attention.length, assistant: counts.assistant, team: counts.team, everyone: counts.everyone },
+        sampled: sampled ? sampled.any || sellsByQuantity(sampled.kind) : false,
+      } : {}),
       waitingCount: counts.waiting,
       blockedCount: counts.blocked,
       mineCount: counts.mine,
@@ -1257,7 +1283,7 @@ const preview = (text: string): string => {
 };
 
 /** Their words asked something: a question mark in any of the scripts (`inboxAttention.ts`'s rule for "asked"). */
-const asksSomething = (text: string | null | undefined): boolean => typeof text === 'string' && /[?？؟]/.test(text);
+export const asksSomething = (text: string | null | undefined): boolean => typeof text === 'string' && /[?？؟]/.test(text);
 
 /**
  * A — an address on the Buyers list that keeps what the owner is looking at:
@@ -1276,12 +1302,17 @@ export const buyersHref = (o: {
   readonly after?: string | null; readonly before?: string | null;
   /** S2 — a label's id. */
   readonly label?: string | null | undefined;
+  /** The Inbox's stage filter. */
+  readonly stage?: Stage | null | undefined;
+  /** The restyled Inbox opens on "Needs you" while someone waits, so "Everyone" has to say so. */
+  readonly explicit?: boolean;
 }): string => {
   const typed = (v: string): string => v
     .replace(/[%&+#=]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
     .replace(/\s/g, '+');
   const parts = [
-    o.filter && o.filter !== 'all' ? `filter=${o.filter}` : '',
+    o.filter && (o.filter !== 'all' || o.explicit) ? `filter=${o.filter}` : '',
+    o.stage ? `stage=${o.stage}` : '',
     o.lens === 'value' ? 'lens=value' : '',
     o.q ? `q=${typed(o.q)}` : '',
     o.label ? `label=${o.label}` : '',
@@ -1320,7 +1351,7 @@ export const rowState = (c: ConversationSummary): RowState =>
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
 export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: '<span class="row-dot"></span>', yours: shape('you'), hers: agentMark(16, 'am') };
 /** The owner's rule (2026-11-04): a row that needs you is bold until it is opened. Bold means that and nothing else. */
-const isNew = (c: ConversationSummary): boolean => rowState(c) === 'needs' && c.unopened === true;
+export const isNew = (c: ConversationSummary): boolean => rowState(c) === 'needs' && c.unopened === true;
 
 export type RowOptions = {
   readonly now: Date;
@@ -1513,7 +1544,7 @@ export function waitingGroups(all: readonly ConversationSummary[]): {
 export const ATTENTION_SHOWN = 5;
 
 /** A date in the band: the month and day, with the year once it is far enough back to need one. */
-const sinceDate = (locale: Locale, d: Date, now: Date): string =>
+export const sinceDate = (locale: Locale, d: Date, now: Date): string =>
   now.getTime() - d.getTime() > 330 * 86_400_000 ? show.dateYear(locale, d) : show.shortWhen(locale, d, now);
 
 /**
