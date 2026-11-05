@@ -178,7 +178,7 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   it('B21 · a refused answer for everything comes back on its own section, with what was typed', async () => {
     const r = await post(shopCookie, '/app/business/prices', { productId: '', floor: 'abc', maxDiscountPct: '5', askAbovePct: '3' });
     expect(r.statusCode).toBe(400);
-    expect(r.body).toContain('action="/app/business/prices#everything"');
+    expect(r.body).toContain('action="/app/business/prices"');
     expect(r.body).toMatch(/name="floor"[^>]*aria-invalid="true"[^>]*autofocus[^>]*value="abc"/);
     expect(occurrences(r.body, 'class="perr"')).toBe(1);
   });

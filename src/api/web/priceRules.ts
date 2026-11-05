@@ -465,8 +465,9 @@ export function renderPriceRules(
     const field = (f: PriceRuleField): string => !sent || !errors[f] ? ''
       : ` aria-invalid="true" aria-describedby="pr-err-${f}"${f === firstBad ? ' autofocus' : ''}`;
     const fe = (f: PriceRuleField): string => (sent ? err(f) : '');
+    // Native autofocus is suppressed by URL fragments; successful redirects keep their section anchors.
     return `
-    <form method="post" action="/app/business/prices#${productId ? `p-${esc(productId)}` : 'everything'}" class="pform">
+    <form method="post" action="/app/business/prices" class="pform">
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
       ${title ? `<${heading} class="${heading === 'h2' ? 'pr-h2' : 'sub3'}">${esc(title)}</${heading}>` : ''}
       ${sub ? `<p class="fdesc">${esc(sub)}</p>` : ''}
@@ -603,7 +604,7 @@ function volumeSection(
       ? `<ul class="rows">${rows}</ul>`
       // Phase 9 (new-15) — no discount is a valid choice, not a thing waiting for her: no amber mark.
       : `<p class="fempty">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
-    <form method="post" action="/app/business/prices/volume#volume" class="pform">
+    <form method="post" action="/app/business/prices/volume" class="pform">
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
         <select name="productId">
           <option value="">${esc(t(locale, 'prices.volume.everyProduct'))}</option>

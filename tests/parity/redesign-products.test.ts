@@ -83,10 +83,21 @@ describe('Products area presentation',()=>{
   const view:PriceRulesView={currency:'USD',unanswered:0,businessDefault:rules,products:[{productId:id,isActive:true,name:'Canvas tote',nameZh:null,sku:'TOTE',listPrice:usd('20'),own:rules,inheritsDefault:false}],volume:[]};
   const html=renderPriceRules(view,'en',null,{floor:'not_a_number'},{productId:id,values:{floor:'oops',maxDiscountPct:'8',askAbovePct:'5'}});
   expect(html).toContain(`href="/app/products/price-limits#p-${id}"`);
-  const form=html.match(new RegExp(`<form[^>]+action="/app/business/prices#p-${id}"[^>]*>[\\s\\S]*?</form>`))?.[0]??'';
+  const form=[...html.matchAll(/<form[^>]+action="\/app\/business\/prices"[^>]*>[\s\S]*?<\/form>/g)]
+    .map(m=>m[0]).find(f=>f.includes('name="productId" value="'+id+'"'))??'';
   expect(form).toContain('value="oops"');expect(form).toContain('aria-invalid="true"');expect(form).toContain('autofocus');
   expect(html.match(/id="pr-err-floor"/g)).toHaveLength(1);
-  expect(html).toContain('action="/app/business/prices/volume#volume"');
+  expect(html).toContain('action="/app/business/prices/volume"');
+ });
+
+ it('keeps price POST actions fragment-free so refused fields can receive native focus',()=>{
+  const rules={floor:usd('10'),maxDiscountPct:8,askAbovePct:5};
+  const view:PriceRulesView={currency:'USD',unanswered:0,businessDefault:rules,products:[{productId:id,isActive:true,name:'Canvas tote',nameZh:null,sku:'TOTE',listPrice:usd('20'),own:rules,inheritsDefault:false}],volume:[]};
+  const html=renderPriceRules(view,'en',null,{floor:'not_a_number'},{productId:id,values:{floor:'invalid',maxDiscountPct:'8',askAbovePct:'5'}});
+  const actions=[...html.matchAll(/<form\b[^>]*action="([^"]+)"/g)].map(m=>m[1]);
+  expect(actions.sort()).toEqual(['/app/business/prices','/app/business/prices','/app/business/prices/volume']);
+  expect(html).toContain('name="productId" value="'+id+'"');
+  expect(html).toMatch(/name="floor"[^>]*aria-invalid="true"[^>]*autofocus/);
  });
 
 });
