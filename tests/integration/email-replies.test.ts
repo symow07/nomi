@@ -137,7 +137,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     seqId = /\/app\/sequences\/([0-9a-f-]{36})/.exec(String(created.headers['location']))![1]!;
     await post(`/app/sequences/${seqId}/steps`, { delayDays: '0', subject: 'Canvas totes from Yiwu', body: 'We make canvas totes.' });
     await post(`/app/sequences/${seqId}/steps`, { delayDays: '2', subject: 'Following up', body: 'Any interest?' });
-    const fp = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/sequences/${seqId}`)).body)![1]!;
+    const fp = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/customers/outreach/sequences/${seqId}`)).body)![1]!;
     await post(`/app/sequences/${seqId}/approve`, { fingerprint: fp });
     expect(flashOf(await post(`/app/sequences/${seqId}/enroll`, { identity: addr('ahmed') }))).toBe(t('en', 'seq.flash.enrolled'));
     await sweep(new Date(T0.getTime() + 60_000));
@@ -196,7 +196,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     const page = await get(`/app/inbox/${conversationId}`);
     expect(page.body).toContain(esc('Yes — send prices for 5,000.'));
     expect(page.body).toContain(esc(t('en', 'takeover.reason.email_reply')));
-    expect((await get('/app/contacts')).body).toContain(esc(t('en', 'contacts.evidence.replied_to_email')));
+    expect((await get('/app/customers/outreach')).body).toContain(esc(t('en', 'contacts.evidence.replied_to_email')));
   });
 
   it('the provider delivering it again changes nothing', async () => {

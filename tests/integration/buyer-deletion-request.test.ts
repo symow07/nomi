@@ -203,8 +203,8 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     // A member of staff is refused before that, with the owner's sentence.
     expect(flashSaid(await ask(staffCookie, NOTE), SECRET)).toBe(t('en', 'staff.notAllowed'));
     // The owner's page offers the one act instead; staff see whose decision it is.
-    expect((await get(ownerCookie, `/app/conversations/${CONV}`)).body).toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
-    expect((await get(staffCookie, `/app/conversations/${CONV}`)).body).not.toContain('/deletion/erase');
+    expect((await get(ownerCookie, `/app/customers/${CLIENT}?conversation=${CONV}`)).body).toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
+    expect((await get(staffCookie, `/app/customers/${CLIENT}?conversation=${CONV}`)).body).not.toContain('/deletion/erase');
   });
 
   it('asking twice is ONE request — 0073\'s index holds it', async () => {
@@ -243,7 +243,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
       asked: formatDate('en', row.asked_at, ZONE), done: formatDate('en', done, ZONE),
     }));
     expect(data, 'a done request is not offered back').not.toContain(`name="id" value="${row.id}"`);
-    const file = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
+    const file = (await get(ownerCookie, `/app/customers/${CLIENT}?conversation=${CONV}`)).body;
     expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, ZONE) })));
     expect(file).not.toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
   });

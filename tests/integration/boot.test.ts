@@ -754,20 +754,18 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
-  // A (2026-09-28) — Customers merged into Buyers. The address answers with
-  // the one list; the list and its search are asserted where they live now.
-  it('M9.7 conversations: the list is Buyers now — every demo buyer, one list (memory, not a chat log)', async () => {
+  // Area 3 — legacy customer bookmarks retain their search at the complete customer directory.
+  it('M9.7 conversations: the list is Customers — every demo customer, one directory', async () => {
     const cookie = await login();
     const moved = await prod.app.inject({ method: 'GET', url: '/app/conversations', headers: { cookie } });
     expect(moved.statusCode).toBe(302);
-    expect(moved.headers['location']).toBe('/app/inbox?filter=all');
-    const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
+    expect(moved.headers['location']).toBe('/app/customers');
+    const res = await prod.app.inject({ method: 'GET', url: '/app/customers', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    // The owner, 2026-11-05: the list is "Inbox" (it was "Inbox", and "Customer list" before that).
-    expect(res.body).toContain('<h1 class="page">Inbox</h1>');   // English default, one word
+    expect(res.body).toContain('<h1>All customers</h1>');   // English catalogue title
     // One list, one word: one heading says it, and "Buyers" is gone.
     const main = res.body.slice(res.body.indexOf('<main'));
-    expect(main.match(/<h1[^>]*>Inbox<\/h1>/g)?.length).toBe(1);
+    expect(main.match(/<h1[^>]*>All customers<\/h1>/g)?.length).toBe(1);
     expect(main).not.toMatch(/\bBuyers?\b/);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
@@ -779,18 +777,20 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const moved = await prod.app.inject({ method: 'GET', url: '/app/conversations?q=Ivan', headers: { cookie } });
     expect(moved.statusCode).toBe(302);
-    expect(moved.headers['location']).toBe('/app/inbox?q=Ivan');
-    const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?q=Ivan', headers: { cookie } });
+    expect(moved.headers['location']).toBe('/app/customers?q=Ivan');
+    const res = await prod.app.inject({ method: 'GET', url: '/app/customers?q=Ivan', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    // The match is marked in the name (phase 9, V1-182): "<mark>Ivan</mark> Petrov".
-    expect(res.body).toContain('<mark class="hit">Ivan</mark> Petrov');
+    expect(res.body).toContain('Ivan Petrov');
     expect(res.body).not.toContain('Ahmed Al-Rashid');
   });
 
   it('M9.7 conversations: customer file renders profile + timeline', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET',
+    const moved = await prod.app.inject({ method: 'GET',
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-000000000301`, headers: { cookie } });
+    expect(moved.statusCode).toBe(302);
+    expect(String(moved.headers['location'])).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    const res = await prod.app.inject({ method: 'GET', url: String(moved.headers['location']), headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('About this customer');   // A — one word: customer (the positioning rewrite)
@@ -2484,6 +2484,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // the My-factory ones with the rest named in an exclusion list. A route
       // added tomorrow is walked because it had to name its hub to exist.
       const moved: Readonly<Record<string, string>> = {
+        '/app/conversations': '/app/customers',
         '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
         '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
         '/app/onboarding/activity': '/app/results?view=setup', '/app/replies': '/app/inbox/replies',

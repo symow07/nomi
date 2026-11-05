@@ -55,6 +55,14 @@ d('D4 · frozen on lapse (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => 
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded', referer: `https://app.example.test/app/inbox/${conv}` },
     payload: new URLSearchParams(form).toString() });
   const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const customerRecord = async (conversationId: string) => {
+    const moved = await get(`/app/conversations/${conversationId}`);
+    expect(moved.statusCode).toBe(302);
+    const location = String(moved.headers['location']);
+    expect(location).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(location, 'http://local').searchParams.get('conversation')).toBe(conversationId);
+    return get(location);
+  };
   const n = async (q: string, p: unknown[]) => Number((await admin.query(q, p)).rows[0].n);
   const write = async (text: string) => {
     const w = sim.inboundText({ from: BUYER, text });
@@ -150,7 +158,7 @@ d('D4 · frozen on lapse (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => 
     const today = await get('/app');
     expect(today.statusCode).toBe(200);
     expect(today.body).toContain(esc(t('en', 'frozen.banner.title')));
-    const page = await get(`/app/conversations/${conv}`);
+    const page = await customerRecord(conv);
     expect(page.body).toContain(esc(`do you ship on fridays ${RUN}`));
     expect(page.body).toContain('id="frozen"');
     const copy = await get('/app/settings/data/messages.csv');

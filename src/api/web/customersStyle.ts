@@ -46,6 +46,8 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .customer-record .pc-facts dd{font-size:var(--font-size-title);font-weight:500;}
 .customer-record .pc-things{max-width:var(--measure-prose);}
 .customer-record .pc-open{align-self:flex-start;width:auto;background:var(--color-ink);box-shadow:none;}
+.owner-shell .pcard .pc-open{color:var(--color-surface);background:var(--color-ink);box-shadow:none;}
+.owner-shell .pcard .pc-open:hover,.owner-shell .pcard .pc-open:focus-visible{box-shadow:none;}
 .customer-record .pc-full{display:none;}
 .pc-full{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:var(--space-8);}
 .ca-orders-door{display:inline-flex;align-items:center;min-height:44px;margin-block:var(--space-16);}

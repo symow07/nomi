@@ -67,6 +67,14 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const customerRecord = async (conversationId: string) => {
+    const moved = await get(`/app/conversations/${conversationId}`);
+    expect(moved.statusCode).toBe(302);
+    const location = String(moved.headers['location']);
+    expect(location).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(location, 'http://local').searchParams.get('conversation')).toBe(conversationId);
+    return get(location);
+  };
 
   /** A buyer's message, signed the way Meta signs it. */
   const inbound = (path: string, object: string, o: {
@@ -278,7 +286,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     const r = await post(`/app/conversations/${conv.id}/name`, { name: '  Ahmed   (Dubai) ' });
     expect(r.statusCode).toBe(302);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'conv.flash.nameSaved'));
-    expect((await get(`/app/conversations/${conv.id}`)).body).toContain('Ahmed (Dubai)');
+    expect((await customerRecord(conv.id)).body).toContain('Ahmed (Dubai)');
 
     // A name the channel sends later fills a blank, never overwrites hers.
     await inbound('/webhook/instagram', 'instagram', { sender: buyer('ahmed'), recipient: IG_ACCOUNT, text: 'again' });
@@ -294,7 +302,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     // Cleared: "Buyer" again — never a placeholder pretending to be a name.
     await post(`/app/conversations/${conv.id}/name`, { name: '   ' });
     expect(await nameOf('instagram', buyer('ahmed'))).toBeNull();
-    expect((await get(`/app/conversations/${conv.id}`)).body).toContain(esc(t('en', 'common.buyer')));
+    expect((await customerRecord(conv.id)).body).toContain(esc(t('en', 'common.buyer')));
     // Too long is refused, and says so.
     const long = await post(`/app/conversations/${conv.id}/name`, { name: 'x'.repeat(81) });
     expect(flashSaid(long, WEB_SECRET)).toBe(t('en', 'conv.flash.nameInvalid'));

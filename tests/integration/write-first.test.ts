@@ -109,9 +109,9 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
   it('WITH HER DOMAIN UNVERIFIED nothing can go, and the page says so rather than offering a button', async () => {
     const ahmed = addr('ahmed');
     await addAndAttest(ahmed, 'Ahmed');
-    const list = await get('/app/contacts');
+    const list = await get('/app/customers/outreach');
     expect(list.statusCode).toBe(200);
-    expect(list.body).not.toContain('/app/contacts/write?');
+    expect(list.body).not.toContain('/app/customers/outreach/write?');
 
     const res = await write(ahmed, 'Canvas totes', 'We make canvas totes.');
     expect(res.statusCode).toBe(302);
@@ -143,9 +143,9 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
   });
 
   it('where the gate says yes the button appears, and the composer opens for him', async () => {
-    const list = await get('/app/contacts');
-    expect(list.body).toContain(`/app/contacts/write?channel=email&amp;identity=${encodeURIComponent(addr('ahmed'))}`);
-    const page = await get(`/app/contacts/write?channel=email&identity=${encodeURIComponent(addr('ahmed'))}`);
+    const list = await get('/app/customers/outreach');
+    expect(list.body).toContain(`/app/customers/outreach/write?channel=email&amp;identity=${encodeURIComponent(addr('ahmed'))}`);
+    const page = await get(`/app/customers/outreach/write?channel=email&identity=${encodeURIComponent(addr('ahmed'))}`);
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('action="/app/contacts/write"');
     expect(page.body).toContain('Ahmed');
@@ -231,8 +231,8 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
 
     const again = await write(addr('ahmed'), 'Following up', 'Just checking in.');
     expect(flashOf(again)).toBe(t('en', 'refused.why.suppressed'));
-    expect((await get('/app/contacts')).body)
-      .not.toContain(`/app/contacts/write?channel=email&amp;identity=${encodeURIComponent(addr('ahmed'))}`);
+    expect((await get('/app/customers/outreach')).body)
+      .not.toContain(`/app/customers/outreach/write?channel=email&amp;identity=${encodeURIComponent(addr('ahmed'))}`);
   });
 
   it('A SUPPRESSION THAT ARRIVES AFTER SHE PRESSED SEND still stops it — the worker asks again', async () => {

@@ -136,7 +136,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
-  { hub: '/app/customers/outreach', routes: ['/app/customers/outreach/sequences', '/app/customers/outreach/find', '/app/customers/outreach/suppress', '/app/customers/outreach/write'], outreach: true },
+  // Writing and suppression remain per-contact workflows requiring an identity, not bare hub doors.
+  // Their canonical and legacy route guards are covered by outreach-area and command integration tests.
+  { hub: '/app/customers/outreach', routes: ['/app/customers/outreach/sequences', '/app/customers/outreach/find'], outreach: true },
   { hub: '/app', routes: ['/app/analytics'] },
 ];
 
