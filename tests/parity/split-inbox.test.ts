@@ -201,10 +201,49 @@ describe('the page', () => {
     expect(mine).not.toMatch(/(?:margin|padding|border)-(?:left|right)\b|text-align:(?:left|right)|\b(?:left|right):/);
   });
 
-  it('a phone has compact rows of two lines, and the tab bar stays over nothing', () => {
+  it('a phone row: name and value, chip, reason and days, then the last message; the tab bar stays over nothing', () => {
     const phone = SPLIT_CSS.split('@media (max-width: 720px)')[1]!;
     expect(phone).toContain('grid-template-areas:"dot face thumb name name val go" "dot face thumb chip why day go"');
+    expect(phone).toContain('"dot face thumb said said said go"');
     expect(phone).toContain('.split .content { padding-block-end:calc(84px');
+  });
+});
+
+describe('the last message on a row', () => {
+  const rowOf = (c: ConversationSummary, locale: 'en' | 'ar' = 'en'): string =>
+    draw(list({ conversations: [c] }), locale).split('<div class="sp-row si-row')[1]!.split('</li>')[0]!;
+
+  it('is the customer\'s own words, held in the isolate that cuts them', () => {
+    expect(rowOf(conv('1', { latestMessage: 'Do you ship to Fes?', lastFrom: 'buyer' }))).toContain('<span class="si-said"><bdi class="si-last">Do you ship to Fes?</bdi></span>');
+    expect(rowOf(conv('1', { latestMessage: 'أريد التحدث مع شخص', lastFrom: 'buyer' }), 'ar')).toContain('<bdi class="si-last">أريد التحدث مع شخص</bdi>');
+  });
+
+  it('says who wrote it when it was not the customer', () => {
+    expect(rowOf(conv('1', { latestMessage: 'On its way.', lastFrom: 'person' }))).toContain('<span class="si-by"><bdi>You</bdi>:</span><bdi class="si-last">On its way.</bdi>');
+    expect(rowOf(conv('1', { latestMessage: 'It is $12.', lastFrom: 'assistant', answeredBy: 'Lily' }))).toContain('<span class="si-by"><bdi>Lily</bdi>:</span><bdi class="si-last">');
+  });
+
+  it('is plain text, however it was written, and no page carries a whole long message', () => {
+    const said = rowOf(conv('1', { latestMessage: '<script>alert(1)</script>' }));
+    expect(said).not.toContain('<script>');
+    expect(said).toContain('&lt;script&gt;');
+    const long = rowOf(conv('1', { latestMessage: 'word '.repeat(200) })).split('<bdi class="si-last">')[1]!.split('</bdi>')[0]!;
+    expect(long.endsWith('…')).toBe(true);
+    expect(long.length).toBeLessThan(210);
+  });
+
+  it('draws nothing when there is no message, and keeps the reason', () => {
+    expect(rowOf(conv('1', { latestMessage: null as unknown as string }))).not.toContain('si-said');
+    const waiting = rowOf(conv('1', { ownership: 'WAITING_HUMAN', latestMessage: 'Hi' }));
+    expect(waiting).toContain('class="si-why"');
+    expect(waiting).toContain('class="si-last"');
+  });
+
+  it('is one faded line, cut with an ellipsis at its own end', () => {
+    const rule = SPLIT_CSS.split('.si-last {')[1]!.split('}')[0]!;
+    for (const part of ['white-space:nowrap', 'text-overflow:ellipsis', 'overflow:hidden']) expect(rule).toContain(part);
+    expect(SPLIT_CSS.split('.si-said {')[1]!.split('}')[0]).toContain('color:var(--color-ink-secondary)');
+    expect(SPLIT_CSS).toContain('[dir="rtl"] .si-last:dir(ltr), [dir="ltr"] .si-last:dir(rtl) { text-align:end; }');
   });
 });
 

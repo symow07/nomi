@@ -185,7 +185,13 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-door { display:block; color:inherit; text-decoration:none; }
 .si-door::after { content:""; position:absolute; inset:0; border-radius:${K.radius.thumb}px; }
 .si-row.is-new .sp-rname { font-weight:700; }
-.si-why { display:block; font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
+.si-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 ${K.space[8]}px; min-inline-size:0; }
+.si-why { font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
+/* The last message: one faded line, cut by the isolate that holds it. */
+.si-said { flex:1 1 40%; display:flex; align-items:baseline; gap:${K.space[4]}px; min-inline-size:0; font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
+.si-by { flex:none; }
+.si-last { flex:1 1 auto; min-inline-size:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:match-parent; }
+[dir="rtl"] .si-last:dir(ltr), [dir="ltr"] .si-last:dir(rtl) { text-align:end; }
 .si-row.is-needs .si-why { color:${K.color.ochreText}; }
 .si-empty { margin:0; padding-block:${K.space[24]}px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 .si-empty strong { color:var(--color-ink); font-weight:600; }
@@ -264,12 +270,14 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
   .si-tab { padding-inline:${K.space[8]}px; }
   .si-fil { padding-inline:${K.space[8]}px; }
   .si-doors { padding-inline:${K.space[4]}px; }
-  .si-row { grid-template-columns:8px 36px 28px auto minmax(0, 1fr) auto 14px; grid-template-areas:"dot face thumb name name val go" "dot face thumb chip why day go"; gap:${K.space[4]}px ${K.space[8]}px; }
+  .si-row { grid-template-columns:8px 36px 28px auto minmax(0, 1fr) auto 14px; grid-template-areas:"dot face thumb name name val go" "dot face thumb chip why day go" "dot face thumb said said said go"; gap:${K.space[4]}px ${K.space[8]}px; }
   .si-dot { grid-area:dot; }
   .si-row .si-face { grid-area:face; }
   .si-who { display:contents; }
   .si-door { grid-area:name; min-inline-size:0; }
+  .si-line { display:contents; }
   .si-why { grid-area:why; align-self:center; min-inline-size:0; }
+  .si-said { grid-area:said; }
   .si-row .sp-chip { justify-self:start; align-self:center; }
   .si-row .sp-rday { align-self:center; }
   .sp-money { grid-template-columns:minmax(0, 1fr) 110px; }

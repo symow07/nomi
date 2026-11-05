@@ -1274,7 +1274,7 @@ function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language
 // run's phase 9 — and long enough that the row's own width cuts it (with "…"),
 // not the server: at 90 a desktop row stopped with a fifth of it empty.
 const PREVIEW_CHARS = 200;
-const preview = (text: string): string => {
+export const preview = (text: string): string => {
   const chars = Array.from(text);
   if (chars.length <= PREVIEW_CHARS) return text;
   const head = chars.slice(0, PREVIEW_CHARS).join('');

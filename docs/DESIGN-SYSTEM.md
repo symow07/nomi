@@ -149,11 +149,14 @@ No cards and no banner.
 
 **A row** is Today's: photo or initial, name, product thumbnail, stage chip, value, days quiet, chevron.
 
+- Under the name, one faded line: the reason, if there is one, then the last message. It is cut with an ellipsis, and the
+  element that cuts it is the `<bdi>`, so Latin and Arabic each keep their own direction. Words the seller's side wrote say
+  who wrote them ("You:", the assistant's name).
 - A row that needs you has the wine dot and its reason in words. The name is bold until the conversation is opened.
 - The row is one door to the conversation; the photo is its own door to the customer's card.
 - The stage comes from one definition, `STAGE_OF_CONVERSATION` in `src/db/customerStage.ts`, the same one Today reads.
   Value is the figure on record. A price the assistant worked out and never gave does not make a stage or a value.
-- On a phone: two lines (name and value, then chip, reason and days), with the tab bar at the foot.
+- On a phone: name and value, then chip, reason and days, then the last message, with the tab bar at the foot.
 
 ## Chips
 

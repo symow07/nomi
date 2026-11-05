@@ -127,7 +127,8 @@ d('PC · real turns through the production worker (requires DATABASE_URL)', () =
   const turn = async (said: string) => {
     const n = ++seq;
     const from = `9715${runDigits(RUN, 6)}${String(n).padStart(2, '0')}`;
-    const text = `Do you make bags like that? (${RUN}-${n})`;
+    // No digit of the run in it: the customer's own figures are sourced, so a run id holding "450" let the invented 450 through.
+    const text = `Do you make bags like that? (${RUN.replace(/\d/g, (x) => 'ghijklmnop'[Number(x)]!)}-${n})`;
     script.set(text, said);
     expect((await post(sim.inboundText({ from, text }))).statusCode).toBe(200);
     return until(async () => inTenant(db, WORKER_SHOP, async (x) => {
