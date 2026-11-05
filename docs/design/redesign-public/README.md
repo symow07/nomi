@@ -12,4 +12,6 @@ All 19 public routes remain in place. No legal text, accepted-terms version, mar
 [Chat desktop](chat-desktop.png) · [Chat phone](chat-phone.png)  
 [Proof desktop](proof-desktop.png) · [Proof phone](proof-phone.png)  
 
+[A4 proforma print](proforma-print.png)
+
 See [validation](VALIDATION.md) for coverage and limits.

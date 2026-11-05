@@ -4,9 +4,7 @@ Nomi helps a solo owner answer customers and keep the books. Pages use a shared 
 
 ## Delivery scope
 
-Area 1 establishes the shared theme and signed-in shell, then applies the overview, calendar, results and setup layouts to Today, Calendar, Sales results and Getting started. Readiness, practice checks and installation details retain their real state and existing access rules. The shell also surrounds existing signed-in pages while their individual layouts migrate.
-
-The Customers and Assistant destinations may initially be functional hubs to existing records and tools. The customer list, operational order list, conversation panel, full Books redesign and grouped Settings pages belong to later areas. The fifteen layout rules below describe the approved system; they do not mean every existing page has completed its redesign.
+The approved eight-area implementation covers Today, Inbox, Customers, Products, Books, Assistant, Settings and public pages. The [review index](design/redesign/README.md) links each area's desktop/phone evidence, route moves and verification. The [141-page map](design/redesign/page-map.tsv) retains the original inventory and its two explicit screenshot exclusions. Release status is recorded in `docs/PROGRESS.md`.
 
 | Area | Owns |
 |---|---|
@@ -36,7 +34,7 @@ No decorative header wash, gradients, shadow cards, ornamental banners or large 
 
 Preserve the supplied Nomi seal artwork. Use the existing mark helpers rather than redrawing it. Thin line icons aid recognition; every navigation item and meaningful action still has a label. Customer photographs are round, with an initial when no photograph exists. Product thumbnails use actual catalogue photographs; an absent photograph must not look like a failed download.
 
-Use locally served fonts. The restrained serif is for Today and document headings; readable sans-serif is for navigation, messages, labels, forms and running text. Aim for 16–17 px body text, clear heading hierarchy, stable numeric alignment and at least 44 px touch targets. Reuse spacing, radius and typography tokens. Keyboard focus must remain visible on paper and surface backgrounds. Respect reduced motion.
+Use locally served fonts. The restrained serif is for Today, document, website and legal-page headings; readable sans-serif is for navigation, messages, labels, forms and running text. Aim for 16–17 px body text, clear heading hierarchy, stable numeric alignment and at least 44 px touch targets. Reuse spacing, radius and typography tokens. Keyboard focus must remain visible on paper and surface backgrounds. Respect reduced motion.
 
 The token source is `src/core/owner/tokens.ts`. The shared shell and base rules live in `src/api/web/layout.ts`; the Today/Inbox rules also use `src/api/web/splitStyle.ts`. Existing internal names and flags are implementation details, not a separate visual contract.
 
@@ -48,7 +46,7 @@ Every signed-in page, Books included, keeps the same labelled primary rail. Sett
 |---|---|
 | Today | Today · Calendar · Sales results · Getting started |
 | Inbox | Needs you · Gone quiet · With your assistant · With your team when relevant · Everyone |
-| Customers | All customers · Orders · Follow-ups · Labels · Feedback |
+| Customers | All customers · Orders · Follow-ups · Labels · Feedback; Sample requests for relevant businesses |
 | Products | All products · Add products · Price limits |
 | Books | Overview · Get paid · Spending · Bank · Reports and tax · Year end; Advanced below |
 | Assistant | Overview · Knowledge · Practice · Check replies · Activity · Ask Nomi |
@@ -58,7 +56,7 @@ On a phone, use Today · Inbox · Customers · Books · More. More contains labe
 
 Getting started remains reachable after completion, even when its home checklist disappears. Keep Did not send and Deletion requests reachable in Inbox, showing their views when relevant. Records need a clear route back to their list; preserve applicable filters and scroll position. Public authentication, legal and customer-document pages keep the minimal public shell.
 
-Area-owned route changes land with that area. During migration, introduce working links or explicit temporary hubs. Old GET addresses may redirect to the canonical page while preserving record IDs, supported query parameters and return anchors. Existing POST actions continue to invoke the same authorized commands. Callback, export, webhook and signed public-link contracts remain stable.
+Area-owned route changes land with that area. Old GET addresses redirect to the canonical page while preserving record IDs, supported query parameters and return anchors. Existing POST actions continue to invoke the same authorized commands. Callback, export, webhook and signed public-link contracts remain stable.
 
 ## Fifteen layouts
 
