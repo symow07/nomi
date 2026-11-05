@@ -5,7 +5,7 @@ import {esc} from './layout.js';
 import {GO} from './icons.js';
 import {t,booksShown,viewerRole,exportSettingsShown} from './say.js';
 import {flashBanner,type Flash} from './flash.js';
-import {settingsGroup,type SettingsGroup} from './settingsNavigation.js';
+import {settingsGroup,settingsHref,type SettingsGroup} from './settingsNavigation.js';
 const groups:readonly SettingsGroup[]=['business','channels','assistant','books','team','billing','personal'];
 const label=(g:SettingsGroup):MessageKey=>`settingsArea.${g}`;
 const shown=(v:Viewer):readonly SettingsGroup[]=>viewerRole()==='accountant'?['personal']:groups.filter(g=>(g!=='books'||booksShown())&&(!['team','billing'].includes(g)||v.isOwner));
@@ -27,11 +27,12 @@ export const SETTINGS_PAGES:Readonly<Partial<Record<SettingsGroup,readonly [stri
 };
 export function settingsPageLinks(locale:Locale,group:SettingsGroup,path:string,viewer:Viewer):string {
  const pages=SETTINGS_PAGES[group];if(!pages)return '';
- const current=path.split(/[?#]/)[0]!;
+ const current=settingsHref(path).split(/[?#]/)[0]!;
+ const isCurrent=(key:string):boolean=>{const href='/app/settings/'+group+(key?'/'+key:'');return current===href||(key!==''&&current.startsWith(href+'/'));};
  if((group==='business'||group==='personal')&&current==='/app/settings/'+group)return '';
  const allowed=pages.filter(([key])=>!['terms','samples'].includes(key)||exportSettingsShown()).filter(([key])=>viewerRole()==='accountant'?['account','language'].includes(key):viewer.isOwner||!['data','history-policy'].includes(key));
- const links=allowed.map(([key,title])=>{const href='/app/settings/'+group+(key?'/'+key:'');return `<a href="${href}"${current===href?' aria-current="page"':''}>${esc(t(locale,title))}</a>`;}).join('');
- const selected=allowed.find(([key])=>current==='/app/settings/'+group+(key?'/'+key:''));
+ const links=allowed.map(([key,title])=>{const href='/app/settings/'+group+(key?'/'+key:'');return `<a href="${href}"${isCurrent(key)?' aria-current="page"':''}>${esc(t(locale,title))}</a>`;}).join('');
+ const selected=allowed.find(([key])=>isCurrent(key));
  return `<nav class="sa-pages" aria-label="${esc(t(locale,label(group)))}">${links}</nav><details class="area-chooser sa-page-chooser"><summary>${esc(t(locale,selected?.[1]??label(group)))}${GO}</summary><nav aria-label="${esc(t(locale,label(group)))}">${links}</nav></details>`;
 }
 export function renderSettingsGroup(locale:Locale,group:'business'|'personal',viewer:Viewer,flash:Flash|null):string {

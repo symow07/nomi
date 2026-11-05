@@ -28,4 +28,6 @@ Old GET bookmarks authenticate and redirect with their query. Original commands,
 [Books desktop](books-desktop.png) · [Books phone](books-phone.png)  
 [Hours desktop](hours-desktop.png) · [Hours phone](hours-phone.png)  
 
+[Selling confirmation on phone](selling-confirm-phone.png)
+
 See [validation](VALIDATION.md) for coverage and limits.
