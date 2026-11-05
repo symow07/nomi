@@ -29,6 +29,11 @@ Claude's calls, reported on the PR:
 The owner's follow-up the same day: the last message came back on each row as one faded line (#423, no migration). The
 channel's name stays off.
 
+Found on the way: the rare failure of "an invented figure beside a product's name IS held" has a proven cause. The test's
+customer message held a random run id, and an id containing 450 (`a450fbc1`) meant the customer had said the figure, so the
+guard rightly let it through. Forced, it fails with the same `refused 0`. The message now holds no digit of the id. An id like
+that comes up about 1 run in 3,000, rarer than the three failures on record suggest, so another cause can't be ruled out.
+
 Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
 
 ## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)
