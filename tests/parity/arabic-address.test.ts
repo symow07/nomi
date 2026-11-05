@@ -35,6 +35,7 @@ const GENDERED: readonly (readonly [string, string])[] = [
   ['يمكنك أن تختار من ثلاثة ألوان.', 'you can choose'],
   ['هل يمكن أن تخبرني بعنوان التوصيل؟', 'that you tell me'],
   ['هل ترغب في رؤية الكتالوج؟', 'would you like'],
+  ['ما نوع الاعتماد الذي تسأل عنه؟', 'what you are asking about (seen live 2026-11-04)'],
   ['هل تودين معرفة المزيد؟', 'would you like, feminine'],
   ['هل تفضلين التوصيل أم الاستلام؟', 'do you prefer, feminine'],
   ['وتحتاجين كم قطعة؟', 'the feminine «تحتاجين» can only be "you"'],

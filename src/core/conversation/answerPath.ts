@@ -67,6 +67,8 @@ export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, {
   // so the estimate is a ceiling. Production's LLM_MODEL is this id. The cache-hit
   // price read from the same page 2026-11-04.
   'deepseek-flash': { input: usd('0.3'), cachedInput: usd('0.006'), output: usd('1.2'), asOf: '2026-11-04' },
+  // OpenAI's pricing page, Standard tier, read 2026-11-04.
+  'gpt-6-luna': { input: usd('0.1'), cachedInput: usd('0.01'), output: usd('0.5'), asOf: '2026-11-04' },
 };
 
 /** The currency travels with the amount (M43a): an estimate is money, not a bare number. */

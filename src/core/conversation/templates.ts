@@ -53,7 +53,7 @@ export function orderConfirmedReply(input: {
   const lang = input.language ?? 'en';
   // The positioning rewrite (2026-09-30): not every business is a factory,
   // and not every one sends a proforma.
-  if (lang === 'zh') return `你的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。接下来我们会把发票发给你。`;
+  if (lang === 'zh') return `您的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。接下来我们会把发票发给您。`;
   if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}. وستصلك الفاتورة بعد ذلك.`;
   if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}. Te enviaremos la factura a continuación.`;
   if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}. Nous vous enverrons ensuite la facture.`;
@@ -78,11 +78,11 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'product_not_confi
     other: 'I need one more detail before I can confirm — bear with me a moment.',
   },
   zh: {
-    product_not_confirmed_by_client: '确认之前——能确认一下这正是你要的产品吗？',
+    product_not_confirmed_by_client: '确认之前——能确认一下这正是您要的产品吗？',
     quantity_missing: '需要多少？',
     below_minimum: '这个数量低于该产品的最低起订量——可以加一些吗？',
     pending_question_unresolved: '为了确认我们理解一致——能先回答一下上一个问题吗？',
-    handed_off: '我们团队会有人尽快亲自和你确认这个订单。',
+    handed_off: '我们团队会有人尽快亲自和您确认这个订单。',
     missing_product: '想订哪个产品呢？',
     other: '确认之前还需要一个细节——请稍等。',
   },
@@ -178,7 +178,7 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
 /** The positioning rewrite (2026-09-30): "specialists" assumed a sales team; a one-person brand has none. */
 export const HANDOFF_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks — someone from our team will reply to you personally, as soon as they can.',
-  zh: '谢谢——我们团队会有人尽快亲自回复你。',
+  zh: '谢谢——我们团队会有人尽快亲自回复您。',
   ar: 'شكرًا — سيصلك ردّ شخصي من فريقنا في أقرب وقت ممكن.',
   es: 'Gracias. Alguien de nuestro equipo te responderá personalmente en cuanto pueda.',
   fr: "Merci. Quelqu'un de notre équipe vous répondra personnellement dès que possible.",
@@ -193,7 +193,7 @@ export const HANDOFF_REPLIES: Readonly<Record<FixedLanguage, string>> = {
  */
 export const SAFE_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — let me check the details and come back to you shortly.',
-  zh: '谢谢你的消息——我核对一下细节，稍后回复你。',
+  zh: '谢谢您的消息——我核对一下细节，稍后回复您。',
   ar: 'شكرًا على الرسالة — سيتم التحقق من التفاصيل والعودة بالرد قريبًا.',
   es: 'Gracias por tu mensaje. Reviso los detalles y te respondo en breve.',
   fr: 'Merci pour votre message. Je vérifie les détails et je reviens vers vous rapidement.',
@@ -207,7 +207,7 @@ export const SAFE_REPLIES: Readonly<Record<FixedLanguage, string>> = {
  */
 const TELL_ME_MORE: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — could you tell me a little more about what you need?',
-  zh: '谢谢你的消息——能再多说一点你的需求吗？',
+  zh: '谢谢您的消息——能再多说一点您的需求吗？',
   ar: 'شكرًا على الرسالة — يُرجى توضيح المطلوب بتفصيل أكثر.',
   es: 'Gracias por tu mensaje. ¿Puedes contarme un poco más de lo que necesitas?',
   fr: "Merci pour votre message. Pouvez-vous m'en dire un peu plus sur votre besoin ?",

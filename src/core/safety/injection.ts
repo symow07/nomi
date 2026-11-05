@@ -69,7 +69,7 @@ export function detectInjection(text: string): InjectionVerdict {
  */
 export const SAFE_FALLBACK_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — what are you looking for today?',
-  zh: '谢谢你的消息——今天想找什么呢？',
+  zh: '谢谢您的消息——今天想找什么呢？',
   ar: 'شكرًا على الرسالة — ما المطلوب اليوم؟',
   es: 'Gracias por tu mensaje. ¿Qué estás buscando hoy?',
   fr: "Merci pour votre message. Que recherchez-vous aujourd'hui ?",

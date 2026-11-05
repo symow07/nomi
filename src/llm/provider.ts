@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { classifyProviderFailure } from './providerFailure.js';
 import { failureCounts, type CallOutcome } from '../core/ops/modelHealth.js';
+import { openAiFetch, speaksOpenAi, withoutOutputFormat } from './openAiFormat.js';
 
 /**
  * N6a — WHICH model company answers when she needs one.
@@ -13,6 +14,9 @@ import { failureCounts, type CallOutcome } from '../core/ops/modelHealth.js';
  * provider's key and model name. Everything that makes a reply safe — prices
  * from her own engine, the three guards, draft-first — sits after the model
  * and does not care who it is.
+ *
+ * A provider that speaks only the OpenAI chat format is the same client too, with the request and the answer translated
+ * at the fetch (src/llm/openAiFormat.ts); which format is read from its address.
  *
  * ALL THREE, OR NONE. `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` together
  * select another provider; a half-set trio is treated as unset, a warning says
@@ -178,9 +182,13 @@ export const llmClient = (
   p: LlmProvider,
   o: { readonly observe?: ProviderObserver; readonly fetch?: FetchLike; readonly onCall?: CallObserver } = {},
 ): Anthropic => {
+  const base = o.fetch ?? fetch;
   const client = new Anthropic({
     apiKey: p.apiKey, ...(p.baseURL ? { baseURL: p.baseURL } : {}),
-    fetch: wholeResponseFetch(o.fetch ?? fetch, o.observe),
+    fetch: wholeResponseFetch(
+      p.baseURL && speaksOpenAi(p.baseURL) ? openAiFetch(p.baseURL, p.apiKey, base) : withoutOutputFormat(base),
+      o.observe,
+    ),
   });
   return o.onCall ? timedClient(client, o.onCall) : client;
 };

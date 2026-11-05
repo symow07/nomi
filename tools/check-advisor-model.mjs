@@ -118,7 +118,7 @@ const FACTS = (l) => {
   const L = (k, p = {}) => t(l, k, p);
   const n = (x) => show.count(l, x);
   const day = (iso) => show.date(l, new Date(iso));
-  const usd = (x) => show.money(l, moneyFromRow(x, 'USD'));
+  const usd = (x) => show.money(l, moneyFromRow(String(x), 'USD'));
   const median = show.timeLeft(l, 2 * 3_600_000 + 5 * 60_000);
   return [
     { q: ROUTES[0][2], facts: [L('advisor.k.customers', { n: n(12) })], names: [] },

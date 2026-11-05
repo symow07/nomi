@@ -523,7 +523,7 @@ export function namesAPerson(text: string): boolean {
  */
 export const OPT_OUT_REPLIES = {
   en: "Done — we won't send you any more messages. If you write to us again, we'll reply.",
-  zh: '好的，我们不会再给你发消息。如果你再联系我们，我们会回复。',
+  zh: '好的，我们不会再给您发消息。如果您再联系我们，我们会回复。',
   ar: 'تم، لن تصل أي رسائل أخرى منا. وعند الكتابة إلينا مجددًا يصل الرد.',
   es: 'Hecho: no te enviaremos más mensajes. Si nos escribes de nuevo, te responderemos.',
   fr: "C'est noté : nous ne vous enverrons plus de messages. Si vous nous écrivez à nouveau, nous vous répondrons.",

@@ -74,7 +74,7 @@ const PRE = '(?:[وف])?(?:[اسبحه])?';
 const POST = '(?:ين|ي)?(?:ه|ها|هم|هما|ني|نا)?';
 
 /** Verbs whose subject, in a reply, can only be a person — so, here, the buyer. */
-const PERSON_ONLY = ['ريد', 'رغب', 'ود', 'بحث', 'قصد', 'نو', 'خطط', 'فكر', 'تردد', 'قلق',
+const PERSON_ONLY = ['ريد', 'رغب', 'ود', 'بحث', 'قصد', 'نو', 'خطط', 'فكر', 'تردد', 'قلق', 'سال',
   // and the dialects' (seen live 2026-10-14): «تحب تشوف», «كنت تدور», «تقولي»
   'حب', 'شوف', 'دور', 'قول'];
 /** Verbs a thing can be the subject of: caught only in BUYER_FRAME. */

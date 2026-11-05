@@ -255,7 +255,7 @@ describe('D9 · the unsubscribe link stops everything until they write again, an
     expect(src).toMatch(/withTenantTx\(db, bid\.value, async \(tx\) => \{\s*await suppress\([\s\S]*?\);\s*await recordAddressStop\(tx, bid\.value/);
   });
   it('every language says nothing more goes unless they write to the business again', () => {
-    const again = { en: /unless you write to the business again/, zh: /除非你再次写信给商家/, ar: /إلا إذا وصلت منه رسالة جديدة/, es: /salvo si vuelves a escribir al negocio/, fr: /sauf si vous écrivez de nouveau/ } as const;
+    const again = { en: /unless you write to the business again/, zh: /除非您再次写信给商家/, ar: /إلا إذا وصلت منه رسالة جديدة/, es: /salvo si vuelves a escribir al negocio/, fr: /sauf si vous écrivez de nouveau/ } as const;
     for (const l of LOCALES) {
       expect(t(l, 'unsub.body'), l).toMatch(again[l]);
       expect(t(l, 'unsub.done.body'), l).toMatch(again[l]);
@@ -351,7 +351,7 @@ describe('D16 · the advisor: a title an erasure cleared, what is not encrypted,
   it('every language says what is not encrypted, that a surviving conversation loses its title, and every way history goes', () => {
     const notEncrypted = { en: /What is not encrypted/, zh: /不加密的部分/, ar: /وما لا يُشفَّر/, es: /Lo que no se cifra/, fr: /Ce qui n’est pas chiffré/ } as const;
     const title = { en: /loses its title/, zh: /失去标题/, ar: /عنوانها/, es: /pierde su título/, fr: /perd son titre/ } as const;
-    const team = { en: /when you leave the team/, zh: /你离开团队/, ar: /عند الخروج من الفريق/, es: /cuando sales del equipo/, fr: /quand vous quittez l’équipe/ } as const;
+    const team = { en: /when you leave the team/, zh: /您离开团队/, ar: /عند الخروج من الفريق/, es: /cuando sales del equipo/, fr: /quand vous quittez l’équipe/ } as const;
     for (const l of LOCALES) {
       expect(t(l, 'legal.privacy.advisor.nobody'), l).toMatch(notEncrypted[l]);
       expect(t(l, 'legal.privacy.advisor.customers'), l).toMatch(title[l]);

@@ -3,6 +3,7 @@ import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import { readWriterOutput } from '../core/safety/rawOutput.js';
+import { ANALYSIS_SCHEMA, WRITER_SCHEMA } from './outputSchemas.js';
 import type { ModelUsage, Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel, DocumentReader } from './ports.js';
 import { parseFactsAnswer, PAGE_FACTS_OUTPUT_MAX } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
@@ -155,6 +156,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
         ...extra,
         max_tokens: 1200,
         temperature: 0.2,
+        output_config: { format: { type: 'json_schema', schema: ANALYSIS_SCHEMA } },
         system: prompt.text,
         messages: [{
           role: 'user',
@@ -327,6 +329,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         ...extra,
         max_tokens: 600,
         temperature: 0.3,
+        output_config: { format: { type: 'json_schema', schema: WRITER_SCHEMA } },
         system: prompt.text + guard,
         messages: [{
           role: 'user',
@@ -481,7 +484,8 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
             ? '\n\nEarlier questions in this conversation, oldest first, with the entry each was routed to and what it named. ' +
               'Use them ONLY when the new question clearly points back to one of them — a pronoun ("she", "her", "they"), ' +
               '"this customer", "that customer", "that order", "the same product", or a bare "and this week?": ' +
-              'then copy the name or value from there. Never take a name or value from them otherwise.\n' +
+              'then copy the name or value from there. A pronoun in any language counts ("她", "他"), and so does a verb about one person with no name, ' +
+              'in a language that drops the subject ("¿Cuándo nos escribió?"). Never take a name or value from them otherwise.\n' +
               earlier.slice(-3).map((e, i) => `${i + 1}. "${e.question.slice(0, 300)}" -> ${e.entry} ${JSON.stringify(e.params)}`).join('\n')
             : ''),
         messages: [{ role: 'user', content: question.slice(0, 1000) }],

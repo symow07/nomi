@@ -94,21 +94,21 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptMeta: /copies Meta itself holds/,
   },
   zh: {
-    businessDeletes: /商家在 Nomi 里看到你的要求。商家在那里删除你的数据时/,
+    businessDeletes: /商家在 Nomi 里看到您的要求。商家在那里删除您的数据时/,
     gone: /删除立即生效：数据被真正删掉，而不是隐藏起来/,
-    notWritten: /Nomi 不会就删除另外联系你/,
+    notWritten: /Nomi 不会就删除另外联系您/,
     noForm: /这一页上故意没有表单/,
-    closedWorkspace: /如果商家关闭自己的 Nomi 工作台，其中的一切都会被清除，包括你的数据/,
-    erasedIdentity: /你在各个渠道上的身份/,
-    erasedPhoto: /你在 Instagram 或 Messenger 上的头像/,
+    closedWorkspace: /如果商家关闭自己的 Nomi 工作台，其中的一切都会被清除，包括您的数据/,
+    erasedIdentity: /您在各个渠道上的身份/,
+    erasedPhoto: /您在 Instagram 或 Messenger 上的头像/,
     erasedMessages: /往来的每一条消息/,
-    erasedPrepared: /为你准备的回复，以及任何给你的价格或样品申请/,
+    erasedPrepared: /为您准备的回复，以及任何给您的价格或样品申请/,
     erasedNotes: /备注和标记/,
-    erasedConversations: /为保留你下过的订单所必需的部分除外/,
-    keptOrders: /你下过的订单[^。]*不再关联你的联系方式和消息/,
+    erasedConversations: /为保留您下过的订单所必需的部分除外/,
+    keptOrders: /您下过的订单[^。]*不再关联您的联系方式和消息/,
     keptDoNotContact: /不会再向这个地址或账号发送/, // D10 (0140) — a stop on any channel's account stays too
-    keptRecord: /你提出过删除要求，以及何时完成。其中不含任何被删除的内容/,
-    keptBackups: /备份不会为删除某一个人而修改；你的数据会随该备份被删除而消失/,
+    keptRecord: /您提出过删除要求，以及何时完成。其中不含任何被删除的内容/,
+    keptBackups: /备份不会为删除某一个人而修改；您的数据会随该备份被删除而消失/,
     keptRestored: /该备份之后做过的每一次删除，都会在服务运行之前重新执行/,
     keptMeta: /Meta 自己保存的副本/,
   },
@@ -182,7 +182,7 @@ const NEVER: Record<Locale, readonly RegExp[]> = {
   en: [/same channel/i, /we will (tell|notify|confirm|let you know)/i, /you (are|will be|get) (told|notified)/i,
        /(receive|get|are sent) a confirmation/i, /confirm(ed|ation)? (to you|on the)/i, /automatic/i,
        /by hand/i, /within 30 days/i],
-  zh: [/同一个渠道/, /同一渠道/, /会(通知|告诉)你/, /给你确认/, /自动/, /手动/, /30 天内/],
+  zh: [/同一个渠道/, /同一渠道/, /会(通知|告诉)您/, /给您确认/, /自动/, /手动/, /30 天内/],
   ar: [/القناة نفسها/, /نفس القناة/, /يصل إشعار/, /سنبلغك|سنخبرك|سنعلمك/, /تلقائي/, /يدويًا|يدويا/, /خلال 30 يومًا/],
   es: [/mismo canal/i, /te (avisamos|avisaremos|confirmaremos|notificaremos|diremos)/i, /recibir[áa]s una confirmaci[óo]n/i,
        /autom[áa]tic/i, /a mano/i, /30 días/i],
@@ -225,7 +225,7 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     expect(NEVER.en.some((re) => re.test('You receive a confirmation when it is done.'))).toBe(true);
     expect(NEVER.en.some((re) => re.test('Removal is automatic.'))).toBe(true);
     expect(NEVER.en.some((re) => re.test('We will tell you when it is done.'))).toBe(true);
-    expect(NEVER.zh.some((re) => re.test('完成后我们会通知你。'))).toBe(true);
+    expect(NEVER.zh.some((re) => re.test('完成后我们会通知您。'))).toBe(true);
     expect(NEVER.ar.some((re) => re.test('يتم الحذف بشكل تلقائي.'))).toBe(true);
     // 0126 — the page CC-02a wrote: an operator, by hand, within 30 days. Not what happens now.
     expect(NEVER.en.some((re) => re.test('Nomi’s operator carries out the deletion by hand, within 30 days of the business recording the request.'))).toBe(true);
