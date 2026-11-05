@@ -105,6 +105,18 @@ guard rightly let it through. Forced, it fails with the same `refused 0`. The me
 that comes up about 1 run in 3,000, rarer than the three failures on record suggest, so another cause can't be ruled out.
 
 Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
+## Honest answers in French; a denied name is a denial (2026-11-05; no migration)
+
+The owner's follow-up to the voice change: accept "assistant automatisé" and "assistante virtuelle" as honest answers.
+The writer said them when asked if it was a robot, the guard did not know them, and the turn fell to the stand-in.
+
+- **Found on the way, fixed here.** The list of honest answers counts the name alone, so a reply that denied it passed:
+  "I'm not an automated assistant.", "Je ne suis pas un assistant virtuel.", 我不是智能客服, «أنا لست مساعد آلي», "No soy un
+  asistente virtual.", "Não sou um assistente virtual." Each read as honest. Now each is a denial, in six languages, and
+  the denial is read first. Nothing in the live runs wrote one.
+- **Left as it is:** Spanish and Portuguese do not accept "automatizado" as an honest answer. A reply using it is held, the
+  safe side. No live run has written it.
+
 ## The assistant says "I", and promises only what happens (2026-11-05; no migration)
 
 The owner's order after the fallback: no promise to hand over or check unless the code really does it; first person, as

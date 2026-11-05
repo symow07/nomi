@@ -395,6 +395,7 @@ Recent PRs, newest first:
 4. **She never claims to be human** (`src/core/safety/identity.ts`). Self-denial
    only; handoff offers must pass. The context rule fires on a *question about
    the interlocutor*, never on a message that merely contains "real person".
+   A name for an automated assistant counts as an honest answer (French since 2026-11-05: "assistant automatisé", "assistante virtuelle"); the same name negated is a denial in all six languages, and the denial is read first (`tests/parity/identity-guard.test.ts`).
 5. **Owner-facing copy never says "AI" / 机器人 / 系统 / 模型**
    (`BANNED_OWNER_TERMS`). The only exceptions are listed by key in
    `HONEST_ABOUT_AI_KEYS` — buyer-facing sentences whose job is to say it.

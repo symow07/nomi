@@ -373,3 +373,82 @@ describe('the question and the acknowledgment, on their own', () => {
     expect(acknowledgesAi('我是人工智能助手。')).toBe(true);
   });
 });
+
+// The name alone counts as honest, so a negated name must be caught first: it read as honest in every language until 2026-11-05.
+describe('a name for an automated assistant, said and denied', () => {
+  const ASKED = 'est-ce que je parle à un robot ?';
+  const HONEST_FR = [
+    'Oui, vous échangez avec un assistant automatisé.', // live, gpt-6-luna: fell to the stand-in
+    'Oui, je suis l’assistante virtuelle de Trust Factory.', // live, gpt-6-luna: fell to the stand-in
+    'Oui, je suis une assistante automatisée.',
+    'Je suis votre assistant automatisé, que recherchez-vous ?',
+    'Je suis un assistant virtuel.',
+    "Je suis l'assistante d'IA de la boutique.",
+    'ASSISTANT AUTOMATISÉ', // the capital É, which \\b also misses
+  ];
+  for (const reply of HONEST_FR) {
+    it(`honest — ${JSON.stringify(reply)}`, () => {
+      expect(findDenial(reply)).toBeNull();
+      expect(guardIdentity({ reply, buyerText: ASKED }).ok).toBe(true);
+    });
+  }
+  const NOT_THE_NAME_FR = [
+    'Notre assistante vous répondra.', // a person's job
+    'Un assistant automatisant les commandes.', // not the word
+    'Nous avons une assistante virtuose.', // not the word
+    'Bien sûr, quelle taille ?',
+  ];
+  for (const reply of NOT_THE_NAME_FR) {
+    it(`no answer — ${JSON.stringify(reply)}`, () => {
+      expect(acknowledgesAi(reply)).toBe(false);
+      expect(guardIdentity({ reply, buyerText: ASKED }).ok).toBe(false);
+    });
+  }
+  const DENIED = [
+    "I'm not an automated assistant.",
+    'I am not a virtual assistant.',
+    'This is not an automated reply.',
+    "This isn't an AI assistant.",
+    'Je ne suis pas un assistant virtuel.',
+    'Je ne suis pas un assistant automatisé.',
+    'Je ne suis pas une assistante virtuelle.',
+    "Je ne suis pas un assistant d'IA.",
+    "Je ne suis pas l'IA de la boutique.",
+    "J'suis pas un assistant virtuel.",
+    'No soy un asistente virtual.',
+    'No soy un asistente de IA.',
+    'No soy una asistente automática.',
+    'Não sou um assistente virtual.',
+    'Não sou uma assistente de IA.',
+    '我不是智能客服',
+    '我不是虚拟助手',
+    '这不是自动回复',
+    'أنا لست مساعد آلي',
+    'لست مساعدًا آليًا',
+    'لستُ مساعدة آلية',
+    'أنا مش مساعد آلي',
+  ];
+  for (const reply of DENIED) {
+    it(`denied — ${JSON.stringify(reply)}`, () => {
+      expect(findDenial(reply), reply).not.toBeNull();
+      const r = guardIdentity({ reply });
+      expect(r.ok).toBe(false);
+    });
+  }
+  const NOT_DENIALS = [
+    "I'm not sure which product you mean.",
+    "It's not a digital product.", // the goods, not the speaker
+    'This is not a printed bag.',
+    'Je ne suis pas certain de la taille.',
+    'No soy experto en tallas.',
+    'Não sou especialista em tamanhos.',
+    '我不是很确定您指的是哪款产品。',
+    'لست متأكدًا من المنتج المقصود.',
+    "I'm an AI assistant, not a person.",
+    'Je suis un assistant virtuel, pas une personne.',
+  ];
+  for (const reply of NOT_DENIALS) {
+    it(`no denial — ${JSON.stringify(reply)}`, () => { expect(findDenial(reply), reply).toBeNull(); });
+  }
+});
+
