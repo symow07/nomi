@@ -35,6 +35,26 @@ guard rightly let it through. Forced, it fails with the same `refused 0`. The me
 that comes up about 1 run in 3,000, rarer than the three failures on record suggest, so another cause can't be ruled out.
 
 Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
+## The fallback answers, at Anthropic's own address (2026-11-05; no migration)
+
+The third PR of the owner's decision of 2026-11-04. Merging switches nothing: failing over is still `LLM_FALLBACK=on`.
+
+- **The request, at `api.anthropic.com` only** (`anthropicsOwnFetch`): the forced schema stays, no `temperature` (the
+  model answers any with a 400, and a 400 does not fail over, so every call that reached it would have been lost), low
+  effort, thinking off, `inference_geo: "us"`. Any other address in that format is unchanged.
+- **Named everywhere it goes.** Everything that asks a model fails over, not only replies, so while it is on the
+  privacy page names both companies for the advisor and the document reader too, and so does the deletion page
+  (`legal.privacy.processorOrFallback`, five languages, listed in `docs/NATIVE-REVIEW-UI.md`). The page still says
+  nothing about what Anthropic keeps: `PROVIDER_LINES` has no line until its terms are read and checked.
+- **The live run** (the real clients; the primary faked as down, so nothing left for it): en, zh and ar each answered
+  through the real analyser and writer. Person, price-first, options and the advisor's routing all as expected.
+- **The numbers are in the private notes,** with the comparison behind the decision.
+
+### Found on the way
+
+- **A turn on the fallback is recorded under the primary's model.** `modelId` is the model the writer was built with,
+  so the provenance and the cost estimate say the primary's. Left as it is: the prices are close, and the log says when
+  it failed over. A real fix reads the model from the answer and its price table.
 
 ## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)
 

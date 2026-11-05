@@ -16548,3 +16548,11 @@ New lines in zh, ar, es and fr, none read by a native reader. Not a gate. They a
 - **Added 2026-11-05 (not behind the preview):** the page is 客户 / العملاء / Clientes / Clients in every sentence that names it. To read: `today.needs.all.*` (「客户」页的全部 {n} 位 / العملاء: {n} في المجموع / Clientes: {n} en total / Clients : {n} au total), `labels.lede`, `labels.archiveAsk`, `today.providerBilling.body`, `guide.first_success.cap.3`. The Arabic no longer varies by number here.
 - **Added 2026-11-05 (behind the preview):** the Inbox's views and stage filter. To read: `inbox.view.quiet`, `.assistant`, `.team`, `.all` as 久无回音, 助手在跟进, 团队在跟进, 全部客户 / انقطع التواصل, مع المساعد, مع الفريق, الجميع / Sin noticias, Con tu asistente, Con tu equipo, Todo el mundo / Sans nouvelles, Avec votre assistant, Avec votre équipe, Tout le monde; `inbox.stage.label`, `.all`; `inbox.empty.quiet`, `.assistant`, `.team`, `.stage`.
 - **Changed 2026-11-05 (not behind the preview):** the line above saying the page is 客户 / العملاء / Clientes / Clients is reversed the same day. The page is 收件箱 / الرسائل / Mensajes / Messages again, the lines from before it, as the audit B15 section lists them. Nothing new to read in those keys. The Arabic, Spanish and French words literally say "messages"; that is the choice to check.
+
+
+## The second language service on the privacy page (2026-11-05)
+
+New line in zh, ar, es and fr, none read by a native reader. Not a gate. It appears only while failing over is on.
+
+- **Key:** `legal.privacy.processorOrFallback`, inside the sentences that name where the words go (advisor, the owner's section, the document reader, the deletion page).
+- **To check:** that each language reads well with a company's name and country either side of it: 「{processor}（{primary}没有回应时改用{fallback}）」, «{processor}، أو {fallback} عند عدم استجابة {primary}», "{processor}, o {fallback} cuando {primary} no responde", "{processor}, ou {fallback} lorsque {primary} ne répond pas".

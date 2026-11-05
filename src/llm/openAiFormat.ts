@@ -95,6 +95,26 @@ export function openAiFetch(baseURL: string, apiKey: string, base: FetchLike = f
   };
 }
 
+/** Is this Anthropic's own API, as opposed to another company's address that speaks its format? */
+export function isAnthropicsOwn(baseURL: string | null): boolean {
+  if (!baseURL) return false;
+  try { return new URL(baseURL).hostname.toLowerCase() === 'api.anthropic.com'; } catch { return false; }
+}
+
+/**
+ * ANTHROPIC'S OWN ADDRESS, as the fallback: the forced schema stays. No sampling parameter: its current Haiku answers
+ * any with a 400, and a 400 does not fail over (`failureCounts`), so every call that reached it would be lost. Low effort,
+ * the setting it was measured at. And the model runs in the United States, where the privacy page says the text goes.
+ */
+export function anthropicsOwnFetch(base: FetchLike = fetch): FetchLike {
+  return (input, init) => {
+    if (typeof init?.body !== 'string') return base(input, init);
+    const { temperature: _dropped, output_config: config, ...rest } = JSON.parse(init.body) as Obj;
+    const output_config = { ...(isObj(config) ? config : {}), effort: 'low' };
+    return base(input, { ...init, body: JSON.stringify({ ...rest, output_config, inference_geo: 'us' }) });
+  };
+}
+
 /** A forced JSON schema is asked of the model only where the provider's format is known to take one. */
 export function withoutOutputFormat(base: FetchLike = fetch): FetchLike {
   return (input, init) => {

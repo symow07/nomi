@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { classifyProviderFailure } from './providerFailure.js';
 import { failureCounts, type CallOutcome } from '../core/ops/modelHealth.js';
-import { openAiFetch, speaksOpenAi, withoutOutputFormat } from './openAiFormat.js';
+import { anthropicsOwnFetch, isAnthropicsOwn, openAiFetch, speaksOpenAi, withoutOutputFormat } from './openAiFormat.js';
 
 /**
  * N6a — WHICH model company answers when she needs one.
@@ -64,7 +64,8 @@ export function llmProviderFrom(env: Record<string, string | undefined>, anthrop
  * primary's; a half-set trio is warned about and unused. Any provider that speaks Anthropic's message format at its
  * own address (Anthropic itself: `https://api.anthropic.com`). Configured, it is CHECKED every five minutes (so it is
  * known to work before it is needed) and measured by the tools' `--fallback` (tools/lib/model-env.mjs); it ANSWERS
- * only while `LLM_FALLBACK=on`.
+ * only while `LLM_FALLBACK=on`. At Anthropic's own address the model is one that takes `effort` and `inference_geo`
+ * (`claude-haiku-5-5`: see `anthropicsOwnFetch`); an older one answers those with a 400.
  */
 export function llmFallbackFrom(env: Record<string, string | undefined>): LlmProvider | null {
   const baseURL = env['LLM_FALLBACK_BASE_URL']?.trim() ?? '';
@@ -186,7 +187,9 @@ export const llmClient = (
   const client = new Anthropic({
     apiKey: p.apiKey, ...(p.baseURL ? { baseURL: p.baseURL } : {}),
     fetch: wholeResponseFetch(
-      p.baseURL && speaksOpenAi(p.baseURL) ? openAiFetch(p.baseURL, p.apiKey, base) : withoutOutputFormat(base),
+      p.baseURL && speaksOpenAi(p.baseURL) ? openAiFetch(p.baseURL, p.apiKey, base)
+        : isAnthropicsOwn(p.baseURL) ? anthropicsOwnFetch(base)
+        : withoutOutputFormat(base),
       o.observe,
     ),
   });
