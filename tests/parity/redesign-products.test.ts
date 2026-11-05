@@ -78,7 +78,7 @@ describe('Products area presentation',()=>{
   expect(configured).toContain('<details class="product-optional" open>');
   expect(configured).toContain('value="12"');
  });
- it('uses canonical price-limit links while refused forms keep their original POST and fragment',()=>{
+ it('uses canonical price-limit links while refused forms keep their original POST and field focus',()=>{
   const rules={floor:usd('10'),maxDiscountPct:8,askAbovePct:5};
   const view:PriceRulesView={currency:'USD',unanswered:0,businessDefault:rules,products:[{productId:id,isActive:true,name:'Canvas tote',nameZh:null,sku:'TOTE',listPrice:usd('20'),own:rules,inheritsDefault:false}],volume:[]};
   const html=renderPriceRules(view,'en',null,{floor:'not_a_number'},{productId:id,values:{floor:'oops',maxDiscountPct:'8',askAbovePct:'5'}});
