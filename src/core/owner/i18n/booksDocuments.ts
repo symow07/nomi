@@ -1,0 +1,23 @@
+/** Books document presentation additions; existing locales use English fallback. */
+export const BOOKS_DOCUMENTS_EN = {
+ 'bankDocs.scope':'Statement lines for {account}. Match them to entries already recorded in your books.',
+ 'bankDocs.import':'Read a bank statement', 'bankDocs.review':'Review statement lines',
+ 'bankDocs.unmatchedOne':'{n} unmatched line shown', 'bankDocs.unmatchedMany':'{n} unmatched lines shown',
+ 'bankDocs.matchedOne':'{n} matched line shown', 'bankDocs.matchedMany':'{n} matched lines shown',
+ 'bankDocs.shownScope':'These are the statement lines shown for this account, not an account balance.',
+ 'bankDocs.amount':'Statement amount', 'bankDocs.reference':'Reference',
+ 'bankDocs.noDescription':'No description on this statement line', 'bankDocs.preview':'First rows from your file',
+ 'bankDocs.mapDate':'Date columns', 'bankDocs.mapAmounts':'Amounts and currency', 'bankDocs.mapDetails':'Description and reference',
+
+ 'booksDocs.tax':'Tax', 'booksDocs.subtotal':'Before tax',
+ 'booksDocs.invoice':'Invoice', 'booksDocs.creditNote':'Credit note', 'booksDocs.issuer':'From',
+ 'booksDocs.currentIssuerDraft':'Current business details.',
+ 'booksDocs.currentIssuer':'Current business details — these were not copied when the document was issued.',
+ 'booksDocs.issuerMissing':'Business details are unavailable.', 'booksDocs.line':'Line {n}',
+ 'booksDocs.search':'Search invoices', 'booksDocs.searchHint':'Invoice number or customer', 'booksDocs.state':'Show',
+ 'booksDocs.all':'All invoices', 'booksDocs.unpaid':'Unpaid', 'booksDocs.show':'Show results', 'booksDocs.clear':'Clear filters',
+ 'booksDocs.pages':'Invoice pages', 'booksDocs.range':'{from}–{to} of {total}', 'booksDocs.previous':'Previous', 'booksDocs.next':'Next',
+ 'booksDocs.noMatch':'No invoices match these filters.', 'booksDocs.notIssued':'Not issued', 'booksDocs.noDue':'No due date',
+ 'booksDocs.lines':'Items', 'booksDocs.details':'Invoice details', 'booksDocs.actions':'Manage this invoice',
+ 'booksDocs.creditActions':'Manage this credit note', 'booksDocs.currency':'Amounts in {currency}',
+} as const;

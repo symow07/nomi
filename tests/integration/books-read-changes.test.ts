@@ -113,7 +113,7 @@ d('B5 · reading changes (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { time
     try {
       const login = await app.inject({ method: 'POST', url: '/login', payload: `code=${CODE}`, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
       const cookie = ([] as string[]).concat((login.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session='))!;
-      const page = async () => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie } })).body;
+      const page = async () => (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie } })).body;
       expect(await page()).not.toContain('Not answering');
       await admin.query(`update books_connections set last_ok_at = now() - interval '3 days' where business_id = $1 and system = 'odoo'`, [BIZ]);
       const silent = await page();

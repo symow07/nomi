@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { booksMay, BOOKS_ACTIONS } from '../../src/core/conversation/people.js';
-import { booksRouteOf, ACCOUNTANT_ALSO, renderBooksHome } from '../../src/api/web/books.js';
+import { booksRouteOf, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
+import { renderBooksOverview } from '../../src/api/web/booksOverview.js';
+import type { BooksOverview } from '../../src/db/booksOverview.js';
+import { decimal } from '../../src/core/types/decimal.js';
 import { unnamedRecipientProblems } from '../../src/core/legal/recipients.js';
 
 /** A5 (Phase 5; decision 12) — the three roles as one predicate, and the books' new processors held at the boot (D18). */
@@ -21,9 +24,19 @@ describe('A5 · who may do what in the books', () => {
     expect([...ACCOUNTANT_ALSO]).toEqual(['POST /logout', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language']);
   });
   it('the books\' home says to an accountant that posting is the owner\'s', () => {
-    const b = { hasBooks: true, keepUntil: null, law: null, lastCopyAt: null, copyCoversAll: false };
-    expect(renderBooksHome('en', { isOwner: false, kind: 'accountant' }, b)).toMatch(/Posting entries is the owner(&#39;|&#x27;|')s/);
-    expect(renderBooksHome('en', { isOwner: true }, b)).not.toContain('Posting entries is the owner');
+    const b: BooksOverview = {
+      today:'2026-11-01',bookCurrency:'GBP',month:{from:'2026-11-01',to:'2026-11-01'},fiscalYear:null,
+      needsYou:{overdueInvoices:0,unmatchedLines:0,papers:{unread:0,problem:0,ready:0,draft:0,posted:0,setAside:0,pending:0}},
+      customerOwed:{byCurrency:[]},profit:{amount:decimal('0'),from:'2026-01-01',to:'2026-11-01',basis:'calendar'},
+      cash:{state:'needs_setup',received:null,paidOut:null,selectedIds:[],transferIds:[],reviewEntryIds:[],reviewCount:0,excludedTransferCount:0},
+      supplierOwed:{state:'needs_setup',owed:null,advances:null,knownOwed:decimal('0'),knownAdvances:decimal('0'),unassignedOwed:decimal('0'),unassignedAdvances:decimal('0'),selectedIds:[]},
+    };
+    const page=(isOwner:boolean)=>renderBooksOverview('en',isOwner?owner:accountant,b,{today:b.today},[],[],{year:false,accounts:false});
+    expect(page(false)).toContain('Only the owner can save changes to the books.');
+    expect(page(true)).not.toContain('Only the owner can save changes to the books.');
+    expect(page(false)).not.toContain('href="/app/books/invoices/new"');
+    expect(page(false)).not.toContain('href="/app/settings/books/accounts"');
+    expect(page(true)).toContain('href="/app/books/invoices/new"');
   });
 });
 

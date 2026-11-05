@@ -37,7 +37,7 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
   };
   const post = (url: string, body: Record<string, string> = {}, who = owner) => app.inject({ method: 'POST', url, payload: new URLSearchParams(body).toString(),
     headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
-  const page = async (qs = '', who = owner) => (await app.inject({ method: 'GET', url: `/app/books/closing${qs}`, headers: { cookie: who } })).body;
+  const page = async (qs = '', who = owner) => (await app.inject({ method: 'GET', url: `/app/books/year-end${qs}`, headers: { cookie: who } })).body;
   /** An entry in the sales journal; posted unless asked not to. */
   const entry = (day: string, lines: [string, string, string][], posted = true) => as(async (q) => {
     const e = (await q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values (current_business_id(), $1, $2, $3, $4, 'owner') returning id::text as id`,
@@ -169,7 +169,7 @@ d('D2 · closing the books (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     // a year not ended yet is not closed
     expect(await notice(await post('/app/books/closing/year', { year: k.fy2026, result: k.result, journal: k.cl }))).toContain('A year is closed once it has ended');
     const closed = await post('/app/books/closing/year', { year: k.fy2025, result: k.result, journal: k.cl });
-    expect(await notice(closed)).toContain('The year is closed, its closing entry posted.');
+    expect(await notice(closed)).toContain('The year is closed and its closing record is saved.');
     const closing = (await as((q) => q(`select a.code, l.debit::text, l.credit::text from journal_entries e join journal_lines l on l.entry_id = e.id
       join accounts a on a.id = l.account_id where e.journal_id = $1 and e.state = 'posted' order by l.line_no`, [k.cl]))).rows;
     expect(closing).toEqual([{ code: '6111', debit: '0.00', credit: '300.00' }, { code: '7111', debit: '1000.00', credit: '0.00' }, { code: '1191', debit: '0.00', credit: '700.00' }]);

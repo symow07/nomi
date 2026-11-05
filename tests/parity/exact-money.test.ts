@@ -25,6 +25,8 @@ const HOME = new Set(['src/core/types/money.ts', 'src/core/types/decimal.ts']);
  * excused by an old one.
  */
 const ALLOWED: readonly { readonly file: string; readonly text: string; readonly why: string }[] = [
+  { file: 'src/db/booksOverview.ts', text: "sum(case when ip.kind='refund' then -ip.amount else ip.amount end)",
+    why: 'PostgreSQL numeric arithmetic inside the dated invoice-balance SQL template; no JavaScript arithmetic or floating-point conversion' },
   { file: 'src/db/providerState.ts', text: 'total: Number(r.total)',
     why: "the operator's own model-provider balance (the DeepSeek account), read for the days-left estimate of an alert: not a shop's money, never shown to a buyer, never in the books" },
   { file: 'src/core/ops/providerWatch.ts', text: 'Math.max(0, line.total / perDay)',

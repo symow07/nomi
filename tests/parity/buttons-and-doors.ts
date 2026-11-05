@@ -10,12 +10,16 @@
  *     rule exists to end: Today's "Review" was a link dressed as an action;
  *   · a form that posts has a button to post it with.
  *
- * THE ONE EXCEPTION, AND ITS HARD CAP (the owner, Phase 3 stop-gate,
+ * THE FIRST EXCEPTION, AND ITS HARD CAP (the owner, Phase 3 stop-gate,
  * 2026-10-13): "Do it now" on the FIRST INCOMPLETE STEP of setting up may be a
  * link drawn as a filled button — `firstStepButton` in src/api/web/guide.ts,
  * marked `data-first-step`. At most ONE filled button on a page that carries
  * it (that one), and only on the first incomplete step; any other link drawn
  * as a button is still the mix this rule exists to end.
+ *
+ * BOOKS OVERVIEW (approved Area 5 brief, 2026-11-05): exactly three marked navigation
+ * buttons may start New invoice, Add receipt and Read statement inside .ba-overview.
+ * Their targets are fixed; the marker grants no exception anywhere else.
  *
  * The components gallery (/app/settings/components) draws buttons as
  * specimens, outside any form, on purpose: callers skip it by name.
@@ -23,12 +27,20 @@
 export function buttonsAndDoors(html: string): string[] {
   const problems: string[] = [];
   const forms: { post: boolean; submit: boolean }[] = [];
+  const divs: boolean[] = [];
+  const booksActions: string[] = [];
+  const booksTargets = new Set(['/app/books/invoices/new','/app/books/spending#receipt-upload','/app/books/bank#read-statement']);
   let firstStep = 0;
   let filled = 0;
-  for (const m of html.matchAll(/<(\/?)(form|button|a|input)\b([^>]*)>/gi)) {
+  for (const m of html.matchAll(/<(\/?)(form|button|a|input|div)\b([^>]*)>/gi)) {
     const close = m[1] === '/';
     const tag = m[2]!.toLowerCase();
     const attrs = m[3] ?? '';
+    if (tag === 'div') {
+      if (close) divs.pop();
+      else divs.push(Boolean(divs.at(-1)) || (/\bclass="([^"]*)"/i.exec(attrs)?.[1] ?? '').split(/\s+/).includes('ba-overview'));
+      continue;
+    }
     if (!close && (tag === 'a' || tag === 'button') && /\bclass="(?:[^"]*\s)?btn\s(?:[^"]*\s)?send(?:[\s"])/i.test(attrs)) filled++;
     if (tag === 'form') {
       if (close) {
@@ -48,9 +60,14 @@ export function buttonsAndDoors(html: string): string[] {
       forms[forms.length - 1]!.submit = true;
     } else if (tag === 'a' && !close && /\bclass="(?:[^"]*\s)?btn(?:[\s"])/i.test(attrs)) {
       if (/\sdata-first-step(?:[\s=]|$)/i.test(attrs)) firstStep++;
-      else problems.push(`a link drawn as a button: ${/\bhref="([^"]*)"/i.exec(attrs)?.[1] ?? '(no href)'}`);
+      else {
+        const href = /\bhref="([^"]*)"/i.exec(attrs)?.[1] ?? '(no href)';
+        if (divs.at(-1) && /\sdata-books-action(?:[\s=]|$)/i.test(attrs) && booksTargets.has(href)) booksActions.push(href);
+        else problems.push(`a link drawn as a button: ${href}`);
+      }
     }
   }
+  if (booksActions.length && (booksActions.length !== 3 || new Set(booksActions).size !== 3)) problems.push('Books overview actions must contain the three approved destinations once each');
   if (firstStep > 1) problems.push(`${firstStep} first-step buttons on one page: the cap is one`);
   if (firstStep === 1 && filled > 1) problems.push(`the first step's button is not the page's only filled button (${filled} filled)`);
   return problems;

@@ -97,8 +97,10 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
       await be({ kind: null, country });
       const home = await get('/app/books');
       expect(home.statusCode, String(country)).toBe(200);
-      expect(home.body, String(country)).not.toContain('href="/app/books/fec"');
-      expect(home.body, String(country)).not.toContain('action="/app/books/chart/cgnc"');
+      expect((await get('/app/books/reports')).body, String(country)).not.toContain('href="/app/books/reports/fec"');
+      expect((await get('/app/settings/books/accounts')).body, String(country)).not.toContain('action="/app/books/chart/cgnc"');
+      expect((await get('/app/books/reports/fec')).statusCode, String(country)).toBe(404);
+      expect((await get('/app/settings/books/starting-balances')).body, String(country)).not.toContain('id="morocco-start"');
       expect((await get('/app/books/fec')).statusCode, String(country)).toBe(404);
       expect((await post('/app/books/chart/cgnc')).statusCode, String(country)).toBe(404);
       expect((await post('/app/books/fec/filename', 'pattern=x')).statusCode, String(country)).toBe(404);
@@ -109,10 +111,14 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
   it('B17 · MOROCCAN BOOKS — the country, or the ICE already given: the FEC door, the chart and the FEC page', async () => {
     for (const where of [{ country: 'MA' }, { country: null, ice: '001234567000089' }]) {
       await be({ kind: null, ...where });
-      const home = (await get('/app/books')).body;
-      expect(home, JSON.stringify(where)).toContain('href="/app/books/fec"');
-      expect(home, JSON.stringify(where)).toContain('action="/app/books/chart/cgnc"');
-      expect((await get('/app/books/fec')).statusCode, JSON.stringify(where)).toBe(200);
+      expect((await get('/app/books/reports')).body, JSON.stringify(where)).toContain('href="/app/books/reports/fec"');
+      expect((await get('/app/settings/books/accounts')).body, JSON.stringify(where)).toContain('action="/app/books/chart/cgnc"');
+      expect((await get('/app/books/reports/fec')).statusCode, JSON.stringify(where)).toBe(200);
+      const setup = (await get('/app/settings/books/starting-balances')).body;
+      if (where.country === 'MA') expect(setup).toContain('id="morocco-start"');
+      else expect(setup).not.toContain('id="morocco-start"');
+      const alias = await get('/app/books/fec');
+      expect([alias.statusCode, alias.headers['location']]).toEqual([302, '/app/books/reports/fec']);
     }
   });
 });

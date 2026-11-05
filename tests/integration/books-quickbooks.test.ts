@@ -40,7 +40,12 @@ d('D9 · the shop\'s own QuickBooks (requires DATABASE_URL + MIGRATE_DATABASE_UR
     return (await app.inject({ method: 'GET', url: to, headers: { cookie: `${owner}; ${cookiesOf(r).join('; ')}` } })).body;
   };
   const press = (url: string) => app.inject({ method: 'POST', url, headers: { cookie: owner } });
-  const home = async (who = owner) => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: who } })).body;
+  const home = async (who = owner) => {
+    const page = await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: who } });
+    if (who === accountant) expect([page.statusCode, page.headers['location']]).toEqual([302, '/app/books']);
+    else expect(page.statusCode).toBe(200);
+    return page.body;
+  };
   const held = async () => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { loadConnection } = await import('../../src/db/booksConnections.js');

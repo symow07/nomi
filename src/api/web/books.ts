@@ -2,7 +2,6 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { booksMay, type BooksAction, type Viewer } from '../../core/conversation/people.js';
 import type { BooksProblem } from '../../core/books/interchange.js';
 import type { BooksConnection } from '../../db/booksConnections.js';
-import type { BooksHolding } from '../../db/booksExport.js';
 import type { BeforeBooks } from '../../db/booksInterchange.js';
 import { t } from './say.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
@@ -18,6 +17,29 @@ import * as show from './values.js';
  * tests/integration/books-roles.test.ts walks every route the app has against this list.
  */
 const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: string; readonly action: BooksAction }[] = [
+  {method:'GET',url:'/app/books/advanced/entries',action:'see'},
+  {method:'GET',url:'/app/books/advanced/entries/new',action:'post'},
+  {method:'GET',url:'/app/books/advanced/entries/:id',action:'see'},
+  {method:'GET',url:'/app/books/advanced/entries/:id/edit',action:'post'},
+  {method:'GET',url:'/app/books/advanced/trial-balance',action:'see'},
+  {method:'GET',url:'/app/books/year-end',action:'see'},
+  {method:'GET',url:'/app/books/reports/fec',action:'see'},
+  {method:'GET',url:'/app/books/spending',action:'see'},
+  {method:'GET',url:'/app/books/spending/:id',action:'see'},
+  {method:'GET',url:'/app/settings/books/fields',action:'see'},
+  {method:'GET',url:'/app/settings/books',action:'post'},
+  {method:'GET',url:'/app/settings/books/connections',action:'post'},
+  {method:'GET',url:'/app/settings/books/accounts',action:'post'},
+  {method:'GET',url:'/app/settings/books/tax',action:'post'},
+  {method:'GET',url:'/app/settings/books/starting-balances',action:'post'},
+  {method:'GET',url:'/app/books/reports',action:'see'},
+  {method:'GET',url:'/app/books/advanced',action:'see'},
+  {method:'GET',url:'/app/books/reports/cash',action:'see'},
+  {method:'GET',url:'/app/books/reports/suppliers',action:'see'},
+  {method:'GET',url:'/app/books/reports/profit',action:'see'},
+  {method:'GET',url:'/app/books/reports/suppliers/entries',action:'see'},
+  {method:'GET',url:'/app/books/spending/:id/preview',action:'see'},
+  {method:'GET',url:'/app/books/spending/:id/draft',action:'see'},
   { method: 'GET', url: '/app/books', action: 'see' },
   { method: 'GET', url: '/app/books/books.csv', action: 'export' },
   // B2 — the Nomi workbook: a copy out (the accountant's too), and a read-in, which writes the books (the owner's).
@@ -139,8 +161,7 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
   BOOKS_ROUTES.find((r) => r.method === method && r.url === url) ?? null;
 
 /**
- * The books' home: what is there, and the copy. A6 grows it into the books' own mode; until then it is the page an
- * accountant lands on, and the owner's door to the same copy.
+ * Existing connector state, shared by the focused Books connections settings.
  */
 export type BooksSystems = {
   readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
@@ -150,30 +171,9 @@ export type BooksSystems = {
   readonly quickbooks?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null; readonly stale?: readonly Date[] };
 };
 
-export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems, o: { readonly morocco?: boolean; readonly moroccanBooks?: boolean } = {}): string {
-  const lead = viewer.kind === 'accountant' ? t(locale, 'books.home.accountant') : t(locale, 'books.home.owner');
-  const state = b.hasBooks
-    ? (b.lastCopyAt ? t(locale, 'data.books.lastCopy', { date: show.dateYear(locale, b.lastCopyAt) }) : '')
-    : t(locale, 'books.home.empty');
-  return `<h1 class="page">${esc(t(locale, 'books.home.title'))}</h1>
-    <p class="lede">${esc(lead)}</p>
-    ${state ? `<p class="muted">${esc(state)}</p>` : ''}
-    ${o.morocco ? moroccoStart(locale) : ''}
-    <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/trial-balance">${esc(t(locale, 'books.trial.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/closing">${esc(t(locale, 'books.close.title'))}</a></p>
-    ${/* Audit B17 — the Moroccan FEC only for books kept to Morocco's rules (`keepsMoroccanBooks`). */ ''}${o.moroccanBooks
-      ? `<p><a class="deeper" href="/app/books/fec">${esc(t(locale, 'books.fec.title'))}</a></p>` : ''}
-    <p><a class="deeper" href="/app/books/papers">${esc(t(locale, 'books.papers.title'))}</a></p>
-    <p><a class="deeper" href="/app/books/fields">${esc(t(locale, 'books.fields.door'))}</a></p>
-    <ul class="scard dl-files"><li class="row">
-      <span>${esc(t(locale, 'data.books.title'))}</span>
-      <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
-    </li></ul>
-    ${workbookBlock(locale, viewer)}
-    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') + (systems.xero ? ledgerBlock(locale, 'xero', systems.xero) : '') + (systems.quickbooks ? ledgerBlock(locale, 'quickbooks', systems.quickbooks) : '') : ''}`;
+/** Focused destination for the existing import and connector controls. */
+export function renderBooksConnections(locale:Locale,viewer:Viewer & {readonly kind?:'team'|'accountant'},systems:BooksSystems):string {
+ return `<h1 class="page">${esc(t(locale,'booksArea.connections'))}</h1><p class="lede">${esc(t(locale,'booksArea.connectionsHint'))}</p>${workbookBlock(locale,viewer)}${booksMay({id:viewer.id??'',name:'',...viewer},'post')?sheetsBlock(locale,systems.sheets)+(systems.odoo?odooBlock(locale,systems.odoo):'')+(systems.xero?ledgerBlock(locale,'xero',systems.xero):'')+(systems.quickbooks?ledgerBlock(locale,'quickbooks',systems.quickbooks):''):''}`;
 }
 
 /**
@@ -181,7 +181,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
  * never learnt from a refusal: start at a fiscal year's first day; mid-year, what came before comes as one opening
  * entry of balances (Avis n° 24, 2.3 d). "Period", as the Avis says it: it sets no length.
  */
-const moroccoStart = (locale: Locale): string => `<div class="block" id="morocco-start">
+export const moroccoStart = (locale: Locale): string => `<div class="block" id="morocco-start">
     <h2>${esc(t(locale, 'books.morocco.title'))}</h2>
     <p>${esc(t(locale, 'books.morocco.when'))}</p>
     <p class="caption muted">${esc(t(locale, 'books.morocco.rule'))}</p>
@@ -371,13 +371,13 @@ export function renderWorkbookRefused(locale: Locale, problems: readonly BooksPr
  * C0 (0181) — the taxes a system gave no start date, each with the day to confirm: the owner's, never Nomi's guess.
  * Until a day is confirmed, the tax counts from the day it was first read, and an earlier entry naming it waits.
  */
-function taxStartForm(locale: Locale, system: 'odoo' | 'xero', taxes: readonly { readonly code: string; readonly label: string }[]): string {
-  return `<div class="block" id="tax-start">
+export function taxStartForm(locale: Locale, system: 'odoo' | 'xero', taxes: readonly { readonly code: string; readonly label: string }[], dates:Readonly<Record<string,string>>={}, anchor='tax-start'): string {
+  return `<div class="block" id="${esc(anchor)}">
       <h2>${esc(t(locale, 'books.taxStart.title'))}</h2>
       <p>${esc(t(locale, 'books.taxStart.explain', { system: system === 'xero' ? 'Xero' : 'Odoo' }))}</p>
       ${taxes.map((x) => `<form method="post" action="/app/books/taxes/start" class="pform">
         <input type="hidden" name="system" value="${esc(system)}" /><input type="hidden" name="code" value="${esc(x.code)}" />
-        <label class="pq"><span><bdi>${esc(x.label)}</bdi> · <bdi>${esc(x.code)}</bdi></span><input type="date" name="from" required /></label>
+        <label class="pq"><span><bdi>${esc(x.label)}</bdi> · <bdi>${esc(x.code)}</bdi></span><input type="date" name="from" value="${esc(dates[x.code]??'')}" required /></label>
         <button class="btn" type="submit">${esc(t(locale, 'books.taxStart.save'))}</button></form>`).join('')}
     </div>`;
 }

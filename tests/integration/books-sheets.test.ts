@@ -85,8 +85,10 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
   });
 
   it('the owner is offered the door; the accountant is not, and cannot start it', async () => {
-    expect((await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body).toContain('href="/app/books/sheets/start"');
-    expect((await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: accountant } })).body).not.toContain('/app/books/sheets/');
+    expect((await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body).toContain('href="/app/books/sheets/start"');
+    const settings = await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: accountant } });
+    expect([settings.statusCode, settings.headers['location']]).toEqual([302, '/app/books']);
+    expect(settings.body).not.toContain('/app/books/sheets/');
     const theirs = await app.inject({ method: 'GET', url: '/app/books/sheets/start', headers: { cookie: accountant } });
     expect([theirs.statusCode, theirs.headers['location']]).toEqual([302, '/app/books']);
   });
@@ -115,7 +117,7 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
     const sealed = (await admin.query(`select secret_ciphertext from connector_credentials where id = $1`, [c.credential_id])).rows[0].secret_ciphertext as string;
     expect(sealed.startsWith('v1.')).toBe(true);
     expect(sealed).not.toContain('refresh-token');
-    const home = (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+    const home = (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body;
     expect(home).toContain(`href="${c.settings.url}"`);
     expect(home).toContain('action="/app/books/sheets/read"');
   });
@@ -159,7 +161,7 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
     expect(await notice(r)).toContain('Google Sheets needs connecting again. Nothing was read; your books here are unchanged.');
     expect(await connection()).toMatchObject({ state: 'connect_again', reason: 'revoked' });
     expect((await as((q) => q(`select count(*)::int as n from parties`))).rows[0].n).toBe(before);
-    const home = (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+    const home = (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body;
     expect(home).toContain('Needs connecting again');
     expect(home).toContain('The access to Google Sheets was withdrawn or has expired.');
     expect(home).not.toContain('action="/app/books/sheets/read"');
@@ -169,7 +171,7 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
     const { back } = await connect();
     await back('good-code');
     expect((await connection()).state).toBe('connected');
-    const home = (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+    const home = (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body;
     expect(home).toMatch(/onclick="return confirm\(this\.dataset\.confirm\)" data-confirm="Disconnect Google Sheets\?/);
     const r = await app.inject({ method: 'POST', url: '/app/books/sheets/disconnect', headers: { cookie: owner } });
     expect(await notice(r)).toContain('Disconnected. The spreadsheet stays in your Drive.');
@@ -183,7 +185,7 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
   const grants = async () => (await admin.query(`select stale_since is not null as stale, revoked_at is not null as revoked, revoke_tries as tries
     from connector_credentials where business_id = $1 and connector = 'sheets' and (stale_since is not null or revoked_at is not null) order by created_at`, [BIZ])).rows;
   const press = (url: string) => app.inject({ method: 'POST', url, headers: { cookie: owner } });
-  const page = async () => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+  const page = async () => (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body;
 
   it('0213 — CONNECTING AGAIN gives the old Google grant back FIRST, and the button says the connection ends first', async () => {
     const { back } = await connect();

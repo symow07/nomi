@@ -1,3 +1,6 @@
+import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
+import { BOOKS_AREA_CSS } from './booksAreaStyle.js';
+import { BOOKS_INVOICE_CSS } from './booksInvoiceStyle.js';
 import { PRODUCTS_CSS } from './productsStyle.js';
 import { PRODUCT_IMPORT_CSS } from './productImportStyle.js';
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
@@ -179,7 +182,7 @@ const under = (prefixes: readonly string[], url: string): boolean => {
 export const EXPORT_PREFIXES: readonly string[] = ['/app/settings/terms', '/app/settings/samples'];
 export const isExportRoute = (url: string): boolean => under(EXPORT_PREFIXES, url);
 /** Audit B17 — the Moroccan FEC and the CGNC chart (`keepsMoroccanBooks`): 404 for any other books. */
-export const MOROCCAN_BOOKS_PREFIXES: readonly string[] = ['/app/books/fec', '/app/books/chart/cgnc'];
+export const MOROCCAN_BOOKS_PREFIXES: readonly string[] = ['/app/books/fec', '/app/books/reports/fec', '/app/books/chart/cgnc'];
 export const isMoroccanBooksRoute = (url: string): boolean => under(MOROCCAN_BOOKS_PREFIXES, url);
 
 /**
@@ -2757,7 +2760,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,

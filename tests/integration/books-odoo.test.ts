@@ -41,7 +41,7 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
     connections: (await admin.query(`select count(*)::int as n from books_connections where business_id = $1`, [BIZ])).rows[0].n,
     keys: (await admin.query(`select count(*)::int as n from connector_credentials where business_id = $1`, [BIZ])).rows[0].n,
   });
-  const home = async () => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body;
+  const home = async () => (await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } })).body;
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: ADMIN_URL });

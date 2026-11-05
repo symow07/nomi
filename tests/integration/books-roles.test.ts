@@ -79,7 +79,7 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
       const staff = await get(url, 'staff');
       expect([staff.statusCode, staff.headers['location']], `staff ${url}`).toEqual([302, '/app']);
     }
-    expect((await get('/app/books', 'accountant')).body).toMatch(/Posting entries is the owner(&#39;|&#x27;|')s/);
+    expect((await get('/app/books', 'accountant')).body).toContain('Only the owner can save changes to the books.');
   });
 
   it('EVERY OTHER ROUTE: an accountant is sent to the books (a page) or refused (a write) — the snapshot', async () => {
@@ -93,6 +93,11 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
       if (r.method === 'POST' && r.url === '/logout') continue;
       // B18 — their own sign-in (password, language) is theirs: audit-batch-4.test.ts walks those.
       if (ACCOUNTANT_ALSO.has(`${r.method} ${r.url}`)) continue;
+      if (r.method === 'GET' && r.url === '/app/settings/books/fields') {
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain('action="/app/books/fields"');
+        continue;
+      }
       if (res.statusCode !== 302 || res.headers['location'] !== '/app/books') leaked.push(`${r.method} ${r.url} → ${res.statusCode} ${res.headers['location'] ?? ''}`);
     }
     expect(leaked, leaked.join('\n')).toEqual([]);

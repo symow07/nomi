@@ -102,7 +102,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
       await entry('BQ', '2026-03-20', 'REL-03', [['5141', 'MAD', '1200', '0'], ['3421', 'MAD', '0', '1200']]);
       await entry('OD', '2026-03-31', 'OD-1', [['X100', 'MAD', '5', '0'], ['5141', 'MAD', '0', '5']]);
     });
-    const page = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body;
+    const page = (await app.inject({ method: 'GET', url: '/app/books/reports/fec', headers: { cookie: owner } })).body;
     expect(page).toContain('Numbering checked: in each journal, no gap and no repeat.');
     expect(page).toContain('Compte maison');
     expect(page).toContain('The year is still open');
@@ -165,7 +165,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     const lines = r.body.split('\r\n').filter(Boolean).map((l) => l.split('|'));
     expect(lines.slice(1).every((l) => l.slice(18).join('|') === '001234567000089|40 123 456|123456|Tribunal de commerce de Casablanca')).toBe(true);
     expect(lines[1]!.slice(0, 13)).toEqual(['VE', 'Ventes', '1', '20260302', '3421', 'Clients', '', '', 'F-2026-0001', '20260302', 'Pièce F-2026-0001', '1200.00', '0.00']);
-    expect((await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body).not.toContain('The file goes without');
+    expect((await app.inject({ method: 'GET', url: '/app/books/reports/fec', headers: { cookie: owner } })).body).not.toContain('The file goes without');
     // what changed is audited by name, never by value
     const audit = (await admin.query(`select detail from channel_audit where business_id = $1 and action = 'update_profile' order by id desc limit 1`, [BIZ])).rows[0].detail;
     expect(audit).toEqual({ fields: ['legal_ice', 'legal_if', 'legal_rc', 'legal_rc_court'] });
@@ -178,7 +178,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     const pattern = async () => (await admin.query(`select fec_filename from books_settings where business_id = $1`, [BIZ])).rows[0]?.fec_filename ?? null;
     // the ICE given in E2's test above, and the year's last day
     expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');
-    const fec = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: owner } })).body;
+    const fec = (await app.inject({ method: 'GET', url: '/app/books/reports/fec', headers: { cookie: owner } })).body;
     expect(fec).toContain("Nomi's default filename convention. Your accountant may ask for a different one — you can change it here.");
     expect(fec).toContain('001234567000089FEC20261231.txt');
     expect(fec).toContain('action="/app/books/fec/filename"');
@@ -187,7 +187,7 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     expect(block).toContain('default filename convention');
     expect(block).not.toMatch(/required|official|DGI-compliant/i);
     // staff and the accountant read it, change nothing
-    const seen = (await app.inject({ method: 'GET', url: '/app/books/fec', headers: { cookie: accountant } })).body;
+    const seen = (await app.inject({ method: 'GET', url: '/app/books/reports/fec', headers: { cookie: accountant } })).body;
     expect(seen).not.toContain('action="/app/books/fec/filename"');
     for (const who of [staff, accountant]) await set('{ICE}.txt', who);
     expect(await name()).toBe('attachment; filename="001234567000089FEC20261231.txt"');

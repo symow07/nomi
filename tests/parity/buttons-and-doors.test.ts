@@ -60,8 +60,26 @@ describe('the one exception has a hard cap: one filled button on its page, on th
   });
 });
 
+describe('the approved Books overview actions stay narrowly scoped', () => {
+  const hrefs=['/app/books/invoices/new','/app/books/spending#receipt-upload','/app/books/bank#read-statement'];
+  const actions=hrefs.map(href=>`<a class="btn" data-books-action href="${href}">Open</a>`).join('');
+  const overview=(body:string)=>`<div class="ba-overview"><div class="ba-actions">${body}</div></div>`;
+  it('allows exactly the three approved destinations inside the Books overview',()=>{
+    expect(buttonsAndDoors(overview(actions))).toEqual([]);
+    expect(buttonsAndDoors('<div class="ba-overview"></div>')).toEqual([]);
+  });
+  it('rejects copied markers outside the overview, different targets, duplicates and partial sets',()=>{
+    expect(buttonsAndDoors(actions)).not.toEqual([]);
+    expect(buttonsAndDoors(overview(actions.replace('/app/books/invoices/new','/app/inbox')))).not.toEqual([]);
+    expect(buttonsAndDoors(overview(actions+actions))).not.toEqual([]);
+    expect(buttonsAndDoors(overview(actions.split('</a>')[0]+'</a>'))).not.toEqual([]);
+    expect(buttonsAndDoors(overview(actions)+actions)).not.toEqual([]);
+    expect(buttonsAndDoors(overview(actions.replaceAll(' data-books-action','')))).not.toEqual([]);
+  });
+});
+
 describe('the source of every page draws no link as a button', () => {
-  it('src/api/web — one <a class="btn">, and it is the first step\'s (the owner\'s exception, 2026-10-13)', () => {
+  it('src/api/web — only the first-step action and the three approved Books overview actions', () => {
     const found: string[] = [];
     for (const f of readdirSync(`${ROOT}src/api/web`).filter((n) => n.endsWith('.ts'))) {
       const src = readFileSync(`${ROOT}src/api/web/${f}`, 'utf8');
@@ -69,8 +87,13 @@ describe('the source of every page draws no link as a button', () => {
         found.push(`${f}: ${src.slice(m.index!, m.index! + 70).replace(/\s+/g, ' ')}`);
       }
     }
-    expect(found).toHaveLength(1);
-    expect(found[0]).toMatch(/^guide\.ts: <a class="btn send" data-first-step href="\$\{esc\(STEP_LINK\[next\]\)\}">/);
+    expect(found).toHaveLength(4);
+    const overview = found.filter(x=>x.startsWith('booksOverview.ts:'));
+    expect(overview).toHaveLength(3);
+    for(const href of ['/app/books/invoices/new','/app/books/spending#receipt-upload','/app/books/bank#read-statement']) {
+      expect(readFileSync(`${ROOT}src/api/web/booksOverview.ts`, 'utf8')).toContain(`<a class="btn" data-books-action href="${href}">`);
+    }
+    expect(found.find(x=>x.startsWith('guide.ts:'))).toMatch(/^guide\.ts: <a class="btn send" data-first-step href="\$\{esc\(STEP_LINK\[next\]\)\}">/);
     // It takes the step, never an address: it can only open the step it names.
     expect(readFileSync(`${ROOT}src/api/web/guide.ts`, 'utf8')).toContain('export const firstStepButton = (locale: Locale, next: SetupStep): string =>');
   });

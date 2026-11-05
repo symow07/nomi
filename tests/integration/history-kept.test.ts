@@ -138,7 +138,7 @@ d('E3 · imported history, kept as a document and never in the books (requires D
     ]);
     const r = await upload(sent);
     expect(r.statusCode).toBe(302);
-    const at = /^\/app\/books\/papers\/([0-9a-f-]{36})$/.exec(String(r.headers['location']));
+    const at = /^\/app\/books\/spending\/([0-9a-f-]{36})$/.exec(String(r.headers['location']));
     expect(at, String(r.headers['location'])).not.toBeNull();
     docId = at![1]!;
     expect(await flashOf(r)).toContain('Entries dated before these books are not in them (2): the workbook is kept here, with the papers, as history.');
@@ -161,11 +161,12 @@ d('E3 · imported history, kept as a document and never in the books (requires D
   });
 
   it('IT IS VISIBLY MARKED, and never read into an entry — by the page, the route and the database', async () => {
-    const list = (await get('/app/books/papers')).body;
+    const list = (await get('/app/books/spending?state=history')).body;
     expect(list).toContain('grand-livre-2025.xlsx');
-    expect(list).toContain('History, not in the books');
-    const page = (await get(`/app/books/papers/${docId}`)).body;
-    expect(page).toContain('History, not in the books');
+    expect(list).toContain('Kept history');
+    expect(list).toContain('they are not in the books, the trial balance or the FEC');
+    const page = (await get(`/app/books/spending/${docId}`)).body;
+    expect(page).toContain('Kept history');
     expect(page).toContain('2 of its entries are dated before these books open');
     expect(page).toContain('they are not in the books, the trial balance or the FEC');
     expect(page).toContain('Kept until');
@@ -183,7 +184,7 @@ d('E3 · imported history, kept as a document and never in the books (requires D
     const before = await entriesHeld();
     const r = await upload(sent);
     expect(await flashOf(r)).toContain('Entries dated before these books are not in them (2)');
-    expect(String(r.headers['location'])).toBe(`/app/books/papers/${docId}`);
+    expect(String(r.headers['location'])).toBe(`/app/books/spending/${docId}`);
     expect((await one(`select count(*)::int as n from documents where business_id = $1`, [BIZ])).n).toBe(1);
     expect(await entriesHeld()).toBe(before);
   });
@@ -192,7 +193,7 @@ d('E3 · imported history, kept as a document and never in the books (requires D
     // the draft inside the window, posted by the owner, is what the reports show; the history's 900 and 450 nowhere
     await as((q) => q(`update journal_entries set state = 'posted', posted_by = 'owner', document_ref = 'F-2026-031', document_date = entry_date
       where label = 'Facture 2026-031'`));
-    expect((await get('/app/books/trial-balance?from=2025-01-01&to=2026-12-31')).statusCode).toBe(200);
+    expect((await get('/app/books/advanced/trial-balance?from=2025-01-01&to=2026-12-31')).statusCode).toBe(200);
     const { trialBalanceOf } = await import('../../src/db/booksReports.js');
     const { withTenantTx } = await import('../../src/db/client.js');
     const tb = await withTenantTx(db, BIZ as never, (tx) => trialBalanceOf(tx, BIZ, { from: '2025-01-01', to: '2026-12-31' }));

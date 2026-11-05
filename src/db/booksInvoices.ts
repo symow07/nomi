@@ -63,19 +63,6 @@ export function statusOf(state: string, total: Decimal, credited: Decimal, paid:
   return signOf(paid) > 0 ? 'partly_paid' : 'open';
 }
 
-export async function listInvoices(tx: Tx, businessId: string, today: string): Promise<InvoiceRow[]> {
-  const rows = (await sql<{ id: string; year: number | null; number: number | null; party: string; issue_date: string; due_date: string | null;
-    currency: string; total: string; credited: string; paid: string; state: string; label: string | null }>`
-    select i.id::text as id, i.year, i.number, coalesce(i.party_name, p.name) as party, i.issue_date::text as issue_date, i.due_date::text as due_date, i.currency,
-           invoice_total(i.id)::text as total, invoice_credited(i.id)::text as credited, invoice_paid(i.id)::text as paid, i.state, i.label
-      from invoices i join parties p on p.id = i.party_id
-     where i.business_id = ${businessId}::uuid and i.state <> 'discarded'
-     order by i.issue_date desc, i.number desc nulls first, i.created_at desc limit 100`.execute(tx)).rows;
-  return rows.map((r) => ({ id: r.id, key: r.number === null ? null : invoiceKey(r.year!, r.number), party: r.party, issueDate: r.issue_date,
-    dueDate: r.due_date, currency: r.currency, total: d(r.total), paid: d(r.paid), label: r.label,
-    credited: d(r.credited), status: statusOf(r.state, d(r.total), d(r.credited), d(r.paid), r.due_date, today) }));
-}
-
 export async function loadInvoice(tx: Tx, businessId: string, id: string, today: string): Promise<InvoiceView | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const r = (await sql<{ year: number | null; number: number | null; party: string; issue_date: string; due_date: string | null; currency: string;

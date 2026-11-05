@@ -4,7 +4,7 @@ import type { PriceRules } from '../../src/core/commerce/priceRules.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
 import { renderFec } from '../../src/api/web/booksReports.js';
 import { renderFields } from '../../src/api/web/booksFields.js';
-import { renderPapers } from '../../src/api/web/booksPapers.js';
+import { renderSpending } from '../../src/api/web/booksPapers.js';
 import { renderNewEntry } from '../../src/api/web/booksEntries.js';
 import { renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
 import { renderPeople, type PeopleView } from '../../src/api/web/people.js';
@@ -105,7 +105,9 @@ describe('B20 · the FEC page fits a phone', () => {
       numbering: [{ journal: 'VT', missing: [3, 4, 5], repeated: [7] }], offChart: [] }], ['ice', 'taxId', 'rc']);
     for (const key of ['books.fec.identityMissing', 'books.fec.numberingBad', 'books.fec.open'] as const) {
       const at = html.indexOf(t('en', key, { which: '', journal: 'VT', missing: '3, 4, 5', repeated: '7' }).slice(0, 18));
-      expect(at, key).toBeGreaterThan(0);
+      expect(html).toContain('href="/app/books/fec/y1.txt"');
+    expect(html).not.toContain('href="/app/books/reports/fec/y1.txt"');
+    expect(at, key).toBeGreaterThan(0);
       expect(html.slice(html.lastIndexOf('<span class="pill', at), at), key).toMatch(/class="pill [a-z]+ long"/);
     }
     const css = linkedCss(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app/books/fec', bodyHtml: html }));
@@ -159,7 +161,7 @@ describe('B22 · the main action is a real primary button', () => {
   it('the books\' forms: one filled button, the form\'s own act', () => {
     expect(filled(renderFec('en', [], [], { pattern: '{ICE}FEC{YYYYMMDD}.txt', ice: null, canChange: true }))).toEqual([t('en', 'books.fec.filename.save')]);
     expect(filled(renderFields('en', owner, []))).toEqual([t('en', 'books.fields.add')]);
-    expect(filled(renderPapers('en', owner, [], true))).toEqual([t('en', 'books.papers.keep')]);
+    expect(filled(renderSpending('en', owner, {rows:[],total:0,from:0,to:0,page:1,pageSize:50,next:null,prev:null}, true))).toEqual([t('en', 'books.papers.keep')]);
     const c = { journals: [], accounts: [], parties: [], taxCodes: [], bookCurrency: 'MAD', fields: [] };
     expect(filled(renderNewEntry('en', c as never, {}, [], '2026-04-10'))).toEqual([t('en', 'books.entry.saveDraft')]);
     // On the books' home beside the workbook's own form: a real button, not a second filled one.

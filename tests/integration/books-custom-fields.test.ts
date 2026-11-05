@@ -96,7 +96,7 @@ d('D7 · custom fields, defined, filled in, and through every road (requires DAT
   afterAll(async () => { await app?.close(); await db?.destroy(); await tenant?.end(); await purgeBusinesses(admin, ALL, 'books-custom-fields-test'); await admin?.end(); });
 
   it('THE PAGE: the owner adds, retires and uses again; only a party field is required; the accountant sees and changes nothing', async () => {
-    const page = await app.inject({ method: 'GET', url: '/app/books/fields', headers: { cookie: owner } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/books/fields', headers: { cookie: owner } });
     expect(page.statusCode).toBe(200);
     for (const label of ['Project', 'Weight (kg)', 'Segment', 'Customer since']) expect(page.body).toContain(label);
     expect(await notice(await form('/app/books/fields', { appliesTo: 'entry', key: 'site', label: 'Site', kind: 'choice', choices: 'Casablanca\nTanger' })))
@@ -107,10 +107,10 @@ d('D7 · custom fields, defined, filled in, and through every road (requires DAT
     expect(await notice(await form('/app/books/fields', { appliesTo: 'entry', key: 'site', label: 'Site again', kind: 'text' }))).toContain('already there');
     const site = await as(async (q) => (await q(`select id::text as id from custom_field_defs where key = 'site'`)).rows[0].id as string);
     expect(await notice(await form(`/app/books/fields/${site}/retire`, {}))).toContain('Field retired.');
-    expect((await app.inject({ method: 'GET', url: '/app/books/fields', headers: { cookie: owner } })).body).toContain('Retired');
+    expect((await app.inject({ method: 'GET', url: '/app/settings/books/fields', headers: { cookie: owner } })).body).toContain('Retired');
     expect(await notice(await form(`/app/books/fields/${site}/use`, {}))).toContain('Field in use again.');
     // the accountant: the list, and no form; a post is refused at the route, and at the database
-    const seen = await app.inject({ method: 'GET', url: '/app/books/fields', headers: { cookie: accountant } });
+    const seen = await app.inject({ method: 'GET', url: '/app/settings/books/fields', headers: { cookie: accountant } });
     expect(seen.statusCode).toBe(200);
     expect(seen.body).toContain('Segment');
     expect(seen.body).not.toContain('action="/app/books/fields"');
@@ -127,7 +127,7 @@ d('D7 · custom fields, defined, filled in, and through every road (requires DAT
   });
 
   it('THE FORMS: an entry and its lines, and a party, take their values — checked, named by the field, shown where they are', async () => {
-    const blank = await app.inject({ method: 'GET', url: '/app/books/entries/new', headers: { cookie: owner } });
+    const blank = await app.inject({ method: 'GET', url: '/app/books/advanced/entries/new', headers: { cookie: owner } });
     for (const name of ['cf_entry_project', 'cf_entry_site', 'cf_line0_weight_kg', 'cf_line7_weight_kg']) expect(blank.body).toContain(`name="${name}"`);
     const id = (table: string, code: string) => as(async (q) => (await q(`select id::text as id from ${table} where code = $1`, [code])).rows[0].id as string);
     const entry = { journal: await id('journals', 'VE'), date: '2026-05-04', label: `Salon ${RUN}`,

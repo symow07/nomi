@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { revokeAnswer } from '../../src/core/books/connector.js';
-import { renderBooksHome } from '../../src/api/web/books.js';
+import { renderBooksConnections, type BooksSystems } from '../../src/api/web/books.js';
 import type { BooksConnection } from '../../src/db/booksConnections.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withoutIsolates } from './isolates.js';
@@ -15,14 +15,13 @@ import { t } from '../../src/api/web/say.js';
  * person made; Intuit's disconnects the company). Not confirmed, it is kept track of, shown, and tried again.
  */
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const holding = { hasBooks: false, keepUntil: null, law: null, lastCopyAt: null, copyCoversAll: true };
 const OWNER = { isOwner: true };
 const conn = (o: Partial<BooksConnection>): BooksConnection => ({
   system: 'quickbooks', state: 'connected', reason: null, settings: { companyName: 'Westlake Canvas Co.' }, keyExpiresOn: null, cursor: null,
   connectedAt: '2026-10-20T08:00:00.000000Z', lastReadAt: null, lastOkAt: null, grant: { secret: 'sealed', expiresAt: null }, ...o,
 });
-const page = (qbo: NonNullable<NonNullable<Parameters<typeof renderBooksHome>[3]>['quickbooks']>, locale: (typeof LOCALES)[number] = 'en') =>
-  withoutIsolates(renderBooksHome(locale, OWNER, holding, { sheets: { offered: false, connection: null }, quickbooks: qbo }));
+const page = (qbo: NonNullable<BooksSystems['quickbooks']>, locale: (typeof LOCALES)[number] = 'en') =>
+  withoutIsolates(renderBooksConnections(locale, OWNER, { sheets: { offered: false, connection: null }, quickbooks: qbo }));
 
 describe('0212 · a revocation endpoint\'s answer, read as RFC 7009 has it', () => {
   it('200 is done; a token the system no longer honours is done too — nothing live is left', () => {
@@ -61,8 +60,8 @@ describe('0212 · the books\' page', () => {
 });
 
 describe('0213 · Google Sheets: the same rule; the button says the connection ends first; Odoo\'s key is the owner\'s', () => {
-  const sheetsPage = (sheets: NonNullable<Parameters<typeof renderBooksHome>[3]>['sheets'], locale: (typeof LOCALES)[number] = 'en') =>
-    withoutIsolates(renderBooksHome(locale, OWNER, holding, { sheets }));
+  const sheetsPage = (sheets: BooksSystems['sheets'], locale: (typeof LOCALES)[number] = 'en') =>
+    withoutIsolates(renderBooksConnections(locale, OWNER, { sheets }));
   const sheetsConn = (o: Partial<BooksConnection>) => conn({ system: 'sheets', settings: { url: 'https://docs.google.com/spreadsheets/d/x/edit' }, ...o });
   it('a stale Google grant is said under Sheets, in every state, with the button', () => {
     for (const c of [sheetsConn({}), sheetsConn({ state: 'disconnected', grant: null }), sheetsConn({ state: 'connect_again', reason: 'revoked' }), null]) {

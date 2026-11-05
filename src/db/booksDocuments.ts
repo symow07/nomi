@@ -11,25 +11,6 @@ import { draftEntry, type DraftLine, type EntryRefusal } from './booksEntries.js
  * debited to the account chosen for it, its tax to its tax code's account, the supplier credited the total. A draft,
  * never posted here.
  */
-export type PaperRow = {
-  readonly id: string; readonly name: string; readonly mediaType: string; readonly bytes: number; readonly addedOn: string;
-  readonly entryId: string | null; readonly lastOutcome: string | null; readonly lastProblems: number; readonly draftedEntryId: string | null;
-  /** E3 (0207) — an import's source file kept as history, not in the books: the newest date it holds; null for a paper. */
-  readonly historyThrough: string | null;
-};
-
-export async function listPapers(tx: Tx, businessId: string): Promise<PaperRow[]> {
-  return (await sql<PaperRow>`
-    select d.id::text as id, d.name, d.media_type as "mediaType", d.bytes, d.created_at::date::text as "addedOn", d.entry_id::text as "entryId",
-           d.history_through::text as "historyThrough",
-           r.outcome as "lastOutcome", coalesce(jsonb_array_length(r.problems), 0) as "lastProblems",
-           (select entry_id::text from document_readings x where x.document_id = d.id and x.entry_id is not null limit 1) as "draftedEntryId"
-      from documents d
-      left join lateral (select outcome, problems from document_readings x where x.document_id = d.id order by read_at desc limit 1) r on true
-     where d.business_id = ${businessId}::uuid
-     order by d.created_at desc limit 200`.execute(tx)).rows;
-}
-
 export type ReadingRow = {
   readonly id: string; readonly readAt: string; readonly outcome: 'read' | 'unreadable' | 'cut_off'; readonly modelId: string;
   readonly reading: CheckedReading | null; readonly problems: readonly ReadingProblem[]; readonly entryId: string | null;

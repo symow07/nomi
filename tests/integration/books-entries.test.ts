@@ -88,23 +88,23 @@ d('C1 · entries by hand, through the routes (requires DATABASE_URL + MIGRATE_DA
     const page = await get(String(r.headers['location']));
     expect(page.body).toContain('It does not balance yet: MAD 100 / 90.');
     const refused = await post(`/app/books/entries/${idOf(r)}/post`);
-    expect(await notice(refused)).toMatch(/Not posted\. It does not balance: MAD: debits 100\.00, credits 90\.00\./);
+    expect(await notice(refused)).toMatch(/Not saved to the books\. It does not balance: MAD: debits 100\.00, credits 90\.00\./);
     expect(await notice(await post(`/app/books/entries/${idOf(r)}/discard`))).toContain('The draft is discarded.');
   });
 
   it('a balanced draft posts, numbered by the database: VE-2026-1; a second, VE-2026-2', async () => {
     const one = await draft([[k.bank, '1440.60', ''], [k.sales, '', '1440.60']]);
-    expect(await notice(await post(`/app/books/entries/${idOf(one)}/post`))).toContain('Posted as VE-2026-1.');
+    expect(await notice(await post(`/app/books/entries/${idOf(one)}/post`))).toContain('Saved to the books as VE-2026-1.');
     const two = await draft([[k.bank, '380', ''], [k.sales, '', '380']], { label: 'Facture F-2026-0052', documentRef: 'F-2026-0052' });
-    expect(await notice(await post(`/app/books/entries/${idOf(two)}/post`))).toContain('Posted as VE-2026-2.');
-    const list = (await get('/app/books/entries')).body;
+    expect(await notice(await post(`/app/books/entries/${idOf(two)}/post`))).toContain('Saved to the books as VE-2026-2.');
+    const list = (await get('/app/books/advanced/entries')).body;
     expect(list).toContain('VE-2026-1');
     expect(list).toContain('VE-2026-2');
   });
 
   it('A POSTED ENTRY CAN ONLY BE REVERSED: no post or discard on it; reversing makes VE-2026-3, swapped, once', async () => {
     const id = (await as((q) => q(`select id::text as id from journal_entries where number = 1`))).rows[0].id as string;
-    const page = (await get(`/app/books/entries/${id}`)).body;
+    const page = (await get(`/app/books/advanced/entries/${id}`)).body;
     expect(page).not.toContain(`/app/books/entries/${id}/post`);
     expect(page).toMatch(/onclick="return confirm\(this\.dataset\.confirm\)" data-confirm="Reverse this entry\?/);
     expect(await notice(await post(`/app/books/entries/${id}/discard`))).toContain('It is not a draft any more.');
@@ -113,13 +113,13 @@ d('C1 · entries by hand, through the routes (requires DATABASE_URL + MIGRATE_DA
     const lines = await as((q) => q(`select l.debit::text, l.credit::text from journal_lines l join journal_entries e on e.id = l.entry_id where e.number = 3 order by l.line_no`));
     expect(lines.rows).toEqual([{ debit: '0.00', credit: '1440.60' }, { debit: '1440.60', credit: '0.00' }]);
     expect(await notice(await post(`/app/books/entries/${id}/reverse`, { date: '2026-05-11' }))).toContain('Only a posted entry that was not reversed yet can be reversed.');
-    expect((await get(`/app/books/entries/${id}`)).body).toContain('See its reversal');
+    expect((await get(`/app/books/advanced/entries/${id}`)).body).toContain('See its reversal');
   });
 
   it('posting needs the document; a locked day refuses the draft', async () => {
     const bare = await draft([[k.bank, '5', ''], [k.sales, '', '5']], { documentRef: '', documentDate: '' });
     expect((await get(String(bare.headers['location']))).body).toContain('Posting needs the document');
-    expect(await notice(await post(`/app/books/entries/${idOf(bare)}/post`))).toMatch(/Not posted\. Posting needs the document(&#39;|&#x27;|')s reference and date\./);
+    expect(await notice(await post(`/app/books/entries/${idOf(bare)}/post`))).toMatch(/Not saved to the books\. Posting needs the document(&#39;|&#x27;|')s reference and date\./);
     await admin.query(`update fiscal_years set lock_date = '2026-05-31' where business_id = $1 and '2026-05-31' between starts_on and ends_on`, [BIZ]);   // an operator's write; the year's own lock (0211)
     const locked = await draft([[k.bank, '5', ''], [k.sales, '', '5']]);
     expect(locked.statusCode).toBe(422);
@@ -129,10 +129,10 @@ d('C1 · entries by hand, through the routes (requires DATABASE_URL + MIGRATE_DA
 
   it('THE ACCOUNTANT sees the entries and each one, with no way to post, discard or reverse — and the routes refuse', async () => {
     const id = (await as((q) => q(`select id::text as id from journal_entries where number = 2`))).rows[0].id as string;
-    const list = (await get('/app/books/entries', accountant)).body;
+    const list = (await get('/app/books/advanced/entries', accountant)).body;
     expect(list).toContain('VE-2026-2');
-    expect(list).not.toContain('/app/books/entries/new');
-    const page = (await get(`/app/books/entries/${id}`, accountant)).body;
+    expect(list).not.toContain('/app/books/advanced/entries/new');
+    const page = (await get(`/app/books/advanced/entries/${id}`, accountant)).body;
     expect(page).not.toContain('/reverse"');
     const tried = await post(`/app/books/entries/${id}/reverse`, { date: '2026-05-12' }, accountant);
     expect([tried.statusCode, tried.headers['location']]).toEqual([302, '/app/books']);
