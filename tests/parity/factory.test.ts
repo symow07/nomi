@@ -99,7 +99,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
       [BUSINESS_SCREEN_PATH.channels, shown('en', 'factory.reach.title')],
       [BUSINESS_SCREEN_PATH.ready, shown('en', 'business.row.live')],
       ['/app/products', shown('en', 'nav.products')],
-      ['/app/business/prices', shown('en', 'factory.prices.title')],
+      ['/app/products/price-limits', shown('en', 'factory.prices.title')],
       [BUSINESS_SCREEN_PATH.promises, shown('en', 'factory.promise.title')],
       [BUSINESS_SCREEN_PATH.how, shown('en', 'factory.sellhow.title')],
     ]);
@@ -156,10 +156,10 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('G9a · a sales assistant sees whether messaging is live — not the switch, and not a link to the floor', () => {
     expect(screen('ready', complete)).toContain('action="/app/business/activate"');
-    expect(menu(complete)).toContain('href="/app/business/prices"');
+    expect(menu(complete)).toContain('href="/app/products/price-limits"');
     const staff = { isOwner: false };
     expect(everything(complete, 'en', staff)).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
-    expect(everything(complete, 'en', staff)).not.toContain('href="/app/business/prices"');
+    expect(everything(complete, 'en', staff)).not.toContain('href="/app/products/price-limits"');
     expect(screen('ready', complete, 'en', staff)).toContain('The owner decides this.');
     // the price limits' row still says where they stand, with no door to a refusal
     expect(menu(complete, 'en', staff)).toMatch(/<div class="srow sr-menu">[^]*?<span class="sr-label">Your price limits<\/span>/);
@@ -246,7 +246,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('every section offers a way through to the surface that owns it', () => {
     // P5 — Practice is every workspace's own: its door is always drawn.
     const all = everything(complete);
-    for (const href of ['/app/settings/profile', '/app/settings/business', '/app/products', '/app/business/prices', '/app/knowledge',
+    for (const href of ['/app/settings/profile', '/app/settings/business', '/app/products', '/app/products/price-limits', '/app/knowledge',
       '/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts', '/app/onboarding', '/app/sandbox',
       ...Object.values(BUSINESS_SCREEN_PATH)])
       expect(all, href).toContain(`href="${href}"`);

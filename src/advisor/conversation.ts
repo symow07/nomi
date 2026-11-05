@@ -63,7 +63,7 @@ export function replyForConversation(c: ConversationContext, question: string, l
   const quote = made.value;
   if (quote.requiresHuman || quote.contradicts) return plain('refused', say(locale, 'copilot.quoteApproval'));
   const product: ConversationSource = { label: p.product.name, href: `/app/products/${p.product.id}` };
-  const rules: ConversationSource = { label: say(locale, 'copilot.priceRules'), href: `/app/business/prices#${p.policy.productId ? `p-${p.policy.productId}` : 'everything'}` };
+  const rules: ConversationSource = { label: say(locale, 'copilot.priceRules'), href: `/app/products/price-limits#${p.policy.productId ? `p-${p.policy.productId}` : 'everything'}` };
   const request: ConversationSource = { label: say(locale, 'copilot.ownerRequest'), href: `/app/inbox/${c.conversationId}/copilot#copilot-question` };
   const fact = (id: string, value: string, sources: readonly ConversationSource[], calculation?: string): ConversationFact =>
     ({ id, label: say(locale, `copilot.${id}`), value, sources, ...(calculation ? { calculation } : {}) });

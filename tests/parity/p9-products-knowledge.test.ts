@@ -73,7 +73,7 @@ describe('Products — the list', () => {
       // The title stands alone in its row; the door follows it, before the list.
       expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'nav.products'))}</h1></div>`);
       expect(html, l).toContain(`<a class="deeper prod-add" href="/app/products/add">${esc(t(l, 'product.teach'))}${GO}</a>`);
-      expect(html.indexOf('prod-add'), l).toBeLessThan(html.indexOf('class="rows"'));
+      expect(html.indexOf('prod-add'), l).toBeLessThan(html.indexOf('class="rows pa-products"'));
     }
     expect(t('en', 'product.teach')).toBe('Add your products');
   });
@@ -93,13 +93,13 @@ describe('Products — the list', () => {
 
   it('V1-302 — each row that opens ends in the chevron', () => {
     const html = renderProductList([item(), item({ id: 'p2' })], 'en');
-    expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>/g)).toHaveLength(2);
+    expect(html.match(/<a class="prod" id="p-p\d" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>/g)).toHaveLength(2);
   });
 
   it('V1-303 / V1-379 — the list leads to the price limits, to what the assistant knows, and to a copy', () => {
     for (const l of LOCALES) {
       const html = renderProductList([item()], l);
-      expect(html, l).toContain(`href="/app/business/prices">${esc(t(l, 'prices.title'))}`);
+      expect(html, l).toContain(`href="/app/products/price-limits">${esc(t(l, 'prices.title'))}`);
       expect(html, l).toContain('href="/app/knowledge">');
       expect(html, l).toContain(`href="/app/settings/data/products" download>${esc(t(l, 'product.list.copy'))}`);
     }
@@ -218,8 +218,9 @@ describe('Products — one product', () => {
     }
     expect(t('en', 'product.notFound.body')).not.toMatch(/removed/);
     const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(src).toContain("if (!d) { reply.code(404); return renderProductMissing(locale); }");
-    expect(src).toContain("if (!m) { reply.code(404); return notFoundImport(locale); }");
+    // Area 4 wraps the honest missing record in its canonical Products section.
+    expect(src).toMatch(/if \(!d\) \{ reply\.code\(404\); return productArea\(renderProductMissing\(locale[\s\S]*?'all'/);
+    expect(src).toMatch(/if \(!m\) \{ reply\.code\(404\); return productArea\(notFoundImport\(locale\), locale, 'add'/);
     expect(src).toContain("title: productName(locale, d) ?? d.name, active: 'products',");
     expect(src).not.toContain("title: t(locale, 'product.edit.title'), active: 'products'");
   });
@@ -280,7 +281,7 @@ describe('Products — one product', () => {
   it('V1-315 / V1-376 — the product leads to what the assistant knows about it and to its price limits; untick to stop offering', () => {
     const en = page('en');
     expect(en).toContain('href="/app/knowledge/de300000-0000-4000-8000-000000000101"');
-    expect(en).toContain('href="/app/business/prices?product=de300000-0000-4000-8000-000000000101#p-de300000-0000-4000-8000-000000000101"');
+    expect(en).toContain('href="/app/products/price-limits?product=de300000-0000-4000-8000-000000000101#p-de300000-0000-4000-8000-000000000101"');
     expect(en).toContain('it stays in your list, and nothing about it is erased');
   });
 
@@ -312,7 +313,7 @@ describe('Products — the add page', () => {
   it('V1-328 / missed-09 — a way back to the list, and the tab named by the page\'s own title', () => {
     for (const l of LOCALES) {
       const body = add(l);
-      expect(body, l).toMatch(/^<a class="back" href="\/app\/products">/);
+      expect(body, l).toMatch(/^<section class="product-add"><a class="back" href="\/app\/products">/);
       const html = shell({ title: t(l, 'nav.products'), active: 'products', locale: l, path: '/app/products/add', bodyHtml: body });
       expect(html, l).toContain(`<title>${esc(t(l, 'product.teach'))} · Nomi</title>`);
     }
@@ -560,7 +561,7 @@ describe('The import review', () => {
   it('V1-344 — a way back to the add page; the tab named by the page\'s title', () => {
     for (const l of LOCALES) {
       const body = review(l);
-      expect(body, l).toMatch(/^<a class="back" href="\/app\/products\/add">/);
+      expect(body, l).toMatch(/^<section class="product-import"><header><a class="back" href="\/app\/products\/add">/);
       expect(shell({ title: t(l, 'nav.products'), active: 'products', locale: l, path: '/app/products/import/x', bodyHtml: body }), l)
         .toContain(`<title>${esc(t(l, 'import.title'))} · Nomi</title>`);
     }
@@ -647,11 +648,11 @@ describe('Your price limits', () => {
 
   it('V1-352 / V1-353 — sections are h2s, a product\'s name is in ink, each "change" is a door; the way back is at the top', () => {
     const en = page('en');
-    expect(en).toMatch(/^<a class="back" href="\/app\/business">/);
+    expect(en).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
     expect(en).toContain(`<h2>${t('en', 'prices.default.title')}</h2>`);
     expect(en).not.toContain('class="sub3">For everything');
     expect(en).toContain('<div class="pr-name"><b><bdi>Canvas Tote Bag</bdi></b>');
-    expect(en).toContain('href="/app/business/prices?product=a1#p-a1">Change these limits' + GO + '</a>');
+    expect(en).toContain('href="/app/products/price-limits?product=a1#p-a1">Change these limits' + GO + '</a>');
     expect(en).not.toContain('class="blink"');
   });
 
@@ -679,7 +680,7 @@ describe('Your price limits', () => {
   it('missed-13 — opening a product lands on its row; its form can be closed; the page has one filled Save (new-14)', () => {
     const en = page('en', view(), { productId: 'a1' });
     expect(en).toContain('<li class="row lines" id="p-a1">');
-    expect(en).toContain('<a class="deeper" href="/app/business/prices#p-a1">Close without saving</a>');
+    expect(en).toContain('<a class="deeper" href="/app/products/price-limits#p-a1">Close without saving</a>');
     expect(en.match(/class="btn send"/g)).toHaveLength(1);
     const opened = en.slice(en.indexOf('id="p-a1"'));
     expect(opened.indexOf('class="btn send"')).toBeLessThan(opened.indexOf('</li>'));

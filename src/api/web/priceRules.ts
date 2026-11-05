@@ -507,7 +507,7 @@ export function renderPriceRules(
     const open = draft.productId === p.productId;
     const anchor = `p-${p.productId}`;
     // Phase 9 (missed-13) — opening a product lands on its own form, and the form can be closed again.
-    const close = open ? `<a class="deeper" href="/app/business/prices#${esc(anchor)}">${esc(t(locale, 'prices.close'))}</a>` : '';
+    const close = open ? `<a class="deeper" href="/app/products/price-limits#${esc(anchor)}">${esc(t(locale, 'prices.close'))}</a>` : '';
     // Phase 9 (V1-352) — the product's name is what a row is read by: in ink, at the page's size.
     return `<li class="row lines" id="${esc(anchor)}">
       <div class="pr-name"><b><bdi>${esc(label)}</bdi></b>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
@@ -521,7 +521,7 @@ export function renderPriceRules(
       ${open || (p.own === null && !isCovered(p))
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '', open, 'h3', close)
         // Phase 9 (V1-353) — a door, like every other page's, that lands on the product's own row.
-        : `<a class="deeper" href="/app/business/prices?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}${GO}</a>`}
+        : `<a class="deeper" href="/app/products/price-limits?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}${GO}</a>`}
     </li>`;
   };
 
@@ -532,7 +532,7 @@ export function renderPriceRules(
   const everything = form(null, v.businessDefault, '', t(locale, 'prices.default.sub', { name }), opened === null, 'h2');
 
   // Phase 9 (V1-353) — the way back is at the top, as on every other page.
-  return `${back('/app/business', t(locale, 'nav.factory'))}
+  return `<section class="product-limits">${back('/app/products', t(locale, 'product.detail.back'))}
     <h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'prices.lede', { name }))}</p>
@@ -560,7 +560,7 @@ export function renderPriceRules(
 
     ${volumeSection(v, locale, volumeErrors, volumeDraft)}
     ${deeper('/app/settings/data/price-rules', t(locale, 'prices.copy'), '', 'download')}
-    `;
+    </section>`;
 }
 
 /**

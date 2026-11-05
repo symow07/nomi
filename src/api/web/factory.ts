@@ -773,7 +773,7 @@ export function renderFactory(
   // the owner's: a sales assistant reads where it stands, with no door to a refusal.
   const pr = f.prices;
   const noLimits = pr.businessDefault === null && pr.products.every((x) => x.own === null);
-  const prices = menuRow({ href: viewer.isOwner ? '/app/business/prices' : null, icon: 'prices', label: t(locale, 'factory.prices.title'),
+  const prices = menuRow({ href: viewer.isOwner ? '/app/products/price-limits' : null, icon: 'prices', label: t(locale, 'factory.prices.title'),
     desc: noLimits ? t(locale, 'factory.prices.none', { name }) : null,
     value: noLimits ? t(locale, 'setup.value.notSetUp') : pr.unanswered > 0 ? tn(locale, 'business.value.withoutLimit', pr.unanswered) : t(locale, 'business.value.allSet'),
     tone: noLimits || pr.unanswered > 0 ? undefined : 'ok' });

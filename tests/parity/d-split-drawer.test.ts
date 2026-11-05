@@ -55,14 +55,15 @@ describe('D · five entries', () => {
     }
   });
 
-  it('the map puts what you sell under My business, behaviour under the assistant, wiring under Setup', () => {
+  it('the map gives Products its own area and keeps business, assistant and setup contexts', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
     // THE WARMTH RUN, phase 7 — My business is a menu; How you sell is a menu
     // of its own a level down; the channels' one home is My business.
     expect(under('/app/business')).toEqual(expect.arrayContaining([
       '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-      '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
+      '/app/business/promises', '/app/business/how-you-sell',
     ]));
+    expect(under('/app/products')).toEqual(expect.arrayContaining(['/app/products/add', '/app/products/price-limits']));
     expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
       '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
     ]));

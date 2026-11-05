@@ -28,6 +28,8 @@ import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/clien
 import { keptFace } from '../../db/faces.js';
 import { readCustomersPage, readCustomerSelection } from '../../db/customers.js';
 import { readCustomerOrdersPage } from '../../db/customerOrders.js';
+import { productArea } from './productArea.js';
+import { productReturnHref } from './productNavigation.js';
 import { renderCustomers, renderCustomerRecord, customerArea, customerReturnHref } from './customers.js';
 import { renderCustomerOrders } from './customerOrders.js';
 import { cardOpenedFrom } from './customerCard.js';
@@ -89,7 +91,7 @@ import {
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber, hostChannelsFor,
 } from './channels.js';
 import {
-  loadProductList, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
+  loadProductList, loadProductPage, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
@@ -5393,6 +5395,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return factoryFlash(reply, r === 'started' ? 'assistant.stop.flash.started' : 'assistant.stop.flash.alreadyStarted');
   });
 
+  const productFrom = (req: FastifyRequest): string | undefined => {
+    const from = ((req.body ?? {}) as Record<string, unknown>)['from'];
+    return typeof from === 'string' ? productReturnHref(from) : undefined;
+  };
+  const productBack = (id: string, from?: string): string => `/app/products/${encodeURIComponent(id)}`
+    + (from === undefined ? '' : `?from=${encodeURIComponent(productReturnHref(from))}`);
+  const productQueryFrom = (req: FastifyRequest): string | undefined => {
+    const from = (req.query as {from?:unknown}).from;
+    return typeof from === 'string' ? productReturnHref(from) : undefined;
+  };
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
   app.get('/app/products', authed('products', async (s, req, locale, reply) => {
     // D2 — the import redirects here with what it did; the page dropped it.
@@ -5401,13 +5413,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const imported = (req.query as { import?: unknown }).import;
     const ask = typeof imported === 'string'
       ? renderAskAboutThree(locale, imported, (await importedProducts(deps.db, s.businessId, imported)).length) : '';
-    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s),
-      await businessKind(deps.db, s.businessId)) + ask;
+    const query = req.query as {q?:unknown;page?:unknown};
+    const catalogue = await loadProductPage(deps.db, s.businessId, {
+      ...(typeof query.q === 'string' ? {q:query.q} : {}),
+      ...(typeof query.page === 'string' && /^\d+$/.test(query.page) ? {page:Number(query.page)} : {}),
+    });
+    const search = new URLSearchParams(); if(catalogue.q)search.set('q',catalogue.q); if(catalogue.page>1)search.set('page',String(catalogue.page));
+    const returnHref = '/app/products'+(search.size?'?'+search:'');
+    return productArea(renderProductList(catalogue.items, locale, flash, personOf(s),
+      await businessKind(deps.db, s.businessId), {page:catalogue,returnHref}) + ask, locale, 'all', personOf(s));
   }));
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
-    renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
+    productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
       await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
-      deps.pdfReadable === true)));
+      deps.pdfReadable === true), locale, 'add', personOf(s))));
   /** K5 — "prices go to me", on or off. Money is the owner's (rule 11). */
   app.post('/app/products/prices-to-me', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products/add');
@@ -5421,8 +5440,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
     // The warmth run, phase 9 (w4-products-knowledge-16) — a product that is not here answers 404, as its knowledge page does.
-    if (!d) { reply.code(404); return renderProductMissing(locale); }
-    return renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s));
+    if (!d) { reply.code(404); return productArea(renderProductMissing(locale), locale, 'all', personOf(s)); }
+    return productArea(renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s), new Date(),
+      {...(productQueryFrom(req) === undefined ? {} : {returnHref:productQueryFrom(req)!})}), locale, 'all', personOf(s));
   }));
   /**
    * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
@@ -5455,8 +5475,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.teach'), active: 'products',
-      bodyHtml: renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
-        await openImportOf(deps.db, s.businessId), null, await pricesGoToOwner(deps.db, s.businessId), deps.pdfReadable === true, refused),
+      bodyHtml: productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
+        await openImportOf(deps.db, s.businessId), null, await pricesGoToOwner(deps.db, s.businessId), deps.pdfReadable === true, refused), locale, 'add', personOf(s)),
     }));
   };
   /** K8 — her store's address: its public product list, read into a kept import. */
@@ -5513,14 +5533,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.post('/app/products/:id/photo', async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const back = `/app/products/${encodeURIComponent(id)}`;
+    let back = productBack(id, productFrom(req));
     const s = await ownerOnly(req, reply, 'price_rules', back);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !UUID.test(id)) return reply.redirect('/app/products');
     let bytes: Buffer | null = null;
     try {
-      for await (const part of req.parts({ limits: { files: 1, parts: 2 } })) {
+      for await (const part of req.parts({ limits: { files: 1, parts: 3 } })) {
+        if (part.type === 'field' && part.fieldname === 'from' && typeof part.value === 'string') back = productBack(id, part.value);
         if (part.type === 'file') {
           const got = await part.toBuffer();
           if (part.fieldname === 'photo') bytes = got;
@@ -5539,7 +5560,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/app/products/:id/photo/remove', async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const back = `/app/products/${encodeURIComponent(id)}`;
+    const back = productBack(id, productFrom(req));
     const s = await ownerOnly(req, reply, 'price_rules', back);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -5602,17 +5623,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
     // w4-products-knowledge-16 — a list that is not here is not "already added": its own words, and 404.
-    if (!m) { reply.code(404); return notFoundImport(locale); }
+    if (!m) { reply.code(404); return productArea(notFoundImport(locale), locale, 'add', personOf(s)); }
     // K8 — a table whose columns are not mapped yet shows its columns first.
     const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
-    if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
-    return renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [], canExtract: Boolean(deps.catalogExtractor) });
+    if (table) return productArea(renderColumns(locale, m.imp.id, table, m.imp.currency, null), locale, 'add', personOf(s));
+    return productArea(renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [], canExtract: Boolean(deps.catalogExtractor) }), locale, 'add', personOf(s));
   }));
   app.get('/app/products/import/:importId/columns', ownerPage('price_rules', 'products', '/app/products', async (s, req, _reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
     const table = m && m.imp.kind === 'file' && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
-    if (!m || !table) return notFoundImport(locale);
-    return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
+    if (!m || !table) return productArea(notFoundImport(locale), locale, 'add', personOf(s));
+    return productArea(renderColumns(locale, m.imp.id, table, m.imp.currency, null), locale, 'add', personOf(s));
   }));
   app.post('/app/products/import/:importId/columns', async (req, reply) => {
     const id = (req.params as { importId: string }).importId;
@@ -5628,7 +5649,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!m || !table) return reply.redirect('/app/products/add');
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'import.columns.title'), active: 'products',
-      bodyHtml: renderColumns(locale, m.imp.id, table, m.imp.currency, out.problem, mappingFrom(b, table)),
+      bodyHtml: productArea(renderColumns(locale, m.imp.id, table, m.imp.currency, out.problem, mappingFrom(b, table)), locale, 'add', personOf(s)),
     }));
   });
   /**
@@ -5674,9 +5695,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         if (!m) return reply.redirect('/app/products/add');
         return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
           title: t(locale, 'import.title'), active: 'products',
-          bodyHtml: out.kind === 'review'
+          bodyHtml: productArea(out.kind === 'review'
             ? renderImportReview(m, locale, { errors: out.errors, blockers: out.blockers, discountError: out.discountError, typed: out.typed })
-            : renderImportReview(m, locale),
+            : renderImportReview(m, locale), locale, 'add', personOf(s)),
         }));
       }
     }
@@ -5684,9 +5705,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** K2 — the floors the discount gives, each with its own tick. */
   app.get('/app/products/import/:importId/floors', ownerPage('price_rules', 'products', '/app/products', async (s, req, _reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
-    if (!m) return notFoundImport(locale);
-    if (m.imp.state !== 'open' || m.imp.discountPct === null) return renderImportReview(m, locale);
-    return renderFloors(m, locale);
+    if (!m) return productArea(notFoundImport(locale), locale, 'add', personOf(s));
+    if (m.imp.state !== 'open' || m.imp.discountPct === null) return productArea(renderImportReview(m, locale), locale, 'add', personOf(s));
+    return productArea(renderFloors(m, locale), locale, 'add', personOf(s));
   }));
   app.post('/app/products/import/:importId/confirm', async (req, reply) => {
     const id = (req.params as { importId: string }).importId;
@@ -5701,7 +5722,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!m) return reply.redirect('/app/products/add');
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'import.title'), active: 'products',
-      bodyHtml: renderImportReview(m, locale, out.kind === 'review' ? { blockers: out.blockers } : {}),
+      bodyHtml: productArea(renderImportReview(m, locale, out.kind === 'review' ? { blockers: out.blockers } : {}), locale, 'add', personOf(s)),
     }));
   });
   app.post('/app/products/import/:importId/reread', async (req, reply) => {
@@ -5738,7 +5759,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 9 (V1-313) — one name customers use, taken off; the owner's, as the product's other facts are.
   app.post('/app/products/:id/names/remove', async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const back = `/app/products/${encodeURIComponent(id)}`;
+    const back = productBack(id, productFrom(req));
     const s = await ownerOnly(req, reply, 'price_rules', back);
     if (!s) return reply;
     const alias = String(((req.body ?? {}) as Record<string, string | undefined>)['alias'] ?? '');
@@ -5750,7 +5771,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/products/:id/edit', async (req, reply) => {
     // Phase 4 — a product's price, MOQ and whether it is offered are money.
     const id = (req.params as { id: string }).id;
-    const s = await ownerOnly(req, reply, 'price_rules', `/app/products/${encodeURIComponent(id)}`);
+    const back = productBack(id, productFrom(req));
+    const s = await ownerOnly(req, reply, 'price_rules', back);
     if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
@@ -5774,14 +5796,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // The warmth run, phase 9 (w4-products-knowledge-17) — the page sent back is the
       // product's own page: its name is the tab's, as when it is opened (V1-320).
       if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'product.notFound'), active: 'products', bodyHtml: renderProductMissing(locale),
+        title: t(locale, 'product.notFound'), active: 'products', bodyHtml: productArea(renderProductMissing(locale), locale, 'all', personOf(s)),
       }));
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
         title: productName(locale, d) ?? d.name, active: 'products',
-        bodyHtml: renderProductDetail(d, locale, null, r.errors, b, personOf(s)),
+        bodyHtml: productArea(renderProductDetail(d, locale, null, r.errors, {...b,isActive:b['isActive']??''}, personOf(s), new Date(),
+          {...(productFrom(req) === undefined ? {} : {returnHref:productFrom(req)!})}), locale, 'all', personOf(s)),
       }));
     }
-    return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
+    return flashTo(reply, back,
       r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
   });
 
@@ -5856,18 +5879,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── M29 Price limits: the three questions, reached from My factory ────────
   // G9a — OWNER ONLY as a page: her floor is what a buyer must never learn,
   // and a sales assistant has no need to know it to negotiate inside it.
-  app.get('/app/business/prices', ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
+  app.get('/app/products/price-limits', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const q = req.query as { product?: string };
-    return renderPriceRules(
+    return productArea(renderPriceRules(
       await loadPriceRules(deps.db, s.businessId), locale,
       takeFlash(req, reply), {},
       typeof q.product === 'string' ? { productId: q.product } : {},
-    );
+    ), locale, 'limits', personOf(s));
   }));
+  const priceLimitsBack = (req: FastifyRequest, volume = false): string => {
+    const product = ((req.body ?? {}) as Record<string, unknown>)['productId'];
+    const id = typeof product === 'string' && UUID.test(product) ? product : null;
+    return '/app/products/price-limits' + (id ? `?product=${encodeURIComponent(id)}` : '')
+      + (volume ? '#volume' : id ? `#p-${id}` : '#everything');
+  };
   app.post('/app/business/prices', async (req, reply) => {
     // OWNER ONLY: the floor, the discount authority, the ask-above threshold.
     // Staff negotiate INSIDE her rules; they do not move them.
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
+    const s = await ownerOnly(req, reply, 'price_rules', priceLimitsBack(req));
     if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
@@ -5881,12 +5910,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!r.ok) {
       // F-07: a rejected answer re-renders WITH what she typed, never blank.
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'prices.title'), active: 'factory',
-        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null,
-          r.errors, { productId, values: { floor: b['floor'] ?? '', maxDiscountPct: b['maxDiscountPct'] ?? '', askAbovePct: b['askAbovePct'] ?? '' } }),
+        title: t(locale, 'prices.title'), active: 'products',
+        bodyHtml: productArea(renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null,
+          r.errors, { productId, values: { floor: b['floor'] ?? '', maxDiscountPct: b['maxDiscountPct'] ?? '', askAbovePct: b['askAbovePct'] ?? '' } }), locale, 'limits', personOf(s)),
       }));
     }
-    return flashTo(reply, '/app/business/prices',
+    return flashTo(reply, priceLimitsBack(req),
       r.activatedCount > 0 ? 'prices.flash.savedActivated'
         : r.activated ? 'prices.flash.savedAndLive'
         : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
@@ -5896,7 +5925,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // G22 — WHEN she comes down, and by how much. Owner-only for the same reason
   // the floor is: staff negotiate inside her rules and do not write them.
   app.post('/app/business/prices/volume', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
+    const s = await ownerOnly(req, reply, 'price_rules', priceLimitsBack(req, true));
     if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
@@ -5907,23 +5936,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (!r.ok) {
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'prices.title'), active: 'factory',
-        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors,
-          { productId: b['productId'] ?? '', minQty: b['minQty'] ?? '', discountPct: b['discountPct'] ?? '' }),
+        title: t(locale, 'prices.title'), active: 'products',
+        bodyHtml: productArea(renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors,
+          { productId: b['productId'] ?? '', minQty: b['minQty'] ?? '', discountPct: b['discountPct'] ?? '' }), locale, 'limits', personOf(s)),
       }));
     }
-    return flashTo(reply, '/app/business/prices', 'prices.flash.volumeAdded');
+    return flashTo(reply, priceLimitsBack(req, true), 'prices.flash.volumeAdded');
   });
 
   app.post('/app/business/prices/volume/:id/archive', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
+    const s = await ownerOnly(req, reply, 'price_rules', priceLimitsBack(req, true));
     if (!s) return reply;
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const r = await archiveVolumeDiscount(deps.db, s.businessId, personOf(s).id, id);
     return r.ok
-      ? flashTo(reply, '/app/business/prices', 'prices.flash.volumeRemoved')
-      : reply.redirect('/app/business/prices');
+      ? flashTo(reply, priceLimitsBack(req, true), 'prices.flash.volumeRemoved')
+      : reply.redirect(priceLimitsBack(req, true));
   });
 
   /**
@@ -6360,6 +6389,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const query = oldQuery.toString();
     return reply.redirect(target.pathname + (query ? `?${query}` : '') + target.hash, 302);
   };
+  app.get('/app/business/prices', movedPage('/app/products/price-limits'));
   app.get('/app/replies', movedPage('/app/inbox/replies'));
   app.get('/app/replies/:id', (req, reply) => movedPage(`/app/inbox/replies/${encodeURIComponent((req.params as { id: string }).id)}`)(req, reply));
   app.get('/app/analytics', movedPage('/app/results'));
