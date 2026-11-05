@@ -29,7 +29,7 @@
 
 ### Task 1: Group navigation and authenticated route moves
 
-- [ ] Add pure navigation tests, including command-prefix exclusion, `/app/settings/business` staying the new group root and personal/accountant routes:
+- [x] Add pure navigation tests, including command-prefix exclusion, `/app/settings/business` staying the new group root and personal/accountant routes:
 
 ```ts
 expect(settingsDestination('/app/settings/profile')).toBe('/app/settings/business/profile');
@@ -40,34 +40,34 @@ expect(settingsDestination('/app/settings/business')).toBeNull();
 expect(settingsGroup('/app/settings/books/accounts')).toBe('books');
 ```
 
-- [ ] Run `npx vitest run tests/parity/redesign-settings-navigation.test.ts` on Node 22 and record the missing-module failure.
-- [ ] Implement the registry with exact legacy GET entries and explicit dynamic selling-question mapping. Canonical selling question names use hyphens; command names continue using underscores. Return targets and anchors use `URL`/`URLSearchParams`, never arbitrary external URLs.
-- [ ] Add the seven-group wrapper and index. Desktop uses one narrow group rail; phones use a native labelled group chooser and back link. Books settings use this wrapper rather than nesting the old Books sidebar.
-- [ ] Register canonical GETs using the same auth wrappers/loaders. Add legacy redirect handlers using existing `movedPage`. Add canonical account/language paths to the accountant GET allowlist only.
-- [ ] Verify owner, staff, accountant and anonymous outcomes; verify GETs never invoke model or sender ports. Commit registry and focused tests.
+- [x] Run `npx vitest run tests/parity/redesign-settings-navigation.test.ts` on Node 22 and record the missing-module failure.
+- [x] Implement the registry with exact legacy GET entries and explicit dynamic selling-question mapping. Canonical selling question names use hyphens; command names continue using underscores. Return targets and anchors use `URL`/`URLSearchParams`, never arbitrary external URLs.
+- [x] Add the seven-group wrapper and index. Desktop uses one narrow group rail; phones use a native labelled group chooser and back link. Books settings use this wrapper rather than nesting the old Books sidebar.
+- [x] Register canonical GETs using the same auth wrappers/loaders. Add legacy redirect handlers using existing `movedPage`. Add canonical account/language paths to the accountant GET allowlist only.
+- [x] Verify owner, staff, accountant and anonymous outcomes; verify GETs never invoke model or sender ports. Commit registry and focused tests.
 
 ### Task 2: Business and Channels
 
-- [ ] Extend integration cases for `/app/settings/business`, `/profile`, `/selling`, `/hours`, `/terms`, `/currency`, `/samples`, `/data` and every channel page. Expected anonymous result is `/login`; foreign/forbidden roles retain the original refusal.
-- [ ] Compose Profile from existing profile and business-kind forms, with separate existing save commands. Do not remove fields from the profile POST: omitted profile fields would clear values. Hours and Currency read current values and link to their authoritative profile section, alongside existing closures/rate forms.
-- [ ] Map Business promises and readiness into Assistant; map test numbers into Channels/WhatsApp. All existing connection buttons, tests, callback routes and disclosures remain. Technical setup retains installation-owner gating.
-- [ ] Preserve selling's one-question/confirmation flow. Canonical GET question parameter converts hyphens to the original wire name before `questionOf`; forms keep `HS_BASE` command paths. Existing safeguards decide whether a confirmation is necessary.
-- [ ] Verify an invalid profile and selling answer retains exact typed fields, a closure removal/Undo uses its existing signed command, and GET pages leave source/authority tables unchanged. Commit.
+- [x] Extend integration cases for `/app/settings/business`, `/profile`, `/selling`, `/hours`, `/terms`, `/currency`, `/samples`, `/data` and every channel page. Expected anonymous result is `/login`; foreign/forbidden roles retain the original refusal.
+- [x] Compose Profile from existing profile and business-kind forms, with separate existing save commands. Do not remove fields from the profile POST: omitted profile fields would clear values. Hours and Currency read current values and link to their authoritative profile section, alongside existing closures/rate forms.
+- [x] Map Business promises and readiness into Assistant; map test numbers into Channels/WhatsApp. All existing connection buttons, tests, callback routes and disclosures remain. Technical setup retains installation-owner gating.
+- [x] Preserve selling's one-question/confirmation flow. Canonical GET question parameter converts hyphens to the original wire name before `questionOf`; forms keep `HS_BASE` command paths. Existing safeguards decide whether a confirmation is necessary.
+- [x] Verify an invalid profile and selling answer retains exact typed fields, a closure removal/Undo uses its existing signed command, and GET pages leave source/authority tables unchanged. Commit.
 
 ### Task 3: Assistant, Team and Personal ownership
 
-- [ ] Cover split ownership in integration tests: personal history shows only the viewer's preference/download; workspace history policy is owner-only and never exposes anyone's conversations.
-- [ ] Compose Assistant authority, progress and reply-type sections using existing employee renderers. Keep Stop, release holds, earned capability and explicit permission forms unchanged. Move assistant identity/job/tone controls out of Team into a focused Assistant identity page; Team keeps people, permissions, codes and rotation.
-- [ ] Scope newly issued team-code cookies to the canonical Team page. Preserve single-use display, expiry, same signing purpose and no secret URL. Verify add-person and rotate-code commands reach that page and show the code only once.
-- [ ] Separate advisor-history UI into Personal and workspace policy views using existing `AdvisorMemory` methods. Keep POST and CSV paths. Explicitly preserve consent wording, confirmation and deletion-without-reading behavior.
-- [ ] Compose Personal notifications from existing browser/email preference and owner WhatsApp controls, retaining each viewer's permissions and return context. Account/password and language stay focused pages. Billing keeps the real configured/disabled state and original checkout command.
-- [ ] Run affected focused suites; inspect denied controls and refusal data; commit.
+- [x] Cover split ownership in integration tests: personal history shows only the viewer's preference/download; workspace history policy is owner-only and never exposes anyone's conversations.
+- [x] Compose Assistant authority, progress and reply-type sections using existing employee renderers. Keep Stop, release holds, earned capability and explicit permission forms unchanged. Move assistant identity/job/tone controls out of Team into a focused Assistant identity page; Team keeps people, permissions, codes and rotation.
+- [x] Scope newly issued team-code cookies to the canonical Team page. Preserve single-use display, expiry, same signing purpose and no secret URL. Verify add-person and rotate-code commands reach that page and show the code only once.
+- [x] Separate advisor-history UI into Personal and workspace policy views using existing `AdvisorMemory` methods. Keep POST and CSV paths. Explicitly preserve consent wording, confirmation and deletion-without-reading behavior.
+- [x] Compose Personal notifications from existing browser/email preference and owner WhatsApp controls, retaining each viewer's permissions and return context. Account/password and language stay focused pages. Billing keeps the real configured/disabled state and original checkout command.
+- [x] Run affected focused suites; inspect denied controls and refusal data; commit.
 
 ### Task 4: Browser coverage and release
 
-- [ ] Freeze the final Assistant build as before; clone its synthetic database twice under owned names; use ports 18894/18895, disabled provider, blocked external fetch and no workers.
-- [ ] Capture every Settings manifest row before and after at 1440×900 and 390×844. Capture supplementary new groups and empty/error/permission states. Inspect long forms and all actual phone controls, not only document overflow.
-- [ ] Run GET-only source/authority snapshots and compare row counts/hashes. Exercise only local synthetic forms for profile refusal/save, selling confirmation, closure Undo, notification preference, team code lifecycle and history permission separation.
+- [x] Freeze the final Assistant build as before; clone its synthetic database twice under owned names; use ports 18894/18895, disabled provider, blocked external fetch and no workers.
+- [x] Capture every Settings manifest row before and after at 1440×900 and 390×844. Capture supplementary new groups and empty/error/permission states. Inspect long forms and all actual phone controls, not only document overflow.
+- [x] Run GET-only source/authority snapshots and compare row counts/hashes. Exercise only local synthetic forms for profile refusal/save, selling confirmation, closure Undo, notification preference, team code lifecycle and history permission separation.
 - [ ] Run the required Node 22 commands in this worktree:
 
 ```sh
