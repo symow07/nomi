@@ -1,3 +1,10 @@
+import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
+import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
+import { assistantReturnHref } from './assistantNavigation.js';
+import { readAssistantActivity } from '../../db/assistantActivity.js';
+import { renderAssistantActivity } from './assistantActivity.js';
+import { assistantArea, assistantSection, dailyAssistantScreen } from './assistantArea.js';
+import { renderAssistantOverview } from './assistantOverview.js';
 import { renderBooksHistory } from './booksHistory.js';
 import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
@@ -200,19 +207,19 @@ import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { aloneNow } from '../../core/conversation/aloneNow.js';
 import {
   loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
-  renderPilotScreen, PILOT_SCREENS, PILOT_SCREEN_PATH,
+  renderPilotScreen,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
 import {
-  loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
+  loadKnowledgeIndex, loadProductKnowledge, renderProductKnowledge, renderKnowledgeRefusal,
   teachKnowledge, correctKnowledge, archiveKnowledge, restoreKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, renderKnowledgePeriod, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
   loadPracticeView, renderSandbox, sayInPractice, parseTotal,
-  runScriptedPractice, renderPractice, practiceUrl,
+  runScriptedPractice, renderPractice, renderPracticeChecklist, practiceUrl,
 } from './sandbox.js';
 import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, setPractice, practiceSettings, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
 import { observeChecklist, settleTotals } from '../../db/practiceChecklist.js';
@@ -231,7 +238,7 @@ import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
-import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderReread, rereadCharge, rereadPageFacts, openProposals, sourceLabel, isPasted, type PageFactsKept } from './pageFacts.js';
+import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderReread, rereadCharge, rereadPageFacts, sourceLabel, isPasted, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes, ownName, type AdvisorIO } from './advisor.js';
 import { conversationAdvisorRoutes } from './conversationAdvisor.js';
 import { renderCopilotPanel } from './copilotPanel.js';
@@ -1093,7 +1100,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bodyHtml = s && booksShown() && (path === '/app/books' || path.startsWith('/app/books/'))
       ? booksArea(o.bodyHtml, locale, o.booksPath??path, personOf(s))
       : s && booksShown() && (path === '/app/settings/books' || path.startsWith('/app/settings/books/'))
-        ? booksSettingsArea(o.bodyHtml, locale, path) : o.bodyHtml;
+        ? booksSettingsArea(o.bodyHtml, locale, path)
+        : s && assistantSection(path) ? assistantArea(o.bodyHtml, locale, path) : o.bodyHtml;
     return shell({ ...o, bodyHtml, locale, path: o.booksPath??req.url });
   };
 
@@ -1244,6 +1252,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         page(req, { title: t(locale, `nav.${active}` as MessageKey), active, ...(typeof drawn === 'string' ? { bodyHtml: drawn } : drawn) }),
       );
     };
+
+  // Bookmarks retain their query and browser-managed fragment. Mutations keep their existing handlers.
+  const movedPage = (to: string) => async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!sessionOf(req)) return reply.redirect('/login');
+    const target = new URL(to, 'http://localhost');
+    const oldQuery = new URLSearchParams(req.url.split('?')[1] ?? '');
+    for (const [key, value] of target.searchParams) oldQuery.set(key, value);
+    const query = oldQuery.toString();
+    return reply.redirect(target.pathname + (query ? `?${query}` : '') + target.hash, 302);
+  };
 
   const customerTool = (title: MessageKey, render: Parameters<typeof authed>[1]) =>
     authed('customers', async (s, req, locale, reply) => {
@@ -2578,16 +2596,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.connections'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderBooksConnections(locale,personOf(s),{sheets,odoo,xero,quickbooks})}));
   });
   // The old GET addresses remain guarded aliases; commands and downloads keep their contracts.
-  app.get('/app/books/entries',async(req,reply)=>reply.redirect('/app/books/advanced/entries'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/new',async(req,reply)=>reply.redirect('/app/books/advanced/entries/new'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/:id',async(req,reply)=>reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/entries/:id/edit',async(req,reply)=>reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}/edit`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/trial-balance',async(req,reply)=>reply.redirect('/app/books/advanced/trial-balance'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/closing',async(req,reply)=>reply.redirect('/app/books/year-end'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/fec',async(req,reply)=>reply.redirect('/app/books/reports/fec'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/papers',async(req,reply)=>reply.redirect('/app/books/spending'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/papers/:id',async(req,reply)=>reply.redirect(`/app/books/spending/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
-  app.get('/app/books/fields',async(req,reply)=>reply.redirect('/app/settings/books/fields'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/entries'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/new',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/entries/new'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/:id',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/entries/:id/edit',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/advanced/entries/${encodeURIComponent((req.params as {id:string}).id)}/edit`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/trial-balance',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/advanced/trial-balance'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/closing',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/year-end'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/fec',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/reports/fec'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/papers',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/books/spending'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/papers/:id',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect(`/app/books/spending/${encodeURIComponent((req.params as {id:string}).id)}`+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
+  app.get('/app/books/fields',async(req,reply)=>!sessionOf(req)?reply.redirect('/login'):reply.redirect('/app/settings/books/fields'+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''),302));
   app.get('/app/books/books.csv', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
@@ -5515,7 +5533,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
     // Phase 9 (rule 13) — pressed on the assistant's own page, the notice lands there.
-    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? `${ASSISTANT_HOME}#on-her-own` : READY;
+    const from=(req.body as {from?:unknown}|undefined)?.from;
+    const to = from === 'assistant' ? '/app/assistant' : from === 'employee' ? `${ASSISTANT_HOME}#on-her-own` : READY;
     const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -6165,7 +6184,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // …and each row's screen: one former section, under its way back. Each is
   // its own route, so every walk of the GET routes opens every one of them.
   for (const screen of EMPLOYEE_SCREENS) {
-    if (screen === 'month') continue; // Sales results owns this existing monthly view.
+    if (screen === 'month' || dailyAssistantScreen(screen)) continue; // Daily work has its own area.
     app.get(screenHref(screen), async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
@@ -6264,8 +6283,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // to the one handler above — so nothing posted to the old address is lost, and nothing is handled twice.
   // Signed out, they say nothing of where anything moved: the sign-in first, like every other /app route (M35).
   app.get('/app/employee', async (req, reply) => sessionOf(req) ? reply.redirect(ASSISTANT_HOME, 302) : reply.redirect('/login'));
-  app.get('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')
-    : reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 302));
+  app.get('/app/employee/*', (req, reply) => {
+    const suffix=(req.params as {'*':string})['*'];
+    return movedPage(dailyAssistantScreen(suffix) ?? `${ASSISTANT_HOME}/${suffix}`)(req,reply);
+  });
   app.post('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')
     : reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));
 
@@ -6288,7 +6309,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.verdict === 'serious' ? 'spotcheck.flash.problem'
       : 'spotcheck.flash.fixed';
     // Phase 7 — back to the checks, where the next one waits (or the screen says none do).
-    return flashTo(reply, screenHref('checks'), key as MessageKey);
+    return flashTo(reply, '/app/assistant/review', key as MessageKey);
   });
 
   // ── M35.1 · the owner issues and revokes the buyer's proof link ───────────
@@ -6517,15 +6538,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, customerActionHref(req, `/app/conversations/${encodeURIComponent(conversationId)}`), key, { buyer: t(locale, 'common.buyer') });
   });
 
-  // Bookmarks retain their query and browser-managed fragment. Mutations keep their existing handlers.
-  const movedPage = (to: string) => async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!sessionOf(req)) return reply.redirect('/login');
-    const target = new URL(to, 'http://localhost');
-    const oldQuery = new URLSearchParams(req.url.split('?')[1] ?? '');
-    for (const [key, value] of target.searchParams) oldQuery.set(key, value);
-    const query = oldQuery.toString();
-    return reply.redirect(target.pathname + (query ? `?${query}` : '') + target.hash, 302);
-  };
   app.get('/app/business/prices', movedPage('/app/products/price-limits'));
   app.get('/app/replies', movedPage('/app/inbox/replies'));
   app.get('/app/replies/:id', (req, reply) => movedPage(`/app/inbox/replies/${encodeURIComponent((req.params as { id: string }).id)}`)(req, reply));
@@ -6563,18 +6575,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {title:t(locale,'customers.orders'),bodyHtml:customerArea(renderCustomerOrders(data,locale,new Date(),{returnHref:req.url}),locale,'orders')};
   }));
 
-  // Working entrance during the remaining area-by-area migration.
-  app.get('/app/assistant', authed('assistant', async (_s, _req, locale) => ({
-    title: t(locale, 'nav.assistant'),
-    bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.assistant'))}</h1><ul class="rows">${[
-      deeper('/app/knowledge', t(locale, 'nav.knowledge')),
-      deeper('/app/sandbox', t(locale, 'nav.sandbox')),
-      deeper(screenHref('checks'), t(locale, 'spotcheck.title')),
-      deeper(screenHref('history'), t(locale, 'employee.growth.title')),
-      deeper('/app/advisor', t(locale, 'nav.advisor')),
-      deeper(ASSISTANT_HOME, t(locale, 'nav.settings')),
-    ].map((door) => `<li>${door}</li>`).join('')}</ul>`,
-  })));
+  app.get('/app/assistant', authed('assistant', async (s, req, locale, reply) => {
+    const [employee,context]=await Promise.all([loadEmployee(deps.db,s.businessId),herContext(s.businessId)]);
+    return {title:t(locale,'nav.assistant'),bodyHtml:renderAssistantOverview(employee,locale,personOf(s),takeFlash(req,reply),context)};
+  }));
+  for(const screen of ['checks','history','learning','talk'] as const)app.get(`${ASSISTANT_HOME}/${screen}`,movedPage(dailyAssistantScreen(screen)!));
+  app.get('/app/assistant/review',authed('assistant',async(s,req,locale,reply)=>({title:t(locale,'assistantArea.review'),bodyHtml:renderEmployeeScreen('checks',await loadEmployee(deps.db,s.businessId),locale,takeFlash(req,reply),undefined,personOf(s))})));
+
+  app.get('/app/assistant/activity',authed('assistant',async(s,req,locale)=>{
+    const bid=parseBusinessId(s.businessId);if(!bid.ok)return missingPage(locale,t(locale,'assistantArea.activityEmpty'),{href:'/app/assistant',label:t(locale,'nav.assistant')});
+    const pageNumber=Number((req.query as {page?:unknown}).page);
+    const events=await withTenantTx(deps.db,bid.value,tx=>readAssistantActivity(tx,bid.value,{page:pageNumber}));
+    return {title:t(locale,'assistantArea.activity'),bodyHtml:renderAssistantActivity(events,locale)};
+  }));
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
   app.get('/app/results', authed('analytics', async (s, req, locale, reply) => {
@@ -6707,36 +6720,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
 
-  // The warmth run, phase 9 (w4-today-setup-15) — the two screens under the
-  // checklist: what to try in Practice, and how it is going. Same readers as
-  // the checklist; each screen draws its part.
-  for (const which of PILOT_SCREENS) {
-    if (which === 'activity') continue;
-    app.get(PILOT_SCREEN_PATH[which], async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
-      const locale = localeOf(req);
-      const bid0 = parseBusinessId(s.businessId);
-      const data = await loadPilotRunbook(deps.db, s.businessId, {
-        practiceBusinessId: bid0.ok ? await practiceCopyOf(deps.db, bid0.value) : null, provider: deps.provider,
-      });
-      return reply.type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, which === 'practice' ? 'runbook.practice.title' : 'runbook.during.title'), active: 'onboarding',
-        bodyHtml: renderPilotScreen(which, data, locale),
-      }));
-    });
-  }
-
-  // G6 — "Ready for customers": the owner's own evidence before customers write.
-  app.get('/app/ready', async (req, reply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app');
-    const locale = localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'ready.title'), active: 'onboarding', bodyHtml: renderReady(await loadReady(deps.db, bid.value), locale),
-    }));
-  });
+  app.get('/app/onboarding/practice',movedPage('/app/assistant/practice#checklist'));
+  app.get('/app/ready',movedPage('/app/assistant/practice#readiness'));
 
   // Phase 4b (audit F2 / F4) — the machine room, one door from Getting ready
   // and owner-only: credential shapes, the engine's own checks, the build.
@@ -8257,25 +8242,36 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // weekly report, questions to answer (derived gaps), recent changes — then
   // the teach surface (M13). All numbers are real counts; no invented metrics.
   /** The knowledge page; `kept` (phase 6) — a page that came to nothing, said under its own form. */
+  app.get('/app/knowledge',movedPage('/app/assistant/knowledge'));
+  app.get('/app/knowledge/from-page/:id',(req,reply)=>movedPage('/app/assistant/knowledge/readings/'+encodeURIComponent((req.params as {id:string}).id))(req,reply));
+  app.get('/app/knowledge/from-page/:id/again',(req,reply)=>movedPage('/app/assistant/knowledge/readings/'+encodeURIComponent((req.params as {id:string}).id)+'/again')(req,reply));
+  app.get('/app/knowledge/:id',(req,reply)=>movedPage('/app/assistant/knowledge/products/'+encodeURIComponent((req.params as {id:string}).id))(req,reply));
+  const knowledgeFrom=(req:FastifyRequest,fallback='/app/assistant/knowledge?view=facts')=>assistantReturnHref(((req.method==='POST'?req.body:req.query) as {from?:unknown}|undefined)?.from,fallback);
+  const readingReturn=(req:FastifyRequest,id:string)=>{const from=knowledgeFrom(req,'');return '/app/assistant/knowledge/readings/'+encodeURIComponent(id)+(from?'?from='+encodeURIComponent(from):'');};
   const knowledgeBody = async (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale, kept: PageFactsKept | null = null) => {
-    const range = parseKnowledgeRange((req.query as { range?: string } | undefined)?.range);
-    const prefill = typeof (req.query as { teach?: string } | undefined)?.teach === 'string' ? (req.query as { teach: string }).teach : '';
-    const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
-    const index = await loadKnowledgeIndex(deps.db, s.businessId);
-    // S5 — the answers people gave, offered to the owner (read, never stored; only the owner's decision is).
-    const kb = parseBusinessId(s.businessId);
-    const given = kb.ok ? await withTenantTx(deps.db, kb.value, (tx) => answerSuggestions(tx, kb.value, new Date(), FAQ_ANSWER_MIN_RELEVANCE)) : [];
-    // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
-    // Phase 9 (V1-358) — what to do first; the period's counts last.
-    // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
-    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply))
-      + renderAnswerSuggestions(locale, given, personOf(s), new Date()) + renderKnowledgeIndex(index, locale, prefill)
-      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept, await openProposals(deps.db, s.businessId))
-        // No page reader here: no form is offered, but a page sent anyway still says why.
-        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
-      + renderKnowledgePeriod(ops, locale, new Date()) + '</div>';
+    const query=(req.query??{}) as {range?:unknown;teach?:unknown;view?:unknown;q?:unknown;state?:unknown;page?:unknown};
+    const range=parseKnowledgeRange(typeof query.range==='string'?query.range:undefined);
+    const prefill=typeof query.teach==='string'?query.teach:'';
+    const view=kept?'readings':prefill?'facts':knowledgeView(query.view);
+    const q=typeof query.q==='string'?query.q.slice(0,200):'';
+    const state=typeof query.state==='string'?query.state:view==='products'?'active':'all';
+    const bid=parseBusinessId(s.businessId);if(!bid.ok)return missingPage(locale,t(locale,'knowledge.empty'),{href:'/app/assistant',label:t(locale,'nav.assistant')});
+    const [ops,pages,given]=await Promise.all([
+      loadKnowledgeOps(deps.db,s.businessId,range),
+      withTenantTx(deps.db,bid.value,async tx=>({
+        products:await readKnowledgeProductsPage(tx,bid.value,{page:Number(query.page),q,...(state==='all'||state==='inactive'?{state}: {})}),
+        facts:await readKnowledgeFactsPage(tx,bid.value,{page:Number(query.page),q}),
+        readings:await readKnowledgeReadingsPage(tx,bid.value,{page:Number(query.page),q,...(state==='pending'||state==='approved'||state==='replaced'?{state}: {})}),
+      })),
+      withTenantTx(deps.db,bid.value,tx=>answerSuggestions(tx,bid.value,new Date(),FAQ_ANSWER_MIN_RELEVANCE)),
+    ]);
+    const returnHref=assistantReturnHref(req.url,'/app/assistant/knowledge?view='+view);
+    return renderAssistantKnowledge(locale,{view,q,state,range,prefill,returnHref,...pages,flash:kept?null:takeFlash(req,reply),
+      gaps:renderKnowledgeOps(ops,locale,new Date(),null,{embedded:true}),suggestions:renderAnswerSuggestions(locale,given,personOf(s),new Date()),period:renderKnowledgePeriod(ops,locale,new Date()),
+      readingForm:deps.pageFactsReader?renderPageFactsForm(locale,kept):(kept?`<p role="alert">${esc(t(locale,`pageFacts.refused.${kept.reason}` as MessageKey))}</p>`:'')+`<p>${esc(t(locale,'assistantKnowledge.readerUnavailable'))}</p><a href="/app/assistant/knowledge?view=facts#teach">${esc(t(locale,'assistantArea.teach'))}</a>`,
+    });
   };
-  app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
+  app.get('/app/assistant/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);
   }));
 
@@ -8293,34 +8289,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }, { address: String(b.address ?? ''), text: String(b.text ?? '') });
     // B19 — a page already read and still waiting for her ticks opens that reading, and says so; 0220 — so does one
     // she approved, where reading it again is its own step (what it uses of the allowance is shown first).
-    if (out.ok) return out.again === 'waiting' ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.again')
-      : out.again === 'approved' ? flashTo(reply, `/app/knowledge/from-page/${out.id}`, 'pageFacts.flash.readBefore')
-      : reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
+    if (out.ok) return out.again === 'waiting' ? flashTo(reply, `/app/assistant/knowledge/readings/${out.id}`, 'pageFacts.flash.again')
+      : out.again === 'approved' ? flashTo(reply, `/app/assistant/knowledge/readings/${out.id}`, 'pageFacts.flash.readBefore')
+      : reply.redirect(`/app/assistant/knowledge/readings/${out.id}`, 303);
     // Phase 6 — the knowledge page again, the reason under the form and what was typed still in it.
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
       bodyHtml: await knowledgeBody(s, req, reply, locale, { address: String(b.address ?? ''), text: String(b.text ?? ''), reason: out.reason }),
     }));
   });
-  app.get('/app/knowledge/from-page/:id', authed('knowledge', async (s, req, locale, reply) => {
+  app.get('/app/assistant/knowledge/readings/:id', authed('knowledge', async (s, req, locale, reply) => {
     const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
-    if (!p) { reply.code(404); return missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }); }
-    return renderProposal(p, locale, takeFlash(req, reply), Boolean(deps.pageFactsReader));
+    if (!p) { reply.code(404); return missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/assistant/knowledge', label: t(locale, 'knowledge.back') }); }
+    return renderProposal(p, locale, takeFlash(req, reply), Boolean(deps.pageFactsReader),knowledgeFrom(req,'/app/assistant/knowledge?view=readings'));
   }));
   /**
    * 0220 — READ THE PAGE AGAIN. The GET is the confirm step and spends nothing: what happens to this reading, what
    * the new one uses of today's allowance, that finding nothing still uses it. The POST makes the one paid reading.
    */
   const rereadPage = (req: FastifyRequest, locale: Locale, bodyHtml: string) => page(req, { title: t(locale, 'pageFacts.reread.title'), active: 'knowledge', bodyHtml });
-  app.get('/app/knowledge/from-page/:id/again', async (req, reply) => {
+  app.get('/app/assistant/knowledge/readings/:id/again', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
     if (!p) return reply.code(404).type('text/html; charset=utf-8').send(rereadPage(req, locale,
-      missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') })));
+      missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/assistant/knowledge', label: t(locale, 'knowledge.back') })));
     // Nothing to read again: no reader here, text that was pasted, or a reading a newer one already replaced.
-    if (!deps.pageFactsReader || p.replacedBy || isPasted(p.source)) return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(p.id)}`);
-    return reply.type('text/html; charset=utf-8').send(rereadPage(req, locale, renderReread(p, await rereadCharge(deps.db, s.businessId), locale)));
+    if (!deps.pageFactsReader || p.replacedBy || isPasted(p.source)) return reply.redirect(`/app/assistant/knowledge/readings/${encodeURIComponent(p.id)}`);
+    return reply.type('text/html; charset=utf-8').send(rereadPage(req, locale, renderReread(p, await rereadCharge(deps.db, s.businessId), locale,null,knowledgeFrom(req,'/app/assistant/knowledge?view=readings'))));
   });
   app.post('/app/knowledge/from-page/:id/again', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -8330,12 +8326,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       fetcher: deps.storeFetcher ?? publicFetcher, reader: deps.pageFactsReader,
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
     });
-    if (out.ok) return flashTo(reply, `/app/knowledge/from-page/${out.id}`, out.again ? 'pageFacts.flash.again' : 'pageFacts.flash.reread');
+    if (out.ok) return flashTo(reply, readingReturn(req,out.id), out.again ? 'pageFacts.flash.again' : 'pageFacts.flash.reread');
     const reason = out.reason;
     const p = reason === 'gone' ? null : await loadProposal(deps.db, s.businessId, id);
-    if (!p || reason === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
+    if (!p || reason === 'gone') return reply.redirect(readingReturn(req,id));
     return reply.code(400).type('text/html; charset=utf-8').send(rereadPage(req, locale,
-      renderReread(p, await rereadCharge(deps.db, s.businessId), locale, reason)));
+      renderReread(p, await rereadCharge(deps.db, s.businessId), locale, reason,knowledgeFrom(req,'/app/assistant/knowledge?view=readings'))));
   });
   app.post('/app/knowledge/from-page/:id/confirm', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -8344,17 +8340,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const ticked = Object.keys(b).filter((k) => k.startsWith('line:') && b[k] !== undefined).map((k) => k.slice('line:'.length));
     const p = await loadProposal(deps.db, s.businessId, id);
-    if (!p) return reply.redirect('/app/knowledge');
+    if (!p) return reply.redirect('/app/assistant/knowledge');
     const label = t(locale, 'pageFacts.label', { source: sourceLabel(locale, p.source) });
     const r = await confirmPageFacts(deps.db, s.businessId, id, personOf(s).name, ticked, label);
-    if (r.kind === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
-    if (r.kind === 'none_ticked') return flashTo(reply, `/app/knowledge/from-page/${encodeURIComponent(id)}`, 'pageFacts.flash.noneTicked');
+    if (r.kind === 'gone') return reply.redirect(readingReturn(req,id));
+    if (r.kind === 'none_ticked') return flashTo(reply, readingReturn(req,id), 'pageFacts.flash.noneTicked');
     // 0220 — approving a reading of a page she had approved before replaced that reading's lines: said so.
-    if (p.rereadOf) return flashTo(reply, '/app/knowledge', 'pageFacts.flash.replaced');
-    return flashTo(reply, '/app/knowledge', 'pageFacts.flash.written', { n: r.n });
+    if (p.rereadOf) return flashTo(reply, knowledgeFrom(req,'/app/assistant/knowledge?view=readings'), 'pageFacts.flash.replaced');
+    return flashTo(reply, knowledgeFrom(req,'/app/assistant/knowledge?view=readings'), 'pageFacts.flash.written', { n: r.n });
   });
 
-  app.get('/app/knowledge/:id', async (req, reply) => {
+  app.get('/app/assistant/knowledge/products/:id', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
@@ -8362,22 +8358,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: renderProductMissing(locale, { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
+      bodyHtml: renderProductMissing(locale, { href: '/app/assistant/knowledge', label: t(locale, 'knowledge.back') }),
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = takeFlash(req, reply);
     const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: renderProductKnowledge(d, locale, flash, { usage, prefill, now: new Date() }),
+      bodyHtml: renderProductKnowledge(d, locale, flash, { usage, prefill, now: new Date(),from:knowledgeFrom(req,'/app/assistant/knowledge?view=products') }),
     }));
   });
 
   // Teach/correct/archive/cert → redirect back to the product page (or the index
   // for business-level rows) with a localized flash. All owner-authenticated.
   // Phase 5 — Knowledge itself says what was done now, so a business-wide fact's notice lands there too.
-  const kBack = (reply: FastifyReply, _req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
-    flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge', `knowledge.flash.${code}` as MessageKey);
+  const kBack = (reply: FastifyReply, req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
+    flashTo(reply, knowledgeFrom(req,productId ? `/app/assistant/knowledge/products/${encodeURIComponent(productId)}` : '/app/assistant/knowledge?view=facts'), `knowledge.flash.${code}` as MessageKey);
   /**
    * S5 (Phase 5, item 17; 0199) — an answer a person gave, taught or set aside. The owner's alone: nothing a person
    * wrote to one buyer becomes what the assistant says to every buyer unless the owner says so. Teach writes a
@@ -8389,29 +8385,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return { question: str(b.question), label: str(b.label), content: str(b.content) };
   };
   app.post('/app/knowledge/answers/teach', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
-    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/assistant/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/assistant/knowledge');
     const b = givenBody(req);
     const r = await withTenantTx(deps.db, bid.value, (tx) => teachSuggestion(tx, bid.value, { ...b, actor: personOf(s).id }));
-    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+    return flashTo(reply, '/app/assistant/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
   });
   app.post('/app/knowledge/answers/dismiss', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
-    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/assistant/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/assistant/knowledge');
     const r = await withTenantTx(deps.db, bid.value, (tx) => dismissSuggestion(tx, bid.value, givenBody(req).question, personOf(s).id));
-    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+    return flashTo(reply, '/app/assistant/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
   });
+  const knowledgeRefusal=(req:FastifyRequest,reply:FastifyReply,action:'teach'|'correct')=>{
+    const body=(req.body??{}) as Record<string,unknown>,from=assistantReturnHref(body['from'],'');
+    if(!from)return null;
+    const str=(key:string)=>typeof body[key]==='string'?body[key] as string:'';
+    const b={productId:str('productId'),id:str('id'),kind:str('kind'),label:str('label'),content:str('content')},locale=localeOf(req);
+    return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,'nav.knowledge'),active:'knowledge',bodyHtml:renderKnowledgeRefusal(locale,action,b,from)}));
+  };
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };
     const productId = b.productId ? String(b.productId) : null;
     const r = await teachKnowledge(deps.db, s.businessId, { productId, kind: String(b.kind ?? ''), label: String(b.label ?? ''), content: String(b.content ?? '') });
+    if(r.code==='invalid'){const response=knowledgeRefusal(req,reply,'teach');if(response)return response;}
     return kBack(reply, req, productId ?? '', r.code);
   });
   app.post('/app/knowledge/correct', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { id?: string; content?: string; productId?: string };
     const r = await correctKnowledge(deps.db, s.businessId, String(b.id ?? ''), String(b.content ?? ''));
+    if(r.code==='invalid'){const response=knowledgeRefusal(req,reply,'correct');if(response)return response;}
     return kBack(reply, req, String(b.productId ?? ''), r.code);
   });
   app.post('/app/knowledge/archive', async (req, reply) => {
@@ -8422,17 +8427,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const productId = String(b.productId ?? '');
     // Phase 5 — archived at once; the notice carries the way back, on the product's page or on Knowledge.
     return UUID.test(id)
-      ? flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge',
-          `knowledge.flash.${r.code}` as MessageKey, undefined, `/app/knowledge/${id}/restore`)
+      ? flashTo(reply, knowledgeFrom(req,productId ? `/app/assistant/knowledge/products/${encodeURIComponent(productId)}` : '/app/assistant/knowledge?view=facts'),
+          `knowledge.flash.${r.code}` as MessageKey, undefined, `/app/knowledge/${id}/restore${encodeURIComponent(knowledgeFrom(req)).length<=1800?'?from='+encodeURIComponent(knowledgeFrom(req)):''}`)
       : kBack(reply, req, productId, r.code);
   });
   app.post('/app/knowledge/:id/restore', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const id = (req.params as { id: string }).id;
     const r = UUID.test(id) ? await restoreKnowledge(deps.db, s.businessId, id) : { code: 'invalid' as const, productId: null };
-    return r.code === 'restored' && r.productId
-      ? flashTo(reply, `/app/knowledge/${encodeURIComponent(r.productId)}`, 'knowledge.flash.restored')
-      : flashTo(reply, '/app/knowledge', r.code === 'restored' ? 'knowledge.flash.restored' : 'knowledge.flash.notRestored');
+    return flashTo(reply,assistantReturnHref((req.query as {from?:unknown}).from,r.productId?`/app/assistant/knowledge/products/${encodeURIComponent(r.productId)}`:'/app/assistant/knowledge?view=facts'),r.code==='restored'?'knowledge.flash.restored':'knowledge.flash.notRestored');
   });
   // The warmth run, phase 9 (w4-products-knowledge-02) — the certifications are
   // switched in one place, My business › What you promise customers: the notice lands there.
@@ -8454,7 +8457,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     const liveOf = (s: OwnerSession) => parseBusinessId(s.businessId);
 
-    app.get('/app/sandbox', async (req, reply) => {
+    app.get('/app/sandbox',movedPage('/app/assistant/practice'));
+    app.get('/app/assistant/practice', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
@@ -8489,11 +8493,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
         // Phase 7 — a row of the assistant's menu: its way back leads (the transcript's own "earlier" link is not one).
-        bodyHtml: `${back(ASSISTANT_HOME, t(locale, 'nav.employee'))}<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
+        bodyHtml: `<div class="assistant-practice"><h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
-            : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`)
-          + renderPractice(practice, locale),
+            : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`+(checklist?renderPracticeChecklist(checklist,locale):''))
+          + (live.ok?renderReady(await loadReady(deps.db,live.value),locale,{embedded:true}):'')
+          + renderPractice(practice, locale)+'</div>',
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark, working && view.ownership === 'AI')) } : {}),
       }));
     });

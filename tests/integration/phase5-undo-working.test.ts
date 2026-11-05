@@ -121,7 +121,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     const { id } = await one<{ id: string }>(`select id::text as id from product_knowledge where business_id = $1 and label = 'Delivery'`, [bid]);
     const page = await landing(await form('/app/knowledge/archive', { id, productId: '' }, cookie));
     expect(page.body).toContain(t('en', 'knowledge.flash.archived'));
-    expect(page.body).toContain(UNDO(`/app/knowledge/${id}/restore`));
+    expect(page.body).toContain(UNDO(`/app/knowledge/${id}/restore?from=${encodeURIComponent('/app/assistant/knowledge?view=facts')}`));
     const back = await landing(await form(`/app/knowledge/${id}/restore`, {}, cookie));
     expect(back.body).toContain(t('en', 'knowledge.flash.restored'));
     expect((await one<{ status: string }>(`select status from product_knowledge where id = $1`, [id])).status).toBe('active');

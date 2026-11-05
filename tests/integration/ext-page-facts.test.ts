@@ -60,7 +60,7 @@ d('EXT · a page of her site, learned line by line (requires DATABASE_URL + MIGR
     },
   };
   const post = (a: typeof app, c: string, url: string, body: Record<string, string>) =>
-    a.inject({ method: 'POST', url, headers: { cookie: c, ...FORM }, payload: new URLSearchParams(body).toString() });
+    a.inject({ method: 'POST', url: url.replace('/app/assistant/knowledge/readings/','/app/knowledge/from-page/'), headers: { cookie: c, ...FORM }, payload: new URLSearchParams(body).toString() });
   const get = (a: typeof app, c: string, url: string) => a.inject({ method: 'GET', url, headers: { cookie: c } });
   const knowledge = async () => (await admin.query(
     `select label, content, source, product_id from product_knowledge where business_id = $1 and status = 'active' order by content`, [BIZ])).rows as { label: string; content: string; source: string; product_id: string | null }[];
@@ -90,7 +90,7 @@ d('EXT · a page of her site, learned line by line (requires DATABASE_URL + MIGR
   afterAll(async () => { await app?.close(); await bare?.close(); await db?.destroy(); await admin?.end(); });
 
   it('PROPOSED, NOTHING WRITTEN; then only the ticked lines, once, on the audit trail', async () => {
-    expect((await get(app, cookie, '/app/knowledge')).body).toContain('id="from-page"');
+    expect((await get(app, cookie, '/app/assistant/knowledge?view=readings')).body).toContain('id="from-page"');
     const r = await post(app, cookie, '/app/knowledge/from-page', { address: 'myshop.com/pages/shipping', text: '' });
     expect(r.statusCode).toBe(303);
     expect(fetched.at(-1)).toBe('https://myshop.com/pages/shipping');
@@ -112,7 +112,7 @@ d('EXT · a page of her site, learned line by line (requires DATABASE_URL + MIGR
 
     // One ticked (and a key the proposal never had): only that line.
     const ok = await post(app, cookie, `${at}/confirm`, { 'line:f2': 'on', 'line:f9': 'on' });
-    expect(ok.headers['location']).toBe('/app/knowledge');
+    expect(ok.headers['location']).toBe('/app/assistant/knowledge?view=readings');
     expect(flashSaid(ok, SECRET)).toBe(t('en', 'pageFacts.flash.written', { n: 1 }));
     expect(await knowledge()).toEqual([{ label: t('en', 'pageFacts.label', { source: 'myshop.com' }), content: 'Returns are accepted for 30 days after delivery.', source: 'owner_confirmed', product_id: null }]);
     const audit = (await admin.query(`select detail from channel_audit where business_id = $1 and action = 'knowledge_imported'`, [BIZ])).rows;
@@ -153,13 +153,13 @@ d('EXT · a page of her site, learned line by line (requires DATABASE_URL + MIGR
     expect(asked.length).toBe(before);
     await admin.query(`delete from tenant_budgets where business_id = $1`, [BIZ]);
 
-    expect((await get(bare, bareCookie, '/app/knowledge')).body).not.toContain('id="from-page"');
+    expect((await get(bare, bareCookie, '/app/assistant/knowledge?view=readings')).body).not.toContain('id="from-page"');
     expect((await post(bare, bareCookie, '/app/knowledge/from-page', { address: 'myshop.com', text: '' })).body)
       .toContain(t('en', 'pageFacts.refused.not_configured'));
 
     const theirs = (await admin.query(`insert into knowledge_proposals (business_id, source, lines, created_by) values ($1, 'pasted', $2::jsonb, 'x') returning id::text as id`,
       [OTHER, JSON.stringify([{ key: 'f1', fact: 'Their own fact.', quote: 'Their own fact.' }])])).rows[0].id as string;
-    expect((await get(app, cookie, `/app/knowledge/from-page/${theirs}`)).statusCode).toBe(404);
+    expect((await get(app, cookie, `/app/assistant/knowledge/readings/${theirs}`)).statusCode).toBe(404);
     await post(app, cookie, `/app/knowledge/from-page/${theirs}/confirm`, { 'line:f1': 'on' });
     expect((await admin.query(`select count(*)::int as n from product_knowledge where business_id = $1`, [OTHER])).rows[0].n).toBe(0);
     expect((await admin.query(`select decided_at from knowledge_proposals where id = $1`, [theirs])).rows[0].decided_at).toBeNull();

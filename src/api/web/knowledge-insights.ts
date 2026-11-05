@@ -210,19 +210,19 @@ const reasonLabel = (l: Locale, r: GapReason) => t(l, `knowledge.gap.reason.${r}
  * form to teach more. The period's counts come last (`renderKnowledgePeriod`):
  * they were first, four zeros and two empty panels before anything to do.
  */
-export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date, flash: Flash | null = null): string {
+export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date, flash: Flash | null = null, options:{embedded?:boolean}={}): string {
   const gapCard = (g: Gap) => {
     const teachHref = g.productId
-      ? `/app/knowledge/${encodeURIComponent(g.productId)}?teach=${encodeURIComponent(g.question)}`
-      : `/app/knowledge?teach=${encodeURIComponent(g.question)}`;
+      ? `/app/assistant/knowledge/products/${encodeURIComponent(g.productId)}?teach=${encodeURIComponent(g.question)}`
+      : `/app/assistant/knowledge?view=facts&teach=${encodeURIComponent(g.question)}`;
     // CC-25 — onto the box the question is waiting in, which follows the
     // practice transcript now rather than preceding it.
-    const testHref = `/app/sandbox?ask=${encodeURIComponent(g.question)}#compose`;
+    const testHref = `/app/assistant/practice?ask=${encodeURIComponent(g.question)}#compose`;
     return `<div class="gap">
       <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
         <span class="muted">${esc(show.when(locale, g.lastAt, now))}</span></div>
-      <div class="gacts">${deeper(teachHref, t(locale, 'knowledge.gap.teach'))}
+      <div class="gacts">${deeper(esc(teachHref), t(locale, 'knowledge.gap.teach'))}
         ${deeper(testHref, t(locale, 'knowledge.gap.test'))}</div>
     </div>`;
   };
@@ -235,7 +235,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date,
 
   // The page's one title and its lede; the list of what was taught follows
   // (`renderKnowledgeIndex`), under this same heading.
-  return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>${flashBanner(flash)}
+  return `${options.embedded?'':`<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>${flashBanner(flash)}`}
     <p class="lede">${esc(t(locale, 'knowledge.intro'))}</p>
     ${gaps}`;
 }
@@ -250,7 +250,7 @@ const periodWord = (locale: Locale, r: Range): string => t(locale, `knowledge.op
  */
 export function renderKnowledgePeriod(ops: KnowledgeOps, locale: Locale, now: Date): string {
   const tab = (r: Range) =>
-    `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/knowledge?range=${r}#period">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
+    `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/assistant/knowledge?range=${r}#period">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
   const stat = (labelKey: MessageKey, n: number) =>
     `<div class="stat"><div class="v">${esc(show.count(locale, n))}</div><div class="l">${esc(t(locale, labelKey, {}))}</div></div>`;

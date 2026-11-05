@@ -1,3 +1,5 @@
+// Legacy asset remains available to an already-open tab. New Assistant pages do not load it.
+const ORB_JS='/assets/orb.0000000000000000.js';
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +9,7 @@ import { usd } from '../../src/core/types/money.js';
 import { renderProductDetail, type ProductDetail } from '../../src/api/web/products.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { registerWebApp, PUBLIC_ROUTES } from '../../src/api/web/app.js';
-import { shell, loginPage, signupPage, assetAt, ORB_JS } from '../../src/api/web/layout.js';
+import { shell, loginPage, signupPage, assetAt } from '../../src/api/web/layout.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { SERVICE_WORKER, appManifest } from '../../src/api/web/phone.js';
 import { TYPE_CSS, TYPE_ZH_CSS } from '../../src/api/web/type.js';

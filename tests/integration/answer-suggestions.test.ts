@@ -46,8 +46,8 @@ d('S5 · answers people gave (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   const post = (url: string, fields: Record<string, string> = {}, who = owner) =>
     app.inject({ method: 'POST', url, headers: { cookie: who, ...FORM }, payload: new URLSearchParams(fields).toString() });
   const page = async (who = owner) => {
-    const html = (await app.inject({ method: 'GET', url: '/app/knowledge', headers: { cookie: who } })).body;
-    return /<div class="block" id="answers-given">[\s\S]*?(?=<div class="block"><h2>)/.exec(html)?.[0] ?? '';
+    const html = (await app.inject({ method: 'GET', url: '/app/assistant/knowledge', headers: { cookie: who } })).body;
+    return /<div class="block" id="answers-given">[\s\S]*?(?=<div class="block" id="period">|<p><a href="\/app\/assistant\/knowledge\?)/.exec(html)?.[0] ?? '';
   };
   const buyer = async (testing = false) => {
     const { ensureConversation } = await import('../../src/db/channels.js');
@@ -155,7 +155,7 @@ d('S5 · answers people gave (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(seen).not.toContain('<form');
     const r = await post('/app/knowledge/answers/teach', { question: 'Can I pay by bank transfer?', label: 'Payment', content: 'Bank transfer.' }, staff);
     expect(flashSaid(r, SECRET)).toBe('Only the owner can do that.');
-    expect(String(r.headers['location'])).toBe('/app/knowledge#answers-given');
+    expect(String(r.headers['location'])).toBe('/app/assistant/knowledge#answers-given');
     await post('/app/knowledge/answers/dismiss', { question: 'Can I pay by bank transfer?' }, staff);
     expect(await count('product_knowledge')).toBe(0);
     expect(await count('answer_decisions')).toBe(0);

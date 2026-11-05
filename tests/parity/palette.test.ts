@@ -118,10 +118,10 @@ describe('the palette', () => {
     // Its value, its token and its variable, anywhere in the product: where it is defined, the one form that names it,
     // and nothing else: the nav mark's light (2026-10-09) was removed by the owner on 2026-10-11.
     const naming = (await sources(SRC)).filter(({ src }) => /orbGlow|--color-orb-glow|'orb-glow'|A1127A/i.test(src)).map(({ f }) => f).sort();
-    expect(naming).toEqual(['advisor.ts', 'tokens.ts']);
+    expect(naming).toEqual(['tokens.ts']);
     const advisor = readFileSync(join(SRC_PATH, 'api/web/advisor.ts'), 'utf8');
-    expect(advisor.match(/'orb-glow'/g)).toHaveLength(1);                         // the orb's glow, and nothing else on the page
-    expect(advisor).toContain("const ORB_GLOW = 'orb-glow';");
+    expect(advisor).not.toContain('orb-glow');                         // the orb's glow, and nothing else on the page
+    expect(advisor).not.toContain('<canvas');
     expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('orbGlow');
     // declared once, and no stylesheet rule paints with it: the orb's script reads it, nothing else
     expect(cssVariables().match(/--color-orb-glow/g)).toHaveLength(1);

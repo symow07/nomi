@@ -69,7 +69,8 @@ describe('D · five entries', () => {
     ]));
     // Phase 9 (w4-business-assistant-05) — a screen per channel, under the one home.
     expect(under('/app/business/channels')).toEqual(['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts']);
-    expect(under('/app/settings/assistant')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
+    expect(under('/app/settings/assistant')).toContain('/app/settings/forbidden');
+    expect(under('/app/assistant')).toEqual(expect.arrayContaining(['/app/assistant/knowledge', '/app/assistant/practice']));
     expect(under('/app/settings')).toEqual(['/app/settings/assistant', '/app/business', '/app/settings/setup']);
     expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
     expect(under('/app/settings/setup')).not.toContain('/app/channels');
@@ -88,9 +89,9 @@ describe('D · five entries', () => {
     // The advisor run — the assistant's settings, and the pages reached from them, sit under Settings.
     expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
     expect(hubFor('/app/settings/assistant/one-kind', 'x')).toBe('settings');
-    expect(hubFor('/app/knowledge', 'x')).toBe('assistant');
+    expect(hubFor('/app/assistant/knowledge', 'x')).toBe('assistant');
     expect(hubFor('/app/settings/forbidden', 'x')).toBe('settings');
-    expect(hubFor('/app/sandbox', 'x')).toBe('assistant');
+    expect(hubFor('/app/assistant/practice', 'x')).toBe('assistant');
     expect(hubFor('/app/advisor', 'x')).toBe('assistant');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/people', 'x')).toBe('settings');

@@ -53,7 +53,7 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
   };
   const inCopy = <R>(fn: (tx: Tx) => Promise<R>) => inBiz(copy, fn);
   const post = (url: string, payload = '') => prod.app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload });
-  const page = () => prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+  const page = () => prod.app.inject({ method: 'GET', url: '/app/assistant/practice', headers: { cookie } });
   const say = (text: string) => post('/app/sandbox/message', `text=${encodeURIComponent(text)}`);
 
   /** The copy's open practice conversation, as the routes find it. */
@@ -115,7 +115,7 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
   afterAll(async () => { await prod?.close(); delete process.env['PILOT_BUSINESS_ID']; });
 
   it('signed out, Practice and its live line send the visitor to sign in (or 401 to the script)', async () => {
-    const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox' });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/assistant/practice' });
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/login');
     const live = await prod.app.inject({ method: 'GET', url: '/app/live/practice?since=0.0.00000000', headers: { accept: 'application/json' } });
@@ -133,7 +133,7 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     replyWriter.replies = ['Yes, we make canvas totes in natural cotton.'];
     const r = await say('Do you make canvas totes?');
     expect(r.statusCode).toBe(302);
-    expect(r.headers['location']).toBe('/app/sandbox#latest');
+    expect(r.headers['location']).toBe('/app/assistant/practice#latest');
 
     copy = await inBiz(PILOT, (tx) => sql<{ id: string }>`select practice_copy(${PILOT}::uuid)::text as id`.execute(tx).then((x) => x.rows[0]!.id));
     expect(copy).toMatch(/^[0-9a-f-]{36}$/);

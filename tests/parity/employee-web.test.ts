@@ -152,7 +152,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(html).toContain('>14<');            // base.knows
     expect(html).toContain('Added recently');
     expect(html).toContain('You corrected');
-    expect(html).toContain('href="/app/knowledge"');
+    expect(html).toContain('href="/app/assistant/knowledge"');
   });
 
   it('never taught anything: says so, and offers the one next action', () => {
@@ -198,7 +198,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(html).toContain(t('en', 'her.teach.title'));
     expect(html).toContain('Do you ship to Dubai?');
     expect(html).toContain('asked 4×');
-    expect(html).toContain('href="/app/knowledge?teach=Do%20you%20ship%20to%20Dubai%3F');
+    expect(html).toContain('href="/app/assistant/knowledge?view=facts&amp;teach=Do%20you%20ship%20to%20Dubai%3F');
     expect(html).toContain(t('en', 'her.teach.go'));
     expect(html).not.toContain('<textarea');           // no second knowledge editor
   });
@@ -219,7 +219,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(row('/app/settings/assistant/month')).not.toMatch(/sr-value|sr-desc/);
     expect(renderEmployee(base, 'en', null, { taughtRecently: 0, corrected: 0, handled: 12, draftsPrepared: 0, neededYou: 0, gaps: [] }))
       .toContain(`<span class="sr-desc">${t('en', 'her.count.handled.other', { n: '12' })}</span>`);
-    expect(row('/app/settings/assistant/learning')).not.toContain('sr-value');
+    expect(row('/app/assistant/knowledge?view=needs-answer')).not.toContain('sr-value');
   });
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
@@ -420,12 +420,12 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       expect(html, l).toContain(t(l, 'her.teach.none'));
       // V1-427 — one door to Knowledge, in the section that is about it.
       // Phase 7 — on the landing that door is its row; here, the Teach door.
-      expect(html.split('href="/app/knowledge"').length - 1, l).toBe(1);
-      expect(renderEmployee({ ...mix, knows: 0 }, l, null, quiet).split('href="/app/knowledge"').length - 1, l).toBe(1);
+      expect(html.split('href="/app/assistant/knowledge"').length - 1, l).toBe(1);
+      expect(renderEmployee({ ...mix, knows: 0 }, l, null, quiet).split('href="/app/assistant/knowledge"').length - 1, l).toBe(1);
       // Nothing came in at all: then it says so.
       const empty = screen('learning', { ...mix, knows: 0 }, l, { ...quiet, draftsPrepared: 0 });
       expect(empty, l).toContain(t(l, 'her.teach.unasked'));
-      expect(empty.split('href="/app/knowledge"').length - 1, l).toBe(1);
+      expect(empty.split('href="/app/assistant/knowledge"').length - 1, l).toBe(1);
     }
   });
 

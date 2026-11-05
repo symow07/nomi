@@ -275,8 +275,8 @@ describe('w4-today-setup-15 · the checklist is the owner\'s chores; what follow
   }
   it('each screen has its address, lights Setup\'s hub and leads back to the checklist', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain('for (const which of PILOT_SCREENS) {');
-    expect(app).toContain('app.get(PILOT_SCREEN_PATH[which],');
+    expect(app).toContain("app.get('/app/onboarding/practice',movedPage('/app/assistant/practice#checklist'))");
+    expect(app).toContain("renderPilotScreen('activity', runbook");
     for (const p of Object.values(PILOT_SCREEN_PATH)) expect(BACK_TO[p]).toEqual({ href: '/app/onboarding', label: 'nav.onboarding' });
   });
 });

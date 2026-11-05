@@ -856,7 +856,6 @@ out: ${esc(v.engine)}</pre>
  * replies go out, what happened, what to look at afterwards), are a row each.
  */
 export type PilotScreen = 'practice' | 'activity';
-export const PILOT_SCREENS: readonly PilotScreen[] = ['practice', 'activity'];
 export const PILOT_SCREEN_PATH: Readonly<Record<PilotScreen, string>> = {
   practice: '/app/onboarding/practice', activity: '/app/onboarding/activity',
 };

@@ -100,7 +100,7 @@ describe('Products — the list', () => {
     for (const l of LOCALES) {
       const html = renderProductList([item()], l);
       expect(html, l).toContain(`href="/app/products/price-limits">${esc(t(l, 'prices.title'))}`);
-      expect(html, l).toContain('href="/app/knowledge">');
+      expect(html, l).toContain('href="/app/assistant/knowledge">');
       expect(html, l).toContain(`href="/app/settings/data/products" download>${esc(t(l, 'product.list.copy'))}`);
     }
     // Money and data are the owner's: a colleague sees none of those doors.
@@ -280,7 +280,7 @@ describe('Products — one product', () => {
 
   it('V1-315 / V1-376 — the product leads to what the assistant knows about it and to its price limits; untick to stop offering', () => {
     const en = page('en');
-    expect(en).toContain('href="/app/knowledge/de300000-0000-4000-8000-000000000101"');
+    expect(en).toContain('href="/app/assistant/knowledge/products/de300000-0000-4000-8000-000000000101"');
     expect(en).toContain('href="/app/products/price-limits?product=de300000-0000-4000-8000-000000000101#p-de300000-0000-4000-8000-000000000101"');
     expect(en).toContain('it stays in your list, and nothing about it is erased');
   });
@@ -754,7 +754,10 @@ describe('What your assistant knows', () => {
 
   it('V1-358 — the page opens on what there is to do; the period\'s counts come last, and no zero tiles', () => {
     const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/renderKnowledgeOps\(ops[\s\S]{0,400}renderKnowledgeIndex\(index[\s\S]{0,600}renderKnowledgePeriod\(ops/);
+    expect(src).toContain('renderAssistantKnowledge(locale,');
+    const area = readFileSync(new URL('../../src/api/web/assistantKnowledge.ts', import.meta.url), 'utf8');
+    expect(area).toContain('${v.gaps}${v.suggestions}');
+    expect(area).toContain('${v.period}');
     for (const l of LOCALES) {
       const html = page(l);
       const at = (s: string) => html.indexOf(s);
@@ -778,7 +781,7 @@ describe('What your assistant knows', () => {
     expect(en).toContain('2 facts taught');
     // The warmth run, phase 9 (w4-products-knowledge-06) — the count is a line of its own under the name, never run into it.
     expect(en).toContain('<span class="sr-desc">Nothing taught yet</span></span>');
-    expect(en).toMatch(/<a class="srow sr-menu sr-two" href="\/app\/knowledge\/p2">\s*<span class="sr-main"><span class="sr-label"><bdi>Canvas Tote Bag 38x40cm<\/bdi><\/span>/);
+    expect(en).toMatch(/<a class="srow sr-menu sr-two" href="\/app\/assistant\/knowledge\/products\/p2">\s*<span class="sr-main"><span class="sr-label"><bdi>Canvas Tote Bag 38x40cm<\/bdi><\/span>/);
     expect(en).not.toContain('class="krow"');
     const zh = page('zh');
     expect(zh).toContain('<bdi>竹砧板</bdi>');
@@ -825,17 +828,19 @@ describe('What your assistant knows', () => {
   it('V1-369 / missed-20 — the Chinese titles end on a noun; a short line never leaves one character alone', () => {
     expect(t('zh', 'nav.knowledge')).toMatch(/知道的事$/);
     expect(t('zh', 'knowledge.taught.title')).not.toMatch(/的$/);
-    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'zh', path: '/app/knowledge', bodyHtml: page('zh') }));
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'zh', path: '/app/assistant/knowledge', bodyHtml: page('zh') }));
     expect(css).toMatch(/\.scope \{[^}]*text-wrap:pretty; \}/);
   });
 
   it('new-17 — every section, list, panel, card and field ends where the section\'s rule ends: one measure, set once', () => {
-    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'en', path: '/app/knowledge', bodyHtml: page('en') }));
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'en', path: '/app/assistant/knowledge', bodyHtml: page('en') }));
     expect(css).toContain('.kpage .block { max-width:var(--measure-prose); }');
     expect(css).toContain('.kpage .kitem, .kpage .gap, .kpage .empty, .kpage .pform, .kpage .scard { max-width:100%; }');
     // Knowledge is drawn inside the one wrapper, and so is a product's page.
     const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/'<div class="kpage">' \+ renderKnowledgeOps\(/);
+    expect(src).toContain('renderAssistantKnowledge(locale,');
+    const area = readFileSync(new URL('../../src/api/web/assistantKnowledge.ts', import.meta.url), 'utf8');
+    expect(area).toContain('<div class="assistant-knowledge">');
     expect(renderProductKnowledge(product(), 'en', null).trimStart()).toMatch(/^<div class="kpage">/);
   });
 
@@ -863,7 +868,7 @@ describe('What your assistant knows', () => {
     expect(t('ar', 'knowledge.cert.confirmOn')).not.toMatch(/ذكره|ذكرها/);
     expect(t('ar', 'knowledge.cert.confirmOff')).not.toMatch(/تأكيده|تأكيدها|لـ /);
     // A long name wraps beside its button, never pushing it onto a line of its own; the period's choices keep their words together.
-    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'fr', path: '/app/knowledge', bodyHtml: page('fr') }));
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'fr', path: '/app/assistant/knowledge', bodyHtml: page('fr') }));
     expect(css).toContain('.certlist .row { flex-wrap:nowrap; }');
     expect(css).toContain('.kpage #period .tab { white-space:nowrap; }');
   });
@@ -885,7 +890,7 @@ describe('What your assistant knows', () => {
   it('V1-377 / V1-378 — the back link names the page it opens, above the title', () => {
     for (const l of LOCALES) {
       const html = plain(renderProductKnowledge(product(), l, null));
-      expect(html, l).toMatch(new RegExp(`^\\s*<div class="kpage">\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
+      expect(html, l).toMatch(new RegExp(`^\\s*<div class="kpage">\\s*<a class="back" href="/app/assistant/knowledge\\?view=products">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
     }
   });
 

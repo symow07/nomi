@@ -103,7 +103,7 @@ describe('Phase F · every empty surface says what happens next', () => {
     expect(emptyHer).not.toContain('answered everything');
     expect(emptyHer).not.toContain(t('en', 'her.teach.none'));
     expect(emptyHer).toContain(t('en', 'her.teach.unasked'));
-    expect(emptyHer).toContain('href="/app/knowledge"');
+    expect(emptyHer).toContain('href="/app/assistant/knowledge"');
     // and a search that found nobody is not an achievement
     expect(emptySearch).not.toContain('class="ok"');
     expect(emptySearch).not.toContain('ok-line');

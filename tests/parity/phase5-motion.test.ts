@@ -349,6 +349,8 @@ describe('phase 5 · undo over confirm', () => {
     expect(UNDO_ACTION.test(`/app/settings/forbidden/${ID}/restore`)).toBe(true);
     expect(UNDO_ACTION.test(`/app/settings/closures/${ID}/restore`)).toBe(true);
     expect(UNDO_ACTION.test(`/app/knowledge/${ID}/restore`)).toBe(true);
+    expect(UNDO_ACTION.test(`/app/knowledge/${ID}/restore?from=${encodeURIComponent('/app/assistant/knowledge?view=facts&page=2')}`)).toBe(true);
+    expect(UNDO_ACTION.test(`/app/knowledge/${ID}/restore?from=https%3A%2F%2Fevil.test`)).toBe(false);
     expect(UNDO_ACTION.test(`/app/calendar/entries/${ID}/restore`)).toBe(true);
     for (const bad of [`/app/settings/people/${ID}/remove`, `/app/settings/forbidden/${ID}/restore?x=1`, 'https://evil.test/app/knowledge/x/restore',
       `/app/settings/forbidden/not-an-id/restore`, `/app/channels/whatsapp/disconnect`]) expect(UNDO_ACTION.test(bad), bad).toBe(false);

@@ -128,8 +128,8 @@ describe('CC-25 · one address for a conversation', () => {
     expect(conversationUrl('a/b?c#d')).toBe('/app/inbox/a%2Fb%3Fc%23d#latest');
     expect(conversationUrl(CONV, 'x&y#z')).toBe(`/app/inbox/${CONV}?before=x%26y%23z#latest`);
     // Practice lands the same way (P3: there is no mode left to carry).
-    expect(practiceUrl()).toBe('/app/sandbox#latest');
-    expect(practiceUrl(CURSOR)).toBe(`/app/sandbox?before=${CURSOR}#latest`);
+    expect(practiceUrl()).toBe('/app/assistant/practice#latest');
+    expect(practiceUrl(CURSOR)).toBe(`/app/assistant/practice?before=${CURSOR}#latest`);
   });
 
   it('every practice action goes back through `practiceUrl`, and nothing else writes that address', () => {

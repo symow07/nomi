@@ -1,3 +1,5 @@
+import { assistantReturnHref } from './assistantNavigation.js';
+import { markSmall } from '../../core/owner/brand.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -224,15 +226,6 @@ export const sourceLabel = (locale: Locale, source: string, whole = false): stri
 
 /** B19 — the readings still waiting for her ticks, newest first: found again on the knowledge page after leaving. */
 export type OpenProposal = { readonly id: string; readonly source: string; readonly lines: number; readonly createdAt: Date };
-export async function openProposals(db: Db, businessIdRaw: string): Promise<readonly OpenProposal[]> {
-  const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return [];
-  return withTenantTx(db, bid.value, async (tx) => (await sql<{ id: string; source: string; lines: number; created_at: Date }>`
-    select id::text as id, source, jsonb_array_length(lines)::int as lines, created_at from knowledge_proposals
-     where business_id = ${bid.value} and decided_at is null and replaced_by is null
-     order by created_at desc limit 10`.execute(tx)).rows.map((r) => ({ id: r.id, source: r.source, lines: r.lines, createdAt: r.created_at })));
-}
-
 export async function loadProposal(db: Db, businessIdRaw: string, id: string): Promise<Proposal | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !UUID.test(id)) return null;
@@ -300,7 +293,7 @@ export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null =
   const bad = kept ? ' aria-invalid="true" aria-describedby="pf-err" autofocus' : '';
   // B19 — a reading left before it was ticked is found here again, each a door back to its lines.
   const waiting = open.length === 0 ? '' : `<h3 class="sub3" id="pf-waiting">${esc(t(locale, 'pageFacts.waiting.title'))}</h3>
-    <ul class="rows">${open.map((p) => `<li class="row"><a class="deeper" href="/app/knowledge/from-page/${esc(p.id)}"><bdi>${esc(sourceLabel(locale, p.source))}</bdi></a>
+    <ul class="rows">${open.map((p) => `<li class="row"><a class="deeper" href="/app/assistant/knowledge/readings/${esc(p.id)}"><bdi>${esc(sourceLabel(locale, p.source))}</bdi></a>
       <span class="caption muted">${esc(t(locale, 'pageFacts.waiting.row', { n: show.count(locale, p.lines), date: show.date(locale, p.createdAt) }))}</span></li>`).join('')}</ul>`;
   return `<div class="block" id="from-page">
     <h2>${esc(t(locale, 'pageFacts.title'))}</h2>
@@ -324,39 +317,26 @@ export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null =
  * the page again" (a door to the confirm step) wherever a reader exists; one a newer reading replaced says so and
  * leads to it; one that would replace an approved reading says so above its lines.
  */
-export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null, canReread = false): string {
-  const head = `${back('/app/knowledge', t(locale, 'nav.knowledge'))}
-    <h1 class="page">${esc(t(locale, 'pageFacts.reviewTitle'))}</h1>
-    ${flashBanner(flash)}
-    <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>`;
-  if (p.replacedBy) {
-    return `${head}<p id="replaced">${esc(t(locale, 'pageFacts.replaced'))}</p>
-    <p>${deeper(`/app/knowledge/from-page/${esc(p.replacedBy)}`, t(locale, 'pageFacts.replaced.open'))}</p>`;
-  }
-  const again = canReread && !isPasted(p.source)
-    ? `<p id="reread">${deeper(`/app/knowledge/from-page/${esc(p.id)}/again`, t(locale, 'pageFacts.reread.door'))}</p>` : '';
-  if (p.decidedAt) {
-    return `${head}<p>${esc(t(locale, 'pageFacts.decided', { n: show.count(locale, p.written ?? 0), date: show.date(locale, p.decidedAt) }))}</p>${again}`;
-  }
-  return `${head}
-    ${p.rereadOf?.decidedAt ? `<p class="note" id="replaces">${esc(t(locale, 'pageFacts.replacesOn', { date: show.date(locale, p.rereadOf.decidedAt) }))}</p>` : ''}
-    <p>${esc(t(locale, 'pageFacts.tickIntro'))}</p>
-    <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/confirm" class="pform">
-      <ul class="rows">${p.lines.map((l) => `<li class="row"><label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}" />
-        <span dir="auto">${esc(l.fact)}</span></label>
-        <p class="muted small" dir="auto">${esc(t(locale, 'pageFacts.quote', { quote: l.quote }))}</p></li>`).join('')}</ul>
-      <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.confirm'))}</button>
-    </form>${again}`;
+export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null, canReread = false, returnHref=''): string {
+  const from=assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings');
+  const reading=(id:string,again=false)=>'/app/assistant/knowledge/readings/'+encodeURIComponent(id)+(again?'/again':'')+'?from='+encodeURIComponent(from);
+  const lines=(editable:boolean)=>`<ul class="rows">${p.lines.map(l=>`<li class="reading-line"><blockquote><span class="caption muted">${esc(t(locale,'assistantKnowledge.sourceSentence'))}</span><p dir="auto">${esc(l.quote)}</p></blockquote>${editable?`<label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}"><span dir="auto">${markSmall(16,null)}${esc(l.fact)}</span></label>`:`<div class="reading-fact" dir="auto">${markSmall(16,null)}${esc(l.fact)}</div>`}</li>`).join('')}</ul>`;
+  const head=`<div class="reading-review">${back(from,t(locale,'nav.knowledge'))}<h1 class="page">${esc(t(locale,'pageFacts.reviewTitle'))}</h1>${flashBanner(flash)}<p>${esc(t(locale,'pageFacts.from',{source:sourceLabel(locale,p.source,true)}))}</p><p class="caption muted">${esc(show.dateYear(locale,p.createdAt))}</p>`;
+  const original=`<details><summary>${esc(t(locale,'assistantKnowledge.proposed'))}</summary>${lines(false)}</details>`;
+  if(p.replacedBy)return `${head}<p id="replaced">${esc(t(locale,'pageFacts.replaced'))}</p><p>${deeper(reading(p.replacedBy),t(locale,'pageFacts.replaced.open'))}</p>${original}</div>`;
+  const again=canReread&&!isPasted(p.source)?`<p id="reread">${deeper(reading(p.id,true),t(locale,'pageFacts.reread.door'))}</p>`:'';
+  if(p.decidedAt)return `${head}<p>${esc(t(locale,'pageFacts.decided',{n:show.count(locale,p.written??0),date:show.date(locale,p.decidedAt)}))}</p>${original}${again}</div>`;
+  return `${head}${p.rereadOf?.decidedAt?`<p id="replaces">${esc(t(locale,'pageFacts.replacesOn',{date:show.date(locale,p.rereadOf.decidedAt)}))}</p>`:''}<p>${esc(t(locale,'pageFacts.tickIntro'))}</p><form method="post" action="/app/knowledge/from-page/${esc(p.id)}/confirm" class="pform"><input type="hidden" name="from" value="${esc(from)}">${lines(true)}<button class="btn" type="submit">${esc(t(locale,'pageFacts.confirm'))}</button></form>${again}</div>`;
 }
 
 /**
  * 0220 — the confirm step of "Read the page again": what happens to this reading, what the new one uses of today's
  * allowance, and — before the button — that a reading which finds nothing still uses it. Used up: the reason, no button.
  */
-export function renderReread(p: Proposal, charge: RereadCharge, locale: Locale, refused: PageFactsRefusal | null = null): string {
+export function renderReread(p: Proposal, charge: RereadCharge, locale: Locale, refused: PageFactsRefusal | null = null, returnHref=''): string {
   const cost = charge.kind === 'share' ? t(locale, 'pageFacts.reread.charge', { at: charge.atMost, used: charge.used })
     : charge.kind === 'no_limit' ? t(locale, 'pageFacts.reread.noLimit') : null;
-  return `${back(`/app/knowledge/from-page/${esc(p.id)}`, t(locale, 'pageFacts.reviewTitle'))}
+  return `${back(`/app/assistant/knowledge/readings/${esc(p.id)}?from=${encodeURIComponent(assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings'))}`, t(locale, 'pageFacts.reviewTitle'))}
     <h1 class="page">${esc(t(locale, 'pageFacts.reread.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>
     <p>${esc(t(locale, 'pageFacts.reread.intro'))}</p>
@@ -365,7 +345,7 @@ export function renderReread(p: Proposal, charge: RereadCharge, locale: Locale, 
     ${cost === null ? (refused === 'allowance_used' ? '' : `<p class="perr" role="alert">${esc(t(locale, 'pageFacts.refused.allowance_used'))}</p>`)
       : `<p id="reread-cost">${esc(cost)}</p>
     <p id="reread-nothing">${esc(t(locale, 'pageFacts.reread.nothingCounts'))}</p>
-    <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/again" class="pform">
+    <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/again" class="pform"><input type="hidden" name="from" value="${esc(assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings'))}">
       <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.reread.button'))}</button>
     </form>`}`;
 }

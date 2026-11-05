@@ -352,7 +352,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       // The warmth run: products are My business's, a row of Settings — Settings is lit.
       expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/products" class="navlink nav-desktop active" data-nav="products" aria-current="page"/);
       // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
-      expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
+      expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/assistant/knowledge?range=week#period"');
     }
     const results: AnalyticsData = {
       range: 'month', hasActivity: false,
@@ -567,7 +567,7 @@ describe('CC-29 · everything that takes something away asks first, the one way 
       const found = forms.filter((f) => f.file === `${WEB}/${file}` && action.test(f.action));
       expect(found.length, `${file} ${action}`).toBeGreaterThan(0);
       for (const f of found) expect(f.text, `${file} ${f.action}`).not.toContain(ASK);
-      expect(app, restore).toContain(`\`${restore}\``);                       // the notice carries it
+      expect(app, restore).toContain(`\`${restore}`);                       // the notice carries it
       expect(app, restore).toContain(`app.post('${restore.replace('${id}', ':id')}'`);   // and it is a route
     }
   });

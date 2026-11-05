@@ -1,3 +1,4 @@
+import { dailyAssistantScreen } from '../../src/api/web/assistantArea.js';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -44,7 +45,7 @@ const scope = { name: 'Lily', several: false, outreach: false, setup: null } as 
 describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one level in', () => {
   it('its address is under Settings, and every screen under it', () => {
     expect(ASSISTANT_HOME).toBe('/app/settings/assistant');
-    for (const s of EMPLOYEE_SCREENS) expect(screenHref(s)).toBe(`${ASSISTANT_HOME}/${s}`);
+    for (const s of EMPLOYEE_SCREENS) expect(screenHref(s)).toBe(dailyAssistantScreen(s) ?? `${ASSISTANT_HOME}/${s}`);
   });
 
   for (const l of LOCALES) {
@@ -73,8 +74,8 @@ describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one le
       expect(html, l).toContain(`<form method="post" action="${ASSISTANT_HOME}/autonomy" class="levels">`);
       const doors = [...html.matchAll(/<a class="srow sr-menu(?: sr-two)?" href="([^"]+)">/g)].map((m) => m[1]);
       expect(doors, l).toEqual([
-        screenHref('talk'), '/app/knowledge', screenHref('learning'), '/app/settings/forbidden',
-        screenHref('name'), screenHref('replies'), screenHref('one-kind'), '/app/sandbox',
+        screenHref('talk'), '/app/assistant/knowledge', screenHref('learning'), '/app/settings/forbidden',
+        screenHref('name'), screenHref('replies'), screenHref('one-kind'), '/app/assistant/practice',
         screenHref('month'), screenHref('next'), screenHref('history'),
       ]);
     });
@@ -96,12 +97,12 @@ describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one le
     walk(join(ROOT, 'src'));
     expect(found.map((x) => x.replace(/:\d+:/, ':'))).toEqual([
       "src/api/web/app.ts: app.get('/app/employee', async (req, reply) => sessionOf(req) ? reply.redirect(ASSISTANT_HOME, 302) : reply.redirect('/login'));",
-      "src/api/web/app.ts: app.get('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')",
+      "src/api/web/app.ts: app.get('/app/employee/*', (req, reply) => {",
       "src/api/web/app.ts: app.post('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')",
     ]);
     // a page is sent on, the rest of its address kept; a form goes on as itself, its method and fields kept
     const app = read('src/api/web/app.ts');
-    expect(app).toContain("reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 302));");
+    expect(app).toContain("return movedPage(dailyAssistantScreen(suffix) ?? `${ASSISTANT_HOME}/${suffix}`)(req,reply);");
     expect(app).toContain("reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));");
   });
 });

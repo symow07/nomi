@@ -55,7 +55,7 @@ export async function loadReady(db: Db, live: BusinessId): Promise<ReadyView> {
   });
 }
 
-export function renderReady(v: ReadyView, locale: Locale): string {
+export function renderReady(v: ReadyView, locale: Locale, options:{embedded?:boolean}={}): string {
   const name = assistantName(locale);
   // Phase 9 (today-onboarding-new-11, missed-15) — an open item is the to-do ○
   // (the warmth run's re-audit, w4-today-setup-06: a chore, never the waiting
@@ -79,14 +79,14 @@ export function renderReady(v: ReadyView, locale: Locale): string {
   const aloneSaid: MessageKey = hold === 'silenced' ? 'today.silenced.title' : hold === 'stopped' ? 'today.stopped.title'
     : hold === 'release' ? 'her.handles.held.why.release'
     : !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName';
-  return `<h1 class="page">${esc(t(locale, 'ready.title'))}</h1>
+  return `${options.embedded?'<section id="readiness"><h2>':'<h1 class="page">'}${esc(t(locale, 'ready.title'))}${options.embedded?'</h2>':'</h1>'}
   <p class="muted">${esc(t(locale, 'ready.intro', { name }))}</p>
-  <section class="block" aria-labelledby="ready-checks">
+  ${options.embedded?'':`<section class="block" aria-labelledby="ready-checks">
     <h2 id="ready-checks">${esc(t(locale, 'ready.checks'))} · <span class="count">${esc(show.isolate(locale, `${readyDone(v)}/${readyTotal(v)}`))}</span></h2>
     <ul class="checks rd">${checks}</ul>
     ${done ? `<p class="fok">${esc(t(locale, 'ready.done'))}</p>` : ''}
-    ${deeper('/app/sandbox', t(locale, 'ready.practise'))}
-  </section>
+    ${deeper('/app/assistant/practice', t(locale, 'ready.practise'))}
+  </section>`}
   <section class="block" aria-labelledby="ready-facts">
     <h2 id="ready-facts">${esc(t(locale, 'ready.facts'))}</h2>
     <ul class="checks rd facts">
@@ -98,5 +98,5 @@ export function renderReady(v: ReadyView, locale: Locale): string {
         t(locale, aloneSaid, { name }),
         v.earned ? '' : deeper(ASSISTANT_HOME, t(locale, 'ready.alone.go', { name })))}
     </ul>
-  </section>`;
+  </section>${options.embedded?'</section>':''}`;
 }

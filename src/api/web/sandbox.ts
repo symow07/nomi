@@ -54,7 +54,7 @@ import { icon } from './icons.js';
  * reaches the page.
  */
 export const practiceUrl = (before?: string | null): string =>
-  `/app/sandbox${before ? `?before=${encodeURIComponent(before)}` : ''}#latest`;
+  `/app/assistant/practice${before ? `?before=${encodeURIComponent(before)}` : ''}#latest`;
 
 // ── the message ───────────────────────────────────────────────────────────────
 
@@ -278,14 +278,7 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
   // under the transcript now, where the conversation continues.
   return `
   <div id="compose" class="card sbx-compose">
-    <form method="post" action="/app/sandbox/scenario" class="scenariobar">
-      <label class="muted" for="scenario">${esc(t(locale, 'sandbox.scenario.label'))}</label>
-      <select id="scenario" name="scenarioId">
-        <option value="">${esc(t(locale, 'sandbox.scenario.none'))}</option>
-        ${scenarioOpts}
-      </select>
-      <button class="btn" type="submit">${esc(t(locale, 'sandbox.scenario.load'))}</button>
-    </form>
+
     <form method="post" action="/app/sandbox/message" class="msgbar">
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
       <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
@@ -297,6 +290,16 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
         <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
     </form>
+    <details class="practice-scenarios"><summary>${esc(t(locale,'sandbox.scenario.label'))}</summary>
+    <form method="post" action="/app/sandbox/scenario" class="scenariobar">
+      <label class="muted" for="scenario">${esc(t(locale, 'sandbox.scenario.label'))}</label>
+      <select id="scenario" name="scenarioId">
+        <option value="">${esc(t(locale, 'sandbox.scenario.none'))}</option>
+        ${scenarioOpts}
+      </select>
+      <button class="btn" type="submit">${esc(t(locale, 'sandbox.scenario.load'))}</button>
+    </form>
+    </details>
   </div>`;
 }
 
@@ -385,7 +388,7 @@ export type PracticeChecklistView = {
   readonly currency?: Currency;
 };
 
-function checklistCard(c: PracticeChecklistView, locale: Locale): string {
+export function renderPracticeChecklist(c: PracticeChecklistView, locale: Locale): string {
   const name = assistantName(locale);
   // B16 — the one count, as Ready for customers, Getting ready and Going live say it.
   const { done, total } = readinessOf(c.items, c.seen);
@@ -402,7 +405,7 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
         ? t(locale, 'practice.total.waiting', { expected: money(x.expected, x.currency) })
         : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',
             { expected: money(x.expected, x.currency), quoted: money(x.quoted, x.currency) }))}</span></li>`).join('');
-  return `<div class="card sbx-checklist">
+  return `<div id="checklist" class="card sbx-checklist">
     <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(t(locale, 'practice.checklist.count', { done, total }))}</span></h2>
     <ul class="checks">${rows}</ul>
     ${totals ? `<h3>${esc(t(locale, 'practice.total.title'))}</h3><ul class="checks">${totals}</ul>` : ''}
@@ -415,7 +418,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
   working?: boolean;
 }): string {
   const name = assistantName(locale);
-  const banner = `<div class="sbx-banner" role="note">${esc(t(locale, 'sandbox.banner'))}</div>`;
+  const banner = `<p class="sbx-note">${esc(t(locale, 'sandbox.banner'))}</p>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
   // CC-25 — the notice is where every practice action lands, as on a
   // conversation: under the newest line, carrying the `latest` mark itself.
@@ -480,20 +483,20 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${/* The fix wave (w4-conversation-03) — under the draft card, its "Hand to me" is the take-over, as on a conversation. */ ''}${
       view.ownership === 'AI' && draftCard.trim() ? '' : sandboxTakeoverCard(view, locale)}
-    ${renderTrust(view.lastTurn, locale)}
+    <details class="practice-trust"><summary>${esc(t(locale,'sandbox.trust.title'))}</summary>${renderTrust(view.lastTurn, locale)}</details>
     ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
       view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim(), opts.checklist?.currency ?? 'USD')}
-    ${opts.checklist ? checklistCard(opts.checklist, locale) : ''}`;
+    ${opts.checklist ? renderPracticeChecklist(opts.checklist, locale) : ''}`;
 
   const reset = `<form method="post" action="/app/sandbox/reset" class="inline"><button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
         data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>`;
   return `
     ${banner}
     ${intro}
-    ${opts.settings ? practiceModeCard(opts.settings, locale) : ''}
     <div class="block"><div class="dhead spread sbx-log-h"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${reset}</div>${log}</div>
     ${flashHtml}
     ${acts}
+    ${opts.settings ? `<details class="practice-controls"><summary>${esc(t(locale,'practice.mode.title'))}</summary>${practiceModeCard(opts.settings, locale)}</details>` : ''}
     `;
 }
 

@@ -1,3 +1,4 @@
+import { assistantReturnHref } from './assistantNavigation.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -223,8 +224,8 @@ const shownName = (l: Locale, name: string | null, nameZh: string | null | undef
   (l === 'zh' ? nameZh ?? name : name) ?? '—';
 const COLLATE: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
 
-function kindSelect(l: Locale, kinds: readonly KnowledgeKind[]): string {
-  return `<select name="kind" id="teach-kind">${kinds.map((k) => `<option value="${k}">${esc(kindLabel(l, k))}</option>`).join('')}</select>`;
+function kindSelect(l: Locale, kinds: readonly KnowledgeKind[], selected = ''): string {
+  return `<select name="kind" id="teach-kind">${kinds.map((k) => `<option value="${k}"${k===selected?' selected':''}>${esc(kindLabel(l, k))}</option>`).join('')}</select>`;
 }
 
 /**
@@ -271,7 +272,7 @@ function certsSaid(locale: Locale, certs: readonly string[]): string {
   return `<p class="fdesc">${esc(on.length ? t(locale, 'knowledge.cert.onHere', { list: formatList(locale, on) }) : t(locale, 'knowledge.cert.noneHere'))}</p>`;
 }
 
-export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefill = ''): string {
+export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefill = '', options:{only?:'facts';from?:string}={}): string {
   // Phase 9 (V1-361) — each product by the name the reader's Products page shows, in the reader's order.
   const collator = new Intl.Collator(COLLATE[locale]);
   const sorted = [...data.products].sort((a, b) => collator.compare(shownName(locale, a.name, a.nameZh), shownName(locale, b.name, b.nameZh)));
@@ -280,13 +281,14 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
   // row, as on every settings menu: the name, what is taught on the line under
   // it (never run into the name, never cut on a phone), then the chevron.
   const products = sorted.length
-    ? `<ul class="scard kmenu">${sorted.map((p) => `<li><a class="srow sr-menu sr-two" href="/app/knowledge/${encodeURIComponent(p.id)}">
+    ? `<ul class="scard kmenu">${sorted.map((p) => `<li><a class="srow sr-menu sr-two" href="/app/assistant/knowledge/products/${encodeURIComponent(p.id)}">
           <span class="sr-main"><span class="sr-label"><bdi>${esc(shownName(locale, p.name, p.nameZh))}</bdi></span>
           <span class="sr-desc">${esc(p.count > 0 ? tn(locale, 'knowledge.product.facts', p.count) : t(locale, 'knowledge.product.none'))}</span></span>
           ${GO}</a></li>`).join('')}</ul>`
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
-  const biz = data.business.map((i) => itemCard(i, locale, null)).join('');
+  const biz = data.business.map((i) => itemCard(i, locale, null,'',options.from??'')).join('');
+  if(options.only==='facts')return biz+teachForm(locale,'',prefill,BUSINESS_KINDS,options.from??'');
   // CC-20 — no title of its own: this is the second half of the knowledge page,
   // under the one <h1> the page's first half draws (`renderKnowledgeOps`), which
   // carries this page's lede too. It printed the same title a second time.
@@ -304,15 +306,15 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
     `;
 }
 
-function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml = ''): string {
+function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml = '', from = ''): string {
   const pid = esc(productId ?? '');
-  return `<div class="kitem">
+  return `<div class="kitem" id="fact-${esc(i.id)}">
     <div class="kh"><b>${esc(i.label)}</b> <span class="pill">${esc(kindLabel(locale, i.kind))}</span>
       <span class="muted src">${esc(sourceLabel(locale, i.source))}</span></div>
     <div class="kc">${esc(i.content)}</div>
     ${usageHtml}
-    <form method="post" action="/app/knowledge/correct" class="krow-actions">
-      <input type="hidden" name="id" value="${esc(i.id)}" />
+    <details class="knowledge-change"><summary>${esc(t(locale,'assistantKnowledge.changeFact'))}</summary><form method="post" action="/app/knowledge/correct" class="krow-actions">
+      ${from?`<input type="hidden" name="from" value="${esc(assistantReturnHref(from))}">`: ''}<input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
       <textarea name="content" rows="2" aria-label="${esc(t(locale, 'knowledge.correct'))}" placeholder="${esc(t(locale, 'knowledge.correct'))}">${esc(i.content)}</textarea>
       <div class="kbtns">
@@ -320,10 +322,10 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
       </div>
     </form>
     <form method="post" action="/app/knowledge/archive" class="inline">
-      <input type="hidden" name="id" value="${esc(i.id)}" />
+      ${from?`<input type="hidden" name="from" value="${esc(assistantReturnHref(from))}">`: ''}<input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
       <button class="btn ghost" type="submit">${esc(t(locale, 'knowledge.archive'))}</button>
-    </form>
+    </form></details>
   </div>`;
 }
 
@@ -331,29 +333,30 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
  * Phase 9 (V1-363, V1-368, V1-377) — the teach form is the product's own form:
  * each field's name is its label, in the page's size, attached to the field.
  */
-function teachForm(locale: Locale, productId: string, prefill = '', kinds: readonly KnowledgeKind[] = KINDS): string {
-  return `<form method="post" action="/app/knowledge/teach" class="pform teach">
+function teachForm(locale: Locale, productId: string, prefill = '', kinds: readonly KnowledgeKind[] = KINDS, from = '', attempted?:{kind:string;content:string}): string {
+  return `<form method="post" action="/app/knowledge/teach" class="pform teach" id="teach">
+    ${from?`<input type="hidden" name="from" value="${esc(assistantReturnHref(from))}">`: ''}
     <input type="hidden" name="productId" value="${esc(productId)}" />
     <h3 class="sub3">${esc(t(locale, 'knowledge.teach'))}</h3>
-    <label class="pq"><span>${esc(t(locale, 'knowledge.teach.kind'))}</span>${kindSelect(locale, kinds)}</label>
+    <label class="pq"><span>${esc(t(locale, 'knowledge.teach.kind'))}</span>${kindSelect(locale, kinds,attempted?.kind)}</label>
     <label class="pq"><span>${esc(t(locale, 'knowledge.teach.label'))}</span>
       <input type="text" name="label" required maxlength="120" value="${esc(prefill)}" /></label>
     <label class="pq"><span>${esc(t(locale, 'knowledge.teach.content'))}</span>
-      <textarea name="content" rows="3" required></textarea></label>
+      <textarea name="content" rows="3" required>${esc(attempted?.content??'')}</textarea></label>
     <button class="btn send" type="submit">${esc(t(locale, 'knowledge.teach.add'))}</button>
   </form>`;
 }
 
 export function renderProductKnowledge(
   d: ProductKnowledge, locale: Locale, flash: Flash | null,
-  opts: { usage?: Map<string, UsageFact>; prefill?: string; now?: Date } = {},
+  opts: { usage?: Map<string, UsageFact>; prefill?: string; now?: Date; from?:string } = {},
 ): string {
   const now = opts.now ?? new Date();
   const flashHtml = flashBanner(flash);
   const name = assistantName(locale);
   const title = shownName(locale, d.productName, d.productNameZh);
   const items = d.items.length
-    ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now))).join('')
+    ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now), opts.from??'')).join('')
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
   // Phase 9 (V1-373) — a setting for every product is not on one product's page:
   // which certifications are on is said here, and changed where they all are
@@ -363,17 +366,23 @@ export function renderProductKnowledge(
   // above the title, as on the product's own page; V1-376 — and that page is a door away.
   // The warmth run, phase 9 (new-17) — the page's one measure (`.kpage`), as on Knowledge itself.
   return `<div class="kpage">
-    ${back('/app/knowledge', t(locale, 'nav.knowledge'))}
+    ${back(assistantReturnHref(opts.from,'/app/assistant/knowledge?view=products'), t(locale, 'nav.knowledge'))}
     <h1 class="page"><bdi>${esc(title)}</bdi></h1>
     ${flashHtml}
     <div class="block">
       <h2>${esc(t(locale, 'knowledge.taught.title', { name }))}</h2>
       <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: title }))}</p>
-      ${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
+      ${items}${teachForm(locale, d.productId, opts.prefill ?? '',KINDS,opts.from??'')}</div>
     <div class="block"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
       ${certsSaid(locale, d.certs)}
       <div class="doors">${deeper(CERTS_HOME, t(locale, 'factory.promise.title'))}
         ${deeper(`/app/products/${encodeURIComponent(d.productId)}`, t(locale, 'knowledge.productDoor'))}</div>
     </div>
     </div>`;
+}
+
+/** A refused command redraws only the attempt, never an unverified fact. */
+export function renderKnowledgeRefusal(locale:Locale, action:'teach'|'correct', b:{productId:string;id:string;kind:string;label:string;content:string}, from:string):string {
+ const form=action==='teach'?teachForm(locale,b.productId,b.label,b.productId?KINDS:BUSINESS_KINDS,from,b):`<form method="post" action="/app/knowledge/correct" class="pform"><input type="hidden" name="from" value="${esc(from)}"><input type="hidden" name="id" value="${esc(b.id)}"><input type="hidden" name="productId" value="${esc(b.productId)}"><label class="pq"><span>${esc(t(locale,'knowledge.correct'))}</span><textarea name="content" rows="3" required>${esc(b.content)}</textarea></label><button class="btn" type="submit">${esc(t(locale,'knowledge.correct.save'))}</button></form>`;
+ return `<div class="assistant-knowledge">${back(esc(from),t(locale,'knowledge.back'))}<h1 class="page">${esc(t(locale,action==='teach'?'knowledge.teach':'knowledge.correct'))}</h1><p role="alert" tabindex="-1" class="form-error">${esc(t(locale,'knowledge.flash.invalid'))}</p>${form}</div>`;
 }

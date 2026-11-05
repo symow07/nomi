@@ -261,7 +261,7 @@ describe('w4-business-assistant-32, -33 · the screens a level down speak from w
       // "What {name} knows" is the landing's row; the screen does not repeat it as a heading
       const learning = lily(() => renderEmployeeScreen('learning', ASSISTANT, l, null, QUIET));
       expect(learning).not.toContain(`<h2>${esc(lily(() => t(l, 'her.knows.title')))}</h2>`);
-      expect(learning.split('href="/app/knowledge"').length - 1).toBe(1);
+      expect(learning.split('href="/app/assistant/knowledge"').length - 1).toBe(1);
     });
   }
 });

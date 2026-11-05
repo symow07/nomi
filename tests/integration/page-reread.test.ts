@@ -54,7 +54,7 @@ d('0220 · read the page again (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     },
   };
   const post = (url: string, body: Record<string, string> = {}) =>
-    app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
+    app.inject({ method: 'POST', url: url.replace('/app/assistant/knowledge/readings/','/app/knowledge/from-page/'), headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
   const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
   const calls = async () => Number((await admin.query(`select coalesce(sum(llm_calls), 0)::int as n from usage_ledger where business_id = $1`, [BIZ])).rows[0].n);
   const row = async (id: string) => (await admin.query(
@@ -103,7 +103,7 @@ d('0220 · read the page again (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     expect((await post('/app/knowledge/from-page', { address: url, text: '' })).headers['location']).toBe(w1);
     const old = (await get(w1)).body;
     expect(old).toContain('We ship within 2 business days.');
-    expect(old).toContain(`href="${w1}/again"`);
+    expect(old).toContain(`href="${w1}/again?from=`);
 
     // The confirm step: what happens, what it uses, that nothing found still uses it — all before the button. Nothing spent.
     const confirm = (await get(`${w1}/again`)).body;
@@ -128,12 +128,12 @@ d('0220 · read the page again (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     expect((await row(idOf(w2))).reread_of).toBeNull();
     // The old reading says what replaced it and cannot be approved; the knowledge page lists only the new one.
     expect((await get(w1)).body).toContain(t('en', 'pageFacts.replaced'));
-    expect((await get(w1)).body).toContain(`href="${w2}"`);
+    expect((await get(w1)).body).toContain(`href="${w2}?from=`);
     await post(`${w1}/confirm`, { 'line:f1': 'on' });
     expect(await knowledge()).toEqual([]);
-    const list = (await get('/app/knowledge')).body;
-    expect(list).toContain(`href="${w2}"`);
-    expect(list).not.toContain(`href="${w1}"`);
+    const list = (await get('/app/assistant/knowledge?view=readings&state=pending')).body;
+    expect(list).toContain(`href="${w2}?from=`);
+    expect(list).not.toContain(`href="${w1}?from=`);
     // Read again on the replaced one: nothing to read — back to it, nothing spent.
     await post(`${w1}/again`);
     expect([fetched.length, asked.length]).toEqual([2, 2]);
@@ -159,7 +159,7 @@ d('0220 · read the page again (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     expect(sent.headers['location']).toBe(p1);
     expect(flashSaid(sent, SECRET)).toBe(t('en', 'pageFacts.flash.readBefore'));
     expect([fetched.length, asked.length, await calls()]).toEqual(before);
-    expect((await get(p1)).body).toContain(`href="${p1}/again"`);
+    expect((await get(p1)).body).toContain(`href="${p1}/again?from=`);
     const confirm = (await get(`${p1}/again`)).body;
     expect(confirm).toContain(t('en', 'pageFacts.reread.keepsApproved'));
     expect(confirm.indexOf(t('en', 'pageFacts.reread.nothingCounts'))).toBeLessThan(confirm.indexOf(t('en', 'pageFacts.reread.button')));
@@ -233,7 +233,7 @@ d('0220 · read the page again (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     try {
       const confirm = (await get(`${w}/again`)).body;
       expect(confirm).toContain(t('en', 'pageFacts.refused.allowance_used'));
-      expect(confirm).not.toContain(`action="${w}/again"`);
+      expect(confirm).not.toContain(`action="${w.replace('/app/assistant/knowledge/readings/','/app/knowledge/from-page/')}/again"`);
       const n = [fetched.length, asked.length];
       expect((await post(`${w}/again`)).body).toContain(t('en', 'pageFacts.refused.allowance_used'));
       expect(asked.length).toBe(n[1]);

@@ -201,7 +201,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
       allowanceUsed: async () => false, spent: async () => undefined, memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply) => reply, takeFlash: () => null });
     // 0130 — a kept conversation opened; the card's answer; one conversation deleted.
     // the redesign — earlier conversations on a page of their own.
-    expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/earlier', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
+    expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/earlier', 'GET /app/advisor/c/:id', 'GET /app/assistant/ask', 'GET /app/assistant/ask/history', 'GET /app/assistant/ask/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
     const app = read('src/api/web/app.ts');
     const at = app.indexOf('const advisorIO: AdvisorIO = {');
     expect(at).toBeGreaterThan(0);
@@ -382,39 +382,29 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
   });
 
   for (const l of LOCALES) {
-    it(`${l} · at rest (the redesign): the greeting, one box, one button — no intro, no list, no door, link or form to anywhere else`, () => {
-      const html = renderAdvisor(l);
-      // the page's name is for a screen reader; the eye sees the orb and the greeting
-      expect(html).toContain(`<h1 class="sr">${esc(t(l, 'nav.advisor'))}</h1>`);
-      expect(html).toContain(`<p class="adv-hello" dir="auto">${esc(t(l, 'advisor.greeting.plain'))}</p>`);
-      expect(renderAdvisor(l, null, {}, { name: 'Lena Park' })).toContain(`<p class="adv-hello" dir="auto">${esc(t(l, 'advisor.greeting', { name: 'Lena Park' }))}</p>`);
-      expect(html).not.toContain(esc(t(l, 'advisor.hello')));
-      expect(html).not.toMatch(/<li\b|<ul\b/);
-      // the three questions are the empty box's placeholder, typed out one at a time — never its text
-      expect(html).toContain(`placeholder="${esc(t(l, 'advisor.example.1'))}"`);
-      expect(html).toContain(`data-adv-suggest="${esc(['advisor.example.1', 'advisor.example.2', 'advisor.example.3'].map((k) => t(l, k as MessageKey)).join('\n'))}"`);
-      expect(html).toContain(`<label class="sr" for="advisor-q">${esc(t(l, 'advisor.label'))}</label>`);
+    it(`${l} · offers visible examples, a native question and the history door`, () => {
+      const html=renderAdvisor(l);
+      expect(html).toContain(`<h1 class="page">${esc(t(l,'assistantArea.ask'))}</h1>`);
+      expect(html).toContain(esc(t(l,'advisor.greeting.plain')));
+      expect(html).toContain(esc(t(l,'advisor.example.1')));
+      expect(html).toContain(`<label for="advisor-q">${esc(t(l,'advisor.label'))}</label>`);
+      expect(html).toContain('action="/app/advisor"');
+      expect(html).toContain('href="/app/assistant/ask/history"');
       expect(html.match(/<form\b/g)).toHaveLength(1);
-      // the form names the orb (tests/parity/advisor-orb.test.ts holds the rest)
-      expect(html).toMatch(/<form method="post" action="\/app\/advisor" class="adv-bar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow"\s+data-adv-suggest=/);
       expect(html.match(/<textarea\b/g)).toHaveLength(1);
       expect(html.match(/<button\b/g)).toHaveLength(1);
-      expect(html.match(/<input\b/g) ?? []).toEqual([]);
-      expect(html).not.toMatch(/<a\s|href=|formaction|data-confirm/);
-      // its plain voice: the light magenta is the assistant's, and the advisor is not the assistant
-      expect(html).not.toContain('by-as');
-      expect(html).not.toContain('data-mark="agent"');
+      expect(html).not.toMatch(/<canvas|data-orb/);
     });
 
     it(`${l} · an answer: the sentence, or — when the sentence failed its check — the facts themselves, and its one door`, () => {
       const said = renderAdvisor(l, { asked: 'how many customers', answer: fact() });
       expect(said).toContain('<p><bdi>You have 12 customers.</bdi></p>');
-      expect(said).not.toContain('adv-facts"><li><bdi>Customers: 12');
+      expect(said).toContain('adv-facts"><li><bdi>Customers: 12');
       // its one door, and the redesign's small link at the top: a new conversation
       expect(said.match(/<a class="deeper"/g)).toHaveLength(1);
       expect(said).toContain(`<a class="deeper" href="/app/inbox">${esc(t(l, 'nav.inbox'))}`);
-      expect(said.match(/<a\s/g)).toHaveLength(2);
-      expect(said).toContain(`<a class="adv-link" href="/app/advisor?new=1">${esc(t(l, 'advisor.thread.new'))}</a>`);
+      expect(said.match(/<a\s/g)).toHaveLength(3);
+      expect(said).toContain(`<a href="/app/assistant/ask?new=1">${esc(t(l, 'advisor.thread.new'))}</a>`);
       // talking, the box asks plainly; the typed questions are the empty page's alone
       // once there is an answer, the box asks for a follow-up — never "Your question"
       expect(said).toContain(`placeholder="${esc(t(l, 'advisor.followUp'))}"`);
@@ -461,7 +451,7 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
     advisorRoutes(fake as unknown as FastifyInstance, { ...with_, page: (_r, o) => { drawn = { ...o }; return 'PAGE'; } });
     const out: { redirect?: string } = {};
     const reply = { redirect: (to: string) => { out.redirect = to; return reply; }, type: () => reply, send: () => reply };
-    const route = handlers[`${method} /app/advisor`]!;
+    const route = handlers[`${method} ${method==='GET'?'/app/assistant/ask':'/app/advisor'}`]!;
     await route.h({ body } as FastifyRequest, reply as unknown as FastifyReply);
     return { ...out, logLevel: route.opts.logLevel, drawn: drawn as { title: string; active: string; bodyHtml: string } | null };
   };

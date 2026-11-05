@@ -100,6 +100,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
       '/app/replies': '/app/inbox/replies',
       '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
       '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
+      '/app/ready':'/app/assistant/practice#readiness','/app/onboarding/practice':'/app/assistant/practice#checklist',
       '/app/onboarding/activity': '/app/results?view=setup',
     };
     let checked = 0;
