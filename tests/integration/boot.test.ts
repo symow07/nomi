@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tenant.js';
 import { pasteAndAdd } from './importReview.js';
@@ -686,7 +687,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
     expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
     expect(res.body).not.toContain('置信度');       // no invented score
-    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: `/app/settings/assistant/${s}`, headers: { cookie } }));
+    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: assistantPageUrl(`/app/settings/assistant/${s}`), headers: { cookie } }));
     const replies = await screen('replies');
     expect(replies.statusCode).toBe(200);
     expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
@@ -2027,13 +2028,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('THE WARMTH RUN, phase 7 — what the assistant can talk about is My business\'s, opened there, edited nowhere else', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant/talk', headers: { cookie } });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/assistant/knowledge#sources', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       // The warmth run, phase 9 (w4-products-knowledge-01) — and what was taught, and what may be claimed.
-      for (const page of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/business/promises']) expect(res.body, page).toContain(`href="${page}"`);
-      const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
-      expect(main).not.toContain('<form');
-      expect(main).toContain('<a class="back" href="/app/settings/assistant">');
+      for (const page of ['/app/settings/profile', '/app/products', '/app/business/promises']) expect(res.body, page).toContain(`href="${page}"`);
+      const sources = res.body.slice(res.body.indexOf('<details id="sources"'),res.body.indexOf('</details>',res.body.indexOf('<details id="sources"')));
+      expect(sources).not.toContain('<form');
+      expect(res.body).toContain('data-nav="assistant" aria-current="page"');
     });
 
     it('SECURITY: unauthenticated /app/settings/assistant redirects', async () => {
@@ -2487,7 +2488,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         '/app/conversations': '/app/customers',
         '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
         '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
-        '/app/onboarding/activity': '/app/results?view=setup', '/app/replies': '/app/inbox/replies',
+        '/app/ready':'/app/assistant/practice#readiness','/app/onboarding/practice':'/app/assistant/practice#checklist',
+      '/app/onboarding/activity': '/app/results?view=setup', '/app/replies': '/app/inbox/replies',
       };
       for (const { hub, routes } of CONTEXTUAL_ROUTES_BY_HUB) {
         const page = await prod.app.inject({ method: 'GET', url: moved[hub] ?? hub, headers: { cookie } });

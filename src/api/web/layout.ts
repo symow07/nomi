@@ -1,3 +1,4 @@
+import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
 import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
 import { BOOKS_AREA_CSS } from './booksAreaStyle.js';
 import { BOOKS_INVOICE_CSS } from './booksInvoiceStyle.js';
@@ -112,8 +113,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here). The advisor
   // run — one level into Settings (`ASSISTANT_HOME`).
-  { hub: ASSISTANT_HOME, routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
-    ...['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'month', 'next', 'history'].map((s) => `${ASSISTANT_HOME}/${s}`)] },
+  { hub: ASSISTANT_HOME, routes: ['/app/settings/forbidden',
+    ...['alone', 'name', 'replies', 'one-kind', 'month', 'next'].map((s) => `${ASSISTANT_HOME}/${s}`)] },
+  { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/practice','/app/assistant/review','/app/assistant/activity','/app/assistant/ask'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/customers', routes: ['/app/customers/outreach'], outreach: true },
@@ -2760,7 +2762,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2794,7 +2796,7 @@ const LIVE_JS = asset('live', 'js', LIVE_SCRIPT);
  */
 const ORB_DIR = new URL('../../../assets/vendor/thinking-orbs/0.3.2/', import.meta.url);
 /** Every copy carries the library's notice (its MIT licence asks it): the licence, then the core, unchanged. */
-export const ORB_JS = asset('orb', 'js', `/*! thinking-orbs 0.3.2 — its drawing core, unchanged below this note.\n${
+const ORB_JS = asset('orb', 'js', `/*! thinking-orbs 0.3.2 — its drawing core, unchanged below this note.\n${
   readFileSync(new URL('LICENSE', ORB_DIR), 'utf8')}*/\n${readFileSync(new URL('index-B8WsUNf5.js', ORB_DIR), 'utf8')}`);
 const scriptTo = (href: string): string => `<script src="${href}" defer></script>`;
 

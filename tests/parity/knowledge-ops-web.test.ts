@@ -27,8 +27,8 @@ describe('M14 · knowledge operations (localized renderer)', () => {
       // Phase 9 (V1-358) — the period's part of the page, drawn at its foot.
       const html = withoutIsolates(renderKnowledgePeriod(ops(), l, NOW));
       // The tabs keep the reader at the period's part of the page.
-      expect(html).toContain('href="/app/knowledge?range=today#period"');
-      expect(html).toMatch(/class="tab on"[^>]*href="\/app\/knowledge\?range=week#period"/); // week is current
+      expect(html).toContain('href="/app/assistant/knowledge?range=today#period"');
+      expect(html).toMatch(/class="tab on"[^>]*href="\/app\/assistant\/knowledge\?range=week#period"/); // week is current
       expect(html).toContain(t(l, 'knowledge.report.facts'));
       expect(html).toContain('>3<');                       // facts added count (real number)
       expect(html).toContain(t(l, 'knowledge.ops.commonRequests'));
@@ -42,11 +42,11 @@ describe('M14 · knowledge operations (localized renderer)', () => {
     expect(html).toContain(t('en', 'knowledge.gap.reason.claim_requires_authorization'));
     expect(html).toContain(t('en', 'knowledge.gap.reason.no_product_match'));
     // product-scoped gap → teach on the product page; business-level → the index
-    expect(html).toContain('href="/app/knowledge/p1?teach=is%20it%20food%20safe%3F"');
-    expect(html).toContain('href="/app/knowledge?teach=what%20about%20a%20general%20item%3F"');
+    expect(html).toContain('href="/app/assistant/knowledge/products/p1?teach=is%20it%20food%20safe%3F"');
+    expect(html).toContain('href="/app/assistant/knowledge?view=facts&amp;teach=what%20about%20a%20general%20item%3F"');
     // replay loop — onto the practice box, which CC-25 moved under the practice transcript;
     // every workspace's own Practice since P5
-    expect(html).toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F#compose"');
+    expect(html).toContain('href="/app/assistant/practice?ask=is%20it%20food%20safe%3F#compose"');
     expect(html).toContain('×2');   // repeated count
   });
 

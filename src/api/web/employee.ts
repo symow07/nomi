@@ -1,3 +1,5 @@
+import { markSmall } from '../../core/owner/brand.js';
+import { dailyAssistantScreen } from './assistantArea.js';
 import { rampState, type RampState } from '../../db/ramp.js';
 import { loadReadiness } from '../../db/readiness.js';
 import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
@@ -16,7 +18,7 @@ import { capabilityName, claimName, languageDisplay, type MessageKey } from '../
 import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
-import { esc, deeper, back, signalMark, ASSISTANT_HOME, type Signal } from './layout.js';
+import { esc, deeper, back, signalMark, conversationUrl, ASSISTANT_HOME, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { assistantStopped } from '../../db/assistantStop.js';
@@ -282,7 +284,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** Phase 7 — the screens one row each opens, in the menu's order. */
 export const EMPLOYEE_SCREENS = ['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
-export const screenHref = (s: EmployeeScreen): string => `${ASSISTANT_HOME}/${s}`;
+export const screenHref = (s: EmployeeScreen): string => dailyAssistantScreen(s) ?? `${ASSISTANT_HOME}/${s}`;
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
@@ -379,7 +381,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
     return `<div class="block">
       <div class="empty">${esc(t(locale, 'her.knows.none'))}</div>
-      ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
+      ${deeper('/app/assistant/knowledge', t(locale, 'knowledge.teach'))}</div>`;
   }
   return `<div class="block">
     <div class="hrows">
@@ -387,7 +389,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
       ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
       ${c ? countRow(c.corrected, t(locale, 'her.knows.corrected')) : ''}
     </div>
-    ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
+    ${deeper('/app/assistant/knowledge', t(locale, 'knowledge.teach'))}</div>`;
 }
 
 /** 3 · What did she do recently? Real counts, no rate. The screen's heading names the span. */
@@ -422,7 +424,7 @@ function teachBody(c: HerContext | undefined, locale: Locale): string {
   }
   return `<div class="block">
     <div class="gaps">${c.gaps.map((g) => `
-      <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
+      <a class="gap" href="/app/assistant/knowledge?view=facts&amp;teach=${encodeURIComponent(g.question)}">
         <span class="gq">${esc(g.question)}</span>
         <span class="gmeta muted">${esc(t(locale, 'her.teach.asked', { count: g.count }))}</span>
         <span class="gact">${esc(t(locale, 'her.teach.go'))}${GO}</span>
@@ -726,7 +728,7 @@ export function renderEmployee(
   const says: MenuRow[] = [
     { href: screenHref('talk'), icon: 'talk', label: t(locale, 'her.talk.title'),
       ...(e.products === undefined ? {} : { value: tn(locale, 'her.talk.products', e.products) }) },
-    { href: '/app/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
+    { href: '/app/assistant/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
       value: e.knows ? tn(locale, 'knowledge.product.facts', e.knows) : nothingYet },
     // V1-423 — what customers asked this month that needed something not taught: a count of questions.
     { href: screenHref('learning'), icon: 'question', label: t(locale, 'her.teach.title'),
@@ -751,7 +753,7 @@ export function renderEmployee(
     // check — an empty ritual is worse than none. Today's line lands on it.
     ...(e.spotChecks.length ? [{ href: screenHref('checks'), icon: 'check' as const, label: t(locale, 'spotcheck.title'),
       value: tn(locale, 'today.spotChecks', e.spotChecks.length), tone: 'warn' as const, id: 'spot-checks' }] : []),
-    { href: '/app/sandbox', icon: 'practice', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
+    { href: '/app/assistant/practice', icon: 'practice', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
   ];
   const going: MenuRow[] = [
     { href: screenHref('month'), icon: 'month', label: t(locale, 'her.recent.title'),
@@ -784,7 +786,7 @@ export function renderEmployeeScreen(
   const name = assistantName(locale);
   const st = standing(e, locale);
   const capName = (c: string) => capabilityName(locale, c);
-  const dailyTool = screen === 'checks' || screen === 'history';
+  const dailyTool = screen === 'checks' || screen === 'history' || screen === 'talk' || screen === 'learning';
   const returnTo = screen === 'month' ? '/app' : dailyTool ? '/app/assistant' : ASSISTANT_HOME;
   const returnLabel = screen === 'month' ? t(locale, 'split.title') : dailyTool ? t(locale, 'nav.assistant') : name;
   const head = `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
@@ -811,7 +813,7 @@ export function renderEmployeeScreen(
           // A product's name carries its figures ("38x40cm", "500ml"): isolated, so Arabic does not reorder them.
           desc: k.products.names.length ? `${show.isolateFigures(locale, k.products.names.join(' · '))}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
           value: tn(locale, 'her.talk.products', k.products.total) },
-        { href: '/app/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
+        { href: '/app/assistant/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
           value: k.taught > 0 ? tn(locale, 'knowledge.product.facts', k.taught) : t(locale, 'knowledge.product.none') },
         // The certifications by name on the line under the row's name, which wraps; a value on a phone is one short line.
         { href: '/app/business/promises', icon: 'promise', label: t(locale, 'factory.promise.title'),
@@ -912,17 +914,18 @@ export function renderEmployeeScreen(
             ${e.spotChecks.map((s) => {
               const act = `${ASSISTANT_HOME}/spot-check/${encodeURIComponent(s.id)}`;
               return `<div class="scheck">
+                <p class="caption muted">${esc(show.dateYear(locale,s.askedAt))} · ${esc(show.time(locale,s.askedAt))}${s.conversationId?` · <a href="${esc(conversationUrl(s.conversationId))}">${esc(t(locale,'assistantArea.conversation'))}</a>`:''}</p>
                 <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
-                <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
+                <div class="scsaid"><bdi>${esc(s.buyerMessage||t(locale,'assistantArea.questionMissing'))}</bdi></div>
                 <div class="muted sclabel">${esc(t(locale, s.wasAuto ? 'spotcheck.sentAlone' : 'spotcheck.sheReplied', { name }))}</div>
-                <div dir="auto" class="proposed">${esc(s.reply)}</div>
+                <div dir="auto" class="proposed">${markSmall(16,null)}<p>${esc(s.reply)}</p></div>
                 <form method="post" action="${act}" class="acts">
                   <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
                   <button class="btn danger" name="answer" value="有问题">${esc(t(locale, 'spotcheck.problem'))}</button>
                 </form>
                 <details class="scfix"><summary>${esc(t(locale, 'spotcheck.fix'))}</summary>
                   <form method="post" action="${act}">
-                    <textarea name="answer" rows="2" required
+                    <label for="check-${esc(s.id)}">${esc(t(locale, 'spotcheck.fix'))}</label><textarea id="check-${esc(s.id)}" name="answer" rows="2" required
                       placeholder="${esc(t(locale, 'spotcheck.fixPlaceholder'))}"></textarea>
                     <button class="btn" type="submit">${esc(t(locale, 'spotcheck.fixSave'))}</button>
                   </form>

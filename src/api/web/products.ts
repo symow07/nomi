@@ -673,7 +673,7 @@ export function renderProductList(
   // w4-products-knowledge-11 — the section's rule ends where the rows above it end.
   const doors = viewer.isOwner ? `<div class="block measure-prose"><div class="doors">
       ${deeper('/app/products/price-limits', t(locale, 'prices.title'))}
-      ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
+      ${deeper('/app/assistant/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
     </div></div>` : '';
   const pager = page ? `<nav class="pa-pager" aria-label="${esc(t(locale, 'products.pages'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
@@ -860,7 +860,7 @@ export function renderProductDetail(
 
   // Phase 9 (V1-315, V1-376) — the product's other pages, one door each.
   const doors = `<div class="block"><div class="doors">
-      ${deeper(`/app/knowledge/${encodeURIComponent(d.id)}`, t(locale, 'product.detail.knowledgeDoor', { name }))}
+      ${deeper(`/app/assistant/knowledge/products/${encodeURIComponent(d.id)}`, t(locale, 'product.detail.knowledgeDoor', { name }))}
       ${viewer.isOwner ? deeper(`/app/products/price-limits?product=${encodeURIComponent(d.id)}#p-${encodeURIComponent(d.id)}`, t(locale, 'product.detail.limitsDoor')) : ''}
     </div></div>`;
 

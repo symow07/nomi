@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -44,7 +45,7 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
     const bid = parseBusinessId(biz); if (!bid.ok) throw new Error('fixture');
     return withTenantTx(db, bid.value, fn);
   };
-  const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie } });
   const product = (name: string) => tx((t) => sql<{ id: string; unit: string; moq: number | null; price: string | null; active: boolean; line: string | null; imp: string | null }>`
     select id::text as id, unit, moq, price_usd_per_unit as price, is_active as active, source_line as line, source_import_id::text as imp
       from products where business_id = ${BIZ} and name = ${name}`.execute(t).then((r) => r.rows[0]));

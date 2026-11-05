@@ -66,7 +66,7 @@ describe('G6 · the Ready for customers page', () => {
       expect(html).toContain(esc(withoutIsolates(t(l, 'ready.name.done', { name }))));
       expect(html).toContain(esc(t(l, 'ready.channel.todo')));
       expect(html).toContain(esc(t(l, 'ready.alone.not')));
-      expect(html).toContain('href="/app/sandbox"');
+      expect(html).toContain('href="/app/assistant/practice"');
       // Phase 7 — the channels step opens their one home, My business's screen.
       expect(html).toContain('href="/app/business/channels"');
       expect(html).not.toContain(esc(t(l, 'ready.done')));

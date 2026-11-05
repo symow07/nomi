@@ -145,10 +145,10 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   });
 
   it('READY FOR CUSTOMERS: what was seen, counted, and that sending alone waits to be earned', async () => {
-    const res = await get(shopCookie, '/app/ready');
+    const res = await get(shopCookie, '/app/assistant/practice#readiness');
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(t('en', 'ready.title'));
-    expect(res.body).toMatch(/2\/\d/);
+    expect(res.body).toMatch(/<span class="count">2 of \d+ tried<\/span>/);
     expect(res.body).toContain(t('en', 'ready.alone.not'));
     expect(res.body).toContain(t('en', 'ready.channel.todo'));
   });

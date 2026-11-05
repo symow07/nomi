@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -53,9 +54,9 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   };
   const cookieOf = (r: { headers: Record<string, unknown> }) => ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
     .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie } });
   const post = (cookie: string, url: string, body: Record<string, string>) =>
-    app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
+    app.inject({ method: 'POST', url:url.replace('/app/assistant/knowledge/readings/','/app/knowledge/from-page/'), headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
   const occurrences = (html: string, s: string) => html.split(s).length - 1;
 
   beforeAll(async () => {
@@ -106,14 +107,14 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   it('B16 · Ready, Getting ready (its row and its Practice row), Practice and Going live say the same count', async () => {
     // Ready FIRST, before any page has written down what the copy shows: it read the written list alone, and said 0.
     const ready = (await get(shopCookie, '/app/ready')).body;
-    const total = Number(/<span class="count">\d+\/(\d+)<\/span>/.exec(ready)?.[1]);
+    const total = Number(/<span class="count">\d+ of (\d+) tried<\/span>/.exec(ready)?.[1]);
     expect(total).toBeGreaterThan(1);
-    expect(ready).toContain(`<span class="count">1/${total}</span>`);
+    expect(ready).toContain(`<span class="count">1 of ${total} tried</span>`);
     const said = t('en', 'pilot.ready.count', { done: 1, total });
     const onboarding = (await get(shopCookie, '/app/get-started')).body;
     // "Ready for customers" and the Practice row: the same words, the same count ("2 of 4 done" before).
     expect(occurrences(onboarding, said), 'Getting ready').toBe(2);
-    expect((await get(shopCookie, '/app/onboarding/practice')).body).toContain(said);
+    expect((await get(shopCookie, '/app/onboarding/practice')).body).toContain(t('en', 'practice.checklist.count', { done: 1, total }));
     expect((await get(shopCookie, '/app/sandbox')).body).toContain(t('en', 'practice.checklist.count', { done: 1, total }));
     // Going live: "Finish getting ready" says how far the checklist is.
     expect((await get(shopCookie, '/app/business/ready')).body).toContain(said);
@@ -152,10 +153,10 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
     const first = await post(shopCookie, '/app/knowledge/from-page', { address: 'shop.example/pages/shipping', text: '' });
     expect(first.statusCode).toBe(303);
     const at = String(first.headers['location']);
-    expect(at).toMatch(/^\/app\/knowledge\/from-page\/[0-9a-f-]{36}$/);
+    expect(at).toMatch(/^\/app\/assistant\/knowledge\/readings\/[0-9a-f-]{36}$/);
     expect([fetched.length, asked.length]).toEqual([1, 1]);
     // Left, and back on the knowledge page: the reading is there, a door to its lines.
-    expect((await get(shopCookie, '/app/knowledge')).body).toContain(`href="${at}"`);
+    expect((await get(shopCookie, '/app/assistant/knowledge?view=readings&state=pending')).body).toContain(`href="${at}?from=`);
     // The same address again: that reading — nothing fetched, nothing asked, nothing charged.
     const again = await post(shopCookie, '/app/knowledge/from-page', { address: 'https://shop.example/pages/shipping', text: '' });
     expect(again.headers['location']).toBe(at);
@@ -170,7 +171,7 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
     // step, its allowance shown first — tests/integration/page-reread.test.ts), still nothing fetched or asked.
     const lines = (await get(shopCookie, at)).body.match(/name="(line:[^"]+)"/g)!.map((m) => m.slice(6, -1));
     await post(shopCookie, `${at}/confirm`, { [lines[0]!]: 'on' });
-    expect((await get(shopCookie, '/app/knowledge')).body).not.toContain(`href="${at}"`);
+    expect((await get(shopCookie, '/app/assistant/knowledge?view=readings&state=pending')).body).not.toContain(`href="${at}?from=`);
     expect((await post(shopCookie, '/app/knowledge/from-page', { address: 'shop.example/pages/shipping', text: '' })).headers['location']).toBe(at);
     expect([fetched.length, asked.length]).toEqual([1, 2]);
   });

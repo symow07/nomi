@@ -1,3 +1,4 @@
+import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
 import { BOOKS_OVERVIEW_REPORTS_EN } from './booksOverviewReports.js';
 import { BOOKS_AREA_EN } from './booksArea.js';
@@ -15,6 +16,7 @@ import { INBOX_LISTS_EN } from './inboxLists.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,
   ...BOOKS_AREA_EN,
   ...BOOKS_SPENDING_EN,

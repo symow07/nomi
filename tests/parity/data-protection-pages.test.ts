@@ -280,7 +280,7 @@ describe('D12 · "carried out again before the service runs": every ledger line 
 
 describe('D13 · settled: "Try it in Practice" copies nothing until the owner sends; then the erasure reaches it', () => {
   it('the link only fills the Practice box — the question rides in the address, which the logs no longer keep (D2)', () => {
-    expect(read('src/api/web/knowledge-insights.ts')).toMatch(/const testHref = `\/app\/sandbox\?ask=\$\{encodeURIComponent\(g\.question\)\}#compose`/);
+    expect(read('src/api/web/knowledge-insights.ts')).toMatch(/const testHref = `\/app\/assistant\/practice\?ask=\$\{encodeURIComponent\(g\.question\)\}#compose`/);
     expect(read('src/api/web/app.ts')).toMatch(/const prefill = typeof q\.ask === 'string' \? q\.ask : asked\[0\] \?\? '';/);
   });
   it('the erasure deletes a practice conversation that holds their words, twelve characters or more, word for word', () => {

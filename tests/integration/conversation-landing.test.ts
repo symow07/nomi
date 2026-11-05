@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -72,7 +73,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const b = parseBusinessId(biz); if (!b.ok) throw new Error('fixture');
     return withTenantTx(db, b.value, fn);
   };
-  const get = (url: string, extra = '') => app.inject({ method: 'GET', url, headers: { cookie: `${cookie}${extra}` } });
+  const get = (url: string, extra = '') => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie: `${cookie}${extra}` } });
   const post = (url: string, fields: Record<string, string> = {}) => app.inject({
     method: 'POST', url, headers: { ...FORM, cookie }, payload: new URLSearchParams(fields).toString(),
   });
@@ -284,7 +285,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   it('Practice: the transcript, then the approval, the take-over, the checks and the next message — and every action lands on #latest', async () => {
     const run = await post('/app/sandbox/scenario', { scenarioId: 'price-floor-clamp-under-aggressive-discount' });
     expect(run.statusCode).toBe(302);
-    expect(run.headers['location']).toBe('/app/sandbox#latest');
+    expect(run.headers['location']).toBe('/app/assistant/practice#latest');
     // P3 — the case's words went to the queue, on the workspace's own copy; the notice says so, under the line.
     const job = practised.at(-1)!;
     expect(job.businessId).not.toBe(BIZ);
@@ -312,14 +313,14 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(at(page, 'We can commit to 5000 units')).toBeLessThan(at(page, 'class="card draft"'));
 
     const took = await post('/app/sandbox/takeover');
-    expect(took.headers['location']).toBe('/app/sandbox#latest');
+    expect(took.headers['location']).toBe('/app/assistant/practice#latest');
     const held = await land(took);
     const notice = landing(held);
     expect(notice).toBeGreaterThan(at(held, 'class="timeline"'));
     expect(notice).toBeLessThan(at(held, 'action="/app/sandbox/reply"'));
 
     const replied = await post('/app/sandbox/reply', { text: 'Let me check the floor for you.' });
-    expect(replied.headers['location']).toBe('/app/sandbox#latest');
+    expect(replied.headers['location']).toBe('/app/assistant/practice#latest');
     const after = await land(replied);
     // her reply is the newest line now, and the notice — the landing — is under it
     // the signature line may carry the assistant's ✦ and name in spans (the design pass)
@@ -327,20 +328,20 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(landing(after)).toBeGreaterThan(at(after, 'Let me check the floor for you.'));
 
     const resumed = await post('/app/sandbox/resume');
-    expect(resumed.headers['location']).toBe('/app/sandbox#latest');
+    expect(resumed.headers['location']).toBe('/app/assistant/practice#latest');
 
     const said = await post('/app/sandbox/message', { text: 'do you have canvas bags?' });
-    expect(said.headers['location']).toBe('/app/sandbox#latest');
+    expect(said.headers['location']).toBe('/app/assistant/practice#latest');
     const draftId = await as(job.businessId, (x) => sql<{ id: string }>`
       select id::text as id from drafts where business_id = ${job.businessId}::uuid and status = 'pending'
        order by created_at desc limit 1`.execute(x).then((r) => r.rows[0]?.id ?? ''));
     const acted = await post('/app/sandbox/act', { draftId, command: '发送' });
-    expect(acted.headers['location']).toBe('/app/sandbox#latest');
+    expect(acted.headers['location']).toBe('/app/assistant/practice#latest');
 
     // Reset empties it, and lands on its notice: under the empty transcript, the box under that —
     // not the top of a page whose first screen is the safety-check card.
     const reset = await post('/app/sandbox/reset');
-    expect(reset.headers['location']).toBe('/app/sandbox#latest');
+    expect(reset.headers['location']).toBe('/app/assistant/practice#latest');
     const empty = await land(reset);
     const mark = landing(empty);
     expect(empty.slice(mark)).toMatch(/^<div class="flash" role="status" id="latest">/);   // good news, not drawn as a refusal

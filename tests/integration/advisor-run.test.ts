@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -25,7 +26,7 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
   let app: import('fastify').FastifyInstance;
   let db: import('../../src/db/client.js').Db;
   let cookie = '';
-  const get = (url: string, c = cookie) => app.inject({ method: 'GET', url, headers: c ? { cookie: c } : {} });
+  const get = (url: string, c = cookie) => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: c ? { cookie: c } : {} });
   const post = (url: string, payload: string, c = cookie) => app.inject({ method: 'POST', url, payload, headers: { ...(c ? { cookie: c } : {}), ...FORM } });
   /** The next transaction id the database would hand out: any transaction that writes moves it; reading never does. */
   const horizon = async () => BigInt((await sql<{ x: string }>`select pg_snapshot_xmax(pg_current_snapshot())::text as x`.execute(db)).rows[0]!.x);
@@ -94,9 +95,9 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
     const page = await get('/app/advisor');
     expect(page.statusCode).toBe(200);
     expect(page.body).toMatch(/<a href="\/app\/assistant" class="navlink nav-desktop active" data-nav="assistant" aria-current="page"/);
-    expect(page.body).toMatch(/<form method="post" action="\/app\/advisor" class="adv-bar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow"/);
+    expect(page.body).toContain('<form method="post" action="/app/advisor" class="ask-form"');
     // the access code's owner is a row born with the business's name: the page greets a person, never the business
-    expect(page.body).toContain('<p class="adv-hello" dir="auto">Hello</p>');
+    expect(page.body).toContain('<p dir="auto">Hello</p>');
     expect(page.body).not.toContain('Hello, Advisor Run Co');
 
     // the control: a real save moves the counter

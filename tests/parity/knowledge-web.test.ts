@@ -29,7 +29,7 @@ describe('M13 · knowledge UI (localized renderer)', () => {
       // the lede (renderKnowledgeOps). This half printed the same title again.
       expect(html).not.toContain('<h1');
       expect(html).not.toContain(t(l, 'knowledge.intro'));
-      expect(html).toContain('href="/app/knowledge/p1"');       // product deep link
+      expect(html).toContain('href="/app/assistant/knowledge/products/p1"');       // product deep link
       expect(html).toContain('Non-woven bag');                  // product name (data)
       expect(html).toContain(t(l, 'knowledge.business'));
       expect(html).toContain('No sales to individuals.');       // business-level item

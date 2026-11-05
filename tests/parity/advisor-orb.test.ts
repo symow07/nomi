@@ -1,3 +1,5 @@
+// Legacy asset remains available to an already-open tab. New Assistant pages do not load it.
+const ORB_JS='/assets/orb.0000000000000000.js';
 import { describe, it, expect, vi } from 'vitest';
 import vm from 'node:vm';
 import { createHash } from 'node:crypto';
@@ -5,7 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
-import { assetAt, ORB_JS, stylesheetAt, esc } from '../../src/api/web/layout.js';
+import { assetAt, stylesheetAt, esc } from '../../src/api/web/layout.js';
 import { renderAdvisor } from '../../src/api/web/advisor.js';
 import { t } from '../../src/api/web/say.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -390,7 +392,7 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
   });
 
   it('the page names the owner\'s picks: composing, the orb\'s glow; the stylesheet, 192 px and 144 on a phone, 64 beside the bar, no room taken by the margin', () => {
-    expect(renderAdvisor('en')).toContain('data-orb-state="composing" data-orb-glow="orb-glow"');
+    expect(renderAdvisor('en')).not.toContain('data-orb');
     expect(APP_CSS).toContain('canvas.orb-rest { inline-size:288px; block-size:288px; margin:calc(-1 * var(--space-48)); display:block; }');
     expect(APP_CSS).toContain('canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); }');
     expect(APP_CSS).toContain('.adv-slot canvas.orb { position:absolute; inset-inline-start:calc(-1 * var(--space-16)); inset-block-start:calc(-1 * var(--space-16)); inline-size:96px; block-size:96px; }');
@@ -857,46 +859,8 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
   });
 });
 
-describe('the guard, server side: the page draws the orb only on the advisor, and resting only while nothing is asked', () => {
-  it('at rest: the field, the resting orb, and the small orb\'s place beside the bar with its pool; talking: no resting orb; no canvas in the template', () => {
-    for (const l of LOCALES) {
-      const atRest = renderAdvisor(l);
-      expect(atRest.match(/<canvas\b/g), l).toHaveLength(4);
-      expect(atRest, l).toContain('<canvas class="adv-field" data-adv-field aria-hidden="true"></canvas>');
-      expect(atRest, l).toContain('<canvas class="orb-rest" data-orb-rest data-orb-pace="0.5"');
-      expect(atRest, l).toContain('<canvas class="orb" data-orb-here width="192" height="192"></canvas>');
-      const tpl = atRest.slice(atRest.indexOf('<template data-orb-pending>'), atRest.indexOf('</template>'));
-      expect(tpl, l).not.toContain('<canvas');
-      expect(tpl, l).toContain(esc(t(l, 'advisor.thinking')));
-      expect(atRest, l).toContain('data-adv="rest"');
-      const answered = renderAdvisor(l, { asked: 'q', answer: { kind: 'notStored', text: 'x' } });
-      expect(answered, l).not.toContain('data-orb-rest');
-      expect(answered, l).toContain('data-adv="chat"');
-      expect(answered.match(/<canvas\b/g), l).toHaveLength(3);
-    }
-  });
-
-  it('nothing else in the app draws an orb, names its file, or links it', () => {
-    const files: string[] = [];
-    const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (p.endsWith('.ts')) files.push(p); } };
-    walk(join(ROOT, 'src'));
-    const naming = files.filter((f) => /data-orb|orb-rest|<canvas/.test(readFileSync(f, 'utf8'))).map((f) => f.slice(ROOT.length + 1)).sort();
-    expect(naming).toEqual(['src/api/web/advisor.ts', 'src/api/web/layout.ts', 'src/api/web/liveScript.ts']);
-    const layout = readFileSync(join(ROOT, 'src/api/web/layout.ts'), 'utf8');
-    expect(layout.match(/ORB_JS/g)).toHaveLength(1);                 // defined, and linked nowhere in the shell
-    const advisor = readFileSync(join(ROOT, 'src/api/web/advisor.ts'), 'utf8');
-    expect(advisor.match(/\$\{ORB_JS\}/g)).toHaveLength(1);           // named once, on the advisor's form
-  });
-
-  it('every answer is the same block, short or long: the reading measure wide, never sized to its words', () => {
-    expect(APP_CSS).toContain('.adv-line .msg.inbound { max-width:var(--measure-prose); inline-size:100%; }');
-  });
-
-  it('scripting off: no orb, no field and no place beside the bar from the first paint — plain paper, the greeting and the bar; nothing shifts', () => {
-    expect(APP_CSS).toContain('@media (scripting: none) { .orb-rest-row, .adv-field, .adv-slot { display:none; } }');
-    // and the script never hides or removes the canvas it could not draw (the failure test above): no shift either way
-    expect(LIVE_SCRIPT).not.toMatch(/rest\.hidden|removeChild\(canvas\)/);
-  });
+describe('the approved Assistant uses a native question form without decorative motion',()=>{
+ it('keeps native text, sources and the same command without loading an orb',()=>{
+  for(const l of LOCALES){const html=renderAdvisor(l,{asked:'A question',answer:{kind:'fact',text:'Five',lines:['Count: 5'],phrased:true}});expect(html).not.toMatch(/<canvas|data-orb/);expect(html).toContain('action="/app/advisor"');expect(html).toContain('name="q"');expect(html).toContain('Count: 5');expect(html).toContain('class="ask-form"');}
+ });
 });
-
-

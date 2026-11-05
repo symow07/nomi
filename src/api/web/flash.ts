@@ -56,7 +56,8 @@ export type Flash = {
 };
 
 /** The only addresses an Undo may post to: a thing's own restore, by its id. */
-export const UNDO_ACTION = /^\/app\/(?:settings\/forbidden|settings\/closures|knowledge|calendar\/entries)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/restore$/;
+const UNDO_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+export const UNDO_ACTION = new RegExp(`^/app/(?:(?:settings/forbidden|settings/closures|calendar/entries)/${UNDO_ID}/restore|knowledge/${UNDO_ID}/restore(?:\\?from=%2Fapp%2Fassistant%2Fknowledge[A-Za-z0-9%._~!()*'-]{0,1800})?)$`);
 
 export const FLASH_COOKIE = 'yf_flash';
 /**

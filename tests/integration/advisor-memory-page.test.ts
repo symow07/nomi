@@ -1,3 +1,4 @@
+import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Writable } from 'node:stream';
@@ -101,7 +102,7 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     const r = await a.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
     return String(r.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   };
-  const get = (cookie: string, url: string, a = app) => a.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string, a = app) => a.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie } });
   const post = (cookie: string, url: string, form: Record<string, string> = {}, a = app) =>
     a.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(form).toString() });
   const ask = (cookie: string, q: string, thread?: string, a = app) => post(cookie, '/app/advisor', { q, ...(thread ? { thread } : {}) }, a);

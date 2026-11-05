@@ -530,7 +530,7 @@ describe('Phase 9 · Ready for customers', () => {
     expect(h).toContain(`<a class="deeper" href="${STEP_LINK.name}">${esc(t('en', 'factory.next.name'))}`);
     expect(h).toContain(`<a class="deeper" href="${STEP_LINK.channels}">${esc(t('en', 'factory.next.channels'))}`);
     expect(h).toContain(`<a class="deeper" href="/app/settings/assistant">${esc(t('en', 'ready.alone.go'))}`);
-    expect(h).toContain('href="/app/sandbox"');
+    expect(h).toContain('href="/app/assistant/practice"');
     expect(renderReady(readyView(true, true, true), 'en')).not.toContain(`href="${STEP_LINK.name}"`);
   });
   it('today-onboarding-missed-20 · the Spanish lines read as Spanish', () => {

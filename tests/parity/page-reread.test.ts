@@ -56,7 +56,7 @@ describe('the confirm step', () => {
 
 describe('the reading\'s own page', () => {
   it('a reading of an address offers "Read the page again" as a door, waiting or approved — only where a reader exists', () => {
-    const door = `href="/app/knowledge/from-page/${ID}/again"`;
+    const door = `href="/app/assistant/knowledge/readings/${ID}/again?from=`;
     expect(renderProposal(base(), 'en', null, true)).toContain(door);
     expect(renderProposal(base({ decidedAt: new Date(), written: 2 }), 'en', null, true)).toContain(door);
     expect(renderProposal(base(), 'en', null, false)).not.toContain(door);
@@ -65,7 +65,7 @@ describe('the reading\'s own page', () => {
   it('replaced: says so, leads to the newer one, and offers neither ticks nor "again"', () => {
     const html = renderProposal(base({ replacedBy: '0f000000-0000-4000-8000-000000000002' }), 'en', null, true);
     expect(html).toContain(t('en', 'pageFacts.replaced'));
-    expect(html).toContain('href="/app/knowledge/from-page/0f000000-0000-4000-8000-000000000002"');
+    expect(html).toContain('href="/app/assistant/knowledge/readings/0f000000-0000-4000-8000-000000000002?from=');
     expect(html).not.toContain('name="line:');
     expect(html).not.toContain('/again"');
   });

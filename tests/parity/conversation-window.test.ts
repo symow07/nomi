@@ -180,11 +180,11 @@ describe('CC-25 · the practice page reads the same window', () => {
 
   it('the door back pages Practice back; the newest line is marked', () => {
     const html = renderSandbox(view(), 'en', { flash: null });
-    expect(html).toContain(`href="/app/sandbox?before=1790000000123_${ID}#latest"`);
+    expect(html).toContain(`href="/app/assistant/practice?before=1790000000123_${ID}#latest"`);
     expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">p-50</);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));
     const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
-    expect(older).toContain('href="/app/sandbox#latest"');
+    expect(older).toContain('href="/app/assistant/practice#latest"');
     expect(older).not.toContain('before=');
   });
 });

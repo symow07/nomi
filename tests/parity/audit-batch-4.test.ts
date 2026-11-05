@@ -83,7 +83,7 @@ describe('B19 · a reading waiting for ticks is found again', () => {
     for (const l of LOCALES) {
       const html = renderPageFactsForm(l, null, open);
       expect(html, l).toContain(t(l, 'pageFacts.waiting.title'));
-      expect(html, l).toContain('href="/app/knowledge/from-page/0f000000-0000-4000-8000-000000000001"');
+      expect(html, l).toContain('href="/app/assistant/knowledge/readings/0f000000-0000-4000-8000-000000000001"');
       expect(html, l).toContain('shop.example');
       expect(html, l).toContain(t(l, 'pageFacts.pasted'));
     }
