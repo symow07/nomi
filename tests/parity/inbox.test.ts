@@ -1,13 +1,15 @@
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderInboxList, renderConversationDetail,
+  renderConversationDetail,
   type InboxList, type ConversationDetail, type HumanActionType,
 } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import type { Locale } from '../../src/core/owner/i18n/locale.js';
 import { t as say, assistantName, withAssistantName } from '../../src/api/web/say.js';
+import { markSmall } from '../../src/core/owner/brand.js';
 import { esc } from '../../src/api/web/layout.js';
 import type { ConversationOwnership } from '../../src/core/conversation/ownership.js';
 
@@ -56,7 +58,7 @@ describe('M9.3 · inbox list (localized)', () => {
     // figures left it (the conversation and the card carry them); what they spent is its number.
     expect(html).not.toContain('5000个'); expect(html).not.toContain('$0.92');
     // CC-25 — a buyer opens on the newest message, with the reply waiting under it.
-    expect(html).toContain('href="/app/inbox/conv-1#latest"');
+    expect(html).toContain('href="/app/inbox/conv-1?from=%2Fapp%2Finbox%3Ffilter%3Dpending%23inbox-conv-1#latest"');
   });
 
   // The warmth run (phase 4): a row is the customer — face, name, spent, last contact; the
@@ -277,44 +279,38 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     ({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: cs });
 
   const mixed = list([
-    conv('c-ai'),
     conv('c-wait', { ownership: 'WAITING_HUMAN', heldBy: null, handoffReason: 'human_requested' }),
-    conv('c-owner', { ownership: 'OWNER_CONTROLLED' }),
     conv('c-review', { awaitingReview: true }),
+    conv('c-owner', { ownership: 'OWNER_CONTROLLED', heldBy: 'owner' }),
+    conv('c-ai'),
   ]);
 
-  it('three groups, each conversation in exactly one, in owner-priority order', () => {
+  it('one flat list preserves reader priority and each conversation has one door', () => {
     const html = renderInboxList(mixed, 'en', NOW);
-    const needs = html.indexOf('Needs you');
-    const yours = html.indexOf('You are handling');
-    const hers  = html.indexOf(shown('en', 'buyers.group.hers'));
-    expect(needs).toBeGreaterThan(-1);
-    expect(yours).toBeGreaterThan(needs);
-    expect(hers).toBeGreaterThan(yours);
-    for (const id of ['c-ai', 'c-wait', 'c-owner', 'c-review']) {
-      expect(html.split(`href="/app/inbox/${id}#latest"`).length - 1, id).toBe(1);   // exactly once (CC-25: on the newest message)
+    for (const id of ['c-wait', 'c-review', 'c-owner', 'c-ai']) {
+      expect(html.split(`class="si-door" href="/app/inbox/${id}?from=`).length - 1, id).toBe(1);
     }
-    // the two that need the owner are above the two that do not
-    expect(html.indexOf('c-wait')).toBeLessThan(html.indexOf('c-owner'));
-    expect(html.indexOf('c-review')).toBeLessThan(html.indexOf('c-ai'));
+    expect(html.indexOf('id="inbox-c-wait"')).toBeLessThan(html.indexOf('id="inbox-c-owner"'));
+    expect(html.indexOf('id="inbox-c-review"')).toBeLessThan(html.indexOf('id="inbox-c-ai"'));
+    expect(html.match(/class="sp-row si-row is-needs/g)).toHaveLength(2);
   });
 
   it('badges name the human action, never an internal state', () => {
-    const html = renderInboxList(mixed, 'en', NOW);
+    const html = renderInboxList(mixed, 'en', NOW, [{ id: 'owner', name: 'Owner', isOwner: true }]);
     expect(html).toContain('the customer asked for a person');   // the STORED reason
     expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));     // awaiting the owner's OK
-    expect(html).toContain('You are handling');     // OWNER_CONTROLLED: its mark, said in words
+    expect(html).toContain(shown('en', 'people.holding', { who: say('en', 'people.held.owner') }));
     expect(html).not.toContain('unclaimed');
     expect(html).not.toContain('draft_pending');
     expect(html).not.toContain('Pending draft');
   });
 
-  it('a group with no conversations is absent, not an empty shell', () => {
-    const heads = (html: string) => [...html.matchAll(/class="bgroup-h">([^<]+)</g)].map((m) => m[1]);
-    expect(heads(renderInboxList(list([conv('c-ai')]), 'en', NOW))).toEqual([shown('en', 'buyers.group.hers')]);
-    expect(heads(renderInboxList(list([conv('c-w', { ownership: 'WAITING_HUMAN' })]), 'en', NOW))).toEqual(['Needs you']);
-    // in the "needs you" view the tab already says it — no heading stutter
-    expect(heads(renderInboxList({ ...mixed, filter: 'pending' }, 'en', NOW))).toEqual([]);
+  it('flat rows have no empty ownership group headings', () => {
+    for (const data of [list([conv('c-ai')]), list([conv('c-w', { ownership: 'WAITING_HUMAN' })]), { ...mixed, filter: 'pending' as const }]) {
+      const html = renderInboxList(data, 'en', NOW);
+      expect(html).not.toContain('<h2 class="sp-cap">');
+      expect(html.match(/class="si-door"/g)).toHaveLength(data.conversations.length);
+    }
   });
 
   it('calm empty state is about the buyers, not about missing data', () => {
@@ -351,7 +347,9 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     expect(html).toContain(shown('en', 'buyers.review.title'));
     const top = html.slice(html.indexOf('<div class="top">'), html.indexOf('</div>', html.indexOf('<div class="top">')));
     expect(top).not.toContain('<b><bdi>Ahmed</bdi></b>');
-    expect(top).toContain(`<span class="as">${shown('en', 'card.drafted')}</span>`);
+    expect(top).toContain('class="as"');
+    expect(top).toContain(shown('en', 'card.drafted'));
+    expect(top).toContain(markSmall(16, null));
     expect(html).toContain('For 5,000 pcs: $0.92/pc FOB Ningbo.');
     expect(html).not.toContain('Pending draft');
     expect(html).not.toContain('⚠️');                       // reviewing a colleague is not an alarm

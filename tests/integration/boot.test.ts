@@ -2101,7 +2101,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('a buyer who asked for a person is in "needs you" — even with no reply drafted', async () => {
-      const { renderInboxList } = await import('../../src/api/web/inbox.js');
+      const { renderSplitInbox: renderInboxList } = await import('../../src/api/web/splitInbox.js');
       const pending = await list('pending');
       const row = pending.conversations.find((c) => c.conversationId === waitingId);
       expect(row, 'a handoff must never be hidden from the needs-you view').toBeTruthy();
@@ -2118,14 +2118,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const idx = all.conversations.map((c) => c.ownership === 'WAITING_HUMAN');
       expect(idx.lastIndexOf(true)).toBeLessThan(idx.indexOf(false) === -1 ? Infinity : idx.indexOf(false));
       expect(all.conversations.some((c) => c.conversationId === waitingId && c.ownership === 'WAITING_HUMAN')).toBe(true);
-      const html = (await import('../../src/api/web/inbox.js')).renderInboxList(all, 'en', new Date());
-      const needsYou = esc(t('en', 'buyers.group.needsYou'));
-      const hers = esc(t('en', 'buyers.group.hers'));
-      // Both headings must be on the page, or the ordering below compares -1s.
-      expect(html.indexOf(needsYou)).toBeGreaterThan(-1);
-      expect(html.indexOf(hers)).toBeGreaterThan(-1);
-      expect(html.indexOf(needsYou)).toBeLessThan(html.indexOf(hers));
-      expect(html.indexOf(waitingId)).toBeLessThan(html.indexOf(aiId));
+      const html = (await import('../../src/api/web/splitInbox.js')).renderSplitInbox(all, 'en', new Date());
+      const firstNotWaiting = all.conversations.find((c) => c.ownership !== 'WAITING_HUMAN');
+      expect(html).toContain(`id="inbox-${waitingId}"`);
+      expect(html).toContain(esc(t('en', 'takeover.reason.human_requested')));
+      if (firstNotWaiting) expect(html.indexOf(`id="inbox-${waitingId}"`)).toBeLessThan(html.indexOf(`id="inbox-${firstNotWaiting.conversationId}"`));
     });
 
     it('grouping is the ownership model, not a copy of it', async () => {
@@ -2179,11 +2176,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
       expect(inList.ownership).toBe('OWNER_CONTROLLED');
-      // A person here has it: said in words, for a screen reader and the group heading.
-      // The warmth run, phase 4 — the customer's row (`irow`), its conversation behind `ir-main`.
-      const listHtml = (await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date());
-      expect(listHtml).toContain(esc(t('en', 'buyers.group.yours')));
-      expect(listHtml).toMatch(new RegExp(`<div class="irow is-yours[^"]*">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${aiId}#latest">`));
+      // The live flat row retains its separate conversation door and names the owner holding it.
+      const listHtml = (await import('../../src/api/web/splitInbox.js')).renderSplitInbox(await list('all'), 'en', new Date(), [{ id: 'owner', name: 'Owner', isOwner: true }]);
+      const row = new RegExp(`<li id="inbox-${aiId}">([\\s\\S]*?)</li>`).exec(listHtml)?.[1] ?? '';
+      expect(row).toContain(`class="si-door" href="/app/inbox/${aiId}?from=`);
+      expect(row).toContain(esc(t('en', 'people.holding', { who: t('en', 'people.held.owner') })));
+      expect(row).not.toContain('class="row-dot"');
 
       await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
       expect((await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!.ownership).toBe('AI');
@@ -2488,7 +2486,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const moved: Readonly<Record<string, string>> = {
         '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
         '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
-        '/app/onboarding/activity': '/app/results?view=setup',
+        '/app/onboarding/activity': '/app/results?view=setup', '/app/replies': '/app/inbox/replies',
       };
       for (const { hub, routes } of CONTEXTUAL_ROUTES_BY_HUB) {
         const page = await prod.app.inject({ method: 'GET', url: moved[hub] ?? hub, headers: { cookie } });

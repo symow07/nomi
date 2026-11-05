@@ -4,7 +4,7 @@ import { withWorkspace, withAssistantName, outreachShown, setupState, type Reque
 import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
-import { renderInboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderAccounts } from '../../src/api/web/connect.js';
 import { renderReach } from '../../src/api/web/channels.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';

@@ -1,3 +1,5 @@
+import { money as showMoney } from '../../src/api/web/values.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +12,7 @@ import type { Tx } from '../../src/db/client.js';
 import { loadCustomerCard, type CustomerCard } from '../../src/db/customerCard.js';
 import { renderCustomerCard, cardOpenedFrom } from '../../src/api/web/customerCard.js';
 import { readAttention, quietAfterPrice, type AttentionItem } from '../../src/db/inboxAttention.js';
-import { renderInboxList, attentionBand, type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
 import { renderCalendar, parseCalendarQuery } from '../../src/api/web/calendar.js';
 import type { CalendarEntry, CalendarView } from '../../src/db/calendar.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
@@ -318,48 +320,52 @@ describe('the Inbox (w4-customers-03 · -04 · -06 · -07 · V1-164 · V1-166 ·
   };
   const html = (l: Locale, over: Partial<InboxList> = {}) => withZone('Asia/Shanghai', () => withAssistantName('Lily', () => renderInboxList({ ...LIST, ...over }, l, NOW)));
 
-  it('-04 · "matters most": spent, then the price they were given and have not ordered on, then the rest, each headed', () => {
+  it('value lens retains spend, quoted-value fallback, then empty value in reader order', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      expect(h.indexOf('Khalid'), l).toBeLessThan(h.indexOf(shown(l, 'buyers.lens.quoted')));
-      expect(h.indexOf(shown(l, 'buyers.lens.quoted')), l).toBeLessThan(h.indexOf('Omar'));
-      expect(h.indexOf('Omar'), l).toBeLessThan(h.indexOf(shown(l, 'buyers.lens.noSpend')));
-      expect(h, l).toContain(`<span class="ir-spent ir-quoted"><bdi aria-hidden="true">`);
-      expect(withoutIsolates(h), l).toContain(`<span class="sr">${withoutIsolates(shown(l, 'buyers.row.quoted', { amount: '\u0000' })).split('\u0000')[0]}`);
+      const rows = [...h.matchAll(/<li id="inbox-[^"]+">([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+      expect(rows).toHaveLength(3);
+      expect(rows[0], l).toContain('Khalid');
+      expect(rows[1], l).toContain('Omar');
+      expect(rows[2], l).toContain('Lena');
+      expect(withoutIsolates(rows[0]!), l).toContain(withoutIsolates(showMoney(l, usd('11750'))).replace(/[.,]00(?=\D*$)/u, ''));
+      expect(withoutIsolates(rows[1]!), l).toContain(withoutIsolates(showMoney(l, usd('6150'))).replace(/[.,]00(?=\D*$)/u, ''));
+      expect(rows[2], l).toContain('<span class="sp-rval"></span>');
     }
-    expect(CSS).toContain('.ir-spent.ir-quoted { font-weight:400; color:var(--color-ink-secondary); }');
   });
 
-  it('-06 · the lens says the state\'s own word; -07 · under a narrowing no lens is shown selected, and the way back is said once', () => {
+  it('both lenses remain available within a view and empty views have one useful recovery', () => {
     for (const l of LOCALES) {
       const plain = html(l, { lens: 'waiting' });
-      expect(plain, l).toContain('class="tabs lens"');
-      expect(plain, l).toContain(shown(l, 'buyers.lens.waitingSays'));
-      const narrowed = html(l, { lens: 'waiting', filter: 'pending', conversations: [] });
-      expect(narrowed, l).not.toContain('class="tabs lens"');
-      expect(narrowed, l).not.toContain('lens-says');
-      expect(narrowed.split(shown(l, 'inbox.empty.seeAll')).length - 1, l).toBe(1);
-      const blocked = html(l, { filter: 'blocked', blockedCount: 0, conversations: [] });
-      expect(blocked.split(shown(l, 'inbox.empty.seeAll')).length - 1, l).toBe(1);
+      expect(plain, l).toContain('class="si-fils si-order"');
+      expect(plain, l).toContain('aria-current="true" href="/app/inbox?filter=all"');
+      for (const filter of ['pending', 'blocked'] as const) {
+        const h = html(l, { lens: 'waiting', filter, conversations: [] });
+        expect(h, l).toContain('class="si-fils si-order"');
+        const recovery = /<div class="il-empty">([\s\S]*?)<\/div>/.exec(h)![1]!;
+        expect(recovery.match(/<a /g), l).toHaveLength(1);
+        expect(recovery, l).toContain('href="/app/inbox?filter=all"');
+      }
     }
     expect(t('en', 'buyers.lens.waiting')).toBe('Needs you first');
     expect(t('zh', 'buyers.lens.waiting')).toContain(t('zh', 'inbox.filter.pending'));
   });
 
-  it('-03 · the group of the assistant\'s rows the customer wrote last says only that; the band counts their questions nobody answered', () => {
-    expect(t('en', 'buyers.group.hersWaiting', { name: 'Lily' })).toBe('Lily is handling — they wrote last');
+  it('quiet customer rows retain the stored unanswered-question reason', () => {
     const band: AttentionItem[] = [{ clientId: C(5), name: 'Marco', photo: null, conversationId: V(5), kind: 'asked', since: new Date('2026-09-28T00:00:00Z'), spent: null }];
     for (const l of LOCALES) {
-      expect(attentionBand(band, l, NOW), l).toContain(`<span class="ar-line">${shown(l, 'buyers.attention.asked', { date: '\u0000' }).split('\u0000')[0]}`);
+      const h = html(l, { filter: 'quiet', conversations: [conv(5, 'Marco')], attention: band });
+      expect(h, l).toContain(`<span class="si-why"><bdi>${shown(l, 'buyers.attention.asked', { date: '\u0000' }).split('\u0000')[0]}`);
+      expect(h.match(/class="si-door"/g), l).toHaveLength(1);
     }
   });
 
   it('V1-164 · previews are cut by the row, not at ninety characters; V2 · on a phone a reason gives the message its own line', () => {
     const long = 'Kids Water Bottle with Straw: $1.08/pc for 30,000 pcs, lead time 25 days from the deposit, and we can send samples';
     const h = html('en', { lens: 'waiting', conversations: [conv(6, 'Rahim', { latestMessage: long })] });
-    expect(h).toContain(`<span class="ir-text" dir="auto">${long}</span>`);
-    expect(CSS).toContain('.ir-l2:has(.ir-wait, .ir-hold) { flex-wrap:wrap; row-gap:0; }');
-    expect(CSS).toContain('.ir-l2:has(.ir-wait, .ir-hold) .ir-text { flex-basis:100%; }');
+    expect(h).toContain(`<bdi class="si-last">${long}</bdi>`);
+    expect(CSS).toContain('.il-page .si-why { grid-area:why; }');
+    expect(h).toContain('class="si-said"');
   });
 
   it('V1-166 · no calendar door under the list (the rail has it); the contacts door names what it opens', () => {

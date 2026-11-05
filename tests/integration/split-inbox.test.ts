@@ -59,7 +59,7 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
     (await f.inject({ method: 'GET', url, headers: { cookie: locale ? `${who}; yf_locale=${locale}` : who } })).body;
   // A find marks the words it found inside the name; the name is still the name.
   const names = (html: string): string[] => [...withoutIsolates(html).replace(/<\/?mark[^>]*>/g, '').matchAll(/<bdi class="sp-rname">([^<]+)</g)].map((m) => m[1]!);
-  const counts = (html: string): string[] => [...withoutIsolates(html.split('<nav class="si-tabs"')[1]!.split('</nav>')[0]!).matchAll(/<span class="si-tabn">([^<]+)</g)].map((m) => m[1]!);
+  const counts = (html: string): string[] => [...withoutIsolates(html.split('<nav class="si-tabs')[1]!.split('</nav>')[0]!).matchAll(/<span class="si-tabn">([^<]+)</g)].map((m) => m[1]!);
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
@@ -121,17 +121,15 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
   }, 60_000);
   afterAll(async () => { await app?.close(); await plain?.close(); await db?.destroy(); });
 
-  it('the flag off: the Inbox is what it was, and a view it does not know is the whole list', async () => {
+  it('the approved Inbox and all its views work without the former layout flag', async () => {
     const html = await get('/app/inbox', undefined, plainCookie, plain);
     expect(html).toContain('<h1 class="page">Inbox</h1>');
-    expect(html).toContain('class="irow');
-    expect(html).toContain('class="owner-shell"');
-    expect(html).not.toContain('class="owner-shell split"');
-    expect(html).not.toContain('si-tabs');
-    // Both renderers share the approved theme; the Inbox layout itself still obeys its flag.
+    expect(html).toContain('class="owner-shell split"');
+    expect(html).toContain('si-tabs');
     expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(true);
     const quiet = await get('/app/inbox?filter=quiet', undefined, plainCookie, plain);
-    expect(quiet).toContain('Omar Order');
+    expect(names(quiet)).toContain('Quentin Quiet');
+    expect(names(quiet)).not.toContain('Omar Order');
   });
 
   it('the flag on: the Split rail, the paper, the sheet, the word Inbox', async () => {
@@ -150,6 +148,19 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
     expect(html).toMatch(/class="si-tab on" aria-current="true" href="\/app\/inbox\?filter=pending"/);
     expect(names(html)).toEqual(expect.arrayContaining(['Hana Waiting', 'Dana Draft']));
     expect(names(html)).not.toContain('Asma Asked');
+  });
+
+  it('a conversation preserves its source view and row, with real counts in the side list', async () => {
+    const source = `/app/inbox?filter=quiet&q=Quentin#inbox-${conv['quiet']}`;
+    const html = await get(`/app/inbox/${conv['quiet']}?from=${encodeURIComponent(source)}`);
+    expect(html).toContain(`class="back" href="${source.replaceAll('&', '&amp;')}"`);
+    expect(names(html)).toContain('Quentin Quiet');
+    expect(names(html)).not.toContain('Omar Order');
+    const chooser = withoutIsolates(html.split('<select name="filter">')[1]!.split('</select>')[0]!);
+    expect([...chooser.matchAll(/<option[^>]*>[^<]* · (\d+)<\/option>/g)].map((m) => m[1])).toEqual(['3', '1', '5', '1', '9']);
+    const untrusted = await get(`/app/inbox/${conv['quiet']}?from=${encodeURIComponent('https://outside.example/app/inbox')}`);
+    expect(untrusted).toContain('class="back" href="/app/inbox"');
+    expect(untrusted).not.toContain('outside.example');
   });
 
   it('each view holds exactly its customers, and its count says so', async () => {

@@ -111,7 +111,7 @@ describe('the rows', () => {
 
   it('the row is the conversation\'s door, landing on the newest; the face still opens the card', () => {
     const [r] = rowsOf(draw(list({ conversations: [needing] })));
-    expect(r).toContain(`href="/app/inbox/${needing.conversationId}#latest"`);
+    expect(r).toContain(`href="/app/inbox/${needing.conversationId}?from=${encodeURIComponent('/app/inbox?filter=all#inbox-' + needing.conversationId)}#latest"`);
     expect(r).toContain('data-card');
     // Its reach is the row's, under the face, so the two doors stay two.
     expect(SPLIT_CSS).toMatch(/\.si-door::after \{[^}]*position:absolute; inset:0/);
@@ -167,20 +167,21 @@ describe('search and the stage filter', () => {
 describe('the page', () => {
   it('Today\'s head: the serif title under the wash, the mark for a phone, the live slot', () => {
     const html = draw(list());
-    expect(html).toContain('<header class="sp-head">');
+    expect(html).toContain('<header class="il-header">');
     expect(html).toContain('<h1 class="page">Inbox</h1>');
-    expect(html).toContain('class="sp-headmark"');
+    expect(html).toContain('class="il-workspace"');
+    expect(html).toContain('class="il-view-form"');
   });
 
   it('no card and no banner: one flat sheet, its parts ruled apart', () => {
     const html = draw(list({ conversations: [conv('1')] }));
-    expect(html.match(/class="sp-sheet"/g)).toHaveLength(1);
+    expect(html.match(/class="il-main sp-sheet"/g)).toHaveLength(1);
     for (const gone of ['class="sp-card', 'class="attn', 'class="flash', 'class="irow']) expect(html).not.toContain(gone);
   });
 
   it('keeps every door of the plain page, and paging', () => {
     const html = draw(list({ page: { from: 51, to: 100, total: 120, next: '6_1_x', prev: { cursor: null } }, conversations: [conv('1')] }), 'en', true);
-    for (const door of ['/app/contacts', '/app/replies', '/app/labels', '/app/surveys']) expect(html).toContain(`href="${door}"`);
+    for (const door of ['/app/contacts', '/app/inbox/replies', '/app/labels', '/app/surveys']) expect(html).toContain(`href="${door}"`);
     expect(html).toContain('action="/app/contacts/write"');
     expect(html).toContain('after=6_1_x');
     expect(html).toContain('href="/app/inbox?filter=all"');

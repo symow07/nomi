@@ -84,7 +84,9 @@ describe('the identity system: the brand draws, the meanings do not', () => {
     for (const r of rules) {
       if (!/background[a-z-]*\s*:\s*var\(--color-(needs|assistant)-wash\)/.test(r.body)) continue;
       const fg = /(?:^|[;\s])color\s*:\s*var\(--color-([a-z-]+)\)/.exec(r.body)?.[1];
-      expect([undefined, 'ink', 'needs', 'assistant'], r.sel).toContain(fg);
+      // The approved Inbox view selection uses the accent on its pale selection ground.
+      const allowed = r.sel === '.il-views .si-tab.on' ? [undefined, 'ink', 'needs', 'assistant', 'accent'] : [undefined, 'ink', 'needs', 'assistant'];
+      expect(allowed, r.sel).toContain(fg);
     }
   });
 });
@@ -208,13 +210,20 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
     '.sbx-trust .verdict': 'a word, not a box',
   };
 
+  // Area 2 uses flat list and conversation sections: these exact selectors may be square, not arbitrary radii.
+  const FLAT: Readonly<Record<string, string>> = {
+    '.il-main.sp-sheet': 'one flat Inbox list surface',
+    '.conversation-workspace .catchup': 'conversation header separated by a hairline',
+    '.conversation-workspace .draft': 'approval section separated by a hairline',
+  };
+
   it('every corner is one of the four, or named above with its reason', () => {
     const odd: string[] = [];
     for (const sheet of [css, doorCss]) {
       for (const r of parse(sheet)) {
         for (const m of r.body.matchAll(/border(?:-[a-z-]+)?-radius\s*:\s*([^;]+)/g)) {
           if (/^var\(--radius-(control|card|panel|chip)\)$/.test(m[1]!.trim())) continue;
-          for (const sel of r.sel.split(',').map((x) => x.trim())) if (!KEPT[sel]) odd.push(`${sel}: ${m[1]!.trim()}`);
+          for (const sel of r.sel.split(',').map((x) => x.trim())) if (!KEPT[sel] && !(m[1]!.trim() === '0' && FLAT[sel])) odd.push(`${sel}: ${m[1]!.trim()}`);
         }
       }
     }

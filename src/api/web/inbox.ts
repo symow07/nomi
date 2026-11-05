@@ -1,3 +1,5 @@
+import { markSmall } from '../../core/owner/brand.js';
+import { extractNumerals, near } from '../../core/safety/numerals.js';
 import { figuresIn } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
@@ -17,14 +19,14 @@ import { countryName, orderStatusName, capabilityName, type MessageKey } from '.
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
-import { t, assistantName, outreachShown, tn } from './say.js';
+import { t, assistantName, tn } from './say.js';
 import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork, NEEDS_ACT } from './layout.js';
 import { shape } from './marks.js';
-import { face, faceLink } from './faces.js';
+import { faceLink } from './faces.js';
 import { icon, GO } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
@@ -40,7 +42,7 @@ import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, lastQuoteGiven, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
-import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
+import { customerValues } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
 import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
 import * as show from './values.js';
@@ -48,7 +50,6 @@ import { quantitiesSaid } from '../../core/conversation/acceptance.js';
 import { workspaceZone } from './zone.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
-import { agentMark } from './agentMark.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -184,6 +185,8 @@ export type ConversationSummary = {
 };
 
 export type InboxList = {
+  /** Validated list URL, including the current cursor, for presentation-only return links. */
+  readonly returnHref?: string;
   readonly filter: InboxFilter;
   /** G12 — how many this reader is holding. Absent viewer = 0. */
   readonly mineCount?: number;
@@ -652,9 +655,9 @@ export type ConversationDetail = {
   readonly country: string | null;
   readonly status: InboxStatus;
   /** The fix wave (V1-220) — `sku`: the product's own code, so the card reads "ZX-300" as the code. Optional for fixtures. */
-  readonly product: { readonly name: string | null; readonly nameZh: string | null; readonly sku?: string | null };
+  readonly product: { readonly id?: string | null; readonly name: string | null; readonly nameZh: string | null; readonly sku?: string | null };
   readonly quantity: number | null;
-  readonly quote: { unitPrice: Money; total: Money; quantity: number } | null;
+  readonly quote: { readonly productId?: string | null; readonly appliedRules?: readonly string[]; unitPrice: Money; total: Money; quantity: number } | null;
   /**
    * M35.1 — the buyer proof link for this conversation's quote. `quoteId` is
    * null when there is nothing to prove yet; `token` is null until the owner
@@ -906,11 +909,11 @@ export async function loadConversationDetail(
   return withTenantTx(db, bid.value, async (tx) => {
     const head = (await sql<{
       id: string; buyer: string | null; country: string | null;
-      name_zh: string | null; name: string | null; sku: string | null; qty: number | null;
+      product_id: string | null; name_zh: string | null; name: string | null; sku: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
       answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string; owner_testing: boolean;
     }>`
-      select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name, p.sku,
+      select c.id, c.channel, cl.display_name as buyer, cl.country, p.id::text as product_id, p.name_zh, p.name, p.sku,
              cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply, c.owner_testing,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
@@ -967,10 +970,10 @@ export async function loadConversationDetail(
     const q = (await sql<{
       unit_price_usd: string; total_usd: string; quantity: number; product_id: string; currency: string;
       lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null;
-      discount_pct: string; lead_time_days: number | null; moq: number | null;
+      discount_pct: string; lead_time_days: number | null; moq: number | null; applied_rules: string[];
     }>`
       select q.unit_price_usd, q.total_usd, q.quantity, q.product_id, q.currency, q.lead_time_withheld,
-             q.discount_pct, q.lead_time_days, p.moq
+             q.discount_pct, q.lead_time_days, p.moq, q.applied_rules
         from quotes q left join products p on p.id = q.product_id
        where q.conversation_id = ${conversationId} order by q.created_at desc limit 1
     `.execute(tx)).rows[0];
@@ -1086,11 +1089,11 @@ export async function loadConversationDetail(
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
-      product: { name: head.name, nameZh: head.name_zh, sku: head.sku }, quantity: head.qty ?? null,
+      product: { id: head.product_id, name: head.name, nameZh: head.name_zh, sku: head.sku }, quantity: head.qty ?? null,
       // G18 — both halves in the quote's OWN currency, and no dollar fallback:
       // a row whose currency this build cannot price is a row it must not put a
       // "$" in front of, so the context line is left off instead.
-      quote: quoteUnit && quoteTotal && q ? { unitPrice: quoteUnit, total: quoteTotal, quantity: q.quantity } : null,
+      quote: quoteUnit && quoteTotal && q ? { productId: q.product_id, appliedRules: q.applied_rules, unitPrice: quoteUnit, total: quoteTotal, quantity: q.quantity } : null,
       proof: await loadProofLinkState(tx, conversationId),
       order: o ? {
         id: o.id, status: o.status, reference: o.order_reference,
@@ -1322,46 +1325,13 @@ export const buyersHref = (o: {
   return `/app/inbox${parts.length ? `?${parts.join('&')}` : ''}`;
 };
 
-/**
- * Phase 1 of the UI rebuild (the owner, 2026-10-02) — THE ROW. One
- * conversation in two lines, 56–72 px in every script, so a laptop shows ten
- * or more and a phone six or more. Line one: the state mark, who, what they
- * asked about where there is room, and the time, always in the same place at
- * the line's end. Line two: the last message, one line, cut where it runs out,
- * and why it needs the owner. Decision 5's row (name, last message, time) is
- * kept; its four stacked lines and the whole message are not.
- *
- * The mark is a shape as well as a colour, so it reads in greyscale: ● needs
- * you (the needs dot), ▪ a person here has it, the assistant's mark (`agentMark`) the assistant has it. A customer still
- * waiting for an answer is written in full ink and weight; an answered one in
- * grey. The message is the list's glimpse of it, drawn in the interface's face:
- * the speech face is for the transcript, where a message is read whole.
- *
- * Right to left: the grid follows the page's direction, so the mark and the
- * name sit on the right and the time on the left. The name and the message
- * each take their own direction from their own words (`dir="auto"`) and keep
- * the page's alignment while they fit (`match-parent`), so an English message
- * on an Arabic page is cut at its end, never at its start. The element that cuts
- * must take the direction itself: `dir="auto"` reads past a `<bdi>` inside it and
- * finds no words, so a name is a `<bdi>` of its own (2026-11-04).
- */
+/** Shared ownership state for the Inbox and Today. */
 export type RowState = 'needs' | 'yours' | 'hers';
 export const rowState = (c: ConversationSummary): RowState =>
   c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
-export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: '<span class="row-dot"></span>', yours: shape('you'), hers: agentMark(16, 'am') };
 /** The owner's rule (2026-11-04): a row that needs you is bold until it is opened. Bold means that and nothing else. */
 export const isNew = (c: ConversationSummary): boolean => rowState(c) === 'needs' && c.unopened === true;
-
-export type RowOptions = {
-  readonly now: Date;
-  readonly people?: readonly Person[];
-  readonly showChannel?: boolean;
-  /** The list beside a conversation: no product line, and the open one marked as the current page. */
-  readonly pane?: { readonly current: boolean };
-  /** Phase 9 (V1-182) — what the owner searched for, marked where the row shows it. */
-  readonly query?: string;
-};
 
 /**
  * Phase 9 (V1-182) — the searched words, marked in a name or a product as the
@@ -1375,148 +1345,6 @@ export const markHit = (text: string, q: string | undefined): string => {
   if (at < 0 || text.toLocaleLowerCase().length !== text.length) return esc(text);
   return `${esc(text.slice(0, at))}<mark class="hit">${esc(text.slice(at, at + needle.length))}</mark>${esc(text.slice(at + needle.length))}`;
 };
-
-export function customerRow(locale: Locale, c: ConversationSummary, o: RowOptions): string {
-  const people = o.people ?? [];
-  const name = assistantName(locale);
-  const state = rowState(c);
-  // Why it needs the owner (the reason that was stored, never inferred); who
-  // holds it when that is somebody else; which assistant, when there are several.
-  // Phase 9 (V1-174) — a customer the assistant holds who wrote last, in an open
-  // conversation, has had no reply: said in words, not only by the text's weight.
-  const noReply = state === 'hers' && c.unanswered === true && c.live !== false && !o.pane;
-  const why = state === 'needs' ? needsWhy(locale, c)
-    : state === 'yours' && people.length > 0 ? (() => {
-        const who = heldByName(c.heldBy, people, {
-          ai: name, waiting: t(locale, 'people.held.waiting'),
-          owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
-        });
-        return who ? t(locale, 'people.holding', { who }) : '';
-      })()
-    : noReply ? t(locale, 'buyers.row.noReply')
-    : state === 'hers' && c.answeredBy ? t(locale, 'buyers.group.hers', { name: c.answeredBy }) : '';
-  // For a screen reader, what the mark says — unless the visible label already says it.
-  const said = state === 'needs' ? t(locale, 'buyers.group.needsYou')
-    : why && !noReply ? ''
-    : state === 'yours' ? t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours')
-    : t(locale, 'buyers.group.hers', { name: c.answeredBy ?? name });
-  const prod = productName(locale, c.product);
-  // Each part isolated on its own, so Arabic cannot run a Latin name, a
-  // quantity and a price into one string. Phase 9 (inbox-calendar-new-02) — on
-  // a phone the product still shows (cut at its end); the figures need the room.
-  const figures = [
-    c.quantity !== null ? show.quantityOf(locale, c.quantity, t(locale, 'product.unit.pcs')) : '',
-    c.unitPrice !== null ? show.money(locale, c.unitPrice) : '',
-  ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`);
-  const detail = o.pane ? '' : `${prod ? `<bdi class="cr-prod">${markHit(prod, o.query)}</bdi>` : ''}${
-    figures.map((f, i) => `<span class="cr-fig">${prod || i > 0 ? ' · ' : ''}${f}</span>`).join('')}`;
-  // Who wrote the newest message, when it was not the customer: you, in words;
-  // the assistant, by its mark. Phase 9 (V1-174) — on every row, the
-  // assistant's own too: an answered row read like an unanswered one in grey.
-  const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
-    : c.lastFrom === 'assistant' ? `${agentMark(16, 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
-  const when = [
-    o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
-    c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
-  ].filter(Boolean).join(' · ');
-  const current = o.pane?.current === true;
-  // CC-25 — a customer opens on the newest message, the reply waiting under it.
-  return `<a class="crow is-${state}${c.unanswered ? ' unanswered' : ''}${isNew(c) ? ' is-new' : ''}${current ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
-      <span class="cr-mark" aria-hidden="true">${ROW_MARK[state]}</span>
-      <span class="cr-l1"><bdi class="cr-name">${markHit(c.buyer ?? t(locale, 'common.buyer'), o.query)}</bdi>${detail ? `<span class="cr-detail">${detail}</span>` : ''}</span>
-      <span class="cr-when">${when}</span>
-      <span class="cr-l2">${c.latestMessage ? `${speaker}<span class="cr-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : ''}</span>
-      <span class="cr-why">${why ? `<bdi>${esc(why)}</bdi>` : ''}</span>
-      ${said ? `<span class="sr">${esc(said)}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}
-    </a>`;
-}
-
-/**
- * THE WARMTH RUN, PHASE 4 (2026-10-03) — THE INBOX ROW. One customer, one row,
- * 64 px with a 40 px face (the owner's decision):
- *
- *   line one   their face (it opens their card), their name, the mark Nomi
- *              puts on a regular — and, at the line's end, what they have
- *              spent: the headline number, because this business has
- *              customers who buy big once and customers who buy small often,
- *              and spend is the only number comparable across both;
- *   line two   why they need the owner, when they do — the waiting signal,
- *              magenta ○ and its words (a deletion request its own words) —
- *              then the last message, cut where it runs out; at its end, the
- *              last contact.
- *
- * No order count: it lives in the profile card. Nothing spent shows nothing
- * (no "0", no dash to read past). The mark on a regular is ink-secondary with
- * a shape, never magenta: magenta is the assistant's, and "waiting".
- *
- * Right to left: the row follows the page's direction, the face on the right.
- * The name and the message each take their own direction (`dir="auto"`), and
- * every figure is isolated, so a Latin name or "US$" is never cut or turned
- * around in Arabic.
- */
-export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions): string {
-  const people = o.people ?? [];
-  const name = assistantName(locale);
-  const state = rowState(c);
-  const who = c.buyer ?? t(locale, 'common.buyer');
-  const current = o.pane?.current === true;
-  // Phase 9 (V1-174) — a customer the assistant holds who wrote last, in an open conversation, has had no reply.
-  // The warmth run's phase 9 (w4-customers-03) — said only when their words asked something (the band's own
-  // rule, a question mark in any script): "Thanks, noted." is not owed a reply, and was stamped "No reply yet".
-  const noReply = state === 'hers' && c.unanswered === true && c.live !== false && !o.pane && asksSomething(c.latestMessage);
-  // The deletion request in its own short words: the group's long sentence left no room on a phone.
-  const reason = c.orderWaiting !== true && c.deletionWaiting === true ? t(locale, 'buyers.badge.deletion') : needsWhy(locale, c);
-  // Who holds it, when that is somebody else; which assistant, when there are several (A5).
-  const holder = state === 'yours' && people.length > 0 ? (() => {
-      const by = heldByName(c.heldBy, people, {
-        ai: name, waiting: t(locale, 'people.held.waiting'),
-        owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
-      });
-      return by ? t(locale, 'people.holding', { who: by }) : '';
-    })()
-    : noReply ? t(locale, 'buyers.row.noReply')
-    : state === 'hers' && c.answeredBy ? t(locale, 'buyers.group.hers', { name: c.answeredBy }) : '';
-  const why = state === 'needs'
-    ? `<span class="ir-wait"><bdi>${esc(reason)}</bdi></span>`
-    : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
-  // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
-  const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
-    : c.lastFrom === 'assistant' ? `<span class="ir-by">${agentMark(16, 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
-  // A search that found them by what they asked about says so where the message would be.
-  const prod = productName(locale, c.product);
-  const byProduct = !!o.query && !!prod && markHit(prod, o.query) !== esc(prod) && markHit(who, o.query) === esc(who);
-  const glimpse = byProduct ? `<bdi class="ir-text">${markHit(prod!, o.query)}</bdi>`
-    : c.latestMessage ? `${speaker}<span class="ir-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : '';
-  const regular = c.regular === true
-    ? `<span class="ir-reg">${icon('regular', 'ni')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
-  const amount = c.spent ? show.money(locale, c.spent) : '';
-  // Phase 9 (w4-customers-04) — in "matters most", a customer who spent nothing shows the price they were given, quieter.
-  const offered = !amount && c.quoted ? show.money(locale, c.quoted) : '';
-  const spent = amount
-    ? `<span class="ir-spent"><bdi aria-hidden="true">${esc(amount)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.spent', { amount }))}</span></span>`
-    : offered
-    ? `<span class="ir-spent ir-quoted"><bdi aria-hidden="true">${esc(offered)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.quoted', { amount: offered }))}</span></span>`
-    : '<span class="ir-spent"></span>';
-  // The channel, once there is more than one, is a wide screen's: a phone keeps the time.
-  const channel = o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '';
-  const time = c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '';
-  const when = channel && time ? `<span class="ir-chan">${channel} · </span>${time}` : channel ? `<span class="ir-chan">${channel}</span>` : time;
-  // For a screen reader, the state the list's heading says for the eye — unless the row says it already.
-  const said = state === 'needs' ? t(locale, 'buyers.group.needsYou')
-    : holder && !noReply ? ''
-    : state === 'yours' ? t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours')
-    : t(locale, 'buyers.group.hers', { name: c.answeredBy ?? name });
-  const theFace = c.clientId
-    ? faceLink({ clientId: c.clientId, name: c.buyer, photo: c.photo ?? null }, { size: 'm', label: t(locale, 'buyers.row.card', { who }), className: 'ir-face' })
-    : `<span class="ir-face">${face({ clientId: c.conversationId, name: c.buyer }, 'm')}</span>`;
-  // CC-25 — a customer opens on the newest message, the reply waiting under it.
-  return `<div class="irow is-${state}${c.unanswered ? ' unanswered' : ''}${isNew(c) ? ' is-new' : ''}${current ? ' on' : ''}"><span class="ir-slot" aria-hidden="true">${state === 'needs' ? '<span class="row-dot"></span>' : ''}</span>${theFace}<a class="ir-main" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
-      <span class="ir-l1"><bdi class="ir-name">${markHit(who, o.query)}</bdi>${regular}</span>
-      ${spent}
-      <span class="ir-l2">${why}${glimpse}</span>
-      <span class="ir-when">${when}</span>${said ? `<span class="sr">${esc(said)}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}
-    </a></div>`;
-}
 
 /**
  * The list's groups in "waiting now", by the same predicates the list is
@@ -1540,219 +1368,9 @@ export function waitingGroups(all: readonly ConversationSummary[]): {
   return { orders, deletion, needsYou, yours, hersWaiting, hersRest: hers.filter((c) => !hersWaiting.includes(c)) };
 }
 
-/** How many of the "needs attention" band show before "N more". */
-export const ATTENTION_SHOWN = 5;
-
 /** A date in the band: the month and day, with the year once it is far enough back to need one. */
 export const sinceDate = (locale: Locale, d: Date, now: Date): string =>
   now.getTime() - d.getTime() > 330 * 86_400_000 ? show.dateYear(locale, d) : show.shortWhen(locale, d, now);
-
-/**
- * Phase 4 — THE "NEEDS ATTENTION" BAND: relationships slipping, never today's
- * urgency (who it holds, and why: `src/db/inboxAttention.ts`). Each customer
- * with their face (it opens their card), their name and one line; the line
- * and the name open their newest conversation, where a word to them is
- * written. Five, then the rest folded under "N more". No band when nobody is
- * slipping.
- */
-export function attentionBand(items: readonly AttentionItem[], locale: Locale, now: Date): string {
-  if (items.length === 0) return '';
-  const row = (a: AttentionItem): string => {
-    const who = a.name ?? t(locale, 'common.buyer');
-    return `<li class="arow">${faceLink({ clientId: a.clientId, name: a.name, photo: a.photo }, { size: 's', label: t(locale, 'buyers.row.card', { who }), className: 'ar-face' })}`
-      + `<a class="ar-main" href="${conversationUrl(a.conversationId)}"><bdi class="ar-name">${esc(who)}</bdi>`
-      + `<span class="ar-line">${esc(t(locale, `buyers.attention.${a.kind}` as MessageKey, { date: sinceDate(locale, a.since, now) }))}</span></a></li>`;
-  };
-  const first = items.slice(0, ATTENTION_SHOWN);
-  const more = items.slice(ATTENTION_SHOWN);
-  return `<section class="attn" aria-labelledby="attn-h">
-      <h2 class="attn-h" id="attn-h">${esc(t(locale, 'buyers.attention.title'))}</h2>
-      <ul class="arows">${first.map(row).join('')}</ul>${more.length ? `
-      <details class="attn-more"><summary>${esc(t(locale, 'buyers.attention.more', { n: show.quantity(locale, more.length) }))}</summary>
-        <ul class="arows">${more.map(row).join('')}</ul></details>` : ''}
-    </section>`;
-}
-
-/**
- * Phase 4 — the switch between the two lenses: two segments, the app's own
- * tabs, the lens in the address. Each keeps the search; neither keeps a
- * narrowing (the whole list, in the other order).
- */
-export function lensSwitch(locale: Locale, lens: BuyersLens, q: string): string {
-  const seg = (l: BuyersLens) => {
-    const on = lens === l;
-    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ lens: l, q }))}">${esc(t(locale, `buyers.lens.${l}` as MessageKey))}</a>`;
-  };
-  return `<nav class="tabs lens" aria-label="${esc(t(locale, 'buyers.lens.label'))}">${seg('waiting')}${seg('value')}</nav>`;
-}
-
-/**
- * THE INBOX (the warmth run, phase 4): the customer list and the inbox are one
- * page — one customer, one conversation, one row — searchable, in two lenses
- * the owner switches between:
- *
- *   WAITING NOW (the default) — everyone who needs the owner first, in the
- *   list's groups (an order, a deletion request, waiting for a person, a reply
- *   to review, held by a person here), then everyone else by newest contact;
- *   MATTERS MOST — by what each customer has spent, the most first, then by
- *   newest contact; the customers with nothing spent after, headed apart.
- *
- * Above both, the "needs attention" band (slipping relationships). Under the
- * switch, the narrowings that hold something to act on: "Did not send" and
- * "Deletion requests" while one exists (rule 18 — a deletion request is
- * always findable), "Needs you" while it is the one asked for (Today's doors
- * lead there). "All" is the list itself; "Mine" was team machinery and is
- * gone (its old address leads to the list).
- */
-export function renderInboxList(
-  data: InboxList, locale: Locale, now: Date,
-  /**
-   * M47 — the people who can hold a conversation, for naming WHO holds each
-   * one. Absent (the default) reads exactly as it did before this milestone:
-   * "yours". A single-owner installation sees no change at all.
-   */
-  people: readonly Person[] = [],
-): string {
-  const name = assistantName(locale);
-  const q = data.query ?? '';
-  const lens: BuyersLens = data.lens ?? 'waiting';
-  // "Mine" is no longer drawn (phase 4): a list asked for it reads as the whole list.
-  const filter: InboxFilter = data.filter === 'mine' ? 'all' : data.filter;
-  const narrowed = filter === 'all' ? undefined : filter;
-  const count = (n: number | undefined) => (n ?? 0) > 0 ? ` (${show.quantity(locale, n ?? 0)})` : '';
-  const title = `<div class="dhead listhead"><h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>${LIVE_SLOT}</div>`;
-
-  // A — the search. A find, not a view: it looks across every customer, in the
-  // lens the owner is in (the lens rides along; a narrowing does not).
-  const search = `<form class="search" method="get" action="/app/inbox" role="search">
-      ${lens === 'value' ? '<input type="hidden" name="lens" value="value" />' : ''}<input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
-      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-    </form>`;
-  const page = data.page;
-  const total = page?.total ?? data.conversations.length;
-  // Phase 9 (V1-183) — one way back from a search: this link.
-  const found = q
-    ? `<p class="caption muted found" role="status">${esc(data.conversations.length > 0
-        ? t(locale, 'buyers.search.found', { q, n: show.quantity(locale, total) })
-        : t(locale, 'buyers.search.none', { q }))} · <a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'buyers.search.clear'))}</a></p>` : '';
-  const position = page ? t(locale, 'buyers.page.position', {
-    from: show.quantity(locale, page.from), to: show.quantity(locale, page.to), total: show.quantity(locale, page.total),
-  }) : '';
-
-  // The narrowings: each while it holds something to act on, or while it is the one asked for.
-  const chip = (f: Exclude<InboxFilter, 'all' | 'mine'>, n: number | undefined) => {
-    const on = filter === f;
-    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ filter: f, lens }))}">${
-      esc(t(locale, `inbox.filter.${f}` as MessageKey))}${count(n)}</a>`;
-  };
-  const chips = [
-    filter === 'pending' ? chip('pending', data.waitingCount) : '',
-    data.blockedCount > 0 || filter === 'blocked' ? chip('blocked', data.blockedCount) : '',
-    (data.deletionCount ?? 0) > 0 || filter === 'deletion' ? chip('deletion', data.deletionCount) : '',
-  ].filter(Boolean);
-  const filters = chips.length ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${chips.join('')}${
-    narrowed ? `<a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>` : ''}</nav>` : '';
-  // S2 (0196) — the labels in use, each a narrowing of the list (with the tab and the search kept); the one chosen marked.
-  const chosen = data.label ?? null;
-  const labelRow = (data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).length === 0 ? ''
-    : `<nav class="tabs labels" aria-label="${esc(t(locale, 'labels.filterLabel'))}">${(data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).map((l) => {
-      const on = l.id === chosen?.id;
-      return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ filter, lens, q, label: on ? null : l.id }))}"><bdi>${esc(l.name)}</bdi>${count(l.buyers)}</a>`;
-    }).join('')}${chosen ? `<a class="clear" href="${esc(buyersHref({ filter, lens, q }))}">${esc(t(locale, 'labels.clear'))}</a>` : ''}</nav>`;
-  // Phase 9 of the warmth run (w4-customers-07) — under a narrowing the list is the narrowing's: no lens shown
-  // selected beside it, and no caption describing a list that is not on the page. "See all customers" leads back.
-  const lensBar = narrowed ? `<div class="lensbar">${filters}</div>`
-    : `<div class="lensbar">${lensSwitch(locale, lens, q)}${filters}</div>
-    <p class="caption muted lens-says">${esc(t(locale, lens === 'value' ? 'buyers.lens.valueSays' : 'buyers.lens.waitingSays'))}</p>`;
-
-  // The band: slipping relationships, on the first page of the whole list only (the route reads it there).
-  // The owner, 2026-11-05 — under the rows that need you: on a phone it filled the first screen above them.
-  const band = attentionBand(data.attention ?? [], locale, now);
-
-  // M38 — the wider list: everyone the assistant may write to. D — a door only
-  // where the outreach area exists. Phase 9 of the warmth run (V1-166) — no
-  // calendar door: the rail has Calendar on every width since phase 1, and on
-  // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
-  // S1 — and the saved replies a person answers with, kept here, under Buyers.
-  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/surveys', t(locale, 'surveys.title'))}</div>`;
-  const head = `<div class="lhead">${title}${search}</div>${found}${lensBar}${labelRow}`;
-
-  if (data.conversations.length === 0) {
-    const all = esc(buyersHref({ lens }));
-    const body = q
-      ? `<div class="empty">${esc(t(locale, 'buyers.search.noneBody'))}</div>`
-      // Phase 9 of the warmth run (w4-customers-07) — the way back is the one beside the narrowing's chip, once.
-      : filter === 'pending'
-      ? `<div class="empty"><div class="ok-line">${shape('ok')} ${esc(t(locale, 'buyers.empty.calm'))}</div>
-          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))}${filters ? '' : ` <a href="${all}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>`}</p></div>`
-      // M22 — nothing was refused. Stated as the fact it is; not a ✓.
-      : filter === 'deletion'
-      ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}${filters ? '' : `
-          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div>`}</div>`
-      : filter === 'blocked'
-      ? `<div class="empty">${esc(t(locale, 'refused.none'))}${filters ? '' : `
-          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div>`}</div>`
-      : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
-          <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
-    return `${head}${body}${band}${doors}`;
-  }
-
-  // A5's rule, for the channel: named on every row only once there is more than one.
-  const showChannel = (data.channels ?? 0) > 1;
-  const row = (c: ConversationSummary) => `<li>${inboxRow(locale, c, { now, people, showChannel, ...(q ? { query: q } : {}) })}</li>`;
-  const group = (label: string, items: readonly ConversationSummary[], headed: boolean) =>
-    items.length ? `<section class="bgroup">
-      ${headed ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
-      <ul class="irows">${items.map(row).join('')}</ul></section>` : '';
-
-  let rows: string;
-  if (lens === 'value') {
-    // Matters most: who has spent, the most first; phase 9 (w4-customers-04) — then who was given a price and
-    // has ordered nothing, the biggest price first; then everyone else, each headed apart.
-    const spent = data.conversations.filter((c) => c.spent);
-    const quoted = data.conversations.filter((c) => !c.spent && c.quoted);
-    const none = data.conversations.filter((c) => !c.spent && !c.quoted);
-    rows = `${group('', spent, false)}${band}${group(t(locale, 'buyers.lens.quoted'), quoted, true)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
-  } else {
-    // Phase D — an owner thinks in people, and the question that orders them is
-    // "who is speaking now?" — headed on the whole list; a narrowing's own chip
-    // already says it, so there only an order and a deletion request are headed.
-    const g = waitingGroups(data.conversations);
-    const heads = filter === 'all';
-    rows = `${group(t(locale, 'buyers.group.order'), g.orders, true)}
-    ${group(t(locale, 'buyers.group.deletion'), g.deletion, true)}
-    ${group(t(locale, 'buyers.group.needsYou'), g.needsYou, heads)}
-    ${band}
-    ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), g.yours, heads)}
-    ${group(t(locale, 'buyers.group.hersWaiting', { name }), g.hersWaiting, heads)}
-    ${group(t(locale, 'buyers.group.hers', { name }), g.hersRest, heads)}`;
-  }
-
-  // A — the doors either side of this page, and where it sits in the whole.
-  // Phase 9 (V1-177) — above the rows as well as under them.
-  const pager = page && (page.prev || page.next)
-    ? `<nav class="pager" aria-label="${esc(t(locale, 'buyers.page.nav'))}">
-        ${page.prev ? back(esc(buyersHref({ filter: narrowed, lens, q, before: page.prev.cursor })), t(locale, 'buyers.page.prev')) : ''}
-        <span class="caption muted">${esc(position)}</span>
-        ${page.next ? deeper(esc(buyersHref({ filter: narrowed, lens, q, after: page.next })), t(locale, 'buyers.page.next')) : ''}
-      </nav>` : '';
-
-  // What the marks on the rows mean, under them — only the marks this page shows.
-  const keys = [
-    data.conversations.some((c) => c.lastFrom === 'assistant')
-      ? `<span class="ck-i">${agentMark(16, 'am as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
-    data.conversations.some((c) => c.regular === true)
-      ? `<span class="ck-i ir-reg">${icon('regular', 'ni')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
-  ].filter(Boolean);
-  const key = keys.length ? `<p class="cr-key caption muted">${keys.join('')}</p>` : '';
-
-  return `${head}
-    ${pager}
-    ${rows}
-    ${key}
-    ${pager}
-    ${doors}`;
-}
 
 /** "What happened last?" — a localized one-liner: kind + who + when. No body. */
 function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: readonly Person[], viewer: Viewer): string {
@@ -1979,7 +1597,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${handToForm}
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
-          ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
           ${savedReplyPick(d, locale)}
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
@@ -2240,7 +1858,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
 
   // Who drafted it, and where Send sends it. Who asked and when is the
   // transcript's caption directly above the card; it is not said twice.
-  const top = `<div class="top"><span class="as">${
+  const top = `<div class="top"><span class="as">${markSmall(16, null)} ${
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   return `<section class="card draft" id="approve" aria-labelledby="approve-h">
@@ -2327,6 +1945,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   // How it was read: one line per product name and figure in the reply, each with its source.
   const read = readReply({
     reply: p.draftText,
+    includeSmallFigures: true,
     productNames: [d.product.name, d.product.nameZh].filter((x): x is string => !!x),
     // The quote's figures always count: from the loader with the extras it read,
     // else the three the page already holds.
@@ -2339,16 +1958,17 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     productCodes: [ownSku(d.product.sku)].filter((x): x is string => x !== null),
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
-    l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
+    l.words !== undefined ? l.words
+    : l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
     : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
   // The fix wave (w4-conversation-01) — "check this" is not "waiting for you": ink, and a question
   // mark, never the magenta ○. (w4-conversation-07) — each part in a span of the page's direction,
   // so in Arabic the figure stands beside its mark, not at the far edge of the row.
   // (w4-conversation-08) — a code in the pointer never breaks at its hyphen.
-  const line = (ok: boolean, said: string, source: string, where = '') =>
+  const line = (ok: boolean, said: string, source: string, where = '', inspection = '') =>
     `<li><span class="${ok ? 'mk' : 'mk check'}" aria-hidden="true">${ok ? shape('ok') : UNSURE[locale]}</span><span><bdi>${esc(said)}</bdi></span><span>${source}${
-      where ? ` <bdi class="muted">${esc(where).replace(/[^\s]*[\p{L}\p{N}]-[\p{L}\p{N}][^\s]*/gu, (w) => `<span class="fig">${w}</span>`)}</bdi>` : ''}</span></li>`;
+      where ? ` <bdi class="muted">${esc(where).replace(/[^\s]*[\p{L}\p{N}]-[\p{L}\p{N}][^\s]*/gu, (w) => `<span class="fig">${w}</span>`)}</bdi>` : ''}</span>${inspection}</li>`;
   // Phase 9 (V1-242) — the product's name kept whole where the line has room:
   // «سعر LED String Lights / 10m في قائمة أسعارك» broke the name in two.
   const priceSource = (product: string): string =>
@@ -2365,13 +1985,37 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     const to = toSpace < 0 ? text.length : toSpace;
     return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
   };
+  const inspectFigure = (l: Extract<ReadingLine, { kind: 'figure' }>): string => {
+    if (l.source === 'unsourced') return '';
+    const inspect = (body: string) => `<details class="reading-proof"><summary>${esc(t(locale, 'inbox.tools.source', { value: figure(l) }))}</summary>${body}</details>`;
+    if (l.source === 'their_words') {
+      const index = d.messages.findIndex((m) => m.direction === 'inbound' && (l.words !== undefined ? m.text === l.customerText : extractNumerals(m.text).some((n) => near(n.value, l.value))));
+      const message = d.messages[index];
+      return inspect(message ? `<blockquote dir="auto">${esc(message.text)}</blockquote><a href="#message-${index}">${esc(t(locale, 'inbox.tools.messageSource'))}</a>`
+        : `<p>${esc(t(locale, 'inbox.tools.recordedQuantity'))}</p>`);
+    }
+    if (l.source === 'discount' || l.source === 'lead_time') {
+      const kind = l.source === 'discount' ? 'discount_pct' : 'lead_time_days';
+      const savedRule = d.quote?.appliedRules?.some((rule) => rule.startsWith(`${kind}:`) && near(Number(rule.slice(kind.length + 1)), l.value));
+      const recorded = t(locale, savedRule ? (l.source === 'discount' ? 'inbox.tools.savedDiscount' : 'inbox.tools.savedLeadTime') : 'inbox.tools.savedQuoteValue', { value: l.value.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
+      // Current controls are labelled as such; they are not a historical rule snapshot.
+      const current = l.source === 'discount' ? `<a href="/app/business/prices#volume">${esc(t(locale, 'inbox.tools.currentPriceRules'))}</a>`
+        : !savedRule && d.quote?.productId ? `<a href="/app/products/${encodeURIComponent(d.quote.productId)}">${esc(t(locale, 'inbox.tools.currentProduct'))}</a>` : '';
+      return inspect(`<p>${esc(recorded)}</p>${current}`);
+    }
+    const productId = d.quote?.productId;
+    if (!productId) return '';
+    const calculation = d.quote && (l.source === 'price' || l.source === 'total')
+      ? `${show.quantity(locale, d.quote.quantity)} × ${show.money(locale, d.quote.unitPrice)} = ${show.money(locale, d.quote.total)}` : '';
+    return inspect(`${calculation ? `<p><bdi>${esc(calculation)}</bdi></p>` : ''}<a href="/app/products/${encodeURIComponent(productId)}">${esc(t(locale, 'inbox.tools.currentProduct'))}</a>`);
+  };
   const reasons = [
     ...read.lines.map((l) => l.kind === 'product'
       ? line(true, inQuotes(locale, l.name), esc(t(locale, 'card.source.product')))
       : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
-      : line(l.source !== 'unsourced', figure(l), l.source === 'price'
+      : line(l.source !== 'unsourced', figure(l), (l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
-        : esc(t(locale, `card.source.${l.source}` as MessageKey)), l.source === 'unsourced' ? whereIn(l.value) : '')),
+        : esc(t(locale, `card.source.${l.source}` as MessageKey))), l.source === 'unsourced' ? whereIn(l.value) : '', inspectFigure(l))),
     ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
     // term, a guarantee), and whether you confirmed it: "CE certified" stood in
@@ -2555,6 +2199,7 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
 
 export function renderConversationDetail(
   d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
+  options: { readonly returnHref?: string } = {},
 ): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
@@ -2608,7 +2253,7 @@ export function renderConversationDetail(
   const few = !older && !earlier && d.messages.length <= FEW_MESSAGES
     && d.messages.reduce((n, m) => n + m.text.length, 0) <= FEW_CHARS;
   const timeline = d.messages.length
-    ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}
+    ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}<span id="message-${i}"></span>
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
                meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${
@@ -2896,7 +2541,7 @@ export function renderConversationDetail(
 
   return `
     <div class="dhead">
-      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
+      ${back(esc(options.returnHref ?? '/app/inbox'), t(locale, 'inbox.detail.back'))}
       ${LIVE_SLOT}
     </div>
     ${catchUpStrip(d, locale, now, viewer)}
@@ -2907,13 +2552,10 @@ export function renderConversationDetail(
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
-    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now.
-         The fix wave (w4-whole-13, w4-conversation-16) — ONE door to "About this customer", in one place, by one name:
-         on a phone the page; where the panel is folded away (1100–1440 px) the panel, which ends with the
-         door to the full page; from 1440 px the panel stands beside, and neither door is drawn. The face
-         opens the card. The stylesheet chooses; nothing waits on a script. */ ''}${
-      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}${
-      deeper('#customer', t(locale, 'panel.open'), 'panel-open')}
+    <nav class="conversation-actions" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
+      <form method="get" action="/app/inbox/${encodeURIComponent(d.conversationId)}/copilot" class="inline"><button class="btn" type="submit" data-open-tool="ask" aria-controls="conversation-tools" aria-expanded="false">${markSmall(20, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></button></form>
+      <a class="deeper file-door" href="${d.catchUp ? '#customer' : `/app/conversations/${encodeURIComponent(d.conversationId)}`}" data-open-tool="customer" aria-controls="conversation-tools" aria-expanded="false">${esc(t(locale, 'panel.open'))}${GO}</a>
+    </nav>
     ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}

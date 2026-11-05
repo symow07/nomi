@@ -114,7 +114,7 @@ d('S2 · labels on buyers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () =>
     expect(await listed(`/app/inbox?filter=all&label=${wholesale}`)).toEqual(['Amal', 'Bilal']);
     expect(await listed(`/app/inbox?filter=all&label=${await labelId('dubai fair')}`)).toEqual(['Bilal']);
     const page = await get('/app/inbox?filter=all');
-    expect(page).toMatch(/<nav class="tabs labels"[^>]*>.*Wholesale.*\(2\)/s);
+    expect(page).toMatch(/<nav class="si-fils" aria-label="Labels">[\s\S]*?<bdi>Wholesale<\/bdi><span class="si-tabn">2<\/span>/);
     // a label is not drawn on the row: the row is name, last message, time
     expect(page).not.toContain('class="label-on"');
     // an id that is no label is no narrowing

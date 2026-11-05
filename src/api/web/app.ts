@@ -32,6 +32,7 @@ import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
 import { renderSplitInbox } from './splitInbox.js';
+import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
 import { face } from './faces.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -66,7 +67,7 @@ import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
-  loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
+  loadInboxList, loadConversationDetail, renderConversationDetail,
   buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
@@ -220,7 +221,9 @@ import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderReread, rereadCharge, rereadPageFacts, openProposals, sourceLabel, isPasted, type PageFactsKept } from './pageFacts.js';
-import { advisorRoutes, ownName } from './advisor.js';
+import { advisorRoutes, ownName, type AdvisorIO } from './advisor.js';
+import { conversationAdvisorRoutes } from './conversationAdvisor.js';
+import { renderCopilotPanel } from './copilotPanel.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
@@ -4157,34 +4160,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const me = personOf(s).id;
     // "All" is the list itself; a narrowing is "Needs you" (Today's doors),
     // "Did not send" or "Deletion requests" (rule 18).
-    const filter: InboxFilter = requested === 'pending' || requested === 'blocked' || requested === 'deletion' ? requested : 'all';
     // CC-26 — the list's mark BEFORE the list: a change between the two reads
     // is announced once too often, never lost.
     const bid = parseBusinessId(s.businessId);
     const mark = bid.ok ? await buyersMark(deps.db, bid.value) : null;
-    // The "needs attention" band sits on the first page of the whole list, not on a find or a narrowing.
-    const firstPage = query.after === undefined && query.before === undefined;
-    // The Inbox in the Split look (`SPLIT_TODAY=on`): five views, a stage filter, Today's rows. The list is the same list.
-    if (deps.splitToday) {
+    // The approved Inbox uses the existing list definitions and every supported view.
+    {
       const view: InboxFilter = requested === 'pending' || requested === 'blocked' || requested === 'deletion' || requested === 'quiet' || requested === 'assistant' || requested === 'team' || requested === 'all'
         ? requested
         // It opens on who needs the owner while someone does; a find looks across everyone.
         : !searching && (needsYouCount() ?? 0) > 0 ? 'pending' : 'all';
-      const shown = await loadInboxList(deps.db, s.businessId, view, me, { ...ask, stage: query.stage, views: true });
+      const source = new URL(safeInboxReturn(req.url) ?? '/app/inbox', 'http://localhost');
+      source.searchParams.set('filter', view);
+      const shown = { ...await loadInboxList(deps.db, s.businessId, view, me, { ...ask, stage: query.stage, views: true }),
+        returnHref: safeInboxReturn(source.pathname + source.search) ?? '/app/inbox' };
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.inbox'), active: 'inbox', wide: true, split: splitRail(personOf(s)),
         bodyHtml: renderSplitInbox(shown, locale, new Date(), await loadPeople(deps.db, s.businessId)),
         ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter: view, lens, q: shown.query ?? '', label: shown.label?.id ?? null, stage: stageOf(query.stage), explicit: true }))) } : {}),
       }));
     }
-    const data = await loadInboxList(deps.db, s.businessId, filter, me, { ...ask, attention: firstPage && !searching && filter === 'all' });
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.inbox'), active: 'inbox',
-      // M47 — so the list can name WHICH human holds each conversation.
-      bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
-      // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '', label: data.label?.id ?? null }))) } : {}),
-    }));
   });
 
   app.get('/app/inbox/:conversationId', async (req, reply) => {
@@ -4231,8 +4226,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const people = await loadPeople(deps.db, s.businessId);
     // 0223 — opened: before the list beside it is read, so this row is not bold there.
     if (bid.ok) await markConversationOpened(deps.db, bid.value, conversationId);
-    // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
-    const list = await loadInboxList(deps.db, s.businessId, 'all', me);
+    // A record returns to the exact Inbox scope, page and row it came from.
+    const returnHref = safeInboxReturn((req.query as { from?: unknown } | undefined)?.from) ?? '/app/inbox';
+    const source = new URL(returnHref, 'http://localhost').searchParams;
+    const requestedView = source.get('filter');
+    const listFilter: InboxFilter = requestedView === 'pending' || requestedView === 'quiet' || requestedView === 'assistant'
+      || requestedView === 'team' || requestedView === 'blocked' || requestedView === 'deletion' ? requestedView : 'all';
+    const list = { ...await loadInboxList(deps.db, s.businessId, listFilter, me, {
+      q: source.get('q'), lens: lensOf(source.get('lens')), label: source.get('label'), stage: source.get('stage'),
+      after: source.get('after') ?? undefined, before: source.get('before') ?? undefined, views: true,
+    }), returnHref };
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => {
       const panel = await loadCustomerPanel(tx, conversationId);
       // S2 (0196) — the buyer's labels, and the workspace's to pick from.
@@ -4256,8 +4259,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderListPane(list, locale, now, conversationId, people,
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
-        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s)),
-        customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
+        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s), { returnHref }),
+        customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '', { conversationId, locale })),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live:
         withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {}),
@@ -4719,7 +4722,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return { title: text('title').slice(0, 200), texts: savedReplyTexts(Object.fromEntries(SAVED_REPLY_LANGUAGES.map((l) => [l, text(`text_${l}`)]))) };
   };
   const savedWhy = (locale: Locale, reason: string) => t(locale, `savedReplies.refused.${reason}` as MessageKey);
-  app.get('/app/replies', async (req, reply) => {
+  app.get('/app/inbox/replies', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
@@ -4735,7 +4738,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return out.kind === 'added' ? flashTo(reply, '/app/replies', 'savedReplies.flash.added')
       : flashTo(reply, '/app/replies#new-reply', 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
   });
-  app.get('/app/replies/:id', async (req, reply) => {
+  app.get('/app/inbox/replies/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
@@ -6331,6 +6334,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const query = oldQuery.toString();
     return reply.redirect(target.pathname + (query ? `?${query}` : '') + target.hash, 302);
   };
+  app.get('/app/replies', movedPage('/app/inbox/replies'));
+  app.get('/app/replies/:id', (req, reply) => movedPage(`/app/inbox/replies/${encodeURIComponent((req.params as { id: string }).id)}`)(req, reply));
   app.get('/app/analytics', movedPage('/app/results'));
   app.get('/app/guide', movedPage('/app/get-started'));
   app.get('/app/onboarding', movedPage('/app/get-started'));
@@ -6628,7 +6633,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // things and nothing more: who asks, their language, the shell, the advisor's read-only pool and the model
   // that words its facts. No sender, queue or setting is within their reach (advisor.ts;
   // tests/parity/advisor-build.test.ts holds the line).
-  advisorRoutes(app, {
+  const advisorIO: AdvisorIO = {
     viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id, name: ownName(s.person, businessName()) } : null; },
     locale: (req) => localeOf(req),
     page: (req, o) => page(req, o),
@@ -6644,6 +6649,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     provider: deps.advisorProvider ?? null,
     flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
     takeFlash: (req, reply) => takeFlash(req, reply),
+  };
+  advisorRoutes(app, advisorIO);
+  conversationAdvisorRoutes(app, {
+    ...advisorIO, renderCopilotPanel,
+    viewer: (req) => { const s = sessionOf(req); return s && personOf(s).kind !== 'accountant' ? advisorIO.viewer(req) : null; },
   });
   // 0130 — Settings → Your data → the advisor's history: each person's own switch and download; the owner's
   // workspace switch and delete-without-reading (src/api/web/advisorHistory.ts). The same narrow port.

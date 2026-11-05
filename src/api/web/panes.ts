@@ -5,7 +5,7 @@ import { dayStart, labelled } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
 import { shape } from './marks.js';
-import { buyersHref, reachedOn, channelName, productName, customerRow, inboxRow, waitingGroups, lensSwitch, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
+import { buyersHref, reachedOn, channelName, productName, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
@@ -14,6 +14,8 @@ import type { Person } from '../../core/conversation/people.js';
 import * as show from './values.js';
 import { GO } from './icons.js';
 import { agentMark } from './agentMark.js';
+import { renderConversationTools } from './copilotPanel.js';
+import { renderInboxViews, renderInboxRows, inboxReturnHref } from './splitInbox.js';
 
 /**
  * THE THREE PANES (the design pass, 2026-09-29; the plan's §2 and §3): on a
@@ -48,53 +50,25 @@ export function renderListPane(
    */
   current: ConversationSummary | null = null,
 ): string {
-  const name = assistantName(locale);
-  const all = data.conversations;
   const currentClient = current?.clientId;
-  const isCurrent = (c: ConversationSummary): boolean =>
-    c.conversationId === currentId || (currentClient !== undefined && c.clientId === currentClient);
-  // The switch, and — the plan's §2: an empty narrowing is not shown — the two that list a problem while one exists.
-  const chip = (f: 'blocked' | 'deletion', n: number | undefined) => (n ?? 0) > 0
-    ? `<a class="tab" href="${esc(buyersHref({ filter: f }))}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}<span class="tab-n">${n}</span></a>` : '';
-  const problems = `${chip('blocked', data.blockedCount)}${chip('deletion', data.deletionCount)}`;
-  const tabs = `${lensSwitch(locale, data.lens ?? 'waiting', '')}${problems ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${problems}</nav>` : ''}`;
-
-  // The list page's own row, so the two lists cannot drift apart.
-  const row = (c: ConversationSummary) =>
-    `<li>${inboxRow(locale, c, { now, people, pane: { current: isCurrent(c) } })}</li>`;
-  // The list page's groups, in its order (`buyersList.ts` ranks by them): a
-  // row's state is the heading it sits under, said once, not a chip on each.
-  const g = waitingGroups(all);
-  // Phase 9 (V1-233) — headed as the list page heads them: every group on the
-  // whole list, only an order and a deletion elsewhere.
-  const heads = data.filter === 'all';
-  const group = (title: string, rows: readonly ConversationSummary[], always = false) => rows.length === 0 ? ''
-    : `${heads || always ? `<li class="lp-group" aria-hidden="true">${esc(title)}</li>` : ''}${rows.map(row).join('')}`;
-  // The fix wave (V1-257) — and when the list holds it far down: Carlos's row was 2,616 px down a pane
-  // that opens at its top, so nothing in view said where the owner was. Pinned first unless it is
-  // among the first rows the pane shows.
-  const drawn = [...g.orders, ...g.deletion, ...g.needsYou, ...g.yours, ...g.hersWaiting, ...g.hersRest];
-  const at = drawn.findIndex(isCurrent);
-  const here = current && (at < 0 || at >= PANE_ROWS_IN_VIEW)
-    ? `<ul class="irows lp-rows lp-current"><li class="lp-group" aria-hidden="true">${esc(t(locale, 'pane.current'))}</li>${row(current)}</ul>` : '';
-  const rows = all.length === 0
-    // Phase 9 — an empty FILTER is not an empty business: each says what it is.
-    ? `<p class="muted lp-empty">${esc(data.query ? t(locale, 'buyers.search.none', { q: data.query })
-        : t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : data.filter === 'mine' ? 'inbox.empty.mine'
-          : data.filter === 'deletion' ? 'inbox.empty.deletion' : data.filter === 'blocked' ? 'refused.none' : 'inbox.empty.none'))}</p>`
-    : `<ul class="irows lp-rows">${group(t(locale, 'buyers.group.order'), g.orders, true)}${group(t(locale, 'buyers.group.deletion'), g.deletion, true)}${
-        group(t(locale, 'buyers.group.needsYou'), g.needsYou)}${
-        group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), g.yours)}${
-        group(t(locale, 'buyers.group.hers', { name }), [...g.hersWaiting, ...g.hersRest])}</ul>`;
-  const more = data.page?.next ? deeper(esc(buyersHref({ filter: data.filter, lens: data.lens, after: data.page.next })), t(locale, 'buyers.page.next')) : '';
-  const search = `<form class="search" method="get" action="/app/inbox" role="search">
-      <input type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
-      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-    </form>`;
-  // Phase 9 (conversation-missed-02) — the list's own name, as its page and the back link say it.
-  return `<aside class="listpane" aria-label="${esc(t(locale, 'nav.inbox'))}">
-      <h2 class="lp-h">${esc(t(locale, 'nav.inbox'))}</h2>
-      ${here}${tabs}${rows}${more}${search}
+  const isCurrent = (c: ConversationSummary): boolean => c.conversationId === currentId
+    || (currentClient !== undefined && c.clientId === currentClient);
+  const at = data.conversations.findIndex(isCurrent);
+  const pinCurrent = current && (at < 0 || at >= PANE_ROWS_IN_VIEW);
+  const shown = pinCurrent ? { ...data, conversations: data.conversations.filter((c) => !isCurrent(c)) } : data;
+  const here = pinCurrent
+    ? `<section class="lp-current"><h3 class="lp-group">${esc(t(locale, 'pane.current'))}</h3>${renderInboxRows({ ...data, conversations: [current] }, locale, now, people, { selectedId: currentId })}</section>` : '';
+  const empty = data.conversations.length ? '' : `<p class="muted lp-empty">${esc(data.query ? t(locale, 'buyers.search.none', { q: data.query }) : t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : data.filter === 'mine' ? 'inbox.empty.mine' : data.filter === 'deletion' ? 'inbox.empty.deletion' : data.filter === 'blocked' ? 'refused.none' : 'inbox.empty.none'))}</p>`;
+  const more = data.page?.next ? deeper(esc(buyersHref({ filter: data.filter, lens: data.lens, q: data.query ?? '', label: data.label?.id, stage: data.stage, after: data.page.next })), t(locale, 'buyers.page.next')) : '';
+  return `<aside class="listpane il-compact-list" aria-label="${esc(t(locale, 'nav.inbox'))}">
+      <h2 class="lp-h"><a href="${esc(inboxReturnHref(data))}">${esc(t(locale, 'nav.inbox'))}</a></h2>
+      ${renderInboxViews(data, locale, { compact: true })}
+      <form class="search" method="get" action="/app/inbox" role="search">
+        <input type="hidden" name="filter" value="all" />
+        <input type="search" name="q" value="${esc(data.query ?? '')}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
+        <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+      </form>
+      ${here}${empty}${renderInboxRows(shown, locale, now, people, { selectedId: data.conversations.find(isCurrent)?.conversationId ?? currentId })}${more}
     </aside>`;
 }
 
@@ -225,5 +199,5 @@ function languageName(locale: Locale, code: string): string {
 }
 
 /** The panes: the list, the conversation, the customer. */
-export const renderPanes = (list: string, conversation: string, panel: string): string =>
-  `<div class="panes">${list}<div class="conv">${conversation}</div>${panel}</div>`;
+export const renderPanes = (list: string, conversation: string, panel: string, tools?: { readonly conversationId: string; readonly locale: Locale }): string =>
+  `<div class="panes${tools ? ' conversation-workspace' : ''}"${tools ? ` data-conversation="${esc(tools.conversationId)}"` : ''}>${list}<div class="conv">${conversation}</div>${tools ? renderConversationTools(panel, tools.conversationId, tools.locale) : panel}</div>`;

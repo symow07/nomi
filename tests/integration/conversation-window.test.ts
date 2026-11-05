@@ -1,3 +1,4 @@
+import { ensureQueueSchema } from './tenant.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -84,10 +85,11 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
   const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?">(m-\d{3})</.exec(html)?.[1] ?? null;
   /** The cursor the page hands out for the window before this one. */
   const cursorOf = (html: string, conv: string) => /before=([^"#&]+)/.exec(earlierOf(html, conv) ?? '')?.[1] ?? '';
-  /** What the owner reads and taps — the page without its stylesheets, whose `width:100%` is layout. */
-  const shown = (html: string) => html.slice(html.indexOf('<body')).replace(/<style>[\s\S]*?<\/style>/g, '');
+  /** Visible words exclude markup and scoped return URLs; legitimate copy may contain a percentage. */
+  const shown = (html: string) => html.slice(html.indexOf('<body')).replace(/<style>[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ');
 
   beforeAll(async () => {
+    await ensureQueueSchema();
     const { createDb } = await import('../../src/db/client.js');
     const { ensureConversation } = await import('../../src/db/channels.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -164,7 +166,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
     expect(earlierOf(html, long)).not.toBeNull();
     expect(html).toContain('Earlier messages');
     expect(html).not.toContain(latestDoor(long));
-    expect(shown(html)).not.toContain('%');
+    expect(shown(html)).not.toMatch(/%[0-9a-f]{2}/i);
   });
 
   it('"Earlier messages", followed to the end, visits every message exactly once, in order', async () => {
@@ -183,7 +185,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
         expect(html, url).not.toContain('class="card takeover');
         expect(html, url).not.toContain('No messages yet');
       }
-      expect(shown(html), url).not.toContain('%');
+      expect(shown(html), url).not.toMatch(/%[0-9a-f]{2}/i);
       url = earlierOf(html, long);
       expect(windows.length, 'a door that never ends').toBeLessThan(20);
     }

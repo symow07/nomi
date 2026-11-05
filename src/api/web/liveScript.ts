@@ -1,3 +1,4 @@
+import { COPILOT_SCRIPT } from './copilotScript.js';
 /**
  * CC-26 — THE ONE SCRIPT, as the browser receives it.
  *
@@ -513,6 +514,9 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     doc.addEventListener('submit', function (e) {
       var form = e.target;
       if (e.defaultPrevented || !form || !form.setAttribute || !form.getAttribute) return;
+      /* Conversation tools manage their own requests and cancellation, without leaving the page. */
+      if ((form.getAttribute('data-copilot-ask') !== null || form.getAttribute('data-copilot-use') !== null)
+        && doc.querySelector('[data-conversation-tools]')) return;
       /* A dialog's own close goes nowhere: never held. */
       if (form.getAttribute('method') === 'dialog') return;
       if (form.getAttribute('data-sending') === '1') { e.preventDefault(); return; }
@@ -991,4 +995,4 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     try { if (history.scrollRestoration === 'manual') history.scrollRestoration = 'auto'; } catch (e) { /* the browser keeps its own */ }
   });
 })();
-`;
+` + COPILOT_SCRIPT;

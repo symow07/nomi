@@ -4,7 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { shell, missingPage, atWork } from '../../src/api/web/layout.js';
-import { renderInboxList, type InboxList } from '../../src/api/web/inbox.js';
+import { type InboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderAddForm, renderPhotoRefusal } from '../../src/api/web/products.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { renderClosures, renderForbidden, type ClosureView, type ForbiddenView } from '../../src/api/web/settings.js';
@@ -42,13 +43,12 @@ describe('phase 6 · empty', () => {
     }
   });
 
-  // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: the route leads its
-  // old address to the whole list (app.ts), so its own empty panel is never drawn any more.
-  it('"Mine" is not a view any more: no tab, and no empty panel of its own', () => {
-    const list: InboxList = { filter: 'mine', waitingCount: 3, blockedCount: 0, mineCount: 0, deletionCount: 0, channels: 1, conversations: [], query: '' };
+  it('an empty Team view names its state and offers Everyone as the way forward', () => {
+    const list: InboxList = { filter: 'team', waitingCount: 3, blockedCount: 0, deletionCount: 0, channels: 1, conversations: [], query: '' };
     for (const l of LOCALES) {
       const html = withAssistantName('Lily', () => renderInboxList(list, l, NOW));
-      expect(html, l).not.toContain(t(l, 'inbox.empty.mine'));
+      expect(html, l).toContain(t(l, 'inbox.empty.team'));
+      expect(html, l).toContain('href="/app/inbox?filter=all"');
       expect(html, l).not.toContain('filter=mine');
     }
   });
@@ -157,9 +157,13 @@ const match = (sel: string) => (e: Nd): boolean => {
   return !!m && (!m[1] || e.tagName.toLowerCase() === m[1]) && (!m[2] || (e.getAttribute(m[2]) !== null && (m[3] === undefined || e.getAttribute(m[2]) === m[3])));
 };
 
-function stage(o: { live?: Record<string, string>; slow?: boolean } = {}) {
+function stage(o: { live?: Record<string, string>; slow?: boolean; copilot?: 'ask' | 'use' } = {}) {
   const root = new Nd('HTML');
   const form = root.appendChild(new Nd('FORM', { method: 'post' }));
+  if (o.copilot) {
+    form.setAttribute(`data-copilot-${o.copilot}`, '');
+    root.appendChild(new Nd('ASIDE', { 'data-conversation-tools': '' }));
+  }
   const button = form.appendChild(new Nd('BUTTON', { class: 'btn send' }));
   const region = o.live ? root.appendChild(new Nd('DIV', o.live)) : null;
   if (o.slow) {
@@ -201,6 +205,15 @@ function stage(o: { live?: Record<string, string>; slow?: boolean } = {}) {
 }
 
 describe('phase 6 · the script: a form on its way, and a limit to asking', () => {
+  it('the optional conversation panel owns its request lifecycle, so canceling does not leave a twelve-second form lock', () => {
+    for (const copilot of ['ask', 'use'] as const) {
+      const p = stage({ copilot });
+      expect(p.submit()['defaultPrevented']).toBe(false);
+      expect(p.form.getAttribute('data-sending')).toBeNull();
+      expect(p.button.getAttribute('aria-busy')).toBeNull();
+      expect(p.submit()['defaultPrevented']).toBe(false);
+    }
+  });
   it('the button that sent it says it is busy; a second press does not send it again; after a while it is itself again', async () => {
     const p = stage();
     expect(p.submit()['defaultPrevented']).toBe(false);

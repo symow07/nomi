@@ -97,6 +97,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
       '/app/inbox?filter=all',
     ].filter((u) => !isOutreachRoute(u));
     const moved: Readonly<Record<string, string>> = {
+      '/app/replies': '/app/inbox/replies',
       '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
       '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
       '/app/onboarding/activity': '/app/results?view=setup',

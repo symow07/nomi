@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { alertKindFor, renderOwnerAlert, OPERATOR_ALERT_KINDS, goesByMail, interrupts } from '../../src/pipeline/notify.js';
-import { renderConversationDetail, renderInboxList, type ConversationDetail, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { renderConversationDetail, type ConversationDetail, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
@@ -236,7 +237,7 @@ describe('0076 · the Buyers list: its own group and its own tab', () => {
   });
 
   it('a tab of its own while one waits, with the count', () => {
-    expect(list).toContain(`href="/app/inbox?filter=deletion">${esc(t('en', k('inbox.filter.deletion')))} (1)</a>`);
+    expect(list).toContain(`href="/app/inbox?filter=deletion">${esc(t('en', k('inbox.filter.deletion')))}<span class="si-tabn">1</span></a>`);
     const none = withoutIsolates(renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW));
     expect(none).not.toContain('filter=deletion');
     const empty = withoutIsolates(renderInboxList({ filter: 'deletion', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW));

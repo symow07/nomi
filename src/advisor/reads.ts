@@ -26,6 +26,9 @@ import { levelOf } from '../core/conversation/autonomyLevel.js';
 import { PROBLEM_SIGNAL_KINDS } from '../core/scoring/signals.js';
 import { moneyFromRow, type Money } from '../core/types/money.js';
 import { compareDecimal, decimal, signOf, divDecimal, fromInteger, mulDecimal, roundDecimal } from '../core/types/decimal.js';
+import type { ConversationContext } from './conversation.js';
+import type { Product, PriceTier, PricingPolicy, NegotiationRule } from '../core/types/commerce.js';
+import { chosenName } from '../db/assistants.js';
 
 /**
  * THE ADVISOR'S READS — the ONLY place an advisor fact comes from (the owner, 2026-10-06: "every factual
@@ -92,6 +95,80 @@ async function ro<T>(ctx: ReadCtx, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return withTenantTx(ctx.db, ctx.businessId, async (tx) => {
     await sql`set transaction read only`.execute(tx);
     return fn(tx);
+  });
+}
+
+/** A single statement supplies both the facts and their revision: no mixed-snapshot suggestion. */
+export async function readConversationContext(ctx: ReadCtx, conversationId: string): Promise<ConversationContext | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) return null;
+  return ro(ctx, async (tx) => {
+    type Row = Record<string, unknown>;
+    type Snapshot = { conversation: Row; customer: Row; assistantName: string | null; state: Row | null; drafts: Row[]; messages: Row[]; order: Row | null;
+      product: Row | null; tiers: Row[]; policy: Row | null; rules: Row[]; priors: Row[] };
+    const result = (await sql<{ data: Snapshot; revision: string }>`
+      with context as (
+        select jsonb_build_object(
+          'conversation', to_jsonb(c) - 'owner_unsent_reply' - 'owner_unsent_reply_at' - 'owner_opened_at' - 'updated_at',
+          'customer', jsonb_build_object('id', cl.id, 'display_name', cl.display_name),
+          'assistantName', coalesce((select ${chosenName('a')} from assistants a where a.id = c.assistant_id),
+            (select ${chosenName('a')} from assistants a where a.business_id = c.business_id and a.is_default and a.archived_at is null)),
+          'state', to_jsonb(cs),
+          'drafts', coalesce((select jsonb_agg(to_jsonb(d) - 'owner_edit' - 'owner_edit_at' order by d.created_at desc, d.id desc) from drafts d where d.conversation_id = c.id and d.status = 'pending'), '[]'::jsonb),
+          'messages', coalesce((select jsonb_agg(to_jsonb(m) order by m.sent_at, m.id) from
+            (select m.id, m.direction, m.text_content, m.transcription, m.input_type, m.sent_at from messages m
+             where m.conversation_id = c.id order by m.sent_at desc, m.id desc limit 51) m), '[]'::jsonb),
+          'order', (select to_jsonb(o) || jsonb_build_object('product_name', op.name, 'agreed_unit_price_usd', o.agreed_unit_price_usd::text, 'total_value_usd', o.total_value_usd::text)
+             from orders o join conversations oc on oc.id = o.conversation_id left join products op on op.id = o.product_id
+             where o.business_id = ${ctx.businessId}::uuid and o.client_id = cl.id and not oc.owner_testing
+             order by o.created_at desc, o.id desc limit 1),
+          'product', to_jsonb(p),
+          'tiers', coalesce((select jsonb_agg(to_jsonb(pt) || jsonb_build_object('unit_price_usd', pt.unit_price_usd::text) order by pt.min_qty) from price_tiers pt where pt.product_id = p.id), '[]'::jsonb),
+          'policy', (select to_jsonb(pp) || jsonb_build_object('floor_price_usd', pp.floor_price_usd::text) from pricing_policy pp where pp.business_id = ${ctx.businessId}::uuid
+            and (pp.product_id = p.id or pp.product_id is null) order by pp.product_id is null, pp.id limit 1),
+          'rules', coalesce((select jsonb_agg(to_jsonb(nr) order by nr.priority, nr.id) from negotiation_rules nr
+            where nr.business_id = ${ctx.businessId}::uuid and nr.is_active), '[]'::jsonb),
+          'priors', coalesce((select jsonb_agg(to_jsonb(q) order by q.created_at desc, q.id desc) from
+            (select q.id, q.quantity, q.unit_price_usd::text as unit_price_usd, q.currency, q.created_at from quotes q join conversations qc on qc.id = q.conversation_id
+             where q.business_id = ${ctx.businessId}::uuid and qc.client_id = cl.id and q.product_id = p.id and not qc.owner_testing
+             and not exists (select 1 from turns qt join drafts qd on qd.turn_message_id = qt.message_id where qt.quote_id = q.id and qd.status <> 'approved')
+             order by q.created_at desc, q.id desc limit 10) q), '[]'::jsonb)
+        ) as data
+        from conversations c join clients cl on cl.id = c.client_id
+        left join conversation_state cs on cs.conversation_id = c.id
+        left join products p on p.id = cs.identified_product_id and p.business_id = ${ctx.businessId}::uuid and p.is_active
+        where c.id = ${conversationId}::uuid and c.business_id = ${ctx.businessId}::uuid and not c.owner_testing
+      ) select data, md5(data::text) as revision from context`.execute(tx)).rows[0];
+    if (!result) return null;
+    const s = result.data;
+    const str = (x: unknown): string | null => typeof x === 'string' ? x : null;
+    const number = (x: unknown): number | null => typeof x === 'number' && Number.isFinite(x) ? x : null;
+    const amount = (x: unknown, currency: unknown): Money | null => x === null || x === undefined || typeof currency !== 'string' ? null : moneyFromRow(String(x), currency);
+    const p = s.product;
+    const product: Product | null = p ? { id: String(p['id']) as Product['id'], businessId: ctx.businessId, name: String(p['name']), sku: String(p['sku']),
+      moq: number(p['moq']), unit: String(p['unit']), leadTimeDays: number(p['lead_time_days']), customizable: p['customizable'] === true } : null;
+    const tiers: PriceTier[] = product ? s.tiers.flatMap((r) => {
+      const unitPrice = amount(r['unit_price_usd'], r['currency']);
+      return unitPrice ? [{ productId: product.id, minQty: Number(r['min_qty']), maxQty: number(r['max_qty']), unitPrice }] : [];
+    }) : [];
+    const policy = s.policy;
+    const floorPrice = policy ? amount(policy['floor_price_usd'], policy['currency']) : null;
+    const pricingPolicy: PricingPolicy | null = policy && floorPrice ? { businessId: ctx.businessId, productId: str(policy['product_id']) as PricingPolicy['productId'],
+      floorPrice, maxDiscountPct: Number(policy['max_discount_pct']), humanRequiredAbovePct: Number(policy['human_required_above_pct']) } : null;
+    const quantity = number(s.state?.['inquiry_quantity']);
+    const o = s.order;
+    return {
+      businessId: ctx.businessId, conversationId, customerId: String(s.customer['id']), customerName: str(s.customer['display_name']), assistantName: s.assistantName, revision: result.revision,
+      messages: s.messages.slice(-50).map((m) => ({ id: String(m['id']), direction: String(m['direction']), text: str(m['text_content']), at: String(m['sent_at']) })),
+      earlier: s.messages.length > 50,
+      pendingDraftId: s.drafts[0] ? String(s.drafts[0]['id']) : null, assignedTo: str(s.conversation['assigned_to']), closed: s.conversation['closed_at'] !== null,
+      lastOrder: o ? { id: String(o['id']), reference: String(o['order_reference']), status: String(o['status']), productName: str(o['product_name']),
+        quantity: Number(o['quantity']), unit: String(o['unit']), unitPrice: amount(o['agreed_unit_price_usd'], o['currency']), total: amount(o['total_value_usd'], o['currency']), at: String(o['created_at']) } : null,
+      pricing: product && quantity !== null ? { product, quantity, tiers, policy: pricingPolicy, policyId: policy ? String(policy['id']) : null,
+        rules: s.rules.map((r) => ({ businessId: ctx.businessId, priority: Number(r['priority']), condition: r['condition'] as NegotiationRule['condition'], action: r['action'] as NegotiationRule['action'] })),
+        ruleIds: s.rules.map((r) => String(r['id'])),
+        priorQuotes: s.priors.flatMap((r) => { const unitPrice = amount(r['unit_price_usd'], r['currency']); return unitPrice ? [{ quantity: Number(r['quantity']), unitPrice, at: new Date(String(r['created_at'])) }] : []; }),
+      } : null,
+    };
   });
 }
 

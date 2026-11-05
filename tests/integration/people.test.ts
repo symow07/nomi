@@ -260,7 +260,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const staff = (await app.inject({ method: 'GET', url: `/app/inbox/${convId}`, headers: { cookie: staffCookie } })).body;
     expect(owner).toContain('Taken over by Xiao Chen');
     expect(staff).toContain('Taken over by you');
-    expect(owner).not.toContain(staffId);
+    // The internal holder ID validates unsent suggestion insertion; the visible action names the person.
+    expect(owner).toContain(`data-copilot-holder="${staffId}"`);
+    expect(owner.replace(/<[^>]*>/g, '')).not.toContain(staffId);
   });
 
   it('G9b · APPROVALS WORK FOR PEOPLE — the owner’s and a sales assistant’s, each named in the record', async () => {

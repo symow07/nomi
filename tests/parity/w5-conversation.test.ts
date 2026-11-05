@@ -202,23 +202,19 @@ describe('w4-whole-13, w4-conversation-16 · one customer, two things to open, e
     for (const l of LOCALES) {
       const html = page(detail(), l);
       const about = esc(t(l, 'conv.file.title'));
-      expect(html, l).toContain(`<a class="deeper file-door" href="/app/conversations/${detail().conversationId}">${about}<span class="go"`);
-      expect(html, l).toContain(`<a class="deeper panel-open" href="#customer">${about}<span class="go"`);
-      // side by side in the page, not one in the header row and one under the strip
-      const plain = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
-      expect(plain.indexOf('panel-open') - plain.indexOf('file-door'), l).toBeLessThan(400);
-      expect(html.slice(html.indexOf('<div class="dhead">'), html.indexOf('</div>', html.indexOf('<div class="dhead">'))), l).not.toContain('panel-open');
+      expect(html, l).toContain('data-open-tool="customer"');
+      expect(html.match(/data-open-tool="customer"/g), l).toHaveLength(1);
+      expect(html, l).toContain(`>${about}<span class="go"`);
+      expect(html, l).not.toContain('class="deeper panel-open"');
       expect(t(l, 'panel.open'), l).toBe(t(l, 'conv.file.title'));
       expect(t(l, 'panel.label'), l).toBe(t(l, 'conv.file.title'));
       // the face says it opens the card, a different thing with a different name
       expect(t(l, 'catchup.card', { who: 'X' }), l).not.toContain(t(l, 'conv.file.title'));
     }
     const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'en', path: '/app/inbox', bodyHtml: '' }));
-    const at1100 = css.slice(css.indexOf('@media (min-width: 1100px)'), css.indexOf('@media (min-width: 1440px)'));
-    expect(at1100).toContain('.conv .panel-open { display:flex; }');
-    expect(at1100).toContain('.conv .file-door { display:none; }');
-    const at1440 = css.slice(css.indexOf('@media (min-width: 1440px)'));
-    expect(at1440).toMatch(/\.conv \.panel-open, [^{]*\.conv \.file-door \{ display:none; \}/);
+    expect(css).toContain('.conversation-tools { display:none;');
+    expect(css).toContain('.conversation-workspace:has(#customer:target) > .conversation-tools');
+    expect(css).toContain('.conversation-workspace .conversation-actions .file-door { display:inline-flex; }');
   });
 
   it('the panel\'s door onward names the full page; an order\'s way back names the conversation it opens', () => {

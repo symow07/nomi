@@ -41,6 +41,7 @@ const nsId = (suffix: string) => `${RUN_NS}-0000-4000-8000-${suffix}`;
 d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)', () => {
   let app: import('fastify').FastifyInstance;
   let db: import('../../src/db/client.js').Db;
+  let advisorDb: import('../../src/db/client.js').Db;
   let cookie = '';
   const routes: string[] = [];
   const real: Record<string, string> = {};
@@ -77,10 +78,11 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
 
   beforeAll(async () => {
     await seedRunTenant();
-    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { createDb, createReadOnlyDb, withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
     db = createDb(DATABASE_URL!);
+    advisorDb = createReadOnlyDb(DATABASE_URL!);
     const bid = parseBusinessId(RUN_BIZ); if (!bid.ok) throw new Error('fixture');
 
     // D — every GET route must answer, including the outreach area's, which
@@ -171,7 +173,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       if (ms.includes('GET')) routes.push(r.url);
     });
     registerWebApp(app, {
-      db, businessId: RUN_BIZ, accessCode: CODE,
+      db, advisorDb, businessId: RUN_BIZ, accessCode: CODE,
       // The component gallery is a local instance's switch (COMPONENT_GALLERY=on), for the installation's
       // own workspace — which this walk's is: switched on, so the gallery is walked like every page.
       componentGallery: true,
@@ -234,7 +236,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     if (photo) ownToken['/media/:token'] = photo;
   }, 90_000);
 
-  afterAll(async () => { await app?.close(); await db?.destroy(); });
+  afterAll(async () => { await app?.close(); await advisorDb?.destroy(); await db?.destroy(); });
 
   it('the seeded tenant actually has rows — otherwise this walk proves nothing', async () => {
     const { withTenantTx } = await import('../../src/db/client.js');

@@ -60,14 +60,16 @@ describe('M49 · one measure', () => {
       const src = await readFile(new URL(f, WEB_DIR), 'utf8');
       for (const [i, line] of src.split('\n').entries()) {
         // A media query's breakpoint is not a content width.
-        if (line.includes('@media')) continue;
+        if (line.includes('@media') || line.includes('matchMedia(')) continue;
         const m = /max-width\s*:\s*([^;]+);/.exec(line);
         if (!m) continue;
         const value = m[1]!.trim();
         const allowed = value.startsWith('var(--measure-')
           // A message bubble is sized against its own row, not the page.
           || /^\d+%$/.test(value)
-          || value === '100%';
+          || value === '100%'
+          // Area 2 Copilot prose stays readable inside its optional tool panel, independently of the conversation column.
+          || (f === 'conversationStyle.ts' && line.trim().startsWith('.copilot-panel {') && value === '68ch');
         if (!allowed) rogue.push(`${f}:${i + 1}  ${value}`);
       }
     }
@@ -153,6 +155,7 @@ describe('M49 · the two voices are on the right axis', () => {
     ['layout.ts', 'declares .voice, .bubble and .proposed — the components speech is made of'],
     ['splitStyle.ts', 'the Split Today design: headings and big numbers'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
+    ['conversationStyle.ts', 'scopes --font-voice to the body family for the approved Inbox conversation'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
     ['conversations.ts', 'the buyer\'s own message that asked for their data to be deleted (0076)'],
   ]);
@@ -166,6 +169,9 @@ describe('M49 · the two voices are on the right axis', () => {
       if (uses && !ALLOWED.has(f)) rogue.push(f);
     }
     expect(rogue, `serif reached a product surface:\n  ${rogue.join('\n  ')}`).toEqual([]);
+    const conversation = await readFile(new URL('conversationStyle.ts', WEB_DIR), 'utf8');
+    expect(conversation).toContain('.conversation-workspace { --font-voice:var(--font-family);');
+    expect(conversation).not.toMatch(/font-family:\s*var\(--font-voice\)/);
   });
 
   it('and on the Split Today sheet it is on headings and big numbers alone, never running text', async () => {

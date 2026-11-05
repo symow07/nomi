@@ -1,10 +1,11 @@
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler, type CompiledQuery } from 'kysely';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderInboxList, inboxRow, attentionBand, buyersHref, ATTENTION_SHOWN,
+  buyersHref,
   type InboxList, type ConversationSummary,
 } from '../../src/api/web/inbox.js';
 import { renderListPane } from '../../src/api/web/panes.js';
@@ -16,7 +17,7 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { encodeListKey, parseListKey, lensOf, readBuyersPage, readBuyerCounts } from '../../src/db/buyersList.js';
 import { readAttention, QUIET_AFTER_DAYS, QUIET_UNTIL_DAYS, type AttentionItem } from '../../src/db/inboxAttention.js';
-import { REGULAR_ORDERS } from '../../src/db/customerValue.js';
+import { whole } from '../../src/api/web/splitToday.js';
 import type { Tx } from '../../src/db/client.js';
 import { withoutIsolates, unisolatedFigures } from './isolates.js';
 import { linkedCss } from './linked-css.js';
@@ -76,10 +77,9 @@ const BAND: AttentionItem[] = [
 const html = (l: Locale, over: Partial<InboxList> = {}) =>
   withZone('Asia/Shanghai', () => withAssistantName('Lily', () => renderInboxList({ ...LIST, ...over }, l, NOW)));
 const shown = (l: Locale, key: string, params?: Record<string, string | number>) => esc(say(l, key as MessageKey, params));
-const rows = (h: string) => [...h.matchAll(/<div class="irow[^"]*">([\s\S]*?)<\/a><\/div>/g)].map((m) => m[1]!);
-const rowOf = (h: string, n: number) => rows(h).find((r) => r.includes(`href="/app/inbox/${ID(n)}#latest"`)) ?? '';
+const rows = (h: string) => [...h.matchAll(/<li id="inbox-[^"]+">([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+const rowOf = (h: string, n: number) => rows(h).find((r) => r.includes(`href="/app/inbox/${ID(n)}?from=`)) ?? '';
 const CSS = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'en', path: '/app/inbox', bodyHtml: '' }));
-const rule = (sel: string) => new RegExp(`(?:^|\\n)\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(CSS)?.[1] ?? '';
 
 describe('phase 4 · one customer, one row', () => {
   it('in both lenses and five languages: a row per customer, each with their face (their card) and their conversation', () => {
@@ -89,13 +89,13 @@ describe('phase 4 · one customer, one row', () => {
         expect(rows(h), `${l} ${lens}`).toHaveLength(LIST.conversations.length);
         for (const c of LIST.conversations) {
           expect(h.split(`href="/app/customers/${c.clientId}" data-card`).length - 1, `${l} ${lens} ${c.buyer}`).toBe(1);
-          expect(h.split(`href="/app/inbox/${c.conversationId}#latest"`).length - 1, `${l} ${lens} ${c.buyer}`).toBe(1);
+          expect(h.split(`class="si-door" href="/app/inbox/${c.conversationId}?from=`).length - 1, `${l} ${lens} ${c.buyer}`).toBe(1);
         }
         // the face is the shared one: drawn by faces.ts, a 40 px face on a 64 px row
-        expect(h, l).toContain('<span class="face face-m t');
+        expect(h, l).toContain('<span class="face face-s t');
       }
     }
-    expect(rule('.irow')).toContain('min-height:64px');
+    expect(CSS).toContain('.il-page .si-row, .il-compact-list .si-row { min-block-size:80px; }');
   });
 
   it('the list is read a customer at a time: one conversation each, the one that needs the owner most, else their newest', async () => {
@@ -113,101 +113,71 @@ describe('phase 4 · one customer, one row', () => {
 });
 
 describe('phase 4 · the row: spend is the headline, no order count, the regular\'s mark', () => {
-  it('what they spent stands on the first line at its end, written as the order pages write money — and nothing when nothing was spent', () => {
+  it('value lens renders actual spend and leaves absent amounts empty', () => {
     for (const l of LOCALES) {
-      const h = html(l);
+      const h = html(l, { lens: 'value' });
       for (const c of LIST.conversations) {
         const row = rowOf(h, Number(c.conversationId.slice(-2)));
-        const spent = /<span class="ir-spent">([\s\S]*?)<\/span>\s*<span class="ir-l2">/.exec(row)?.[1];
-        expect(spent, `${l} ${c.buyer}`).toBeDefined();
-        if (c.spent) {
-          expect(spent, l).toContain(`<bdi aria-hidden="true">${esc(show.money(l, c.spent))}</bdi>`);
-          expect(spent, l).toContain(`<span class="sr">${shown(l, 'buyers.row.spent', { amount: show.money(l, c.spent) })}</span>`);
-        } else {
-          expect(spent, `${l}: nothing spent shows nothing`).toBe('');
-        }
-        // the order the eye reads it in: the name, what they spent, then the message, then when
-        expect(row.indexOf('ir-name'), l).toBeLessThan(row.indexOf('ir-spent'));
-        expect(row.indexOf('ir-spent'), l).toBeLessThan(row.indexOf('ir-l2'));
-        expect(row.indexOf('ir-l2'), l).toBeLessThan(row.indexOf('ir-when'));
+        const value = /<span class="sp-rval">([\s\S]*?)<\/span>/.exec(row)?.[1];
+        expect(value, `${l} ${c.buyer}`).toBe(c.spent ? esc(whole(show.money(l, c.spent))) : '');
+        expect(row.indexOf('sp-rname'), l).toBeLessThan(row.indexOf('sp-rval'));
       }
-      expect(h, l).not.toContain('%');
     }
-    // the headline: the base size and weight, a step above the name's
-    expect(rule('.ir-spent')).toContain('font-size:var(--font-size-base)');
-    expect(rule('.ir-spent')).toContain('font-weight:600');
-    expect(rule('.ir-l1')).toContain('font-size:var(--font-size-small)');
   });
 
-  it('no order count on the row (it lives in the card): no figure on it but what they spent and when', () => {
+  it('rows do not invent order counts or expose unit-price and quantity fields', () => {
     for (const l of LOCALES) {
-      const h = withoutIsolates(html(l));
+      const h = html(l);
+      expect(rows(h)).toHaveLength(LIST.conversations.length);
       for (const row of rows(h)) {
-        const rest = row
-          .replace(/<span class="ir-spent">[\s\S]*?<\/span>\s*<span class="ir-l2">/, '<span class="ir-l2">')
-          .replace(/<span class="ir-when">[\s\S]*?<\/span>/, '')
-          .replace(/<[^>]+>/g, ' ');
-        expect(rest, l).not.toMatch(/[0-9٠-٩]/);
+        expect(row).not.toContain('500');
+        expect(row).not.toContain(esc(show.money(l, usd('2.4'))));
+        expect(row.replace(/<[^>]+>/g, ' ')).not.toContain('%');
       }
     }
   });
 
-  it('a regular carries Nomi\'s mark — a shape and its word, in secondary ink, never magenta; nobody else does', () => {
+  it('regular status is stated on only the actual regular customer row in every locale', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const regular = rowOf(h, 3);
-      expect(regular, l).toMatch(new RegExp(`<span class="ir-reg"><svg class="ni sl"[^>]*aria-hidden="true"[^>]*>[\\s\\S]*?</svg><span class="ir-reg-w">${shown(l, 'buyers.row.regular')}</span></span>`));
-      for (const n of [1, 2, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-reg');
-      // and the mark is explained under the rows, with the rule Nomi follows
-      expect(h, l).toContain(shown(l, 'buyers.key.regular', { n: show.quantity(l, REGULAR_ORDERS) }));
+      expect(rowOf(h, 3), l).toContain(`<bdi>${shown(l, 'buyers.row.regular')}</bdi>`);
+      for (const n of [1, 2, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain(shown(l, 'buyers.row.regular'));
     }
-    expect(rule('.ir-reg')).toContain('color:var(--color-ink-secondary)');
-    expect(CSS).not.toMatch(/\.ir-reg[^{]*\{[^}]*--color-(assistant|needs)/);
-    // On a phone its word is still said, but the shape stands alone so the name keeps its room.
-    expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{ position:absolute;/);
   });
 
-  it('a customer waiting for the owner keeps its words beside the row\'s dot; a deletion request its own', () => {
+  it('waiting and deletion reasons remain beside their row dot in every locale', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const wait = /<span class="ir-wait"><bdi>([^<]+)<\/bdi><\/span>/;
-      expect(wait.exec(rowOf(h, 2))?.[1], l).toBe(shown(l, 'takeover.reason.human_requested'));
-      expect(wait.exec(rowOf(h, 1))?.[1], l).toBe(shown(l, 'buyers.badge.deletion'));
-      for (const n of [3, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-wait');
+      expect(rowOf(h, 2), l).toContain(`<span class="si-why"><bdi>${shown(l, 'takeover.reason.human_requested')}</bdi>`);
+      expect(rowOf(h, 1), l).toContain(`<span class="si-why"><bdi>${shown(l, 'buyers.badge.deletion')}</bdi>`);
+      for (const n of [1, 2]) expect(rowOf(h, n), l).toContain('class="row-dot"');
+      for (const n of [3, 4, 5]) expect(rowOf(h, n), l).not.toContain('class="row-dot"');
     }
-    expect(rule('.ir-wait')).toContain('color:var(--color-needs)');
   });
 });
 
 describe('phase 4 · two lenses, both whole', () => {
-  it('"waiting now" is the default: the needs first under their headings, the switch saying so', () => {
+  it('waiting order retains deletion priority and exposes the selected lens', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const lens = /<nav class="tabs lens" aria-label="([^"]+)">([\s\S]*?)<\/nav>/.exec(h)!;
-      expect(lens[1], l).toBe(shown(l, 'buyers.lens.label'));
-      expect(lens[2], l).toBe(`<a class="tab on" aria-current="true" href="/app/inbox">${shown(l, 'buyers.lens.waiting')}</a><a class="tab" href="/app/inbox?lens=value">${shown(l, 'buyers.lens.value')}</a>`);
-      expect(h, l).toContain(`<p class="caption muted lens-says">${shown(l, 'buyers.lens.waitingSays')}</p>`);
+      expect(h, l).toContain(`<a class="si-fil on" aria-current="true" href="/app/inbox?filter=all">${shown(l, 'buyers.lens.waiting')}</a>`);
       expect(h.indexOf(ID(1)), l).toBeLessThan(h.indexOf(ID(3)));
-      expect(h, l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.deletion')}</h2>`);
-      expect(h, l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.needsYou')}</h2>`);
+      expect(h, l).toContain(`<h2 class="sp-cap">${shown(l, 'buyers.group.deletion')}</h2>`);
     }
   });
 
-  it('"matters most": who spent most first; nothing spent after, headed apart; the needs keep their signal, not their place', () => {
+  it('value lens retains the reader order and waiting signals without ownership regrouping', () => {
     const byValue = [...LIST.conversations].sort((a, b) => compareDecimal(b.spent?.amount ?? decimal('0'), a.spent?.amount ?? decimal('0')));
     for (const l of LOCALES) {
       const h = html(l, { lens: 'value', conversations: byValue });
-      expect(/<nav class="tabs lens"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1], l)
-        .toBe(`<a class="tab" href="/app/inbox">${shown(l, 'buyers.lens.waiting')}</a><a class="tab on" aria-current="true" href="/app/inbox?lens=value">${shown(l, 'buyers.lens.value')}</a>`);
-      expect(h, l).toContain(`<p class="caption muted lens-says">${shown(l, 'buyers.lens.valueSays')}</p>`);
-      const heads = [...h.matchAll(/<h2 class="bgroup-h">([^<]+)<\/h2>/g)].map((m) => m[1]);
-      expect(heads, l).toEqual([shown(l, 'buyers.lens.noSpend')]);
-      const at = (n: number) => h.indexOf(`/app/inbox/${ID(n)}#latest`);
+      expect(h, l).toContain(`<a class="si-fil on" aria-current="true" href="/app/inbox?filter=all&amp;lens=value">${shown(l, 'buyers.lens.value')}</a>`);
+      expect(h, l).toContain(shown(l, 'buyers.lens.valueSays'));
+      expect(h, l).not.toContain('<h2 class="sp-cap">');
+      const at = (n: number) => h.indexOf(`id="inbox-${ID(n)}"`);
       expect(at(4), l).toBeLessThan(at(3));
       expect(at(3), l).toBeLessThan(at(2));
-      expect(at(2), l).toBeLessThan(h.indexOf(shown(l, 'buyers.lens.noSpend')));
-      expect(h.indexOf(shown(l, 'buyers.lens.noSpend')), l).toBeLessThan(at(1));
-      expect(rowOf(h, 2), l).toContain('<span class="ir-wait">');
+      expect(at(2), l).toBeLessThan(at(1));
+      expect(rowOf(h, 2), l).toContain(shown(l, 'takeover.reason.human_requested'));
     }
   });
 
@@ -215,82 +185,73 @@ describe('phase 4 · two lenses, both whole', () => {
     for (const l of LOCALES) {
       const h = html(l, { lens: 'value', blockedCount: 2, query: 'Zh', page: { from: 51, to: 55, total: 130, next: NEXT, prev: { cursor: PREV } } });
       expect(h, l).toContain('<input type="hidden" name="lens" value="value" />');
-      expect(h, l).toContain(`<a class="deeper" href="/app/inbox?lens=value&amp;q=Zh&amp;after=${NEXT}">`);
-      expect(h, l).toContain(`<a class="back" href="/app/inbox?lens=value&amp;q=Zh&amp;before=${PREV}">`);
-      expect(h, l).toContain('href="/app/inbox?filter=blocked&amp;lens=value"');
-      expect(h, l).toContain('<a class="clear" href="/app/inbox?lens=value">');
+      expect(h, l).toContain(`<a class="deeper" href="/app/inbox?filter=all&amp;lens=value&amp;q=Zh&amp;after=${NEXT}">`);
+      expect(h, l).toContain(`<a class="back" href="/app/inbox?filter=all&amp;lens=value&amp;q=Zh&amp;before=${PREV}">`);
+      expect(h, l).toContain('href="/app/inbox?filter=blocked&amp;lens=value&amp;q=Zh"');
+      expect(h, l).toContain('<a class="clear" href="/app/inbox?filter=all&amp;lens=value">');
       // the lenses keep the search, both ways
-      expect(h, l).toContain('href="/app/inbox?q=Zh"');
-      expect(h, l).toContain('href="/app/inbox?lens=value&amp;q=Zh"');
+      expect(h, l).toContain('href="/app/inbox?filter=all&amp;q=Zh"');
+      expect(h, l).toContain('href="/app/inbox?filter=all&amp;lens=value&amp;q=Zh"');
       // "waiting now" writes no lens at all
       const plain = html(l, { page: { from: 51, to: 55, total: 130, next: NEXT, prev: null } });
       expect(plain, l).not.toContain('<input type="hidden" name="lens"');
-      expect(plain, l).toContain(`<a class="deeper" href="/app/inbox?after=${NEXT}">`);
+      expect(plain, l).toContain(`<a class="deeper" href="/app/inbox?filter=all&amp;after=${NEXT}">`);
     }
     expect(buyersHref({ filter: 'deletion', lens: 'value', q: 'a b' })).toBe('/app/inbox?filter=deletion&lens=value&q=a+b');
     expect(buyersHref({ filter: 'all', lens: 'waiting' })).toBe('/app/inbox');
   });
 
-  it('a deletion request and a reply that did not send stay findable; Mine is gone; Needs you shows only where Today led', () => {
+  it('deletion and blocked views remain conditional and Needs you is always discoverable', () => {
     for (const l of LOCALES) {
       const h = html(l, { blockedCount: 3, deletionCount: 1 });
-      const chips = /<nav class="tabs filters" aria-label="[^"]+">([\s\S]*?)<\/nav>/.exec(h)![1]!;
-      expect(chips, l).toContain(`<a class="tab" href="/app/inbox?filter=blocked">${shown(l, 'inbox.filter.blocked')} (${show.quantity(l, 3)})</a>`);
-      expect(chips, l).toContain(`<a class="tab" href="/app/inbox?filter=deletion">${shown(l, 'inbox.filter.deletion')} (${show.quantity(l, 1)})</a>`);
-      expect(chips, l).not.toContain('filter=pending');
+      const views = /<nav class="si-tabs"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1]!;
+      for (const f of ['pending', 'blocked', 'deletion']) expect(views, l).toContain(`filter=${f}`);
+      expect(views, l).toContain(`<span class="si-tabn">${esc(show.count(l, 3))}</span>`);
       expect(h, l).not.toContain('filter=mine');
-      const led = html(l, { filter: 'pending' });
-      expect(led, l).toContain(`<a class="tab on" aria-current="true" href="/app/inbox?filter=pending">${shown(l, 'inbox.filter.pending')} (${show.quantity(l, 2)})</a>`);
-      expect(led, l).toContain(`<a class="clear" href="/app/inbox">${shown(l, 'inbox.empty.seeAll')}</a>`);
+      expect(html(l, { blockedCount: 0, deletionCount: 0 }), l).not.toContain('filter=blocked');
+      expect(html(l, { blockedCount: 0, deletionCount: 0 }), l).not.toContain('filter=deletion');
+      expect(html(l, { filter: 'pending' }), l).toContain('class="si-tab on" aria-current="true" href="/app/inbox?filter=pending"');
     }
   });
 });
 
 describe('phase 4 · the "needs attention" band', () => {
-  it('its three kinds, each with a face, a name and one line, in five languages', () => {
+  it('quiet reasons, faces and conversation doors render once on their existing customer rows', () => {
     for (const l of LOCALES) {
-      const h = withZone('Asia/Shanghai', () => attentionBand(BAND, l, NOW));
-      expect(h, l).toContain(`<h2 class="attn-h" id="attn-h">${shown(l, 'buyers.attention.title')}</h2>`);
+      const conversations = BAND.map((a, i) => conv(80 + i, a.name!, { photo: a.photo }));
+      const h = html(l, { filter: 'quiet', conversations, attention: BAND });
+      expect(rows(h), l).toHaveLength(3);
       for (const a of BAND) {
-        const at = h.indexOf(`href="/app/customers/${a.clientId}" data-card`);
-        expect(at, `${l} ${a.kind}`).toBeGreaterThan(-1);
-        expect(h, l).toContain(`<a class="ar-main" href="/app/inbox/${a.conversationId}#latest"><bdi class="ar-name">${esc(a.name!)}</bdi>`);
-        expect(h, l).toContain(`<span class="ar-line">${shown(l, `buyers.attention.${a.kind}`, { date: show.shortWhen(l, a.since, NOW) })}</span>`);
+        const r = rowOf(h, Number(a.conversationId.slice(-2)));
+        expect(r, l).toContain(`href="/app/customers/${a.clientId}" data-card`);
+        expect(r, l).toContain(shown(l, `buyers.attention.${a.kind}`, { date: show.shortWhen(l, a.since, NOW) }));
+        expect(r, l).toContain(esc(a.name!));
       }
-      expect(h, l).toContain('<span class="face face-s');
-      expect(h, l).toContain('src="/app/faces/'); // a kept photo is drawn from its version, never fetched
+      expect(h, l).toContain('src="/app/faces/');
     }
   });
 
-  it('sits under the rows that need you, above everyone else; with nobody waiting, under the calm line (the owner, 2026-11-05)', () => {
+  it('attention context does not insert duplicate customers or displace waiting rows', () => {
     const waiting = conv(1, 'WAITING-ROW', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' });
     const quiet = conv(2, 'QUIET-ROW');
     for (const l of LOCALES) {
       const page = html(l, { attention: BAND, conversations: [waiting, quiet] });
-      expect(page.indexOf('WAITING-ROW'), l).toBeGreaterThan(-1);
-      expect(page.indexOf('class="attn"'), l).toBeGreaterThan(page.indexOf('WAITING-ROW'));
-      expect(page.indexOf('class="attn"'), l).toBeLessThan(page.indexOf('QUIET-ROW'));
-      const calm = html(l, { attention: BAND, conversations: [], filter: 'pending' });
-      expect(calm.indexOf('class="attn"'), l).toBeGreaterThan(calm.indexOf('class="empty"'));
+      expect(rows(page), l).toHaveLength(2);
+      expect(page.indexOf('WAITING-ROW'), l).toBeLessThan(page.indexOf('QUIET-ROW'));
+      for (const a of BAND) expect(page, l).not.toContain(esc(a.name!));
+      expect(html(l, { attention: BAND, conversations: [], filter: 'pending' }), l).toContain(shown(l, 'buyers.empty.calm'));
     }
   });
 
-  it('five, then the rest folded under "N more"; no band when nobody is slipping', () => {
+  it('quiet view displays every returned row and pagination is owned by the existing reader', () => {
     const many = Array.from({ length: 8 }, (_, i): AttentionItem => ({ ...BAND[i % 3]!, clientId: CLIENT(60 + i), conversationId: ID(60 + i) }));
+    const conversations = many.map((a, i) => conv(60 + i, a.name!));
     for (const l of LOCALES) {
-      const h = attentionBand(many, l, NOW);
-      const [first, more] = h.split('<details class="attn-more">');
-      expect(first!.match(/class="arow"/g), l).toHaveLength(ATTENTION_SHOWN);
-      expect(more, l).toContain(`<summary>${shown(l, 'buyers.attention.more', { n: show.quantity(l, 3) })}</summary>`);
-      expect(more!.match(/class="arow"/g), l).toHaveLength(3);
-      expect(attentionBand(many.slice(0, 5), l, NOW), l).not.toContain('<details');
-      expect(attentionBand([], l, NOW), l).toBe('');
-      // on the page: under the switch, in both lenses (the owner, 2026-11-05)
       for (const lens of ['waiting', 'value'] as const) {
-        const page = html(l, { lens, attention: BAND });
-        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(-1);
-        expect(page.indexOf('class="attn"'), `${l} ${lens}`).toBeGreaterThan(page.indexOf('class="tabs lens"'));
-        expect(html(l, { lens, attention: [] }), `${l} ${lens}`).not.toContain('class="attn"');
+        const h = html(l, { filter: 'quiet', lens, conversations, attention: many });
+        expect(rows(h), `${l} ${lens}`).toHaveLength(8);
+        expect(h, l).not.toContain('attn-more');
+        expect(html(l, { filter: 'quiet', lens, conversations: [], attention: [] }), l).toContain(shown(l, 'inbox.empty.quiet'));
       }
     }
   });
@@ -402,10 +363,10 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
       title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: renderInboxList({ ...LIST, attention: BAND }, 'ar', NOW),
     })));
     expect(page).toContain('<html lang="ar" dir="rtl"');
-    expect(rowOf(page, 2)).toContain('<bdi class="ir-name">Alexandre Dupont</bdi>');
-    expect(page).toContain('<bdi class="ar-name">Carlos Mendes</bdi>');
+    expect(rowOf(page, 2)).toContain('<bdi class="sp-rname">Alexandre Dupont</bdi>');
+    expect(page).not.toContain('Carlos Mendes');
     expect(unisolatedFigures(page.slice(page.indexOf('<main')))).toEqual([]);
-    expect(CSS).toContain('[dir="rtl"] .ir-text:dir(ltr) { text-align:end; }');
+    expect(CSS).toContain('[dir="rtl"] .si-last:dir(ltr), [dir="ltr"] .si-last:dir(rtl) { text-align:end; }');
   });
 
   it('Arabic and Chinese are drawn no smaller than English: the row and the band size nothing by language', () => {
@@ -413,7 +374,7 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
       const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: l, path: '/app/inbox', bodyHtml: '' }));
       expect(css, l).not.toMatch(/:lang\([a-z]+\)[^{]*\.(ir|ar|attn|lens)[-\w]*[^{]*\{[^}]*font-size/);
     }
-    for (const sel of ['.ar-line', '.ir-when']) expect(rule(sel)).toContain('font-size:var(--font-size-caption)');
+    expect(CSS).toContain('.il-page .si-why, .il-page .si-said, .il-compact-list .si-why, .il-compact-list .si-said { font-size:var(--font-size-small); }');
   });
 
   it('every new sentence is its own in each language, with no software words and nobody gendered in English', () => {
@@ -436,16 +397,17 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
     for (const l of LOCALES) {
       const open = conv(9, 'Zhang Wei', { conversationId: ID(99), clientId: CLIENT(3) });
       const pane = withAssistantName('Lily', () => renderListPane(LIST, l, NOW, ID(99), [], open));
-      expect(pane, l).toContain('<div class="irow is-hers on">');
+      expect(pane, l).toContain('si-row is-selected');
+      expect(pane, l).toContain('aria-current="page"');
       expect(rows(pane), l).toHaveLength(LIST.conversations.length);
-      expect(pane, l).toContain('<span class="ir-spent">');
+      expect(pane, l).toContain('<span class="sp-rval">');
       expect(pane, l).not.toContain(esc(say(l, 'pane.current')));
-      expect(pane, l).toContain('<nav class="tabs lens"');
+      expect(pane, l).toContain('<select name="filter">');
     }
     // the same function on both: no second copy of the row to drift
     const panes = readFileSync(`${ROOT}src/api/web/panes.ts`, 'utf8');
-    expect(panes).toContain('inboxRow(locale, c, { now, people, pane: { current: isCurrent(c) } })');
-    expect(inboxRow).toBeTypeOf('function');
+    expect(panes).toContain('renderInboxRows(shown, locale, now, people,');
+    expect(panes).toContain('renderInboxViews(data, locale, { compact: true })');
   });
 });
 

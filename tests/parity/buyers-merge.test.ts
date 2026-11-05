@@ -1,10 +1,11 @@
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { withZone } from '../../src/api/web/zone.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderInboxList, renderConversationDetail,
+  renderConversationDetail,
   type InboxList, type ConversationSummary, type ConversationDetail,
 } from '../../src/api/web/inbox.js';
 import { shell, esc, hubFor, CONTEXTUAL_ROUTES, MERGED_INTO_BUYERS } from '../../src/api/web/layout.js';
@@ -15,7 +16,6 @@ import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { withoutIsolates } from './isolates.js';
 import { GO } from '../../src/api/web/icons.js';
-import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * A — Buyers and Customers are one list (2026-09-28, `docs/IA-PROPOSAL.md` §A),
@@ -71,20 +71,24 @@ const html = (l: Locale, over: Partial<InboxList> = {}, people: readonly Person[
   withZone('Asia/Shanghai', () => withoutIsolates(renderInboxList({ ...PAGE, ...over }, l, NOW, people)));
 const shown = (l: Locale, key: string, params?: Record<string, string | number>) => withoutIsolates(esc(say(l, key as MessageKey, params)));
 
+/** Full shared row, including customer-card and conversation doors. */
+const rowOf = (h: string, id: string) => new RegExp(`<li id="inbox-${id}">([\\s\\S]*?)</li>`).exec(h)?.[1] ?? '';
+
+
 describe('A · one list, with a search box', () => {
   it('the box is a GET form on Buyers, in every locale, and keeps what was typed', () => {
     for (const l of LOCALES) {
       const bare = html(l);
-      expect(bare, l).toMatch(/<form class="search" method="get" action="\/app\/inbox" role="search">/);
+      expect(bare, l).toMatch(/<form class="si-search" method="get" action="\/app\/inbox" role="search">/);
       expect(bare, l).toContain('<input type="search" name="q" value=""');
       expect(bare, l).toContain(`placeholder="${shown(l, 'buyers.search.placeholder')}"`);
       expect(bare, l).toContain(`aria-label="${shown(l, 'buyers.search.label')}"`);
-      expect(bare, l).toContain(`<button class="btn" type="submit">${shown(l, 'buyers.search.go')}</button>`);
+      expect(bare, l).toContain(`<button class="sp-btn" type="submit">${shown(l, 'buyers.search.go')}</button>`);
       expect(bare, `${l}: nothing to clear`).not.toContain('class="clear"');
 
       const found = html(l, { query: 'Ahmed "Al" <Rashid>', page: { from: 1, to: 6, total: 6, next: null, prev: null } });
       expect(found, l).toContain('value="Ahmed &quot;Al&quot; &lt;Rashid&gt;"');
-      expect(found, l).toContain(`<a class="clear" href="/app/inbox">${shown(l, 'buyers.search.clear')}</a>`);
+      expect(found, l).toContain(`<a class="clear" href="/app/inbox?filter=all">${shown(l, 'buyers.search.clear')}</a>`);
       expect(found, l).toContain(shown(l, 'buyers.search.found', { q: 'Ahmed "Al" <Rashid>', n: 6 }));
       expect(found, l).not.toContain('<Rashid>');
     }
@@ -96,7 +100,7 @@ describe('A · one list, with a search box', () => {
       expect(none, l).toContain(shown(l, 'buyers.search.none', { q: '张三' }));
       expect(none, l).toContain(shown(l, 'buyers.search.noneBody'));
       // phase 4 — every customer is the list's own address now
-      expect(none, l).toContain('href="/app/inbox"');
+      expect(none, l).toContain('href="/app/inbox?filter=all"');
       expect(none.toLowerCase(), l).not.toContain('no data');
       for (const dead of ['暂无', '无数据']) expect(none, l).not.toContain(dead);
       expect(none, l).not.toContain('ok-line');   // finding nobody is not an achievement
@@ -108,25 +112,25 @@ describe('A · paging — the doors either side keep the tab and the search, and
   it('Previous and Next are doors (links), with the cursors, in every locale', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const pager = /<nav class="pager" aria-label="([^"]+)">([\s\S]*?)<\/nav>/.exec(h);
+      const pager = /<nav class="pager si-pager" aria-label="([^"]+)">([\s\S]*?)<\/nav>/.exec(h);
       expect(pager, l).not.toBeNull();
       expect(pager![1], l).toBe(shown(l, 'buyers.page.nav'));
       // phase 4 — the whole list writes no `filter=all`
-      expect(pager![2], l).toContain(`<a class="back" href="/app/inbox?before=${PREV}">`);
-      expect(pager![2], l).toContain(`<a class="deeper" href="/app/inbox?after=${NEXT}">`);
+      expect(pager![2], l).toContain(`<a class="back" href="/app/inbox?filter=all&amp;before=${PREV}">`);
+      expect(pager![2], l).toContain(`<a class="deeper" href="/app/inbox?filter=all&amp;after=${NEXT}">`);
       expect(pager![2], l).toContain(shown(l, 'buyers.page.prev'));
       expect(pager![2], l).toContain(shown(l, 'buyers.page.next'));
       expect(pager![2], l).toContain(shown(l, 'buyers.page.position', { from: '51', to: '56', total: '130' }));
       expect(pager![2], l).not.toMatch(/<button|class="btn/);
       // …and on a page after the first, where it sits is said before the rows too.
       expect(h.indexOf(shown(l, 'buyers.page.position', { from: '51', to: '56', total: '130' })), l)
-        .toBeLessThan(h.indexOf('class="bgroup"'));
+        .toBeLessThan(h.indexOf('class="si-group"'));
     }
   });
 
   it('the page before the first page is the list itself — no cursor', () => {
     const h = html('en', { page: { from: 51, to: 100, total: 130, next: NEXT, prev: { cursor: null } } });
-    expect(h).toContain('<a class="back" href="/app/inbox">');   // phase 4: the list's own address
+    expect(h).toContain('<a class="back" href="/app/inbox?filter=all">');   // phase 4: the list's own address
     expect(h).not.toContain('before=');
   });
 
@@ -138,103 +142,78 @@ describe('A · paging — the doors either side keep the tab and the search, and
     expect(last).toContain('before=');
     expect(last).not.toContain('after=');
     const one = html('en', { page: { from: 1, to: 6, total: 6, next: null, prev: null } });
-    expect(one).not.toContain('class="pager"');
+    expect(one).not.toContain('class="pager si-pager"');
   });
 
-  it('a search rides along every page door — written as typed, so no % reaches the page', () => {
+  it('search scope survives paging, ordering and view changes without altering typed words', () => {
     const h = html('zh', { query: '张 三&co' });
-    expect(h).toContain(`href="/app/inbox?q=张+三%26co&amp;after=${NEXT}"`);
+    expect(h).toContain(`href="/app/inbox?filter=all&amp;q=张+三%26co&amp;after=${NEXT}"`);
     const plain = html('ar', { query: 'أحمد', blockedCount: 2 });
-    expect(plain).toContain(`href="/app/inbox?q=أحمد&amp;before=${PREV}"`);
-    expect(plain).not.toContain('%');
-    // phase 4 — a lens keeps the search (the same people, in another order); a narrowing
-    // is a view, and leaves the search behind
-    const lens = /<nav class="tabs lens"[^>]*>([\s\S]*?)<\/nav>/.exec(plain)![1]!;
-    for (const m of lens.matchAll(/href="([^"]+)"/g)) expect(m[1]).toContain('q=أحمد');
-    const narrowings = /<nav class="tabs filters"[^>]*>([\s\S]*?)<\/nav>/.exec(plain)![1]!;
-    for (const m of narrowings.matchAll(/<a class="tab[^"]*"[^>]*href="([^"]+)"/g)) expect(m[1]).not.toContain('q=');
+    expect(plain).toContain(`href="/app/inbox?filter=all&amp;q=أحمد&amp;before=${PREV}"`);
+    const order = /<nav class="si-fils si-order"[^>]*>([\s\S]*?)<\/nav>/.exec(plain)![1]!;
+    for (const m of order.matchAll(/href="([^"]+)"/g)) expect(m[1]).toContain('q=أحمد');
+    const views = /<nav class="si-tabs"[^>]*>([\s\S]*?)<\/nav>/.exec(plain)![1]!;
+    for (const m of views.matchAll(/href="([^"]+)"/g)) expect(m[1]).toContain('q=أحمد');
+    expect(plain.replace(/<[^>]+>/g, ' ')).not.toContain('%');
   });
 });
 
 describe('A · the read model Customers brought, in the customer\'s row (phase 4 of the warmth run)', () => {
-  /** One row's inside: the link that opens the conversation. */
-  const rowOf = (h: string, id: string) =>
-    new RegExp(`<div class="irow is-(\\w+)( unanswered)?[^"]*">((?:(?!<div class="irow)[\\s\\S])*?)<a class="ir-main" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a></div>`).exec(h);
 
-  it('the row is two lines: who (and their face), what they spent; then the last message, and when', () => {
-    const h = html('en', { conversations: [conv('c-hers', { clientId: '0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01', spent: usd('1240'), regular: true })] });
-    const m = rowOf(h, 'c-hers')!;
-    // phase 4 — the face opens the customer's card; the rest of the row opens the conversation
-    expect(m[3]).toContain('href="/app/customers/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01" data-card');
-    const row = m[4]!;
-    expect(row).toContain('<bdi class="ir-name">Buyer c-hers</bdi>');
-    expect(row).toContain('<span class="ir-spent"><bdi aria-hidden="true">$1,240.00</bdi>');
-    expect(row).toContain('<span class="ir-text" dir="auto">last words of c-hers</span>');
-    expect(row).toMatch(/<span class="ir-when">[^]*13:30<\/span>/);
-    // the product and its figures left the row (phase 4): what they spent is its one figure
-    expect(row).not.toContain('Vacuum cup');
-    expect(row).not.toContain('500 pcs');
-    expect(row).not.toContain('voice');
-    // the order the eye reads it in: name, spent, then the message, then when
-    const at = (x: string) => row.indexOf(x);
-    expect(at('ir-name')).toBeLessThan(at('ir-spent'));
-    expect(at('ir-spent')).toBeLessThan(at('ir-text'));
-    expect(at('ir-text')).toBeLessThan(at('ir-when'));
+  it('each row keeps its customer face, value, preview, stage and time with separate doors', () => {
+    const h = html('en', { lens: 'value', conversations: [conv('c-hers', { clientId: '0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01', spent: usd('1240'), regular: true })] });
+    const row = rowOf(h, 'c-hers');
+    expect(row).toContain('href="/app/customers/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01" data-card');
+    expect(row).toContain('class="si-door" href="/app/inbox/c-hers?from=');
+    expect(row).toContain('<bdi class="sp-rname">Buyer c-hers</bdi>');
+    expect(row).toContain('<span class="sp-rval">$1,240</span>');
+    expect(row).toContain('<bdi class="si-last">last words of c-hers</bdi>');
+    expect(row).toContain('<span class="sp-chip">Asked</span>');
+    expect(row).toContain('<span class="sp-rday">');
+    expect(row).not.toContain('500');
+    expect(row).not.toContain('$2.40');
   });
 
-  it('the state is said, not a column of marks: ○ and its words when they need you; ✦ before what the assistant wrote', () => {
+  it('needs rows state the stored reason and the sender is named in words', () => {
     const h = html('en');
-    // phase 4 — the ○ ● ✦ column gave its place to the face
-    expect(h).not.toContain('cr-mark');
-    for (const id of ['c-del', 'c-wait', 'c-review']) {
-      const m = rowOf(h, id)!;
-      expect(m[1], id).toBe('needs');
-      expect(m[4], id).toMatch(/<span class="ir-wait"><bdi>[^<]+<\/bdi><\/span>/);
-    }
-    expect(rowOf(h, 'c-yours')![1]).toBe('yours');
-    expect(rowOf(h, 'c-hers')![1]).toBe('hers');
-    expect(rowOf(h, 'c-hers')![4]).toContain('' + agentMark(16, 'am as') + '');
-    // and a screen reader hears the state in words
+    expect(rowOf(h, 'c-del')).toContain(shown('en', 'buyers.badge.deletion'));
+    expect(rowOf(h, 'c-wait')).toContain(shown('en', 'takeover.reason.complaint'));
+    expect(rowOf(h, 'c-review')).toContain(shown('en', 'buyers.badge.reviewShort'));
+    for (const id of ['c-del', 'c-wait', 'c-review']) expect(rowOf(h, id), id).toContain('class="row-dot"');
+    for (const id of ['c-yours', 'c-hers']) expect(rowOf(h, id), id).not.toContain('class="row-dot"');
+    expect(rowOf(withAssistantName('Noor', () => html('en')), 'c-hers')).toContain('<span class="si-by"><bdi>Noor</bdi>:');
     expect(h).toContain(`<span class="sr">${esc(t('en', 'buyers.group.needsYou'))}</span>`);
   });
 
-  it('the channel is named on the row once the workspace talks on more than one — and not before', () => {
-    const several = html('en');
-    expect(several).toContain(`<span class="ir-when"><span class="ir-chan">${t('en', 'conv.channel.instagram')} · </span>`);
-    expect(several).toContain(`<span class="ir-when"><span class="ir-chan">${t('en', 'conv.channel.email')} · </span>`);
-    expect(several).toContain(`<span class="ir-when"><span class="ir-chan">${t('en', 'conv.channel.whatsapp')} · </span>`);
-    const one = html('en', { channels: 1 });
-    expect(one).not.toContain('ir-chan');
+  it('channel changes do not remove the customer name, stage or message from the compact row', () => {
+    for (const channels of [1, 2]) {
+      const h = html('en', { channels });
+      for (const c of PAGE.conversations) {
+        const row = rowOf(h, c.conversationId);
+        expect(row).toContain(esc(c.buyer!));
+        expect(row).toContain(esc(c.latestMessage!));
+        expect(row).toContain('class="sp-chip"');
+      }
+    }
   });
 
-  it('who wrote last is said in the transcript\'s words, and a buyer still waiting reads in full ink and weight', () => {
+  it('speaker words distinguish assistant, owner and customer without changing opened-state semantics', () => {
     for (const l of LOCALES) {
       const h = withAssistantName('Noor', () => html(l));
-      const quiet = rowOf(h, 'c-quiet')!;
-      expect(quiet[2], `${l}: the buyer spoke last`).toBe(' unanswered');
-      // The design pass (UI-PASS 5): the row is already the customer's name;
-      // a role word standing alone is not said.
-      expect(quiet[4], l).not.toContain(`<bdi>${esc(t(l, 'common.buyer'))}</bdi>`);
-      const hers = rowOf(h, 'c-hers')!;
-      expect(hers[2], `${l}: answered`).toBeUndefined();
-      // the assistant holds it and wrote last: its mark says so once, and its name is there for a screen reader
-      expect(hers[4], l).toContain(esc(t(l, 'buyers.group.hers', { name: 'Noor' })));
-      const yours = rowOf(h, 'c-yours')!;
-      expect(yours[4], l).toContain(`<bdi>${esc(t(l, 'conv.by.you'))}</bdi>`);
+      expect(rowOf(h, 'c-quiet'), l).not.toContain('class="si-by"');
+      expect(rowOf(h, 'c-hers'), l).toContain('<span class="si-by"><bdi>Noor</bdi>');
+      expect(rowOf(h, 'c-yours'), l).toContain(`<span class="si-by"><bdi>${shown(l, 'conv.by.you')}</bdi>`);
+      const unopened = html(l, { conversations: [conv('c-new', { awaitingReview: true, unopened: true })] });
+      expect(rowOf(unopened, 'c-new'), l).toContain('is-new');
     }
-    const css = read('src/api/web/layout.ts');
-    expect(css).toMatch(/\.irow\.unanswered \.ir-text \{ color:var\(--color-ink\); \}/);
-    // Bold is the owner's "not opened yet" (2026-11-04), and says nothing else.
-    expect(css).toMatch(/\.irow\.is-new \.ir-name \{ font-weight:700; \}/);
+    expect(read('src/api/web/splitStyle.ts')).toContain('.si-row.is-new .sp-rname { font-weight:700; }');
   });
 
-  it('with several assistants, the row names the one answering once, not twice', () => {
+  it('multiple assistants are attributed once as speaker, or once as holder when the customer spoke last', () => {
     const h = html('en', { conversations: [conv('c-a', { answeredBy: 'Noor', lastFrom: 'assistant' }), conv('c-b', { answeredBy: 'Noor', lastFrom: 'buyer', unanswered: true })] });
-    const a = rowOf(h, 'c-a')![4]!;
-    expect(a.match(/Noor/g)?.length).toBe(1);
-    const b = rowOf(h, 'c-b')![4]!;
-    expect(b).toContain(esc(t('en', 'buyers.group.hers', { name: 'Noor' })));
-    expect(b.match(/Noor/g)?.length).toBe(1);
+    expect(rowOf(h, 'c-a').match(/Noor/g)).toHaveLength(1);
+    expect(rowOf(h, 'c-b')).toContain(shown('en', 'buyers.group.hers', { name: 'Noor' }));
+    expect(rowOf(h, 'c-b').match(/Noor/g)).toHaveLength(1);
   });
 
   it('the glimpse of a long message is cut by characters — never through an emoji', () => {
@@ -242,14 +221,14 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     const long = `${'a'.repeat(199)}😀 and the rest`;
     const h = html('en', { conversations: [conv('c-long', { latestMessage: long })] });
     // Phase 9 (V1-164) — and says it was cut.
-    expect(h).toContain(`<span class="ir-text" dir="auto">${'a'.repeat(199)}😀…</span>`);
+    expect(h).toContain(`<bdi class="si-last">${'a'.repeat(199)}😀…</bdi>`);
     expect(h).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
   });
 
   it('phase 9 (V1-164) · a long preview is cut where a word ends, and says so', () => {
     const long = 'For 500 pcs the price is $1.05/pc and for 2,000 pcs it is $0.92/pc, lead time 25 days from the deposit. '.repeat(3);
     const h = html('en', { conversations: [conv('c-cut', { latestMessage: long })] });
-    const text = /<span class="ir-text" dir="auto">([^<]*)<\/span>/.exec(h)![1]!;
+    const text = /<bdi class="si-last">([^<]*)<\/bdi>/.exec(h)![1]!;
     expect(text.endsWith('…')).toBe(true);
     expect(long.startsWith(text.slice(0, -1))).toBe(true);
     expect(long[text.length - 1]).toBe(' ');   // the cut falls where a word ended
@@ -258,72 +237,50 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
   it('a row with no message yet shows no speaker and no empty line', () => {
     const { lastFrom: _none, ...fresh } = conv('c-new', { latestMessage: null, latestAt: null });
     const h = html('en', { conversations: [fresh], channels: 1 });
-    expect(h).not.toContain('class="ir-text"');
-    expect(h).toContain('<span class="ir-when"></span>');
+    expect(h).not.toContain('class="si-said"');
+    expect(h).not.toContain('class="si-by"');
+    expect(h).toContain('<span class="sp-rday"></span>');
   });
 });
 
 describe('A · the groups and the tabs', () => {
-  it('on All, the groups lead in the order the list is ranked in, each headed', () => {
+  it('flat list preserves the reader order while deletion requests lead under their heading', () => {
     const h = withAssistantName('Noor', () => html('en'));
-    const heads = [...h.matchAll(/<h2 class="bgroup-h">([^<]+)<\/h2>/g)].map((m) => m[1]);
-    expect(heads).toEqual([
-      esc(t('en', 'buyers.group.deletion')), esc(t('en', 'buyers.group.needsYou')),
-      esc(t('en', 'buyers.group.yours')),
-      // Phase 9 (V1-173) — the assistant's open conversations a customer wrote last are headed apart, as the list ranks them.
-      esc(t('en', 'buyers.group.hersWaiting', { name: 'Noor' })), esc(t('en', 'buyers.group.hers', { name: 'Noor' })),
-    ]);
-    const at = (id: string) => h.indexOf(`/app/inbox/${id}#latest`);
-    expect(at('c-del')).toBeLessThan(at('c-wait'));
-    expect(at('c-wait')).toBeLessThan(at('c-review'));
-    expect(at('c-review')).toBeLessThan(at('c-yours'));
-    expect(at('c-yours')).toBeLessThan(at('c-quiet'));
-    // each conversation exactly once
-    for (const c of PAGE.conversations) expect(h.split(`/app/inbox/${c.conversationId}#latest`).length - 1).toBe(1);
+    expect([...h.matchAll(/<h2 class="sp-cap">([^<]+)<\/h2>/g)].map((m) => m[1])).toEqual([shown('en', 'buyers.group.deletion')]);
+    const at = (id: string) => h.indexOf(`id="inbox-${id}"`);
+    for (let i = 1; i < PAGE.conversations.length; i++) expect(at(PAGE.conversations[i - 1]!.conversationId)).toBeLessThan(at(PAGE.conversations[i]!.conversationId));
+    for (const c of PAGE.conversations) expect(h.split(`class="si-door" href="/app/inbox/${c.conversationId}?from=`).length - 1).toBe(1);
   });
 
-  it('with a team, the group a person here holds is the team\'s — not "you are handling" above a colleague\'s buyer', () => {
+  it('a colleague is named as holder instead of falsely attributing their customer to the owner', () => {
     const owner: Person = { id: 'p-owner', name: 'Mrs Wang', isOwner: true };
     const chen: Person = { id: 'p-chen', name: 'Xiao Chen', isOwner: false };
     for (const l of LOCALES) {
-      const team = html(l, {}, [owner, chen]);
-      expect(team, l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.team')}</h2>`);
-      expect(team, l).not.toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.yours')}</h2>`);
-      expect(html(l), l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.yours')}</h2>`);
+      const team = html(l, { conversations: [conv('c-held', { ownership: 'OWNER_CONTROLLED', heldBy: chen.id })] }, [owner, chen]);
+      expect(rowOf(team, 'c-held'), l).toContain(shown(l, 'people.holding', { who: 'Xiao Chen' }));
+      expect(rowOf(team, 'c-held'), l).not.toContain(shown(l, 'people.holding', { who: say(l, 'people.held.owner') }));
     }
   });
 
   it('on the other tabs only the deletion group is headed', () => {
     const h = html('en', { filter: 'pending' });
-    expect([...h.matchAll(/<h2 class="bgroup-h">/g)]).toHaveLength(1);
+    expect([...h.matchAll(/<h2 class="sp-cap">/g)]).toHaveLength(1);
   });
 
-  it('the tabs (phase 4): the two lenses, then the narrowings with their counts while they hold someone; never Mine', () => {
-    const owner: Person = { id: 'p-owner', name: 'Mrs Wang', isOwner: true };
-    const chen: Person = { id: 'p-chen', name: 'Xiao Chen', isOwner: false };
+  it('views show actual conditional counts and retain separate lens controls', () => {
     for (const l of LOCALES) {
-      const h = html(l, { mineCount: 2, blockedCount: 4 }, [owner, chen]);
-      const lens = /<nav class="tabs lens" aria-label="([^"]+)">([\s\S]*?)<\/nav>/.exec(h)!;
-      expect(lens[1], l).toBe(shown(l, 'buyers.lens.label'));
-      const segs = [...lens[2]!.matchAll(/<a class="tab( on)?"( aria-current="true")? href="([^"]+)">([^<]+)<\/a>/g)];
-      expect(segs.map((m) => m[3]), l).toEqual(['/app/inbox', '/app/inbox?lens=value']);
-      expect(segs.filter((m) => m[1]).map((m) => m[3]), l).toEqual(['/app/inbox']);
-      const nav = /<nav class="tabs filters" aria-label="([^"]+)">([\s\S]*?)<\/nav>/.exec(h)!;
-      expect(nav[1], l).toBe(shown(l, 'buyers.tabs'));
-      const tabs = [...nav[2]!.matchAll(/<a class="tab( on)?"( aria-current="true")? href="([^"]+)">([^<]+)<\/a>/g)];
-      expect(tabs.map((m) => m[3]), l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion']);
-      expect(tabs[0]![4], l).toBe(`${shown(l, 'inbox.filter.blocked')} (4)`);
-      expect(tabs[1]![4], l).toBe(`${shown(l, 'inbox.filter.deletion')} (1)`);
-      // "Mine" was team machinery the owner ruled out; "All" and "Needs you" are the list itself
+      const h = html(l, { mineCount: 2, blockedCount: 4 });
+      const views = /<nav class="si-tabs"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1]!;
+      for (const f of ['pending', 'quiet', 'assistant', 'all', 'blocked', 'deletion']) expect(views, l).toContain(`filter=${f}`);
+      expect(views, l).toContain(`<span class="si-tabn">${4}</span>`);
       expect(h, l).not.toContain('filter=mine');
-      expect(h, l).not.toContain('filter=all');
-      expect(h, l).not.toContain('filter=pending');
+      const order = /<nav class="si-fils si-order"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1]!;
+      expect(order, l).toContain('aria-current="true" href="/app/inbox?filter=all"');
+      expect(order, l).toContain('href="/app/inbox?filter=all&amp;lens=value"');
     }
-    // nothing blocked and nothing to delete: no narrowings at all
     const alone = html('en', { deletionCount: 0 });
     expect(alone).not.toContain('filter=blocked');
     expect(alone).not.toContain('filter=deletion');
-    expect(alone).not.toContain('class="tabs filters"');
   });
 });
 
@@ -353,8 +310,8 @@ describe('A · three languages, right to left', () => {
     const page = shell({ title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: html('ar') });
     expect(page).toContain('<html lang="ar" dir="rtl"');
     // the name and the message each take their own direction, so an English message is cut at its end
-    expect(html('ar')).toContain('<span class="ir-text" dir="auto">');
-    expect(html('ar')).toContain('<bdi class="ir-name">Buyer c-hers</bdi>');
+    expect(html('ar')).toContain('<bdi class="si-last">');
+    expect(html('ar')).toContain('<bdi class="sp-rname">Buyer c-hers</bdi>');
     // the position says "to", not a dash two numbers would reorder around
     expect(t('ar', 'buyers.page.position')).not.toMatch(/[–-]/);
     expect(html('ar')).toContain(esc(t('ar', 'buyers.page.position', { from: '51', to: '56', total: '130' })));
@@ -363,7 +320,7 @@ describe('A · three languages, right to left', () => {
   it('no locale prints a percent sign, software talk or a stylesheet of its own', () => {
     for (const l of LOCALES) {
       const h = html(l, { query: 'Ahmed Ali' });
-      expect(h, l).not.toContain('%');
+      expect(h.replace(/<[^>]+>/g, ' '), l).not.toContain('%');
       expect(h, l).not.toContain('<style');
       const text = h.replace(/<[^>]+>/g, ' ').toLowerCase();
       for (const banned of ['ai', 'llm', 'model', 'token', 'database', 'webhook', '模型', '人工智能']) {
@@ -401,7 +358,8 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     for (const l of LOCALES) {
       const h = withoutIsolates(renderConversationDetail(detail, l, NOW, null));
       // `file-door`: where the customer panel stands beside the conversation, it carries this door instead (the design pass)
-      expect(h, l).toContain(`<a class="deeper file-door" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}${GO}</a>`);
+      expect(h, l).toContain('href="/app/conversations/c-1"');
+      expect(h, l).toContain(shown(l, 'panel.open'));
       expect(h, l).not.toContain('<style');
     }
   });

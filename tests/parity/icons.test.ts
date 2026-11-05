@@ -399,13 +399,12 @@ describe('the assistant\'s slot: no sparkle, a neutral placeholder, one function
       expect(code(src).includes("'user-circle'") && !f.endsWith('icons.ts'), `${f} names the slot's drawing`).toBe(false);
     }
     const { atWork, byAssistant } = await import('../../src/api/web/layout.js');
-    const { ROW_MARK } = await import('../../src/api/web/inbox.js');
     expect(atWork('Writing a reply', true)).toContain(`${agentMark(16, 'am as')} <span>Writing a reply</span>`);
     expect(atWork('Stripe is confirming the card')).not.toContain('data-mark');
-    expect(ROW_MARK.hers).toBe(agentMark(16, 'am'));
+    // List previews name their speaker in words; places drawing an assistant mark still use the shared seal.
     expect(byAssistant('Lily')).toBe('<span class="as">Lily</span>');
     const callers = sources(WEB_DIR).filter(({ src }) => /agentMark\(/.test(code(src))).map(({ f }) => f).sort();
-    expect(callers).toEqual(['calendar.ts', 'conversations.ts', 'inbox.ts', 'layout.ts', 'operations.ts', 'panes.ts', 'settings.ts', 'today.ts']);
+    expect(callers).toEqual(['calendar.ts', 'conversations.ts', 'layout.ts', 'operations.ts', 'panes.ts', 'settings.ts', 'today.ts']);
   });
 });
 
@@ -484,7 +483,7 @@ describe('one family on every screen: Solar, no emoji', () => {
     const inbox = code(read('src/api/web/inbox.ts'));
     expect(inbox).toContain(`\${icon('file', 'mi')}`);
     expect(inbox).toContain(`\${icon('voice', 'mi')}`);
-    expect(inbox).toContain(`\${icon('regular', 'ni')}`);
+    expect(code(read('src/api/web/splitInbox.ts'))).toContain("t(locale, 'buyers.row.regular')");
     expect(code(read('src/api/web/sandbox.ts'))).toContain(`icon('photo', 'mi')`);
     expect(read('src/api/web/faces.ts')).toContain("icon('person', 'fi')");
     for (const [id, name] of [['file', 'paperclip'], ['voice', 'microphone'], ['photo', 'gallery'], ['person', 'user'], ['regular', 'repeat']] as const) {

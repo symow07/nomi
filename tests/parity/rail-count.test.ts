@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderInboxList, type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { shell } from '../../src/api/web/layout.js';
 import { railFigure } from '../../src/api/web/values.js';
 import { railSaid } from '../../src/api/web/live.js';
@@ -21,7 +22,7 @@ const SCOPE = { name: null, several: false, outreach: true, setup: null, busines
 const page = (needsYou: number, split = false) => withWorkspace({ ...SCOPE, needsYou }, () =>
   shell({ title: 'T', active: 'inbox', locale: 'en', path: '/app/inbox', bodyHtml: '', ...(split ? { split: { me: 'p-1' } } : {}) }));
 const CSS = linkedCss(page(1));
-const ruleOf = (sel: string): string => new RegExp(`(?:^|[\\s}])${sel.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`).exec(CSS)?.[1] ?? '';
+const ruleOf = (sel: string): string => new RegExp(`(?:^|[\\r\\n}])${sel.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`).exec(CSS)?.[1] ?? '';
 
 const conv = (id: string, over: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: id, buyer: `Customer ${id}`, country: 'AE', status: 'handled', needsAction: false, ownership: 'AI', heldBy: null,
@@ -33,8 +34,8 @@ const LIST = (conversations: ConversationSummary[]): InboxList =>
 const rows = (conversations: ConversationSummary[]) => withWorkspace({ ...SCOPE, needsYou: 0 }, () => withZone('UTC', () =>
   renderInboxList(LIST(conversations), 'en', new Date('2026-11-04T10:00:00Z'))));
 const rowHtml = (h: string, id: string): string => {
-  const at = h.indexOf(`href="/app/inbox/${id}#latest"`);
-  return h.slice(h.lastIndexOf('<div class="irow', at), h.indexOf('</a></div>', at));
+  const at = h.indexOf(`<li id="inbox-${id}">`);
+  return h.slice(at, h.indexOf('</li>', at));
 };
 const WAITS = { ownership: 'WAITING_HUMAN', heldBy: 'unclaimed', handoffReason: 'human_requested' } as const;
 
@@ -81,7 +82,7 @@ describe('a row that needs you', () => {
   it('has one dot, at its start, and a row that does not has none', () => {
     const a = rowHtml(h, 'a');
     expect(a.match(/class="row-dot"/g)).toHaveLength(1);
-    expect(a.indexOf('row-dot')).toBeLessThan(a.indexOf('ir-main'));
+    expect(a.indexOf('row-dot')).toBeLessThan(a.indexOf('si-who'));
     expect(rowHtml(h, 'b').match(/class="row-dot"/g)).toHaveLength(1);
     expect(rowHtml(h, 'c')).not.toContain('row-dot');
   });
@@ -91,21 +92,21 @@ describe('a row that needs you', () => {
     expect(rowHtml(h, 'a')).toContain('<span class="sr">Not opened yet</span>');
     expect(rowHtml(h, 'b')).not.toContain('is-new');
     expect(rowHtml(h, 'c')).not.toContain('is-new');   // unopened, but nothing asks for the owner
-    expect(ruleOf('.irow.is-new .ir-name')).toContain('font-weight:700');
+    expect(ruleOf('.si-row.is-new .sp-rname')).toContain('font-weight:700');
     expect(CSS).not.toContain('.irow.unanswered .ir-name');
     expect(CSS).not.toContain('.crow.unanswered .cr-name');
   });
 
   it('keeps its reason in words: the dot is never alone', () => {
-    expect(rowHtml(h, 'a')).toContain('class="ir-wait"');
+    expect(rowHtml(h, 'a')).toContain('class="si-why"');
   });
 });
 
 describe('a long name in either direction', () => {
   it('the element that cuts is itself the isolate, so it reads its own direction', () => {
     const h = rows([conv('a', { buyer: 'Bartholomew Featherstonehaugh-Cholmondeley' })]);
-    expect(rowHtml(h, 'a')).toContain('<bdi class="ir-name">Bartholomew');
-    expect(ruleOf('.ir-name')).toContain('text-overflow:ellipsis');
+    expect(rowHtml(h, 'a')).toContain('<bdi class="sp-rname">Bartholomew');
+    expect(ruleOf('.sp-rname')).toContain('text-overflow:ellipsis');
   });
 
   it('a name that is cut is never a <span dir="auto"> around a <bdi>: dir="auto" reads past it, and finds no words', () => {
