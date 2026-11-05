@@ -110,13 +110,14 @@ describe('V1-233 · the list beside a conversation heads its rows as the list pa
     filter: 'pending', waitingCount: 2, blockedCount: 0, deletionCount: 0, mineCount: 1,
     conversations: [row('c-1', { awaitingReview: true }), row('c-2', { ownership: 'OWNER_CONTROLLED', heldBy: OWNER.id })],
   };
-  it('under "Needs you" no row is headed "Your team is handling"; on All every group is headed', () => {
+  it('the compact view names the selected scope and retains both conversations', () => {
     for (const l of LOCALES) {
       const pending = renderListPane(list, l, NOW, 'c-1', [OWNER, CHEN]);
       expect(pending, l).not.toContain(esc(t(l, 'buyers.group.team')));
       expect(pending, l).not.toContain('class="lp-group"');
       const all = renderListPane({ ...list, filter: 'all' }, l, NOW, 'c-1', [OWNER, CHEN]);
-      expect(all, l).toContain(`<li class="lp-group" aria-hidden="true">${esc(t(l, 'buyers.group.team'))}</li>`);
+      expect(all, l).toContain('<option value="all" selected>');
+      for (const id of ['c-1', 'c-2']) expect(all, l).toContain(`/app/inbox/${id}`);
     }
   });
 });
@@ -129,12 +130,12 @@ describe('V1-257 · the open conversation is in the list beside it', () => {
       const html = renderListPane(list, l, NOW, 'c-9', [], open);
       expect(html, l).toContain(esc(t(l, 'pane.current')));
       // The warmth run, phase 4 — the Inbox's own row: the open one lit, its link the current page.
-      expect(html, l).toMatch(/<div class="irow [^"]* on">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/c-9#latest" aria-current="page">/);
-      expect(html.indexOf('c-9#latest'), l).toBeLessThan(html.indexOf('c-1#latest'));
+      expect(html, l).toMatch(/<div class="sp-row si-row[^"]*is-selected[^"]*">[\s\S]*?<a class="si-door" href="\/app\/inbox\/c-9(?:\?[^"]*)?#latest" aria-current="page">/);
+      expect(html.indexOf('/app/inbox/c-9'), l).toBeLessThan(html.indexOf('/app/inbox/c-1'));
       // listed already: said once, where the tab has it
       const listed = renderListPane({ ...list, conversations: [...list.conversations, row('c-9')] }, l, NOW, 'c-9', [], open);
       expect(listed, l).not.toContain(esc(t(l, 'pane.current')));
-      expect(listed.split('c-9#latest').length - 1, l).toBe(1);
+      expect(listed.split('/app/inbox/c-9').length - 1, l).toBe(1);
     }
   });
 });
@@ -144,7 +145,7 @@ describe('conversation-missed-02 · the list has one name beside the conversatio
     const list: InboxList = { filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] };
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-1');
-      expect(html, l).toContain(`<h2 class="lp-h">${esc(t(l, 'nav.inbox'))}</h2>`);
+      expect(html, l).toContain(`<h2 class="lp-h"><a href="/app/inbox?filter=all">${esc(t(l, 'nav.inbox'))}</a></h2>`);
       expect(t(l, 'inbox.detail.back'), l).toBe(t(l, 'nav.inbox'));
     }
   });
@@ -368,7 +369,7 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-2');
       // phase 4 — the Inbox's own row: the mark and the name it stands for lead the message
-      expect(html, l).toMatch(/<span class="ir-by"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(html, l).toMatch(/<span class="si-by"><bdi>[^<]+<\/bdi>[^]*?<bdi class="si-last"/);
       const page = renderConversationDetail(draft(), l, NOW, null);
       expect(page, l).toContain(`${esc(t(l, 'card.drafted'))}`);
     }

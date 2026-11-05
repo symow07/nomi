@@ -117,7 +117,8 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // question's height — 43,337 measured; 33,500 became 44,000, deliberately.
     // The owner's four changes (2026-10-08): the field closer and softer, the pool drawn as the glow made thin,
     // and a talking page that opens at its end — 44,947 measured; 44,000 became 46,000, deliberately.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(46_000);
+    // Area 2 adds the optional conversation panel, scroll restoration and stale-request-safe reply insertion (about 7 KB) to the same deferred script.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(54_000);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
@@ -125,9 +126,11 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // The exceptions are the browser's own two names for the answer's format — the
     // `.json()` method and the `application/json` type it asks for — and (G5b) the
     // browser's own way to hand over a push subscription, `JSON.stringify(sub)`:
-    // never words she reads.
-    expect(LIVE_SCRIPT.match(/\.json\(\)|application\/json|JSON\.stringify\(sub\)/g)).toHaveLength(3);
-    const text = LIVE_SCRIPT.replace(/\.json\(\)|application\/json|JSON\.stringify\(sub\)/g, '').toLowerCase();
+    // never words she reads. Area 2 adds one JSON Accept header and response reader for read-only reply validation.
+    expect(LIVE_SCRIPT.match(/\.json\(\)|application\/json|JSON\.stringify\(sub\)/g)).toHaveLength(5);
+    // The panel also uses JavaScript's null literal for absent state and the backend's explicit no-draft identity.
+    // Rendered owner copy is independently checked in the catalogue and page suites.
+    const text = LIVE_SCRIPT.replace(/\.json\(\)|application\/json|JSON\.stringify\(sub\)|\bnull\b/g, '').toLowerCase();
     for (const banned of [...BANNED_OWNER_TERMS, 'stack']) {
       const b = banned.toLowerCase();
       const hit = /^[a-z ]+$/.test(b) ? new RegExp(`(?<![a-z-])${b}(?![a-z-])`).test(text) : text.includes(b);
@@ -264,7 +267,7 @@ describe('CC-26 · the half-typed reply is marked for keeping — the two boxes,
 
   it('the owner\'s own reply box, keyed by its conversation — and its kept words (CC-24) are its default', () => {
     const html = renderConversationDetail({ ...base, ownership: 'OWNER_CONTROLLED', pendingDraft: null, ownerUnsentReply: 'Hello again' }, 'ar', NOW, null);
-    expect(html).toMatch(new RegExp(`<textarea name="text"[^>]*required data-keep="${CONV}:reply">Hello again</textarea>`));
+    expect(html).toMatch(new RegExp(`<textarea[^>]*name="text"[^>]*required[^>]*data-keep="${CONV}:reply">Hello again</textarea>`));
     expect(html.match(/data-keep=/g)).toHaveLength(1);
   });
 

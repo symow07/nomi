@@ -79,8 +79,12 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
 
   /** The customers a page lists, by their row's conversation, in page order. */
   const listed = (html: string): string[] =>
-    [...html.matchAll(/<a class="ir-main" href="\/app\/inbox\/([0-9a-f-]{36})#latest"/g)].map((m) => m[1]!);
-  const band = (html: string): string => /<section class="attn"[\s\S]*?<\/section>/.exec(html)?.[0] ?? '';
+    [...html.matchAll(/<a class="si-door" href="\/app\/inbox\/([0-9a-f-]{36})\?from=[^"]+#latest"/g)].map((m) => m[1]!);
+  const row = (html: string, name: string): string => {
+    const found = new RegExp(`<li id="inbox-${conv[name]}">([\\s\\S]*?)</li>`).exec(html);
+    expect(found, `actual row for ${name}`).not.toBeNull();
+    return found![1]!;
+  };
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
@@ -156,7 +160,7 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('a customer on two channels is one row, which opens their newest conversation', async () => {
-    const r = await get('/app/inbox');
+    const r = await get('/app/inbox?filter=all');
     expect(r.statusCode).toBe(200);
     const ids = listed(r.body);
     expect(ids).toHaveLength(Object.keys(who).length);
@@ -184,32 +188,22 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
   });
 
   it('"matters most": the most spent first, a cancelled order counts for nothing, then everyone else by newest', async () => {
-    const r = await get('/app/inbox?lens=value');
+    const r = await get('/app/inbox?filter=all&lens=value');
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?lens=value">');
+    expect(r.body).toContain('<a class="si-fil on" aria-current="true" href="/app/inbox?filter=all&amp;lens=value">');
     const ids = listed(r.body);
-    // A row's own link, not the band's (the band above the list may name the same customer).
-    const rowAt = (id: string | undefined) => r.body.indexOf(`<a class="ir-main" href="/app/inbox/${id}#latest"`);
     expect(ids.slice(0, 3)).toEqual([conv['Ade'], conv['Cy'], conv['Bo']]);
-    const head = r.body.indexOf('<h2 class="bgroup-h">Nothing spent yet</h2>');
-    expect(head).toBeGreaterThan(rowAt(conv['Bo']));
-    // phase 9 of the warmth run (w4-customers-04) — between them, those given a price and not ordered on, headed apart
-    const quoted = r.body.indexOf('<h2 class="bgroup-h">Given a price, nothing ordered yet</h2>');
-    expect(quoted).toBeGreaterThan(rowAt(conv['Bo']));
-    expect(rowAt(conv['Fay'])).toBeGreaterThan(quoted);
-    expect(rowAt(conv['Fay'])).toBeLessThan(head);
-    expect(rowAt(conv['Dee'])).toBeGreaterThan(head);
-    // the rest by their last contact, the newest first: Ed (30 minutes) before Tan (an hour)
+    // The flat list keeps the reader's value order, including given prices before no value.
+    expect(ids.indexOf(conv['Fay']!)).toBeGreaterThan(ids.indexOf(conv['Bo']!));
+    expect(ids.indexOf(conv['Fay']!)).toBeLessThan(ids.indexOf(conv['Dee']!));
     expect(ids.indexOf(conv['Ed']!)).toBeLessThan(ids.indexOf(conv['Tan']!));
-    // what they spent, as the order pages write it; the regulars marked, by Nomi
-    expect(r.body).toContain('<bdi aria-hidden="true">$12,000.00</bdi>');
-    expect(r.body).toContain('<bdi aria-hidden="true">$1,500.00</bdi>');
-    expect(r.body).toContain('<bdi aria-hidden="true">$1,200.00</bdi>');
+    expect(row(r.body,'Ade')).toContain('$12,000');
+    expect(row(r.body,'Cy')).toContain('$1,500');
+    expect(row(r.body,'Bo')).toContain('$1,200');
     expect(r.body).not.toContain('99,999');
-    const row = (name: string) => new RegExp(`<a class="ir-main" href="/app/inbox/${conv[name]}#latest"[^>]*>([\\s\\S]*?)</a></div>`).exec(r.body)?.[1] ?? '';
-    expect(row('Bo')).toContain('class="ir-reg"');
-    expect(row('Cy')).toContain('class="ir-reg"');
-    expect(row('Ade')).not.toContain('class="ir-reg"');
+    expect(row(r.body,'Bo')).toContain('Regular');
+    expect(row(r.body,'Cy')).toContain('Regular');
+    expect(row(r.body,'Ade')).not.toContain('Regular');
   });
 
   it('"matters most" pages by its own cursor, both ways, losing nobody', async () => {
@@ -237,29 +231,23 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     expect(backward).toEqual(forward);
   });
 
-  it('the band: quiet after a price, a question unanswered, a regular who stopped — nobody waiting, too fresh or too old', async () => {
-    const r = await get('/app/inbox');
-    const b = band(r.body);
-    expect(b).toContain('Needs attention');
-    const at = (name: string) => b.indexOf(`href="/app/inbox/${conv[name]}#latest"`);
-    for (const name of ['Cy', 'Fay', 'Gus']) expect(at(name), name).toBeGreaterThan(-1);
-    for (const name of ['Hal', 'Ivy', 'Jo', 'Kim', 'Ade', 'Bo', 'Tan']) expect(at(name), name).toBe(-1);
-    // each with its line; the one who spent most first, then the most recent
-    expect(b).toMatch(/Cy<\/bdi><span class="ar-line">Regular, no order since /);
-    expect(b).toMatch(/Fay<\/bdi><span class="ar-line">Price given [^<]+, no word since/);
-    expect(b).toMatch(/Gus<\/bdi><span class="ar-line">Question sent [^<]+, no answer yet/);
-    expect(at('Cy')).toBeLessThan(at('Fay'));
-    expect(at('Fay')).toBeLessThan(at('Gus'));
-    // the same in the other lens; never on a search, a narrowing, or a later page
-    expect(band((await get('/app/inbox?lens=value')).body)).toContain(`/app/inbox/${conv['Fay']}#latest`);
-    expect(band((await get('/app/inbox?q=Fay')).body)).toBe('');
-    expect(band((await get('/app/inbox?filter=pending')).body)).toBe('');
+  it('Gone quiet: a price unanswered, an unanswered question and an absent regular; never waiting, too fresh or too old', async () => {
+    const r = await get('/app/inbox?filter=quiet&lens=value');
+    const ids = listed(r.body);
+    expect(ids).toEqual([conv['Cy'], conv['Fay'], conv['Gus']]);
+    for (const name of ['Hal', 'Ivy', 'Jo', 'Kim', 'Ade', 'Bo', 'Tan']) expect(ids, name).not.toContain(conv[name]);
+    expect(row(r.body,'Cy')).toContain('Regular, no order since ');
+    expect(row(r.body,'Fay')).toMatch(/Price given [^<]+, no word since/);
+    expect(row(r.body,'Gus')).toMatch(/Question sent [^<]+, no answer yet/);
+    expect(listed((await get('/app/inbox?filter=quiet')).body).sort()).toEqual([...ids].sort());
+    expect(listed((await get('/app/inbox?filter=quiet&q=Fay')).body)).toEqual([conv['Fay']]);
+    expect(listed((await get('/app/inbox?filter=pending')).body)).toEqual([conv['Ivy']]);
   });
 
   it('a search keeps the lens, and "Mine"\'s old address leads to the list, keeping the lens and the search', async () => {
     const r = await get('/app/inbox?lens=value&q=Bo');
     expect(listed(r.body)).toEqual([conv['Bo']]);
-    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?lens=value&amp;q=Bo">');
+    expect(r.body).toContain('<a class="si-fil on" aria-current="true" href="/app/inbox?filter=all&amp;lens=value&amp;q=Bo">');
     expect(r.body).toContain('<input type="hidden" name="lens" value="value" />');
     const mine = await get('/app/inbox?filter=mine');
     expect(mine.statusCode).toBe(302);

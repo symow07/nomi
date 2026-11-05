@@ -6,7 +6,8 @@ import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { parseOwnerReply } from '../../src/core/conversation/cards.js';
-import { renderInboxList, renderConversationDetail } from '../../src/api/web/inbox.js';
+import { renderConversationDetail } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { everyScreen } from './employee-screens.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import type { TodayData } from '../../src/api/web/today.js';

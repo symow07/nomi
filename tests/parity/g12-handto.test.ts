@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { usd } from '../../src/core/types/money.js';
 import { canTransition, ownershipOf, aiMaySpeak } from '../../src/core/conversation/ownership.js';
-import { renderConversationDetail, renderInboxList, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
+import { renderConversationDetail, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import type { Person } from '../../src/core/conversation/people.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -132,7 +133,7 @@ describe('G12 · Mine', () => {
   // gone for everyone; who holds a conversation is still said on its row; the old
   // address leads to the whole list (the route, app.ts).
   it('the tab is never drawn — with a team or alone — and the row still names who holds it', () => {
-    expect(renderInboxList(list(), 'en', NOW, people)).not.toContain('filter=mine');
+    expect(renderInboxList(list({ filter: 'all' }), 'en', NOW, people)).not.toContain('filter=mine');
     expect(renderInboxList(list({ filter: 'all' }), 'en', NOW, [owner])).not.toContain('filter=mine');
     expect(renderInboxList(list({ filter: 'all' }), 'en', NOW, people)).toContain(t('en', 'people.holding', { who: 'Xiao Chen' }));
   });

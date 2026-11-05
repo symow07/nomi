@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { REFUSAL_REASONS, type Refusal } from '../../src/api/web/refusals.js';
 import { gateOutbound, GATE_REFUSALS, type GateRefusal } from '../../src/core/channel/sendGate.js';
 import type { SendPlan } from '../../src/core/channel/window.js';
-import { renderConversationDetail, renderInboxList, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
+import { renderConversationDetail, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -220,7 +221,7 @@ describe('M22 · the blocked filter appears only when it has something to say', 
   it('appears with its count once something was', () => {
     const html = renderInboxList(list({ blockedCount: 2 }), 'en', NOW);
     expect(html).toContain('filter=blocked');
-    expect(html).toContain('Did not send (2)');
+    expect(html).toContain('Did not send<span class="si-tabn">2</span>');
   });
 
   it('stays visible when the owner is standing on it, even at zero', () => {

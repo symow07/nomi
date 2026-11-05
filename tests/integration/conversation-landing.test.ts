@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { flashSaid } from './tenant.js';
+import { flashSaid, ensureQueueSchema } from './tenant.js';
+import { safeInboxReturn } from '../../src/api/web/inboxNavigation.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -102,9 +103,10 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     return m!.index;
   };
   /** Every address on a page that opens a conversation. */
-  const doors = (html: string) => [...html.matchAll(/href="(\/app\/inbox\/[^"]*)"/g)].map((m) => m[1]!);
+  const doors = (html: string) => [...html.matchAll(/href="(\/app\/inbox\/[0-9a-f-]{36}(?:[?#][^"]*)?)"/g)].map((m) => m[1]!);
 
   beforeAll(async () => {
+    await ensureQueueSchema();
     const { createDb } = await import('../../src/db/client.js');
     const { ensureConversation } = await import('../../src/db/channels.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -186,12 +188,18 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
       '/app/inbox?filter=all', `/app/conversations/${conv}`]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);
-      expect(r.body, url).toContain(landing);
+      if (url.startsWith('/app/inbox?')) expect(r.body, url).toContain(`class="si-door" href="/app/inbox/${conv}?from=`);
+      else expect(r.body, url).toContain(landing);
       expect(r.body, url).not.toContain(top);
-      // every door into a conversation, on every one of them, lands — and carries no `%`
+      // Every conversation door lands on the newest message; scoped list returns are validated same-origin URLs.
       for (const href of doors(r.body)) {
         expect(href, url).toMatch(/#latest$/);
-        expect(href, url).not.toContain('%');
+        const address = new URL(href.replace(/&amp;/g, '&'), 'http://localhost');
+        const source = address.searchParams.get('from');
+        if (source !== null) {
+          expect(safeInboxReturn(source), url).not.toBeNull();
+          expect(source, url).toContain(`#inbox-${address.pathname.split('/').at(-1)}`);
+        }
       }
     }
     // The calendar's order row opens the order (the order's day, chosen in the grid); the order opens the conversation.

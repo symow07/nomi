@@ -3,7 +3,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
-import { renderInboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { everyScreen } from './employee-screens.js';
 import { renderFactory } from '../../src/api/web/factory.js';
 import type { OperationsSnapshot } from '../../src/api/web/operations.js';
@@ -115,10 +115,9 @@ describe('Phase F · every empty surface says what happens next', () => {
     // The warmth run — "Coming up" left Today (the calendar has its nav entry);
     // the day's figures keep their door to Results, whatever the day held.
     expect(emptyToday).toContain('href="/app/analytics"');
-    expect(emptyBuyers('all')).toContain('href="/app/business"');
+    expect(emptyBuyers('all')).toContain('href="/app/get-started"');
     // every buyer, the search let go — phase 4: the whole list is the list's own address
-    expect(emptySearch).toContain('href="/app/inbox"');
-    expect(emptySearch).not.toContain('filter=all');
+    expect(emptySearch).toContain('class="deeper" href="/app/inbox?filter=all"');
     // the warmth run — an empty calendar's one door is adding a date to it
     expect(emptyCalendar).toContain('<details class="cal-add"><summary>Add a date</summary><form method="post" action="/app/calendar/entries"');
   });
@@ -134,7 +133,7 @@ describe('Phase F · every empty surface says what happens next', () => {
     for (const l of LOCALES) {
       const html = renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] }, l, NOW);
       expect(html.length).toBeGreaterThan(100);
-      expect(html).toContain('href="/app/business"');           // the way forward, every locale
+      expect(html).toContain('href="/app/get-started"');           // the way forward, every locale
       if (l !== 'en') expect(html).not.toContain('No conversations yet');
     }
   });

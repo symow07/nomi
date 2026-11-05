@@ -33,6 +33,35 @@ describe('how the reply was read: each figure and name, with its source', () => 
     expect(r.everyFigureSourced).toBe(true);
   });
 
+  it('can inspect small numbers for display while retaining product names/codes and the default reading', () => {
+    const input = { reply: 'Model ZX-3 and Serum 7: 4 pieces, ready in 12 days, plus 2 extras.',
+      productNames: ['Serum 7'], productCodes: ['ZX-3'], quote: { ...QUOTE, quantity: 4, leadTimeDays: 12 },
+      theirTexts: ['I need 4 pieces'], heldQuantity: null };
+    expect(readReply(input).lines).toEqual([{kind:'product',name:'Serum 7'}, {kind:'code',code:'ZX-3'}]);
+    expect(readReply({...input, includeSmallFigures: true}).lines).toEqual([
+      {kind:'product',name:'Serum 7'}, {kind:'code',code:'ZX-3'},
+      {kind:'figure',value:4,source:'their_words',words:'4 pieces',customerText:'I need 4 pieces'}, {kind:'figure',value:12,source:'lead_time',words:'12 days'},
+      {kind:'figure',value:2,source:'unsourced',words:'2'},
+    ]);
+    expect(readReply({...input, includeSmallFigures:true}).everyFigureSourced).toBe(false);
+  });
+
+  it('does not turn a small duration into a price or confuse equal quantities and days', () => {
+    const input = {reply:'Ships in 5 days.',productNames:[],theirTexts:['5 pieces please'],heldQuantity:5,
+      quote:{unitPrice:5,total:500,quantity:5,discountPct:0,leadTimeDays:30,moq:null}};
+    expect(readReply(input).lines).toEqual([]);
+    expect(readReply({...input,includeSmallFigures:true}).lines).toEqual([
+      {kind:'figure',value:5,source:'unsourced',words:'5 days'},
+    ]);
+    expect(readReply({...input,reply:'5 pieces, ships in 5 days, $5 each.',includeSmallFigures:true}).lines).toEqual([
+      {kind:'figure',value:5,source:'their_words',words:'5 pieces',customerText:'5 pieces please'},
+      {kind:'figure',value:5,source:'unsourced',words:'5 days'},
+      {kind:'figure',value:5,source:'price'},
+    ]);
+    expect(readReply({...input,quote:{...input.quote,quantity:100,leadTimeDays:5},reply:'5 pieces',theirTexts:['5 days please'],heldQuantity:null,includeSmallFigures:true}).lines)
+      .toEqual([{kind:'figure',value:5,source:'unsourced',words:'5 pieces'}]);
+  });
+
   it('says so when a figure has no source — and the card then does not claim every figure has one', () => {
     const r = readReply({ reply: 'It is $29 today.', productNames: [], quote: QUOTE, theirTexts: [], heldQuantity: null });
     expect(r.lines).toEqual([{ kind: 'figure', value: 29, source: 'unsourced' }]);
@@ -94,14 +123,15 @@ describe('the card, drawn', () => {
   it('phase 2 · decision first: who drafted it and where it goes; the reply once; the acts; how it was read, last and closed', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
-    expect(c).toContain('<div class="top"><span class="as">Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
-    // the customer's message is in the transcript directly above: the card does not repeat it, nor who asked and when
+    expect(c).toMatch(/<div class="top"><span class="as"><svg class="mark"[\s\S]*?<\/svg> Your assistant drafted<\/span><span class="k">goes on Instagram, as written<\/span><\/div>/);
+    // The plain "for 10" has no unit; inspection does not invent a unit or repeat unrelated evidence.
     expect(c).not.toContain('how much for 10 of the rose serum?');
     expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);
     expect(c).not.toContain('asked ·');
     // what was understood and how it was read: one quiet line under the acts, opening downward
     // Phase 9 (V1-222) — the line carries only what needs the owner: no count of reasons.
-    expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span><\/summary><p class="und">/);
+    expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span>/);
+    expect(c).toContain('No source for 10');
     expect(c).toContain('<bdi>a price question</bdi> · <bdi>Rose Face Serum</bdi> · <bdi>10\u00a0bottles</bdi> · <bdi>English</bdi>');
     expect(c).toContain('<span><bdi>$34.90</bdi></span><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
     expect(c).toContain('<span><bdi>$349.00</bdi></span><span>the total, at your prices</span>');

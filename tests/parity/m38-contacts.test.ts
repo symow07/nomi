@@ -276,7 +276,7 @@ describe('M38 · her page', () => {
     ]) expect(app, r).toContain(r);
     // A — the door hangs off the list of everyone who wrote, which is Buyers
     // since Customers merged into it.
-    const buyers = await readFile(new URL('../../src/api/web/inbox.ts', import.meta.url), 'utf8');
+    const buyers = await readFile(new URL('../../src/api/web/splitInbox.ts', import.meta.url), 'utf8');
     expect(buyers).toContain("deeper('/app/contacts'");
   });
 });

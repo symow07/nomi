@@ -1,9 +1,16 @@
+import { COPILOT_EN } from './copilot.js';
+import { INBOX_CONVERSATION_EN } from './inboxConversation.js';
+import { INBOX_LISTS_EN } from './inboxLists.js';
+
 /**
  * The approved redesign is English-only. New words still pass through t(),
  * with an explicit English fallback until translations are commissioned.
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...COPILOT_EN,
+  ...INBOX_CONVERSATION_EN,
+  ...INBOX_LISTS_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

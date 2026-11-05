@@ -81,6 +81,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     const graph = reached('src/api/web/advisor.ts');
     expect(graph).toContain('src/advisor/reads.ts');
     expect(graph.filter((f) => FORBIDDEN.test(f))).toEqual([]);
+    expect(reached('src/api/web/conversationAdvisor.ts').filter((f) => FORBIDDEN.test(f))).toEqual([]);
   });
 
   it('the database is reached only through src/advisor/reads.ts: everything else of the advisor reaches none of it', () => {
@@ -88,6 +89,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     expect(outside).toContain('src/advisor/answer.ts');
     expect(outside).toContain('src/advisor/check.ts');
     expect(outside.filter((f) => f.startsWith('src/db/') || /^src\/api\/web\/(analytics|calendar|knowledge-insights)\.ts$/.test(f))).toEqual([]);
+    expect(reached('src/api/web/conversationAdvisor.ts', ['src/advisor/reads.ts']).filter((f) => f.startsWith('src/db/'))).toEqual([]);
     // and the model is never imported: it is handed in (AdvisorIO), typed only
     for (const f of ['src/api/web/advisor.ts', 'src/advisor/answer.ts', 'src/advisor/reads.ts', 'src/advisor/check.ts', 'src/advisor/catalogue.ts']) {
       expect(read(f), f).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+'[^']*\/llm\//m);
@@ -121,6 +123,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
       '../core/types/money.js: moneyFromRow',
       '../db/assistantStop.js: assistantHold',
       '../db/assistantStop.js: assistantStopped',
+      '../db/assistants.js: chosenName',
       '../db/buyersList.js: DELETION_WAITING',
       '../db/buyersList.js: IS_BLOCKED',
       '../db/buyersList.js: needsOwnerFor',
@@ -200,8 +203,10 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     // the redesign — earlier conversations on a page of their own.
     expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/earlier', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
     const app = read('src/api/web/app.ts');
-    const at = app.indexOf('advisorRoutes(app, {');
-    const call = app.slice(at, app.indexOf('\n  });', at) + 5);
+    const at = app.indexOf('const advisorIO: AdvisorIO = {');
+    expect(at).toBeGreaterThan(0);
+    const call = app.slice(at, app.indexOf('\n  };', at) + 5);
+    expect(app).toContain('advisorRoutes(app, advisorIO);');
     expect([...call.matchAll(/^ {4}([a-zA-Z]+): /gm)].map((m) => m[1]))
       .toEqual(['viewer', 'locale', 'page', 'db', 'model', 'allowanceUsed', 'spent', 'memory', 'processor', 'provider', 'flashTo', 'takeFlash']);
     expect(call).toContain('db: deps.advisorDb ?? null,');
@@ -214,6 +219,12 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     ];
     for (const line of METERING) expect(call).toContain(line);
     expect(METERING.reduce((c, line) => c.replace(line, ''), call)).not.toMatch(/deps\.db\b|send|enqueue|save|price|boss/i);
+    const contextual = app.indexOf('conversationAdvisorRoutes(app, {');
+    const addition = app.slice(contextual, app.indexOf('\n  });', contextual) + 5);
+    expect(addition).toContain('...advisorIO, renderCopilotPanel,');
+    expect([...addition.matchAll(/^ {4}([a-zA-Z]+): /gm)].map((m) => m[1])).toEqual(['viewer']);
+    expect(addition).toContain("personOf(s).kind !== 'accountant'");
+    expect(addition).not.toMatch(/deps\.db\b|send|enqueue|save|boss/i);
     // nothing else in the app answers at the advisor's address
     expect(app.match(/app\.(?:get|post)\(['"`]\/app\/advisor/g) ?? []).toEqual([]);
   });

@@ -38,9 +38,14 @@ describe('S2 · labels', () => {
   });
 
   it('decision 5 holds: the Buyers row draws no label; labels are a narrowing above the list and a block of the panel', () => {
-    const inbox = readFileSync(new URL('../../src/api/web/inbox.ts', import.meta.url), 'utf8');
-    const row = inbox.slice(inbox.indexOf('function rowOf') >= 0 ? inbox.indexOf('function rowOf') : 0);
-    expect(inbox).toContain('<nav class="tabs labels"');
+    const inbox = readFileSync(new URL('../../src/api/web/splitInbox.ts', import.meta.url), 'utf8');
+    const start = inbox.indexOf('function row(');
+    const end = inbox.indexOf('const viewOf', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const row = inbox.slice(start, end);
+    expect(inbox).toContain('const labelFilter = labels.length ? `<nav class="si-fils" aria-label=');
+    expect(inbox).toContain("t(locale, 'labels.filterLabel')");
     expect(row).not.toMatch(/label-on/);
     expect(readFileSync(new URL('../../src/api/web/panes.ts', import.meta.url), 'utf8')).toContain('${labelsBlock(p, locale, conversationId)}');
   });

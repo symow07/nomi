@@ -109,7 +109,7 @@ d('S1 · saved replies, through every owner-reply guard (requires DATABASE_URL +
     expect(flashSaid(await post('/app/replies', { title: 'Empty' }), SECRET)).toContain('Words in at least one language.');
     // staff keep them too
     expect(flashSaid(await post('/app/replies', { title: 'Lead time', text_en: 'Shipping takes 12 days from the order.' }, staff), SECRET)).toBe('Saved reply added.');
-    expect(await page('/app/replies', staff)).toContain('Lead time');
+    expect(await page('/app/inbox/replies', staff)).toContain('Lead time');
     // the accountant: the route sends them to the books, nothing written
     const before = await count();
     const r = await post('/app/replies', { title: 'Theirs', text_en: 'No.' }, accountant);
@@ -184,7 +184,7 @@ d('S1 · saved replies, through every owner-reply guard (requires DATABASE_URL +
     expect(flashSaid(await post(`/app/inbox/${open}/saved-reply`, { text: '', saved: id }), SECRET)).toBe('Nothing was put in the box.');
     await post('/app/replies', { title: 'Lead time', text_en: 'Twelve days.' });
     expect(flashSaid(await post(`/app/replies/${id}/restore`), SECRET)).toContain('another one in use has the same title');
-    const list = await page('/app/replies');
+    const list = await page('/app/inbox/replies');
     expect(list).not.toMatch(/action="\/app\/inbox\/[^"]*\/(reply|saved-reply)"/);
     // changed: its words in a language added
     const prices = await idOf('Prices');

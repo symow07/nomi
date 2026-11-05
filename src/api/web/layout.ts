@@ -14,6 +14,8 @@ import { readFileSync } from 'node:fs';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { SPLIT_CSS } from './splitStyle.js';
+import { INBOX_LIST_CSS } from './inboxListStyle.js';
+import { CONVERSATION_CSS } from './conversationStyle.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
@@ -434,7 +436,7 @@ ${STAGGER}
     @view-transition { navigation:auto; }
     main { view-transition-name:page; }
     nav.side a.navlink.active { view-transition-name:rail-on; }
-    .tabs.lens .tab.on { view-transition-name:lens-on; }
+    .si-order .si-fil.on { view-transition-name:lens-on; }
     .mo td.sel .mo-d { view-transition-name:day-on; }
     ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
     ::view-transition-group(page) { animation:none; }
@@ -2140,7 +2142,7 @@ const STYLE_PAGES = `
   .irows > li + li { border-top:1px solid var(--color-border); }
   .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
   .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
-  @media (prefers-reduced-motion: no-preference) { .irow { transition:background-color var(--motion-fast) var(--motion-ease); } }
+  @media (prefers-reduced-motion: no-preference) { .si-row { transition:background-color var(--motion-fast) var(--motion-ease); } }
   .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-4) 10px; }
   .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
     align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
@@ -2746,7 +2748,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,

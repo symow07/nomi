@@ -1,7 +1,9 @@
+import { ensureQueueSchema } from './tenant.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { assistantName } from '../../src/api/web/say.js';
 import { withoutIsolates, unisolatedFigures } from '../parity/isolates.js';
 
 /**
@@ -90,15 +92,16 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
   /** The conversations a Buyers page lists, in page order. */
   const listed = (html: string): string[] =>
-    [...html.matchAll(/<a class="ir-main" href="\/app\/inbox\/([0-9a-f-]{36})#latest"/g)].map((m) => m[1]!);   // phase 4
+    [...html.matchAll(/<a class="si-door" href="\/app\/inbox\/([0-9a-f-]{36})\?from=[^"]+#latest"/g)].map((m) => m[1]!);   // phase 4
   /** Where a pager door goes, as the browser would follow it. */
   const door = (html: string, cls: 'deeper' | 'back'): string | null => {
-    const pager = /<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
+    const pager = /<nav class="pager si-pager"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
     const href = new RegExp(`<a class="${cls}" href="([^"]+)">`).exec(pager)?.[1];
     return href ? href.replace(/&amp;/g, '&') : null;
   };
 
   beforeAll(async () => {
+    await ensureQueueSchema();
     const { createDb } = await import('../../src/db/client.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
     db = createDb(DATABASE_URL!);
@@ -171,14 +174,15 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
   // phase 4 — the Inbox opens on the whole list in "waiting now" (they lead it already);
   // "Needs you" is the narrowing Today's doors lead to, and still holds exactly them.
-  it('…the Inbox opens on the whole list, those three first; Needs you holds exactly them, and needs no second page', async () => {
+  it('the Inbox opens on Needs you while work waits, and Everyone remains an explicit view', async () => {
     const home = await get('/app/inbox');
-    expect(home.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox">');
+    expect(home.body).toContain('<a class="si-tab on" aria-current="true" href="/app/inbox?filter=pending">');
+    expect(home.body).toContain('href="/app/inbox?filter=all"');
     expect(listed(home.body).slice(0, 3).sort()).toEqual([needs.waiting, needs.review, needs.held].sort());
     const r = await get('/app/inbox?filter=pending');
-    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?filter=pending">Needs you (3)</a>');
+    expect(withoutIsolates(r.body)).toContain('<a class="si-tab on" aria-current="true" href="/app/inbox?filter=pending">Needs you<span class="si-tabn">3</span></a>');
     expect(listed(r.body).sort()).toEqual([needs.waiting, needs.review, needs.held].sort());
-    expect(r.body).not.toContain('class="pager"');
+    expect(r.body).not.toContain('class="pager si-pager"');
   });
 
   it('paging forward and back by the page\'s own doors: every buyer once, nobody twice', async () => {
@@ -186,7 +190,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const one = listed(first.body);
     expect(door(first.body, 'back')).toBeNull();
     const next = door(first.body, 'deeper');
-    expect(next).toMatch(/^\/app\/inbox\?after=[0-7]_(n|-?\d+)_[0-9a-f-]{36}$/);   // phase 4: no filter=all
+    expect(next).toMatch(/^\/app\/inbox\?filter=all&after=[0-7]_(n|-?\d+)_[0-9a-f-]{36}$/);   // phase 4: no filter=all
 
     const second = await get(next!);
     expect(second.statusCode).toBe(200);
@@ -199,7 +203,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
     // Back: the page before the second is the first, at its own address.
     const prev = door(second.body, 'back');
-    expect(prev).toBe('/app/inbox');   // phase 4: the list's own address
+    expect(prev).toBe('/app/inbox?filter=all');   // phase 4: the list's own address
     expect(listed((await get(prev!)).body)).toEqual(one);
   });
 
@@ -250,9 +254,9 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(r.body).toContain('1 found for “zhang”');
     expect(r.body).toContain('value="zhang"');
     // a search looks at everyone, in the lens it was made in (phase 4: the lens keeps the search)
-    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?q=zhang">');
+    expect(r.body).toContain('<a class="si-tab on" aria-current="true" href="/app/inbox?filter=all&amp;q=zhang">');
     // the other workspace's Zhang Wei is not here: one row, and it is this workspace's
-    expect(r.body.match(/<bdi class="ir-name"><mark class="hit">Zhang<\/mark> Wei<\/bdi>/g)?.length).toBe(1);
+    expect(r.body.match(/<bdi class="sp-rname"><mark class="hit">Zhang<\/mark> Wei<\/bdi>/g)?.length).toBe(1);
   });
 
   it('…and by number, however it is typed, and by the product asked about', async () => {
@@ -275,7 +279,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const r = await get('/app/inbox?q=noise');
     expect(listed(r.body)).toHaveLength(50);
     const next = door(r.body, 'deeper');
-    expect(next).toMatch(/^\/app\/inbox\?q=noise&after=/);   // phase 4: no filter=all
+    expect(next).toMatch(/^\/app\/inbox\?filter=all&q=noise&after=/);   // phase 4: no filter=all
     const two = listed((await get(next!)).body);
     expect(two).toHaveLength(NOISE - 3 - 50);
     expect(new Set([...listed(r.body), ...two]).size).toBe(NOISE - 3);
@@ -309,25 +313,27 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(missing.body).toContain('Customer not found');
   });
 
-  it('the row carries what Customers did: the channel, who wrote last, the last contact', async () => {
-    const { formatShortWhen } = await import('../../src/core/owner/i18n/format.js');
-    // The last contact as the business's clock says it: minutes ago is
-    // "Yesterday" in the first minutes after its midnight (CI hit 00:01
-    // Shanghai on 2026-09-30), so the words are the formatter's for the row's
-    // own instant, never a fixed "Today".
-    const lastContact = async (conv: string) => formatShortWhen('en', await as(BIZ, (x) => sql<{ at: Date }>`
+  it('the live row retains customer stage, honest value, message, timing and sender attribution', async () => {
+    const { quietWords } = await import('../../src/api/web/splitToday.js');
+    // Compare with the recorded last contact on the business clock, including the midnight boundary.
+    const lastContact = async (conv: string) => quietWords('en', await as(BIZ, (x) => sql<{ at: Date }>`
       select max(sent_at) as at from messages where conversation_id = ${conv}::uuid`.execute(x).then((q) => q.rows[0]!.at)), new Date(), 'Asia/Shanghai');
-    const r = await get('/app/inbox?q=zhang');
-    // phase 4 — the customer's row: `irow`, the conversation behind `ir-main`
-    const row = /<div class="irow is-\w+ unanswered">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a><\/div>/.exec(r.body)?.[1] ?? '';
-    expect(row, 'Zhang wrote last and is still waiting').not.toBe('');
-    // UI-PASS 5: the row is the customer's name already; who wrote last is said only when it is not them.
-    // The last contact at the end of the second line, the channel before it (a wide screen's).
-    expect(row).toContain(`<span class="ir-when"><span class="ir-chan">Instagram · </span>${await lastContact(zhang)}</span>`);
-    const omar = /<div class="irow is-\w+">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a><\/div>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
-    expect(omar).toContain(`<span class="ir-when"><span class="ir-chan">WhatsApp · </span>${await lastContact(dubai)}</span>`);
-    // the assistant wrote last: its mark is on the row (as the holder's mark, or before the message)
-    expect(omar).toContain('data-mark="agent"');
+    const rowOf = (html: string, id: string): string => {
+      const row = new RegExp(`<li id="inbox-${id}">([\\s\\S]*?)</li>`).exec(html);
+      expect(row, `shared Inbox row ${id} must exist`).not.toBeNull();
+      return row![1]!;
+    };
+    const row = rowOf((await get('/app/inbox?q=zhang')).body, zhang);
+    expect(row).toContain('<bdi class="sp-rname"><mark class="hit">Zhang</mark> Wei</bdi>');
+    expect(row).toContain('<bdi class="si-last">hello from Zhang Wei</bdi>');
+    expect(row).not.toContain('class="si-by"'); // the customer's own words need no invented speaker
+    expect(row).toContain('<span class="sp-chip">Asked</span>');
+    expect(row).toContain('<span class="sp-rval"></span>'); // this fixture has no price or order value
+    expect(row).toContain(`<span class="sp-rday">${await lastContact(zhang)}</span>`);
+    const omar = rowOf((await get('/app/inbox?q=Omar')).body, dubai);
+    expect(omar).toContain('<bdi class="si-last">answered Omar Haddad</bdi>');
+    expect(omar).toContain(`<span class="si-by"><bdi>${assistantName('en')}</bdi>:`);
+    expect(omar).toContain(`<span class="sp-rday">${await lastContact(dubai)}</span>`);
   });
 
   it('in Arabic the list is right to left, and says where the page sits in its own words', async () => {

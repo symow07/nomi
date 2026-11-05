@@ -1,6 +1,7 @@
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
-import { renderInboxList, type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
+import { type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
 import { shell, esc, hubFor } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, t as say } from '../../src/api/web/say.js';
 import { withZone } from '../../src/api/web/zone.js';
@@ -62,91 +63,79 @@ const LIST: InboxList = {
 };
 const list = (l: Locale, over: Partial<InboxList> = {}, people: readonly Person[] = []) =>
   withZone('Asia/Shanghai', () => withoutIsolates(renderInboxList({ ...LIST, ...over }, l, NOW, people)));
-// The warmth run, phase 4 — the Inbox's own row: `irow`, the conversation behind its `ir-main` link.
-const rowOf = (h: string, id: string): string => new RegExp(`<a class="ir-main" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a></div>`).exec(h)?.[1] ?? '';
-const heads = (h: string): string[] => [...h.matchAll(/<h2 class="bgroup-h">([^<]+)<\/h2>/g)].map((m) => m[1]!);
+const rowOf = (h: string, id: string): string => new RegExp(`<li id="inbox-${id}">([\\s\\S]*?)</li>`).exec(h)?.[1] ?? '';
+const heads = (h: string): string[] => [...h.matchAll(/<h2 class="sp-cap">([^<]+)<\/h2>/g)].map((m) => m[1]!);
 
 describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, missed-06)', () => {
-  it('V1-173 · the assistant\'s customers who wrote last are headed apart, each run newest first', () => {
+  it('flat list retains reader priority and chronological runs without ownership heading duplication', () => {
     for (const l of LOCALES) {
       const h = withAssistantName('Noor', () => list(l));
-      expect(heads(h), l).toEqual([
-        shown(l, 'buyers.group.needsYou'),
-        shown(l, 'buyers.group.hersWaiting', { name: 'Noor' }),
-        shown(l, 'buyers.group.hers', { name: 'Noor' }),
-      ]);
-      const at = (id: string) => h.indexOf(`/app/inbox/${id}#latest`);
-      const second = h.indexOf(shown(l, 'buyers.group.hers', { name: 'Noor' }) + '</h2>');
+      expect(heads(h), l).toEqual([]);
+      const at = (id: string) => h.indexOf(`id="inbox-${id}"`);
+      expect(at('c-wait'), l).toBeLessThan(at('c-review'));
+      expect(at('c-review'), l).toBeLessThan(at('c-new'));
       expect(at('c-new'), l).toBeLessThan(at('c-old'));
-      expect(at('c-old'), l).toBeLessThan(second);
-      // a closed conversation the customer wrote last is not in the open run
-      expect(at('c-closed'), l).toBeGreaterThan(second);
+      expect(at('c-old'), l).toBeLessThan(at('c-answered'));
+      expect(at('c-answered'), l).toBeLessThan(at('c-closed'));
+      for (const c of LIST.conversations) expect(rowOf(h, c.conversationId), l).toContain(esc(c.buyer!));
     }
   });
 
-  it('V1-174 · an unanswered row says so in words; an answered one carries the assistant\'s mark before its words', () => {
+  it('unanswered questions say so and assistant-authored previews name their speaker', () => {
     for (const l of LOCALES) {
-      const h = list(l);
-      expect(rowOf(h, 'c-new'), l).toContain(`<span class="ir-hold"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
-      expect(rowOf(h, 'c-closed'), l).not.toContain(shown(l, 'buyers.row.noReply'));
-      // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
-      expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
-      // the mark, then who wrote it for a screen reader (the conversation batch), then the words
-      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
-      expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
-      // a screen reader still hears who holds it
-      expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
+      const h = withAssistantName('Noor', () => list(l));
+      expect(rowOf(h, 'c-new'), l).toContain(`<span class="si-why"><bdi>${shown(l, 'buyers.row.noReply')}</bdi>`);
+      for (const id of ['c-closed', 'c-old', 'c-answered']) expect(rowOf(h, id), l).not.toContain(shown(l, 'buyers.row.noReply'));
+      expect(rowOf(h, 'c-answered'), l).toContain('<span class="si-by"><bdi>Noor</bdi>');
+      expect(rowOf(h, 'c-new'), l).not.toContain('class="si-by"');
     }
   });
 
   // The warmth run, phase 4 — the ○ ● ✦ column gave its place to the face; ○ is written with its
   // words on the row itself. What still needs a key is the ✦ before a message, and the regular's mark.
-  it('inbox-calendar-new-03 · the marks are explained under the rows — only the marks the page shows', () => {
+  it('regular status is stated on its customer row and absent from other rows', () => {
     for (const l of LOCALES) {
-      const key = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l))?.[1] ?? '';
-      expect(key, l).toContain(`<span class="ck-i">${agentMark(16, 'am as')} ${shown(l, 'buyers.key.wrote')}</span>`);
-      expect(key, l).not.toContain('cr-mark');
-      expect(key, l).not.toContain('ir-reg');   // nobody on this page is a regular
-      const regular = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l, { conversations: [conv('c-r', { regular: true })] }))?.[1] ?? '';
-      expect(regular, l).toContain(shown(l, 'buyers.key.regular', { n: 3 }));
+      expect(list(l), l).not.toContain(shown(l, 'buyers.row.regular'));
+      const regular = rowOf(list(l, { conversations: [conv('c-r', { regular: true })] }), 'c-r');
+      expect(regular, l).toContain(`<bdi>${shown(l, 'buyers.row.regular')}</bdi>`);
+      expect(regular, l).toContain(esc('Buyer c-r'));
     }
   });
 
   it('V1-177 · the pages either side are offered above the rows as well as under them', () => {
     const h = list('en');
-    const pagers = [...h.matchAll(/<nav class="pager"/g)].map((m) => m.index!);
+    const pagers = [...h.matchAll(/<nav class="pager si-pager"/g)].map((m) => m.index!);
     expect(pagers).toHaveLength(2);
-    expect(pagers[0]).toBeLessThan(h.indexOf('class="bgroup"'));
-    expect(pagers[1]).toBeGreaterThan(h.lastIndexOf('class="bgroup"'));
+    expect(pagers[0]).toBeLessThan(h.indexOf('class="si-group"'));
+    expect(pagers[1]).toBeGreaterThan(h.lastIndexOf('class="si-group"'));
     // one page: no pager at all
     expect(list('en', { page: { from: 1, to: 6, total: 6, next: null, prev: null } })).not.toContain('class="pager"');
   });
 
-  it('V1-181 · inbox-calendar-missed-06 · V1-183 · the search form is the same with or without a search; Clear lives in what was found', () => {
+  it('search keeps a stable form and zero results offer exactly one clear-search recovery', () => {
     for (const l of LOCALES) {
       const plain = list(l);
       const found = list(l, { query: 'Haddad', conversations: LIST.conversations.slice(0, 2), page: { from: 1, to: 2, total: 2, next: null, prev: null } });
-      const formOf = (h: string) => /<form class="search"[\s\S]*?<\/form>/.exec(h)![0].replace(/value="[^"]*"/, '');
+      const formOf = (h: string) => /<form class="si-search"[\s\S]*?<\/form>/.exec(h)![0].replace(/name="q" value="[^"]*"/, 'name="q"');
       expect(formOf(found), l).toBe(formOf(plain));
       expect(formOf(found), l).not.toContain('class="clear"');
-      expect(found, l).toContain(`${shown(l, 'buyers.search.found', { q: 'Haddad', n: 2 })} · <a class="clear" href="/app/inbox">${shown(l, 'buyers.search.clear')}</a>`);
-      // nobody found: one way back, the same link; the panel holds the hint and no second door
+      expect(found, l).toContain(`${shown(l, 'buyers.search.found', { q: 'Haddad', n: 2 })} · <a class="clear" href="/app/inbox?filter=all">${shown(l, 'buyers.search.clear')}</a>`);
       const none = list(l, { query: 'zzz', conversations: [], page: { from: 0, to: 0, total: 0, next: null, prev: null } });
-      expect(none, l).toContain(`${shown(l, 'buyers.search.none', { q: 'zzz' })} · <a class="clear" href="/app/inbox">`);
-      const panel = /<div class="empty">([\s\S]*?)<\/div>/.exec(none)![1]!;
-      expect(panel, l).toBe(shown(l, 'buyers.search.noneBody'));
+      expect(none, l).toContain(shown(l, 'buyers.search.none', { q: 'zzz' }));
+      const panel = /<div class="il-empty">([\s\S]*?)<\/div>/.exec(none)![1]!;
+      expect(panel, l).toContain(shown(l, 'buyers.search.noneBody'));
+      expect(panel.match(/<a /g), l).toHaveLength(1);
+      expect(panel, l).toContain(`href="/app/inbox?filter=all">${shown(l, 'buyers.search.clear')}`);
     }
-    // Clear reads as a link, not as greyed-out text
-    expect(CSS).toMatch(/\.found \.clear \{[^}]*color:var\(--color-ink\);[^}]*text-decoration:underline/);
   });
 
   it('V1-182 · the searched word is marked in the name it matched, by weight and a line', () => {
     const h = list('en', { query: 'haddad', conversations: LIST.conversations.slice(0, 2), page: { from: 1, to: 2, total: 2, next: null, prev: null } });
-    expect(rowOf(h, 'c-wait')).toContain('<bdi class="ir-name">Omar <mark class="hit">Haddad</mark></bdi>');
-    expect(rowOf(h, 'c-review')).toContain('<bdi class="ir-name">Leila <mark class="hit">Haddad</mark></bdi>');
+    expect(rowOf(h, 'c-wait')).toContain('<bdi class="sp-rname">Omar <mark class="hit">Haddad</mark></bdi>');
+    expect(rowOf(h, 'c-review')).toContain('<bdi class="sp-rname">Leila <mark class="hit">Haddad</mark></bdi>');
     const byProduct = list('en', { query: 'string', conversations: LIST.conversations.slice(0, 1), page: { from: 1, to: 1, total: 1, next: null, prev: null } });
     // phase 4 — the row shows no product; found BY it, the product stands where the message would
-    expect(byProduct).toContain('<bdi class="ir-text">LED <mark class="hit">String</mark> Lights 10m</bdi>');
+    expect(byProduct).toContain('<bdi>LED <mark class="hit">String</mark> Lights 10m</bdi>');
     // no search, no mark; a name with markup in it is escaped before it is marked
     expect(list('en')).not.toContain('<mark');
     const odd = list('en', { query: 'b', conversations: [conv('c-x', { buyer: '<b>Bad</b>' })], page: { from: 1, to: 1, total: 1, next: null, prev: null } });
@@ -156,14 +145,14 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
 
   // The warmth run, phase 4 — the row is the customer's: no product and no figures on it (what they
   // spent is its one number); on a phone the name keeps the room, and the channel gives way.
-  it('inbox-calendar-new-02 · the row carries no product or figures; on a phone the channel gives way, not the name', () => {
+  it('compact rows retain the stage and name without exposing raw unit-price or quantity fields', () => {
     const row = rowOf(list('en'), 'c-answered');
-    expect(row).not.toContain('LED String Lights 10m');
+    expect(row).toContain('<bdi class="sp-rname">Layla Mansour</bdi>');
+    expect(row).toContain('<span class="sp-chip">Asked</span>');
     expect(row).not.toContain('5,000');
     expect(row).not.toContain('$1.45');
-    const phone = CSS.slice(CSS.indexOf('.ir-reg-w { position:absolute'));
-    expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{[^}]+\}\s*\.ir-chan \{ display:none; \}/);
-    expect(phone).not.toBe('');
+    expect(CSS).toContain('.il-page .si-why { grid-area:why; }');
+    expect(CSS).toContain('-webkit-line-clamp:2');
   });
 
   // The warmth run, phase 4 — "Mine" is gone (team machinery the owner ruled out); its old address
@@ -172,7 +161,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     for (const l of LOCALES) {
       const h = list(l, { filter: 'deletion', conversations: [], page: { from: 0, to: 0, total: 0, next: null, prev: null } });
       expect(h, l).not.toContain('<div class="block">');
-      const panel = /<div class="empty">([\s\S]*?)<\/div>/.exec(h)![1]!;
+      const panel = /<div class="il-empty">([\s\S]*?)<\/div>/.exec(h)![1]!;
       expect(panel, l).toContain(shown(l, 'inbox.empty.deletion'));
       expect(h, l).not.toContain(shown(l, 'inbox.empty.mine'));
     }
@@ -214,10 +203,12 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(t('fr', 'inbox.filter.all')).toBe('Tous');
   });
 
-  it('V1-171 · the chosen tab stands out; the Find button is as tall as its field', () => {
-    // The identity system (2026-10-04) — the edge of the tab you are on is the brand's.
-    expect(CSS).toMatch(/\.tab\.on \{ background:var\(--color-surface\); border-color:var\(--color-brand\); box-shadow:inset 0 0 0 1px var\(--color-brand\);/);
-    expect(CSS).toMatch(/\.search \.btn \{ align-self:stretch; \}/);
+  it('selected views are announced and search controls retain usable target sizes', () => {
+    const h = list('en');
+    expect(h).toContain('class="si-tab on" aria-current="true" href="/app/inbox?filter=all"');
+    expect(CSS).toContain('.il-views .si-tab.on { color:var(--color-accent); background:var(--color-assistant-wash); }');
+    expect(CSS).toContain('.il-page .si-search .sp-btn { min-block-size:44px; }');
+    expect(CSS).toContain('min-block-size:44px; margin:0; font-size:var(--font-size-base)');
   });
 
   it('the rail\'s number is a figure, and its link says what it counts', () => {
@@ -280,7 +271,7 @@ describe('the calendar', () => {
       // the same lede in the page's one fold, and the legend under the dates (phase 9 of the warmth run); no second way of moving at the foot of the list
       expect(h, `${l}/${v}`).toContain(`<div class="cal-key"><p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
       expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
-      expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
+      expect(h, `${l}/${v}`).not.toContain('<nav class="pager si-pager"');
     }
   });
 

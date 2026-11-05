@@ -5,7 +5,8 @@ import * as TOKENS from '../../src/core/owner/tokens.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { mintFlash, readFlash, flashBanner, liveRegion, UNDO_ACTION } from '../../src/api/web/flash.js';
 import { conversationWatch, practiceWatch } from '../../src/api/web/live.js';
-import { workingLine, renderConversationDetail, renderInboxList, type ConversationDetail, type ConversationSummary, type InboxList } from '../../src/api/web/inbox.js';
+import { workingLine, renderConversationDetail, type ConversationDetail, type ConversationSummary, type InboxList } from '../../src/api/web/inbox.js';
+import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
 import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
@@ -195,7 +196,7 @@ describe('the motion pass · every rule that moves names something the product r
     expect(one('#approve')).toBe(1);
     expect(one('.sgroup + .sgroup + .sgroup')).toBeGreaterThanOrEqual(1);
     expect(one('button.srow')).toBe(1);
-    expect(one('.tabs.lens .tab.on')).toBe(1);
+    expect(one('.si-order .si-fil.on')).toBe(1);
     expect(one('.mo td.sel .mo-d')).toBe(1);
     expect(one('dialog.ask')).toBe(PAGES_COUNT());
     expect(one('dialog.sheet')).toBe(PAGES_COUNT());
@@ -303,7 +304,7 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     expect(vt).toContain('@view-transition { navigation:auto; }');
     expect(ruleOf('main')).toContain('view-transition-name:page');
     expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
-    expect(ruleOf('.tabs.lens .tab.on')).toContain('view-transition-name:lens-on');
+    expect(ruleOf('.si-order .si-fil.on')).toContain('view-transition-name:lens-on');
     expect(ruleOf('.mo td.sel .mo-d')).toContain('view-transition-name:day-on');
     expect(ruleOf('::view-transition-new(page)')).toContain('animation:nomi-page-in var(--motion-max) var(--motion-ease) both');
     expect(ruleOf('::view-transition-old(page)')).toContain('animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both');

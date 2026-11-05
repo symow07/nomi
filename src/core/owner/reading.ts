@@ -26,7 +26,7 @@ export type ReadingLine =
   | { readonly kind: 'product'; readonly name: string }
   /** The fix wave (V1-220) — the product's own code as the reply writes it ("ZX-300"): its digits are the code, not a figure. */
   | { readonly kind: 'code'; readonly code: string }
-  | { readonly kind: 'figure'; readonly value: number; readonly source: Exclude<ReadingSource, 'product'> };
+  | { readonly kind: 'figure'; readonly value: number; readonly source: Exclude<ReadingSource, 'product'>; readonly words?: string; readonly customerText?: string };
 
 export type ReadingQuote = {
   readonly unitPrice: number; readonly total: number; readonly quantity: number;
@@ -35,6 +35,8 @@ export type ReadingQuote = {
 
 export function readReply(input: {
   readonly reply: string;
+  /** Display-only inspection of every extracted figure; the default mirrors the numeral guard. */
+  readonly includeSmallFigures?: boolean;
   /** The identified product's names (English and Chinese), when there is one. */
   readonly productNames: readonly string[];
   readonly quote: ReadingQuote | null;
@@ -86,9 +88,36 @@ export function readReply(input: {
     return 'unsourced';
   };
 
+  // These figures were previously omitted by the guard-compatible reading.
+  // Display inspection must not promote a matching price into evidence for days or pieces.
+  const context = (raw: string, n: ReturnType<typeof extractNumerals>[number]) => {
+    const normalized = asciiDigits(raw), end = n.at?.[1] ?? 0;
+    const tail = normalized.slice(end);
+    const duration = /^\s*(?:days?\b|天|日)/iu.exec(tail);
+    const quantity = /^\s*(?:pieces?\b|pcs\b|units?\b|bottles?\b|件|个|個|瓶)/iu.exec(tail);
+    const unit = duration ?? quantity;
+    return { kind: duration ? 'duration' : quantity ? 'quantity' : 'unknown',
+      words: n.at ? raw.slice(n.at[0], end + (unit?.[0].length ?? 0)) : String(n.value) };
+  };
   const seen: number[] = [];
+  const smallSeen = new Set<string>();
   for (const n of extractNumerals(input.reply)) {
-    if (isSafeSmall(n) || inside(n) || seen.some((s) => near(s, n.value))) continue;
+    if (inside(n)) continue;
+    if (isSafeSmall(n)) {
+      if (!input.includeSmallFigures) continue;
+      const c = context(input.reply, n);
+      const key = `${n.value}:${c.kind}`;
+      if (smallSeen.has(key)) continue;
+      smallSeen.add(key);
+      const customerText = c.kind === 'quantity' ? input.theirTexts.find((raw) =>
+        extractNumerals(raw).some((other) => near(other.value, n.value) && context(raw, other).kind === 'quantity')) : undefined;
+      const source = c.kind === 'duration' && q?.leadTimeDays !== null && q?.leadTimeDays !== undefined && near(n.value, q.leadTimeDays) ? 'lead_time'
+        : c.kind === 'quantity' && ((q && near(n.value, q.quantity)) || (input.heldQuantity !== null && near(n.value, input.heldQuantity)) || customerText !== undefined) ? 'their_words'
+        : 'unsourced';
+      lines.push({kind:'figure',value:n.value,source,words:c.words,...(customerText !== undefined ? {customerText} : {})});
+      continue;
+    }
+    if (seen.some((s) => near(s, n.value))) continue;
     seen.push(n.value);
     lines.push({ kind: 'figure', value: n.value, source: sourceOf(n.value) });
   }

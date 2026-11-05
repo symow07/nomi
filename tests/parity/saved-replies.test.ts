@@ -57,7 +57,7 @@ describe('S1 · a saved reply never sends', () => {
     for (const l of LOCALES) {
       const list = renderSavedReplies(l, [row, { ...row, id: '00000000-0000-4000-8000-000000000002', title: 'Old', archived: true }]);
       expect(list, l).toContain('action="/app/replies"');
-      expect(list, l).not.toMatch(/\/app\/inbox\//);
+      expect(list, l).not.toMatch(/action="\/app\/inbox\/[0-9a-f-]{36}\/(reply|act|saved-reply)/);
       const one = renderSavedReply(l, row);
       expect(one, l).toContain('data-confirm=');
       expect(one, l).toContain('name="text_ar" rows="3" maxlength="2000" lang="ar" dir="rtl"');

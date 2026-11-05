@@ -318,6 +318,8 @@ describe('D7 · the owner\'s pages and every file Nomi serves ask no host off th
       'address()',                              // [data-live] / [data-rail] (the asker's address)
       'a.href',                                 // <a data-card>
       'src',                                    // form[data-orb]
+      'target.pathname + target.search',          // same-origin conversation Ask Nomi fragment, never the URL origin
+      'form.action',                            // server-rendered form[data-copilot-use], read-only reply validation
       '\'/sw.js\'',                             // the phone's worker, Nomi's own
     ]);
     const sinks = /\b(fetch|import|register|sendBeacon|importScripts|WebSocket|EventSource|Worker|SharedWorker|XMLHttpRequest)\s*\(/g;

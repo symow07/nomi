@@ -1,3 +1,4 @@
+import { ensureQueueSchema } from './tenant.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -36,6 +37,7 @@ d('a row that needs the owner: bold until opened (requires DATABASE_URL)', () =>
     values (${id}::uuid, ${ext}, 'inbound', 'text', 'hello', now() - ${ago}::interval)`.execute(x);
 
   beforeAll(async () => {
+    await ensureQueueSchema();
     const { createDb } = await import('../../src/db/client.js');
     const { ensureConversation } = await import('../../src/db/channels.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -71,16 +73,17 @@ d('a row that needs the owner: bold until opened (requires DATABASE_URL)', () =>
   const get = (url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
   const list = async () => (await get('/app/inbox?filter=all')).body;
   const rowOf = (h: string, id: string): string => {
-    const at = h.indexOf(`href="/app/inbox/${id}#latest"`);
-    return at < 0 ? '' : h.slice(h.lastIndexOf('<div class="irow', at), h.indexOf('</a></div>', at));
+    const row = new RegExp(`<li id="inbox-${id}">([\\s\\S]*?)</li>`).exec(h);
+    expect(row, `shared Inbox row ${id} must exist`).not.toBeNull();
+    return row![1]!;
   };
   const stamps = () => tx(async (x) => (await sql<{ owner_opened_at: Date | null; updated_at: Date }>`
     select owner_opened_at, updated_at from conversations where id = ${omar}::uuid`.execute(x)).rows[0]!);
 
   it('a row that needs the owner leads, with its dot and its name bold; the other has neither', async () => {
     const h = await list();
-    expect(h.indexOf(`/app/inbox/${omar}#latest`)).toBeGreaterThan(-1);
-    expect(h.indexOf(`/app/inbox/${omar}#latest`)).toBeLessThan(h.indexOf(`/app/inbox/${sara}#latest`));
+    expect(h.indexOf(`/app/inbox/${omar}?from=`)).toBeGreaterThan(-1);
+    expect(h.indexOf(`/app/inbox/${omar}?from=`)).toBeLessThan(h.indexOf(`/app/inbox/${sara}?from=`));
     expect(rowOf(h, omar)).toContain('row-dot');
     expect(rowOf(h, omar)).toContain('is-new');
     expect(rowOf(h, sara)).not.toContain('row-dot');
@@ -102,11 +105,12 @@ d('a row that needs the owner: bold until opened (requires DATABASE_URL)', () =>
     const after = await stamps();
     expect(after.owner_opened_at).not.toBeNull();
     expect(after.updated_at.getTime()).toBe(before.updated_at.getTime());   // src/pipeline/echo.ts picks the latest by it
-    expect(beside).not.toMatch(new RegExp(`class="crow[^"]*is-new[^"]*"[^>]*href="/app/inbox/${omar}`));
+    expect(rowOf(beside, omar)).not.toContain('is-new');
+    expect(rowOf(beside, omar)).toContain('is-selected');
     const h = await list();
     expect(rowOf(h, omar)).toContain('row-dot');
     expect(rowOf(h, omar)).not.toContain('is-new');
-    expect(h.indexOf(`/app/inbox/${omar}#latest`)).toBeLessThan(h.indexOf(`/app/inbox/${sara}#latest`));
+    expect(h.indexOf(`/app/inbox/${omar}?from=`)).toBeLessThan(h.indexOf(`/app/inbox/${sara}?from=`));
   });
 
   it('a new message makes it bold again', async () => {
