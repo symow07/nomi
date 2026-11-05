@@ -252,6 +252,7 @@ Recent PRs, newest first:
 | 423 | **The last message back on the Inbox's rows**, one faded line (no migration) — see §5 rule 88 |
 | 422 | **The fallback answers at Anthropic's own address; both companies named wherever words go** — see §5 rule 89 |
 | 425 | **The assistant says "I" and promises only what happens; the model that answered is recorded; what Anthropic keeps on the pages** (no migration) — see §5 rule 90 |
+| 426 | **Honest answers in French; a denied name is a denial in six languages** (no migration) — see §5 rule 4 |
 | 141 | **The review pass** — every page in three languages read; no raw catalogue key on any page (walk + typed Practice labels); History names the customer; the run's 278 zh/ar lines in `docs/NATIVE-REVIEW-UI.md` — see §5 rule 39 |
 | 140 | **Names, People, Setup, the door, the live line in the headers** — see §5 rule 39 |
 | 139 | **Right to left, by design** — `src/api/web/values.ts`, every value isolated on Arabic pages, the Arabic walk — see §5 rule 38 |
@@ -395,6 +396,7 @@ Recent PRs, newest first:
 4. **She never claims to be human** (`src/core/safety/identity.ts`). Self-denial
    only; handoff offers must pass. The context rule fires on a *question about
    the interlocutor*, never on a message that merely contains "real person".
+   A name for an automated assistant counts as an honest answer (French since 2026-11-05: "assistant automatisé", "assistante virtuelle"); the same name negated is a denial in all six languages, and the denial is read first (`tests/parity/identity-guard.test.ts`).
 5. **Owner-facing copy never says "AI" / 机器人 / 系统 / 模型**
    (`BANNED_OWNER_TERMS`). The only exceptions are listed by key in
    `HONEST_ABOUT_AI_KEYS` — buyer-facing sentences whose job is to say it.

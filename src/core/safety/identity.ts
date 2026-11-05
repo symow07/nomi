@@ -99,6 +99,9 @@ const PT_GAP = `(?:(?:realmente|mesmo|mesma|de\\s+fato|com\\s+certeza|sim)\\s+){
  * could actually send and the list is meant to be read by a person deciding
  * whether it is right.
  */
+/** French assistant words, either gender: a name only an automated assistant has. */
+const FR_ASSISTANT = String.raw`assistante?\s+(?:virtuel(?:le)?|automatis[ée]e?|automatique|d['’]IA|de\s+IA|IA)`;
+
 const DENIALS: readonly RegExp[] = [
   // ── English · first person ────────────────────────────────────────────────
   // "I am a real person", "I'm really human", "I am 100% a person". Adjacent
@@ -208,6 +211,17 @@ const DENIALS: readonly RegExp[] = [
   // Second person / conversation level.
   /\b(?:enta|inta|inte|enti|ente|entaa)\s+(?:3am\s+)?(?:btihki|btehki|bthki|btkalem|btetkalam|tihki)\s+ma3\s+(?:insan|insaan|shakhs|bashar)\b/i,
   /\b(?:mafi|ma\s+fi|mafish|ma\s+fish|mako)\s+(?:robot|bot|ai)\b/i,
+
+  // ── A name for an automated assistant, negated, in every language ─────────
+  // ACKNOWLEDGMENTS counts the name alone, so "I'm not a virtual assistant" read as honest until this list caught it first.
+  // The ends are lookaheads, not \b: JavaScript's \b knows only ASCII, and "automatisé" ends outside it.
+  /\b(?:i(?:'m|’m|\s+am)\s+not|this\s+is\s+not|this\s+isn['’]t)\s+(?:an?\s+)?(?:a\.?\s?i\.?|artificial\s+intelligence|virtual|digital|automated)[\s-]+(?:assistant|agent|helper|chat\s?bot|bot|system|program|reply|response)\b/i,
+  new RegExp(`\\bje\\s+ne\\s+suis\\s+${FR_GAP}pas\\s+(?:une?\\s+|l['’]\\s*)?(?:${FR_ASSISTANT}|IA\\s+de)(?![a-zà-ÿ])`, 'i'),
+  new RegExp(`\\bj(?:e\\s+|['’]\\s*)suis\\s+pas\\s+(?:une?\\s+|l['’]\\s*)?(?:${FR_ASSISTANT}|IA\\s+de)(?![a-zà-ÿ])`, 'i'),
+  /\bno\s+soy\s+(?:una?\s+)?(?:asistente|agente)\s+(?:virtual|de\s+IA|IA|autom[aá]tic[oa]|automatizad[oa]|de\s+inteligencia\s+artificial)(?![a-zà-ÿ])/i,
+  /(?<![a-zà-ÿ])n[aã]o\s+sou\s+(?:uma?\s+)?(?:assistente|agente)\s+(?:virtual|de\s+IA|IA|autom[aá]tic[oa]|automatizad[oa]|de\s+intelig[eê]ncia\s+artificial)(?![a-zà-ÿ])/i,
+  /(?:我|这|這)(?:并|並)?不是\s*(?:一个|一個|個)?\s*(?:(?:AI|人工智能|人工智慧|智能|虚拟|虛擬)\s*(?:助手|客服|助理)|自动回复|自動回覆)/i,
+  /(?:^|\s)(?:لست[ً-ْ]*|لسنا|مش|مو)\s+(?:مساعد|رد|برنامج)[ً-ْاة]*\s+(?:آلي|ذكي|افتراضي|تلقائي)/,
 ];
 
 /**
@@ -341,6 +355,8 @@ const ACKNOWLEDGMENTS: readonly RegExp[] = [
   // Español · Français · Português: "asistente de IA", "assistant virtuel", "l'IA de", "assistente de IA"; or "soy / je suis / sou … bot / IA".
   /\b(?:asistente|assistant|assistente|agente)\s+(?:virtual|virtuel|de\s+IA|d['’]IA|IA|autom[aá]tic[oa]|automatique|de\s+inteligencia\s+artificial|de\s+intelig[eê]ncia\s+artificial)\b/i,
   /\bl['’]IA\s+de\b/,
+  // Both genders and "automatisé", whose last letter is outside \b: the honest answers the writer gives in French.
+  new RegExp(`\\b${FR_ASSISTANT}(?![a-zà-ÿ])`, 'i'),
   /\b(?:soy|eres\s+hablando\s+con|est[aá]s\s+hablando\s+con|je\s+suis|vous\s+parlez\s+[àa]|tu\s+parles\s+[àa]|sou|voc[eê]\s+est[aá]\s+falando\s+com)\s+(?:(?:una?|um|uma|solo|s[oó]lo|seulement|apenas|juste)\s+)?(?:bot|robot|rob[oô]|chatbot|IA|programa|programme|intelig[eê]ncia\s+artificial|inteligencia\s+artificial|intelligence\s+artificielle|asistente\s+virtual|assistant\s+virtuel|assistente\s+virtual)\b/i,
   /\bno\s+soy\s+(?:una?\s+)?(?:persona|humano|humana)\b|\bje\s+ne\s+suis\s+pas\s+(?:une?\s+)?(?:personne|humaine?)\b/i,
   /(?<![a-zçãõáéíóúâêô])n[aã]o\s+sou\s+(?:uma?\s+)?(?:pessoa|humano|humana)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])resposta\s+autom[aá]tica(?![a-zçãõáéíóúâêô])/i,
