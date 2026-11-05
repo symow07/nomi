@@ -65,6 +65,7 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.as-tag': ['mark', 'the name tag'], '.msg-by .as': ['mark', 'the name tag'], '#approve .top > .as': ['mark', 'the name tag'],
   '.card > p > .as': ['mark', 'the name tag, in the gallery'], '.pill.as': ['mark', 'the name tag, as the hand-over card\'s pill'],
   // The warmth run, phase 4 — the Inbox row's waiting words open with signalMark's ○.
+  '.sp-chip.is-done': ['text', 'the chip names the completed state'],
   '.ir-wait': ['text', 'signalMark ● before the words'],
   '#approve summary .c.warn': ['text', '○ Not every figure has a source'],
   '.reasons .mk.warn': ['mark', '○ beside the figure with no source'],

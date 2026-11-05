@@ -1,261 +1,101 @@
-# Nomi design system: the Split Today
+# Nomi design system
 
-For anyone building or reviewing a Nomi page in this look. Two pages are drawn in it so far, **Today** and the **Inbox**,
-behind `SPLIT_TODAY=on` (on in production). With the flag off, nothing here is reached.
+Nomi helps a solo owner answer customers and keep the books. Pages use a shared paper theme, plain task names and a stable navigation hierarchy. This guide replaces the earlier split-theme guidance, including the rose header wash, colored Send button and feature-flag-only styling rules.
 
-| What | Where |
+## Delivery scope
+
+Area 1 establishes the shared theme and signed-in shell, then applies the overview, calendar, results and setup layouts to Today, Calendar, Sales results and Getting started. Readiness, practice checks and installation details retain their real state and existing access rules. The shell also surrounds existing signed-in pages while their individual layouts migrate.
+
+The Customers and Assistant destinations may initially be functional hubs to existing records and tools. The customer list, operational order list, conversation panel, full Books redesign and grouped Settings pages belong to later areas. The fifteen layout rules below describe the approved system; they do not mean every existing page has completed its redesign.
+
+| Area | Owns |
 |---|---|
-| Tokens | `SPLIT_TOKENS` in `src/core/owner/tokens.ts` |
-| Rules | `src/api/web/splitStyle.ts`, linked only by a page drawn with `body.split` |
-| The pages | `src/api/web/splitToday.ts`, `src/api/web/splitInbox.ts` |
-| Their figures | `src/db/splitToday.ts`, `src/db/customerStage.ts`, `src/db/buyersList.ts` |
-| Tests | `tests/parity/split-today.test.ts`, `tests/parity/split-inbox.test.ts`, and the same two names under `tests/integration/` |
-| Screenshots | `docs/design/split-today/`, `docs/design/split-inbox/` |
+| 1 · Today | Shared tokens and shell; Today, Calendar, Sales results and Getting started |
+| 2 · Inbox | Views, conversation, draft review, saved replies and contextual Ask Nomi |
+| 3 · Customers | Customer and operational order lists, records, labels, feedback and follow-ups |
+| 4 · Products | Catalogue, product details, imports, photographs and price limits |
+| 5 · Books | Home, owner tasks, accurate figures, spending journey, documents and exports |
+| 6 · Assistant | Knowledge, Practice, checks, activity and full-page Ask Nomi/history |
+| 7 · Settings | Focused settings groups and canonical destinations |
+| 8 · Public pages | Authentication, customer documents/chat, legal pages and website |
 
-To see it locally: `npm run build`, start the app with `SPLIT_TODAY=on`, then `node tools/split-preview.mjs seed` and
-`shots` (the tool's header has the variables). It refuses any database but a local one.
+## Theme
 
-## Tokens
-
-### Colour
-
-Each colour has one job. A colour used for anything else is a defect.
-
-| Token | Value | Its job |
-|---|---|---|
-| paper | `#F7F3EE` | The page |
-| surface | `#FFFDFA` | A panel |
-| ink | `#25201C` | Text |
-| washInk, washHalo | `#9C4F52`, `#B8767A` | The header's wash, nothing else |
-| secondary | `#665D55` | Quieter text; the edge of an outlined button |
-| border | `#E8E1D8` | Hairlines |
-| neutral | `#EDE7DF` | A customer's initial; a plain chip; the rail's current page |
-| jade | `#3F6B5C` | Money in, done. `jadeWash` `#E6EDE9` behind a chip |
-| ochre | `#B8862F` | Waiting, overdue: marks, and the bold "1 overdue" |
-| ochreText | `#7C5A14` | Waiting, overdue: any smaller text. `ochreWash` `#F6EEDC` behind a chip |
-| wine | `#5A0A2E` | The mark, the rail's count, and the dot on a row that needs you |
-| magenta | `#9A0F5E` | **Send only**, with `onSend` `#FFFFFF` on it |
-
-Contrast, measured:
-
-| Pair | Ratio | Enough for |
-|---|---|---|
-| ink on paper | 14.60 | Any text |
-| secondary on surface | 6.34 | Any text |
-| secondary on neutral | 5.24 | Any text |
-| jade on surface | 5.96 | Any text |
-| jade on jadeWash | 5.09 | Any text |
-| ochreText on surface | 6.21 | Any text |
-| ochreText on paper | 5.71 | Any text |
-| ochreText on ochreWash | 5.46 | Any text |
-| white on magenta | 8.06 | Any text |
-| ochre on surface | 3.19 | Marks, and bold text of 19 px or more. **Not small text** |
-
-`ochreText` exists because of that last row: `#B8862F` is too pale for a 13 px line. It is the same hue, darker.
-
-### Type
-
-Two voices, both under the SIL Open Font License and served by the product (`assets/fonts/`, vendored by
-`tools/fonts-split.mjs`). A page never fetches a font from anyone else.
-
-| Voice | Latin | Arabic | Chinese | Used for |
-|---|---|---|---|---|
-| Serif | Newsreader | Noto Naskh Arabic | Noto Serif SC | Headings and big numbers: "Today", panel headings, a customer's name on the decision, the question, big money |
-| Sans | Noto Sans | Noto Sans Arabic | Noto Sans SC | Everything else |
-
-| Size (px) | Token | Used for |
-|---|---|---|
-| 44 (36 on a phone) | `title`, `titlePhone` | The page's title |
-| 40 (34 on a phone) | `money`, `moneyPhone` | The one big figure, profit |
-| 26 | `question` | The question on the decision card |
-| 20 | `name` | Panel and section headings, a customer's name |
-| 17 | `base` | Body |
-| 15 | `small` | Rows, buttons, sub-headings |
-| 13 | `caption` | Labels, days, "goes on Instagram" |
-
-### Spacing and radius
-
-Spacing is 4, 8, 12, 16, 20, 24, 32. There are no others.
-
-Radius: panel 14, control 10, thumbnail 8, chip fully round.
-
-## Panels
-
-- A panel is a heading on the paper (a Solar icon, the serif name, "View all ›"), then **one flat sheet**.
-- The sheet is the surface colour with a 1 px hairline. No shadow.
-- Parts of a sheet are ruled apart by a hairline, never boxed apart.
-- Desktop: Sales on the left, Books on the right, from 1100 px up. Below that, one column.
-- A person who may not see the books gets Sales alone, in one column. So does a workspace with books off.
-
-## The wash
-
-Rose ink brushed on rice paper, behind "Today" (`inkWashDataUri` in `src/core/owner/brand.ts`; the owner's reference,
-2026-11-04). It hangs from the top edge with a torn, watery foot, and fades to nothing downward and away to the far side.
-
-- It appears once per page and runs edge to edge. It is 176 px tall and keeps its own proportions. Squeezed into the
-  header, it turns into streaks.
-- Right to left, it is mirrored so it stays behind the title. It is decoration; a time chart never is (see The trend).
-- It is drawn from `washInk` and `washHalo`, a rose of its own. Wine stays the mark's and magenta stays Send's.
-- It stays faint enough for AA. `tools/split-preview.mjs shots` hides the text and prints the worst pixel behind the
-  title, the subtitle and the panel headings. The title and subtitle are ink, never secondary.
-
-## Rows
-
-One customer, one line, one door to the conversation: photo, name, product thumbnail, stage chip, value, days, chevron.
-
-- The columns are fixed, so thumbnails and chips line up down the list.
-- With no product photo, the thumbnail's place stays empty. A grey box looks like a picture that failed.
-- With no value, the value's place stays empty. Never "$0".
-- On a phone, a row takes two lines: name and value, then chip and days.
-- The customer on the decision card is not listed again under it.
-
-**Who needs you.** No pill and no banner.
-
-- The rail and the phone's tab bar: a small count beside Inbox, a white figure on wine. Hidden at nothing, "9+" above nine; the link's spoken name says the true number.
-- The Inbox: a small wine dot at the start of each row that needs you, with its reason in words. Its name is bold until the conversation is opened, and bold again when something new arrives. Those rows come first.
-
-**A cut name.** A long name is cut at its end in either direction: the element that cuts is itself a `<bdi>`. Never `dir="auto"` around a lone `<bdi>` on a name: `dir="auto"` reads past it and finds no words.
-
-**Recent entries** (Books) use the same row: photo or initial, who, status chip, amount, date, chevron. At most five, newest
-first, then "View all".
-
-- One row per invoice, with where it stands now (Paid, Open, Overdue) and its latest event's date: the day it was paid for Paid, its issue date for Open and Overdue.
-- A payment gets its own row only when it belongs to no invoice: money on a bank line that isn't matched to an invoice's
-  payment, and isn't one the bank page offers to approve. Its chip says "Payment", and it opens the bank page.
-- Green is settled, ochre is overdue, the rest are plain.
-
-The two columns don't have to end level.
-
-## The Inbox
-
-The address stays `/app/inbox`. Same head as Today (the mark, the serif title on the wash, the live line), then one sheet.
-No cards and no banner.
-
-**Views**, each with its count, in this order:
-
-| View | Who is in it |
+| Role | Value or rule |
 |---|---|
-| Needs you | The rail's number, the same rows |
-| Gone quiet | Customers the attention rules name: no answer, a price unanswered, a sample with no word. The reason is on the row |
-| With your assistant | Open, nobody holds them, nothing waits for you |
-| With your team | A person holds them |
-| Everyone | All of them, the latest first |
+| Page | Paper `#F7F3EE` |
+| Surface | `#FFFDFA`; flat and separated by thin neutral borders |
+| Text and primary actions | Black; filled primary buttons have white labels |
+| Secondary actions | Black text and a neutral border |
+| Magenta | `#9A0F5E`: links, active navigation/tabs, selected rows, counts and waiting dots |
+| AI output | A faint magenta surface, the supplied seal and clear attribution |
+| Green | Quiet confirmation of paid or done |
+| Warning/refusal | Explicit words and an icon near the relevant action; color alone carries no condition |
 
-"Did not send" and "Deletion requests" appear as tabs of their own when they hold someone, or when asked for.
+No decorative header wash, gradients, shadow cards, ornamental banners or large glowing identity graphics. A necessary operational notice stays beside the affected task and states what happened and what the owner can do. Charts present data; they are not decoration.
 
-- The page opens on Needs you while someone waits, otherwise on Everyone. A search looks across everyone.
-- The sheet's head holds the search, the stage filter (the chip's own words; Sample only where a sample exists) and the
-  order. Labels are filters here too, where the business has any.
+Preserve the supplied Nomi seal artwork. Use the existing mark helpers rather than redrawing it. Thin line icons aid recognition; every navigation item and meaningful action still has a label. Customer photographs are round, with an initial when no photograph exists. Product thumbnails use actual catalogue photographs; an absent photograph must not look like a failed download.
 
-**A row** is Today's: photo or initial, name, product thumbnail, stage chip, value, days quiet, chevron.
+Use locally served fonts. The restrained serif is for Today and document headings; readable sans-serif is for navigation, messages, labels, forms and running text. Aim for 16–17 px body text, clear heading hierarchy, stable numeric alignment and at least 44 px touch targets. Reuse spacing, radius and typography tokens. Keyboard focus must remain visible on paper and surface backgrounds. Respect reduced motion.
 
-- Under the name, one faded line: the reason, if there is one, then the last message. It is cut with an ellipsis, and the
-  element that cuts it is the `<bdi>`, so Latin and Arabic each keep their own direction. Words the seller's side wrote say
-  who wrote them ("You:", the assistant's name).
-- A row that needs you has the wine dot and its reason in words. The name is bold until the conversation is opened.
-- The row is one door to the conversation; the photo is its own door to the customer's card.
-- The stage comes from one definition, `STAGE_OF_CONVERSATION` in `src/db/customerStage.ts`, the same one Today reads.
-  Value is the figure on record. A price the assistant worked out and never gave does not make a stage or a value.
-- On a phone: name and value, then chip, reason and days, then the last message, with the tab bar at the foot.
+The token source is `src/core/owner/tokens.ts`. The shared shell and base rules live in `src/api/web/layout.ts`; the Today/Inbox rules also use `src/api/web/splitStyle.ts`. Existing internal names and flags are implementation details, not a separate visual contract.
 
-## Chips
+## Navigation
 
-A chip names a state in words. Never colour alone.
+Every signed-in page, Books included, keeps the same labelled primary rail. Settings is pinned at its foot. A selected area owns its secondary navigation and remains selected on its records and subpages. Permission-limited viewers see only their permitted destinations; hiding a link never replaces server authorization.
 
-| Chip | Colour |
+| Primary area | Secondary destinations |
 |---|---|
-| Order | Jade on jadeWash |
-| Waiting | ochreText on ochreWash |
-| Asked, Price given, Sample | Secondary on neutral |
+| Today | Today · Calendar · Sales results · Getting started |
+| Inbox | Needs you · Gone quiet · With your assistant · With your team when relevant · Everyone |
+| Customers | All customers · Orders · Follow-ups · Labels · Feedback |
+| Products | All products · Add products · Price limits |
+| Books | Overview · Get paid · Spending · Bank · Reports and tax · Year end; Advanced below |
+| Assistant | Overview · Knowledge · Practice · Check replies · Activity · Ask Nomi |
+| Settings | Business · Channels · Assistant · Books · Team · Billing · Personal |
 
-## Buttons
+On a phone, use Today · Inbox · Customers · Books · More. More contains labelled links to Products, Assistant, Calendar and Settings. Omit Books when unavailable or forbidden and preserve the existing role-specific shell. A labelled section chooser replaces the secondary sidebar. Menus must open by keyboard, close predictably and leave focus usable.
 
-Nomi's rule stands: **a button changes something, a door goes somewhere.** A door is words with an arrow, never a box,
-and `tests/parity/buttons-and-doors.ts` holds it. The one exception is a GET form with a button, for a move that is
-drawn as a button: "New message" and "Remind".
+Getting started remains reachable after completion, even when its home checklist disappears. Keep Did not send and Deletion requests reachable in Inbox, showing their views when relevant. Records need a clear route back to their list; preserve applicable filters and scroll position. Public authentication, legal and customer-document pages keep the minimal public shell.
 
-| Kind | Look | Where |
+Area-owned route changes land with that area. During migration, introduce working links or explicit temporary hubs. Old GET addresses may redirect to the canonical page while preserving record IDs, supported query parameters and return anchors. Existing POST actions continue to invoke the same authorized commands. Callback, export, webhook and signed public-link contracts remain stable.
+
+## Fifteen layouts
+
+| Layout | Structure | Phone behavior |
 |---|---|---|
-| Send | Filled magenta, white words | **Once per screen**, and only for sending |
-| Outlined | Surface, a secondary edge, ink words | Edit, Hand to me, New message |
-| Outlined, small | The same at 36 px | Remind |
+| 1 · Overview | Today has one priority decision followed by Sales and Books summaries. Other overviews use concise totals and actionable rows. | Priority first, then stacked summaries. |
+| 2 · List | Search and scoped views above aligned, selectable rows. | Two-line rows with essential facts and a large tap target. |
+| 3 · Conversation | Inbox views/list, transcript and one optional panel. Customer details and Ask Nomi share that panel. | List, chat, details and Ask Nomi are separate views with a clear return; preserve the unsent draft. |
+| 4 · Detail | Record identity, fact sections, history and actions beside the facts they change. | Readable sections in a useful order. |
+| 5 · Document | Invoice/credit note with issuer, recipient, dates, line items and totals; actions outside the paper. | Reflow for reading; retain a proper print document. |
+| 6 · Table | Compact toolbar, aligned columns, useful headings and totals. | Essential columns first; label a horizontal region only where comparison needs one. |
+| 7 · Settings form | Group navigation and one subject with related fields and its own Save. | One column, group back link and visible field labels. |
+| 8 · Data entry | Task heading, grouped fields, repeating line editor, persistent total and final action. | Legible line groups with visible quantity, price and tax controls. |
+| 9 · Status rows | Each setup or connection check states its real condition and next action. | Stack the same rows with a short explanation and one next step. |
+| 10 · Step flow | One question, progress, Back/Continue and a final review before learning or importing. | Full-width step with the same confirmation boundary. |
+| 11 · Sign-in | Supplied large seal and centered, narrow form. | Spacious single column; retain code, recovery and verification states. |
+| 12 · Empty state | Explain the purpose and give one useful next step. Distinguish empty, disabled and no search results. | Same meaning and action, without ornamental illustration. |
+| 13 · Reading | Quiet prose column, useful anchors and comfortable line length. | Readable type and measure; preserve legal wording. |
+| 14 · Website | Honest product story, real app examples and invitation/sign-in routes. | Vertical sequence, without a signed-in rail. |
+| 15 · Calendar | Month grid, selected-day agenda and overdue commitments. | Agenda first with a date picker/month control; never compress the desktop grid into unreadable cells. |
 
-Every control is at least 44 px tall, except the small button. A focused control shows a 2 px ink outline.
+A working state is part of its layout: waiting, loading, refusal, error, unavailable, permission-limited and empty views must retain the relevant explanation and next action. A whole-page overflow check does not prove that nested fields and controls are reachable.
 
-## Avatars
+## Content and action boundaries
 
-- A customer's photo, when their channel gave one (`face()` in `src/api/web/faces.ts`).
-- Otherwise a neutral initial: one colour for everyone, so no colour says anything about a person.
-- Round, at 72 px on the decision (56 on a phone), 36 in a row, 32 beside an overdue customer.
-- A name is never replaced by a photo. Both are always there.
+Today preserves the exact draft words, reply editing, source-reading disclosure, channel deadline and existing Send, Hand to me and No reply needed controls. The approval command decides what may send. A layout change must not create another send path or hide the evidence needed to approve.
 
-Product thumbnails come from the catalogue's own photos (`product_images`). Square with a radius of 8, at 36 px on the
-decision and 28 in a row.
+Ask Nomi uses the owner's chosen assistant name. Opening a contextual panel makes no paid call. Keep factual answers, source links and suggested reply text distinct; inserting a suggestion into the composer does not send it. Later integration must reuse allowance, privacy, tenant and history boundaries, with authorized customer context resolved on the server.
 
-## Stage strip
+A figure needs a truthful definition, period, currency and destination. Do not relabel posted income as cash received or posted expense as cash paid. The later Books home must derive cash movements without transfer or matched-payment duplication, invoice balances after credits/payments, recorded supplier liabilities and fiscal-year profit. Unavailable data needs an honest unavailable state. Owner tests do not inflate sales figures; unsupported or absent values never become invented zeroes.
 
-Asked → Price given → Sample → Order, this month, in the workspace's time zone.
+Settings have one canonical owner. Related pages may link to that owner with a useful return path. Personal history choices and workspace history policy remain separate permissions. Preserve real channel availability, import/export safeguards, tax and locking checks, deletion controls and confirmation boundaries.
 
-- Each stage shows a dot, its word, its count, and its value where it has one.
-- **Filled jade** means there is some. **An ochre ring** means one waits on someone. **An empty ring** means none.
-  State is in the shape as well as the colour.
-- Counted from real rows. A conversation marked "this is me testing" counts for nothing.
-- **Sample** appears only for a business that sells by quantity, or where a customer really asked for one. Most shops
-  have no samples.
-- Right to left, the strip runs from the right.
+New redesign copy is authored in English through the existing translation catalogue. Until a reviewed translation exists, use its English fallback; do not invent translations or insert new English strings directly into renderers. Preserve existing locale switching, language-specific fonts, bidirectional isolation and translated functionality. Review screenshots for this redesign in English only. Customer messages and record names remain their actual content.
 
-## The trend
+## Verification
 
-One line, one colour, no legend: profit so far this fiscal year, by month. Jade, 2 px, with a faint wash under it and
-the latest month marked. Each point names its month and figure on hover, and the whole chart has a text label.
+For each area, retain desktop and 390 px phone captures, a short route/move list and evidence of its empty, error and permission states. Inspect the actual images and nested form controls. Check active navigation, keyboard/focus behavior, menu closing, working links, readable type, black action buttons, palette, source controls and absence of decorative banners or overflow.
 
-**A time chart never flips.** Time runs left to right on every page, Arabic included, with the newest month on the right.
-Mirrored, a year of rising profit reads as a fall. The chart carries `dir="ltr"` and no transform; tests hold it. The stage
-strip is a sequence, not a time chart, and does run from the right.
-
-## The mark
-
-The square seal from `assets/brand/`, reading "nomi", its "o" a cash coin. Inked in wine. It sits in the rail, and at the
-head of the page on a phone, where the rail is gone. Use `markSmall` or `markDetail` (`src/core/owner/brand.ts`); never
-redraw it.
-
-## Phone
-
-From 720 px down: Sales first, Books below, a tab bar at the foot.
-
-- Five tabs: Today, Inbox, Calendar, Books, Settings. Advisor moves to a door at the page's foot.
-- With books hidden, Advisor keeps its tab.
-- The rail's one number stays, on Inbox.
-- The page leaves room for the tab bar, so nothing is ever under it.
-
-## Right to left
-
-Arabic mirrors the whole page by logical properties alone. Two exceptions: the trend stays left to right, because time
-charts never flip, and the wash is mirrored by hand to stay behind the title.
-
-- Every figure goes through `show.*`, which isolates it (`src/api/web/values.ts`).
-- A customer's name goes in `<bdi>`, not `dir="auto"`, so a Latin name still lines up with the page's edge.
-- Arabic addresses nobody in a gender. Buttons are verbal nouns: إرسال, تعديل, التحويل إليّ.
-
-## Do and don't
-
-**Do**
-
-- Show the words that will be sent. The owner decides on the reply itself, not on a summary.
-- Keep every safety on the page: Hand to me, "How your assistant read this", the channel's time limit, every held notice.
-- Say what a figure counts. "$7,250" on a summary is fine; the reply keeps "$7,250.00" exactly as written.
-- Drop cents only where they are zero. "$1.45" stays.
-- Read a screen as a cosmetics brand would, and as an online clothing store would.
-
-**Don't**
-
-- Don't flip a time chart right to left.
-- Don't use serif for running text. It's for what a person says, headings and big numbers.
-- Don't use a second magenta on a screen, or magenta on anything but Send.
-- Don't use wine on anything but the mark, the rail's count and a waiting row's dot.
-- Don't use red. Overdue is ochre.
-- Don't add a drop shadow, a watermark stamp or a repeating seal.
-- Don't put a badge or stage in colour without its word.
-- Don't invent a figure. A stage with nothing says nothing, and a panel with no data is left out.
-- Don't let a button claim what it doesn't do. "Remind" opens the place to remind from; it sends nothing itself.
-- Don't let a bell, a greeting or a tile back in without a page behind it.
+Run `npm run check`, `npm run trust`, `npm run build` and the isolated integration runner on Node 22. Changes involving sending or approval also require the scripted pre-pilot against an isolated local database, with a before/after comparison when approval UI changes. Keep synthetic fixtures and credentials outside deliverable captures. Verification uses no production connection, paid model run or live message. Completion claims must name the checks actually run and any remaining limitation.

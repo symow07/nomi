@@ -30,7 +30,7 @@ describe('M9.8 · business review (localized)', () => {
 
   it('zh: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'zh');
-    expect(html).toContain('经营情况');
+    expect(html).toContain(t('zh', 'area1.results.title'));
     expect(html).toContain('位新客户'); expect(html).toContain('段对话');
     expect(html).toContain('沟通情况'); expect(html).toContain('条客户消息');
     expect(html).toContain('报价与订单'); expect(html).toContain(t('zh', 'analytics.section.employee'));
@@ -39,7 +39,7 @@ describe('M9.8 · business review (localized)', () => {
 
   it('en: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'en');
-    expect(html).toContain('Results');
+    expect(html).toContain('Sales results');
     expect(html).toContain('new customers'); expect(html).toContain('Activity');
     expect(html).toContain('messages from customers'); expect(html).toContain(t('en', 'analytics.section.employee'));
     // The advisor batch — Home's meaning of "handled": conversations, not replies approved from drafts.
@@ -60,17 +60,17 @@ describe('M9.8 · business review (localized)', () => {
 
   it('ar: renders Arabic + the assistant\'s name (fallback when none chosen)', () => {
     const html = renderAnalytics(active, 'ar');
-    expect(html).toContain('النتائج');
+    expect(html).toContain(t('ar', 'area1.results.title'));
     expect(html).toContain('عملاء جدد');
     expect(html).toContain(t('ar', 'analytics.section.employee'));   // عمل مساعدك
   });
 
   it('real order value only when orders exist — localized status + note', () => {
     // Phase 9 (V1-210) — a figure and its words, as every other row: "1 order · Confirmed", "$4,600.00 in sales".
-    expect(renderAnalytics(active, 'en')).toContain('<div class="stat"><div class="v">1</div><div class="l">order · Confirmed</div></div>');
+    expect(renderAnalytics(active, 'en')).toContain('<div class="result-row"><dt>order · Confirmed</dt><dd>1</dd></div>');
     // phase 9 of the warmth run (w4-customers-22) — what the orders come to is the Sales section's headline line, under its own heading
     expect(renderAnalytics(active, 'en')).toContain('<p class="an-total"><span class="v">$4,600.00</span> <span class="l">in sales</span></p>');
-    expect(renderAnalytics(active, 'en')).toContain('<h2>Sales</h2>');
+    expect(renderAnalytics(active, 'en')).toContain('<h2 id="results-sales">Sales</h2>');
     expect(renderAnalytics(active, 'zh')).toContain('个订单 · 已成交');
     const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totals: [] } }, 'en');
     expect(noOrders).not.toContain('in sales');
@@ -85,14 +85,14 @@ describe('M9.8 · business review (localized)', () => {
     expect(en).not.toContain('Overview');   // no number cards
     // no chart: the only drawings are the doors' carets (the icons run)
     expect(en.match(/<svg class="(?!gi sl")[^"]*"/g) ?? []).toEqual([]); expect(en).not.toContain('<canvas');
-    expect(en).toContain('href="/app/analytics?range=week"');
+    expect(en).toContain('href="/app/results?range=week"');
   });
 
   it('range tabs reflect the active range', () => {
     const html = renderAnalytics(active, 'en');
     // CC-20 — the chosen range is said to a screen reader too, as on every tab row.
-    expect(html).toContain('class="tab on" aria-current="page" href="/app/analytics?range=week"');
-    expect(html).toContain('href="/app/analytics?range=today"');
+    expect(html).toContain('class="tab on" aria-current="page" href="/app/results?range=week"');
+    expect(html).toContain('href="/app/results?range=today"');
   });
 
   it('no percentages, rates, scores, or technical vocabulary — every locale', () => {

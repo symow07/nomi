@@ -63,13 +63,11 @@ describe('the rail\'s count', () => {
     expect(said).not.toHaveProperty('words');
   });
 
-  it('is wine under a white figure, on every rail', () => {
-    const rule = ruleOf('nav.side .navcount');
-    expect(rule).toContain('background:var(--color-coin)');
-    expect(rule).toContain('color:var(--color-surface)');
-    expect(CSS).toMatch(/--color-coin:\s*#5A0A2E/i);
+  it('uses magenta figures on a neutral rail in the shared owner theme', () => {
+    const rule = ruleOf('.owner-shell nav.side .navcount');
+    expect(rule).toContain('color:var(--color-accent)');
+    expect(rule).toContain('background:transparent');
     expect(CSS).not.toMatch(/navcount::before/);
-    expect(readFileSync('src/api/web/splitStyle.ts', 'utf8')).not.toContain('navcount');
   });
 });
 
@@ -127,9 +125,9 @@ describe('the page is "Inbox", in every word for it (the owner, 2026-11-05)', ()
     expect(t('en', 'nav.inbox')).toBe('Inbox');
   });
 
-  it('the address stays /app/inbox: no page lives at /app/customers', () => {
+  it('Inbox and Customers have distinct working destinations', () => {
     const app = readFileSync('src/api/web/app.ts', 'utf8');
     expect(app).toContain("app.get('/app/inbox',");
-    expect(app).not.toContain("'/app/customers'");
+    expect(app).toContain("app.get('/app/customers',");
   });
 });

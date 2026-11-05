@@ -371,7 +371,7 @@ describe('the calendar', () => {
   });
 
   it('inbox-calendar-missed-20 · the list keeps the prose measure; the head and the grid take the column', () => {
-    for (const v of PLACES) expect(drawCal('en', v).startsWith('<h1 class="page">'), v).toBe(true);
+    for (const v of PLACES) expect(drawCal('en', v).startsWith('<div class="calendar-page"><h1 class="page">'), v).toBe(true);
     expect(CSS).toMatch(/\.cal-list \{ max-width:var\(--measure-prose\); \}/);
     expect(CSS).not.toMatch(/\.cal-grid \{[^}]*max-width/);
   });
@@ -401,7 +401,7 @@ const RESULTS: AnalyticsData = {
   employee: { handled: 1, waiting: 1, edits: 0 },
 };
 const results = (l: Locale, over: Partial<AnalyticsData> = {}) => withoutIsolates(renderAnalytics({ ...RESULTS, ...over }, l));
-const statsOf = (h: string) => [...h.matchAll(/<div class="stat"><div class="v">([^<]+)<\/div><div class="l">([^<]+)<\/div><\/div>/g)].map((m) => `${m[1]} ${m[2]}`);
+const statsOf = (h: string) => [...h.matchAll(/<div class="result-row"><dt>([^<]+)<\/dt><dd>([^<]+)<\/dd><\/div>/g)].map((m) => `${m[2]} ${m[1]}`);
 
 describe('Results', () => {
   it('V1-206 · the period inside a sentence is lower case', () => {
@@ -415,8 +415,8 @@ describe('Results', () => {
   it('V1-207 · Results is Today\'s page and says so; its period chip is not a second "Today"', () => {
     for (const l of LOCALES) {
       const h = results(l);
-      expect(h, l).toContain(`<a class="back" href="/app">${BACK}${shown(l, 'nav.home')}</a>`);
-      expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'nav.home'));
+      expect(h, l).toContain(`<a class="back" href="/app">${BACK}${shown(l, 'split.title')}</a>`);
+      expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'split.title'));
     }
   });
 
@@ -424,7 +424,7 @@ describe('Results', () => {
     for (const l of LOCALES) {
       const rows = statsOf(results(l));
       expect(rows.filter((r) => r.startsWith('12 ')), l).toHaveLength(1);
-      const overview = results(l).split(shown(l, 'analytics.section.activity'))[0]!;
+      const overview = /<section class="results-section" aria-labelledby="results-summary">([\s\S]*?)<\/section>/.exec(results(l))![1]!;
       expect(statsOf(overview), l).toHaveLength(2);
     }
     // The warmth run's phase 9 (w4-customers-20) — Today's figure, in Today's words: prices GIVEN, orders confirmed (audit B15: not "quotes")
@@ -450,8 +450,11 @@ describe('Results', () => {
     }
   });
 
-  it('V1-211 · the page keeps the prose measure, so its rules end where its rows do', () => {
-    expect(results('en').startsWith('<div class="measure-prose">')).toBe(true);
+  it('V1-211 · each section keeps labelled rows and aligned numeric values', () => {
+    const h = results('en');
+    expect(h.startsWith('<div class="results-page">')).toBe(true);
+    expect(h.match(/<dl class="result-rows">/g)).toHaveLength(5);
+    expect(statsOf(h)).toHaveLength(10);
   });
 
   it('V1-212 · Chinese: no double 的 in the heading, and the corrections line is a whole phrase', () => {
@@ -508,10 +511,10 @@ describe('an order', () => {
   });
 
   it('V1-191 · an order lights the Customers list, and leads back to the customer', () => {
-    expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('inbox');
+    expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('customers');
     for (const l of LOCALES) {
       const page = withWorkspace(SCOPE, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/orders/o1', bodyHtml: orderPage(l) }));
-      expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page"/);
+      expect(page, l).toMatch(/<a href="\/app\/customers" class="navlink active" data-nav="customers" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
     // the fix wave (w4-whole-13) — it opens the conversation, and says so

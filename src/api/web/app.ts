@@ -29,7 +29,7 @@ import { keptFace } from '../../db/faces.js';
 import { loadCustomerCard } from '../../db/customerCard.js';
 import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
-import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
+import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -70,7 +70,7 @@ import {
   buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, todayDecisionRevision, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
   railAnswer, railSaid, newestWaiting, railMomentOf,
   channelsMark, channelsWatch,
 } from './live.js';
@@ -966,6 +966,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.addHook('preHandler', async (req, reply) => {
     // A stranger is not told what exists here: the route answers with the same
     // login redirect as every other address.
+    if (req.is404) return; // Let the not-found handler draw the authenticated shell once.
     if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
   });
 
@@ -982,6 +983,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * on those addresses; a stranger still gets the login redirect.
    */
   app.addHook('preHandler', async (req, reply) => {
+    if (req.is404) return;
     const exportRoute = isExportRoute(req.url);
     const moroccoRoute = !exportRoute && isMoroccanBooksRoute(req.url);
     if (!exportRoute && !moroccoRoute) return;
@@ -999,6 +1001,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * refused. tests/integration/books-roles.test.ts walks every route the app registers against this.
    */
   app.addHook('preHandler', async (req, reply) => {
+    if (req.is404) return;
     if (!req.url.startsWith('/app')) return;
     const s = sessionOf(req);
     if (!s) return;
@@ -4104,6 +4107,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // is the boundary, so this route composes loadOperationsSnapshot +
   // renderOperationsHome and queries nothing else. Counts only; no new metrics.
   app.get('/app', authed('home', async (s, _req, locale) => {
+    const bid = parseBusinessId(s.businessId);
+    const decisionRevision = bid.ok ? await todayDecisionRevision(deps.db, bid.value) : undefined;
     // Phase B: Today composes two EXISTING read models — the operations snapshot
     // and the pilot feedback loop. No new query, no new storage.
     // M34.10 — plus the insights, which are the only part of this page that
@@ -4117,8 +4122,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       loadInsights(deps.db, s.businessId, personOf(s).id),
       loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
-    // The Split Today preview: the same three read models, drawn as two panels, with the figures it adds.
-    if (deps.splitToday) {
+    // The approved Today layout uses the same readers and approval commands on every installation.
+    {
       const person = personOf(s);
       const now = new Date();
       const data = await loadSplitData(deps.db, s.businessId, { showBooks: booksShown() && booksMay(person, 'see'), needs: today.needs.rows }, now);
@@ -4126,14 +4131,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'split.title'), wide: true,
         split: splitRail(person),
         bodyHtml: renderSplitToday(snapshot, locale, today, renderInsights(insights, locale, { bare: true }), data, now),
-        live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
+        live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true, decisionRevision), data.decision !== null)),
       };
     }
-    return {
-      bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
-      // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
-    };
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
@@ -5973,6 +5973,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // …and each row's screen: one former section, under its way back. Each is
   // its own route, so every walk of the GET routes opens every one of them.
   for (const screen of EMPLOYEE_SCREENS) {
+    if (screen === 'month') continue; // Sales results owns this existing monthly view.
     app.get(screenHref(screen), async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
@@ -5980,7 +5981,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const flash = takeFlash(req, reply);
       const [e, ctx, talk] = await Promise.all([
         loadEmployee(deps.db, s.businessId),
-        screen === 'learning' || screen === 'month' ? herContext(s.businessId) : Promise.resolve(undefined),
+        screen === 'learning' ? herContext(s.businessId) : Promise.resolve(undefined),
         screen === 'talk' ? talkAbout(s.businessId, locale) : Promise.resolve(undefined),
       ]);
       return reply.type('text/html; charset=utf-8').send(page(req, {
@@ -6321,10 +6322,67 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, `/app/conversations/${encodeURIComponent(conversationId)}`, key, { buyer: t(locale, 'common.buyer') });
   });
 
+  // Bookmarks retain their query and browser-managed fragment. Mutations keep their existing handlers.
+  const movedPage = (to: string) => async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!sessionOf(req)) return reply.redirect('/login');
+    const target = new URL(to, 'http://localhost');
+    const oldQuery = new URLSearchParams(req.url.split('?')[1] ?? '');
+    for (const [key, value] of target.searchParams) oldQuery.set(key, value);
+    const query = oldQuery.toString();
+    return reply.redirect(target.pathname + (query ? `?${query}` : '') + target.hash, 302);
+  };
+  app.get('/app/analytics', movedPage('/app/results'));
+  app.get('/app/guide', movedPage('/app/get-started'));
+  app.get('/app/onboarding', movedPage('/app/get-started'));
+  app.get('/app/onboarding/activity', movedPage('/app/results?view=setup'));
+  app.get(screenHref('month'), movedPage('/app/results?view=assistant'));
+
+  // Working entrances during the area-by-area migration. Each door uses the existing authorised page.
+  app.get('/app/customers', authed('customers', async (_s, _req, locale) => ({
+    title: t(locale, 'nav.customers'),
+    bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.customers'))}</h1><ul class="rows">${[
+      deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll')),
+      deeper('/app/labels', t(locale, 'labels.pageTitle')),
+      deeper('/app/surveys', t(locale, 'surveys.title')),
+      ...(outreachShown() ? [deeper('/app/contacts', t(locale, 'contacts.title'))] : []),
+    ].map((door) => `<li>${door}</li>`).join('')}</ul>`,
+  })));
+  app.get('/app/assistant', authed('assistant', async (_s, _req, locale) => ({
+    title: t(locale, 'nav.assistant'),
+    bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.assistant'))}</h1><ul class="rows">${[
+      deeper('/app/knowledge', t(locale, 'nav.knowledge')),
+      deeper('/app/sandbox', t(locale, 'nav.sandbox')),
+      deeper(screenHref('checks'), t(locale, 'spotcheck.title')),
+      deeper(screenHref('history'), t(locale, 'employee.growth.title')),
+      deeper('/app/advisor', t(locale, 'nav.advisor')),
+      deeper(ASSISTANT_HOME, t(locale, 'nav.settings')),
+    ].map((door) => `<li>${door}</li>`).join('')}</ul>`,
+  })));
+
   // ── M9.8 Business Performance: plain counts over existing business rows ────
-  app.get('/app/analytics', authed('analytics', async (s, req, locale, reply) => {
-    const range = parseRange((req.query as { range?: string }).range);
-    return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
+  app.get('/app/results', authed('analytics', async (s, req, locale, reply) => {
+    const query = req.query as { range?: string; view?: string };
+    const view = query.view === 'assistant' || query.view === 'setup' ? query.view : 'sales';
+    const views = `<nav class="tabs" aria-label="${esc(t(locale, 'area1.results.views'))}">${
+      (['sales', 'assistant', 'setup'] as const).map((item) => `<a class="tab${item === view ? ' on' : ''}"${item === view ? ' aria-current="page"' : ''}
+        href="/app/results${item === 'sales' ? '' : `?view=${item}`}">${esc(t(locale, `area1.results.${item}`))}</a>`).join('')}</nav>`;
+    let body: string;
+    if (view === 'assistant') {
+      const [employee, context] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
+      body = renderEmployeeScreen('month', employee, locale, takeFlash(req, reply), context, personOf(s));
+    } else if (view === 'setup') {
+      const bid = parseBusinessId(s.businessId);
+      const [runbook, feedback] = await Promise.all([
+        loadPilotRunbook(deps.db, s.businessId, {
+          practiceBusinessId: bid.ok ? await practiceCopyOf(deps.db, bid.value) : null, provider: deps.provider,
+        }),
+        loadPilotFeedback(deps.db, s.businessId, 'month'),
+      ]);
+      body = renderPilotScreen('activity', runbook, locale, feedback);
+    } else {
+      body = renderAnalytics(await loadAnalytics(deps.db, s.businessId, parseRange(query.range)), locale);
+    }
+    return { title: t(locale, 'area1.results.title'), bodyHtml: views + body };
   }));
 
   // ── V2 · the calendar: a read-only list of dates already on record ─────────
@@ -6408,7 +6466,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
-  app.get('/app/onboarding', async (req, reply) => {
+  app.get('/app/get-started', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
@@ -6420,9 +6478,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     // M17.6: what actually happened — counts and dates from stored signals/events.
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
+    const progress = setupState() ?? (bid0.ok
+      ? await withTenantTx(deps.db, bid0.value, (tx) => setupProgress(tx, bid0.value)) : null);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s)),
+      title: t(locale, 'area1.setup.title'), active: 'home',
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
+        <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p>`
+        + renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale,
+          assistantName(locale), undefined, { embedded: true })
+        + `<section class="readiness-section">${renderPilotRunbook(data, locale, flash, feedback, personOf(s), { embedded: true })}</section>`,
     }));
   });
 
@@ -6430,6 +6494,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // checklist: what to try in Practice, and how it is going. Same readers as
   // the checklist; each screen draws its part.
   for (const which of PILOT_SCREENS) {
+    if (which === 'activity') continue;
     app.get(PILOT_SCREEN_PATH[which], async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
@@ -6438,10 +6503,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const data = await loadPilotRunbook(deps.db, s.businessId, {
         practiceBusinessId: bid0.ok ? await practiceCopyOf(deps.db, bid0.value) : null, provider: deps.provider,
       });
-      const feedback = which === 'activity' ? await loadPilotFeedback(deps.db, s.businessId, 'month') : undefined;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, which === 'practice' ? 'runbook.practice.title' : 'runbook.during.title'), active: 'onboarding',
-        bodyHtml: renderPilotScreen(which, data, locale, feedback),
+        bodyHtml: renderPilotScreen(which, data, locale),
       }));
     });
   }
@@ -6547,17 +6611,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * stands, its door, and its video (`guide.ts`). Anyone signed in may read it;
    * each door leads where the step is done, and that page decides who may.
    */
-  app.get('/app/guide', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const locale = localeOf(req);
-    const bid = parseBusinessId(s.businessId);
-    const progress = setupState() ?? (bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => setupProgress(tx, bid.value)).catch(() => null) : null);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'guide.title'), active: 'settings',
-      bodyHtml: renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale, assistantName(locale)),
-    }));
-  });
   // The guide's videos and their captions: only names the folder holds, of the one shape.
   app.get('/assets/guide/:file', async (req, reply) => {
     const found = guideFileAt((req.params as { file: string }).file);

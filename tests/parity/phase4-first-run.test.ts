@@ -143,8 +143,8 @@ describe('F2 / F4 · Getting ready is the checklist; the machine room is one doo
     }
   });
 
-  it('the technical page is no hub\'s contextual route since phase 9 (no owner\'s page links to it); its address still lights Setup', () => {
+  it('the technical page is no hub\'s contextual route since phase 9 (no owner\'s page links to it); its address stays in Today', () => {
     expect(CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/onboarding')?.routes).not.toContain('/app/onboarding/technical');
-    expect(hubFor('/app/onboarding/technical', 'x')).toBe('settings');
+    expect(hubFor('/app/onboarding/technical', 'x')).toBe('home');
   });
 });

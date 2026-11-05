@@ -42,13 +42,13 @@ describe('phase 7 · the phone nav is one line', () => {
       expect(html.match(/nl-short">(?!\d)/g) ?? [], l).toEqual([]);
       expect(html.match(/nl-long">/g) ?? [], l).toEqual([]);
       expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.inbox')}</span>`);
-      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.advisor')}</span>`);
+      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.assistant')}</span>`);
       expect(t(l, 'nav.short.inbox'), l).toBe(t(l, 'nav.inbox'));
     }
     // The advisor run — the assistant is Settings' first row, never an entry of the rail.
     const named = withAssistantName('Lily', () => nav(page('fr')));
     expect(named).not.toContain('<span class="nl-text">Lily</span>');
-    expect(named).not.toContain('>Assistant<');
+    expect(named).toContain('>Assistant<');
   });
 
   it('wide: the long label; phone: the short one, every entry on one line; the narrowest: no mark before the entries', () => {

@@ -125,21 +125,24 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
     const html = await get('/app/inbox', undefined, plainCookie, plain);
     expect(html).toContain('<h1 class="page">Inbox</h1>');
     expect(html).toContain('class="irow');
-    expect(html).not.toContain('class="split"');
+    expect(html).toContain('class="owner-shell"');
+    expect(html).not.toContain('class="owner-shell split"');
     expect(html).not.toContain('si-tabs');
-    expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(false);
+    // Both renderers share the approved theme; the Inbox layout itself still obeys its flag.
+    expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(true);
     const quiet = await get('/app/inbox?filter=quiet', undefined, plainCookie, plain);
     expect(quiet).toContain('Omar Order');
   });
 
   it('the flag on: the Split rail, the paper, the sheet, the word Inbox', async () => {
     const html = await get('/app/inbox');
-    expect(html).toContain('class="split"');
+    expect(html).toContain('class="owner-shell split"');
     expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(true);
     expect(html).toContain('<h1 class="page">Inbox</h1>');
     expect(html).toMatch(/data-nav="inbox"[^>]*aria-current="page"/);
     expect(html).not.toContain('class="setup-strip"');
-    expect(withoutIsolates(html)).not.toContain('>Customers<');
+    expect(html).toContain('data-nav="customers"');
+    expect(html).toContain('data-nav="more"');
   });
 
   it('it opens on who needs the owner while someone does', async () => {

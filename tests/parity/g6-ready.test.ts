@@ -85,7 +85,7 @@ describe('G6 · the machine room is the installation\'s', () => {
     const at = app.indexOf("app.get('/app/onboarding/technical', {");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(at, at + 300)).toContain('if (s && s.businessId !== deps.businessId) return reply.callNotFound();');
-    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s))');
+    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s), { embedded: true })');
     expect(src('src/api/web/pilot.ts')).not.toContain("deeper('/app/onboarding/technical'");
   });
 });

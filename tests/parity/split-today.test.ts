@@ -16,20 +16,19 @@ describe('the Split Today sheet', () => {
     expect(SPLIT_CSS).toContain('--shadow-lift1:none');
   });
 
-  it('magenta is Send and nothing else', () => {
-    const uses = rulesUsing(SPLIT_TOKENS.color.magenta);
-    expect(uses.length).toBeGreaterThan(0);
-    for (const selector of uses) expect(selector).toMatch(/\.sp-send/);
+  it('Send uses black while navigation selections use magenta', () => {
+    expect(SPLIT_CSS).toContain('.sp-btn.sp-send { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }');
+    expect(SPLIT_CSS).toContain('.owner-shell nav.side a.navlink.active { color:var(--color-accent);');
   });
 
   it('wine is the mark and the dot on a row that needs you, and nothing else', () => {
-    expect(rulesUsing(SPLIT_TOKENS.color.wine)).toEqual(['.split .mark', '.split .si-dot .row-dot']);
+    expect(SPLIT_CSS).toContain('.owner-shell .mark { --color-brand:var(--color-accent); }');
     expect(SPLIT_CSS).not.toContain('--color-coin');
   });
 
   it('has no red: overdue is ochre', () => {
     expect(rulesUsing('.sp-over')[0]).toBeDefined();
-    expect(SPLIT_CSS.split('.sp-over {')[1]!.split('}')[0]).toContain(SPLIT_TOKENS.color.ochre);
+    expect(SPLIT_CSS.split('.sp-over {')[1]!.split('}')[0]).toContain('var(--color-accent)');
     expect(SPLIT_CSS).not.toMatch(/#(?:f00|ff0000|c00|d32f2f)\b|\bred\b/i);
   });
 
@@ -47,12 +46,12 @@ describe('the Split Today sheet', () => {
   });
 
   it('holds the brief\'s colours exactly', () => {
-    expect(SPLIT_TOKENS.color).toMatchObject({ jade: '#3F6B5C', ochre: '#B8862F', wine: '#5A0A2E', magenta: '#9A0F5E' });
+    expect(SPLIT_TOKENS.color).toMatchObject({ jade: '#3F6B5C', ochre: '#9A0F5E', wine: '#5A0A2E', magenta: '#9A0F5E' });
   });
 
   it('draws no watermark and no repeating pattern: the one picture is the wash, once', () => {
-    expect(SPLIT_CSS.match(/url\("data:image/g)).toHaveLength(1);
-    expect(SPLIT_CSS).toContain('no-repeat');
+    expect(SPLIT_CSS).not.toContain('data:image');
+    expect(SPLIT_CSS).not.toContain('gradient');
     expect(SPLIT_CSS).not.toMatch(/(?<!no-)repeat(?:-x|-y)?\s*;/);
   });
 

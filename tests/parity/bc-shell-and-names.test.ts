@@ -38,9 +38,9 @@ describe('B · every page knows which hub it belongs to', () => {
     // Buyers. Only Buyers is in the nav, so stopping at the first hop would
     // light nothing. (A, 2026-09-28: contacts hung off Customers, which was
     // reached from Today; Customers merged into Buyers, and the chain with it.)
-    expect(hubFor('/app/sequences', 'nonsense')).toBe('inbox');
-    expect(hubFor('/app/contacts', 'nonsense')).toBe('inbox');
-    expect(hubFor('/app/prospects', 'nonsense')).toBe('inbox');
+    expect(hubFor('/app/sequences', 'nonsense')).toBe('customers');
+    expect(hubFor('/app/contacts', 'nonsense')).toBe('customers');
+    expect(hubFor('/app/prospects', 'nonsense')).toBe('customers');
   });
 
   it('A — the buyer\'s own pages, still at /app/conversations/:id, light Buyers', () => {
@@ -55,20 +55,20 @@ describe('B · every page knows which hub it belongs to', () => {
     expect(hubFor('/app/settings/data', 'nonsense')).toBe('settings');
     // The warmth run: My business is a row of Settings, so what sits under it lights Settings.
     expect(hubFor('/app/settings/terms', 'nonsense')).toBe('settings');
-    expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('settings');
-    expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('inbox');
+    expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('products');
+    expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('customers');
     expect(hubFor('/app/inbox/abc-123', 'nonsense')).toBe('inbox');
   });
 
   it('longest match wins — /app is a prefix of everything', () => {
     // A plain startsWith would light Today on every page in the product.
-    expect(hubFor('/app/knowledge', 'nonsense')).toBe('settings');   // D — what it knows sits under the assistant, a row of Settings since the advisor run
+    expect(hubFor('/app/knowledge', 'nonsense')).toBe('assistant');   // D — what it knows sits under the assistant, a row of Settings since the advisor run
     expect(hubFor('/app/analytics', 'nonsense')).toBe('home');
   });
 
   it('a query string and a trailing slash change nothing', () => {
-    expect(hubFor('/app/products?flash=1', 'nonsense')).toBe('settings');
-    expect(hubFor('/app/products/', 'nonsense')).toBe('settings');
+    expect(hubFor('/app/products?flash=1', 'nonsense')).toBe('products');
+    expect(hubFor('/app/products/', 'nonsense')).toBe('products');
     expect(hubFor('/app/', 'nonsense')).toBe('home');
   });
 
@@ -78,7 +78,7 @@ describe('B · every page knows which hub it belongs to', () => {
 
   it('the page tells a screen reader where it is, exactly once', () => {
     const html = page('/app/settings/data');
-    expect(html.match(/aria-current="page"/g)?.length).toBe(1);
+    expect(html.match(/class="navlink[^"]*" data-nav="settings" aria-current="page"/g)?.length).toBe(1);
     // …and it is on Setup, the entry Your data sits under (D).
     const setup = NAV.find((n) => n.href === '/app/settings')!;
     expect(html).toMatch(new RegExp(`href="${setup.href}"[^>]*aria-current="page"`));
@@ -106,9 +106,9 @@ describe('the advisor run · the rail\'s slot is the advisor\'s; the assistant i
   for (const several of [false, true]) {
     it(`${several ? 'several assistants' : 'one assistant'}: the rail names the advisor, never the assistant`, () => {
       const html = withAssistantName('Sara', () => page('/app'), several);
-      expect(rail(html).match(/class="navlink/g)).toHaveLength(5);
-      expect(rail(html)).toContain('href="/app/advisor"');
-      expect(rail(html)).toContain(`<span class="nl-text">${plainT('en', 'nav.advisor')}</span>`);
+      expect(rail(html).match(/class="navlink/g)).toHaveLength(6);
+      expect(rail(html)).toContain('href="/app/assistant"');
+      expect(rail(html)).toContain(`<span class="nl-text">${plainT('en', 'nav.assistant')}</span>`);
       expect(rail(html)).not.toContain('Sara');
       expect(rail(html)).not.toContain('data-mark="agent"');
       expect(rail(html)).not.toContain('/app/employee');

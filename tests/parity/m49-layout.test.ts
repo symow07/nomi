@@ -201,7 +201,7 @@ describe('M49 · colour once or twice per screen', () => {
       const onLinks = new Set([...src.matchAll(/<a\b[^>]*?class="([^"$]+)"/g)].flatMap((m) => m[1]!.split(/\s+/)));
       for (const r of rules(src)) {
         // The warmth pass — neither magenta: a link is ink (the deep one says "waiting", the light one "Nomi did this").
-        if (!/(?<![\w-])color\s*:\s*var\(--color-(assistant|needs)/.test(r.body)) continue;
+        if (!/(?<![\w-])color\s*:\s*var\(--color-(assistant)/.test(r.body)) continue;
         for (const sel of r.selectors) {
           if (/:hover|:focus/.test(sel)) continue;          // feedback on the pointer, not a resting colour
           const last = sel.split(/\s+/).pop() ?? '';
@@ -285,6 +285,7 @@ describe('M49 · buttons and empty states', () => {
      * centred on purpose, and each is named here with its reason.
      */
     const CENTRED = new Map<string, string>([
+      ['splitStyle.ts  .sp-stages li', 'stage labels sit under their dots'],
       ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
       ['layout.ts  nav.side a.navlink.sub', 'the same tab bar: Inbox and Calendar are two of its five cells'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],

@@ -117,7 +117,7 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     for (const [name, html, sheet] of pages) {
       expect(html, name).not.toContain('<style');
       const links = sheetLinks(html);
-      expect(links, name).toHaveLength(2);
+      expect(links, name).toHaveLength(name === 'shell' ? 3 : 2);
       expect(links[0], name).toMatch(new RegExp(`^/assets/${sheet}\\.[0-9a-f]{16}\\.css$`));
       expect(links[1], name).toMatch(/^\/assets\/type(zh)?\.[0-9a-f]{16}\.css$/);
       expect(linkedCss(html).length, name).toBeGreaterThan(5_000);

@@ -473,7 +473,7 @@ export function homeParts(
       ${setup.next === 'products' && (setup.names ?? []).length > 0 ? namesWantedLines(locale, setup.names ?? [])
         : `<p>${esc(t(locale, `start.why.${setup.next}` as MessageKey, { name }))}</p>`}
       <div class="home-start-go">${firstStepButton(locale, setup.next)}${
-        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div>
+        deeper(`/app/get-started#${setup.next === 'name' ? 'step-name' : setup.next}`, t(locale, 'area1.setup.help'))}</div>
       <ol class="home-steps" aria-label="${esc(t(locale, 'guide.title'))}">${setup.steps.map((x) =>
         `<li class="${x.done ? 'ok' : x.step === setup.next ? 'next' : ''}"${x.step === setup.next ? ' aria-current="step"' : ''}><span>${
           esc(t(locale, `factory.next.${x.step}` as MessageKey, { name }))}</span></li>`).join('')}</ol>
@@ -482,7 +482,7 @@ export function homeParts(
     ? `<div class="today-foot setup"><p>${todoMark()} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
         <div class="today-next">${deeper(STEP_LINK[setup.next], setup.next === 'products' && (setup.names ?? []).length > 0
           ? t(locale, 'setup.names.door') : t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
-        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
+        deeper(`/app/get-started#${setup.next === 'name' ? 'step-name' : setup.next}`, t(locale, 'area1.setup.help'))}</div></div>`
     : '';
 
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.

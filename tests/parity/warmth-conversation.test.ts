@@ -33,7 +33,7 @@ const ago = (ms: number): Date => new Date(NOW.getTime() - ms);
 const CLIENT = 'c1c1c1c1-0000-4000-8000-000000000001';
 /** The page with its bidi isolates taken out, so a sentence compares as the catalogue writes it. */
 const plain = (s: string): string => s.replace(/[\u2066-\u2069]/g, '');
-const MAGENTA = DESIGN_TOKENS.color.assistant.toUpperCase();
+const MAGENTA = DESIGN_TOKENS.color.needs.toUpperCase();
 
 const catchUp = (over: Partial<CatchUp> = {}): CatchUp => ({
   clientId: CLIENT, channel: 'whatsapp', address: '2348035550101', photo: null,
@@ -350,6 +350,7 @@ describe('the stylesheet — a wash and a label, never a magenta frame', () => {
       for (const d of r.body.split(';')) {
         const m = /^\s*([a-z-]+)\s*:\s*([\s\S]+)$/.exec(d);
         if (!m || !/^(border|outline|box-shadow|column-rule)/.test(m[1]!)) continue;
+        if (/focus|\.on\b|aria-current|is-waiting.*sp-dot/.test(r.sel)) continue;
         if (colourOf(m[2]!).includes(MAGENTA)) framed.push(`${r.sel} { ${d.trim()} }`);
         if (/currentcolor/i.test(m[2]!) && magentaText && colourOf(magentaText).includes(MAGENTA)) framed.push(`${r.sel} { ${d.trim()} } in magenta text`);
       }

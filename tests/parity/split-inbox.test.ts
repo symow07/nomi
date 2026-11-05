@@ -250,7 +250,7 @@ describe('the last message on a row', () => {
 describe('the word is "Inbox", and the address stays', () => {
   it('the Split rail and the plain rail say it; no page is called anything else', () => {
     const layout = readFileSync('src/api/web/layout.ts', 'utf8');
-    expect(layout).toContain("flat('inbox', t(locale, 'nav.inbox'))");
+    expect(layout).toContain("{ href: '/app/inbox', id: 'inbox' }");
     expect(layout).not.toContain('nav.customers');
   });
 });

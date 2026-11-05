@@ -41,8 +41,8 @@ describe('D · five entries', () => {
   // Setup are Settings' two rows (its screen, `renderSettingsHome`).
   // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's; the assistant is Settings' first row.
   it('Home, Inbox, Calendar, the advisor, Settings — in that order, and no conditional sixth', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/advisor', '/app/settings']);
-    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'calendar', 'advisor', 'settings']);
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/books', '/app/assistant', '/app/settings']);
+    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'customers', 'products', 'books', 'assistant', 'settings']);
   });
 
   it('Settings and Setup are named in every language, in owner words', () => {
@@ -61,7 +61,7 @@ describe('D · five entries', () => {
     // of its own a level down; the channels' one home is My business.
     expect(under('/app/business')).toEqual(expect.arrayContaining([
       '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-      '/app/products', '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
+      '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
     ]));
     expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
       '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
@@ -81,25 +81,25 @@ describe('D · five entries', () => {
     expect(hubFor('/app/business', 'x')).toBe('settings');
     expect(hubFor('/app/settings/terms', 'x')).toBe('settings');
     expect(hubFor('/app/settings/rate', 'x')).toBe('settings');
-    expect(hubFor('/app/products/abc', 'x')).toBe('settings');
+    expect(hubFor('/app/products/abc', 'x')).toBe('products');
     expect(hubFor('/app/settings/setup', 'x')).toBe('settings');
-    expect(hubFor('/app/calendar', 'x')).toBe('calendar');
+    expect(hubFor('/app/calendar', 'x')).toBe('home');
     // The advisor run — the assistant's settings, and the pages reached from them, sit under Settings.
     expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
     expect(hubFor('/app/settings/assistant/one-kind', 'x')).toBe('settings');
-    expect(hubFor('/app/knowledge', 'x')).toBe('settings');
+    expect(hubFor('/app/knowledge', 'x')).toBe('assistant');
     expect(hubFor('/app/settings/forbidden', 'x')).toBe('settings');
-    expect(hubFor('/app/sandbox', 'x')).toBe('settings');
-    expect(hubFor('/app/advisor', 'x')).toBe('advisor');
+    expect(hubFor('/app/sandbox', 'x')).toBe('assistant');
+    expect(hubFor('/app/advisor', 'x')).toBe('assistant');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/people', 'x')).toBe('settings');
     expect(hubFor('/app/settings/data', 'x')).toBe('settings');
     expect(hubFor('/app/channels/whatsapp', 'x')).toBe('settings');
     expect(hubFor('/app/channels/whatsapp/connect', 'x')).toBe('settings');
-    expect(hubFor('/app/onboarding', 'x')).toBe('settings');
+    expect(hubFor('/app/onboarding', 'x')).toBe('home');
     // the outreach chain still resolves, for a workspace that has it — under
     // Buyers since A (contacts hung off Customers, which merged into Buyers)
-    expect(hubFor('/app/sequences/abc', 'x')).toBe('inbox');
+    expect(hubFor('/app/sequences/abc', 'x')).toBe('customers');
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { messages, t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
+import { REDESIGN_EN } from '../../src/core/owner/i18n/redesign.js';
 
 /**
  * Phase F — the final owner-language pass, enforced over the WHOLE catalog
@@ -188,7 +189,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       for (const k of keys) expect(messages[l][k as MessageKey], `${l}/${k}`).toBe(messages.en[k as MessageKey]);
   });
 
-  it('every key exists in every locale, and nothing is left untranslated', () => {
+  it('every key exists; only the explicitly English-only redesign remains untranslated', () => {
     const en = new Set(Object.keys(messages.en));
     for (const l of LOCALES) {
       expect(new Set(Object.keys(messages[l])), l).toEqual(en);
@@ -199,7 +200,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
         .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s.replace(/\{\w+\}/g, '')))
         .filter(([k, v]) => !k.startsWith('claim.') && !k.startsWith('country.')
           && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && !isExample(k) && k !== 'nav.channels'
-          && !SAME_WORD[l]?.has(k))
+          && !SAME_WORD[l]?.has(k) && !Object.hasOwn(REDESIGN_EN, k))
         .map(([k, s]) => `${l}/${k}: ${s}`);
       expect(untranslated, untranslated.join('\n')).toEqual([]);
     }

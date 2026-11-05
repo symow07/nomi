@@ -45,8 +45,12 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
     // G5b — `navigator` (the browser's own object, for alerts on the phone) is not the shell's nav.
     // The warmth run, phase 8 — and the rail's one number and its marker, drawn in place on the
     // Inbox entry (`[data-nav="inbox"]`, its `.navcount`): the script touches nothing else of the nav.
+    // Native disclosures provide opening/closing without script. The shared
+    // script adds Escape/outside-click dismissal, never scroll or layout.
+    expect(page('en')).toContain('<details class="nav-more"><summary');
+    expect(page('en')).toContain('<details class="area-chooser"><summary');
     const script = LIVE_SCRIPT.replace(/\bnavigator\b/g, '').replace(/\[data-nav="inbox"\]|\.navcount|'navcount'/g, '');
-    for (const touch of ['nav', 'scroll(', 'animation', 'navlink', 'classList']) expect(script, touch).not.toContain(touch);
+    for (const touch of ['scroll(', 'animation', 'navlink', 'classList']) expect(script, touch).not.toContain(touch);
   });
 
   it('on a phone the nav is sticky at full size, outside any @supports', () => {

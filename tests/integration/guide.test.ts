@@ -47,7 +47,7 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
   afterAll(async () => { await app?.close(); await db?.destroy(); await admin?.end(); });
 
   it('A NEW WORKSPACE sees the five steps, none done, the first one next, each with its door', async () => {
-    const r = await app.inject({ method: 'GET', url: '/app/guide', headers: { cookie } });
+    const r = await app.inject({ method: 'GET', url: '/app/get-started', headers: { cookie } });
     expect(r.statusCode).toBe(200);
     expect(r.body).toContain(esc(t('en', 'guide.title')));
     expect(r.body).toMatch(/class="guide-step next" id="profile"/);
@@ -59,7 +59,7 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
 
   it('SETUP and TODAY lead to it', async () => {
     expect((await app.inject({ method: 'GET', url: '/app/settings/setup', headers: { cookie } })).body).toContain('href="/app/guide"');
-    expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie } })).body).toContain('href="/app/guide#profile"');
+    expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie } })).body).toContain('href="/app/get-started#profile"');
   });
 
   it('ITS FILES are served as what they are; a name outside the folder\'s shape is not found', async () => {

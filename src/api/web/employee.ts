@@ -784,7 +784,10 @@ export function renderEmployeeScreen(
   const name = assistantName(locale);
   const st = standing(e, locale);
   const capName = (c: string) => capabilityName(locale, c);
-  const head = `${back(ASSISTANT_HOME, name)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  const dailyTool = screen === 'checks' || screen === 'history';
+  const returnTo = screen === 'month' ? '/app' : dailyTool ? '/app/assistant' : ASSISTANT_HOME;
+  const returnLabel = screen === 'month' ? t(locale, 'split.title') : dailyTool ? t(locale, 'nav.assistant') : name;
+  const head = `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
 
   switch (screen) {
     // Two doors, one data: what the assistant answers from, each line opening

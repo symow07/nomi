@@ -272,7 +272,7 @@ describe('Results (w4-customers-19 · -20 · -21 · -22 · -23 · -24)', () => {
     for (const l of LOCALES) {
       const h = withZone('Asia/Shanghai', () => renderAnalytics(DATA, l));
       expect(h, l).toContain('<p class="caption muted an-since">');
-      expect(h, l).toContain(`<h2>${shown(l, 'analytics.commerce.deals')}</h2>`);
+      expect(h, l).toContain(`<h2 id="results-sales">${shown(l, 'analytics.commerce.deals')}</h2>`);
       expect(h, l).not.toContain('<div class="sub">');
       const empty = renderAnalytics({ ...DATA, hasActivity: false }, l);
       expect(empty, l).not.toMatch(/\p{Extended_Pictographic}/u);

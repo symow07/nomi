@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, setupState, booksShown, viewerRole } from './say.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate, railFigure } from './values.js';
@@ -29,36 +29,15 @@ import { mayLoad } from './thirdParty.js';
  * way — no owner-facing string ever contained the old name.
  */
 
-/**
- * Nomi navigation — four destinations, one per question an owner has:
- * what needs me now (Today), who is talking to us (Buyers), how is she doing
- * (小雅), and what does she know about my business (My factory).
- *
- * Everything else is reached FROM one of these, never from a permanent slot:
- * conversations from Buyers, results from Today, practice and the go-live
- * runbook from My factory. Every one of those routes still works — this moved
- * the door, not the room.
- *
- * No icons. These carried 🏠 💬 👩 🏭, which rendered differently on every
- * device, sat badly next to Arabic, and were the loudest thing in a shell whose
- * whole argument is restraint. The words already say what the pictures gestured
- * at. The field is DELETED rather than blanked, so nothing can quietly put one
- * back for a single destination.
- */
+/** Stable primary destinations. Visibility is applied once in shell. */
 export const NAV: readonly { readonly href: string; readonly id: string }[] = [
-  { href: '/app',           id: 'home' },
-  { href: '/app/inbox',     id: 'inbox' },
-  // THE WARMTH RUN (2026-10-03), phase 1 — the rail is exactly: Today;
-  // Customers, with Inbox and Calendar under it; the assistant, by the name the
-  // business gave it; Settings. My business and Setup are rows of Settings, and
-  // Log out is the foot of Settings, not of the rail.
-  { href: '/app/calendar',  id: 'calendar' },
-  // THE ADVISOR RUN (2026-10-06) — the owner: "The current assistant page is really configuration … Move ALL
-  // of it into Settings … In the freed nav slot, put a chat page for the advisor." The assistant's page is a
-  // row of Settings now (`ASSISTANT_HOME`); this slot is the advisor's (advisor.ts), a shell until its
-  // grounding is approved (docs/ADVISOR-GROUNDING.md).
-  { href: '/app/advisor',   id: 'advisor' },
-  { href: '/app/settings',  id: 'settings' },
+  { href: '/app', id: 'home' },
+  { href: '/app/inbox', id: 'inbox' },
+  { href: '/app/customers', id: 'customers' },
+  { href: '/app/products', id: 'products' },
+  { href: '/app/books', id: 'books' },
+  { href: '/app/assistant', id: 'assistant' },
+  { href: '/app/settings', id: 'settings' },
 ];
 
 /**
@@ -85,7 +64,7 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   home: 'home-2', inbox: 'inbox', calendar: 'calendar', settings: 'settings',
   // The advisor run — the owner's choice: Solar's round chat bubble; since 2026-10-09 without its three dots; since
   // 2026-10-11 unlit, a plain rail icon like the others.
-  advisor: 'chat-round',
+  advisor: 'chat-round', assistant: 'chat-round', customers: 'users-group-rounded', products: 'box', books: 'notebook-minimalistic',
 };
 
 /**
@@ -112,7 +91,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // price limits) or a screen of its own a level down.
   { hub: '/app/business', routes: [
     '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-    '/app/products', '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
+    '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
   ] },
   // …How you sell is a menu of its own: the questions, then the same facts changed directly.
   { hub: '/app/business/how-you-sell', routes: [
@@ -2831,7 +2810,16 @@ const scriptTo = (href: string): string => `<script src="${href}" defer></script
  * light nothing twice over.
  */
 export function hubFor(path: string, active: string): string {
-  const url = (path.split('?')[0] ?? path).replace(/\/+$/, '') || '/app';
+  const url = (path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '') || '/app';
+  // Transitional addresses stay in the destination that will own their content.
+  const belongs: readonly [string, readonly string[]][] = [
+    ['home', ['/app/calendar', '/app/results', '/app/analytics', '/app/get-started', '/app/guide', '/app/onboarding', '/app/ready', '/app/settings/assistant/month']],
+    ['customers', ['/app/customers', '/app/orders', '/app/contacts', '/app/prospects', '/app/sequences', '/app/labels', '/app/surveys']],
+    ['products', ['/app/products', '/app/business/prices']],
+    ['assistant', ['/app/assistant', '/app/advisor', '/app/knowledge', '/app/sandbox', '/app/settings/assistant/checks', '/app/settings/assistant/history']],
+    ['books', ['/app/books']],
+  ];
+  for (const [area, routes] of belongs) if (routes.some((r) => url === r || url.startsWith(`${r}/`))) return area;
 
   /**
    * Where a url belongs: the nav entry it IS or sits under, else the hub the
@@ -2956,82 +2944,28 @@ export function shell(input: {
   readonly split?: { readonly me: string };
 }): string {
   const { locale } = input;
-  const name = assistantName(locale);
   const here = hubFor(input.path, input.active);
-  /**
-   * THE WARMTH RUN (2026-10-03), phase 1 — the rail: Today; Customers, with
-   * Inbox and Calendar under it; the assistant; Settings at the foot. Daily
-   * work at the top, management at the bottom. Each entry is its icon and its
-   * word; the one you are on is a raised white tile with its word in weight
-   * and its icon in the deep magenta, never filled (the Solar nav) — unmistakable without a colour.
-   *
-   * ONE number in the rail: on Inbox, how many customers wait for the owner
-   * now, in the waiting signal's magenta. Nothing else counts anything here —
-   * not setting up, not the calendar: a number that is not a customer waiting
-   * is the kind of badge the owner ruled out.
-   */
-  const entry = (n: typeof NAV[number]) => {
-    const on = n.id === here;
-    // The advisor run — the assistant's entry (its name, or "Team") left the rail for Settings; every entry
-    // is its own word now, one name at every width.
-    const label = t(locale, `nav.${n.id}` as MessageKey);
-    const waiting = n.id === 'inbox' ? needsYouCount() : null;
-    // The owner, 2026-11-04 — a small count, hidden at 0, "9+" above 9. The link's label says the true number in words.
+  const role = viewerRole();
+  const entry = (id: string, href: string, label: string, shape: RailIcon, extra = '') => {
+    const on = id === here || (id === 'account' && role === 'accountant' && !isBooksPath(input.path));
+    const waiting = id === 'inbox' ? needsYouCount() : null;
     const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, waiting))}</span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
-    // A11y — `aria-current="page"` tells a screen reader which entry is this page.
-    // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it).
-    const mark = railIcon(NAV_ICON[n.id] ?? 'home-2');
-    return `<a href="${n.href}" class="navlink${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
-       >${mark}${text}</a>`;
+    return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}>${railIcon(shape)}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
   };
-  const byId = (id: string) => NAV.find((n) => n.id === id)!;
-  /**
-   * A6 (Phase 5) — TWO MODES, ONE LOGIN. A page under /app/books is the books' mode, every other page the sales
-   * side, and each mode's rail lights only its own pages. The switch between them is offered to the one person
-   * who has both — the owner, where the books are on (0176) — at the foot of the rail. An accountant has the
-   * books alone, and their way out at the foot; staff the sales side alone, and no switch.
-   */
-  const role = viewerRole();
-  const switchTo = (href: string, key: MessageKey) => `<a href="${href}" class="navlink navswitch" data-nav="switch"
-       >${railIcon('transfer-horizontal')}<span class="nl-body"><span class="nl-text">${esc(t(locale, key))}</span></span></a>`;
-  // B18 — an accountant has the books' rail on every page they reach, their own sign-in (password, language)
-  // included, with a door to it: it drew the sales side's there, every entry of which sent them back.
-  if (isBooksPath(input.path) || role === 'accountant') {
-    const inBooks = isBooksPath(input.path);
-    const booksEntry = `<a href="/app/books" class="navlink${inBooks ? ' active' : ''}" data-nav="books"${inBooks ? ' aria-current="page"' : ''}
-       >${railIcon('notebook-minimalistic')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'nav.books'))}</span></span></a>`;
-    const own = !inBooks;
-    const accountEntry = role !== 'accountant' ? '' : `<a href="/app/settings/account" class="navlink${own ? ' active' : ''}" data-nav="account"${own ? ' aria-current="page"' : ''}
-       >${railIcon('key')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'account.title'))}</span></span></a>`;
-    const foot = role === 'owner' ? switchTo('/app', 'nav.toSales')
-      : `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout"
-          >${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
-    return shellWith(input, `<div class="navgroup">${booksEntry}${accountEntry}</div><div class="navfoot">${foot}</div>`);
+  if (role === 'accountant') {
+    const books = entry('books', '/app/books', t(locale, 'nav.books'), 'notebook-minimalistic');
+    const account = entry('account', '/app/settings/account', t(locale, 'account.title'), 'key');
+    const logout = `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout">${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
+    return shellWith(input, `<div class="navgroup">${books}${account}</div><div class="navfoot">${logout}</div>`);
   }
-  const toBooks = role === 'owner' && booksShown() ? switchTo('/app/books', 'nav.toBooks') : '';
-  // The preview's rail: one flat list. A phone's tab bar holds five, so with the books there the advisor's entry waits on the page's foot.
-  if (input.split) {
-    const flat = (id: string, label: string, extra = '', icon?: RailIcon) => {
-      const on = id === here;
-      const count = id === 'inbox' ? needsYouCount() : null;
-      const badge = count ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, count))}</span>` : '';
-      const aria = count ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', count))}"` : '';
-      const href = byId(id)?.href ?? '/app/books';
-      return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}
-       >${railIcon(icon ?? NAV_ICON[id] ?? 'home-2')}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
-    };
-    const books = role === 'owner' && booksShown();
-    return shellWith(input, `<div class="navgroup">${flat('home', t(locale, 'split.title'))}${flat('inbox', t(locale, 'nav.inbox'))}${flat('calendar', t(locale, 'nav.calendar'))}${
-      books ? flat('books', t(locale, 'nav.books'), '', 'notebook-minimalistic') : ''}${flat('advisor', t(locale, 'nav.advisor'), books ? ' sp-notab' : '')}</div>
-      <div class="navfoot">${flat('settings', t(locale, 'nav.settings'))}${input.split.me}</div>`);
-  }
-  const nav = `<div class="navgroup">${entry(byId('home'))}</div>
-    <div class="navgroup">${entry(byId('inbox'))}${entry(byId('calendar'))}</div>
-    <div class="navgroup">${entry(byId('advisor'))}</div>
-    <div class="navfoot">${toBooks}${entry(byId('settings'))}</div>`;
-  return shellWith(input, nav);
+  const visible = NAV.filter((n) => n.id !== 'books' || (role === 'owner' && booksShown()));
+  const labelFor = (id: string) => t(locale, id === 'home' ? 'split.title' : `nav.${id}` as MessageKey);
+  const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', ['products', 'assistant', 'settings'].includes(n.id) ? ' nav-desktop' : '');
+  const moreLinks = [...visible.filter((n) => ['products', 'assistant'].includes(n.id)), { href: '/app/calendar', id: 'calendar' }, ...visible.filter((n) => n.id === 'settings')];
+  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${esc(t(locale, 'nav.more'))}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${esc(labelFor(n.id))}</a>`).join('')}</div></details>`;
+  return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.split?.me ?? ''}</div>${more}`);
+
 }
 
 /** A6 — is this address the books' mode? */
@@ -3039,6 +2973,21 @@ export const isBooksPath = (path: string): boolean => {
   const url = (path.split('?')[0] ?? path).replace(/\/+$/, '');
   return url === '/app/books' || url.startsWith('/app/books/');
 };
+
+/** The area menu is a row on desktop and a native, keyboard-safe chooser on phones. */
+function areaNavigation(locale: Locale, path: string, active: string): string {
+  if (viewerRole() === 'accountant' || hubFor(path, active) !== 'home') return '';
+  const url = path.split(/[?#]/)[0] ?? path;
+  const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
+    { href: '/app', label: 'split.title', aliases: ['/app'] },
+    { href: '/app/calendar', label: 'nav.calendar', aliases: ['/app/calendar'] },
+    ...(viewerRole() === 'owner' ? [{ href: '/app/results', label: 'nav.results' as MessageKey, aliases: ['/app/results', '/app/analytics'] }] : []),
+    { href: '/app/get-started', label: 'nav.getStarted', aliases: ['/app/get-started', '/app/guide', '/app/onboarding', '/app/ready'] },
+  ];
+  const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;
+  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${esc(t(locale, s.label))}</a>`).join('');
+  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${esc(t(locale, current.label))}${GO}</summary><div>${links}</div></details></nav>`;
+}
 
 /** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
 function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
@@ -3088,34 +3037,20 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
-${TYPE_SLOT}${input.split ? `\n${linkTo(SPLIT_SHEET)}` : ''}
+${TYPE_SLOT}\n${linkTo(SPLIT_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
-<body${input.split ? ' class="split"' : ''}><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
+<body class="owner-shell${input.split ? ' split' : ''}"><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(32, null)}</span>${brandname}</div>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${input.split ? '' : setupStrip(locale, input.active, input.path)}${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    ${areaNavigation(locale, input.path, input.active)}
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }
 
-/**
- * Phase 3b (approved at the owner's stop-gate, 2026-10-13) — THE NEXT STEP, ON EVERY PAGE, until setup is done: where the owner
- * stands, counted the way Setup and the nav count it ("3 of 5 steps done" — steps are done in any order, so never
- * "Step 4 of 5" beside a step that is first in the list),
- * is on the five steps and the door to the next one. Not on Home (it leads with the step itself) nor on the guide
- * (it is the five steps). Gone once the five are done.
- */
-const setupStrip = (locale: Locale, active: string, path: string): string => {
-  const s = setupState();
-  // …nor in the books' mode (A6), which is not the sales side's setup.
-  if (!s || s.next === null || active === 'home' || path.startsWith('/app/guide') || isBooksPath(path)) return '';
-  return `<div class="setup-strip"><span class="caption muted">${esc(t(locale, 'guide.title'))} · ${
-    esc(t(locale, 'nav.setup.progress', { done: s.done, total: s.total }))}</span>${
-    deeper(`/app/guide#${s.next}`, t(locale, `factory.next.${s.next}` as MessageKey, { name: assistantName(locale) }))}</div>`;
-};
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — the product's own way of asking

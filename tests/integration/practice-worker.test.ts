@@ -434,7 +434,7 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     const { loadPilotRunbook } = await import('../../src/api/web/pilot.js');
     const rb = await loadPilotRunbook(prod.db, PILOT, { practiceBusinessId: copy });
     expect(rb.rehearsal.done).toMatchObject({ takeover: true, ownerReply: true, resume: true });
-    const onboarding = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+    const onboarding = await prod.app.inject({ method: 'GET', url: '/app/get-started', headers: { cookie } });
     expect(onboarding.statusCode).toBe(200);
   }, 90_000);
 

@@ -271,12 +271,41 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     const r = await get('/app');
     const url = askOf(r.body);
     // Six counts: 0080 added the orders waiting for the owner's tap.
-    expect(url).toMatch(/^\/app\/live\/home\?since=[0-9]+(\.[0-9]+){5}$/);   // THE HOME RUN
+    expect(url).toMatch(/^\/app\/live\/home\?since=[0-9]+(\.[0-9]+){5}\.r[0-9a-f]{16}$/);   // THE HOME RUN
     expect(r.body).toContain('<a class="deeper live-door" href="/app">');
     expect((await ask(url)).said).toEqual({ news: false });
     await replyWaits(BIZ, second, 'A reply for Omar.');
     expect((await ask(url)).said).toEqual({ news: true, what: 'today' });
     expect((await ask(await pageAsk('/app'))).said).toEqual({ news: false });
+  });
+
+  it('Today notices a replacement, an edit and a new customer message even when attention counts stay the same', async () => {
+    await replyWaits(BIZ, second, 'First inline reply.');
+    const before = await get('/app');
+    const beforeUrl = askOf(before.body);
+    const first = /name="draftId" value="([^"]+)"/.exec(before.body)?.[1];
+    expect(first, 'Today offers the existing inline approval').toBeTruthy();
+    expect((await ask(beforeUrl)).said).toEqual({ news: false });
+    const selected = await as(BIZ, async (x) => {
+      const row = (await sql<{ conversation_id: string }>`select conversation_id::text from drafts where id = ${first!}::uuid`.execute(x)).rows[0]!;
+      await sql`update drafts set status = 'superseded' where id = ${first!}::uuid`.execute(x);
+      return row.conversation_id;
+    });
+    await replyWaits(BIZ, selected, 'Replacement inline reply.');
+    const after = await get('/app');
+    const afterUrl = askOf(after.body);
+    const counts = (url: string) => new URL(url, 'http://local').searchParams.get('since')!.split('.').slice(0, 6);
+    expect(counts(afterUrl)).toEqual(counts(beforeUrl));
+    expect((await ask(beforeUrl)).said).toEqual({ news: true, what: 'today' });
+    expect((await ask(afterUrl)).said).toEqual({ news: false });
+    // A notice leaves the original form and typed edit intact until the owner chooses to refresh.
+    expect(after.body).not.toContain('data-live-redraw="1"');
+    const replacement = /name="draftId" value="([^"]+)"/.exec(after.body)?.[1];
+    await as(BIZ, (x) => sql`update drafts set draft_text = 'Revised words, same draft.' where id = ${replacement!}::uuid`.execute(x));
+    expect((await ask(afterUrl)).said).toEqual({ news: true, what: 'today' });
+    const latest = await pageAsk('/app');
+    await buyerWrites(BIZ, selected, 'One more detail before you send.');
+    expect((await ask(latest)).said).toEqual({ news: true, what: 'today' });
   });
 
   it('staff are told exactly what the owner is told', async () => {

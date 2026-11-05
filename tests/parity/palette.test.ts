@@ -62,21 +62,21 @@ describe('the palette', () => {
       // The favicon (2026-11-04): the cream disc behind that coin, so it reads on a dark tab bar. Not a magenta.
       'coinGround',
     ].sort());
-    expect(C['ink']).toBe('#25201C');
-    expect(C['inkSecondary']).toBe('#665D55');
-    expect(C['border']).toBe('#E8E1D8');
+    expect(C['ink']).toBe('#171717');
+    expect(C['inkSecondary']).toBe('#625D57');
+    expect(C['border']).toBe('#DED7CF');
     expect(C['paper']).toBe('#F7F3EE');
     expect(C['surface']).toBe('#FFFDFA');
-    expect(C['sand']).toBe('#F1E8DC');
-    expect(C['needs']).toBe('#6E0C44');
-    expect(C['assistant']).toBe('#BE2D6E');
+    expect(C['sand']).toBe('#EDE7DF');
+    expect(C['needs']).toBe('#9A0F5E');
+    expect(C['assistant']).toBe('#171717');
     expect(C['brand']).toBe('#9A0F5E');
-    expect(C['orbGlow']).toBe('#A1127A');
+    expect(C['orbGlow']).toBe('#9A0F5E');
     expect(C['coin']).toBe('#5A0A2E');
     expect(C['coinGround']).toBe('#F5F1EA');
     // three shades with three jobs: never one value again
-    expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(3);
-    expect(C['needsWash']).not.toBe(C['assistantWash']);
+    expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(2);
+    expect(C['needsWash']).toBe(C['assistantWash']);
   });
 
   it('has one scheme: no dark palette, no media query for one', () => {
@@ -86,7 +86,7 @@ describe('the palette', () => {
   });
 
   it('keeps all three magentas on the raspberry side of true magenta — never violet, never red', () => {
-    for (const k of ['needs', 'brand', 'assistant']) {
+    for (const k of ['needs']) {
       const h = hue(C[k]!);
       expect(h, k).toBeGreaterThan(325);
       expect(h, k).toBeLessThan(350);
@@ -98,7 +98,7 @@ describe('the palette', () => {
     // A magenta: a hue from violet-magenta to raspberry, dark enough to be a colour rather than a wash.
     const light = (h: string) => { const v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255); return (Math.max(...v) + Math.min(...v)) / 2; };
     const magentas = Object.keys(C).filter((k) => { const h = hue(C[k]!); return h >= 290 && h <= 355 && light(C[k]!) <= 0.6; }).sort();
-    expect(magentas).toEqual(['assistant', 'brand', 'coin', 'needs', 'orbGlow']);
+    expect(magentas).toEqual(['brand', 'coin', 'needs', 'orbGlow']);
   });
 
   it('the coin is the mark, and the count and dot that say someone waits: no other rule of the stylesheet, and no role', async () => {
@@ -129,19 +129,10 @@ describe('the palette', () => {
     expect(layout).not.toMatch(/--color-orb-glow/);
   });
 
-  it('the orb\'s glow is its own value, held clear of the "needs you" magenta — and needs is never the orb\'s', () => {
-    const lab = (h: string): [number, number, number] => {
-      const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-      const [r, g, b] = [1, 3, 5].map((i) => lin(parseInt(h.slice(i, i + 2), 16) / 255)) as [number, number, number];
-      const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
-      const [x, y, z] = [(r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047, r * 0.2126 + g * 0.7152 + b * 0.0722, (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883];
-      return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
-    };
-    const dE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]!));
-    expect(dE(C['orbGlow']!, C['needs']!)).toBeGreaterThan(dE(C['brand']!, C['needs']!));  // further from needs than the brand is (26 vs 16.7)
-    expect(dE(C['orbGlow']!, C['needs']!)).toBeGreaterThan(20);
-    const advisor = readFileSync(join(SRC_PATH, 'api/web/advisor.ts'), 'utf8');
-    expect(advisor).not.toMatch(/ORB_GLOW = '(?:needs|brand|assistant)'/);
+  it('the historical orb uses the one accent; the supplied seal keeps its separate artwork colour', () => {
+    expect(C['orbGlow']).toBe(C['needs']);
+    expect(C['coin']).toBe('#5A0A2E');
+    expect(C['warn']).toBe(C['ink']);
   });
 
   it('the retired colours appear nowhere in the product', async () => {

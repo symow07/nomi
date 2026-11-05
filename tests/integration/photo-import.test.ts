@@ -120,8 +120,12 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const res = await app.inject({ method: 'GET', url: at, headers: { cookie } });
     // Two priced lines: both are challenge rows (the last priced one and another).
     expect(res.body.match(/name="typed:/g)).toHaveLength(2);
-    expect(res.body).not.toContain('1.05');
-    expect(res.body).not.toContain('Photo tote bag  PT-100   $1.05   MOQ 500');
+    // Inspect the complete review content, including hidden fields and field values. Shared rail SVG
+    // coordinates can contain "1.05"; their geometry is unrelated to the withheld paper price.
+    expect(res.body.indexOf('<main')).toBeGreaterThan(0);
+    const review = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
+    expect(review).not.toContain('1.05');
+    expect(review).not.toContain('Photo tote bag  PT-100   $1.05   MOQ 500');
     // Typed as on the paper: the rows open, with the line each was read from.
     const { res: saved } = await submitReview(app, cookie, at, { typeFromPaper: paper, next: 'save' });
     expect(saved.statusCode).toBe(302);

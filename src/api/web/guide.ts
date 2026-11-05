@@ -6,21 +6,11 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { SETUP_STEPS, type NamesWanted, type SetupStep } from '../../db/setup.js';
 import { namesWantedLines } from './namesWanted.js';
 import { STEP_LINK } from './onboarding.js';
-import * as show from './values.js';
 
 /**
- * THE GUIDED PATH — a stranger who signed up, from an empty workspace to a
- * first reply, without anyone's help. The five setup steps (`db/setup.ts`, the
- * one derivation of what is done), in order, each with where it stands, one
- * door to do it, and a short video of doing it — recorded from these very
- * pages (`tools/record-guide.mjs`), with captions in the owner's language. The
- * captions are also the page's own text, under each video, so nothing is lost
- * without the video, a sound, or a fast connection.
- *
- * The videos are files in `assets/guide/`, named `<step>.<locale>.webm` with
- * their `.vtt` captions; a step whose video was not recorded in this language
- * shows its words only. Only a name the folder holds, of that exact shape, is
- * ever served — never a path built from the request.
+ * The shared setup facts in `db/setup.ts` determine every row's state and next
+ * action. Instructions stay available as text; archived recordings retain their
+ * stable, allowlisted asset addresses without promotion on setup surfaces.
  */
 export const CAPTIONS_PER_STEP = 3;
 
@@ -39,15 +29,6 @@ export function guideFileAt(file: string): { readonly body: Buffer; readonly typ
   if (!body) { body = readFileSync(new URL(file, DIR)); read.set(file, body); }
   return { body, type: file.endsWith('.vtt') ? 'text/vtt; charset=utf-8' : file.endsWith('.jpg') ? 'image/jpeg' : 'video/webm' };
 }
-
-/**
- * Phase 6 — each video's length in seconds (`tools/guide-stills.mjs` writes it
- * with the still frames), so the page says how long a step takes before
- * anything is fetched. A video with no length on record shows none.
- */
-const LENGTHS: Readonly<Record<string, number>> = (() => {
-  try { return JSON.parse(readFileSync(new URL('lengths.json', DIR), 'utf8')) as Record<string, number>; } catch { return {}; }
-})();
 
 /** Is this step's video (and its captions) here in this language? */
 export const hasVideo = (step: SetupStep, locale: Locale): boolean =>
@@ -75,39 +56,34 @@ export type GuideView = {
 export const firstStepButton = (locale: Locale, next: SetupStep): string =>
   `<a class="btn send" data-first-step href="${esc(STEP_LINK[next])}">${esc(t(locale, 'guide.do'))}</a>`;
 
-export function renderGuide(v: GuideView, locale: Locale, name: string, videos: (step: SetupStep, locale: Locale) => boolean = hasVideo): string {
-  const items = SETUP_STEPS.map((step, i) => {
+/** Textual setup instructions; recordings remain available at their stable asset addresses. */
+export function renderGuide(
+  v: GuideView, locale: Locale, name: string,
+  _videos: (step: SetupStep, locale: Locale) => boolean = hasVideo,
+  options: { readonly embedded?: boolean } = {},
+): string {
+  const items = SETUP_STEPS.map((step) => {
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
-    const words = captionKeys(step).map((k) => t(locale, k, { name }));
-    // Phase 6 — a still of the step instead of a black box, and its length, before anything is fetched.
-    // Phase 9 (today-onboarding-new-09) — on a phone, the same step recorded at a
-    // phone's width, so its words can be read; neither is fetched until played.
-    const player = (name: string, cls: string): string => `<video class="guide-video${cls}" controls preload="none" playsinline${
-          FILES.has(`${name}.jpg`) ? ` poster="/assets/guide/${name}.jpg"` : ''}>
-          <source src="/assets/guide/${name}.webm" type="video/webm">
-          <track kind="captions" src="/assets/guide/${name}.vtt" srclang="${locale}" label="${esc(t(locale, 'guide.captions'))}" default>
-        </video>`;
-    const base = `${step}.${locale}`;
-    const phone = FILES.has(`${base}.phone.webm`) && FILES.has(`${base}.phone.vtt`);
-    const video = videos(step, locale)
-      ? `${player(base, phone ? ' wide' : '')}${phone ? player(`${base}.phone`, ' narrow') : ''}
-        ${LENGTHS[base] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[base]!) }))}</p>` : ''}`
-      : '';
-    // Phase 9 (V1-117, V1-118) — the words are under the video, as the page
-    // says, not folded behind a "Read instead" that had to be opened.
-    // Phase 9 (V1-114) — the number stays beside the first line of a heading
-    // that wraps; the state sits at the end of its words.
-    return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${step}">
-      <h2 class="gs-h"><span class="gs-n muted">${esc(show.count(locale, i + 1))}.</span><span class="gs-t">${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
-        ${/* The warmth run's re-audit (w4-today-setup-06) — a step to do is a chore: the to-do ○, never the waiting signal's magenta. */ ''}<span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
-      ${video}
-      <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
+    const words = captionKeys(step).map((k, i) => step === 'name' && i === 0
+      ? t(locale, 'area1.setup.name.location') : t(locale, k, { name }));
+    // The canonical setup page keeps #name for the existing name confirmation control.
+    const id = options.embedded && step === 'name' ? 'step-name' : step;
+    return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${id}">
+      <div class="gs-heading">
+        <h2 class="gs-h">${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}</h2>
+        <span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span>
+        ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
+      </div>
+      <details class="gs-help"${v.next === step ? ' open' : ''}>
+        <summary>${esc(t(locale, 'area1.setup.help'))}</summary>
+        <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
+      </details>
       ${step === 'products' && !done ? namesWantedLines(locale, v.names ?? []) : ''}
-      ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
     </li>`;
   }).join('');
-  return `<h1 class="page">${esc(t(locale, 'guide.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'guide.lede', { name }))}</p>
-    <ol class="guide">${items}</ol>
+  return `${options.embedded ? '' : `<header class="setup-intro"><h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
+    <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p></header>`}
+    ${v.next === null ? `<p class="fok setup-complete">${esc(t(locale, 'area1.setup.complete'))}</p>` : ''}
+    <ol class="guide setup-steps">${items}</ol>
     <div class="block"><h2>${esc(t(locale, 'guide.after.title'))}</h2><p>${esc(t(locale, 'guide.after.body', { name }))}</p></div>`;
 }

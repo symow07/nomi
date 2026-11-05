@@ -253,7 +253,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
 
   it('STAFF SEE NO FORM THAT WOULD REFUSE THEM — the values, and whose decision they are', async () => {
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
-      ['/app/onboarding', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
+      ['/app/get-started', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
       ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
       ['/app/channels/alerts', /action="\/app\/settings\/owner-phone"/],
       ['/app/products', /href="\/app\/products\/add"/],
@@ -287,7 +287,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const factory = (await get(staffCookie, '/app/business/allowlist')).body;
     expect(factory).toContain(digits(LISTED));
     // Nor a door that opens only onto a refusal: the price limits are an owner page.
-    for (const url of ['/app/onboarding', '/app/products', `/app/products/${PID}`, '/app/business']) {
+    for (const url of ['/app/get-started', '/app/products', `/app/products/${PID}`, '/app/business']) {
       expect((await get(staffCookie, url)).body, url).not.toContain('href="/app/business/prices"');
     }
   });

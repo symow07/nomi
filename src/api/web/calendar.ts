@@ -710,8 +710,8 @@ function dayList(locale: Locale, v: CalendarView, ask: CalendarAsk, day: string,
 /**
  * THE SCREEN: the title; the month's name and how to move from it; what is
  * shown when one thing is chosen; the one fold (only when the month holds
- * something); then the month's grid and the list together — the grid first
- * in the page, so a phone shows it on top with the list beneath.
+ * something); then the agenda and month together. The agenda comes first in the page so
+ * a phone can select a date and read its commitments without a compact grid.
  */
 export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPage = {}): string {
   const now = page.now ?? dayStart(v.today, workspaceZone());
@@ -742,12 +742,20 @@ export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPa
   // The legend explains the marks the list shows: the chosen day's, or what is owed and the month's other dates.
   const shown = ask.day ? v.entries.filter((e) => covers(e, ask.day!))
     : v.entries.filter((e) => isOwed(e, now) || e.day.slice(0, 7) === ask.month.slice(0, 7));
-  return `<h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>
+  const dateChoice = `<form method="get" action="/app/calendar" class="cal-date-choice">
+      <label for="calendar-day">${esc(t(locale, 'area1.calendar.chooseDay'))}</label>
+      <input id="calendar-day" type="date" name="day" value="${esc(day)}" required min="2000-01-01" max="2099-12-31">
+      ${v.category ? `<input type="hidden" name="category" value="${esc(v.category)}">` : ''}
+      ${buyer ? `<input type="hidden" name="who" value="${esc(buyer)}">` : ''}
+      <button class="btn" type="submit">${esc(t(locale, 'area1.calendar.showDay'))}</button>
+    </form>`;
+  return `<div class="calendar-page"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>
     ${move}
+    ${dateChoice}
     ${shownLine}
     ${fold}
     <div class="cal-screen">
-      <div class="cal-grid">${monthGrid(locale, v, ask, now)}</div>
       <div class="cal-list" id="cal-list">${list}${held ? legend(locale, shown, now) : ''}</div>
-    </div>`;
+      <details class="cal-grid" open><summary class="cal-grid-label">${esc(t(locale, 'area1.calendar.month'))}</summary>${monthGrid(locale, v, ask, now)}</details>
+    </div></div>`;
 }
