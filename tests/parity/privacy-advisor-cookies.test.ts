@@ -68,21 +68,21 @@ describe('the privacy page · the advisor\'s history, in every language', () => 
     for (const l of LOCALES) expect(messages[l]['legal.privacy.advisor.providers'], l).toMatch(/[:：]\s?\{providerLines\}$/);
   });
 
-  it('DeepSeek (production) and OpenAI each get their own line; Anthropic and a host this build cannot name get none, and no dangling colon', () => {
+  it('DeepSeek, OpenAI and Anthropic each get their own line; a host this build cannot name gets none, and no dangling colon', () => {
     expect(providerLineKey(DEEPSEEK.processor)).toBe('legal.privacy.provider.deepseek');
     expect(providerLineKey(aiProcessor('https://api.openai.com/v1'))).toBe('legal.privacy.provider.openai');
-    expect(providerLineKey(DEFAULT_PROCESSOR), 'Anthropic: not named until its terms are checked').toBeNull();
+    expect(providerLineKey(DEFAULT_PROCESSOR)).toBe('legal.privacy.provider.anthropic');
     expect(providerLineKey(aiProcessor('https://llm.internal.test/v1'))).toBeNull();
     for (const l of LOCALES) {
       const openai = aiProcessor('https://api.openai.com/v1');
       expect(page(l, { processor: openai, hosting: HOSTING }), l).toContain(esc(t(l, 'legal.privacy.provider.openai', { provider: 'OpenAI' })));
-      for (const processor of [DEFAULT_PROCESSOR, aiProcessor('https://llm.internal.test/v1')]) {
+      for (const processor of [aiProcessor('https://llm.internal.test/v1')]) {
         const html = page(l, { processor, hosting: HOSTING });
         const said = t(l, 'legal.privacy.advisor.providers', { processors: processorLabel(processor, l), providerLines: '@@' });
         const expected = said.replace(/\s*[:：]\s*@@$/u, STOP[l]);
         expect(expected, l).not.toContain('@@');
         expect(html, `${l} ${processor.name}`).toContain(`<p>${esc(expected)}</p>`);
-        for (const line of ['legal.privacy.provider.deepseek', 'legal.privacy.provider.openai'] as const) {
+        for (const line of ['legal.privacy.provider.deepseek', 'legal.privacy.provider.openai', 'legal.privacy.provider.anthropic'] as const) {
           expect(html, `${l} ${processor.name}`).not.toContain(esc(t(l, line, { provider: processor.name })));
         }
         expect(expected, `${l} ${processor.name}: ends in its own full stop, not a colon`).toMatch(/[^:：\s][.。]$/u);
@@ -211,8 +211,8 @@ describe('the terms · one sentence: Nomi keeps the history as the business\'s p
     // (both moved again on 8 October: the terms' age line, and the privacy page's age cookie; the privacy page
     // again on 9 October: what every first e-mail and follow-up carries)
     expect(t('en', 'legal.updated.terms')).toBe('Last updated 12 October 2026.'); // D7 — the fees paragraph says what the download holds
-    expect(t('en', 'legal.updated.privacy')).toBe('Last updated 28 October 2026.'); // A6 — the books section
-    // The deletion page did not change, so its date did not either.
+    expect(t('en', 'legal.updated.privacy')).toBe('Last updated 5 November 2026.'); // what the second language service keeps
+    // The deletion page carries its own date.
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.updated.deletion')));
   });
 });

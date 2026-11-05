@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { DEFAULT_MODEL } from './provider.js';
+import { DEFAULT_MODEL, modelOf } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import { readWriterOutput } from '../core/safety/rawOutput.js';
@@ -190,7 +190,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
           wantsDeletion: null,
         };
       }
-      return { analysis, promptVersion: prompt.version, modelId: model,
+      return { analysis, promptVersion: prompt.version, modelId: modelOf(res, model),
         usage: usageOf(res.usage) };
     },
   };
@@ -316,7 +316,10 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         ...(priceFirst ? { selling: { price_first: true } } : {}),
       };
 
-      const guard = violation === 'gendered_address'
+      const guard = violation === 'unkept_promise'
+        ? '\n\nSTRICT: your previous draft promised to check, ask, pass something on or come back, or named the team. ' +
+          'Nothing happens after your message. Say what you do not know, in the first person, and ask what would help.'
+        : violation === 'gendered_address'
         ? '\n\nSTRICT: your previous draft addressed the client as a man or a woman. ' +
           'Follow ADDRESS above: no second-person verb, imperative, pronoun or word of address that has a gender.'
         : retryAfterViolation
@@ -341,7 +344,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
       // Null when there are no words to send: a refusal, an empty answer, one cut
       // short. The turn hands it to a person; nothing stands in for an answer.
       const reply = readWriterOutput(block?.type === 'text' ? block.text : null, res.stop_reason);
-      return { reply, promptVersion: prompt.version, modelId: model,
+      return { reply, promptVersion: prompt.version, modelId: modelOf(res, model),
         usage: usageOf(res.usage) };
     },
   };
@@ -386,7 +389,7 @@ export function anthropicVision(client: Anthropic, model: string = MODEL, extra:
         }
       } catch { /* unparseable vision output = no description; caller falls back */ }
 
-      return { searchText, attributes, promptVersion: prompt.version, modelId: model,
+      return { searchText, attributes, promptVersion: prompt.version, modelId: modelOf(res, model),
         usage: usageOf(res.usage) };
     },
   };
@@ -444,7 +447,7 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         // T5 — the read stopped at its limit, mid-page: never passed on as the page.
         cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
-        modelId: model,
+        modelId: modelOf(res, model),
         usage: usageOf(res.usage),
       };
     },
@@ -551,7 +554,7 @@ export function anthropicDraftTranslator(client: Anthropic, model: string = MODE
       const block = firstText(res.content);
       const out = block?.type === 'text' ? block.text.trim() : '';
       if (!out || res.stop_reason === 'max_tokens') return null;
-      return { text: out, modelId: model, usage: usageOf(res.usage) };
+      return { text: out, modelId: modelOf(res, model), usage: usageOf(res.usage) };
     },
   };
 }
@@ -587,7 +590,7 @@ export function anthropicCatalogExtractor(client: Anthropic, model: string = MOD
       return {
         items: parseExtractorAnswer(block?.type === 'text' ? block.text : ''),
         promptVersion: PROMPT_VERSION,
-        modelId: model,
+        modelId: modelOf(res, model),
         usage: usageOf(res.usage),
       };
     },
@@ -620,7 +623,7 @@ export function anthropicPageFactsReader(client: Anthropic, model: string = MODE
       return {
         facts: parseFactsAnswer(block?.type === 'text' ? block.text : ''),
         promptVersion: PROMPT_VERSION,
-        modelId: model,
+        modelId: modelOf(res, model),
         usage: usageOf(res.usage),
       };
     },
@@ -661,7 +664,7 @@ export function anthropicDocumentReader(client: Anthropic, model: string = MODEL
         answer: block?.type === 'text' ? block.text : '',
         cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
-        modelId: model,
+        modelId: modelOf(res, model),
         usage: usageOf(res.usage),
       };
     },

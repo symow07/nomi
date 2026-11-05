@@ -203,7 +203,8 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     });
 
     it(`${l}: no confirmation to the customer, no "same channel", nothing automatic, no operator by hand — and the checks can fire`, () => {
-      const body = text(page(l));
+      // The provider's own period is its terms', on the page by name; these are promises Nomi may not make of itself.
+      const body = text(page(l)).replace(withoutIsolates(t(l, 'legal.privacy.provider.anthropic', { provider: 'Anthropic' })), '');
       for (const re of NEVER[l]) {
         expect(re.test(body), `${l} still says ${re}`).toBe(false);
       }

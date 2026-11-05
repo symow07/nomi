@@ -170,7 +170,7 @@ describe('R5 · work sent alone is on the record, so it can be spot-checked', ()
     p.analyzer.next = analysis('en');
     const { fx } = await run(p, 'Do you have it in blue?');
     const sent = p.tenant.eventRows.find((e) => e.type === 'auto_sent')?.payload;
-    expect(sent).toEqual({ capability: 'qualify', messageId: 'm-Do you have ', body: fx.outbound!.reply });
+    expect(sent).toEqual({ capability: 'qualify', messageId: 'm-Do you have ', body: fx.outbound!.reply, model: 'fake-model' });
   });
   it('a draft is not work sent alone: no auto_sent', async () => {
     const p = ports('draft');

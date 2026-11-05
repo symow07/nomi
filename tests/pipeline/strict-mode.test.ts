@@ -21,7 +21,7 @@ const SIGNED: StrictSigned = { en: proposedSentences('en') };
 const PLAIN = proposedSentences('en').filter((s) => !/\{(qty|price|days)\}/.test(s)).map((s) => s.split('{product}').join(NAME));
 const FREE = [
   'We make canvas totes in several sizes.', 'Sure, happy to help!', 'Our factory is in Yiwu and we ship worldwide.',
-  'Let me check with the team and get back to you.', 'Hello! Thanks for reaching out.', 'Which colour would you like?',
+  'Which size did you have in mind?', 'Hello! Thanks for reaching out.', 'Which colour would you like?',
 ];
 
 function mulberry32(seed: number): () => number {

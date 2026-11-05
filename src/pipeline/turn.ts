@@ -29,6 +29,7 @@ import { promisesDeletion } from '../core/safety/deletion.js';
 import { carriesOurJson } from '../core/safety/rawOutput.js';
 import { addressPolitely } from '../core/safety/politeChinese.js';
 import { addressesInGender } from '../core/safety/address.js';
+import { promisesWhatNothingKeeps } from '../core/safety/unkeptPromise.js';
 import { disclosureFor, withDisclosure, withDisclosureFirst, disclosureStanding } from '../core/conversation/disclosure.js';
 import { onlySignedSentences, strictSetFor, type StrictSigned } from '../core/conversation/strict.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
@@ -190,7 +191,8 @@ export type TurnResult = {
    * analysis agrees with; `und` when nobody can tell. Never null.
    */
   gateLanguage: string;
-  provenance: { promptVersion: string | null; modelId: string | null };
+  /** `replyModel`: the model that wrote the words, null when no model did (a fixed sentence, a taught answer, a stand-in). */
+  provenance: { promptVersion: string | null; modelId: string | null; replyModel: string | null };
   guardViolations: number;
   /**
    * M37.5 — the forbidden terms that stopped a draft, if any. The owner is told
@@ -214,6 +216,8 @@ export type TurnResult = {
    * none did. Recorded with the guard violation, like the forbidden words.
    */
   genderedAddress: string | null;
+  /** The words of a promise nothing keeps, on the last attempt that guard stopped; null when none did. */
+  unkeptPromise: string | null;
   /**
    * Rule 6 (0158) — the writer's LAST attempt still addressed the buyer in a gender, so the turn became a hand-over.
    * Like `guards_failed_twice`, a failure of the reply that was kept, not a trip rewritten clean: it is evidence, and it
@@ -600,7 +604,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let identityViolation: IdentityViolation | null = null;
   let genderedAddress: string | null = null;
   /** What the last attempt got wrong, so the next one is told which rule. */
-  let lastViolation: 'gendered_address' | null = null;
+  let lastViolation: 'gendered_address' | 'unkept_promise' | null = null;
+  let replyModel: string | null = null;
+  let unkeptPromise: string | null = null;
   /** Rule 6 — the writer's last attempt still addressed the buyer in a gender: a person answers (below). */
   let addressHandOver = false;
   /** G8 — the same, found in her own text rather than in what the employee wrote. */
@@ -899,6 +905,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         usage.outputTokens += w.usage.outputTokens;
         usage.cachedInputTokens += w.usage.cachedInputTokens ?? 0;
         promptVersion = promptVersion ?? w.promptVersion;
+        replyModel = w.modelId;
         // No words to send, or our own JSON still in them: below the switch this
         // is a person's. No second attempt and no stand-in pretends otherwise.
         if (w.reply === null || carriesOurJson(w.reply)) {
@@ -944,6 +951,15 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           guardViolations++;
           genderedAddress = addressed;
           lastViolation = 'gendered_address';
+          continue;
+        }
+        // The owner, 2026-11-05 — no promise the code does not keep ("I'll check", "the team can reply"). The same retry;
+        // a second miss is held for the owner, with the stand-in below.
+        const promised = promisesWhatNothingKeeps(clean.value);
+        if (promised !== null) {
+          guardViolations++;
+          unkeptPromise = promised;
+          lastViolation = 'unkept_promise';
           continue;
         }
         lastViolation = null;
@@ -1166,11 +1182,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     }),
     stateBefore: state,
     gateLanguage: gateLang,
-    provenance: { promptVersion, modelId },
+    provenance: { promptVersion, modelId, replyModel: answerPath === 'model' ? replyModel : null },
     guardViolations,
     forbiddenHits,
     identityViolation,
     genderedAddress,
+    unkeptPromise,
     addressUnwritten: addressHandOver && deletionPromiseWithheld === null,
     forbiddenInHerText,
     sampleRequested,
@@ -1368,7 +1385,8 @@ export async function commitTurn(
     decision: r.decision,
     quoteId,
     promptVersion: r.provenance.promptVersion,
-    modelId: r.provenance.modelId,
+    // The model that wrote the reply, when one did; else the one that read the message.
+    modelId: r.provenance.replyModel ?? r.provenance.modelId,
     latencyMs: Date.now() - startedAt,
     measure: {
       path: r.answerPath, analyserAvoidable: r.analyserAvoidable,
@@ -1619,6 +1637,7 @@ export async function commitTurn(
           : {}),
         // Rule 6 — and the words that addressed the buyer in a gender.
         ...(r.genderedAddress ? { address: r.genderedAddress } : {}),
+        ...(r.unkeptPromise ? { promise: r.unkeptPromise } : {}),
       });
       // R1 (fix 3), here too (found 2026-10-14 by the Arabic release run): a reply caught and rewritten clean was
       // the guard working, not evidence against her — the evidence loader and the ramp already skip it, but this
@@ -1675,7 +1694,8 @@ export async function commitTurn(
       // R5 (0109) — work sent alone is on the record, so it can be spot-checked
       // once it has left: the words exactly as queued, the capability, and the
       // message it answered. Approved drafts and these share one outbound path.
-      await tenant.events.append(req.conversationId, 'auto_sent', { capability, messageId: req.messageId, body: outbound.reply });
+      await tenant.events.append(req.conversationId, 'auto_sent', { capability, messageId: req.messageId, body: outbound.reply,
+        ...(r.provenance.replyModel ? { model: r.provenance.replyModel } : {}) });
     } else {
       /*
        * Decided BEFORE the draft is written, because the draft has to carry
@@ -1701,6 +1721,7 @@ export async function commitTurn(
       const replyLanguage = r.analysis?.language.replyIn ?? r.analysis?.language.detected ?? r.newState.preferredLanguage ?? null;
       await tenant.events.append(req.conversationId, 'draft_pending', {
         draftId: d.draftId, capability,
+        ...(r.provenance.replyModel ? { model: r.provenance.replyModel } : {}),
         ...(replyLanguage ? { language: languageHead(replyLanguage) } : {}),
         // LG — the language the gate read, so the first five in it can be counted (0108).
         gate: language,

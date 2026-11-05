@@ -35,6 +35,24 @@ guard rightly let it through. Forced, it fails with the same `refused 0`. The me
 that comes up about 1 run in 3,000, rarer than the three failures on record suggest, so another cause can't be ruled out.
 
 Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
+## The assistant says "I", and promises only what happens (2026-11-05; no migration)
+
+The owner's order after the fallback: no promise to hand over or check unless the code really does it; first person, as
+the seller's own assistant; the team only when a hand-off really happens (rule 90).
+
+- **Stricter than the owner's option A, on purpose.** A said "I'll check" only when the turn really goes to the owner.
+  The writer cannot know whether its reply will be a draft or go alone: the send decision comes after it. So the writer
+  never says it, a reply that does is written again, and the words stay only in the fixed hand-off sentences and the
+  stand-in held for the owner.
+- **A starter went with it.** Strict mode's "Someone from our team will reply…" had no hand-off behind it, in five
+  languages. No native reader had signed it; the sheet in `docs/NATIVE-REVIEW-UI.md` is now eight sentences.
+- **The model that really answered** is on the ledger, the provenance and the two events, so a fallback turn is priced and
+  recorded as itself. This closes the note under the fallback's section below.
+- **What Anthropic keeps** is on the privacy and deletion pages, from its privacy center, read 2026-11-05. Only what its
+  API section supports: the page's rule on flagged content speaks of "your chat", and its scope on the API is not
+  clear from the page, so it is not stated.
+- **The live numbers** are in the private notes.
+
 ## The fallback answers, at Anthropic's own address (2026-11-05; no migration)
 
 The third PR of the owner's decision of 2026-11-04. Merging switches nothing: failing over is still `LLM_FALLBACK=on`.
@@ -45,16 +63,14 @@ The third PR of the owner's decision of 2026-11-04. Merging switches nothing: fa
 - **Named everywhere it goes.** Everything that asks a model fails over, not only replies, so while it is on the
   privacy page names both companies for the advisor and the document reader too, and so does the deletion page
   (`legal.privacy.processorOrFallback`, five languages, listed in `docs/NATIVE-REVIEW-UI.md`). The page still says
-  nothing about what Anthropic keeps: `PROVIDER_LINES` has no line until its terms are read and checked.
+  nothing about what Anthropic keeps: `PROVIDER_LINES` has no line until its terms are read and checked (done, rule 90).
 - **The live run** (the real clients; the primary faked as down, so nothing left for it): en, zh and ar each answered
   through the real analyser and writer. Person, price-first, options and the advisor's routing all as expected.
 - **The numbers are in the private notes,** with the comparison behind the decision.
 
 ### Found on the way
 
-- **A turn on the fallback is recorded under the primary's model.** `modelId` is the model the writer was built with,
-  so the provenance and the cost estimate say the primary's. Left as it is: the prices are close, and the log says when
-  it failed over. A real fix reads the model from the answer and its price table.
+- **A turn on the fallback was recorded under the primary's model.** Fixed by the next PR (rule 90).
 
 ## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)
 

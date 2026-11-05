@@ -128,6 +128,12 @@ const processorsOf = (l: Locale, facts: Pick<LegalFacts, 'processor' | 'fallback
   ? t(l, 'legal.privacy.processorOrFallback', { processor: processorLabel(facts.processor, l), fallback: processorLabel(facts.fallback, l), primary: facts.processor.name })
   : processorLabel(facts.processor, l);
 
+/** What each named company keeps, for those this build can say it of; empty when none. */
+const whatEachKeeps = (l: Locale, facts: Pick<LegalFacts, 'processor' | 'fallback'>): string =>
+  [facts.processor, ...(facts.fallback ? [facts.fallback] : [])]
+    .flatMap((p) => { const line = providerLineKey(p); return line ? [t(l, line, { provider: p.name })] : []; })
+    .join(l === 'zh' ? '' : ' ');
+
 /**
  * §9.3 — the sentence that names where an advisor question goes, with the line
  * that says what that provider keeps. This batch has ONE provider (`LLM_*`), so
@@ -140,9 +146,10 @@ const processorsOf = (l: Locale, facts: Pick<LegalFacts, 'processor' | 'fallback
  * keeps. Every locale's sentence ends in a colon and `{providerLines}`, which
  * privacy-advisor-cookies.test.ts holds, so the cut is always the same cut.
  */
-function advisorProviders(l: Locale, p: Processor, processors: string): string {
-  const line = providerLineKey(p);
-  if (line) return t(l, 'legal.privacy.advisor.providers', { processors, providerLines: t(l, line, { provider: p.name }) });
+function advisorProviders(l: Locale, facts: Pick<LegalFacts, 'processor' | 'fallback'>): string {
+  const processors = processorsOf(l, facts);
+  const lines = whatEachKeeps(l, facts);
+  if (lines) return t(l, 'legal.privacy.advisor.providers', { processors, providerLines: lines });
   const said = t(l, 'legal.privacy.advisor.providers', { processors, providerLines: '\u0000' });
   return said.replace(/\s*[:：]\s*\u0000$/u, l === 'zh' ? '。' : '.').replace('\u0000', '');
 }
@@ -244,7 +251,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
       history ? `<h2 id="advisor">${esc(t(l, 'legal.privacy.advisor.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.advisor.what'))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.basis'))}</p>
-    <p>${esc(advisorProviders(l, facts.processor, processorsOf(l, facts)))}</p>
+    <p>${esc(advisorProviders(l, facts))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.customers'))}</p>` : ''}
     ${/* D5 (the data-protection audit, 2026-10-12) — the people who use Nomi at a business: what is kept about them,
@@ -374,10 +381,10 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
   // privacy page gives it: the language service with what its own terms say, the transcriber where one runs, the
   // host's logs, and our own mailbox where the page offers an address to write to.
   const gap = l === 'zh' ? '' : ' ';
-  const line = providerLineKey(facts.processor);
+  const line = whatEachKeeps(l, facts);
   const outside = [
     `${esc(t(l, 'legal.deletion.kept.processor', { processor: processorsOf(l, facts) }))}${
-      line ? `${gap}${esc(t(l, line, { provider: facts.processor.name }))}` : ''}`,
+      line ? `${gap}${esc(line)}` : ''}`,
     ...(facts.transcriber ? [esc(t(l, 'legal.deletion.kept.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))] : []),
     esc(t(l, 'legal.deletion.kept.logs', { hosting: processorLabel(facts.hosting, l) })),
     ...(email ? [k('legal.deletion.kept.mailbox')] : []),

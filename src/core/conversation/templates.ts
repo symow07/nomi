@@ -171,7 +171,7 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
     case 'no_price_tier':
     case 'no_price_configured':
       // Passed as next_question, so it can reach the customer: said the way a customer may read it.
-      return { note: 'There is no price set for this yet. Do not give one; say someone from the team will confirm the price.', allow: [] };
+      return { note: 'There is no price set for this yet. Do not give one; say it is not set yet.', allow: [] };
   }
 }
 

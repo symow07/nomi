@@ -75,7 +75,7 @@ export interface ReplyWriter {
      * (src/core/safety/address.ts): the next is told that, not the numbers
      * rule. Absent after any other violation.
      */
-    violation?: 'gendered_address';
+    violation?: 'gendered_address' | 'unkept_promise';
     /**
      * A5.3 — who is speaking and for which business, in the owner's own words.
      * Tone and focus only: it carries no fact a buyer may be quoted, and the

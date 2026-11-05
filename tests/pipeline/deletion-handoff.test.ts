@@ -195,10 +195,10 @@ describe('0075 · layer 2 — a reply that promises the deletion is never sent',
 
   it('a reply that promises nothing about their data goes out as usual', async () => {
     const p = ports();
-    p.replyWriter.replies = ["I'll pass that to the team and they will reply to you."];
+    p.replyWriter.replies = ['Which product do you mean?'];
     const { r, fx } = await run(p, SLIPS_PAST);
     expect(r.deletionPromiseWithheld).toBeNull();
-    expect(fx.outbound?.reply).toBe("I'll pass that to the team and they will reply to you.");
+    expect(fx.outbound?.reply).toBe('Which product do you mean?');
   });
 });
 

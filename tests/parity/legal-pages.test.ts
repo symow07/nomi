@@ -104,7 +104,7 @@ describe('Legal pages · what a stranger may read', () => {
     expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated.terms')));
     expect(renderPrivacy('en', null, FACTS)).toContain(esc(t('en', 'legal.updated.privacy')));
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.updated.deletion')));
-    expect(t('en', 'legal.updated.deletion')).toBe('Last updated 28 October 2026.'); // A6 — the books among what is kept
+    expect(t('en', 'legal.updated.deletion')).toBe('Last updated 5 November 2026.'); // what the second language service keeps
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.deletion.erased.advisor')));
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.deletion.kept.advisorUnlinked')));
   });

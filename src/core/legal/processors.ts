@@ -82,13 +82,17 @@ export function transcriberProcessor(env: Readonly<Record<string, string | undef
  * itself keeps of a question it was sent, in one line, for the providers this
  * build can describe: checked on 2026-10-07 against DeepSeek's Open Platform
  * terms (effective 2026-04-29) and privacy policy (2026-02-10), and OpenAI's
- * "Your data" page for its API. Any other provider has no line — Anthropic
- * among them, until its current terms are checked — and the page then names
- * the provider and says nothing about what it keeps rather than guess.
+ * "Your data" page for its API. Anthropic's checked on 2026-11-05 against its
+ * privacy center ("How long do you store my organization's data?", dated
+ * 2026-07-01; "Is my data used for model training?", dated 2026-08-18) and its
+ * commercial terms (effective 2025-06-17). Any other provider has no line, and
+ * the page then names the provider and says nothing about what it keeps rather
+ * than guess.
  */
 const PROVIDER_LINES: Readonly<Record<string, MessageKey>> = {
   DeepSeek: 'legal.privacy.provider.deepseek',
   OpenAI: 'legal.privacy.provider.openai',
+  Anthropic: 'legal.privacy.provider.anthropic',
 };
 
 /** The line that says what this provider keeps; null when this build cannot say. */
