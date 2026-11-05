@@ -1560,6 +1560,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     transcriber: transcriberProcessor(process.env),
     ...(deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING }),
     botCheck: deps.botCheck ? { name: BOT_CHECK_WIDGET[deps.botCheck.provider].name, country: null } : null,
+    // D18 (2026-11-06) — Stripe and the push services, named where this installation runs them: the deps that carry
+    // their keys are built only from the variables that switch them on (main.ts).
+    stripe: Boolean(deps.stripe),
+    webPush: Boolean(deps.push),
   };
   app.get('/privacy', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req), deps.operatorPerson ?? null)));
