@@ -103,6 +103,14 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
       headers: { 'content-type': 'application/json', ...w.headers } });
   const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const customerRecord = async (conversationId: string) => {
+    const moved = await get(`/app/conversations/${conversationId}`);
+    expect(moved.statusCode).toBe(302);
+    const location = String(moved.headers['location']);
+    expect(location).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(location, 'http://local').searchParams.get('conversation')).toBe(conversationId);
+    return get(location);
+  };
   const convOf = (wa: string) => until(() => q((tx) => sql<{ id: string }>`
     select c.id::text as id from conversations c
       join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
@@ -240,7 +248,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
       expect(page).toContain(esc(t('en', 'takeover.reason.deletion_requested' as never)));
       expect(page).toContain(esc(t('en', 'deletionAsked.title' as never)));
       expect(page).toContain(`href="/app/conversations/${conv}#deletion"`);
-      expect((await get(`/app/conversations/${conv}`)).body).toContain('id="deletion"');
+      expect((await customerRecord(conv)).body).toContain('id="deletion"');
     }
   });
 
@@ -288,7 +296,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     for (const r of REQUESTS) expect(data, r.lang).toContain(`href="/app/conversations/${convs[r.lang]}#deletion"`);
     expect((await get(`/app/inbox/${conv}`)).body)
       .toContain(esc(t('en', 'deletionAsked.noted' as never, { date: formatDate('en', noted!.asked_at, 'Asia/Shanghai') })));
-    const buyerPage = (await get(`/app/conversations/${conv}`)).body;
+    const buyerPage = (await customerRecord(conv)).body;
     expect(buyerPage).toContain(`action="/app/conversations/${conv}/deletion/dismiss"`);
     expect(buyerPage.slice(buyerPage.indexOf('id="deletion"'))).not.toContain('name="note"');
   });

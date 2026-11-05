@@ -42,7 +42,12 @@ d('0135 · the owner and a buyer who said stop (requires DATABASE_URL)', () => {
   };
   const post = (url: string, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
-  const file = async () => (await app.inject({ method: 'GET', url: `/app/conversations/${conv}`, headers: { cookie } })).body;
+  const file = async () => {
+    const old = await app.inject({ method:'GET',url:`/app/conversations/${conv}`,headers:{cookie} });
+    expect(old.statusCode).toBe(302);
+    expect(String(old.headers['location'])).toMatch(new RegExp(`^/app/customers/[0-9a-f-]+\\?conversation=${conv}$`));
+    return (await app.inject({method:'GET',url:String(old.headers['location']),headers:{cookie}})).body;
+  };
   const newDraft = (text: string, notice: 'opt_out' | null = null) => tx((x) => sql<{ id: string }>`
     insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status, notice)
     values (${BIZ}, ${conv}, 'qualify', ${text}, null, 'pending', ${notice}) returning id::text as id`.execute(x).then((r) => r.rows[0]!.id));

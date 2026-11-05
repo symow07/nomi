@@ -19,7 +19,7 @@ export function renderLabels(locale: Locale, rows: readonly Label[]): string {
       <span>${l.archived
         ? `<form method="post" action="/app/labels/${esc(l.id)}/restore" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'labels.restore'))}</button></form>`
         : `<form method="post" action="/app/labels/${esc(l.id)}/archive" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'labels.archiveAsk', { name: l.name }))}">${esc(t(locale, 'labels.archive'))}</button></form>`}</span></li>`;
-  return `<h1 class="page">${esc(t(locale, 'labels.pageTitle'))}</h1>
+  return `<section class="customer-tools tool-labels"><h1 class="page">${esc(t(locale, 'labels.pageTitle'))}</h1>
     <p class="lede">${esc(t(locale, 'labels.lede'))}</p>
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'labels.noneYet'))}</p>` : `<ul class="rows">${rows.map(row).join('')}</ul>`}`;
+    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'labels.noneYet'))}</p><a class="deeper" href="/app/customers">${esc(t(locale, 'customers.back'))}</a>` : `<ul class="rows">${rows.map(row).join('')}</ul>`}</section>`;
 }

@@ -16,6 +16,8 @@ import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { SPLIT_CSS } from './splitStyle.js';
 import { INBOX_LIST_CSS } from './inboxListStyle.js';
 import { CONVERSATION_CSS } from './conversationStyle.js';
+import { CUSTOMERS_CSS } from './customersStyle.js';
+import { CUSTOMER_TOOLS_CSS } from './customerToolsStyle.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
@@ -109,9 +111,10 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     ...['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'month', 'next', 'history'].map((s) => `${ASSISTANT_HOME}/${s}`)] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
-  { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
+  { hub: '/app/customers', routes: ['/app/customers/outreach'], outreach: true },
   // S1 (0195) — the saved replies a person answers buyers with: kept under Buyers.
-  { hub: '/app/inbox', routes: ['/app/replies', '/app/labels', '/app/surveys'] },
+  { hub: '/app/inbox', routes: ['/app/inbox/replies'] },
+  { hub: '/app/customers', routes: ['/app/customers/orders', '/app/customers/labels', '/app/customers/feedback'] },
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: [ASSISTANT_HOME, '/app/business', '/app/settings/setup'] },
@@ -133,7 +136,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
-  { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
+  // Writing and suppression remain per-contact workflows requiring an identity, not bare hub doors.
+  // Their canonical and legacy route guards are covered by outreach-area and command integration tests.
+  { hub: '/app/customers/outreach', routes: ['/app/customers/outreach/sequences', '/app/customers/outreach/find'], outreach: true },
   { hub: '/app', routes: ['/app/analytics'] },
 ];
 
@@ -156,6 +161,7 @@ export const CONTEXTUAL_ROUTES: readonly string[] =
  */
 export const OUTREACH_PREFIXES: readonly string[] = [
   '/app/contacts', '/app/prospects', '/app/sequences', '/app/channels/outreach',
+  '/app/customers/outreach',
 ];
 export const isOutreachRoute = (url: string): boolean => {
   const path = url.split('?')[0] ?? url;
@@ -2748,7 +2754,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2816,7 +2822,7 @@ export function hubFor(path: string, active: string): string {
   // Transitional addresses stay in the destination that will own their content.
   const belongs: readonly [string, readonly string[]][] = [
     ['home', ['/app/calendar', '/app/results', '/app/analytics', '/app/get-started', '/app/guide', '/app/onboarding', '/app/ready', '/app/settings/assistant/month']],
-    ['customers', ['/app/customers', '/app/orders', '/app/contacts', '/app/prospects', '/app/sequences', '/app/labels', '/app/surveys']],
+    ['customers', ['/app/customers', '/app/conversations', '/app/orders', '/app/contacts', '/app/prospects', '/app/sequences', '/app/labels', '/app/surveys']],
     ['products', ['/app/products', '/app/business/prices']],
     ['assistant', ['/app/assistant', '/app/advisor', '/app/knowledge', '/app/sandbox', '/app/settings/assistant/checks', '/app/settings/assistant/history']],
     ['books', ['/app/books']],

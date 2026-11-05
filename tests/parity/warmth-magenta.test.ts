@@ -213,6 +213,9 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
   // Area 2 uses flat list and conversation sections: these exact selectors may be square, not arbitrary radii.
   const FLAT: Readonly<Record<string, string>> = {
     '.il-main.sp-sheet': 'one flat Inbox list surface',
+    '.customer-record .pcard': 'customer overview composed into the flat full record',
+    '.customer-record .pc-facts>div': 'facts within the overview, not nested cards',
+    '.customer-tools .scard': 'existing tool fields on the same flat page',
     '.conversation-workspace .catchup': 'conversation header separated by a hairline',
     '.conversation-workspace .draft': 'approval section separated by a hairline',
   };
@@ -223,7 +226,7 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
       for (const r of parse(sheet)) {
         for (const m of r.body.matchAll(/border(?:-[a-z-]+)?-radius\s*:\s*([^;]+)/g)) {
           if (/^var\(--radius-(control|card|panel|chip)\)$/.test(m[1]!.trim())) continue;
-          for (const sel of r.sel.split(',').map((x) => x.trim())) if (!KEPT[sel] && !(m[1]!.trim() === '0' && FLAT[sel])) odd.push(`${sel}: ${m[1]!.trim()}`);
+          for (const sel of r.sel.split(',').map((x) => x.trim())) if (!KEPT[sel] && !(sel === '.ca-person .face' && m[1]!.trim() === '50%') && !(m[1]!.trim() === '0' && FLAT[sel])) odd.push(`${sel}: ${m[1]!.trim()}`);
         }
       }
     }

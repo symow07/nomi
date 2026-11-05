@@ -1,9 +1,10 @@
+import { customerReturnHref } from './customerNavigation.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { writeOrderState } from '../../db/orders.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import {
-  ORDER_STATES, isOrderState, type OrderState, type OrderUpdate,
+  ORDER_STATES, isOrderState, isReportedOrderState, type ReportedOrderState, type OrderUpdate,
 } from '../../core/commerce/orderState.js';
 import { buildInvoice, renderInvoiceEn } from '../../core/commerce/invoice.js';
 import { moneyFromRow, type Money } from '../../core/types/money.js';
@@ -71,7 +72,8 @@ export type OrderView = {
   readonly sampleCredit?: { readonly kind: 'credit'; readonly amount: Money }
     | { readonly kind: 'mismatch'; readonly amount: Money } | null;
   /** Newest first. Append-only: this is what she said, not what was computed. */
-  readonly history: readonly OrderUpdate[];
+  readonly history: readonly (Omit<OrderUpdate, 'state'> & { readonly state: ReportedOrderState })[];
+  readonly recordedState?: ReportedOrderState | null;
   /** Phase 2c (0151) — the live token of the proforma's link for the customer, or null. */
   readonly proformaToken?: string | null;
 };
@@ -85,9 +87,9 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       name: string | null; name_zh: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
       client_email: string | null; payment_terms: string | null; incoterm: string | null; confirmed_at: Date | null;
-      proforma_token: string | null; seller_kind: string | null;
+      proforma_token: string | null; seller_kind: string | null; status: string;
     }>`
-      select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
+      select o.id, o.status, o.order_reference as reference, o.conversation_id::text as conversation_id,
              cl.display_name as buyer, cl.id::text as client_id, p.name, p.name_zh, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
              o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, o.proforma_token, b.name as seller, b.kind as seller_kind
@@ -164,7 +166,8 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
         : creditMoney.currency === o.currency
           ? { kind: 'credit' as const, amount: creditMoney }
           : { kind: 'mismatch' as const, amount: creditMoney },
-      history: h.rows.flatMap((r): OrderUpdate[] => isOrderState(r.state) ? [{
+      recordedState: isReportedOrderState(o.status) ? o.status : null,
+      history: h.rows.flatMap((r): OrderView['history'] => isReportedOrderState(r.state) ? [{
         state: r.state, at: r.at, note: r.note,
         trackingReference: r.tracking_reference, by: r.by_actor,
       }] : []),
@@ -262,7 +265,7 @@ function docText(text: string, sku: string): string {
 export const proformaFileName = (v: OrderView): string => `proforma-${v.reference.replace(/[^A-Za-z0-9._-]+/g, '-')}.txt`;
 
 export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
-  opts: { readonly publicBaseUrl?: string | null | undefined } = {}): string {
+  opts: { readonly publicBaseUrl?: string | null | undefined; readonly returnHref?: string } = {}): string {
   const name = assistantName(locale);
   // G18 — the order's own money, in the order's own currency. Both of these
   // used to be rebuilt as dollars and then hidden unless the order WAS in
@@ -271,13 +274,14 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
   // nobody — `moneyFromRow` returns null rather than guessing.
   const total = v.totalAmount === null ? null : moneyFromRow(v.totalAmount, v.currency);
   const unitPrice = v.unitPriceAmount === null ? null : moneyFromRow(v.unitPriceAmount, v.currency);
-  const stateName = (s: OrderState) => t(locale, `order.state.${s}` as MessageKey);
+  const stateName = (s: ReportedOrderState) => t(locale, `order.state.${s}` as MessageKey);
   // Phase 9 (V1-189) — the confirmation is where an order's story starts. With
   // nothing recorded since, the page said "Nothing recorded yet" under a menu
   // reading "Confirmed" and a summary saying when it was confirmed.
   const confirmedInHistory = v.history.some((u) => u.state === 'confirmed');
   const confirmation = v.confirmedAt && !confirmedInHistory ? { state: 'confirmed' as const, at: v.confirmedAt } : null;
-  const latest: { readonly state: OrderState; readonly at: Date } | null = v.history[0] ?? confirmation;
+  const latest: { readonly state: ReportedOrderState; readonly at: Date | null } | null = v.history[0]
+    ?? (v.recordedState ? { state: v.recordedState, at: v.recordedState === 'confirmed' ? v.confirmedAt : null } : confirmation);
 
   // Phase 9 of the warmth run (w4-customers-11) — the confirmation is said
   // once by the line at the top (with its year) and kept in the history; a
@@ -332,21 +336,21 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`
       : '';
 
-  return `<div class="dhead">${back(conversationUrl(v.conversationId), t(locale, 'order.back'))}</div>
+  return `<div class="dhead">${back(opts.returnHref ? customerReturnHref(opts.returnHref) : conversationUrl(v.conversationId), t(locale, opts.returnHref ? 'customers.ordersBack' : 'order.back'))}</div>
     ${/* Phase 9 (V1-184) — the page says what it is; the reference alone read as a code. The warmth run's phase 9 —
          whose order it is, with their face (the one customer page that had none, w4-customers-10); the reference is a row below. */ ''}<div class="ord-head">${v.clientId
       ? faceLink({ clientId: v.clientId, name: v.buyer, photo: v.photo ?? null }, { size: 'l', label: t(locale, 'buyers.row.card', { who: v.buyer ?? t(locale, 'common.buyer') }) })
       : ''}<h1 class="page">${orderHeading(locale, v)}</h1></div>
     ${flashBanner(flash)}
     <section class="block">
-      ${latest ? `<p class="stated-now">${esc(stateName(latest.state))} <span class="muted">${
-        esc(t(locale, 'order.since', { date: confirmedNow ? show.dateYear(locale, latest.at) : show.date(locale, latest.at) }))}</span></p>` : ''}
+      ${latest ? `<p class="stated-now">${esc(stateName(latest.state))}${latest.at ? ` <span class="muted">${
+        esc(t(locale, 'order.since', { date: confirmedNow ? show.dateYear(locale, latest.at) : show.date(locale, latest.at) }))}</span>` : ''}</p>` : ''}
       <div class="facts">${facts}</div>
     </section>
     <section class="block">
       <h2>${esc(t(locale, 'order.update.title'))}</h2>
       <p class="muted">${esc(t(locale, 'order.update.intro', { name }))}</p>
-      <form method="post" action="/app/orders/${esc(v.orderId)}/update" class="pform">
+      <form method="post" action="/app/orders/${esc(v.orderId)}/update" class="pform">${opts.returnHref ? `<input type="hidden" name="from" value="${esc(customerReturnHref(opts.returnHref))}">` : ''}
         <label class="fld"><span class="muted">${esc(t(locale, 'order.update.state'))}</span>
           <select name="state">${ORDER_STATES.map((s) =>
             `<option value="${esc(s)}"${latest?.state === s ? ' selected' : ''}>${esc(stateName(s))}</option>`).join('')}</select></label>

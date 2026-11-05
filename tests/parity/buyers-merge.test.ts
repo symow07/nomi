@@ -340,8 +340,8 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     }
     const off = withWorkspace({ name: null, several: false, outreach: false, setup: null }, () => html('en'));
     const on = withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => html('en'));
-    expect(off).not.toContain('href="/app/contacts"');
-    expect(on).toContain('href="/app/contacts"');
+    expect(off).not.toContain('href="/app/customers/outreach"');
+    expect(on).toContain('href="/app/customers/outreach"');
     // phase 9 of the warmth run (V1-166) — no calendar door: the rail has Calendar on every width
     expect(on).not.toContain('class="deeper on-phone"');
   });
@@ -367,14 +367,14 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
   it('the map: the old address is Buyers\', and so is every buyer\'s page under it', () => {
     expect(MERGED_INTO_BUYERS).toBe('/app/conversations');
     expect(CONTEXTUAL_ROUTES).not.toContain('/app/conversations');
-    expect(hubFor('/app/conversations/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b6c', 'x')).toBe('inbox');
+    expect(hubFor('/app/conversations/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b6c', 'x')).toBe('customers');
     const app = read('src/api/web/app.ts');
     // the list route is a redirect now, guarded like every other address
     const at = app.indexOf('app.get(MERGED_INTO_BUYERS');
     expect(at).toBeGreaterThan(0);
     const handler = app.slice(at, app.indexOf('\n  });', at));
     expect(handler).toContain("if (!sessionOf(req)) return reply.redirect('/login');");
-    expect(handler).toMatch(/reply\.redirect\([^;]*'\/app\/inbox\?filter=all'\)/);
+    expect(handler).toMatch(/reply\.redirect\([^;]*'\/app\/customers'\)/);
     expect(app).not.toContain('renderCustomerList');
     expect(app).toContain("app.get('/app/conversations/:conversationId'");
   });

@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
+import type { CustomerReadScope } from './customerValue.js';
 
 /**
  * Phase 9 of the warmth run (w4-customers-25, w4-conversation-12) — WHAT A
@@ -24,21 +25,24 @@ import type { Tx } from './client.js';
  */
 export type AskedAbout = { readonly name: string | null; readonly nameZh: string | null };
 
-export async function askedAbout(tx: Tx, clientId: string, limit = 3): Promise<readonly AskedAbout[]> {
+export async function askedAbout(tx: Tx, clientId: string, limit = 3, scope: CustomerReadScope = {}): Promise<readonly AskedAbout[]> {
   return (await sql<{ name: string | null; name_zh: string | null }>`
     select p.name, p.name_zh
       from (
         select t.analysis->'intent'->'productCandidate'->>'productId' as product, t.created_at as at
           from turns t join conversations c on c.id = t.conversation_id
          where c.client_id = ${clientId}::uuid
+           ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
         union all
         select q.product_id::text, q.created_at
           from quotes q join conversations c on c.id = q.conversation_id
          where c.client_id = ${clientId}::uuid
+           ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
         union all
         select cs.identified_product_id::text, cs.last_message_at
           from conversation_state cs join conversations c on c.id = cs.conversation_id
          where c.client_id = ${clientId}::uuid and cs.identified_product_id is not null
+           ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
       ) a
       join products p on p.id::text = a.product
      group by p.id, p.name, p.name_zh

@@ -203,11 +203,11 @@ const met: ContactRow = { id: 'k1', channel: 'email', identity: 'mei@gulf.exampl
 const view = (contacts: readonly ContactRow[], over: Partial<ContactsView> = {}): ContactsView =>
   ({ contacts, outreach: new Map(), satisfied: new Set(), ...over });
 
-describe('w4-settings-b-outreach-13 · Contacts leads back to the Inbox it is reached from', () => {
-  it('"‹ Inbox" before the heading, in every locale', () => {
+describe('w4-settings-b-outreach-13 · Follow-ups leads back to its Customers directory', () => {
+  it('All customers before the heading, in every locale', () => {
     for (const l of LOCALES) {
       const html = renderContacts(view([wrote]), l, null);
-      const back = `<a class="back" href="/app/inbox">${BACK}${esc(t(l, 'nav.inbox'))}</a>`;
+      const back = `<a class="back" href="/app/customers">${BACK}${esc(t(l, 'customers.back'))}</a>`;
       expect(html, l).toContain(back);
       expect(html.indexOf(back), l).toBeLessThan(html.indexOf('<h1 class="page">'));
     }
@@ -246,7 +246,7 @@ describe('w4-settings-b-outreach-15, -16, -18 · the fold apart from the search;
     }
   });
   it('the focused way back on the never-again page has a control\'s padding and corner', () => {
-    expect(renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, 'ar')).toContain('<a class="back" href="/app/contacts" autofocus>');
+    expect(renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, 'ar')).toContain('<a class="back" href="/app/customers/outreach" autofocus>');
     expect(css).toContain('.confirm > .back { padding:0 var(--space-12); border-radius:var(--radius-control); }');
   });
 });
@@ -254,7 +254,7 @@ describe('w4-settings-b-outreach-15, -16, -18 · the fold apart from the search;
 describe('V1-548, V1-552, w4-settings-b-outreach-17 · one name for the page; "e-mail"; Arabic genders nobody', () => {
   it('the Inbox\'s door says the page\'s name: its separate wording is gone', () => {
     expect(read('src/core/owner/i18n/messages.ts')).not.toContain("'contacts.door'");
-    expect(read('src/api/web/splitInbox.ts')).toContain("deeper('/app/contacts', t(locale, 'contacts.title'))");
+    expect(read('src/api/web/splitInbox.ts')).toContain("deeper('/app/customers/outreach', t(locale, 'customers.followups'))");
   });
   it('the add form writes e-mail the product\'s way', () => {
     expect(t('en', 'contacts.add.identity')).toBe('Phone number or e-mail address');
@@ -280,7 +280,7 @@ describe('w4-settings-b-outreach-12, -19, -20 · wide empties; the credit said o
     }
   });
   it('Follow-ups with nobody ready: one door to Contacts, the way back', () => {
-    for (const l of LOCALES) expect(renderSequenceList([], l, null, { ready: 0 }).match(/href="\/app\/contacts"/g)?.length, l).toBe(1);
+    for (const l of LOCALES) expect(renderSequenceList([], l, null, { ready: 0 }).match(/href="\/app\/customers\/outreach"/g)?.length, l).toBe(1);
   });
 });
 

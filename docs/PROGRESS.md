@@ -13,15 +13,23 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 3: Customers (2026-11-06; no migration)
+
+Implemented on `codex/redesign-customers`; release uses the exact-head CI gate. Schema remains 223. The directory covers real customer records, including closed and absent conversations. Unified records retain conversation selection and channel/privacy controls. Operational orders, labels, feedback and follow-ups sit under Customers; legacy GETs redirect while existing POST commands remain authoritative. Search and paging cover complete results; return links preserve filters and row anchors. Order value has explicit currency and missing-value caveats and is never presented as cash received.
+
+Local check (9,257), trust (44), build and full isolated integration (2,024; none skipped) passed. Browser comparison covers 102 English desktop/phone visits before and after, 31 interaction groups and unchanged snapshots for 12 tables after GET-only checks. Existing first-message refusal screenshots remain excluded as requested. Representative images, moves and validation limits: `docs/design/redesign-customers/README.md`. All data was synthetic and local; external fetches were blocked.
+
+Next: exact-head Customers merge, then Products, Books, Assistant, Settings and public pages, one PR per area. Products and Books are being prepared in isolated worktrees.
+
 ## Approved redesign, Area 2: Inbox and contextual Ask Nomi (2026-11-06; no migration)
 
-Implemented on `codex/redesign-inbox`; awaiting the exact-head CI merge gate. Schema remains 223. Inbox now uses scoped views and a phone chooser in every workspace. Conversation approval and reply controls keep their existing commands; Customer and Ask Nomi share one optional pane. Saved replies move to `/app/inbox/replies`, with query-preserving old GET redirects and unchanged POST contracts. List returns keep filters, search, page and row anchors.
+Merged through `tools/gated-merge.sh` in #429 at `e38523ed`, with exact-head CI green. Schema remains 223. Inbox now uses scoped views and a phone chooser in every workspace. Conversation approval and reply controls keep their existing commands; Customer and Ask Nomi share one optional pane. Saved replies move to `/app/inbox/replies`, with query-preserving old GET redirects and unchanged POST contracts. List returns keep filters, search, page and row anchors.
 
 Ask Nomi uses the existing advisor allowance and read-only customer/chat context for last order, a bounded extractive recap and permitted percentage-discount replies. Every supported numerical claim has inspectable record/message/calculation evidence; unknown figures remain unverified. Use reply revalidates current records and appends only to the unchanged existing composer. Cancellation, newer questions and replaced drafts invalidate pending insertion. No additional send or order-confirmation path was introduced.
 
 Local verification passed check (9,243 unit assertions), trust (44), build and full isolated integration (1,996; none skipped). The isolated integration run also found and corrected fixture queue initialization dependencies and obsolete route/layout assertions without changing business rules. Browser evidence covers 68 English desktop/phone renders, 43 Copilot checks and 11 supplemental checks; scripted pre-pilot passed 14/14 before and after. Review images, route moves and validation limits: `docs/design/redesign-inbox/README.md`. The local preview used synthetic data and scripted intent recognition; no production connection, live model call or real customer send was used.
 
-Next: finish the exact-head gate, then Customers, Products, Books, Assistant, Settings and public pages in the approved order. Customers is being prepared in an isolated worktree while Inbox is gated.
+Next: Customers, Products, Books, Assistant, Settings and public pages in the approved order.
 
 ## Approved redesign, Area 1: Today and shared navigation (#428, 2026-11-06; no migration)
 

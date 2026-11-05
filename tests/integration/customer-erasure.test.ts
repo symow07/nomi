@@ -211,11 +211,11 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
 
   // ── The customer's page ───────────────────────────────────────────────────
   it('the owner is offered the one act, asked first; a member of staff sees whose decision it is', async () => {
-    const page = (await get(owner, `/app/conversations/${C.chat.conv}`)).body;
+    const page = (await get(owner, `/app/customers/${C.chat.client}?conversation=${C.chat.conv}`)).body;
     expect(page).toContain(`action="/app/conversations/${C.chat.conv}/deletion/erase"`);
     expect(page).toContain(`data-confirm="${esc(t('en', 'conv.deletion.eraseConfirm'))}"`);
     expect(page).toContain(esc(t('en', 'conv.deletion.erase')));
-    const theirs = (await get(staff, `/app/conversations/${C.chat.conv}`)).body;
+    const theirs = (await get(staff, `/app/customers/${C.chat.client}?conversation=${C.chat.conv}`)).body;
     expect(theirs).not.toContain('/deletion/erase');
     expect(theirs).toContain(t('en', 'staff.ownerDecides'));
   });

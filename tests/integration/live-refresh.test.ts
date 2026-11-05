@@ -60,6 +60,14 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   };
   const get = (url: string, cookie = owner, headers: Record<string, string> = {}) =>
     app.inject({ method: 'GET', url, headers: { ...(cookie ? { cookie } : {}), ...headers } });
+  const customerRecord = async (conversationId: string) => {
+    const moved = await get(`/app/conversations/${conversationId}`);
+    expect(moved.statusCode).toBe(302);
+    const location = String(moved.headers['location']);
+    expect(location).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(location, 'http://local').searchParams.get('conversation')).toBe(conversationId);
+    return get(location);
+  };
   const post = (url: string, cookie = owner, fields: Record<string, string> = {}) =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The address a page's script asks, as the browser reads it out of the attribute. */
@@ -347,7 +355,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   });
 
   it('the buyer\'s own page watches nothing: it is a record, and the conversation is one door away', async () => {
-    const r = await get(`/app/conversations/${conv}`);
+    const r = await customerRecord(conv);
     expect(r.statusCode).toBe(200);
     expect(r.body).not.toContain('data-live=');
     expect(r.body.match(/<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>/g)).toHaveLength(1);

@@ -122,8 +122,8 @@ d('D7 · a copy of one customer (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
   });
 
   it('the buyer page offers it to the owner, never to a team member, who is refused the file too', async () => {
-    expect((await get(owner, `/app/conversations/${C.waConv}`)).body).toContain(`/app/conversations/${C.waConv}/copy.csv`);
-    expect((await get(staff, `/app/conversations/${C.waConv}`)).body).not.toContain('/copy.csv');
+    expect((await get(owner, `/app/customers/${C.wa}?conversation=${C.waConv}`)).body).toContain(`/app/conversations/${C.waConv}/copy.csv`);
+    expect((await get(staff, `/app/customers/${C.wa}?conversation=${C.waConv}`)).body).not.toContain('/copy.csv');
     const refused = await get(staff, `/app/conversations/${C.waConv}/copy.csv`);
     expect(String(refused.headers['content-type'] ?? '')).not.toContain('text/csv');
   });

@@ -155,7 +155,7 @@ describe('C5 · the pages', () => {
     expect(owner).not.toMatch(/name="apiKey"[^>]*value=/);
     const staff = renderProspects({ status: stored, filter: null, outcome: null }, 'en', null, { isOwner: false });
     expect(staff).not.toContain('/app/prospects/key');
-    expect(staff).toContain('action="/app/prospects"');
+    expect(staff).toContain('method="get" action="/app/customers/outreach/find"');
   });
 
   it('with no key there is nothing to search with, and the page says why', () => {

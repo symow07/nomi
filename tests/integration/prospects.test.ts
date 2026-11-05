@@ -105,11 +105,11 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('with no key there is nothing to search with and no lookup to offer', async () => {
-    const page = await get(ownerCookie, '/app/prospects');
+    const page = await get(ownerCookie, '/app/customers/outreach/find');
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain(esc(t('en', 'prospects.key.none')));
     expect(page.body).not.toContain('name="search"');
-    expect((await get(ownerCookie, '/app/contacts')).body).not.toContain('action="/app/contacts/lookup"');
+    expect((await get(ownerCookie, '/app/customers/outreach')).body).not.toContain('action="/app/contacts/lookup"');
   });
 
   it('A SALES ASSISTANT cannot set the key — nor her daily cap, which C4.b made hers', async () => {
@@ -139,13 +139,13 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     expect(row.secret_ciphertext.startsWith('v1.')).toBe(true);
     expect(row.secret_ciphertext).not.toContain(KEY);
     expect(row.fingerprint).toBe(credentialFingerprint(KEY));
-    const page = await get(ownerCookie, '/app/prospects');
+    const page = await get(ownerCookie, '/app/customers/outreach/find');
     expect(page.body).toContain(row.fingerprint);
     expect(page.body).not.toContain(KEY);
   });
 
   it('a search reaches the source with her key, decrypted, and lists people she can judge', async () => {
-    const res = await get(ownerCookie, '/app/prospects?search=1&titles=Purchasing&countries=Oman');
+    const res = await get(ownerCookie, '/app/customers/outreach/find?search=1&titles=Purchasing&countries=Oman');
     expect(res.statusCode).toBe(200);
     expect(keysSeen.at(-1)).toBe(KEY);
     expect(res.body).toContain('Omar Haddad');
@@ -172,9 +172,9 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
       where business_id = ${BIZ} and identity = ${addr('omar', 'soukhome-test.om')}`.execute(x).then((r) => r.rows[0]!.n));
     expect(consent, 'a search result was given consent').toBe(0);
 
-    const list = await get(ownerCookie, '/app/contacts');
+    const list = await get(ownerCookie, '/app/customers/outreach');
     expect(list.body).toContain(esc(t('en', 'contacts.source.apollo')));
-    expect(list.body).not.toContain(`/app/contacts/write?channel=email&amp;identity=${encodeURIComponent(addr('omar', 'soukhome-test.om'))}`);
+    expect(list.body).not.toContain(`/app/customers/outreach/write?channel=email&amp;identity=${encodeURIComponent(addr('omar', 'soukhome-test.om'))}`);
 
     // And the send path agrees: he cannot be put on a sequence either.
     const { enroll } = await import('../../src/outbound/sequences.js');
@@ -203,7 +203,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
 
   it('A COMPANY IS BOUGHT ONCE: the first lookup spends a credit, the second reads what the first found', async () => {
     const before = current.calls.filter((c) => c.op === 'enrich').length;
-    const list = await get(ownerCookie, '/app/contacts');
+    const list = await get(ownerCookie, '/app/customers/outreach');
     expect(list.body).toContain('action="/app/contacts/lookup"');
     expect(flashOf(await post(ownerCookie, '/app/contacts/lookup', { identity: addr('ahmed') })))
       .toBe(t('en', 'contacts.lookup.flash.found'));
@@ -212,7 +212,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
       .toBe(t('en', 'contacts.lookup.flash.reused'));
     expect(current.calls.filter((c) => c.op === 'enrich').length - before).toBe(1);
 
-    const page = await get(ownerCookie, '/app/contacts');
+    const page = await get(ownerCookie, '/app/customers/outreach');
     expect(page.body).toContain('Gulf Trading LLC');
     expect(page.body).toContain(esc(t('en', 'contacts.company.employees', { n: '60' })));
     const rows = await tx((x) => sql<{ n: number; by: string }>`
@@ -246,7 +246,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     expect(rows).toEqual({ live: 1, archived: 1 });
 
     expect(flashOf(await post(ownerCookie, '/app/prospects/key/remove', {}))).toBe(t('en', 'prospects.flash.removed'));
-    expect((await get(ownerCookie, '/app/prospects')).body).not.toContain('name="search"');
+    expect((await get(ownerCookie, '/app/customers/outreach/find')).body).not.toContain('name="search"');
     expect(flashOf(await post(ownerCookie, '/app/prospects/add', { sourceId: 'p-omar', name: 'Omar Haddad' })))
       .toBe(t('en', 'prospects.noSource.no_key'));
     expect(await tx((x) => sql<{ n: number }>`select count(*)::int as n from connector_credentials
@@ -257,7 +257,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     const { encryptSecret, deriveKey, credentialFingerprint } = await import('../../src/security/credentials.js');
     await tx((x) => sql`insert into connector_credentials (business_id, connector, secret_ciphertext, fingerprint, created_by)
       values (${BIZ}, 'apollo', ${encryptSecret(KEY, deriveKey('c'.repeat(64)))}, ${credentialFingerprint(KEY)}, 'owner')`.execute(x));
-    const page = await get(ownerCookie, '/app/prospects');
+    const page = await get(ownerCookie, '/app/customers/outreach/find');
     expect(page.body).toContain(esc(t('en', 'prospects.noSource.unreadable_key')));
     expect(page.body).not.toContain('name="search"');
     expect(flashOf(await post(ownerCookie, '/app/contacts/lookup', { identity: addr('ahmed', 'another-co-test.ae') })))

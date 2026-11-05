@@ -140,12 +140,19 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
 
   it('ON: the area answers, and the hubs link into it', async () => {
     await area(true);
-    for (const p of OUTREACH_PREFIXES.slice(0, 3)) expect((await get(p)).statusCode, p).toBe(200);
+    for (const [old,current] of [['/app/contacts','/app/customers/outreach'],['/app/prospects','/app/customers/outreach/find'],['/app/sequences','/app/customers/outreach/sequences']]) {
+      expect(OUTREACH_PREFIXES).toContain(old);
+      const redirected=await get(old!);expect([redirected.statusCode,redirected.headers['location']]).toEqual([302,current]);
+      expect((await get(current!)).statusCode,current).toBe(200);
+    }
     for (const { hub, routes, outreach } of CONTEXTUAL_ROUTES_BY_HUB.filter((g) => g.outreach)) {
       expect(outreach).toBe(true);
       const page = await get(hub);
       for (const route of routes) expect(page.body, `${route} from ${hub}`).toContain(`href="${route}"`);
     }
+    // Identity-dependent workflows still answer honestly with no selected contact and send nothing.
+    for (const route of ['/app/customers/outreach/suppress', '/app/customers/outreach/write'])
+      expect((await get(route)).statusCode, route).toBe(200);
     // and the switch on the channels page is back
     expect((await get('/app/channels/whatsapp')).body).toContain('action="/app/channels/outreach"');
   });

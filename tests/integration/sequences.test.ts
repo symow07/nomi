@@ -172,10 +172,10 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     const person = await addPerson(prod.db, BIZ, WEB_SECRET, 'Mei');
     expect(person.code).toBe('added');
     const staff = await login((person as { accessCode: string }).accessCode);
-    const page = await get(`/app/sequences/${seqId}`, staff);
+    const page = await get(`/app/customers/outreach/sequences/${seqId}`, staff);
     expect(page.statusCode).toBe(200);
     expect(page.body).not.toContain('/approve"');
-    const fp = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/sequences/${seqId}`)).body)![1]!;
+    const fp = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/customers/outreach/sequences/${seqId}`)).body)![1]!;
     await post(`/app/sequences/${seqId}/approve`, { fingerprint: fp }, staff);
     const s = await tx((x) => sql<{ approved_at: Date | null }>`
       select approved_at from sequences where id = ${seqId}::uuid`.execute(x).then((r) => r.rows[0]!));
@@ -183,14 +183,14 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
   });
 
   it('AN EDIT WHILE SHE READS is caught: she approves only the words she saw', async () => {
-    const fpBefore = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/sequences/${seqId}`)).body)![1]!;
+    const fpBefore = /name="fingerprint" value="([0-9a-f]{64})"/.exec((await get(`/app/customers/outreach/sequences/${seqId}`)).body)![1]!;
     await post(`/app/sequences/${seqId}/steps/2`, {
       delayDays: '2', subject: 'Following up on totes', body: 'Did the samples page reach you? (edited)',
     });
     expect(flashOf(await post(`/app/sequences/${seqId}/approve`, { fingerprint: fpBefore })))
       .toBe(t('en', 'seq.flash.changed'));
 
-    const page = await get(`/app/sequences/${seqId}`);
+    const page = await get(`/app/customers/outreach/sequences/${seqId}`);
     expect(page.body).toContain('(edited)');
     const fp = /name="fingerprint" value="([0-9a-f]{64})"/.exec(page.body)![1]!;
     expect(flashOf(await post(`/app/sequences/${seqId}/approve`, { fingerprint: fp }))).toBe(t('en', 'seq.flash.approved'));
@@ -206,7 +206,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
   });
 
   it('SHE ADDS HIM, and the first e-mail goes — once, through the one worker, with a way out', async () => {
-    const page = await get(`/app/sequences/${seqId}`);
+    const page = await get(`/app/customers/outreach/sequences/${seqId}`);
     expect(page.body).toContain(`value="${addr('ahmed')}"`);
     expect(flashOf(await enrol('ahmed'))).toBe(t('en', 'seq.flash.enrolled'));
     expect(flashOf(await enrol('ahmed'))).toBe(t('en', 'seq.flash.already'));
@@ -270,7 +270,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     expect((await enrollment('ahmed'))?.stop_reason).toBe('replied');
     await new Promise((r) => setTimeout(r, 1500));
     expect(mailsTo('ahmed'), 'the third mail went after he answered').toHaveLength(2);
-    expect((await get(`/app/sequences/${seqId}`)).body).toContain(esc(t('en', 'seq.stop.replied')));
+    expect((await get(`/app/customers/outreach/sequences/${seqId}`)).body).toContain(esc(t('en', 'seq.stop.replied')));
   }, 90_000);
 
   it('A BOUNCE stops it, by its own name', async () => {
@@ -350,11 +350,11 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     expect(mailsTo('blind'), 'a follow-up went without anyone checking her inbox').toHaveLength(1);
     const blind = await waitingFor('blind');
     expect(blind.awaiting?.getTime()).toBe(due.getTime());
-    const page = await get(`/app/sequences/${seqId}`);
+    const page = await get(`/app/customers/outreach/sequences/${seqId}`);
     expect(page.body).toContain(`/enrollments/${blind.id}/confirm"`);
     expect(page.body).toContain(esc(t('en', 'seq.enrolment.confirm')));
     expect((await get('/app')).body).toContain(esc(tn('en', 'insight.followUpsWaiting', 2)));
-    expect((await get('/app/sequences')).body).toContain(esc(t('en', 'seq.list.awaiting', { count: '2' })));
+    expect((await get('/app/customers/outreach/sequences')).body).toContain(esc(t('en', 'seq.list.awaiting', { count: '2' })));
 
     // Looking again the next minute does not restart the week.
     await sweepBlind(new Date(due.getTime() + DAY + 60_000));
@@ -382,7 +382,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     await sweepBlind(new Date(due.getTime() + 7 * DAY + 60_000));
     expect((await enrollment('ignored'))?.stop_reason).toBe('unconfirmed');
     expect(mailsTo('ignored')).toHaveLength(1);
-    expect((await get(`/app/sequences/${seqId}`)).body).toContain(esc(t('en', 'seq.stop.unconfirmed')));
+    expect((await get(`/app/customers/outreach/sequences/${seqId}`)).body).toContain(esc(t('en', 'seq.stop.unconfirmed')));
   }, 120_000);
 
   it('THE SWEEP IS WIRED INTO PRODUCTION: a tick on its queue sends what is due', async () => {

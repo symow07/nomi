@@ -26,8 +26,11 @@ import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
-import { loadCustomerCard } from '../../db/customerCard.js';
-import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
+import { readCustomersPage, readCustomerSelection } from '../../db/customers.js';
+import { readCustomerOrdersPage } from '../../db/customerOrders.js';
+import { renderCustomers, renderCustomerRecord, customerArea, customerReturnHref } from './customers.js';
+import { renderCustomerOrders } from './customerOrders.js';
+import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
@@ -1227,6 +1230,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         page(req, { title: t(locale, `nav.${active}` as MessageKey), active, ...(typeof drawn === 'string' ? { bodyHtml: drawn } : drawn) }),
       );
     };
+
+  const customerTool = (title: MessageKey, render: Parameters<typeof authed>[1]) =>
+    authed('customers', async (s, req, locale, reply) => {
+      const drawn = await render(s, req, locale, reply);
+      return typeof drawn === 'string'
+        ? { title: t(locale, title), bodyHtml: customerArea(drawn, locale, 'outreach') }
+        : { ...drawn, title: drawn.title ?? t(locale, title), bodyHtml: customerArea(drawn.bodyHtml, locale, 'outreach') };
+    });
+  const customerQuery = (req: FastifyRequest) => {
+    const raw = (req.query ?? {}) as Record<string, unknown>;
+    const value = (key: string): string | undefined => typeof raw[key] === 'string' ? raw[key] as string : undefined;
+    return Object.fromEntries(['q', 'label', 'client', 'state', 'after', 'before', 'conversation', 'from']
+      .flatMap((key) => { const v = value(key); return v === undefined ? [] : [[key, v]]; })) as Partial<Record<'q'|'label'|'client'|'state'|'after'|'before'|'conversation'|'from', string>>;
+  };
+  // Presentation context only: the command still authorises its own record and keeps its original endpoint.
+  // With no field, retain the exact legacy redirect (including conversation-origin order navigation).
+  const customerActionHref = (req: FastifyRequest, path: string): string => {
+    const from = (req.body as {from?:unknown} | undefined)?.from;
+    return typeof from === 'string' ? `${path}?from=${encodeURIComponent(customerReturnHref(from))}` : path;
+  };
 
   /**
    * PHASE 6 OF THE UI REBUILD (2026-10-02) — a form sent back: the same page
@@ -4670,14 +4693,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * S6 (Phase 5, item 20; 0202) — HOW DID WE DO? The page under Buyers; the switch is the owner's: it lets the assistant
    * write to buyers on its own, which is going live (rule 11).
    */
-  app.get('/app/surveys', async (req, reply) => {
+  app.get('/app/customers/feedback', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
     const now = new Date();
     const [facts, answers] = await withTenantTx(deps.db, bid.value, async (tx) => [await surveyFacts(tx, bid.value, now), await latestSurveyAnswers(tx, bid.value)] as const);
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'surveys.title'), active: 'inbox',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSurveys(locale, facts, answers, personOf(s), now)}` }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'surveys.title'), active: 'customers',
+      bodyHtml: customerArea(`${flashBanner(takeFlash(req, reply))}${renderSurveys(locale, facts, answers, personOf(s), now)}`, locale, 'feedback') }));
   });
   app.post('/app/surveys', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/surveys'); if (!s) return reply;
@@ -4686,13 +4709,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     await withTenantTx(deps.db, bid.value, (tx) => setSurveysOn(tx, bid.value, on));
     return flashTo(reply, '/app/surveys', on ? 'surveys.flash.on' : 'surveys.flash.off');
   });
-  app.get('/app/labels', async (req, reply) => {
+  app.get('/app/customers/labels', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
     const rows = await withTenantTx(deps.db, bid.value, (tx) => listLabels(tx, bid.value, { archived: true }));
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'labels.pageTitle'), active: 'inbox',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderLabels(locale, rows)}` }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'labels.pageTitle'), active: 'customers',
+      bodyHtml: customerArea(`${flashBanner(takeFlash(req, reply))}${renderLabels(locale, rows)}`, locale, 'labels') }));
   });
   app.post('/app/labels/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -6145,19 +6168,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return { code: 'revoked' as const };
   });
 
-  // ── A · Customers is Buyers now ──────────────────────────────────────────
-  // The list at `/app/conversations` was the same buyers as `/app/inbox`
-  // under a second word. It answers with the one list now, the search
-  // carried across (`q`, the only thing it ever took); with none, the whole
-  // list — "All", which is what Customers showed. A stranger is sent to sign
-  // in first, like every address here, and learns nothing about what is
-  // behind it. A plain redirect, not a permanent one: which answer comes back
-  // depends on who asks, and a browser must not remember one for everybody.
+  // The old list is now the complete Customers directory. A signed-in, temporary redirect carries its search.
   app.get(MERGED_INTO_BUYERS, async (req, reply) => {
     if (!sessionOf(req)) return reply.redirect('/login');
     const q = (req.query as { q?: unknown } | undefined)?.q;
     const typed = typeof q === 'string' ? q.trim() : '';
-    return reply.redirect(typed ? `/app/inbox?q=${encodeURIComponent(typed)}` : '/app/inbox?filter=all');
+    return reply.redirect(typed ? `/app/customers?q=${encodeURIComponent(typed)}` : '/app/customers');
   });
 
   // ── M9.7 the buyer's own page: what is known about one buyer ──────────────
@@ -6166,6 +6182,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const conversationId = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    const linked = bid.ok && UUID.test(conversationId) ? (await withTenantTx(deps.db, bid.value, (tx) =>
+      sql<{client_id:string|null}>`select client_id::text from conversations where id = ${conversationId}::uuid
+        and business_id = ${bid.value}::uuid and not owner_testing`.execute(tx))).rows[0] : null;
+    if (!linked) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title:t(locale,'nav.customers'),active:'customers',
+      bodyHtml:missingPage(locale,t(locale,'conv.notFound'),{href:'/app/customers',label:t(locale,'customers.back')}),
+    }));
+    if (linked.client_id) return movedPage(`/app/customers/${encodeURIComponent(linked.client_id)}?conversation=${encodeURIComponent(conversationId.toLowerCase())}`)(req, reply);
+    // Keep the old clientless file contract; there is no client ID to manufacture for a canonical record.
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
     if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
@@ -6286,7 +6312,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.post('/app/conversations/:conversationId/opt-out/lift', async (req, reply) => {
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const here = customerActionHref(req, `/app/conversations/${encodeURIComponent(conversationId)}`);
     const s = await ownerOnly(req, reply, 'messaging_activation', here);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -6302,7 +6328,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/conversations/:conversationId/opt-out/record', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const here = customerActionHref(req, `/app/conversations/${encodeURIComponent(conversationId)}`);
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !UUID.test(conversationId)) return reply.redirect('/app/inbox');
     const r = await withTenantTx(deps.db, bid.value, async (tx) => {
@@ -6322,7 +6348,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await renameBuyer(deps.db, s.businessId, conversationId, raw, personOf(s).name);
     if (r === 'not_found') return reply.redirect('/app/inbox');
     const key = `conv.flash.name${r === 'saved' ? 'Saved' : r === 'cleared' ? 'Cleared' : 'Invalid'}` as MessageKey;
-    return flashTo(reply, `/app/conversations/${encodeURIComponent(conversationId)}`, key, { buyer: t(locale, 'common.buyer') });
+    return flashTo(reply, customerActionHref(req, `/app/conversations/${encodeURIComponent(conversationId)}`), key, { buyer: t(locale, 'common.buyer') });
   });
 
   // Bookmarks retain their query and browser-managed fragment. Mutations keep their existing handlers.
@@ -6342,16 +6368,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/onboarding/activity', movedPage('/app/results?view=setup'));
   app.get(screenHref('month'), movedPage('/app/results?view=assistant'));
 
-  // Working entrances during the area-by-area migration. Each door uses the existing authorised page.
-  app.get('/app/customers', authed('customers', async (_s, _req, locale) => ({
-    title: t(locale, 'nav.customers'),
-    bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.customers'))}</h1><ul class="rows">${[
-      deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll')),
-      deeper('/app/labels', t(locale, 'labels.pageTitle')),
-      deeper('/app/surveys', t(locale, 'surveys.title')),
-      ...(outreachShown() ? [deeper('/app/contacts', t(locale, 'contacts.title'))] : []),
-    ].map((door) => `<li>${door}</li>`).join('')}</ul>`,
-  })));
+  for (const [old, current] of [
+    ['/app/labels', '/app/customers/labels'], ['/app/surveys', '/app/customers/feedback'],
+    ['/app/contacts', '/app/customers/outreach'], ['/app/contacts/suppress', '/app/customers/outreach/suppress'],
+    ['/app/contacts/write', '/app/customers/outreach/write'], ['/app/prospects', '/app/customers/outreach/find'],
+    ['/app/sequences', '/app/customers/outreach/sequences'],
+  ] as const) app.get(old, movedPage(current));
+  app.get('/app/sequences/:id', (req, reply) => movedPage(`/app/customers/outreach/sequences/${encodeURIComponent((req.params as {id:string}).id)}`)(req, reply));
+
+  app.get('/app/customers', authed('customers', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) { reply.code(404); return missingPage(locale, t(locale, 'inbox.notFound'), {href:'/app',label:t(locale,'nav.home')}); }
+    const query = customerQuery(req);
+    const [data, labels] = await withTenantTx(deps.db, bid.value, async (tx) => [
+      await readCustomersPage(tx, {businessId:bid.value,viewerId:personOf(s).id,...query}), await listLabels(tx,bid.value),
+    ] as const);
+    reply.header('cache-control','private, no-store');
+    return {title:t(locale,'customers.all'),bodyHtml:customerArea(renderCustomers(data,locale,new Date(),{labels,returnHref:req.url}),locale,'all')};
+  }));
+  app.get('/app/customers/orders', authed('customers', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) { reply.code(404); return missingPage(locale,t(locale,'order.notFound'), {href:'/app/customers',label:t(locale,'customers.back')}); }
+    const query = customerQuery(req);
+    const data = await withTenantTx(deps.db,bid.value,(tx)=>readCustomerOrdersPage(tx,{businessId:bid.value,...query,
+      ...(query.client !== undefined ? {clientId:query.client} : {})}));
+    reply.header('cache-control','private, no-store');
+    return {title:t(locale,'customers.orders'),bodyHtml:customerArea(renderCustomerOrders(data,locale,new Date(),{returnHref:req.url}),locale,'orders')};
+  }));
+
+  // Working entrance during the remaining area-by-area migration.
   app.get('/app/assistant', authed('assistant', async (_s, _req, locale) => ({
     title: t(locale, 'nav.assistant'),
     bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.assistant'))}</h1><ul class="rows">${[
@@ -6896,24 +6941,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
     const id = (req.params as { clientId: string }).clientId;
-    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id, personOf(s).id)) : null;
-    if (!card) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.inbox'), active: 'inbox',
-      bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
+    const query = customerQuery(req);
+    // An explicit invalid selection is a refusal, never a fallback to a different conversation.
+    const rawConversation = (req.query as Record<string,unknown>)['conversation'];
+    const selection = bid.ok && (rawConversation === undefined || typeof rawConversation === 'string')
+      ? await withTenantTx(deps.db, bid.value, (tx) => readCustomerSelection(tx, {businessId:bid.value,clientId:id,viewerId:personOf(s).id,
+        ...query,...(query.conversation !== undefined ? {conversationId:query.conversation} : {})})) : null;
+    if (!selection) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.customers'), active: 'customers',
+      bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/customers', label: t(locale, 'customers.back') }),
     }));
-    const from = cardOpenedFrom(req.headers.referer, req.headers.host);
+    const file = selection.conversationId ? await loadCustomerFile(deps.db,s.businessId,selection.conversationId,
+      {realOnly:true,expectedClientId:selection.card.clientId}) : null;
+    if (selection.conversationId && !file) return reply.callNotFound();
+    const openedFrom = cardOpenedFrom(req.headers.referer, req.headers.host);
     return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(page(req, {
-      title: card.name ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: `${from ? back(conversationUrl(from), t(locale, 'pcard.back')) : back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date(), from)}`,
+      title: selection.card.name ?? t(locale, 'common.buyer'), active: 'customers',
+      bodyHtml: customerArea(renderCustomerRecord(selection,file,locale,new Date(),personOf(s),
+        {openedFrom,...(query.from === undefined ? {} : {returnHref:customerReturnHref(query.from)}),flash:takeFlash(req,reply)}),locale,'all'),
     }));
   });
 
-  app.get('/app/orders/:id', authed('inbox', async (sess, req, locale, reply) => {
+  app.get('/app/orders/:id', authed('customers', async (sess, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
-    const v = await loadOrder(deps.db, sess.businessId, id);
-    if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
+    const v = UUID.test(id) ? await loadOrder(deps.db, sess.businessId, id) : null;
+    if (!v) { reply.code(404); return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/customers/orders', label: t(locale, 'customers.ordersBack') }); }
     // Phase 9 of the warmth run (V1-184) — the tab names whose order it is, as the heading does.
-    return { bodyHtml: renderOrder(v, locale, takeFlash(req, reply), { publicBaseUrl: deps.publicBaseUrl }), title: orderTitle(locale, v) };
+    const from = customerQuery(req).from;
+    return { bodyHtml: customerArea(renderOrder(v, locale, takeFlash(req, reply), { publicBaseUrl: deps.publicBaseUrl,
+      ...(from === undefined ? {} : {returnHref:customerReturnHref(from)}) }),locale,'orders'), title: orderTitle(locale, v) };
   }));
 
   // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:
@@ -6972,7 +7028,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       state: b['state'] ?? '', note: b['note'] ?? null, trackingReference: b['tracking'] ?? null,
       actor: personOf(s).id, now: new Date(),
     });
-    return flashTo(reply, `/app/orders/${encodeURIComponent(id)}`, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey);
+    return flashTo(reply, customerActionHref(req, `/app/orders/${encodeURIComponent(id)}`), `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey);
   });
 
   const teamBid = (raw: string): BusinessId | null => { const b = parseBusinessId(raw); return b.ok ? b.value : null; };
@@ -7574,7 +7630,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     credentialKey: deps.credentialKey ?? null, sourceFor: deps.prospectSourceFor ?? null,
   });
 
-  app.get('/app/contacts', authed('contacts', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach', customerTool('nav.contacts', async (sess, req, locale, reply) => {
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const bid = parseBusinessId(sess.businessId);
     const pd = prospectDeps();
@@ -7606,7 +7662,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : failureKey(r));
   });
 
-  app.get('/app/prospects', authed('prospects', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach/find', customerTool('nav.prospects', async (sess, req, locale, reply) => {
     const bid = parseBusinessId(sess.businessId);
     if (!bid.ok) return '';
     const pd = prospectDeps();
@@ -7679,7 +7735,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // Permanent, so it takes two presses. The row links here; this page posts.
-  app.get('/app/contacts/suppress', authed('contacts', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach/suppress', customerTool('nav.contacts', async (sess, req, locale, reply) => {
     const q = req.query as { channel?: string; identity?: string };
     const found = (await loadContacts(deps.db, sess.businessId)).contacts
       .find((c) => c.channel === q.channel && c.identity === q.identity);
@@ -7708,7 +7764,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * who knows him, and the message carries the name of whoever sends it. What
    * IS owner-only is the switch that lets anyone write first at all.
    */
-  app.get('/app/contacts/write', authed('contacts', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach/write', customerTool('nav.contacts', async (sess, req, locale, reply) => {
     const q = req.query as { channel?: string; identity?: string };
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
@@ -7789,7 +7845,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     repliesObservable: false,
   });
 
-  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach/sequences', customerTool('nav.sequences', async (sess, req, locale, reply) => {
     // Phase 9 (V1-564) — who could be added today: the SAME `reachOf` the contacts page and the enrol list use.
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const ready = view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok).length;
@@ -7804,7 +7860,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return seqBack(reply, r.id, r.flash);
   });
 
-  app.get('/app/sequences/:id', authed('sequences', async (sess, req, locale, reply) => {
+  app.get('/app/customers/outreach/sequences/:id', customerTool('nav.sequences', async (sess, req, locale, reply) => {
     const d = await loadSequenceDetail(deps.db, sess.businessId, seqId(req));
     if (!d) return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, null);
     // Who could be added right now: the SAME `reachOf` her contact list draws
