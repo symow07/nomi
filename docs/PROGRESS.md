@@ -26,6 +26,9 @@ Claude's calls, reported on the PR:
 - "With your team" includes conversations the viewer holds, which also count in Needs you.
 - "Matters most" stays as an order. "Did not send" and "Deletion requests" stay as tabs when they hold someone.
 
+The owner's follow-up the same day: the last message came back on each row as one faded line (#423, no migration). The
+channel's name stays off.
+
 Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
 
 ## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)

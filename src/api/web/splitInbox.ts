@@ -7,7 +7,7 @@ import { esc, deeper, back, conversationUrl, LIVE_SLOT } from './layout.js';
 import { t, assistantName, businessName, outreachShown } from './say.js';
 import { GO } from './icons.js';
 import { face, faceLink } from './faces.js';
-import { asksSomething, buyersHref, isNew, markHit, needsWhy, productName, rowState, sinceDate, waitingGroups, type ConversationSummary, type InboxFilter, type InboxList } from './inbox.js';
+import { asksSomething, buyersHref, isNew, markHit, needsWhy, preview, productName, rowState, sinceDate, waitingGroups, type ConversationSummary, type InboxFilter, type InboxList } from './inbox.js';
 import { quietWords, whole } from './splitToday.js';
 import { workspaceZone } from './zone.js';
 import * as show from './values.js';
@@ -63,6 +63,18 @@ function whyOf(locale: Locale, c: ConversationSummary, o: { readonly people: rea
   return parts.map((p) => `<bdi>${p}</bdi>`).join(' · ');
 }
 
+/**
+ * The last message, one faded line. The element that cuts it is the isolate, so Latin and Arabic each run their own way
+ * and are cut at their own end. Words the seller's side wrote say who wrote them: they are not the customer's.
+ */
+function lastSaid(locale: Locale, c: ConversationSummary): string {
+  if (!c.latestMessage) return '';
+  const by = c.lastFrom === 'person' ? t(locale, 'conv.by.you')
+    : c.lastFrom === 'assistant' ? (c.answeredBy ?? assistantName(locale)) : null;
+  const speaker = by ? `<span class="si-by"><bdi>${esc(by)}</bdi>${locale === 'zh' ? '：' : ':'}</span>` : '';
+  return `<span class="si-said">${speaker}<bdi class="si-last">${esc(preview(c.latestMessage))}</bdi></span>`;
+}
+
 function row(locale: Locale, c: ConversationSummary, o: { readonly people: readonly Person[]; readonly attention: readonly AttentionItem[]; readonly now: Date; readonly q: string; readonly lens: BuyersLens; readonly zone: string }): string {
   const who = c.buyer ?? t(locale, 'common.buyer');
   const needs = rowState(c) === 'needs';
@@ -71,6 +83,7 @@ function row(locale: Locale, c: ConversationSummary, o: { readonly people: reado
   const value = o.lens === 'value' ? (c.spent ?? c.quoted ?? null) : (c.value ?? null);
   const stage: Stage = c.stage ?? 'asked';
   const prod = productName(locale, c.product);
+  const said = lastSaid(locale, c);
   const theFace = c.clientId
     ? faceLink({ clientId: c.clientId, name: c.buyer, photo: c.photo ?? null }, { size: 's', label: t(locale, 'buyers.row.card', { who }), className: 'si-face' })
     : `<span class="si-face">${face({ clientId: c.conversationId, name: c.buyer }, 's')}</span>`;
@@ -83,7 +96,7 @@ function row(locale: Locale, c: ConversationSummary, o: { readonly people: reado
     ${theFace}
     <div class="si-who"><a class="si-door" href="${conversationUrl(c.conversationId)}"><bdi class="sp-rname">${markHit(who, o.q)}</bdi></a>${
       needs ? `<span class="sr">${esc(t(locale, 'buyers.group.needsYou'))}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}${
-      why ? `<span class="si-why">${why}</span>` : ''}</div>
+      why || said ? `<div class="si-line">${why ? `<span class="si-why">${why}</span>` : ''}${said}</div>` : ''}</div>
     ${thumb}
     <span class="sp-chip${stage === 'order' ? ' is-order' : ''}">${esc(t(locale, `split.stage.${stage}`))}</span>
     <span class="sp-rval">${value ? esc(whole(show.money(locale, value))) : ''}</span>

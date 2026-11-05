@@ -185,6 +185,11 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
     const html = withoutIsolates(await get('/app/inbox?filter=all'));
     const rowOf = (name: string) => html.split('<div class="sp-row si-row').slice(1).find((r) => r.includes(name))!;
     expect(rowOf('Priya Price')).toContain('>Price given<');
+    // The last message is the newest line of each, whoever wrote it.
+    expect(rowOf('Priya Price')).toContain('<bdi class="si-last">That is $39.</bdi>');
+    expect(rowOf('Priya Price')).toContain('class="si-by"');
+    expect(rowOf('Asma Asked')).toContain('<bdi class="si-last">Hello there</bdi>');
+    expect(rowOf('Asma Asked')).not.toContain('class="si-by"');
     expect(rowOf('Priya Price')).toContain('$39');
     expect(rowOf('Omar Order')).toContain('>Order<');
     expect(rowOf('Omar Order')).toContain('$450');
