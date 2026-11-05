@@ -7,4 +7,5 @@ The approved final area keeps the public website, sign-in, sign-up, legal pages 
 - [x] Give legal pages a restrained reading measure, clear headings and generous section spacing. Flatten website cards into calm sections; preserve existing live/draft distinction, example labels and claims.
 - [x] Preserve paper document facts and print layout; wrap long identifiers on phones. Keep intentional link errors, noindex/referrer controls and safe external-request rules. Public chat retains its real send path and explicitly labelled errors.
 - [x] Capture all states afterward, compare original legal text/form contracts/document values and token/privacy headers. Verify keyboard, focus, phone controls and refusal states locally without sending mail or customer messages.
-- [ ] Run check, trust, build and all isolated integration tests on Node 22. Review the final diff and publish one PR through exact-head CI and tools/gated-merge.sh. Fast-forward main only after the gate succeeds; no deployment.
+- [x] Run check, trust, build and all isolated integration tests on Node 22; review the final diff.
+- Release: publish one Public PR through exact-head CI and tools/gated-merge.sh, and fast-forward main after the gate succeeds. The PR is the release-status record; no deployment is part of this task.

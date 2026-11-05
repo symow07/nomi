@@ -80,7 +80,7 @@ node tools/run-integration-isolated.mjs
 Use `env -u DATABASE_URL -u MIGRATE_DATABASE_URL` for check and integration; include the owned Postgres binary path for the isolated runner. Expected: all four commands exit 0; integration reports every test ran and none skipped.
 
 - [x] Review the diff for changed commands/permissions, cross-tenant reads, secrets and dropped fields. Document evidence and limits. Update the page map and progress; commit/push with Codex attribution.
-- [ ] Create one Settings PR based on current main. Run `tools/gated-merge.sh <PR> <full-head-sha>`. When it returns 0, fast-forward shared main and report desktop/phone screenshots plus the moves, then continue Public pages.
+- [x] Create one Settings PR based on current main. Run `tools/gated-merge.sh <PR> <full-head-sha>`. When it returns 0, fast-forward shared main and report desktop/phone screenshots plus the moves, then continue Public pages.
 
 ## Self-review
 

@@ -14,7 +14,7 @@ A final composed preview was restarted from the verified build. All eight area e
 
 ## Repository checks
 
-The final combined implementation passes check (9,301 assertions), trust (44), build, and all 2,075 isolated integration tests across 273 files, none skipped (978.38 seconds). The final run includes the Settings implementation and its route/navigation regressions. The tested source/test/tool tree is `bd2d9615`; later documentation and the main merge must preserve that tree. Exact-head CI and tools/gated-merge.sh remain required before merge.
+The final combined implementation passes check (9,301 assertions), trust (44), build, and all 2,075 isolated integration tests across 273 files, none skipped (978.38 seconds). The final run includes the Settings implementation and its route/navigation regressions. The tested source/test/tool tree is `bd2d9615`; incorporating main at Settings merge `28b6afd8` preserves it exactly (no non-documentation diff). Exact-head CI and tools/gated-merge.sh remain required before merge.
 
 ## Boundaries
 
