@@ -1999,7 +1999,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       const savedRule = d.quote?.appliedRules?.some((rule) => rule.startsWith(`${kind}:`) && near(Number(rule.slice(kind.length + 1)), l.value));
       const recorded = t(locale, savedRule ? (l.source === 'discount' ? 'inbox.tools.savedDiscount' : 'inbox.tools.savedLeadTime') : 'inbox.tools.savedQuoteValue', { value: l.value.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
       // Current controls are labelled as such; they are not a historical rule snapshot.
-      const current = l.source === 'discount' ? `<a href="/app/business/prices#volume">${esc(t(locale, 'inbox.tools.currentPriceRules'))}</a>`
+      const current = l.source === 'discount' ? `<a href="/app/products/price-limits#volume">${esc(t(locale, 'inbox.tools.currentPriceRules'))}</a>`
         : !savedRule && d.quote?.productId ? `<a href="/app/products/${encodeURIComponent(d.quote.productId)}">${esc(t(locale, 'inbox.tools.currentProduct'))}</a>` : '';
       return inspect(`<p>${esc(recorded)}</p>${current}`);
     }

@@ -455,7 +455,7 @@ export async function runValidation(db: Db, businessIdRaw: string): Promise<{ pa
 const mk = (done: boolean): string => done ? `<span class="mk">${shape('ok')}</span>` : `<span class="mk dot todo">${shape('waiting')}</span>`;
 
 const DETECTED_LINK: Record<DetectedKey, string> = {
-  profile: '/app/settings/profile', products: '/app/products', priceRules: '/app/business/prices',
+  profile: '/app/settings/profile', products: '/app/products', priceRules: '/app/products/price-limits',
   knowledge: '/app/knowledge', claims: '/app/knowledge', sandbox: '/app/sandbox',
   channel: '/app/channels',
 };

@@ -13,13 +13,21 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 4: Products (2026-11-06; no migration)
+
+Implemented on `codex/redesign-products`; release uses the exact-head CI gate after Customers. Schema remains 223. All products, Add products and Price limits share focused navigation. Search and bounded pages cover the whole catalogue, including inactive records. Product edits, names and photos keep filtered-list return context. Import reviews put editable rows first on phones, retain safe original-source access, explicit confirmations and exact typed fields. The old price-limit GET redirects; POST handlers and pricing authority remain unchanged.
+
+Local check (9,267), trust (44), build and full isolated integration (2,032; none skipped) passed. Browser comparison covers 76 English visits before and after, all 207 fixture products across five pages, 20 read-only checks, 20 command/source groups, and six correct error-focus cases with script on/off. GET-only snapshots of 10 tables stayed unchanged. Images, moves and limits: `docs/design/redesign-products/README.md`. All fixtures and scripted reads were local; no paid calls, production changes or customer sends.
+
+Next: exact-head Products merge after Customers, then Books, Assistant, Settings and public pages in the approved order. Books is being prepared and validated in an isolated worktree.
+
 ## Approved redesign, Area 3: Customers (2026-11-06; no migration)
 
-Implemented on `codex/redesign-customers`; release uses the exact-head CI gate. Schema remains 223. The directory covers real customer records, including closed and absent conversations. Unified records retain conversation selection and channel/privacy controls. Operational orders, labels, feedback and follow-ups sit under Customers; legacy GETs redirect while existing POST commands remain authoritative. Search and paging cover complete results; return links preserve filters and row anchors. Order value has explicit currency and missing-value caveats and is never presented as cash received.
+Merged through `tools/gated-merge.sh` in #430 at `0d3e9456`, with exact-head CI green. Schema remains 223. The directory covers real customer records, including closed and absent conversations. Unified records retain conversation selection and channel/privacy controls. Operational orders, labels, feedback and follow-ups sit under Customers; legacy GETs redirect while existing POST commands remain authoritative. Search and paging cover complete results; return links preserve filters and row anchors. Order value has explicit currency and missing-value caveats and is never presented as cash received.
 
 Local check (9,257), trust (44), build and full isolated integration (2,024; none skipped) passed. Browser comparison covers 102 English desktop/phone visits before and after, 31 interaction groups and unchanged snapshots for 12 tables after GET-only checks. Existing first-message refusal screenshots remain excluded as requested. Representative images, moves and validation limits: `docs/design/redesign-customers/README.md`. All data was synthetic and local; external fetches were blocked.
 
-Next: exact-head Customers merge, then Products, Books, Assistant, Settings and public pages, one PR per area. Products and Books are being prepared in isolated worktrees.
+Next: Products, Books, Assistant, Settings and public pages, one PR per area. Products and Books are being prepared in isolated worktrees.
 
 ## Approved redesign, Area 2: Inbox and contextual Ask Nomi (2026-11-06; no migration)
 

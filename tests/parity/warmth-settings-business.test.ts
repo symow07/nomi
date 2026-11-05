@@ -116,7 +116,7 @@ describe('phase 7 · every former section is one tap from the landing', () => {
   const FORMER_BUSINESS: readonly [string, string][] = [
     ['factory.about.title', BUSINESS_FACTS_PATH], ['business.kind.label', '/app/settings/business'],
     ['factory.sell.title', BUSINESS_PRODUCTS_PATH], ['factory.promise.title', BUSINESS_SCREEN_PATH.promises],
-    ['factory.prices.title', '/app/business/prices'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
+    ['factory.prices.title', '/app/products/price-limits'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
     ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['business.row.live', BUSINESS_SCREEN_PATH.ready],
   ];
   const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
@@ -179,7 +179,7 @@ describe('phase 7 · every former section is one tap from the landing', () => {
       expect(prices.value, l).not.toBeNull();
       const all = [business(l, SET_UP, staff), ...(['channels', 'allowlist', 'ready', 'promises', 'how'] as const).map((s) => screen(s, l, SET_UP, staff))].join('');
       expect(all, l).not.toMatch(/action="\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/add|allowlist\/remove|pilot\/end|pilot\/resume)"/);
-      expect(all, l).not.toContain('href="/app/business/prices"');
+      expect(all, l).not.toContain('href="/app/products/price-limits"');
       expect(all, l).not.toContain('href="/app/business/selling"');
       expect(all, l).toContain(inScope(() => esc(t(l, 'staff.ownerDecides'))));
     }
@@ -224,7 +224,10 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
       inScope(() => {
         from(renderProfile(SET_UP.profile, l, null), '/app/business');
         from(renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.factory')), '/app/business');
-        from(renderPriceRules(SET_UP.prices, l), '/app/business');
+        // Price limits now belong to Products; the wrapper preserves a first-child back link.
+        const limits = renderPriceRules(SET_UP.prices, l);
+        expect(limits).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
+        expect(limits.match(/<h1 /g)).toHaveLength(1);
         from(renderTerms({ terms: null }, l, null), BUSINESS_SCREEN_PATH.how);
         from(renderSamples({ policy: null, waiting: [] }, l, null, new Date()), BUSINESS_SCREEN_PATH.how);
         from(renderClosures({ closures: [] }, l, null), BUSINESS_SCREEN_PATH.how);
@@ -234,10 +237,10 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
     });
   }
 
-  it('the products list, which draws none, gets its own from the shell; each channel’s screen draws its own, to the channels’ home', () => {
-    expect(BACK_TO['/app/products']).toEqual({ href: '/app/business', label: 'nav.factory' });
-    const html = inScope(() => shell({ title: 'x', active: 'settings', locale: 'en', path: '/app/products', bodyHtml: '<h1 class="page">x</h1>' }));
-    expect(html).toContain('<a class="back" href="/app/business">');
+  it('primary Products has no legacy business breadcrumb; channel screens return to their own home', () => {
+    expect(BACK_TO['/app/products']).toBeUndefined();
+    const html = inScope(() => shell({ title: 'x', active: 'products', locale: 'en', path: '/app/products', bodyHtml: '<h1 class="page">x</h1>' }));
+    expect(html).not.toContain('<a class="back" href="/app/business">');
     // Phase 9 (w4-business-assistant-07) — no screen is named like the one above it.
     expect(BACK_TO['/app/channels']).toBeUndefined();
     for (const s of CHANNEL_SCREENS) {
@@ -261,7 +264,7 @@ describe('phase 7 · two doors, one data', () => {
       expect(screen(s, 'en'), s).not.toMatch(/name="(description|location|working_hours|contact_email|contact_phone)"/);
     // Product records have their own area; business configuration stays in Settings.
     for (const path of [BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH, '/app/products/abc', ...Object.values(BUSINESS_SCREEN_PATH)])
-      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') || path === '/app/business/prices' ? 'products' : 'settings');
+      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') || path === '/app/products/price-limits' ? 'products' : 'settings');
   });
 });
 

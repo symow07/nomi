@@ -1,3 +1,5 @@
+import { PRODUCT_AREA_EN } from './productArea.js';
+import { PRODUCT_IMPORT_EN } from './productImport.js';
 import { COPILOT_EN } from './copilot.js';
 import { CUSTOMER_AREA_EN } from './customerArea.js';
 import { INBOX_CONVERSATION_EN } from './inboxConversation.js';
@@ -9,6 +11,8 @@ import { INBOX_LISTS_EN } from './inboxLists.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...PRODUCT_AREA_EN,
+  ...PRODUCT_IMPORT_EN,
   ...CUSTOMER_AREA_EN,
   ...COPILOT_EN,
   ...INBOX_CONVERSATION_EN,

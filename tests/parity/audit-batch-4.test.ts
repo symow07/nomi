@@ -124,7 +124,7 @@ describe('B21 · a price limit refused opens its own section', () => {
       { floor: 'not_a_number' }, { productId: null, values: { floor: 'abc', maxDiscountPct: '5', askAbovePct: '3' } });
     expect(html).toContain('<details class="pr-fold" open>');
     expect(html.match(/class="perr"/g)?.length).toBe(1);
-    expect(html).toContain('action="/app/business/prices#everything"');
+    expect(html).toContain('action="/app/business/prices"');
     expect(html).toMatch(/name="floor" inputmode="decimal" required aria-invalid="true" aria-describedby="pr-err-floor" autofocus\s+value="abc"/);
     expect(html).toContain('value="5"');
   });
@@ -135,7 +135,7 @@ describe('B21 · a price limit refused opens its own section', () => {
     expect(html.match(/class="perr"/g)?.length).toBe(1);
     const product = html.slice(html.indexOf('id="p-p1"'));
     expect(product).toContain('class="perr"');
-    expect(product).toContain('action="/app/business/prices#p-p1"');
+    expect(product).toContain('action="/app/business/prices"');
     expect(product).toContain('value="0.30"');
     // The answer for everything, drawn above it, holds no error and nothing typed into the other form.
     const everything = html.slice(html.indexOf('id="everything"'), html.indexOf('id="p-p1"'));
@@ -147,7 +147,7 @@ describe('B21 · a price limit refused opens its own section', () => {
     const html = renderPriceRules(view({ businessDefault: RULES }), 'en', null, {}, {}, { discountPct: 'above_max' },
       { productId: 'p1', minQty: '500', discountPct: '40' });
     expect(html).toContain('id="volume"');
-    expect(html).toContain('action="/app/business/prices/volume#volume"');
+    expect(html).toContain('action="/app/business/prices/volume"');
     expect(html).toMatch(/name="discountPct"[^>]*aria-invalid="true"[^>]*autofocus[^>]*value="40"/);
     expect(html).toContain('name="minQty" inputmode="numeric" required value="500"');
     expect(html).toContain('<option value="p1" selected>');

@@ -40,7 +40,7 @@ describe('conversation tools preserve the command boundary', () => {
       pendingDraft: { ...detail.pendingDraft!, draftText: '120 pieces, 10% off, ships in 30 days.' } }, 'en', new Date('2026-11-05'), null);
     expect(html).toContain('Inspect 120');expect(html).toContain('Please quote 120 pieces &lt;today&gt;');
     expect(html).toContain('href="#message-0"');expect(html).toContain('id="message-0"');
-    expect(html).toContain('href="/app/business/prices#volume"');
+    expect(html).toContain('href="/app/products/price-limits#volume"');
     expect(html).toContain('Lead-time rule saved with this price offer: 30 days.');
     expect(html).not.toContain('href="/app/products/current-product"');
   });

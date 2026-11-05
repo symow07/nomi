@@ -1,3 +1,5 @@
+import { PRODUCTS_CSS } from './productsStyle.js';
+import { PRODUCT_IMPORT_CSS } from './productImportStyle.js';
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
@@ -95,7 +97,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // price limits) or a screen of its own a level down.
   { hub: '/app/business', routes: [
     '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-    '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
+    '/app/business/promises', '/app/business/how-you-sell',
   ] },
   // …How you sell is a menu of its own: the questions, then the same facts changed directly.
   { hub: '/app/business/how-you-sell', routes: [
@@ -115,6 +117,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // S1 (0195) — the saved replies a person answers buyers with: kept under Buyers.
   { hub: '/app/inbox', routes: ['/app/inbox/replies'] },
   { hub: '/app/customers', routes: ['/app/customers/orders', '/app/customers/labels', '/app/customers/feedback'] },
+  { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits'] },
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: [ASSISTANT_HOME, '/app/business', '/app/settings/setup'] },
@@ -2754,7 +2757,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2880,8 +2883,6 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/rate': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
   '/app/settings/samples': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
   '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
-  // Phase 7 — the products and the channels are rows of My business now.
-  '/app/products': { href: '/app/business', label: 'nav.factory' },
   '/app/settings/forbidden': { href: ASSISTANT_HOME, label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
   '/app/knowledge': { href: ASSISTANT_HOME, label: 'nav.employee' },

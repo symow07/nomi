@@ -115,7 +115,8 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
     expect(Number(tote.price)).toBe(12);
     expect(kept.endsWith(tote.imp!)).toBe(true);
     // T3 — found by its own name and by the ones she typed.
-    expect(await aliases(tote.id)).toEqual(['Canvas tote', 'shopper', '帆布袋']);
+    // Alias membership is exact; PostgreSQL collation does not define the import contract.
+    expect((await aliases(tote.id)).sort()).toEqual(['Canvas tote', 'shopper', '帆布袋'].sort());
     // RT — a shop's row she did not touch counts in "item"; its minimum is the line's.
     expect(await product('Silk scarf')).toMatchObject({ unit: 'item', moq: 10 });
     expect(await product('Old sample')).toBeUndefined();

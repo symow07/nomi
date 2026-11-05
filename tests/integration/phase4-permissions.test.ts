@@ -288,7 +288,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(factory).toContain(digits(LISTED));
     // Nor a door that opens only onto a refusal: the price limits are an owner page.
     for (const url of ['/app/get-started', '/app/products', `/app/products/${PID}`, '/app/business']) {
-      expect((await get(staffCookie, url)).body, url).not.toContain('href="/app/business/prices"');
+      const html = (await get(staffCookie, url)).body;
+      expect(html, url).not.toMatch(/href="\/app\/(?:business\/prices|products\/price-limits)(?:[?#"])/);
     }
   });
 

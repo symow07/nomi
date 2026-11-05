@@ -171,7 +171,6 @@ describe('Phase 9 · the shell', () => {
       ['/app/settings/closures', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/rate', '/app/business/how-you-sell', 'factory.sellhow.title'],
       ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
       // Phase 9 (w4-business-assistant-05) — /app/channels answers with its home; each channel's screen draws its own way back.
-      ['/app/products', '/app/business', 'nav.factory'],
       ['/app/settings/forbidden', '/app/settings/assistant', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
       // The warmth run, phase 9 — the checklist's two screens and the machine room lead back to the checklist.
@@ -195,7 +194,8 @@ describe('Phase 9 · the shell', () => {
       expect(main(page(l, path, `<a class="back" href="/x">x</a><h1 class="page">x</h1>`)).match(/class="back"/g), path).toHaveLength(1);
     }
     expect(Object.keys(BACK_TO)).toHaveLength(cases.length);
-    // a product's own page draws its way back to the list; a page reached from no hub gets none
+    // Products is a primary area; its own record renderer supplies the return to the list.
+    expect(page('en', '/app/products', '<h1 class="page">x</h1>')).not.toContain('class="back"');
     expect(page('en', '/app/products/abc', '<h1 class="page">x</h1>')).not.toContain('class="back"');
   });
   it('V1-012 · Today\'s lines end in the product\'s one chevron, not "→"', () => {

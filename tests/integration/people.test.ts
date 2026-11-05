@@ -182,11 +182,14 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     }
     // G9a — and the PAGES behind the two most sensitive forms: her floor, and
     // the form that hands someone a way in.
-    for (const url of ['/app/settings/people', '/app/business/prices']) {
+    for (const url of ['/app/settings/people', '/app/products/price-limits']) {
       const res = await app.inject({ method: 'GET', url, headers: { cookie: staffCookie } });
       expect(res.statusCode, url).toBe(302);
       expect(flashSaid(res, SECRET), url).toContain('Only the owner');
     }
+    const oldPrices = await app.inject({ method: 'GET', url: '/app/business/prices', headers: { cookie: staffCookie } });
+    expect(oldPrices.statusCode).toBe(302);
+    expect(oldPrices.headers['location']).toBe('/app/products/price-limits');
     // and nothing happened: no second person, no price rule
     expect(await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from people where business_id = ${BIZ} and archived_at is null
@@ -205,11 +208,12 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       channels: await both(staffCookie),
     };
     // The owner's pages carry them, so their absence below is the viewer, not the data.
-    expect(owner.factory).toContain('href="/app/business/prices"');
+    expect(owner.factory).toContain('href="/app/products/price-limits"');
     expect(owner.channels).toContain('action="/app/channels/outreach"');
     expect(owner.channels).toContain('action="/app/channels/domain"');
 
     expect(staff.factory).not.toContain('href="/app/business/prices"');
+    expect(staff.factory).not.toContain('href="/app/products/price-limits"');
     expect(staff.factory).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
     expect(staff.employee).not.toContain('/app/settings/assistant/capability/');
     expect(staff.channels).not.toContain('action="/app/channels/outreach"');

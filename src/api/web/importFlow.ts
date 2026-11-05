@@ -32,6 +32,7 @@ import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitChoices, p
 import { currencySymbol } from '../../core/types/money.js';
 import * as show from './values.js';
 import { GO } from './icons.js';
+import { markSmall } from '../../core/owner/brand.js';
 
 /**
  * K1 — THE IMPORT REVIEW (the onboarding plan, Stage 2; 0094).
@@ -595,7 +596,8 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
   const tick = tickNeeded && !asking
     ? `<label class="pcheck imp-tick"><input type="checkbox" name="tick:${esc(r.key)}"${r.ticked ? ' checked' : ''} /> ${esc(t(locale, 'import.row.checked'))}</label>` : '';
   return `
-    <div class="imp-row${need ? ' need' : ''}${r.removed ? ' out' : ''}" id="row-${esc(r.key)}">
+    <div class="imp-row${need ? ' need' : ''}${r.removed ? ' out' : ''}${r.confidence && m.imp.kind !== 'photo' ? ' is-read' : ''}" id="row-${esc(r.key)}">
+      ${r.confidence && m.imp.kind !== 'photo' ? `<p class="import-reading">${markSmall(16, null)}${esc(t(locale, 'productImport.reading'))}</p>` : ''}
       <div class="imp-h">
         ${summary}
         ${r.removed ? `<span class="pill">${esc(t(locale, 'import.row.removed'))}</span>` : ''}
@@ -656,6 +658,7 @@ export function renderImportReview(
   const changes = m.diff.changed.map((c) => {
     const key = keyOfLine(c.line);
     const r = rowsByKey.get(key)!;
+    const reading = r.confidence && imp.kind !== 'photo' ? `<span class="import-reading">${markSmall(16, null)}${esc(t(locale, 'productImport.reading'))}</span>` : '';
     const moves = [
       c.price ? t(locale, 'product.review.change.price', { from: money(c.price.from), to: money(c.price.to) }) : null,
       c.moq ? t(locale, 'product.review.change.moq', {
@@ -665,11 +668,11 @@ export function renderImportReview(
     const on = r.apply !== false;
     // K7 — a change whose row is a challenge row keeps the price read hidden too.
     if (r.challenge === 'ask') {
-      return `<div class="rev chg"><label class="pcheck"><input type="checkbox" name="apply:${esc(key)}"${on ? ' checked' : ''} /> <b dir="auto">${esc(c.product.name)}</b></label>
+      return `<div class="rev chg"><label class="pcheck"><input type="checkbox" name="apply:${esc(key)}"${on ? ' checked' : ''} /> <b dir="auto">${esc(c.product.name)}</b></label>${reading}
         <label class="imp-typed">${esc(t(locale, 'import.row.challenge'))}
           <input type="text" inputmode="decimal" name="typed:${esc(key)}" value="${esc(typed[`typed:${key}`] ?? '')}" autocomplete="off" /> <span class="muted">${esc(imp.currency)}</span></label></div>`;
     }
-    return `<label class="rev chg"><input type="checkbox" name="apply:${esc(key)}"${on ? ' checked' : ''} /> <b dir="auto">${esc(c.product.name)}</b>${moves}
+    return `<label class="rev chg"><input type="checkbox" name="apply:${esc(key)}"${on ? ' checked' : ''} /> <b dir="auto">${esc(c.product.name)}</b>${reading}${moves}
       <span class="rev-src muted">${then(locale, esc(t(locale, 'product.review.fromLine')), `<bdi>${esc(r.line)}</bdi>`)}</span></label>`;
   }).join('');
   // K7 — while a challenge row is asked, what was read stays hidden: the text
@@ -710,8 +713,10 @@ export function renderImportReview(
   // said beside the button from the start, not only after it was pressed.
   const pending = stops.length ? [] : modelBlockers(m).filter((b) => b.kind !== 'nothing');
   // Phase 9 (V1-344) — the way back to the add page, above the title.
-  return `${back('/app/products/add', t(locale, 'product.teach'))}
+  return `<section class="product-import"><header>${back('/app/products/add', t(locale, 'product.teach'))}
     <h1 class="page">${esc(t(locale, 'import.title'))}</h1>
+    <p>${esc(t(locale, 'productImport.reviewIntro'))}</p>
+    ${photos || paste ? `<a class="import-source-door" href="#import-source">${esc(t(locale, 'productImport.original'))}</a>` : ''}</header>
     ${flashBanner(opts.flash ?? null)}
     <div class="block">
       <p>${then(locale, `<b>${esc(tn(locale, 'import.count', linesRead(imp.rows), { n: show.count(locale, linesRead(imp.rows)) }))}</b>`, esc(t(locale, 'import.countYours')))}</p>
@@ -721,8 +726,8 @@ export function renderImportReview(
       ${stops.length ? `<div class="perr" role="alert">${stops.map((b) => `<p>${blockerLine(locale, b)}</p>`).join('')}</div>` : ''}
     </div>
     <div class="imp${photos ? ' with-photos' : ''}">
-      ${photos ? `<aside class="imp-photos">${photos}</aside>` : ''}
-      <form class="imp-rows" method="post" action="${base(imp.id)}/save">
+      <form class="imp-rows${imp.kind === 'photo' ? ' is-read' : ''}" id="import-review" method="post" action="${base(imp.id)}/save">
+        ${imp.kind === 'photo' ? `<p class="import-reading">${markSmall(16, null)}${esc(t(locale, 'productImport.reading'))}</p>` : ''}
         <input type="hidden" name="rows" value="${esc(drawn.join(','))}" />
         <input type="hidden" name="ticks" value="${esc(ticks.join(','))}" />
         <input type="hidden" name="applies" value="${esc(m.diff.changed.map((c) => keyOfLine(c.line)).join(','))}" />
@@ -756,13 +761,14 @@ export function renderImportReview(
           <button class="btn" type="submit" name="next" value="save">${esc(t(locale, 'import.save'))}</button>
         </div>`}
       </form>
+      ${photos ? `<aside class="imp-sources" id="import-source"><h2>${esc(t(locale, 'productImport.originalHeading'))}</h2>${photos}<a class="import-return" href="#import-review">${esc(t(locale, 'productImport.backToReview'))}</a></aside>` : ''}
     </div>
-    ${paste}
+    ${paste ? `<section class="imp-sources" id="import-source"><h2>${esc(t(locale, 'productImport.originalHeading'))}</h2>${paste}<a class="import-return" href="#import-review">${esc(t(locale, 'productImport.backToReview'))}</a></section>` : ''}
     ${/* Phase 9 (V1-341, new-12) — it throws the list away, so it looks like it: the red outline,
          never the filled button "Add these products" wears; the question names the same act. */ ''}
     <form method="post" action="${base(imp.id)}/drop" class="block">
       <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'import.dropConfirm'))}">${esc(t(locale, 'import.drop'))}</button>
-    </form>`;
+    </form></section>`;
 }
 
 /** K2 — each new product's lowest price, worked out from the discount, a tick each. */
@@ -776,7 +782,7 @@ export function renderFloors(m: ReviewModel, locale: Locale): string {
       <span><b dir="auto">${esc(p.name)}</b> <span class="muted">${esc(t(locale, 'import.floors.row', {
         list: show.money(locale, p.price!), floor: show.money(locale, { amount: floor, currency: p.price!.currency }) }))}</span></span></label>`;
   }).join('');
-  return `<h1 class="page">${esc(t(locale, 'import.floors.title'))}</h1>
+  return `<section class="product-import product-import-floors"><header>${back(base(imp.id), t(locale, 'import.floors.back'))}<h1 class="page">${esc(t(locale, 'import.floors.title'))}</h1><p>${esc(t(locale, 'productImport.floorsIntro'))}</p></header>
     <div class="block">
       <p>${esc(t(locale, 'import.floors.intro', { name: assistantName(locale), pct: show.percent(locale, pct) }))}</p>
       <p class="muted">${esc(t(locale, 'import.floors.caveat'))}</p>
@@ -784,7 +790,6 @@ export function renderFloors(m: ReviewModel, locale: Locale): string {
         ${rows}
         <button class="btn send" type="submit">${esc(t(locale, 'import.add'))}</button>
       </form>
-      ${back(base(imp.id), t(locale, 'import.floors.back'))}
-    </div>`;
+    </div></section>`;
 }
 

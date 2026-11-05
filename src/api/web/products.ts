@@ -1,6 +1,7 @@
 import { parseOptions, formatOptions, optionsOf, type ProductOption } from '../../core/commerce/options.js';
 import { PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { sql } from 'kysely';
+import { literalLike } from '../../db/customerPaging.js';
 import { type Money, type Currency, parseCurrency, moneyFromRow } from '../../core/types/money.js';
 import { type Decimal, compareDecimal, decimal, roundDecimal, signOf } from '../../core/types/decimal.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
@@ -30,6 +31,7 @@ import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
 import { GO } from './icons.js';
+import { productReturnHref } from './productNavigation.js';
 
 /** Phase 4 — prices and products are the owner's (CC-07). A sales assistant
  *  reads them; in place of each form that would only refuse, this line. */
@@ -117,6 +119,8 @@ export type ProductListItem = {
   /** D1 — WHAT is missing, so the badge can say it instead of "Needs a price" beside a price. */
   readonly status: ProductStatus;
   readonly imageMatchable: boolean;
+  /** Only a locally stored photo that Nomi actually serves. */
+  readonly photoToken?: string | null;
   /** Deactivated products stay in the list but are not something you sell. */
   readonly isActive: boolean;
   /**
@@ -160,13 +164,18 @@ export async function businessKind(db: Db, businessIdRaw: string): Promise<strin
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
-  return withTenantTx(db, bid.value, async (tx) => { const needs = await scriptNeeds(tx, bid.value); return (await sql<{
+  return withTenantTx(db, bid.value, (tx) => productListItems(tx, bid.value));
+}
+
+async function productListItems(tx: Tx, businessId: BusinessId, limit = 200, offset = 0, q = ''): Promise<readonly ProductListItem[]> {
+  const needs = await scriptNeeds(tx, businessId); return (await sql<{
     id: string; name: string; name_zh: string | null; sku: string; moq: number | null; unit: string;
     is_active: boolean; price: string | null; currency: string;
     entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean; has_alias: boolean;
-    aliases: string[];
+    aliases: string[]; photo_token: string | null;
   }>`
-    select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
+    select (select i.token from product_images i where i.product_id = p.id and i.token is not null limit 1) as photo_token,
+           p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
            (select coalesce(array_agg(a.alias), '{}') from product_aliases a where a.product_id = p.id) as aliases,
            p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
            exists (select 1 from pricing_policy pp where pp.business_id = p.business_id
@@ -177,10 +186,11 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       from products p
       left join lateral (select min_qty, unit_price_usd from price_tiers pt
                           where pt.product_id = p.id order by min_qty asc limit 1) t on true
+     where p.business_id = ${businessId}::uuid and ${productSearch(q)}
      -- The warmth run, phase 9 (w4-products-knowledge-05) — the newest change first,
      -- and a tie (an import writes many products in one instant) broken the same way every visit.
      order by p.is_active desc, p.updated_at desc, p.name, p.id
-     limit 200
+     limit ${limit} offset ${offset}
   `.execute(tx)).rows.map((r): ProductListItem => {
     const entryPrice = r.entry_price ?? r.price;
     return {
@@ -191,11 +201,42 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       learned: r.is_active && entryPrice !== null,
       status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits, findable: r.has_alias }),
       imageMatchable: r.is_active && Number(r.extras) > 0,
-      isActive: r.is_active,
+      isActive: r.is_active, photoToken: r.photo_token,
       namesWanted: r.is_active ? namesWanted(needs.required, [r.name, r.name_zh, ...r.aliases]) : [],
       namesSuggested: r.is_active ? namesWanted(needs.suggested, [r.name, r.name_zh, ...r.aliases]) : [],
     };
-  }); });
+  });
+}
+
+/** Literal substring search across the complete catalogue, including stopped products and their names. */
+const productSearch = (q: string) => !q ? sql`true` : sql`(
+  p.name ilike ${literalLike(q)} or p.name_zh ilike ${literalLike(q)} or p.sku ilike ${literalLike(q)}
+  or exists (select 1 from product_aliases a where a.product_id = p.id and a.alias ilike ${literalLike(q)}))`;
+export type ProductPage = {
+  readonly items: readonly ProductListItem[]; readonly q: string; readonly total: number;
+  readonly page: number; readonly pageSize: number; readonly next: string | null; readonly prev: string | null;
+};
+export type ProductPageOptions = { readonly q?: string; readonly page?: number; readonly pageSize?: number };
+
+/** Bounded numbered pages retain the established catalogue ordering. Page numbers outside this
+ * filtered catalogue are clamped, so changed filters and stale bookmarks always reach actual rows. */
+export async function loadProductPage(db: Db, businessIdRaw: string, opts: ProductPageOptions = {}): Promise<ProductPage> {
+  const q = (opts.q ?? '').trim().slice(0, 200);
+  const pageSize = Number.isSafeInteger(opts.pageSize) ? Math.max(1, Math.min(100, opts.pageSize!)) : 50;
+  const requested = Number.isSafeInteger(opts.page) ? Math.max(1, opts.page!) : 1;
+  const empty: ProductPage = {items:[],q,total:0,page:1,pageSize,next:null,prev:null};
+  const bid = parseBusinessId(businessIdRaw); if (!bid.ok) return empty;
+  return withTenantTx(db, bid.value, async (tx) => {
+    const total = (await sql<{n:number}>`select count(*)::int as n from products p
+      where p.business_id = ${bid.value}::uuid and ${productSearch(q)}`.execute(tx)).rows[0]?.n ?? 0;
+    const page = Math.min(requested, Math.max(1, Math.ceil(total / pageSize)));
+    const items = await productListItems(tx, bid.value, pageSize, (page - 1) * pageSize, q);
+    const href = (n:number):string => {
+      const query = new URLSearchParams(); if(q)query.set('q',q); if(n>1)query.set('page',String(n));
+      return '/app/products'+(query.size ? '?'+query : '');
+    };
+    return {items,q,total,page,pageSize,prev:page>1?href(page-1):null,next:page*pageSize<total?href(page+1):null};
+  });
 }
 
 export type ProductDetail = {
@@ -563,7 +604,16 @@ const statusPill = (locale: Locale, status: ProductStatus): string =>
 export function renderProductList(
   items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
   kind: string | null = null,
+  opts: { readonly page?: ProductPage; readonly returnHref?: string } = {},
 ): string {
+  const page = opts.page;
+  const productCount = page?.total ?? 0;
+  const shownTo = page ? Math.min(productCount, page.page * page.pageSize) : 0;
+  const query = new URLSearchParams();
+  if (page?.q) query.set('q', page.q);
+  if (page && page.page > 1) query.set('page', String(page.page));
+  const source = productReturnHref(opts.returnHref ?? ('/app/products' + (query.size ? `?${query}` : ''))).split('#')[0]!;
+  const search = page ? `<form method="get" action="/app/products" class="pa-search"><label>${esc(t(locale, 'products.search'))}<input type="search" name="q" value="${esc(page.q)}" placeholder="${esc(t(locale, 'products.searchHint'))}"></label><button class="btn" type="submit">${esc(t(locale, 'products.show'))}</button>${page.q ? `<a href="/app/products">${esc(t(locale, 'products.clear'))}</a>` : ''}</form>` : '';
   const byQuantity = sellsByQuantity(kind);
   const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
@@ -577,20 +627,21 @@ export function renderProductList(
   // assistant your products ›"), and on a Spanish phone dropped 50 px below the
   // title. It goes somewhere, so it is a door (buttons do things, doors go
   // places: tests/parity/buttons-and-doors.test.ts).
-  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1></div>
-    ${flashBanner(flash)}
+  const head = `<section class="products-page"><div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1></div>
+    ${flashBanner(flash)}${search}
     ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
     ${waiting > 0 ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
-      ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}
+      ${viewer.isOwner ? `<a class="blink" href="/app/products/price-limits">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}
     ${wanted.length ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.namesWanted', {
       mark: t(locale, 'product.list.noNameMark'), languages: formatList(locale, wanted.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}
     ${suggested.length ? `<div class="block measure-prose"><p class="caption muted">${esc(t(locale, 'product.list.namesSuggested', {
       languages: formatList(locale, suggested.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}`;
   if (items.length === 0) {
+    if (page?.q) return `${head}<div class="pa-empty"><h2>${esc(t(locale, 'products.noMatch'))}</h2><p>${esc(t(locale, 'products.noMatchHelp'))}</p></div></section>`;
     // Phase 9 (missed-01) — the door names the page it opens.
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name }))}</span>
-      <div class="doors">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ownerDecides(locale)}</div></div></div>`;
+      <div class="doors">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ownerDecides(locale)}</div></div></div></section>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -606,8 +657,10 @@ export function renderProductList(
     const moq = !byQuantity && p.moq === null ? null : labelled(locale, esc(t(locale, 'product.list.moq')),
       p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
     // Phase 9 (V1-302) — a row that opens says so, with the chevron every door has.
+    const href = `/app/products/${encodeURIComponent(p.id)}${page || opts.returnHref ? `?from=${encodeURIComponent(source + '#p-' + p.id)}` : ''}`;
+    const thumb = p.photoToken ? `<img class="pa-thumb" src="/media/${esc(encodeURIComponent(p.photoToken))}" alt="" loading="lazy" width="56" height="56">` : `<span class="pa-thumb pa-initial" aria-hidden="true">${esc([...displayName(locale, p.name, p.nameZh).trim()][0] ?? '')}</span>`;
     return `
-    <a class="prod" href="/app/products/${encodeURIComponent(p.id)}"><span class="prod-m">
+    <a class="prod" id="p-${esc(p.id)}" href="${esc(href)}">${thumb}<span class="prod-m">
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
       <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
       ${(p.namesWanted ?? []).length ? `<span class="p-tag">${esc(t(locale, 'product.list.noNameMark'))}</span>` : ''}
@@ -619,11 +672,12 @@ export function renderProductList(
   // the list. The copy was only under Setup › Your data.
   // w4-products-knowledge-11 — the section's rule ends where the rows above it end.
   const doors = viewer.isOwner ? `<div class="block measure-prose"><div class="doors">
-      ${deeper('/app/business/prices', t(locale, 'prices.title'))}
+      ${deeper('/app/products/price-limits', t(locale, 'prices.title'))}
       ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
     </div></div>` : '';
-  return `${head}<div class="rows">${cards}</div>${doors}`;
+  const pager = page ? `<nav class="pa-pager" aria-label="${esc(t(locale, 'products.pages'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
+  return `${head}<div class="rows pa-products">${cards}</div>${pager}${doors}</section>`;
 }
 
 export function renderProductDetail(
@@ -632,7 +686,13 @@ export function renderProductDetail(
   draft: Record<string, string | undefined> = {},
   viewer: Viewer = OWNER_VIEW,
   now: Date = new Date(),
+  opts: { readonly returnHref?: string } = {},
 ): string {
+  const returnHref = productReturnHref(opts.returnHref);
+  const fromField = opts.returnHref ? `<input type="hidden" name="from" value="${esc(returnHref)}">` : '';
+  const optionalOpen = sellsByQuantity(d.businessKind) || d.moq !== null || d.leadTimeDays !== null || d.tiers.length > 1
+    || !!errors.moq || !!errors.leadTime || !!errors.tiers || draft['moq'] !== undefined || draft['leadTime'] !== undefined;
+  const activeNow = draft['isActive'] !== undefined ? draft['isActive'] === 'on' : d.isActive;
   const u = unitLabel(locale, d.unit);
   const title = displayName(locale, d.name, d.nameZh);
   const alt = locale === 'zh' ? (d.name !== title ? d.name : null) : (d.nameZh && d.nameZh !== title ? d.nameZh : null);
@@ -678,7 +738,8 @@ export function renderProductDetail(
     ${ownerDecides(locale)}
   </div>` : `<div class="block">
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
-    <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
+    <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform product-edit">
+      ${fromField}<fieldset class="pa-fields"><legend>${esc(t(locale, 'products.identity'))}</legend>
       <label class="pq"><span>${esc(t(locale, 'product.edit.name'))}</span>
         <input name="name" dir="auto" value="${val('name', d.name)}" />${ferr('name')}</label>
       ${zhField ? `<label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
@@ -689,22 +750,25 @@ export function renderProductDetail(
       <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
         <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
         <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
+      </fieldset><fieldset class="pa-fields"><legend>${esc(t(locale, 'products.pricing'))}</legend>
       <label class="pq"><span>${esc(priceLabel)}</span>
         <input name="price" inputmode="decimal"
                value="${val('price', entry ? String(entry.unitPrice.amount) : '')}" />${ferr('price')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>${unitSelect}${ferr('unit')}</label>
+      <details class="product-optional"${optionalOpen ? ' open' : ''}><summary>${esc(t(locale, 'products.optional'))}</summary><p class="caption muted">${esc(t(locale, 'products.optionalHelp'))}</p>
       ${tierBoxes}
       <label class="pq"><span>${esc(t(locale, 'product.list.moq'))}</span>
         <input name="moq" inputmode="numeric" placeholder="${esc(t(locale, 'product.noMinimum'))}"
                value="${val('moq', d.moq === null ? '' : String(d.moq))}" />${ferr('moq')}
         <span class="caption muted">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>${unitSelect}${ferr('unit')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.leadTime'))}</span>
         <input name="leadTime" inputmode="numeric" value="${val('leadTime', d.leadTimeDays === null ? '' : String(d.leadTimeDays))}" />${ferr('leadTime')}
         <span class="caption muted">${esc(t(locale, 'product.edit.leadTime.hint', { name }))}</span></label>
-      <label class="pcheck"><input type="checkbox" name="isActive" ${d.isActive ? 'checked' : ''} />
+      </details>
+      <label class="pcheck"><input type="checkbox" name="isActive" ${activeNow ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
       <span class="caption muted">${esc(t(locale, 'product.edit.active.hint'))}</span>
-      <button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
     </form>
   </div>`;
 
@@ -721,7 +785,7 @@ export function renderProductDetail(
   const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
   const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
   const removeName = viewer.isOwner && removable.length
-    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="pform alias-remove">
+    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="pform alias-remove">${fromField}
         <label class="pq"><span>${esc(t(locale, 'product.alias.remove.label'))}</span>
         <select name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select></label>
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
@@ -746,17 +810,17 @@ export function renderProductDetail(
   // a broken box or a link: nothing in this app writes a photo's address today (the
   // rows that exist came from the system before it), and the block goes when none is
   // left to show.
-  const shown = d.images.filter((url) => mayLoad(url, '/app/products/:id'));
+  const shown = [...new Set([...(d.photo ? [`/media/${encodeURIComponent(d.photo.token)}`] : []), ...d.images.filter((url) => mayLoad(url, '/app/products/:id'))])];
   // Phase 2d (0152) — the owner keeps the product's photo here, to send in a chat: one, replaced or removed here.
   // Staff see the photos and no form (Phase 4: the catalogue is the owner's).
   const pid = encodeURIComponent(d.id);
   const photoForms = viewer.isOwner ? `<p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
-      <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">
+      <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">${fromField}
         <label class="fld"><span class="muted">${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</span>
           <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
         <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button>
       </form>
-      ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline">
+      ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline">${fromField}
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'product.photo.removeConfirm'))}">${esc(t(locale, 'product.photo.remove'))}</button></form>` : ''}` : '';
   const images = shown.length || viewer.isOwner
@@ -797,19 +861,19 @@ export function renderProductDetail(
   // Phase 9 (V1-315, V1-376) — the product's other pages, one door each.
   const doors = `<div class="block"><div class="doors">
       ${deeper(`/app/knowledge/${encodeURIComponent(d.id)}`, t(locale, 'product.detail.knowledgeDoor', { name }))}
-      ${viewer.isOwner ? deeper(`/app/business/prices?product=${encodeURIComponent(d.id)}#p-${encodeURIComponent(d.id)}`, t(locale, 'product.detail.limitsDoor')) : ''}
+      ${viewer.isOwner ? deeper(`/app/products/price-limits?product=${encodeURIComponent(d.id)}#p-${encodeURIComponent(d.id)}`, t(locale, 'product.detail.limitsDoor')) : ''}
     </div></div>`;
 
   // Phase 9 (V1-310, V1-320) — the product's name is the page's title, the same
   // size as every other page's, and the tab's; the back link stands above it.
   // V1-319, new-04 — being found by photo is a quiet note, never louder than the name.
-  return `
+  return `<article class="product-detail">
     ${flashBanner(flash)}
-    ${back('/app/products', t(locale, 'product.detail.back'))}
+    ${back(esc(returnHref), t(locale, 'product.detail.back'))}
     <h1 class="page"><bdi>${esc(title)}</bdi></h1>
     ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
     ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
-    ${tiers}${info}${aliases}${editForm}${doors}${images}${quotes}`;
+    ${tiers}${info}${images}${aliases}${editForm}${doors}${quotes}</article>`;
 }
 
 /**
@@ -847,8 +911,8 @@ export function renderAddForm(
   // Phase 9 (V1-328) — the way back to the list, above the title, as on a product's page.
   const backLink = back('/app/products', t(locale, 'product.detail.back'));
   if (!viewer.isOwner) {
-    return `${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
-    <div class="block">${ownerDecides(locale)}</div>`;
+    return `<section class="product-add">${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+    <div class="block">${ownerDecides(locale)}</div></section>`;
   }
   // Phase 9 (new-07) — a photo refusal keeps the answer to "printed or handwritten?".
   const hand = refused && 'photo' in refused ? refused.hand ?? null : null;
@@ -856,9 +920,10 @@ export function renderAddForm(
   // the keyboard and pushed the list waiting to be checked out of sight.
   // V1-324 — the first way has a heading like the other four; V1-328 — and is
   // the box's label.
-  return `${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+  return `<section class="product-add">${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     ${flashBanner(flash)}
     ${renderOpenImport(locale, open, now)}
+    <nav class="pa-methods" aria-label="${esc(t(locale, 'products.methods'))}"><a href="#paste">${esc(t(locale, 'product.add.pasteTitle'))}</a><a href="#photo">${esc(t(locale, 'product.add.photoTitle'))}</a><a href="#store">${esc(t(locale, 'import.store.title'))}</a><a href="#file">${esc(t(locale, 'import.file.title'))}</a></nav>
     <div class="block" id="paste">
       <h2 id="paste-h">${esc(t(locale, 'product.add.pasteTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.intro'))}</p>
@@ -887,7 +952,7 @@ export function renderAddForm(
       <p class="caption muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>
     ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null)}
-    ${renderPricesToMe(locale, pricesToOwner)}`;
+    ${renderPricesToMe(locale, pricesToOwner)}</section>`;
 }
 
 /**
@@ -900,7 +965,7 @@ export function renderAddForm(
  */
 export function renderPricesToMe(locale: Locale, on: boolean): string {
   const name = assistantName(locale);
-  return `<div class="block">
+  return `<div class="block" id="prices-to-me">
       <h2>${esc(t(locale, 'product.pricesToMe.title'))}</h2>
       <p>${esc(t(locale, on ? 'product.pricesToMe.on' : 'product.pricesToMe.intro', { name }))}</p>
       <form method="post" action="/app/products/prices-to-me">

@@ -190,11 +190,12 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
     `<select name="${name}">${opts.optional ? `<option value="">${esc(t(locale, 'import.columns.none'))}</option>` : ''}${table.header.map((h, i) =>
       opts.only && !opts.only.has(i) ? '' : `<option value="${i}"${value === i ? ' selected' : ''}>${esc(h || `#${i + 1}`)}</option>`).join('')}</select>`;
   const sample = table.rows.slice(0, 3).map((r) => `<tr>${table.header.map((_, i) => `<td dir="auto">${esc((r[i] ?? '').slice(0, 40))}</td>`).join('')}</tr>`).join('');
-  return `<h1 class="page">${esc(t(locale, 'import.columns.title'))}</h1>
+  return `<section class="product-import product-import-columns"><header>${back('/app/products/add', t(locale, 'product.teach'))}<h1 class="page">${esc(t(locale, 'import.columns.title'))}</h1><p>${esc(t(locale, 'productImport.columnsIntro'))}</p></header>
     <div class="block">
       <p>${esc(t(locale, preset ? `import.columns.preset.${preset}` as MessageKey : 'import.columns.intro', { n: table.rows.length }))}</p>
       ${problem ? `<p class="perr" role="alert">${esc(t(locale, `import.columns.problem.${problem}` as MessageKey, { currency }))}</p>` : ''}
-      <div class="imp-table"><table><thead><tr>${table.header.map((h) => `<th dir="auto">${esc(h)}</th>`).join('')}</tr></thead><tbody>${sample}</tbody></table></div>
+      <h2 id="import-preview-title">${esc(t(locale, 'productImport.preview'))}</h2><p id="import-preview-hint" class="muted">${esc(t(locale, 'productImport.previewHint'))}</p>
+      <div class="imp-table" role="region" aria-labelledby="import-preview-title" aria-describedby="import-preview-hint" tabindex="0"><table><thead><tr>${table.header.map((h) => `<th dir="auto">${esc(h)}</th>`).join('')}</tr></thead><tbody>${sample}</tbody></table></div>
       <form method="post" action="${base(id)}/columns" class="imp-cols">
         <label>${esc(t(locale, 'import.columns.name'))} ${select('name', m.name, { optional: false })}</label>
         <label>${esc(t(locale, 'import.columns.price'))} ${select('price', m.price, { optional: false, only: prices })}</label>
@@ -206,8 +207,7 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
         ${m.currency === null ? `<label class="pcheck"><input type="checkbox" name="currency" /> ${esc(t(locale, 'import.columns.currency', { currency }))}</label>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'import.columns.apply'))}</button>
       </form>
-      ${back('/app/products/add', t(locale, 'product.detail.back'))}
-    </div>`;
+    </div></section>`;
 }
 
 /** The add page's two store ways in: the address, and a file. */
