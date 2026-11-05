@@ -76,5 +76,5 @@ Phase 2c. Whoever aligns them changes one rule in one place and updates this sec
 ## Not built (owner's decision, 2026-10-13)
 
 How the link reaches the customer beyond the owner copying it: a "send it in the chat" button (the owner's own
-message), or the assistant's order-confirmed reply carrying the link in place of "We'll send you the invoice
-next" (a send-path change). Decide later.
+message), or the assistant's order-confirmed reply carrying the link (a send-path change). Decide later. The reply promises no
+invoice since 2026-11-05: nothing in the product could send one (the Books audit).

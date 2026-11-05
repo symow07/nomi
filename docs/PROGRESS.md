@@ -83,6 +83,15 @@ Verification: local and exact-head CI passed check (9,186 unit assertions), trus
 
 Next: Area 2 Inbox, conversation, saved replies and the bounded contextual advisor; then Customers, Products, Books, Assistant, Settings and public pages, one PR per area. The sitemap and complete private review package are approved; no further sitemap approval is pending.
 
+## Books: where a payment lands, and an invoice nobody can send (2026-11-05; no migration)
+
+The first two findings of the Books audit. CLAUDE.md rule 91 has the detail. Claude's calls, reported on the PR:
+
+- The refund form had the same list and default, so it got the same fix.
+- A bank account named without "bank" or "cash" in a chart read in from elsewhere ("1000 · Barclays Current") is not
+  offered; the page says what to do. The chart stores no marker yet; country setup adds one.
+- **Left for the next PR:** the Bank page still lists every asset account and opens on the first.
+
 ## The page is "Inbox" again, and the Inbox in the Split look (2026-11-05; no migration)
 
 The owner's correction: #418's "Customers" is reversed in all five languages; the address stays `/app/inbox`. Then the

@@ -314,7 +314,7 @@ import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
@@ -3083,6 +3083,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   const invoiceRefusedWhy = (locale: Locale, r: { reason: string; detail: string | null }) =>
     r.reason === 'accounts_not_set' ? t(locale, 'books.orders.setFirst')
+      : r.reason === 'bank_needed' ? t(locale, 'books.invoice.bankNeeded')
       : r.reason === 'too_much' ? t(locale, 'books.invoice.tooMuch', { owed: r.detail ?? '' })
       : r.reason === 'too_much_refund' ? t(locale, 'books.credit.tooMuchRefund', { owed: r.detail ?? '' })
       : r.reason === 'credit_more_than_left' ? t(locale, 'books.credit.moreThanLeft', { line: r.detail ?? '' })
@@ -3181,9 +3182,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const v = await loadInvoice(tx, bid, id, booksToday());
       const journals = (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals
         where business_id = ${bid}::uuid and kind in ('bank', 'cash') order by code`.execute(tx)).rows;
-      const accounts = (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from accounts
-        where business_id = ${bid}::uuid and kind = 'asset' and is_active order by code`.execute(tx)).rows;
-      return { v, pay: { journals, accounts } };
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) } };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
@@ -3224,9 +3223,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (typed === 'ambiguous') return back(t(locale, 'books.entry.problem.ambiguous', { n: 1 }));
     const arrived = typed === '0' ? null : typed;
     const out = await withTenantTx(deps.db, bid, async (tx) => {
-      const ok = (await sql<{ n: number }>`select (select count(*) from journals where business_id = ${bid}::uuid and id::text = ${str('journal')} and kind in ('bank', 'cash'))::int
-        + (select count(*) from accounts where business_id = ${bid}::uuid and id::text = ${str('account')})::int as n`.execute(tx)).rows[0]!.n;
-      if (ok !== 2) return { kind: 'refused' as const, reason: 'other' as const, detail: null };
+      const journal = (await sql<{ n: number }>`select count(*)::int as n from journals where business_id = ${bid}::uuid and id::text = ${str('journal')} and kind in ('bank', 'cash')`.execute(tx)).rows[0]!.n;
+      if (journal !== 1) return { kind: 'refused' as const, reason: 'other' as const, detail: null };
+      // The form offers these and no other; the route holds it whatever the browser sent.
+      if (!(await paymentAccounts(tx, bid)).some((a) => a.id === str('account'))) return { kind: 'refused' as const, reason: 'bank_needed' as const, detail: null };
       return recordPayment(tx, bid, id, personOf(s).id, { paidOn: str('paidOn'), amount, journalId: str('journal'), accountId: str('account'), refund,
         paid: str('paidIn') === '' ? null : { currency: str('paidIn'), amount: arrived } });
     });

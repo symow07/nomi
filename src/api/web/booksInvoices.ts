@@ -104,6 +104,10 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
   const owed = owedOn(v.total, v.credited, v.paid);
   const pick = (name: string, rows: readonly { id: string; code: string; name: string }[]) =>
     `<select name="${name}" required>${rows.map((r) => `<option value="${esc(r.id)}">${esc(r.code)} · ${esc(r.name)}</option>`).join('')}</select>`;
+  // The account is the owner's to name each time: nothing is selected, so a form pressed as drawn records nothing.
+  const bankAccount = `<select name="account" required><option value="" selected>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${pay.accounts.map((r) =>
+    `<option value="${esc(r.id)}">${esc(r.code)} · ${esc(r.name)}</option>`).join('')}</select>`;
+  const noBank = `<p>${esc(t(locale, 'books.invoice.noBank'))}</p><p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.title'))}</a></p>`;
   // 0216 (c) — paid in another currency: which, and how much of it; the amount above is what it settles.
   const across = `
         <label class="pq"><span>${esc(t(locale, 'books.invoice.paidIn'))}</span><select name="paidIn">${CURRENCIES.map((c) =>
@@ -118,22 +122,22 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.invoice.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>`
     : v.status === 'discarded' ? '' : signOf(owed) > 0 ? `<div class="block" id="pay">
       <h2>${esc(t(locale, 'books.invoice.recordPayment'))}</h2>
-      <form method="post" action="/app/books/invoices/${esc(v.id)}/payments" class="pform">${documentReturnField(opts)}
+      ${pay.accounts.length === 0 ? noBank : `<form method="post" action="/app/books/invoices/${esc(v.id)}/payments" class="pform">${documentReturnField(opts)}
         <label class="pq"><span>${esc(t(locale, 'books.invoice.paidOn'))}</span><input type="date" name="paidOn" value="${esc(today)}" required /></label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(owed)}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
-        <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${bankAccount}</label>
         <button class="btn send" type="submit">${esc(t(locale, 'books.invoice.record'))}</button>
-      </form></div>` : signOf(owed) < 0 ? `<div class="block" id="refund">
+      </form>`}</div>` : signOf(owed) < 0 ? `<div class="block" id="refund">
       <h2>${esc(t(locale, 'books.credit.refund'))}</h2>
       <p>${esc(t(locale, 'books.credit.refundExplain'))}</p>
-      <form method="post" action="/app/books/invoices/${esc(v.id)}/refunds" class="pform">${documentReturnField(opts)}
+      ${pay.accounts.length === 0 ? noBank : `<form method="post" action="/app/books/invoices/${esc(v.id)}/refunds" class="pform">${documentReturnField(opts)}
         <label class="pq"><span>${esc(t(locale, 'books.invoice.paidOn'))}</span><input type="date" name="paidOn" value="${esc(today)}" required /></label>
         <label class="pq"><span>${esc(t(locale, 'books.invoice.amount', { currency: v.currency }))}</span><input name="amount" inputmode="decimal" value="${esc(subDecimal('0' as Decimal, owed))}" required /></label>${across}
         <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span>${pick('journal', pay.journals)}</label>
-        <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${pick('account', pay.accounts)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.invoice.bank'))}</span>${bankAccount}</label>
         <button class="btn send" type="submit">${esc(t(locale, 'books.credit.recordRefund'))}</button>
-      </form></div>` : '';
+      </form>`}</div>` : '';
   const creditDoor = mayPost(viewer) && v.status !== 'draft' && v.status !== 'discarded' && compareDecimal(v.credited, v.total) < 0
     ? `<p><a class="deeper" href="/app/books/invoices/${esc(v.id)}/credit-notes/new${documentReturnQuery(opts)}">${esc(t(locale, 'books.credit.make'))}</a></p>` : '';
   const notes = v.creditNotes.length === 0 ? '' : `<h2>${esc(t(locale, 'books.credit.title'))}</h2><ul class="rows">${v.creditNotes.map((c) =>
