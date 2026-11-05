@@ -251,6 +251,7 @@ Recent PRs, newest first:
 | 421 | **The Inbox in the Split look; the page is "Inbox" again** (no migration) — see §5 rule 88 |
 | 423 | **The last message back on the Inbox's rows**, one faded line (no migration) — see §5 rule 88 |
 | 422 | **The fallback answers at Anthropic's own address; both companies named wherever words go** — see §5 rule 89 |
+| 425 | **The assistant says "I" and promises only what happens; the model that answered is recorded; what Anthropic keeps on the pages** (no migration) — see §5 rule 90 |
 | 141 | **The review pass** — every page in three languages read; no raw catalogue key on any page (walk + typed Practice labels); History names the customer; the run's 278 zh/ar lines in `docs/NATIVE-REVIEW-UI.md` — see §5 rule 39 |
 | 140 | **Names, People, Setup, the door, the live line in the headers** — see §5 rule 39 |
 | 139 | **Right to left, by design** — `src/api/web/values.ts`, every value isolated on Arabic pages, the Arabic walk — see §5 rule 38 |
