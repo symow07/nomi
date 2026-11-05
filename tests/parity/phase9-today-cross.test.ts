@@ -132,7 +132,7 @@ const setupHtml = (l: Locale, over: Partial<RequestScope> = {}): string => inSco
 
 // ── the whole product ───────────────────────────────────────────────────────
 describe('Phase 9 · the shell', () => {
-  it('V1-014, V1-098 · on a phone "Customers" carries the count the rail\'s list carries, said in words to a screen reader', () => {
+  it('V1-014, V1-098 · on a phone "Inbox" carries the count the rail\'s list carries, said in words to a screen reader', () => {
     for (const l of LOCALES) {
       const nav = navOf(page(l, '/app', ''));
       const entry = nav.slice(nav.indexOf('href="/app/inbox" class="navlink'), nav.indexOf('</a>', nav.indexOf('href="/app/inbox" class="navlink')));
@@ -295,9 +295,9 @@ describe('Phase 9 · Today', () => {
   it('today-onboarding-new-07 · Arabic "follow up" is not the dialog\'s "continue"', () => {
     expect(t('ar', 'insight.action.follow_up')).not.toBe(t('ar', 'common.goAhead'));
   });
-  // The warmth run: "Inbox (rename from 'Customer list')", under Customers, with its shape.
-  it('V1-097 · the rail\'s list entry is Customers, the page it opens, with no heading repeating it', () => {
-    expect(t('en', 'nav.conversations')).toBe('Customers');
+  // The warmth run: "Inbox (rename from 'Customer list')", with its shape.
+  it('V1-097 · the rail\'s list entry is Inbox, the page it opens, with no heading repeating it', () => {
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     for (const l of LOCALES) {
       const nav = navOf(page(l, '/app/inbox', ''));
       expect(nav, l).not.toContain('navhead');

@@ -360,7 +360,7 @@ describe('V1-111 · -14 · the guide\'s captions name rows that exist, by their 
       has('guide.products.cap.1', ['nav.settings', 'nav.factory', 'nav.products', 'product.teach']);
       has('guide.name.cap.1', ['nav.settings', 'nav.setup', 'pilot.title']);
       has('guide.channels.cap.1', ['nav.settings', 'nav.factory', 'factory.reach.title']);
-      // (w4-whole-10) step five is done in Customers, by its name.
+      // (w4-whole-10) step five is done in Inbox, by its name.
       has('guide.first_success.cap.3', ['nav.inbox']);
       // (Arabic's الإعداد is inside الإعدادات, so Settings' name is taken out first.)
       expect(cap('guide.profile.cap.1').replace(t(l, 'nav.settings'), '')).not.toContain(t(l, 'nav.setup'));

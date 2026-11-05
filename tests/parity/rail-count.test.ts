@@ -117,20 +117,19 @@ describe('a long name in either direction', () => {
   });
 });
 
-describe('the page is "Customers", in every word for it (the owner, 2026-11-05)', () => {
-  it('the rail, the phone tab, the page title and the way back all say it', () => {
+describe('the page is "Inbox", in every word for it (the owner, 2026-11-05)', () => {
+  it('the rail, the phone tab, the page title and the way back all say the same word', () => {
     for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
-      for (const k of ['nav.inbox', 'nav.conversations', 'nav.short.inbox', 'inbox.detail.back'] as const) {
-        expect(t(l, k), `${l} ${k}`).toBe(t(l, 'nav.customers'));
+      for (const k of ['nav.conversations', 'nav.short.inbox', 'inbox.detail.back'] as const) {
+        expect(t(l, k), `${l} ${k}`).toBe(t(l, 'nav.inbox'));
       }
     }
+    expect(t('en', 'nav.inbox')).toBe('Inbox');
   });
 
-  it('no sentence sends the owner to a page by its old name', () => {
-    const old = { en: /\bInbox\b/, zh: /(?<!WhatsApp )收件箱/, ar: /«الرسائل»|صندوق الوارد\b(?! الخاص)/, es: /(?:en|a) Mensajes\b|Bandeja de entrada/, fr: /dans Messages\b|Boîte de réception/ } as const;
-    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
-      const hits = Object.entries(messages[l]).filter(([, v]) => old[l].test(String(v))).map(([k]) => k);
-      expect(hits, l).toEqual([]);
-    }
+  it('the address stays /app/inbox: no page lives at /app/customers', () => {
+    const app = readFileSync('src/api/web/app.ts', 'utf8');
+    expect(app).toContain("app.get('/app/inbox',");
+    expect(app).not.toContain("'/app/customers'");
   });
 });

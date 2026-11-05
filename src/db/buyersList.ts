@@ -3,6 +3,7 @@ import type { Tx } from './client.js';
 import { WAITING_HUMAN_AGENT, OWNER_AGENT } from '../core/conversation/ownership.js';
 import { SPEND_STATUSES } from './customerValue.js';
 import { PRICE_GIVEN } from './quotesGiven.js';
+import { STAGE_OF_CONVERSATION, type Stage } from './customerStage.js';
 import { isPositive, moneyFromRow, type Money } from '../core/types/money.js';
 
 /**
@@ -60,7 +61,7 @@ import { isPositive, moneyFromRow, type Money } from '../core/types/money.js';
 /** How many rows a page shows. The old window's size: the page reads the same, it only stops dropping people. */
 export const BUYERS_PAGE = 50;
 
-export type BuyersFilter = 'pending' | 'all' | 'blocked' | 'mine' | 'deletion';
+export type BuyersFilter = 'pending' | 'all' | 'blocked' | 'mine' | 'deletion' | 'quiet' | 'assistant' | 'team';
 
 /** The two orders of the one list (phase 4): who is waiting now, and who matters most by what they spent. */
 export type BuyersLens = 'waiting' | 'value';
@@ -124,12 +125,20 @@ const heldBy = (viewerId: string): RawBuilder<boolean> => sql<boolean>`(c.assign
   or (c.assigned_to = ${OWNER_AGENT} and (${viewerId} = ${OWNER_AGENT}
       or exists (select 1 from people p where p.id::text = ${viewerId} and p.is_owner))))`;
 
+/** Held by someone here, as opposed to waiting for anyone. */
+const HELD_BY_A_PERSON = sql<boolean>`(c.assigned_to is not null and c.assigned_to <> ${WAITING_HUMAN_AGENT})`;
+
 /** Which rows a tab holds, decided BEFORE any page is cut. 'mine' with no viewer is nobody's. */
 export const eligibleFor = (filter: BuyersFilter, viewerId?: string): RawBuilder<boolean> =>
   filter === 'pending' ? needsOwnerFor(viewerId)
     : filter === 'blocked' ? IS_BLOCKED
     : filter === 'mine' ? (viewerId ? heldBy(viewerId) : sql<boolean>`false`)
     : filter === 'deletion' ? DELETION_WAITING
+    // The Inbox's views (2026-11-05). A person here holds it: the reader's own too, and the owner's.
+    : filter === 'team' ? HELD_BY_A_PERSON
+    // The assistant's, and open: a conversation that closed is nobody's now.
+    : filter === 'assistant' ? sql<boolean>`(c.assigned_to is null and c.is_active and not ${needsOwnerFor(viewerId)})`
+    // ('quiet' is every row: who has gone quiet is `readAttention`'s verdict, read in JS, and `among` names them.)
     : sql<boolean>`true`;
 
 /**
@@ -195,6 +204,14 @@ const carrying = (label: string | null | undefined): RawBuilder<boolean> => (lab
   ? sql<boolean>`exists (select 1 from buyer_labels bl join labels lb on lb.id = bl.label_id
       where bl.client_id = c.client_id and bl.label_id = ${label}::uuid and bl.removed_at is null and lb.archived_at is null)`
   : sql<boolean>`true`);
+
+/** Only conversations at this stage (the Inbox's filter). */
+const atStage = (stage: Stage | null | undefined): RawBuilder<boolean> => (stage
+  ? sql<boolean>`${STAGE_OF_CONVERSATION} = ${stage}` : sql<boolean>`true`);
+
+/** Only these customers: the views whose verdict is read in JS. */
+const amongClients = (ids: readonly string[] | undefined): RawBuilder<boolean> => (ids
+  ? sql<boolean>`c.client_id = any(${[...ids]}::uuid[])` : sql<boolean>`true`);
 
 /** A search as it may be used: one line, trimmed, and not a page long. */
 export const searchOf = (raw: unknown): string =>
@@ -344,6 +361,10 @@ export async function readBuyersPage(tx: Tx, o: {
   readonly after?: unknown; readonly before?: unknown; readonly size?: number;
   /** S2 — a label's id: only the buyers carrying it. */
   readonly label?: string | null;
+  /** The Inbox's stage filter: only conversations at this stage. */
+  readonly stage?: Stage | null;
+  /** Only these customers (Gone quiet: `readAttention`'s verdict). */
+  readonly among?: readonly string[];
 }): Promise<BuyersPage> {
   const size = o.size ?? BUYERS_PAGE;
   const lens = o.lens ?? 'waiting';
@@ -363,7 +384,7 @@ export async function readBuyersPage(tx: Tx, o: {
         left join lateral (select m.direction, m.sent_at from messages m
                             where m.conversation_id = c.id
                             order by m.sent_at desc, m.id desc limit 1) lm on true
-       where ${eligibleFor(o.filter, o.viewerId)} and ${matching(o.q)} and ${carrying(o.label)}
+       where ${eligibleFor(o.filter, o.viewerId)} and ${matching(o.q)} and ${carrying(o.label)} and ${atStage(o.stage)} and ${amongClients(o.among)}
     ), ch as (
       -- One customer, one row: the conversation that needs the owner most, else their newest.
       select distinct on (client_id) client_id, id as conversation_id, rank
@@ -428,13 +449,17 @@ export async function readBuyersPage(tx: Tx, o: {
 export async function readBuyerCounts(tx: Tx, viewerId?: string): Promise<{
   readonly waiting: number; readonly blocked: number; readonly mine: number;
   readonly deletion: number; readonly channels: number;
+  readonly assistant: number; readonly team: number; readonly everyone: number;
 }> {
-  return (await sql<{ waiting: number; blocked: number; mine: number; deletion: number; channels: number }>`
+  return (await sql<{ waiting: number; blocked: number; mine: number; deletion: number; channels: number; assistant: number; team: number; everyone: number }>`
     select count(distinct c.client_id) filter (where ${needsOwnerFor(viewerId)})::int as waiting,
            count(distinct c.client_id) filter (where ${IS_BLOCKED})::int as blocked,
            count(distinct c.client_id) filter (where ${eligibleFor('mine', viewerId)})::int as mine,
            count(distinct c.client_id) filter (where ${DELETION_WAITING})::int as deletion,
-           count(distinct c.channel)::int as channels
+           count(distinct c.channel)::int as channels,
+           count(distinct c.client_id) filter (where ${eligibleFor('assistant', viewerId)})::int as assistant,
+           count(distinct c.client_id) filter (where ${eligibleFor('team', viewerId)})::int as team,
+           count(distinct c.client_id)::int as everyone
       from conversations c`.execute(tx)).rows[0]
-    ?? { waiting: 0, blocked: 0, mine: 0, deletion: 0, channels: 0 };
+    ?? { waiting: 0, blocked: 0, mine: 0, deletion: 0, channels: 0, assistant: 0, team: 0, everyone: 0 };
 }

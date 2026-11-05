@@ -7,6 +7,7 @@ import { PRICE_GIVEN } from './quotesGiven.js';
 import { notOwnerTesting } from './handled.js';
 import { faceVersions } from './faces.js';
 import { productPhotoPath } from './productPhotos.js';
+import { stageFacts, type Stage } from './customerStage.js';
 import { defaultPeriod } from './booksReports.js';
 import { statusOf, type InvoiceStatus } from './booksInvoices.js';
 import { parseDecimal } from '../core/types/decimal.js';
@@ -20,8 +21,6 @@ import { parseDecimal } from '../core/types/decimal.js';
  * Money is summed in one currency: the workspace's for sales, the books' for the books. A row in another currency is
  * counted and left out of the sum, and the page says so; nothing is converted.
  */
-
-export type Stage = 'asked' | 'price' | 'sample' | 'order';
 
 export type RecentCustomer = {
   readonly conversationId: string;
@@ -96,10 +95,7 @@ export async function loadSplitSales(tx: Tx, B: BusinessId, zone: string, now: D
  * that price's; a stage with no figure has none.
  */
 async function loadRecent(tx: Tx, B: BusinessId): Promise<RecentCustomer[]> {
-  const rows = (await sql<{
-    conversation_id: string; client_id: string; name: string | null; product: string | null; product_zh: string | null; token: string | null;
-    order_total: string | null; order_currency: string | null; sampled: boolean; quote_total: string | null; quote_currency: string | null; last_at: Date | null;
-  }>`
+  const rows = (await sql<{ conversation_id: string; client_id: string; name: string | null; last_at: Date | null }>`
     with latest as (
       select distinct on (c.client_id) c.id, c.client_id, cl.display_name as name, cs.identified_product_id as product_id,
              (select max(m.sent_at) from messages m where m.conversation_id = c.id) as last_at
@@ -108,25 +104,16 @@ async function loadRecent(tx: Tx, B: BusinessId): Promise<RecentCustomer[]> {
          and exists (select 1 from messages m where m.conversation_id = c.id)
        order by c.client_id, last_at desc nulls last
     )
-    select l.id::text as conversation_id, l.client_id::text as client_id, l.name, p.name as product, p.name_zh as product_zh,
-           (select i.token from product_images i where i.product_id = p.id and i.token is not null limit 1) as token,
-           o.total::text as order_total, o.currency as order_currency,
-           exists (select 1 from sample_requests s where s.conversation_id = l.id) as sampled,
-           q.total::text as quote_total, q.currency as quote_currency, l.last_at
+    select l.id::text as conversation_id, l.client_id::text as client_id, l.name, l.last_at
       from latest l
-      left join products p on p.id = l.product_id
-      left join lateral (select r.total_value_usd as total, r.currency from orders r where r.conversation_id = l.id
-                          and r.status = any(${[...SPEND_STATUSES]}::text[]) order by coalesce(r.confirmed_at, r.created_at) desc limit 1) o on true
-      left join lateral (select q.total_usd as total, q.currency from quotes q where q.conversation_id = l.id and ${PRICE_GIVEN} order by q.created_at desc limit 1) q on true
      order by l.last_at desc nulls last limit ${RECENT_CUSTOMERS + 1}`.execute(tx)).rows;
   const photos = await faceVersions(tx, rows.map((x) => x.client_id));
+  const facts = await stageFacts(tx, rows.map((x) => x.conversation_id));
   return rows.map((x) => {
-    const stage: Stage = x.order_total !== null ? 'order' : x.sampled ? 'sample' : x.quote_total !== null ? 'price' : 'asked';
-    const value = x.order_total !== null && x.order_currency ? moneyFromRow(x.order_total, x.order_currency)
-      : x.quote_total !== null && x.quote_currency ? moneyFromRow(x.quote_total, x.quote_currency) : null;
+    const f = facts.get(x.conversation_id);
     return {
       conversationId: x.conversation_id, clientId: x.client_id, name: x.name, photo: photos.get(x.client_id) ?? null,
-      product: x.product ?? x.product_zh, thumb: x.token ? productPhotoPath(x.token) : null, stage, value, lastAt: x.last_at,
+      product: f?.product ?? null, thumb: f?.thumb ?? null, stage: f?.stage ?? 'asked', value: f?.value ?? null, lastAt: x.last_at,
     };
   });
 }

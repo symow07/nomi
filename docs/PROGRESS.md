@@ -13,6 +13,21 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The page is "Inbox" again, and the Inbox in the Split look (2026-11-05; no migration)
+
+The owner's correction: #418's "Customers" is reversed in all five languages; the address stays `/app/inbox`. Then the
+Inbox drawn like Today, behind `SPLIT_TODAY` (on in production): five views with counts, Today's rows, search and a stage
+filter on one sheet. CLAUDE.md rule 88 has the detail; screenshots beside Today are in `docs/design/split-inbox/`.
+
+Claude's calls, reported on the PR:
+
+- The rail stays flat, with no heading over Today, Inbox and Calendar.
+- The Arabic, Spanish and French labels went back to their earlier words, which literally say "messages".
+- "With your team" includes conversations the viewer holds, which also count in Needs you.
+- "Matters most" stays as an order. "Did not send" and "Deletion requests" stay as tabs when they hold someone.
+
+Next: the conversation page in this look is not done. The first-success guide video waits until the other pages have it.
+
 ## The OpenAI format, warmer replies, a customer is 您 (2026-11-05; no migration)
 
 **What changed.** The second of three pull requests for the owner's decision of 2026-11-04 to move the model (rule 87). Nothing switches on merge: production keeps its three `LLM_*` variables until the owner changes them, and the new prompts run on the provider it has.

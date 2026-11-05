@@ -5,9 +5,9 @@
  *   node tools/split-preview.mjs seed   lays customers, a waiting reply, orders and a year of books over the demo
  *                                       workspace of a LOCAL database, through the books' own functions. Refuses
  *                                       anything but 127.0.0.1, and a database it has already seeded.
- *   node tools/split-preview.mjs shots  draws Today and Customers at a desktop and a phone width, in English and Arabic,
+ *   node tools/split-preview.mjs shots  draws Today and the Inbox at a desktop and a phone width, in English and Arabic,
  *                                       into docs/design/split-today/. It opens one waiting conversation first, so
- *                                       Customers shows a bold name beside a plain one.
+ *                                       the Inbox shows a bold name beside a plain one.
  *                                       And a conversation in each script, on each page.
  *
  *   MIGRATE_DATABASE_URL  the local admin address; DATABASE_URL  the local app address (nomi_app)
@@ -302,24 +302,21 @@ async function shots() {
       console.log(`${file}  dir=${dir || 'ltr'}${wide ? '  WIDER THAN THE SCREEN' : ''}`);
       await measureWash(browser, page, locale, width);
       if (width === 'phone') await measureTabBar(page, locale);
-      // Customers: opened as the owner opens it, one row plain among the bold.
+      // The Inbox: opened as the owner opens it, one row plain among the bold.
       await page.goto(`${BASE}/app/inbox`);
-      const opened = await page.locator('a.ir-main', { hasText: 'Imane Chraibi' }).first().getAttribute('href');
+      const opened = await page.locator('a.si-door', { hasText: 'Imane Chraibi' }).first().getAttribute('href');
       await page.goto(`${BASE}${opened}`);
       await page.goto(`${BASE}/app/inbox`);
       await page.waitForTimeout(800);
-      await page.screenshot({ path: `${OUT}customers-${width}-${locale}.png`, fullPage: false });
-      // The rows themselves, at their first: on a phone the card above them fills the first screen.
-      await page.evaluate(() => { const row = document.querySelector('.irow'); if (row) window.scrollTo(0, row.getBoundingClientRect().top + window.scrollY - 200); });
-      await page.waitForTimeout(400);
-      await page.screenshot({ path: `${OUT}customers-${width}-${locale}-rows.png`, fullPage: false });
-      const cut = await page.evaluate(() => [...document.querySelectorAll('.ir-name')].filter((n) => n.scrollWidth > n.clientWidth)
+      await page.screenshot({ path: `${OUT}inbox-${width}-${locale}.png`, fullPage: false });
+      await page.screenshot({ path: `${OUT}inbox-${width}-${locale}-full.png`, fullPage: true });
+      const cut = await page.evaluate(() => [...document.querySelectorAll('.si-row .sp-rname')].filter((n) => n.scrollWidth > n.clientWidth)
         .map((n) => `${getComputedStyle(n).direction} ${n.textContent.slice(0, 12)}`));
-      console.log(`  customers-${width}-${locale}: cut: ${cut.join(' | ') || 'none'}`);
+      console.log(`  inbox-${width}-${locale}: cut: ${cut.join(' | ') || 'none'}`);
       // A message takes its direction from its own words, on either page.
-      for (const [kind, words] of [['arabic', 'أريد التحدث مع شخص'], ['latin', 'Can I talk to someone about a bulk order']]) {
+      for (const [kind, who, words] of [['arabic', 'عبد الرحمن', 'أريد التحدث مع شخص'], ['latin', 'Bartholomew', 'Can I talk to someone about a bulk order']]) {
         await page.goto(`${BASE}/app/inbox`);
-        const door = await page.locator('a.ir-main', { hasText: words }).first().getAttribute('href');
+        const door = await page.locator('a.si-door', { hasText: who }).first().getAttribute('href');
         await page.goto(`${BASE}${door}`);
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${OUT}conversation-${width}-${locale}-${kind}.png`, fullPage: false });
