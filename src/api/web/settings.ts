@@ -518,7 +518,11 @@ const INTL_LOCALE: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', e
 function zoneRow(c: ZoneChoice, locale: Locale): string {
   const own = zoneChoices(c.country ?? '');
   const option = (z: string, label: string) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(label)}</option>`;
-  const row = (control: string) => fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'), control });
+  // Block 1 #9 (2026-11-06) — the 59 workspaces made before sign-up asked (0151) kept Shanghai's clock; a zone that is not
+  // one its country keeps is flagged here, so the owner sees the question sign-up never put to them.
+  const unconfirmed = c.country && own.length > 0 && own !== ALL_ZONES && !own.includes(c.zone);
+  const desc = unconfirmed ? `${t(locale, 'settings.zone.why')} ${t(locale, 'settings.zone.unconfirmed')}` : t(locale, 'settings.zone.why');
+  const row = (control: string) => fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc, control });
   // A country narrows the list to its own zones, told apart by their places.
   if (own.length > 0 && own !== ALL_ZONES) {
     // The warmth run (V1-522) — zones that keep the same clock all year are one choice.

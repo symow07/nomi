@@ -207,9 +207,9 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     expect(b7).not.toContain('Me testing');
     // …and a model that picks B7 is answered as B1, recorded as B1: the tie-break of the two overlapping entries.
     const picked = await ask('who is waiting for my reply?', fakeModel({ 'who is waiting for my reply?': { id: 'B7' } }));
-    expect(picked.entry).toBe('B1');
-    expect(picked.answer.kind).not.toBe('unknown');
-    expect(JSON.stringify(picked.answer)).toContain('Bao Lin');
+    expect(picked.kind).toBe('fact');
+    expect(JSON.stringify(picked)).toContain('Waiting for you: 1');      // B1's sheet answered a B7 pick
+    expect(JSON.stringify(picked)).toContain('Bao Lin');
   });
 
   it('B8 · reply times: the median, the replies measured, and — always with them — the messages still unanswered', async () => {
