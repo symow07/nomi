@@ -65,7 +65,7 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
   it('the page is one screen, the month\'s grid and the list together (the owner\'s correction); no views, no grid of empty hours (V1-204)', async () => {
     const html = await page('/app/calendar');
     expect(html).toContain('<div class="cal-screen">');
-    expect(html.indexOf('<table class="mo">')).toBeLessThan(html.indexOf('<div class="cal-list"'));
+    expect(html.indexOf('<div class="cal-list"')).toBeLessThan(html.indexOf('<table class="mo">'));
     expect(html).not.toContain('<a class="tab on"');
     expect(html).not.toContain('<table class="wk">');
   });
@@ -89,7 +89,7 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
     expect(new Date(`${first}T00:00:00Z`).getUTCDay()).toBe(1);
     expect(month).toContain(`<span class="mo-e dashed" data-src="calendar_entries:${row!.id}"`);
     // and in the month's list (nothing chosen), under its day
-    expect(month.slice(month.indexOf('<div class="cal-list"'))).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
+    expect(month.slice(month.indexOf('<div class="cal-list"'), month.indexOf('<details class="cal-grid"'))).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
     // the old addresses still find it: they answer with the same place on the screen
     for (const [old, to] of [['/app/calendar?at=2031-03-05', '/app/calendar?month=2031-03&day=2031-03-05'],
       ['/app/calendar?view=week&at=2031-03-05', '/app/calendar?month=2031-03&day=2031-03-05'],
@@ -112,7 +112,7 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
       expect(r.statusCode).toBe(400);
       // the add form open: in the page's one fold, or in the empty month's panel — once, on the day it was for
       expect(r.body).toMatch(/<details class="cal-(?:tools|add)" open>/);
-      expect(r.body.match(/ open>/g), JSON.stringify(fields)).toHaveLength(1);
+      expect(r.body.match(/<details class="cal-(?:tools|add)" open>/g), JSON.stringify(fields)).toHaveLength(1);
       expect(r.body.match(/aria-invalid="true"/g), JSON.stringify(fields)).toHaveLength(1);
       expect(r.body).toContain(said);
       if (fields.title) expect(r.body).toContain(`value="${fields.title}"`);

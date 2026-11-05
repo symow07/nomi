@@ -954,6 +954,28 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     }, true);
   }
 
+  /* Native navigation disclosures keep working without this enhancement. */
+  function navigationMenus() {
+    var menus = [].slice.call(doc.querySelectorAll('details')).filter(function (menu) {
+      return /(^| )(nav-more|area-chooser)( |$)/.test(menu.getAttribute('class') || '');
+    });
+    if (!menus.length) return;
+    doc.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || e.defaultPrevented || doc.querySelector('dialog[open]')) return;
+      var open = menus.filter(function (menu) { return menu.open; });
+      if (!open.length) return;
+      var current = open.filter(function (menu) { return menu.contains(e.target); })[0] || open[open.length - 1];
+      open.forEach(function (menu) { menu.open = false; });
+      var summary = current.querySelector('summary');
+      if (summary) summary.focus();
+      e.preventDefault();
+    });
+    doc.addEventListener('click', function (e) {
+      menus.forEach(function (menu) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+    });
+  }
+
+  navigationMenus();
   toToday();
   keepWords();
   phone();

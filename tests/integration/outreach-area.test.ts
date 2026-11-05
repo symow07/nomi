@@ -96,9 +96,20 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
       // A — the list the contacts door hangs off, on the tab that shows everyone
       '/app/inbox?filter=all',
     ].filter((u) => !isOutreachRoute(u));
+    const moved: Readonly<Record<string, string>> = {
+      '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
+      '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
+      '/app/onboarding/activity': '/app/results?view=setup',
+    };
     let checked = 0;
     for (const url of pages) {
-      const r = await get(url);
+      let r = await get(url);
+      if (moved[url]) {
+        expect([r.statusCode, r.headers['location']], url).toEqual([302, moved[url]]);
+        r = await get(moved[url]!);
+      }
+      // Books is declared in the shared navigation but disabled for this workspace.
+      if (url === '/app/books') { expect(r.statusCode).toBe(404); continue; }
       // The practice room is mounted only where a sandbox is configured; a
       // page this installation does not have has no links on it.
       if (url === '/app/sandbox' && r.statusCode === 404) continue;

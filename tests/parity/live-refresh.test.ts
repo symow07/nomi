@@ -299,6 +299,17 @@ describe('CC-26 · is there news? — the one comparison', () => {
     expect(liveNews('conversation', `9.0.${S}`, `10.0.${S}`)).toEqual({ news: true, what: 'message' });
   });
 
+  it('Today protects an inline edit with notice-only news while an overview can redraw', () => {
+    const counts = { pendingApprovals: 1, handoffs: 0, ownerHandling: 0, blockedMessages: 0 };
+    const before = todayMark(counts, false, '0123456789abcdef');
+    const after = todayMark(counts, false, 'fedcba9876543210');
+    expect(liveNews('today', before, after)).toEqual({ news: true, what: 'today' });
+    expect(todayWatch(before, true).redraw).toBeUndefined();
+    expect(liveRegion('en', todayWatch(before, true))).not.toContain('data-live-redraw');
+    expect(todayWatch(before).redraw).toBe(true);
+    expect(todayWatch(before, true).door).toBe('/app');
+  });
+
   it('Buyers and Today: any difference, said as "changed", never "new"', () => {
     expect(liveNews('buyers', '5.0123456789abcdef', '5.0123456789abcdef')).toEqual({ news: false });
     expect(liveNews('buyers', '5.0123456789abcdef', '5.fedcba9876543210')).toEqual({ news: true, what: 'list' });
@@ -319,6 +330,9 @@ describe('CC-26 · is there news? — the one comparison', () => {
     for (const bad of ['0.d41d8cd98f00b20', '0.d41d8cd98f00b2045', '0.D41D8CD98F00B204', 'x.d41d8cd98f00b204']) expect(isMark('buyers', bad), bad).toBe(false);
     // 0080 — six counts: the orders waiting for the owner's tap are the sixth.
     expect(isMark('today', '0.0.0.0.0.0')).toBe(true);
+    expect(isMark('today', '0.0.0.0.0.0.r0123456789abcdef')).toBe(true);
+    expect(isMark('today', '0.0.0.0.0.0.1.r0123456789abcdef')).toBe(true);
+    for (const bad of ['0.0.0.0.0.0.rshort', '0.0.0.0.0.0.r0123456789abcdeg', '0.0.0.0.0.0.r0123456789abcdef.extra']) expect(isMark('today', bad), bad).toBe(false);
     for (const bad of ['0.0.0.0.0', '0.0.0.0.0.0.0', '0.0.0.0.0.a', '1e3.0.0.0.0.0']) expect(isMark('today', bad), bad).toBe(false);
   });
 });

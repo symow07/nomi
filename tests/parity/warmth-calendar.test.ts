@@ -88,8 +88,8 @@ const nameOf = (x: CalendarEntry): string => x.kind === 'closure' ? x.detail.clo
 const rowsOf = (html: string) => [...html.matchAll(/<li class="dl-row (solid|dashed)( done)?" data-src="([^"]+)"[^>]*>([\s\S]*?)<\/li>/g)]
   .map((m) => ({ src: m[3]!, done: m[2] === ' done', html: m[4]! }));
 /** The list column, and the grid, of a drawn screen. */
-const listOf = (html: string): string => html.slice(html.indexOf('<div class="cal-list"'));
-const gridOf = (html: string): string => html.slice(html.indexOf('<div class="cal-grid">'), html.indexOf('<div class="cal-list"'));
+const listOf = (html: string): string => html.slice(html.indexOf('<div class="cal-list"'), html.indexOf('<details class="cal-grid"'));
+const gridOf = (html: string): string => html.slice(html.indexOf('<details class="cal-grid"'));
 const cellOf = (html: string, day: string): string =>
   new RegExp(`<td[^>]*>\\s*<a class="mo-d" href="/app/calendar\\?month=${day.slice(0, 7)}&amp;day=${day}"[\\s\\S]*?</td>`).exec(html)?.[0] ?? '';
 const CSS = linkedCss(shell({ title: 'T', active: 'calendar', locale: 'en', path: '/app/calendar', bodyHtml: '' })).replace(/\/\*[\s\S]*?\*\//g, '');
@@ -108,16 +108,17 @@ describe('one screen: the month grid and the list together', () => {
     expect(new Date(`${parseCalendarQuery({}, NOW, 7).gridFrom}T00:00:00Z`).getUTCDay()).toBe(0);
   });
 
-  it('no List · Week · Month · Day switch: the grid and the list are both drawn, the grid FIRST, so a phone shows it on top', () => {
+  it('no List · Week · Month · Day switch: the grid and the list are both drawn, the agenda first so a phone can work without the grid', () => {
     for (const l of LOCALES) {
       for (const html of [draw(l), draw(l, { month: '2026-10', day: TODAY }), draw(l, { month: '2026-11' }, { entries: [], buyers: [], categories: [] })]) {
         expect(html, l).not.toContain('cal-views');
         expect(html, l).not.toMatch(/<nav class="tabs/);
         for (const w of ['list', 'week', 'day'] as const) expect(html, l).not.toContain(`>${t(l, `calendar.view.${w}`)}</a>`);
-        const grid = html.indexOf('<div class="cal-grid"><div class="wk-scroll"><table class="mo">');
+        const grid = html.indexOf('<details class="cal-grid" open>');
         const list = html.indexOf('<div class="cal-list" id="cal-list">');
         expect(grid, l).toBeGreaterThan(0);
-        expect(list, l).toBeGreaterThan(grid);
+        expect(list, l).toBeGreaterThan(0);
+        expect(list, l).toBeLessThan(grid);
         expect(html.indexOf('<div class="cal-screen">'), l).toBeLessThan(grid);
       }
     }

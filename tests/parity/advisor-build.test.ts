@@ -215,7 +215,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     for (const line of METERING) expect(call).toContain(line);
     expect(METERING.reduce((c, line) => c.replace(line, ''), call)).not.toMatch(/deps\.db\b|send|enqueue|save|price|boss/i);
     // nothing else in the app answers at the advisor's address
-    expect(app.match(/['"`]\/app\/advisor/g) ?? []).toEqual([]);
+    expect(app.match(/app\.(?:get|post)\(['"`]\/app\/advisor/g) ?? []).toEqual([]);
   });
 });
 
@@ -471,7 +471,7 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
     expect(r.drawn?.title).toBe('Advisor');
     expect(r.logLevel).toBe('warn');
     expect((await ask('POST', io(), { q: 'x' })).logLevel).toBe('warn');
-    expect(NAV.find((n) => n.id === 'advisor')?.href).toBe('/app/advisor');
+    expect(NAV.find((n) => n.id === 'assistant')?.href).toBe('/app/assistant');
   });
 
   it('C5 · the deals that went nowhere read Home\'s own window: the same 30 days as readAttention', async () => {

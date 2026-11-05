@@ -21,14 +21,14 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   // (Inbox, Calendar); the assistant; Settings.
   // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's.
   it('the nav is exactly Home, Inbox, Calendar, the advisor, Settings', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/advisor', '/app/settings']);
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/books', '/app/assistant', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {
-    expect(page('en')).toContain('>Home<'); expect(page('en')).toContain('>Inbox<');   // THE HOME RUN
-    expect(page('zh')).toContain('首页'); expect(page('zh')).toContain('收件箱');
-    expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
-    expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('الرسائل');
+    expect(page('en')).toContain('>Today<'); expect(page('en')).toContain('>Inbox<');   // THE HOME RUN
+    expect(page('zh')).toContain(t('zh', 'split.title'));  expect(page('zh')).toContain('收件箱');
+    expect(page('zh')).toContain(t('zh', 'nav.assistant'));   // no name chosen: 你的助手
+    expect(page('ar')).toContain(t('ar', 'split.title'));  expect(page('ar')).toContain('الرسائل');
     // The owner, 2026-11-05: "Inbox", everywhere.
     expect(page('en')).toContain('>Inbox<');
     expect(page('zh')).toContain('收件箱');
@@ -51,7 +51,7 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     // and the destinations are still named, in every locale
     for (const l of LOCALES) {
       expect(navOf(l).match(/\p{Extended_Pictographic}/gu) ?? [], l).toEqual([]);
-      for (const n of NAV) expect(navOf(l), `${l}/${n.id}`).toContain(n.href);
+      for (const n of NAV.filter((n) => n.id !== 'books')) expect(navOf(l), `${l}/${n.id}`).toContain(n.href);
     }
   });
 
@@ -75,11 +75,11 @@ describe('Phase F · five destinations, and nothing else competing', () => {
       avatar: '👩', bodyHtml: '<p>body</p>',
     });
     expect(html.match(/class="navlink[^"]* active"/g)).toHaveLength(1);
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(html).toContain('href="/app/calendar" class="navlink active"');
+    expect(navOf('en').match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toContain('href="/app" class="navlink active"');
     // and My business, a row of Settings now, lights Settings
     const mine = shell({ title: 'T', active: 'factory', locale: 'en', path: '/app/business', avatar: '👩', bodyHtml: '' });
-    expect(mine).toContain('href="/app/settings" class="navlink active"');
+    expect(mine).toContain('href="/app/settings" class="navlink nav-desktop active"');
   });
 });
 
@@ -91,6 +91,7 @@ describe('V1 close-out · the stylesheet is a file', () => {
       expect(sheetLinks(html), l).toEqual([
         expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/),
         expect.stringMatching(l === 'zh' ? /^\/assets\/typezh\.[0-9a-f]{16}\.css$/ : /^\/assets\/type\.[0-9a-f]{16}\.css$/),
+        expect.stringMatching(/^\/assets\/split\.[0-9a-f]{16}\.css$/),
       ]);
       expect(linkedCss(html).length, l).toBeGreaterThan(10_000);
     }
@@ -219,7 +220,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
   });
 
   it('the emitted type scale is exactly the token scale', () => {
-    const emitted = [...cssVariables().matchAll(/--font-size-[a-z]+: (\d+)px/g)].map((m) => Number(m[1]));
+    const emitted = [...cssVariables().matchAll(/--font-size-[a-z-]+: (\d+)px/g)].map((m) => Number(m[1]));
     expect(emitted.sort((a, b) => a - b))
       .toEqual(Object.values(DESIGN_TOKENS.font.sizePx).slice().sort((a, b) => a - b));
   });

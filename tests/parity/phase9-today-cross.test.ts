@@ -262,9 +262,11 @@ describe('Phase 9 · Today', () => {
       expect(t(l, 'today.setup.line', { done: 3, total: 5 }), l).not.toContain(t(l, 'nav.settings'));
       const h = todayHtml(l);
       expect(h, l).toContain(`<div class="today-next"><a class="deeper" href="${STEP_LINK.profile}">`);
-      expect(h, l).toContain(esc(t(l, 'guide.watch')));
+      expect(h, l).toContain(esc(t(l, 'area1.setup.help')));
+      expect(h, l).toContain('href="/app/get-started#profile"');
+      expect(h, l).not.toContain(esc(t(l, 'guide.watch')));
     }
-    expect(t('en', 'guide.watch')).not.toBe('Watch how');
+    expect(t('en', 'area1.setup.help')).toBe('Read the steps');
   });
   it('V1-091 · the door to Results is named as the page is', () => {
     for (const l of LOCALES) expect(t(l, 'today.results.link'), l).toBe(t(l, 'analytics.title'));
@@ -352,12 +354,13 @@ describe('Phase 9 · Getting started', () => {
     expect(t('en', 'guide.name.cap.3')).toBe('Confirm it. Until you do, every reply waits for your OK.');
     for (const l of LOCALES) expect(t(l, 'guide.name.cap.3'), l).not.toMatch(/Nothing is sent without|没有你的同意什么都不会发出|no se envía nada sin/);
   });
-  it('V1-114 · the number stays beside a heading\'s first line; the state ends its words', () => {
+  it('V1-114 · each task has a heading and a separate state in its status row', () => {
     const h = guide('es');
-    expect(h).toContain(`<h2 class="gs-h"><span class="gs-n muted">1.</span><span class="gs-t">${esc(t('es', 'factory.next.profile'))}`);
-    expect(css).toContain('.gs-n { flex:none; }');
-    // Phase 9 of the warmth run (w4-today-setup-13) — balanced, so no last word is left alone beside the state.
-    expect(css).toContain('.gs-t { flex:1 1 auto; min-width:0; text-wrap:balance; }');
+    expect(h).toContain(`<div class="gs-heading">
+        <h2 class="gs-h">${esc(t('es', 'factory.next.profile'))}</h2>`);
+    expect(h).toContain(`<span class="pill">`);
+    expect(h).not.toContain('class="gs-n');
+    expect(h.match(/class="pill ok"/g)).toHaveLength(3);
   });
   it('V1-115, V1-116, extra-guide-css · one .guide rule — the cards start at the heading\'s edge — and a gap before what follows the steps', () => {
     const rules = [...css.matchAll(/(?<![\w-])\.guide \{([^}]*)\}/g)].map((m) => m[1]!);
@@ -367,11 +370,13 @@ describe('Phase 9 · Getting started', () => {
     expect(css).not.toContain('line-height:2;');
     expect(css).not.toMatch(/\.guide li \{/);
   });
-  it('V1-117, V1-118 · the words are under each video, as the page says — nothing to open, no "Read instead"', () => {
+  it('V1-117, V1-118 · text instructions need no media and the next task is already open', () => {
     for (const l of LOCALES) {
       const h = guide(l);
-      expect(h, l).not.toContain('<details');
+      expect(h, l).not.toContain('<video');
+      expect(h, l).toContain('<details class="gs-help" open>');
       expect(h, l).toContain(`<ol class="gs-words"><li>${esc(t(l, 'guide.profile.cap.1'))}</li>`);
+      expect(h.match(/<summary>/g), l).toHaveLength(5);
     }
     expect('guide.read' in messages.en).toBe(false);
   });

@@ -547,8 +547,13 @@ function assistantNameRow(d: PilotReadiness, locale: Locale, viewer: Viewer = OW
 
 export function renderPilotReadiness(
   d: PilotReadiness, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
+  options: { readonly embedded?: boolean } = {},
 ): string {
   const flashHtml = flashBanner(flash);
+  const heading = options.embedded ? 'h3' : 'h2';
+  const title = options.embedded
+    ? `<h2 id="readiness">${esc(t(locale, 'pilot.title'))}</h2>`
+    : `<h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>`;
   // G6 — the fixed-scenario check is not a self-serve workspace's: "Ready for customers" stands for it.
   const detectedOrder: DetectedKey[] = d.ready
     ? ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel']
@@ -580,12 +585,12 @@ export function renderPilotReadiness(
       ? `<p class="verdict ok">${shape('ok')} ${esc(t(locale, 'pilot.allReady'))}</p>`
       : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
     return `
-    <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
+    ${title}
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
     ${verdict}
     ${flashHtml}
-    <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
-    <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
+    <div class="block"><${heading}>${esc(t(locale, 'pilot.setup'))}</${heading}>${setup}</div>
+    <div class="block"><${heading}>${esc(t(locale, 'pilot.prelaunch'))}</${heading}>
       ${readyRow}
       ${assistantNameRow(d, locale, viewer)}
       ${attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer)}
@@ -607,12 +612,12 @@ export function renderPilotReadiness(
   // Phase 9 (w4-today-setup-19) — where the page stands is said under its
   // intro, the first thing read, not above the next section's rule.
   return `
-    <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
+    ${title}
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
     ${verdict}
     ${flashHtml}
-    <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
-    <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
+    <div class="block"><${heading}>${esc(t(locale, 'pilot.setup'))}</${heading}>${setup}</div>
+    <div class="block"><${heading}>${esc(t(locale, 'pilot.prelaunch'))}</${heading}>
       ${validate}
       ${attests}
       ${/* G6 — every workspace can read its own evidence; only a self-serve one is held to it here. */ ''}${deeper('/app/ready', t(locale, 'pilot.item.ready'))}
@@ -869,6 +874,7 @@ const SCREEN_TITLE: Readonly<Record<PilotScreen, MessageKey>> = {
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: Flash | null, _feedback?: PilotFeedback,
   viewer: Viewer = OWNER_VIEW,
+  options: { readonly embedded?: boolean } = {},
 ): string {
   // B16 — the row says the checklist's count, the one Practice, Ready for customers and Going live say; it said
   // how many of four other tasks were done ("2 of 4 done" beside "3 of 8 seen in Practice").
@@ -878,7 +884,7 @@ export function renderPilotRunbook(
   const [value, tone] = p
     ? [p.complete ? t(locale, 'setup.state.done') : t(locale, 'pilot.ready.count', { done: p.done, total: p.total }), p.complete ? 'ok' as const : 'warn' as const]
     : [seen === tasks.length ? t(locale, 'setup.state.done') : t(locale, 'runbook.practice.count', { done: seen, total: tasks.length }), seen === tasks.length ? 'ok' as const : 'warn' as const];
-  return renderPilotReadiness(rb.readiness, locale, flash, viewer)
+  return renderPilotReadiness(rb.readiness, locale, flash, viewer, options)
     + menuGroup('more', null, [
       menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'practice', label: t(locale, SCREEN_TITLE.practice), value, tone }),
       menuRow({ href: PILOT_SCREEN_PATH.activity, icon: 'history', label: t(locale, SCREEN_TITLE.activity) }),

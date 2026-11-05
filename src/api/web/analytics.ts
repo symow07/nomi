@@ -173,76 +173,40 @@ const noun = (locale: Locale, base: string, n: number): string =>
 
 export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const name = assistantName(locale);
-  // Phase 9 (V1-206) — the period inside a sentence is lower case: "This covers this week."
   const during = t(locale, `analytics.during.${d.range}` as MessageKey);
   const stat = (value: number, base: string): string =>
-    `<div class="stat"><div class="v">${esc(show.count(locale, value))}</div><div class="l">${esc(noun(locale, base, value))}</div></div>`;
-
+    `<div class="result-row"><dt>${esc(noun(locale, base, value))}</dt><dd>${esc(show.count(locale, value))}</dd></div>`;
   const tab = (r: Range) =>
-    `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
-  // Phase 9 (w4-customers-21) — the period says where it starts: "This month" since Oct 1 read as smaller than "This week".
+    `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/results?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
   const since = d.since ? `<p class="caption muted an-since">${esc(t(locale, 'analytics.since', { date: show.date(locale, d.since) }))}</p>` : '';
-  const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}`;
-  // Phase 9 (V1-207) — Results is Today's page, and says so: the way back is
-  // to Today, the period's chip is "Today so far", not a second "Today".
-  const title = `${back('/app', t(locale, 'nav.home'))}<h1 class="page">${esc(t(locale, 'analytics.title'))}</h1>`;
-
+  const header = `<header class="results-header">${back('/app', t(locale, 'split.title'))}
+    <h1 class="page">${esc(t(locale, 'area1.results.title'))}</h1>
+    <p class="muted">${esc(t(locale, 'area1.results.intro'))}</p>
+    <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}</header>`;
   if (!d.hasActivity) {
-    return `<div class="measure-prose">${title}${tabs}
-      ${/* Phase 9 of the warmth run (w4-customers-24) — the words alone: the emoji was the one picture of a chart on a page that has none. */ ''}<div class="block"><div class="empty"><div class="stated-now">${esc(t(locale, 'analytics.empty.title'))}</div>
-        <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during, name }))}</p></div></div></div>`;
+    return `<div class="results-page">${header}<section class="empty results-empty">
+      <h2 class="stated-now">${esc(t(locale, 'analytics.empty.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during, name }))}</p>
+      </section></div>`;
   }
 
-  // Phase 9 (V1-208) — each count once: the prices and orders are under their
-  // own heading, not a second time in the overview.
-  const summary = `<div class="block"><h2>${esc(t(locale, 'analytics.section.summary'))}</h2>
-    <div class="stats">
-      ${stat(d.summary.newClients, 'analytics.n.newClients')}
-      ${stat(d.summary.activeConvos, 'analytics.n.conversations')}
-    </div></div>`;
-
-  const activity = `<div class="block"><h2>${esc(t(locale, 'analytics.section.activity'))}</h2>
-    <div class="stats">
-      ${stat(d.activity.inbound, 'analytics.n.inbound')}
-      ${stat(d.activity.replied, 'analytics.n.replied')}
-    </div></div>`;
-  // Phase 9 (V1-205) — "Awaiting you" counted only the drafts waiting for review
-  // and disagreed with the rail's "Needs you"; the same count stands, named for
-  // what it is, under the assistant's work ("Replies waiting for your OK").
-
-  // Phase 9 (V1-210) — the sales in the page's one pattern, a figure and its
-  // words: how many orders are in each state, then what they come to, to the
-  // cent as the order page says it. A pill there read as a filter.
-  // Phase 9 of the warmth run — w4-customers-22: Sales is a section with its
-  // heading, as every other is, and what the orders come to is its headline
-  // line, above the counts: as a row its wide figure pushed its words out of
-  // the column every other row keeps. w4-customers-20: the prices and the
-  // orders in Today's own words (`today.tally.*`), counted by Today's rules.
+  const section = (id: string, title: string, body: string): string =>
+    `<section class="results-section" aria-labelledby="${id}"><h2 id="${id}">${esc(title)}</h2>${body}</section>`;
+  const summary = section('results-summary', t(locale, 'analytics.section.summary'),
+    `<dl class="result-rows">${stat(d.summary.newClients, 'analytics.n.newClients')}${stat(d.summary.activeConvos, 'analytics.n.conversations')}</dl>`);
+  const activity = section('results-activity', t(locale, 'analytics.section.activity'),
+    `<dl class="result-rows">${stat(d.activity.inbound, 'analytics.n.inbound')}${stat(d.activity.replied, 'analytics.n.replied')}</dl>`);
+  const commerce = section('results-commerce', t(locale, 'analytics.section.commerce'),
+    `<dl class="result-rows">${stat(d.commerce.quotes, 'today.tally.quotes')}${stat(d.commerce.orders, 'today.tally.orders')}</dl>`);
+  // Each total keeps its real currency. Pending draft reviews remain a current count, as the existing reader defines them.
   const deals = d.commerce.orders > 0
-    ? `${d.commerce.totals.map((m) => `<p class="an-total"><span class="v">${esc(show.money(locale, m))}</span> <span class="l">${esc(t(locale, 'analytics.commerce.value'))}</span></p>`).join('')}
-      <div class="stats">
-        ${d.commerce.deals.map((x) => `<div class="stat"><div class="v">${esc(show.count(locale, x.n))}</div><div class="l">${
-          esc(noun(locale, 'analytics.n.order', x.n))} · ${esc(orderStatusName(locale, x.status))}</div></div>`).join('')}
-      </div>`
-    : `<div class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
-  const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
-    <div class="stats">
-      ${stat(d.commerce.quotes, 'today.tally.quotes')}
-      ${stat(d.commerce.orders, 'today.tally.orders')}
-    </div></div>
-    <div class="block"><h2>${esc(t(locale, 'analytics.commerce.deals'))}</h2>${deals}</div>`;
-
-  const employee = `<div class="block"><h2>${esc(t(locale, 'analytics.section.employee', { name }))}</h2>
-    <div class="stats">
-      ${stat(d.employee.handled, 'analytics.n.handled')}
-      ${stat(d.employee.waiting, 'analytics.n.waiting')}
-      ${stat(d.employee.edits, 'analytics.n.edits')}
-    </div>
-    ${d.employee.answered ? `<p class="note">${esc(t(locale, 'analytics.employee.own', {
-      own: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
-    <p class="sub">${esc(t(locale, 'analytics.employee.foot', { range: during }))}</p></div>`;
-
-  // Phase 9 (V1-211) — the page keeps the prose measure, so a section's rule
-  // ends where its rows do.
-  return `<div class="measure-prose">${title}${tabs}${summary}${activity}${commerce}${employee}</div>`;
+    ? `<div class="results-totals">${d.commerce.totals.map((m) => `<p class="an-total"><span class="v">${esc(show.money(locale, m))}</span> <span class="l">${esc(t(locale, 'analytics.commerce.value'))}</span></p>`).join('')}</div>
+      <dl class="result-rows">${d.commerce.deals.map((x) => `<div class="result-row"><dt>${esc(noun(locale, 'analytics.n.order', x.n))} · ${esc(orderStatusName(locale, x.status))}</dt><dd>${esc(show.count(locale, x.n))}</dd></div>`).join('')}</dl>`
+    : `<p class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</p>`;
+  const sales = section('results-sales', t(locale, 'analytics.commerce.deals'), deals);
+  const employee = section('results-assistant', t(locale, 'analytics.section.employee', { name }),
+    `<dl class="result-rows">${stat(d.employee.handled, 'analytics.n.handled')}${stat(d.employee.waiting, 'analytics.n.waiting')}${stat(d.employee.edits, 'analytics.n.edits')}</dl>
+    ${d.employee.answered ? `<p class="note">${esc(t(locale, 'analytics.employee.own', { own: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
+    <p class="sub">${esc(t(locale, 'analytics.employee.foot', { range: during }))}</p>`);
+  return `<div class="results-page">${header}<div class="results-sections">${sales}${commerce}${summary}${activity}${employee}</div></div>`;
 }

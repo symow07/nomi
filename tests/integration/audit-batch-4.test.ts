@@ -110,7 +110,7 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
     expect(total).toBeGreaterThan(1);
     expect(ready).toContain(`<span class="count">1/${total}</span>`);
     const said = t('en', 'pilot.ready.count', { done: 1, total });
-    const onboarding = (await get(shopCookie, '/app/onboarding')).body;
+    const onboarding = (await get(shopCookie, '/app/get-started')).body;
     // "Ready for customers" and the Practice row: the same words, the same count ("2 of 4 done" before).
     expect(occurrences(onboarding, said), 'Getting ready').toBe(2);
     expect((await get(shopCookie, '/app/onboarding/practice')).body).toContain(said);

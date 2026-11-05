@@ -356,7 +356,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           problems.push(`${at}: "${text.slice(Math.max(0, m.index! - 40), m.index! + 20).replace(/\s+/g, ' ').trim()}"`);
         }
         if (!html.includes(`<span class="brandname"><bdi>${esc(business)}</bdi><small>Nomi</small></span>`)) problems.push(`${at}: the shell does not name the business`);
-        if (!/<body><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !/<main id="main"(?: class="wide")?>/.test(html)) problems.push(`${at}: no skip link to main`);
+        if (!/<body(?: class="[^"]*")?><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !/<main id="main"(?: class="wide")?>/.test(html)) problems.push(`${at}: no skip link to main`);
         const h1 = html.match(/<h1[\s>]/g)?.length ?? 0;
         if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
         // Phase 4 of the UI rebuild — graphite fills ONE act on a page: the one it exists for.
@@ -463,7 +463,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         const html = chrome(res.body);
         const hit = ORNAMENT.exec(html.replace(/<[^>]+>/g, ' '));
         if (hit) problems.push(`${at}: "${hit[0]}"`);
-        if (/s-assistant|M8 1\.2C8\.6 5\.5|M11 3\.5c\.7 4\.6/.test(html)) problems.push(`${at}: the four-point star`);
+        if (/class="[^"]*\bs-assistant\b|M8 1\.2C8\.6 5\.5|M11 3\.5c\.7 4\.6/.test(html)) problems.push(`${at}: the four-point star`);
         for (const m of html.matchAll(/aria-hidden="true">([^<]{1,2})<\/span>/g)) {
           if (/[\p{S}\p{P}]/u.test(m[1]!) && m[1] !== '•') problems.push(`${at}: "${m[1]}" drawn as an icon`);
         }
@@ -477,12 +477,16 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           }
           if (/data-mark="agent"/.test(m[1]!) && m[2] !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot in the nav drawn by something else`);
         }
-        // A6 — the books' mode has a rail of its own: its entry and the switch (or an accountant's way out).
-        const railIcons = /\/app\/books(\/|$)/.test(at.split(' ')[1] ?? '') ? 2 : 6;
+        // The owner keeps all seven area destinations on Books and Sales pages alike.
+        const railIcons = 7;
         if (nav && navIcons < railIcons) problems.push(`${at}: the nav drew ${navIcons} icons`);
         for (const m of html.replace(nav, ' ').matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/g)) {
           const [whole, attrs, body] = [m[0], m[1]!, m[2]!];
           if (/class="mark"/.test(attrs)) continue;                     // the brand's mark (brand.ts), drawn on its own grid
+          // Today's accessible data chart is a plot, not an icon. Its real values and time direction are
+          // checked in split-today.test.ts; every actual icon still belongs to the one family.
+          if (target === '/app' && /role="img"/.test(attrs) && /aria-label="[^"]+"/.test(attrs)
+              && /class="sp-tline"/.test(body) && res.body.includes(`<figure class="sp-trend" dir="ltr">${whole}`)) continue;
           const solar = /\bsl\b/.test(/class="([^"]*)"/.exec(attrs)?.[1] ?? '') && /viewBox="0 0 24 24"/.test(attrs) && / fill="none"/.test(attrs) && solarDrawings.has(body);
           if (!solar) problems.push(`${at}: a drawing that is not Solar's: ${whole.slice(0, 80)}`);
           if (/data-mark="agent"/.test(attrs) && body !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot drawn by something else`);

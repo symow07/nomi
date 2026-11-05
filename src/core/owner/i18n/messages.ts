@@ -1,5 +1,6 @@
 import { isCountryCode } from '../business.js';
 import { type Locale, DEFAULT_LOCALE } from './locale.js';
+import { REDESIGN_EN } from './redesign.js';
 
 /**
  * ADR-0008 — The owner-surface message catalog. English is the SOURCE OF TRUTH:
@@ -11,6 +12,7 @@ import { type Locale, DEFAULT_LOCALE } from './locale.js';
  */
 
 const EN = {
+  ...REDESIGN_EN,
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Today',
   'split.sales': 'Sales',
@@ -5564,6 +5566,7 @@ const EN = {
 export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
+  ...REDESIGN_EN,
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': '今天',
   'split.sales': '销售',
@@ -11027,6 +11030,7 @@ const ZH: Record<MessageKey, string> = {
 };
 
 const AR: Record<MessageKey, string> = {
+  ...REDESIGN_EN,
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'اليوم',
   'split.sales': 'المبيعات',
@@ -16492,6 +16496,7 @@ const AR: Record<MessageKey, string> = {
  * read (docs/NATIVE-REVIEW-UI.md); not a gate.
  */
 const ES: Record<MessageKey, string> = {
+  ...REDESIGN_EN,
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Hoy',
   'split.sales': 'Ventas',
@@ -21897,6 +21902,7 @@ const ES: Record<MessageKey, string> = {
  * native read (docs/NATIVE-REVIEW-UI.md); not a gate.
  */
 const FR: Record<MessageKey, string> = {
+  ...REDESIGN_EN,
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': "Aujourd'hui",
   'split.sales': 'Ventes',

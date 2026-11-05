@@ -116,7 +116,7 @@ export const DESIGN_TOKENS = {
      *   caption, time     caption 13, regular, in the secondary ink
      *   a large figure    display 26, light (Today's three, the card's two)
      */
-    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
+    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 44, overviewPhone: 36, overviewMoney: 40 },
     /**
      * Set from `html[lang]`; the shell writes the locale there on every page.
      * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
@@ -158,125 +158,32 @@ export const DESIGN_TOKENS = {
     weightFloor: { min: 400, cjkAtOrBelowPx: 15, lightFromPx: 20 },
   },
   /**
-   * THE PALETTE — warm neutrals, ONE magenta family in three shades, three
-   * states (the identity system, the owner, 2026-10-04; it supersedes the
-   * warmth pass's "magenta for meaning only").
-   *
-   * The owner: "Magenta becomes Nomi's SIGNATURE colour, used generously for
-   * brand identity the way Claude uses orange … Because colour can no longer
-   * also be the scarce meaning-marker, MEANING now moves to SHADE plus SHAPE,
-   * not hue alone." So magenta is three shades, a step of about 10 L* apart,
-   * and each meaning has a SHAPE that says it with the colour removed:
-   *
-   *   brand        THE SIGNATURE (L* 34). Identity, everywhere you can press or
-   *                go: the ordinary primary act as a fill (Save, Add, Connect,
-   *                Next), a door's words and every chevron, an underline under a
-   *                link, the focus ring, the selection, a checked control, the
-   *                tab or row you are on, today's date, and the seal (the mark's
-   *                frame and letters; its coin is `coin`). Its shape
-   *                is the thing itself: a button, a door's ›, an underline.
-   *   needs        DEEP (L* 24). Something waits for the owner. Its shape is the
-   *                NEEDS DOT: a solid disc, drawn (never a font's glyph), before
-   *                the words of every waiting thing — the waiting signal, the
-   *                pills, Today's band, the card's flag — and, white, before
-   *                the word of the one act that answers it (`.btn.send.needs`:
-   *                Send on a reply waiting for review, Confirm on an order
-   *                waiting for the tap, Reply in a conversation handed to you),
-   *                which is the deep FILL; the rail's count is the same fill.
-   *                Solid = a customer waits; the OPEN ring ○ in stone is a
-   *                chore (`chore`). Never a border, a ring or an underline.
-   *   assistant    LIGHT (L* 44). Nomi did this. Its shape is the NAME TAG: its
-   *                wash as the ground, its light words, a chip — beside what it
-   *                wrote (`.as-tag`) — and its replies sit on the same wash with
-   *                no hairline (a person's keep theirs). Only ever words on its
-   *                wash or on a light ground; the wash is only ever a ground.
-   *
-   * In greyscale the three keep their order (deep darkest, light lightest) and
-   * their shapes: a dark disc or a dark fill with a white disc is "needs you";
-   * a pale tag is "the assistant"; a fill without a disc, an underline or a
-   * chevron is plain brand. `warmth-pass.test.ts` computes every pair;
-   * `warmth-magenta.test.ts` holds where each may draw an edge (only the brand,
-   * and only a focus ring, an underline or the edge of what you are on).
-   *
-   * The neutrals lean warm (hue near 70–85 in CIELAB), never cream:
-   *   ink          A warm near-black. Type and headings, the secondary
-   *                button's words, the reply box's border, a wordmark.
-   *   inkSecondary Warm stone. Secondary text, times, past entries, the EDGE of
-   *                an outlined button or a field, a chore's ring. 4.5:1 or
-   *                better on every ground it sits on.
-   *   border       A warm rule. Lines between rows and panes — never the edge
-   *                of a control.
-   *   paper        A soft warm off-white: the page, the rail, a recess.
-   *   surface      A white with warmth in it: cards, where the owner reads and
-   *                decides. A step lighter than paper; the shadows do the rest.
-   *   sand         THE ONE WARM SUPPORTING TONE (the owner allowed one, if the
-   *                pass still read flat; it did, inside the cards: a recess in
-   *                paper on a warm white was all but invisible). Quiet surfaces
-   *                only — a recess that holds ink or stone words: the
-   *                customer's bubble, the quote box, the reasons list, the
-   *                profile card's figures, the lens and language tracks, a
-   *                neutral tag, pill or chip, an icon's round. Never under a
-   *                state's words, never a meaning, never magenta.
-   *
-   * What stays ink, on purpose (restraint is what reads as premium): headings,
-   * body text, the rail and its words, a secondary button, the wordmark "Nomi"
-   * beside the mark. There is no brand wash: a third pale pink would be the
-   * two meanings' washes by another name.
-   *
-   * And the three states: ok (it went, it is on), failed (`warn`: it did not
-   * happen), and waiting — which is `needs`. A state is a shape and a WORD;
-   * colour never carries it alone.
-   *
-   * Retired: the single faded magenta that did both jobs, its wash and line,
-   * the cool graphite neutrals with pure white (the warmth pass); jade,
-   * highlight, the three warm papers, the dark palette (before it).
-   * `palette.test.ts` keeps all of their values out of the product.
-   *
-   * And one DECORATIVE magenta, which is not a meaning (the owner, 2026-10-07):
-   *   orbGlow      #A1127A, the glow behind the advisor's orb, and nothing
-   *                else (the nav mark's light, 2026-10-09, was removed by the
-   *                owner on 2026-10-11). Never a button, a chip, a pill, a
-   *                state, a text colour, a border or a fill of anything but
-   *                the orb's light. Its own value: a
-   *                touch toward violet, held clear of `needs` (ΔE00 12.5) and of
-   *                `assistant` (10.3).
-   *   coin         #5A0A2E, the coin in the mark — the seal's "o" (the owner,
-   *                2026-10-31), drawn by `brand.ts`; and the rail's count and a
-   *                waiting row's dot (the owner, 2026-11-04). A dark wine.
-   *   coinGround   #F5F1EA, the cream disc behind the coin in the favicon (the
-   *                owner, 2026-11-04): wine alone is lost on a dark tab bar.
-   *                Not a neutral of the pages; drawn only by `brand.ts`.
-   * Five magentas is the CEILING — brand, needs, assistant, orbGlow, coin —
-   * and `palette.test.ts` holds it.
-   *
-   * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
-   * reason: the owner surface bans the `%` character outright, and that ban is
-   * enforced against rendered HTML — which a CSS percentage trips just as surely
-   * as a fake metric.
+   * Approved owner theme (2026-11-05): warm paper, black text and actions,
+   * one magenta for links, selections and attention counts; quiet green for
+   * paid/done. Warnings keep their words and shapes in ink. The seal retains
+   * its supplied artwork colours. Legacy semantic names remain compatible.
    */
   color: {
-    ok: '#0F7B3E',
+    ok: '#3F6B5C',
     brand: '#9A0F5E',
-    needs: '#6E0C44',
-    needsWash: '#F9E6EE',
-    warn: '#B42318',
-    assistant: '#BE2D6E',
-    assistantWash: '#FBEFF3',
-    ink: '#25201C',
-    inkSecondary: '#665D55',
+    needs: '#9A0F5E',
+    needsWash: '#F9EAF2',
+    warn: '#171717',
+    assistant: '#171717',
+    assistantWash: '#F9EAF2',
+    ink: '#171717',
+    inkSecondary: '#625D57',
     surface: '#FFFDFA',
     paper: '#F7F3EE',
-    sand: '#F1E8DC',
-    border: '#E8E1D8',
-    okWash: '#E2EFE8',
-    okLine: '#B7D7C5',
-    warnWash: '#F6E5E3',
-    warnLine: '#E9BDBA',
-    /** DECORATIVE: the advisor orb's glow only (above). Never a button, chip, state or text. */
-    orbGlow: '#A1127A',
-    /** The coin in the mark (the seal's "o", 2026-10-31), the rail's count and a waiting row's dot (the owner, 2026-11-04). Never a button, chip, or text. */
+    sand: '#EDE7DF',
+    border: '#DED7CF',
+    okWash: '#FFFDFA',
+    okLine: '#DED7CF',
+    warnWash: '#FFFDFA',
+    warnLine: '#DED7CF',
+    orbGlow: '#9A0F5E',
+    // Seal artwork and favicon retain their supplied colours.
     coin: '#5A0A2E',
-    /** DECORATIVE: the cream disc behind the coin in the favicon, so it reads on a dark tab bar, and nothing else. */
     coinGround: '#F5F1EA',
   },
   /**
@@ -292,8 +199,8 @@ export const DESIGN_TOKENS = {
    *              and it never sits on the filled icon. To draw it in the
    *              brand shade instead, write 'brand'.
    */
-  colorRole: { navActive: 'needs' } as const,
-  spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
+  colorRole: { navActive: 'needs', accent: 'needs' } as const,
+  spacingPx: [4, 8, 12, 16, 20, 24, 32, 40, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
    * M49 — THE MEASURES. Three, and every width in the product is one of them.
    *
@@ -349,21 +256,10 @@ export const DESIGN_TOKENS = {
     { bg: '#0F7085', fg: '#FFFFFF' },
     { bg: '#8A5A3C', fg: '#FFFFFF' },
   ],
-  /**
-   * One shadow is a box; three are a surface. Each lift is a contact shadow, a
-   * diffuse body, and a hairline that does the work a 1px border used to —
-   * which is why cards can drop their border without dissolving into the page.
-   *
-   * The warmth pass (2026-10-04) — the shadows are WARM (a brown, the ink's
-   * own hue, never grey or black) and a little deeper, so a rounded card, a
-   * menu, the profile card and the calendar's grid read as objects resting on
-   * the paper. Two lifts and no more: `lift1` for what rests on the page,
-   * `lift2` for what rises over it (a sheet, a dialog, a toast, a pressed
-   * primary act). `card` and `raised` were emitted and drawn nowhere; retired.
-   */
+  /** Flat surfaces use a thin border; the approved theme has no card shadows. */
   shadow: {
-    lift1: '0 1px 2px rgba(74,48,30,0.07), 0 3px 10px rgba(74,48,30,0.07), 0 0 0 1px rgba(74,48,30,0.05)',
-    lift2: '0 2px 6px rgba(74,48,30,0.09), 0 12px 28px rgba(74,48,30,0.13), 0 0 0 1px rgba(74,48,30,0.05)',
+    lift1: 'none',
+    lift2: 'none',
   },
   /**
    * THE MOTION PASS (2026-10-04) — the owner: "Motion is wired but unfeelable:
@@ -454,23 +350,14 @@ export const DESIGN_TOKENS = {
  * above, drawn by the shell's stylesheet (`MOTION_CSS`, layout.ts).
  */
 
-/**
- * THE SPLIT TODAY PREVIEW'S TOKENS (2026-11-04; docs/DESIGN-SYSTEM.md). Apart from `DESIGN_TOKENS` on purpose: they
- * reach only the page drawn while `SPLIT_TODAY=on`, through `/assets/split.<hash>.css`, and nothing else moves.
- *
- *   jade      money in, done
- *   ochre     waiting, overdue: marks and large type (3:1 on the surface)
- *   ochreText the same ochre, darkened until small type reads (4.5:1 on the surface and on its wash)
- *   wine      the mark; the rail's count and a waiting row's dot use the app's same `coin`
- *   magenta   Send, and nothing else: one on a screen
- */
+/** Shared overview layout tokens. Legacy names remain until their owning areas migrate. */
 export const SPLIT_TOKENS = {
   color: {
     jade: '#3F6B5C',
-    jadeWash: '#E6EDE9',
-    ochre: '#B8862F',
-    ochreText: '#7C5A14',
-    ochreWash: '#F6EEDC',
+    jadeWash: '#FFFDFA',
+    ochre: '#9A0F5E',
+    ochreText: '#171717',
+    ochreWash: '#FFFDFA',
     wine: '#5A0A2E',
     magenta: '#9A0F5E',
     onSend: '#FFFFFF',

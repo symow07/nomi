@@ -94,7 +94,7 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const MARK: Record<LiveKind, RegExp> = {
   conversation: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   buyers: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
-  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}(?:\\.1)?$`),
+  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}(?:\\.1)?(?:\\.r[0-9a-f]{16})?$`),
   channels: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
   practice: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   // Phase 6 — billing: whether a card is saved, and the plan's state.
@@ -207,11 +207,34 @@ export async function buyersMark(db: Db, bid: BusinessId): Promise<string> {
  */
 export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiting'> & {
   readonly deletionAsks?: number; readonly ordersWaiting?: number;
-}, providerRefusing = false): string =>
+}, providerRefusing = false, decisionRevision?: string): string =>
   [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0, a.ordersWaiting ?? 0,
     // 0128 — the line Today draws while the model provider refuses for billing:
     // when it starts or ends, an open Today redraws itself, so the line comes and goes.
-    ...(providerRefusing ? [1] : [])].join('.');
+    ...(providerRefusing ? [1] : []), ...(decisionRevision ? [`r${decisionRevision}`] : [])].join('.');
+
+/**
+ * Today can approve a pending reply. Counts alone miss a replacement or an
+ * edit of that reply, and a new message in its conversation. Fingerprint the
+ * pending candidates and their current context, within this tenant only.
+ * Read this BEFORE page content: a concurrent change may announce once too
+ * often, but cannot be hidden behind a newer mark on an older form.
+ */
+export async function todayDecisionRevision(db: Db, bid: BusinessId): Promise<string> {
+  return withTenantTx(db, bid, async (tx) => {
+    const row = (await sql<{ revision: string }>`
+      select left(md5(coalesce(string_agg(concat_ws('/',
+               to_jsonb(d)::text, to_jsonb(c)::text, coalesce(to_jsonb(cs)::text, '-'), coalesce(lm.id::text, '-')),
+               ',' order by d.id), '')), 16) as revision
+        from drafts d join conversations c on c.id = d.conversation_id
+        left join conversation_state cs on cs.conversation_id = c.id
+        left join lateral (select m.id from messages m where m.conversation_id = c.id
+                            order by m.sent_at desc, m.id desc limit 1) lm on true
+       where d.business_id = ${bid} and c.business_id = ${bid}
+         and d.status = 'pending' and not c.owner_testing`.execute(tx)).rows[0];
+    return row!.revision;
+  });
+}
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — IS THE ASSISTANT AT WORK ON THIS
@@ -289,7 +312,7 @@ export async function liveAnswer(
     : kind === 'buyers' ? await buyersMark(db, bid)
     : kind === 'channels' ? await channelsMark(db, bid)
     : kind === 'billing' ? await billingMark(db, bid)
-    : todayMark(await readAttention(db, bid), await providerRefusing(db));
+    : todayMark(await readAttention(db, bid), await providerRefusing(db), await todayDecisionRevision(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
   const news = liveNews(kind, since, now);
   // Phase 5 — a conversation and Practice also say whether the assistant is at work on it.
@@ -332,12 +355,14 @@ export const buyersWatch = (mark: string, door: string): LiveWatch => ({
  * the script draws the page's `main` again in place (`redraw`) rather than
  * showing the line; the line is what is shown if the page cannot be had.
  */
-export const todayWatch = (mark: string): LiveWatch => ({
+export const todayWatch = (mark: string, inlineDecision = false): LiveWatch => ({
   // The home run — Home's address; /app/live/today still answers, for a tab drawn before the rename.
   ask: `/app/live/home?since=${mark}`,
   door: '/app',
   says: [{ what: 'today', key: 'live.today' }],
-  redraw: true,
+  // Never replace a form the owner may be editing with a different pending
+  // draft. Its existing live notice offers an explicit refresh instead.
+  ...(inlineDecision ? {} : { redraw: true as const }),
 });
 
 /**

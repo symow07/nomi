@@ -30,17 +30,15 @@ describe('Guide · the page', () => {
     expect(html).toContain(`href="${STEP_LINK.name}"`);
     expect(html).toMatch(/class="guide-step next" id="name"/);
   });
-  it('without a video, the words; with one, the video, its captions track, and the same words under it (phase 9: shown, not folded)', () => {
-    const none = renderGuide(half, 'es', 'tu asistente', () => false);
-    expect(none).not.toContain('<video');
-    expect(none).toContain(esc(t('es', 'guide.products.cap.2')));
-    const withVideo = renderGuide(half, 'es', 'tu asistente', (step) => step === 'products');
-    expect(withVideo).toContain('src="/assets/guide/products.es.webm"');
-    expect(withVideo).toContain('<track kind="captions" src="/assets/guide/products.es.vtt" srclang="es"');
-    expect(withVideo).toContain(esc(t('es', 'guide.products.cap.2')));
-    expect(withVideo).not.toContain('<summary>');
-    // Phase 9 (today-onboarding-new-09) — one recording for a wide screen, one for a phone; the CSS shows one.
-    expect(withVideo.match(/<video class="guide-video (wide|narrow)"/g)).toHaveLength(2);
+  it('keeps textual instructions and never promotes an outdated recording', () => {
+    for (const available of [() => false, () => true]) {
+      const html = renderGuide(half, 'es', 'tu asistente', available);
+      expect(html).not.toContain('<video');
+      expect(html).not.toContain('/assets/guide/');
+      expect(html).toContain(esc(t('es', 'guide.products.cap.2')));
+      expect(html).toContain('<details class="gs-help" open>');
+      expect(html).toContain(`href="${STEP_LINK.name}"`);
+    }
   });
   it('every step has its captions in every language', () => {
     for (const l of LOCALES) for (const step of SETUP_STEPS) {
@@ -77,7 +75,8 @@ describe('Guide · where it is reached', () => {
   it('Setup\'s first row, and Today\'s "finish setting up" line', () => {
     // Phase 7 — a menu row now: the guide is Setup's first, with where setting up stands.
     expect(src('src/api/web/settings.ts')).toContain("menuRow({ href: '/app/guide', icon: 'guide', label: t(locale, 'guide.title'),");
-    expect(src('src/api/web/operations.ts')).toContain("deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))");
+    expect(src('src/api/web/operations.ts')).toContain("deeper(`/app/get-started#${setup.next === 'name' ? 'step-name' : setup.next}`, t(locale, 'area1.setup.help'))");
+    expect(src('src/api/web/operations.ts')).not.toContain("t(locale, 'guide.watch')");
   });
 });
 

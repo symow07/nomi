@@ -259,9 +259,9 @@ describe('phase 7 · two doors, one data', () => {
     // the profile page is the only form for the facts: no screen of My business repeats a field of it
     for (const s of ['channels', 'allowlist', 'ready', 'promises', 'how'] as const)
       expect(screen(s, 'en'), s).not.toMatch(/name="(description|location|working_hours|contact_email|contact_phone)"/);
-    // and both light My business's place in the rail, wherever they are opened from
+    // Product records have their own area; business configuration stays in Settings.
     for (const path of [BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH, '/app/products/abc', ...Object.values(BUSINESS_SCREEN_PATH)])
-      expect(hubFor(path, 'none'), path).toBe('settings');
+      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') || path === '/app/business/prices' ? 'products' : 'settings');
   });
 });
 

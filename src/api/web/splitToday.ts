@@ -96,10 +96,10 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
       <div class="sp-who-t">
         <a class="sp-name" href="${conversationUrl(d.conversationId)}"><bdi>${esc(name)}</bdi></a>
         ${deal || thumb ? `<p class="sp-deal">${thumbOf(thumb)}<span><bdi>${esc(deal)}</bdi></span></p>` : ''}
-        <p class="sp-from">${esc(t(locale, 'card.drafted', { name: assistantName(locale) }))}${channel ? ` · ${esc(t(locale, 'card.goes', { channel }))}` : ''}</p>
+        <p class="sp-from">${markSmall(16, null)} ${esc(t(locale, 'card.drafted', { name: assistantName(locale) }))}${channel ? ` · ${esc(t(locale, 'card.goes', { channel }))}` : ''}</p>
       </div>
     </div>
-    <h3 class="sp-q" id="sp-q">${esc(question)}</h3>
+    <h2 class="sp-q" id="sp-q">${esc(question)}</h2>
     ${closing}${state}${foreign}
     <form method="post" action="${esc(to.act)}" class="sp-form">
       <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
@@ -111,7 +111,11 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
         <label class="sp-btn" for="reply">${esc(t(locale, 'split.edit'))}</label>
         <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
       </div>
-      ${window ? `<p class="sp-window">${window}</p>` : ''}
+      <div class="sp-acts-more">
+        <button class="sp-btn" type="submit" name="command" value="不回"
+          onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'card.noReply.confirm'))}">${esc(t(locale, 'card.noReply'))}</button>
+        ${window ? `<p class="sp-window">${window}</p>` : ''}
+      </div>
     </form>
     ${how}
   </article>`;
@@ -135,6 +139,8 @@ function stageStrip(sales: SplitSales, ordersWaiting: number, locale: Locale): s
       ${sampled ? stageRow(sales.sample.open > 0 ? 'is-waiting' : done(sales.sample.count), t(locale, 'split.stage.sample'), sales.sample.count, null, locale) : ''}
       ${stageRow(ordersWaiting > 0 ? 'is-waiting' : done(sales.order.count), t(locale, 'split.stage.order'), sales.order.count, money(sales.order.value), locale)}
     </ol>
+    ${sales.price.otherCurrency > 0 ? `<p class="sp-note">${esc(t(locale, sales.price.otherCurrency === 1 ? 'area1.sales.quotesOther.one' : 'area1.sales.quotesOther.other', { n: show.count(locale, sales.price.otherCurrency) }))}</p>` : ''}
+    ${sales.order.otherCurrency > 0 ? `<p class="sp-note">${esc(t(locale, sales.order.otherCurrency === 1 ? 'area1.sales.ordersOther.one' : 'area1.sales.ordersOther.other', { n: show.count(locale, sales.order.otherCurrency) }))}</p>` : ''}
   </section>`;
 }
 
@@ -233,9 +239,9 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     <div class="sp-phead"><h2 id="sp-books">${solarSvg('ni', 'notebook-minimalistic', 22)}${esc(t(locale, 'nav.books'))}</h2>${deeper('/app/books', t(locale, 'split.viewAll'))}</div>
     <div class="sp-sheet">
     <section class="sp-card sp-money" aria-labelledby="sp-mt">
-      <h3 id="sp-mt">${esc(t(locale, 'split.money.title'))}</h3>
+      <h3 id="sp-mt">${esc(t(locale, 'area1.money.title'))}</h3>
       <div>
-        <p class="sp-inout">${esc(t(locale, 'split.money.in', { money: money(b.moneyIn) }))} · ${esc(t(locale, 'split.money.out', { money: money(b.moneyOut) }))}</p>
+        <p class="sp-inout">${esc(t(locale, 'area1.money.income', { money: money(b.moneyIn) }))} · ${esc(t(locale, 'area1.money.expenses', { money: money(b.moneyOut) }))}</p>
         <p class="sp-profit${down ? ' is-down' : ''}"><span>${esc(t(locale, 'split.money.profit'))}</span> <span class="sp-big">${esc(money(b.profit))}</span></p>
       </div>
       ${trendChart(b, locale)}
@@ -285,26 +291,27 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
     <div class="sp-headt"><h1 class="page">${esc(t(locale, 'split.title'))}</h1><p class="sp-sub">${sub}</p>${LIVE_SLOT}</div>
     ${newMessage}
   </header>
-  ${parts.startCard ? `<div class="sp-start">${parts.startCard}</div>` : ''}
+  <div class="sp-priority">
+    ${notices}
+    ${data.decision ? decisionCard(data.decision.detail, data.decision.extras, locale, now) : ''}
+    ${also ? `<section class="sp-attention">${also}</section>` : ''}
+  </div>
   <div class="sp-panels${showBooks ? '' : ' is-one'}">
     <section class="sp-panel sp-sales" aria-labelledby="sp-sales">
       <div class="sp-phead"><h2 id="sp-sales">${solarSvg('ni', 'chat-round', 22)}${esc(t(locale, 'split.sales'))}</h2>${deeper('/app/inbox', t(locale, 'split.viewAll'))}</div>
-      ${notices}
       <div class="sp-sheet">
-      ${data.decision ? decisionCard(data.decision.detail, data.decision.extras, locale, now) : ''}
-      ${also ? `<div class="sp-card">${also}</div>` : ''}
       ${stageStrip(data.sales, ordersWaiting, locale)}
       ${recent.length ? `<section class="sp-card" aria-labelledby="sp-recent">
         <div class="sp-phead"><h3 class="sp-cap" id="sp-recent">${esc(t(locale, 'split.recent'))}</h3>${deeper('/app/inbox?filter=all', t(locale, 'split.viewAll'))}</div>
         <ul class="sp-rows">${recent.map((r) => recentRow(r, waiting, locale, now, zone)).join('')}</ul>
       </section>` : ''}
       ${lead ? `<div class="sp-card today-worth">${lead}</div>` : ''}
-      ${parts.finishSetup ? `<div class="sp-card">${parts.finishSetup}</div>` : ''}
       ${parts.live ? `<div class="sp-card">${renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced))}</div>` : ''}
       </div>
     </section>
     ${data.books ? booksPanel(data.books, locale) : ''}
   </div>
+  ${parts.startCard ? `<div class="sp-start">${parts.startCard}</div>` : parts.finishSetup ? `<div class="sp-setup">${parts.finishSetup}</div>` : ''}
   ${showBooks ? `<div class="sp-phonedoor">${deeper('/app/advisor', t(locale, 'nav.advisor'))}</div>` : ''}
 </div>`;
 }

@@ -402,7 +402,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // And the third state operations.ts draws (2026-10-07, found when the local seed passed three days old): no one
     // waiting, but something worth a look — "Worth your attention". This assertion admitted only two, so it passed
     // only while the seeded conversations were younger than the attention band (readAttention, 3 to 30 days).
-    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head home-calm">(No one is waiting for you\.|You're all caught up)(<\/h2>| <span class="home-care">)|<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span><\/h2>|<h2 id="today-now" class="tw-head">Worth your attention<\/h2>/);
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head home-calm">(No one is waiting for you\.|You're all caught up)(<\/h2>| <span class="home-care">)|<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span><\/h2>|<h2 id="today-now" class="tw-head">Worth your attention<\/h2>|<h2 class="sp-q" id="sp-q">[^<]+<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -413,7 +413,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // CC-05 — the COUNTS go quiet, the door does not. Results' only link used
     // to live inside that section, so a brand-new tenant (this one) had no way
     // into a whole page but typing the URL. Changed deliberately.
-    expect(home.body).toContain('href="/app/analytics"');
+    expect(home.body).toContain('href="/app/results"');
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.body).toContain('Inbox');             // English default
@@ -807,16 +807,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   });
 
   it('M9.8 analytics: requires auth', async () => {
-    const res = await prod.app.inject({ method: 'GET', url: '/app/analytics' });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/results' });
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/login');
   });
 
   it('M9.8 analytics: renders the business review (real counts, no fake charts)', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/analytics?range=month', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/results?range=month', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Results');   // English default
+    expect(res.body).toContain('Sales results');   // English default
     expect(res.body).toContain('Overview');
     expect(res.body).toMatch(/new customers?</);   // Phase 9 (V1-209) — the count's words agree with it
     expect(res.body).toContain('Activity');
@@ -1128,13 +1128,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
   it('M15.1 pilot readiness: hub renders detected checklist + attestations; unauth → /login', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/get-started', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(esc(t('en', 'pilot.title')));             // English default
     expect(res.body).toContain('Checked for you');          // detected badge (demo has products/channel)
     expect(res.body).toContain('action="/app/onboarding/validate"');   // sandbox check
     expect(res.body).toContain('action="/app/onboarding/attest"');     // owner attestation form
-    const noauth = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
+    const noauth = await prod.app.inject({ method: 'GET', url: '/app/get-started' });
     expect(noauth.statusCode).toBe(302);
     expect(noauth.headers['location']).toBe('/login');
   });
@@ -1542,9 +1542,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // THE HOME RUN: the greeting, what needs you, the schedule, the wins — each
       // under its own heading, in that order; the tab says Home, not the greeting.
       // (The figures join the wins once there is anything to count.)
-      const zones = ['<h1 class="page" id="home-hi" data-greeting>', '<h2 id="today-now"', '<h2 id="home-schedule"', '<h2 id="today-done"']
+      const zones = ['<h1 class="page">', '<div class="sp-priority">', '<div class="sp-panels', '<h2 id="sp-sales">']
         .map((h) => res.body.indexOf(h));
-      expect(res.body).toContain(`<title>${esc(t('en', 'nav.home'))} · `);
+      expect(res.body).toContain(`<title>${esc(t('en', 'split.title'))} · `);
       expect(zones.every((at) => at > 0)).toBe(true);
       expect([...zones].sort((a, b) => a - b)).toEqual(zones);
       expect(res.body).not.toContain('id="today-coming"');
@@ -2485,13 +2485,24 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // EVERY contextual route, against the page that declares it — not just
       // the My-factory ones with the rest named in an exclusion list. A route
       // added tomorrow is walked because it had to name its hub to exist.
+      const moved: Readonly<Record<string, string>> = {
+        '/app/guide': '/app/get-started', '/app/onboarding': '/app/get-started',
+        '/app/analytics': '/app/results', '/app/settings/assistant/month': '/app/results?view=assistant',
+        '/app/onboarding/activity': '/app/results?view=setup',
+      };
       for (const { hub, routes } of CONTEXTUAL_ROUTES_BY_HUB) {
-        const page = await prod.app.inject({ method: 'GET', url: hub, headers: { cookie } });
+        const page = await prod.app.inject({ method: 'GET', url: moved[hub] ?? hub, headers: { cookie } });
         expect(page.statusCode, hub).toBe(200);
         for (const route of routes) {
-          expect(page.body, `${route} must stay linked from ${hub}`).toContain(`href="${route}"`);
+          const destination = moved[route];
+          // Existing hub links may use their stable alias while that area migrates.
+          expect(page.body.includes(`href="${route}"`) || !!destination && page.body.includes(`href="${destination}"`), `${route} must stay linked from ${hub}`).toBe(true);
           const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
-          expect(r.statusCode, route).toBe(200);
+          if (destination) {
+            expect([r.statusCode, r.headers['location']], route).toEqual([302, destination]);
+            const canonical = await prod.app.inject({ method: 'GET', url: destination, headers: { cookie } });
+            expect(canonical.statusCode, destination).toBe(200);
+          } else expect(r.statusCode, route).toBe(200);
         }
       }
     });

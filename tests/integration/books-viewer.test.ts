@@ -127,7 +127,10 @@ d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)',
   it('an accountant\'s request never fills the workspace\'s cache: the owner\'s next page reads afresh', async () => {
     const { registerWebApp } = await import('../../src/api/web/app.js');
     const { makeSessionCodec } = await import('../../src/api/web/session.js');
-    const count = (body: string) => /setup-strip[\s\S]*?(\d) of 5 steps done/.exec(body)?.[1] ?? 'no strip';
+    const count = (body: string) => {
+      expect(body.match(/class="guide-step(?: done)?(?: next)?"/g)).toHaveLength(5);
+      return String(body.match(/class="guide-step done"/g)?.length ?? 0);
+    };
     // an app WITH the minute's cache
     const cached = Fastify({ logger: false });
     registerWebApp(cached, {
@@ -149,10 +152,14 @@ d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)',
         person: { id: accountantId, name: 'Accountant', isOwner: false, kind: 'accountant' } });
       // the accountant is the first to read the workspace; then a step is done (the profile)
       expect((await cached.inject({ method: 'GET', url: '/app/books', headers: { cookie: `yf_session=${token}` } })).statusCode).toBe(200);
-      const before = Number(count((await app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie: owner } })).body));
+      const initial = await app.inject({ method: 'GET', url: '/app/get-started', headers: { cookie: owner } });
+      expect(initial.statusCode).toBe(200);
+      const before = Number(count(initial.body));
       await profile({ description: 'Canvas bags', location: 'Rabat', contact_email: 'shop@example.com', contact_phone: null });
       // had the accountant's reading been kept, the owner would see the count from before the step
-      expect(count((await cached.inject({ method: 'GET', url: '/app/inbox', headers: { cookie: owner } })).body)).toBe(String(before + 1));
+      const refreshed = await cached.inject({ method: 'GET', url: '/app/get-started', headers: { cookie: owner } });
+      expect(refreshed.statusCode).toBe(200);
+      expect(count(refreshed.body)).toBe(String(before + 1));
     } finally {
       await profile(was);
       await cached.close();

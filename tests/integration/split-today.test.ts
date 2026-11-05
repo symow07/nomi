@@ -149,16 +149,17 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
   }, 60_000);
   afterAll(async () => { await app?.close(); await plain?.close(); await db?.destroy(); });
 
-  it('the flag off: Today is what it was, nothing of the preview drawn or linked', async () => {
+  it('Today uses the approved layout even when the old preview flag is off', async () => {
     const html = await today(plainCookie, plain);
-    expect(html).not.toContain('class="split"');
-    expect(html).not.toContain('sp-send');
-    expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(false);
+    expect(html).toContain('class="owner-shell split"');
+    expect(html.match(/class="sp-btn sp-send"/g)).toHaveLength(1);
+    expect(html).toContain(`action="/app/inbox/${aisha}/act"`);
+    expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(true);
   });
 
   it('draws the decision from the workspace: the customer, the deal, the question, the words', async () => {
     const html = withoutIsolates(await today());
-    expect(html).toContain('class="split"');
+    expect(html).toContain('class="owner-shell split"');
     expect(html).toContain('Aisha Bello');
     expect(html).toContain('5,000');
     expect(html).toContain('$7,250');
@@ -194,7 +195,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
   it('reads the books: in, out, profit, what is owed, who is late, what matched, the year', async () => {
     const html = withoutIsolates(await today());
     // The invoice issued six days ago is this month's unless the month is younger than that.
-    expect(html).toContain(paidLateOn.slice(0, 7) === iso(new Date()).slice(0, 7) ? 'In $1,300' : 'In $1,000');
+    expect(html).toContain(paidLateOn.slice(0, 7) === iso(new Date()).slice(0, 7) ? 'Income $1,300' : 'Income $1,000');
     expect(html).toContain('1 invoice');
     expect(html).toContain('$2,100');
     expect(html).toContain('Karim Haddad');

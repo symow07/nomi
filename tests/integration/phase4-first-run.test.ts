@@ -121,7 +121,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(await channelsStep(IG_BIZ)).toBe(false);
     const today = await get(ig, igOwner, '/app');
     expect(today.body).toContain(esc(t('en', 'nav.setup.progress', { done: 0, total: 5 })));
-    expect(channelRow((await get(ig, igOwner, '/app/onboarding')).body, false)).toBe(true);
+    expect(channelRow((await get(ig, igOwner, '/app/get-started')).body, false)).toBe(true);
   });
 
   it('INSTAGRAM ALONE completes the channels step: setup progress, Getting ready, and the Today count', async () => {
@@ -129,7 +129,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(flashSaid(r, SECRET)).toBe(t('en', 'reach.inbound.flash.connected'));
     expect(await channelsStep(IG_BIZ)).toBe(true);
     // the same answer on every surface that states it
-    expect(channelRow((await get(ig, igOwner, '/app/onboarding')).body, true)).toBe(true);
+    expect(channelRow((await get(ig, igOwner, '/app/get-started')).body, true)).toBe(true);
     const today = await get(ig, igOwner, '/app');
     expect(today.body).toContain(esc(t('en', 'nav.setup.progress', { done: 1, total: 5 })));
     expect(today.body).not.toContain(esc(t('en', 'nav.setup.progress', { done: 0, total: 5 })));
@@ -187,7 +187,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
   });
 
   it('the machine room is its own page, owner-only; Getting ready no longer shows "App secret"', async () => {
-    const ready = (await get(ig, igOwner, '/app/onboarding')).body;
+    const ready = (await get(ig, igOwner, '/app/get-started')).body;
     expect(ready).not.toContain(t('en', 'meta.cred.appSecret'));
     expect(ready).not.toContain(t('en', 'meta.cred.verifyToken'));
     expect(ready).not.toContain(esc(t('en', 'runbook.deploy.title')));
@@ -219,7 +219,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     const r = await post(wa, waOwner, '/app/channels/whatsapp/connect');
     expect(flashSaid(r, SECRET)).not.toBe('');
     expect(await channelsStep(WA_BIZ)).toBe(true);
-    expect(channelRow((await get(wa, waOwner, '/app/onboarding')).body, true)).toBe(true);
+    expect(channelRow((await get(wa, waOwner, '/app/get-started')).body, true)).toBe(true);
 
     // Phase 7 — the list is a level under where customers reach you.
     expect((await get(wa, waOwner, '/app/business/channels')).body).toContain('href="/app/business/allowlist"');

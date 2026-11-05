@@ -13,7 +13,7 @@ import { statusOf, type InvoiceStatus } from './booksInvoices.js';
 import { parseDecimal } from '../core/types/decimal.js';
 
 /**
- * THE SPLIT TODAY PREVIEW'S FIGURES (2026-11-04, behind `SPLIT_TODAY=on`). A read model: it writes nothing and every
+ * TODAY'S FIGURES. A read model: it writes nothing and every
  * number is read from rows the product already keeps, by the definitions the other pages read — a price given is
  * `PRICE_GIVEN`, an order that stands is `SPEND_STATUSES`, the owner's own test conversations count for nothing
  * (`notOwnerTesting`). "This month" is the workspace's own month, in its own zone.
@@ -38,9 +38,10 @@ export type SplitSales = {
   /** The business's kind: whether a sample is a stage here at all is the page's to ask. */
   readonly kind: string | null;
   readonly asked: number;
-  readonly price: { readonly count: number; readonly value: Money | null };
+  /** Counts include every currency; values include only the workspace currency, or null when none match. */
+  readonly price: { readonly count: number; readonly value: Money | null; readonly otherCurrency: number };
   readonly sample: { readonly count: number; readonly open: number };
-  readonly order: { readonly count: number; readonly value: Money | null };
+  readonly order: { readonly count: number; readonly value: Money | null; readonly otherCurrency: number };
   readonly recent: readonly RecentCustomer[];
 };
 
@@ -54,7 +55,8 @@ const monthStart = (zone: string, now: Date) =>
 export async function loadSplitSales(tx: Tx, B: BusinessId, zone: string, now: Date): Promise<SplitSales> {
   const start = monthStart(zone, now);
   const r = (await sql<{
-    kind: string | null; currency: string; asked: number; price_n: number; price_v: string; samples: number; samples_open: number; orders: number; order_v: string;
+    kind: string | null; currency: string; asked: number; price_n: number; price_v: string; price_other: number;
+    samples: number; samples_open: number; orders: number; order_v: string; order_other: number;
   }>`
     with b as (select kind, currency from businesses where id = ${B}::uuid),
     given as (
@@ -72,19 +74,21 @@ export async function loadSplitSales(tx: Tx, B: BusinessId, zone: string, now: D
       (select count(distinct c.client_id)::int from messages m join conversations c on c.id = m.conversation_id
         where c.business_id = ${B}::uuid and m.direction = 'inbound' and m.sent_at >= ${start} and not c.owner_testing) as asked,
       (select count(*)::int from given) as price_n,
+      (select count(*) filter (where currency is distinct from b.currency)::int from given) as price_other,
       (select coalesce(sum(total) filter (where currency = b.currency), 0)::text from given) as price_v,
       (select count(*)::int from sample_requests s where s.business_id = ${B}::uuid and s.requested_at >= ${start} and ${notOwnerTesting('s.conversation_id')}) as samples,
       (select count(*)::int from sample_requests s where s.business_id = ${B}::uuid and s.requested_at >= ${start} and s.handled_at is null and ${notOwnerTesting('s.conversation_id')}) as samples_open,
       (select count(*)::int from standing) as orders,
+      (select count(*) filter (where currency is distinct from b.currency)::int from standing) as order_other,
       (select coalesce(sum(total) filter (where currency = b.currency), 0)::text from standing) as order_v
     from b`.execute(tx)).rows[0];
-  if (!r) return { kind: null, asked: 0, price: { count: 0, value: null }, sample: { count: 0, open: 0 }, order: { count: 0, value: null }, recent: [] };
+  if (!r) return { kind: null, asked: 0, price: { count: 0, value: null, otherCurrency: 0 }, sample: { count: 0, open: 0 }, order: { count: 0, value: null, otherCurrency: 0 }, recent: [] };
   return {
     kind: r.kind,
     asked: r.asked,
-    price: { count: r.price_n, value: r.price_n > 0 ? moneyFromRow(r.price_v, r.currency) : null },
+    price: { count: r.price_n, value: r.price_n > r.price_other ? moneyFromRow(r.price_v, r.currency) : null, otherCurrency: r.price_other },
     sample: { count: r.samples, open: r.samples_open },
-    order: { count: r.orders, value: r.orders > 0 ? moneyFromRow(r.order_v, r.currency) : null },
+    order: { count: r.orders, value: r.orders > r.order_other ? moneyFromRow(r.order_v, r.currency) : null, otherCurrency: r.order_other },
     recent: await loadRecent(tx, B),
   };
 }

@@ -333,7 +333,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('a skip link is the first thing on every owner page, to the page itself, in each language', () => {
     for (const l of LOCALES) {
       const html = shelled(l);
-      expect(html, l).toContain(`<body><a class="skip" href="#main">${esc(t(l, 'shell.skip'))}</a><div class="layout">`);
+      expect(html, l).toContain(`<body class="owner-shell"><a class="skip" href="#main">${esc(t(l, 'shell.skip'))}</a><div class="layout">`);
       expect(html, l).toContain('<main id="main">');
       expect(t(l, 'shell.skip').length, l).toBeGreaterThan(3);
     }
@@ -349,7 +349,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
       // The warmth run: products are My business's, a row of Settings — Settings is lit.
-      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/settings" class="navlink active" data-nav="settings" aria-current="page"/);
+      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/products" class="navlink nav-desktop active" data-nav="products" aria-current="page"/);
       // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
       expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }
@@ -361,7 +361,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       employee: { handled: 0, waiting: 0, edits: 0 },
     };
     const analytics = withoutIsolates(renderAnalytics(results, 'en'));
-    expect(analytics).toContain('class="tab on" aria-current="page" href="/app/analytics?range=month"');
+    expect(analytics).toContain('class="tab on" aria-current="page" href="/app/results?range=month"');
     expect(analytics.match(/aria-current=/g)).toHaveLength(1);
   });
 
@@ -442,7 +442,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
     };
     const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]; return (x + 0.05) / (y + 0.05); };
-    const C = DESIGN_TOKENS.color as Record<string, string>;
+    const C: Record<string, string> = { ...DESIGN_TOKENS.color, ...Object.fromEntries(Object.entries(DESIGN_TOKENS.colorRole).map(([name, value]) => [name, DESIGN_TOKENS.color[value]])) };
     const camel = (k: string) => k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
     it('every state reads at 4.5:1 or better as text on its own wash (waiting sat at 4.15)', () => {
@@ -462,7 +462,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       // The type sheets (font faces, no colour) are linked too, and skipped here.
       const sheets = [shelled('en'), loginPage({ locale: 'en', path: '/login' })].flatMap((html) =>
         [...html.matchAll(/<link rel="stylesheet" href="\/assets\/((?!type)[^"]+)">/g)].map((m) => stylesheetAt(m[1]!)!.css));
-      expect(sheets).toHaveLength(2);
+      expect(sheets).toHaveLength(3);
       const low: string[] = [];
       for (const css of [...sheets, SITE_CSS]) {
         for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {

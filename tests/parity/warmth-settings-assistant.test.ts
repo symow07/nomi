@@ -183,11 +183,11 @@ describe('phase 7 · every former section, one tap away, its words and controls 
     expect(screen('checks', base, 'en')).toContain(esc(t('en', 'spotcheck.none')));
   });
 
-  it('the map the integration walk reads is true: the hub links every screen it lists, and each lights Settings (the advisor run)', () => {
+  it('the hub links every screen it lists, with daily tools and monthly results in their approved areas', () => {
     const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings/assistant')!.routes;
     const html = landing(base, 'en');
     for (const r of routes) expect(html, r).toContain(`href="${r}"`);
-    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe('settings');
+    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'home' : s === 'checks' || s === 'history' ? 'assistant' : 'settings');
   });
 });
 
@@ -257,7 +257,9 @@ describe('phase 7 · every screen starts with its way back', () => {
     it(`${l}`, () => {
       for (const s of EMPLOYEE_SCREENS) {
         const html = withAssistantName('Lily', () => screen(s, { ...base, spotChecks: [check] }, l, ctx, undefined, { talk }));
-        expect(html.trimStart().startsWith('<a class="back" href="/app/settings/assistant">' + BACK + 'Lily</a><h1 class="page">'), `${l}/${s}`).toBe(true);
+        const destination = s === 'month' ? '/app' : s === 'checks' || s === 'history' ? '/app/assistant' : '/app/settings/assistant';
+        const label = s === 'month' ? t(l, 'split.title') : s === 'checks' || s === 'history' ? t(l, 'nav.assistant') : 'Lily';
+        expect(html.trimStart().startsWith(`<a class="back" href="${destination}">` + BACK + esc(label) + '</a><h1 class="page">'), `${l}/${s}`).toBe(true);
         expect(html.match(/<h1 /g), `${l}/${s}: one heading`).toHaveLength(1);
       }
       // the pages that were always their own: the shell adds the way back where a page draws none

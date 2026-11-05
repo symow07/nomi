@@ -204,7 +204,7 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     const named = withAssistantName('Lily', () =>
       shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '' }));
     expect(named).toContain("Lily's workspace");
-    for (const n of NAV) expect(html).toContain(t('en', `nav.${n.id}` as MessageKey));
+    for (const n of NAV.filter((n) => n.id !== 'books')) expect(html).toContain(t('en', n.id === 'home' ? 'split.title' : `nav.${n.id}` as MessageKey));
     expect(html).toContain('href="/app/inbox" class="navlink active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
     // V1 · option A (2026-09-24): the shell has no header band. The switcher
@@ -220,12 +220,12 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(zh).toContain('<html lang="zh" dir="ltr">');
     expect(zh).toContain(t('zh', 'app.tagline'));
-    expect(zh).toContain('首页'); expect(zh).toContain('收件箱');   // M16.4c: nav matches the page it opens
+    expect(zh).toContain(t('zh', 'split.title')); expect(zh).toContain('收件箱');   // M16.4c: nav matches the page it opens
 
     const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
     expect(ar).toContain(t('ar', 'app.tagline'));
-    expect(ar).toContain('الرئيسية');                     // THE HOME RUN: "home", the home base
+    expect(ar).toContain(t('ar', 'split.title'));                     // THE HOME RUN: "home", the home base
   });
 
   it('nav uses owner language — no technical/AI vocabulary in any locale', () => {

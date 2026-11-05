@@ -322,7 +322,7 @@ describe('the motion pass · nothing moves for a reader who asked for less', () 
     const rest = without(without(css, calm), still);
     // Outside those blocks: no transition and no animation (keyframes are only names).
     const loose = [...rest.matchAll(/(?:^|[;{\s])(transition|animation)(?:-[a-z-]+)?\s*:[^;}]*/g)]
-      .map((m) => m[0].trim()).filter((d) => !/^@keyframes/.test(d));
+      .map((m) => m[0].trim()).filter((d) => !/^@keyframes/.test(d) && !/^(?:animation|transition):\s*none$/.test(d));
     expect(loose).toEqual([]);
     expect(rest).not.toContain('@view-transition');
     expect(rest).not.toContain('view-transition-name');

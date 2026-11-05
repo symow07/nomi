@@ -124,12 +124,13 @@ describe('phase 6 · nothing waits for something that never comes', () => {
     expect(atWork('x', true)).toContain('' + agentMark(16, 'am as') + ' ');
   });
 
-  it('the guide: a still of each step and how long it takes, before anything is fetched', () => {
+  it('the guide: instructions are readable immediately without fetching an outdated recording', () => {
     const html = renderGuide({ steps: [], next: 'profile' }, 'en', 'Lily');
-    expect(html).toMatch(/<video class="guide-video wide" controls preload="none" playsinline poster="\/assets\/guide\/profile\.en\.jpg">/);
-    // Phase 9 (today-onboarding-new-09) — and the phone's own recording, with its own still.
-    expect(html).toMatch(/<video class="guide-video narrow" controls preload="none" playsinline poster="\/assets\/guide\/profile\.en\.phone\.jpg">/);
-    expect(html).toMatch(/<p class="caption muted">Video · \S+ seconds<\/p>/);
+    expect(html).not.toContain('<video');
+    expect(html).not.toContain('/assets/guide/');
+    expect(html).toContain('<details class="gs-help" open>');
+    expect(html).toContain(t('en', 'guide.profile.cap.1'));
+    expect(html).toContain('data-first-step href="/app/settings/profile"');
   });
 });
 

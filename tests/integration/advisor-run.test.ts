@@ -62,9 +62,9 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="on-her-own"');
     expect(page.body).toContain('action="/app/settings/assistant/autonomy"');
-    // the rail lights Settings here, and offers the advisor in the assistant's old slot
-    expect(page.body).toMatch(/<a href="\/app\/settings" class="navlink active"/);
-    expect(page.body).toContain('href="/app/advisor"');
+    // Configuration stays in Settings; daily tools and Ask Nomi are reached through Assistant.
+    expect(page.body).toMatch(/<a href="\/app\/settings" class="navlink nav-desktop active"/);
+    expect(page.body).toContain('href="/app/assistant"');
     expect(page.body).not.toContain('href="/app/employee');
   });
 
@@ -90,10 +90,10 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
     }
   });
 
-  it('the advisor: signed in, the shell under its own entry; a question writes nothing anywhere (a real save is the control)', async () => {
+  it('the advisor: signed in under Assistant; a question writes nothing anywhere (a real save is the control)', async () => {
     const page = await get('/app/advisor');
     expect(page.statusCode).toBe(200);
-    expect(page.body).toMatch(/<a href="\/app\/advisor" class="navlink active" data-nav="advisor" aria-current="page"/);
+    expect(page.body).toMatch(/<a href="\/app\/assistant" class="navlink nav-desktop active" data-nav="assistant" aria-current="page"/);
     expect(page.body).toMatch(/<form method="post" action="\/app\/advisor" class="adv-bar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow"/);
     // the access code's owner is a row born with the business's name: the page greets a person, never the business
     expect(page.body).toContain('<p class="adv-hello" dir="auto">Hello</p>');

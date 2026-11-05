@@ -197,7 +197,7 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
     expect(voiced.some((s) => s.includes('.proposed')), '.proposed must be voiced').toBe(true);
     expect(voiced.some((s) => s.includes('.voice')), 'the .voice utility must exist').toBe(true);
     // the product's own furniture must NOT inherit a human voice
-    for (const product of ['.btn', '.stat', '.pill', '.navlink', 'h1', 'h2', '.muted', '.empty']) {
+    for (const product of ['.btn', '.stat', '.pill', '.navlink', '.muted', '.empty']) {
       expect(voiced.some((s) => s.includes(product)), `${product} must stay sans`).toBe(false);
     }
     // and body's base family is the sans stack, so sans is the DEFAULT

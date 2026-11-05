@@ -258,8 +258,8 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
 
   it('nothing chosen, the list leads with what is owed — the reply owed — and then the month\'s other dates', async () => {
     const r = await get('/app/calendar');
-    const list = r.body.slice(r.body.indexOf('<div class="cal-list"'));
-    expect(r.body.indexOf('<table class="mo">')).toBeLessThan(r.body.indexOf('<div class="cal-list"'));
+    const list = r.body.slice(r.body.indexOf('<div class="cal-list"'), r.body.indexOf('<details class="cal-grid"'));
+    expect(r.body.indexOf('<div class="cal-list"')).toBeLessThan(r.body.indexOf('<table class="mo">'));
     const owed = list.indexOf(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${t('en', 'calendar.legend.owed')}</h2>`);
     expect(owed).toBeGreaterThan(-1);
     expect([...sources(list).keys()][0]).toBe(`handoffs:${id['handoff']}`);
@@ -386,7 +386,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     expect(r.statusCode).toBe(200);
     expect(r.body).toMatch(new RegExp(`<td class="(?:[a-z]+ )*sel"[^>]*>\\s*<a class="mo-d" href="/app/calendar\\?month=${d.slice(0, 7)}&amp;day=${d}" aria-label="[^"]+" aria-current="true">`));
     expect(r.body.match(/ aria-current="true"/g)).toHaveLength(1);
-    const list = r.body.slice(r.body.indexOf('<div class="cal-list"'));
+    const list = r.body.slice(r.body.indexOf('<div class="cal-list"'), r.body.indexOf('<details class="cal-grid"'));
     expect(list).toContain(`<a class="back" href="/app/calendar${d.slice(0, 7) === dayKey(new Date(), 'Asia/Shanghai').slice(0, 7) ? '' : `?month=${d.slice(0, 7)}`}">`);
     expect([...sources(list).keys()]).toContain(`orders:${id['orderA']}`);
     expect([...sources(list).keys()]).not.toContain(`handoffs:${id['handoff']}`);
@@ -432,8 +432,9 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       expect(r.body).toContain(`<html lang="${locale}" dir="${locale === 'ar' ? 'rtl' : 'ltr'}"`);
       expect(r.body).toContain(t(locale, 'nav.calendar'));
       expect(r.body).toContain(t(locale, 'calendar.cat.samples'));
-      // The warmth run: the calendar is its own entry under Customers, and it is lit.
-      expect(r.body).toMatch(/<a href="\/app\/calendar" class="navlink active" data-nav="calendar" aria-current="page"/);
+      // Calendar is Today's current secondary destination in the shared rail.
+      expect(r.body).toMatch(/<a href="\/app" class="navlink active" data-nav="home" aria-current="page"/);
+      expect(r.body).toMatch(/<a[^>]*href="\/app\/calendar"[^>]*aria-current="page"/);
       // No percent sign anywhere in the page body.
       const body = r.body.slice(r.body.indexOf('<body'));
       expect(body).not.toContain('%');

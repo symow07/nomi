@@ -27,8 +27,8 @@ const walk = (dir: string): string[] =>
 const SRC = walk('src').map((f) => ({ f, s: readFileSync(join(ROOT, f), 'utf8') }));
 
 describe('V1 · type — decision 1', () => {
-  it('the scale is 13/15/17/20/26/34, base 17 kept', () => {
-    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 15, 17, 20, 26, 34]);
+  it('the shared scale includes overview headings and keeps the body at 17', () => {
+    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 15, 17, 20, 26, 34, 36, 40, 44]);
     expect(DESIGN_TOKENS.font.sizePx.base).toBe(17);
   });
 
@@ -81,8 +81,8 @@ describe('V1 · type — decision 1', () => {
 });
 
 describe('V1 · spacing — decision 2', () => {
-  it('the scale is 4/8/12/16/24/32/48', () => {
-    expect([...DESIGN_TOKENS.spacingPx]).toEqual([4, 8, 12, 16, 24, 32, 48]);
+  it('the shared spacing scale includes the overview 20 and 40 steps', () => {
+    expect([...DESIGN_TOKENS.spacingPx]).toEqual([4, 8, 12, 16, 20, 24, 32, 40, 48]);
   });
 
   it('--space-64 is gone from every source file', () => {

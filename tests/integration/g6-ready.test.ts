@@ -71,10 +71,10 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   it('THE MACHINE ROOM is the installation\'s: 404 for a workspace that signed itself up, and no door to it', async () => {
     expect((await get(shopCookie, '/app/onboarding/technical')).statusCode).toBe(404);
     expect((await get(pilotCookie, '/app/onboarding/technical')).statusCode).toBe(200);
-    const ready = await get(shopCookie, '/app/onboarding');
+    const ready = await get(shopCookie, '/app/get-started');
     expect(ready.body).not.toContain('href="/app/onboarding/technical"');
     // Phase 9 — the installation's own workspace keeps the page, but no owner's page links to it.
-    expect((await get(pilotCookie, '/app/onboarding')).body).not.toContain('href="/app/onboarding/technical"');
+    expect((await get(pilotCookie, '/app/get-started')).body).not.toContain('href="/app/onboarding/technical"');
   });
 
   it('PHASE 9 · V1-007 · a mistyped /app address keeps a signed-in owner in the workspace; signed out it is the door page', async () => {
@@ -108,14 +108,14 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   });
 
   it('GETTING READY shows a self-serve workspace only what applies: Ready for customers, not backups or secrets', async () => {
-    const page = (await get(shopCookie, '/app/onboarding')).body;
+    const page = (await get(shopCookie, '/app/get-started')).body;
     expect(page).toContain(t('en', 'pilot.item.ready'));
     expect(page).toContain('href="/app/ready"');
     for (const k of ['pilot.nomiChecks', 'pilot.item.sandbox'] as const) {
       expect(page, k).not.toContain(t('en', k));
     }
     // The installation's own workspace keeps the condition — as Nomi's row, not the owner's chore.
-    expect((await get(pilotCookie, '/app/onboarding')).body).toContain(t('en', 'pilot.nomiChecks'));
+    expect((await get(pilotCookie, '/app/get-started')).body).toContain(t('en', 'pilot.nomiChecks'));
   });
 
   it('PHASE 9 · backups and keys are the operator\'s: the owner\'s tick is refused, the tool stamps them', async () => {
@@ -128,7 +128,7 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
       expect(r.statusCode, which).toBe(302);
     }
     expect(await keys()).toEqual(before);                         // nothing the owner pressed stamped them
-    let page = (await get(pilotCookie, '/app/onboarding')).body;
+    let page = (await get(pilotCookie, '/app/get-started')).body;
     expect(page).not.toMatch(/value="(backup_tested|secrets_rotated)"/);
     expect(page).toContain(t('en', 'pilot.nomiChecks.todo'));
 
@@ -139,7 +139,7 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     const after = await keys();
     expect(after.k).not.toBeNull();
     expect(after.b).not.toBeNull();
-    page = (await get(pilotCookie, '/app/onboarding')).body;
+    page = (await get(pilotCookie, '/app/get-started')).body;
     expect(page).not.toContain(t('en', 'pilot.nomiChecks.todo'));
     expect(page).toContain(t('en', 'pilot.verifiedBySystem'));
   });

@@ -61,8 +61,8 @@ const LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
 // THE ADVISOR RUN (2026-10-06) — the assistant's slot left the rail for Settings' first row; the advisor holds it,
 // drawn in Solar's round chat bubble (the owner's choice); since 2026-10-09 the bubble without its dots; since
 // 2026-10-11 unlit, a plain rail icon like every other.
-const ENTRIES = [['home', '/app'], ['inbox', '/app/inbox'], ['calendar', '/app/calendar'], ['advisor', '/app/advisor'], ['settings', '/app/settings']] as const;
-const RAIL_ICON = { home: 'home-2', inbox: 'inbox', calendar: 'calendar', advisor: 'chat-round', settings: 'settings' } as const;
+const ENTRIES = [['home', '/app'], ['inbox', '/app/inbox'], ['customers', '/app/customers'], ['products', '/app/products'], ['assistant', '/app/assistant'], ['settings', '/app/settings']] as const;
+const RAIL_ICON = { home: 'home-2', inbox: 'inbox', customers: 'users-group-rounded', products: 'box', assistant: 'chat-round', settings: 'settings' } as const;
 /** What the rail draws for each entry: Solar's drawing. */
 const railMarkOf = (id: string) => railIcon(RAIL_ICON[id as keyof typeof RAIL_ICON]);
 const navOf = (html: string) => html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
@@ -259,7 +259,7 @@ describe('the line: the nav\'s weight at every size', () => {
 
 describe('the colour: the ink, unless the place carries a meaning', () => {
   it('a neutral place draws its icon in the ink, the wordmark\'s near-black — not the grey of its words', () => {
-    expect(DESIGN_TOKENS.color.ink).toBe('#25201C');
+    expect(DESIGN_TOKENS.color.ink).toBe('#171717');
     for (const s of ['nav.side .ni', '.sr-menu > .ni', '.mi', '.ir-reg .ni', '.mo-e .kind-icon', '.dl-who .kind-icon', '.cal-empty-i']) {
       expect(bodyOf(s), s).toMatch(/color: ?var\(--color-ink\)/);
     }
@@ -296,7 +296,7 @@ describe('the rail, in Solar\'s Linear set', () => {
       expect(icons).not.toContain('viewBox="0 0 256 256"');
       expect(icons.match(/fill="(?!none")[^"]*"/g), here).toBeNull();
     }
-    expect(navOf(page('settings', '/app/settings/people'))).toMatch(/class="navlink active" data-nav="settings"/);
+    expect(navOf(page('settings', '/app/settings/people'))).toMatch(/class="navlink nav-desktop active" data-nav="settings"/);
   });
 
   it('the advisor\'s mark (the owner, 2026-10-11): Solar\'s empty bubble, plain like every other entry — no light behind it, in every language, at rest and where you are', () => {
@@ -304,7 +304,7 @@ describe('the rail, in Solar\'s Linear set', () => {
     for (const l of LOCALES) {
       for (const [here, path] of ENTRIES) {
         const nav = navOf(page(here, path, l));
-        const advisor = /<a [^>]*data-nav="advisor"[^>]*>([\s\S]*?)<\/a>/.exec(nav)?.[1] ?? '';
+        const advisor = /<a [^>]*data-nav="assistant"[^>]*>([\s\S]*?)<\/a>/.exec(nav)?.[1] ?? '';
         expect(advisor.startsWith(railIcon('chat-round')), `${l} ${here}`).toBe(true);   // the icon itself, first, unwrapped
         expect(nav, `${l} ${here}`).not.toContain('ni-lit');
       }
@@ -423,7 +423,7 @@ describe('one family on every screen: Solar, no emoji', () => {
     for (const { f, src } of sources(WEB_DIR)) {
       const c = code(src);
       for (const p of STAR_PATHS) if (c.includes(p)) found.push(`${f}: a star's drawing`);
-      if (/shape\(\s*'assistant'/.test(c) || c.includes('s-assistant')) found.push(`${f}: the assistant's star shape`);
+      if (/shape\(\s*'assistant'/.test(c) || c.includes('class="s-assistant') || c.includes(' s-assistant')) found.push(`${f}: the assistant's star shape`);
       const m = ORNAMENT.exec(c);
       if (m) found.push(`${f}: ${m[0]}`);
       if (/0x1F1E6|fromCodePoint/.test(c)) found.push(`${f}: an emoji built from code points`);

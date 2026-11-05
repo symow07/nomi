@@ -31,23 +31,23 @@ describe('the rail', () => {
     const at = (s: string) => nav.indexOf(s);
     expect(at('href="/app"')).toBeLessThan(at('href="/app/inbox"'));
     expect(nav).not.toContain('navhead');
-    expect(at('href="/app/inbox"')).toBeLessThan(at('href="/app/calendar"'));
-    expect(at('href="/app/calendar"')).toBeLessThan(at('href="/app/advisor"'));
-    expect(at('href="/app/advisor"')).toBeLessThan(at('<div class="navfoot">'));
+    expect(at('href="/app/inbox"')).toBeLessThan(at('href="/app/customers"'));
+    expect(at('href="/app/customers"')).toBeLessThan(at('href="/app/assistant"'));
+    expect(at('href="/app/assistant"')).toBeLessThan(at('<div class="navfoot">'));
     expect(at('<div class="navfoot">')).toBeLessThan(at('href="/app/settings"'));
     expect(nav).not.toContain('/logout');
     expect(nav).not.toContain('href="/app/business"');
     // five entries — the phone's one row — each with its shape
-    expect(nav.match(/class="navlink[ "]/g)).toHaveLength(5);
+    expect(nav.match(/class="navlink[ "]/g)).toHaveLength(7);
     expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni sl"'))).toBe(true);
   });
 
   it('the customer list is "Inbox" and carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
     expect(html).toMatch(/<a href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page" aria-label="Inbox, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true">3<\/span><\/span><\/a>/);
-    expect(html).toMatch(/<a href="\/app\/calendar" class="navlink" data-nav="calendar"\s*><svg/);
+    expect(html).toContain('href="/app/customers" class="navlink" data-nav="customers"');
     const cal = page('/app/calendar');
-    expect(cal).toMatch(/<a href="\/app\/calendar" class="navlink active" data-nav="calendar" aria-current="page"/);
+    expect(cal).toMatch(/<a href="\/app" class="navlink active" data-nav="home" aria-current="page"/);
     // nobody waiting: no number at all, not a zero
     const calm = withWorkspace({ ...SCOPE, needsYou: 0 }, () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
     expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><\/span><\/a>/);

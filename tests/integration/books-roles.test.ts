@@ -20,7 +20,7 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
   const routes: { method: string; url: string }[] = [];
   const cookies: Record<'owner' | 'staff' | 'accountant', string> = { owner: '', staff: '', accountant: '' };
   let accountantId = '';
-  const offWhileOff: { books?: number; homeHasSwitch?: boolean } = {};
+  const offWhileOff: { books?: number; homeHasBooks?: boolean } = {};
   const cookieOf = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
   const login = (code: string) => app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,
@@ -54,7 +54,7 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
     const b0 = pb(RUN_BIZ); if (!b0.ok) throw new Error('fixture');
     await wt(db, b0.value, (tx) => sql`update businesses set books_area = false where id = ${RUN_BIZ}::uuid`.execute(tx));
     offWhileOff.books = (await get('/app/books', 'owner')).statusCode;
-    offWhileOff.homeHasSwitch = (await get('/app', 'owner')).body.includes('data-nav="switch"');
+    offWhileOff.homeHasBooks = (await get('/app', 'owner')).body.includes('data-nav="books"');
     await wt(db, b0.value, (tx) => sql`update businesses set books_area = true where id = ${RUN_BIZ}::uuid`.execute(tx));
     const staff = await addPerson(db, RUN_BIZ, SECRET, `Staff ${Date.now()}`);
     const acct = await addPerson(db, RUN_BIZ, SECRET, `Accountant ${Date.now()}`, 'accountant');
@@ -133,24 +133,25 @@ d('A5 · the books\' three roles, at every route (requires DATABASE_URL)', { tim
       .rejects.toThrow(/keeps the kind they were made with/);
   });
 
-  it('A6 · books OFF: the address is not found, and no switch is offered', () => {
-    expect(offWhileOff).toEqual({ books: 404, homeHasSwitch: false });
+  it('A6 · books OFF: the address is not found, and no Books destination is offered', () => {
+    expect(offWhileOff).toEqual({ books: 404, homeHasBooks: false });
   });
 
-  it('A6 · one login, two modes: each lights only its own pages; the switch is the owner\'s alone', async () => {
+  it('A6 · the owner has one rail; staff and the accountant retain their permission boundaries', async () => {
     const sales = (await get('/app', 'owner')).body;
     expect(sales).toContain('data-nav="inbox"');
-    expect(sales).toMatch(/href="\/app\/books" class="navlink navswitch" data-nav="switch"/);
+    expect(sales).toMatch(/href="\/app\/books" class="navlink" data-nav="books"/);
+    expect(sales).not.toContain('data-nav="switch"');
     const books = (await get('/app/books', 'owner')).body;
-    expect(books).toContain('data-nav="books"');
-    expect(books).toMatch(/href="\/app" class="navlink navswitch" data-nav="switch"/);
-    for (const id of ['home', 'inbox', 'calendar', 'advisor', 'settings']) expect(books, id).not.toContain(`data-nav="${id}"`);
-    // staff: the sales side, no switch
-    expect((await get('/app', 'staff')).body).not.toContain('data-nav="switch"');
-    // the accountant: the books alone, no switch, and their way out
+    expect(books).toMatch(/href="\/app\/books" class="navlink active" data-nav="books" aria-current="page"/);
+    for (const id of ['home', 'inbox', 'customers', 'products', 'assistant', 'settings']) expect(books, id).toContain(`data-nav="${id}"`);
+    const staff = (await get('/app', 'staff')).body;
+    expect(staff).not.toContain('data-nav="books"');
+    expect(staff).not.toContain('data-nav="switch"');
     const theirs = (await get('/app/books', 'accountant')).body;
     expect(theirs).not.toContain('data-nav="switch"');
-    expect(theirs).not.toContain('data-nav="inbox"');
+    for (const id of ['home', 'inbox', 'customers', 'products', 'assistant']) expect(theirs, id).not.toContain(`data-nav="${id}"`);
+    expect(theirs).toContain('data-nav="account"');
     expect(theirs).toContain('data-nav="logout"');
   });
 });
