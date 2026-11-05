@@ -23,11 +23,11 @@ Next: exact-head Products merge after Customers, then Books, Assistant, Settings
 
 ## Approved redesign, Area 3: Customers (2026-11-06; no migration)
 
-Implemented on `codex/redesign-customers`; release uses the exact-head CI gate. Schema remains 223. The directory covers real customer records, including closed and absent conversations. Unified records retain conversation selection and channel/privacy controls. Operational orders, labels, feedback and follow-ups sit under Customers; legacy GETs redirect while existing POST commands remain authoritative. Search and paging cover complete results; return links preserve filters and row anchors. Order value has explicit currency and missing-value caveats and is never presented as cash received.
+Merged through `tools/gated-merge.sh` in #430 at `0d3e9456`, with exact-head CI green. Schema remains 223. The directory covers real customer records, including closed and absent conversations. Unified records retain conversation selection and channel/privacy controls. Operational orders, labels, feedback and follow-ups sit under Customers; legacy GETs redirect while existing POST commands remain authoritative. Search and paging cover complete results; return links preserve filters and row anchors. Order value has explicit currency and missing-value caveats and is never presented as cash received.
 
 Local check (9,257), trust (44), build and full isolated integration (2,024; none skipped) passed. Browser comparison covers 102 English desktop/phone visits before and after, 31 interaction groups and unchanged snapshots for 12 tables after GET-only checks. Existing first-message refusal screenshots remain excluded as requested. Representative images, moves and validation limits: `docs/design/redesign-customers/README.md`. All data was synthetic and local; external fetches were blocked.
 
-Next: exact-head Customers merge, then Products, Books, Assistant, Settings and public pages, one PR per area. Products and Books are being prepared in isolated worktrees.
+Next: Products, Books, Assistant, Settings and public pages, one PR per area. Products and Books are being prepared in isolated worktrees.
 
 ## Approved redesign, Area 2: Inbox and contextual Ask Nomi (2026-11-06; no migration)
 
