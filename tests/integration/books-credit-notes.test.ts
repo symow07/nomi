@@ -269,7 +269,7 @@ d('D1b · credit notes and refunds (requires DATABASE_URL + MIGRATE_DATABASE_URL
     expect(await notice(r)).toContain('Saved as a draft.');
     const noteId = String(r.headers['location']).split('/').pop()!;
     const issued = await notice(await post(`/app/books/credit-notes/${noteId}/issue`));
-    expect(issued).toMatch(/Issued as A-2026-\d{4}, and its entry posted\./);
+    expect(issued).toMatch(/Issued as A-2026-\d{4} and saved to the books\./);
     const page = (await app.inject({ method: 'GET', url: `/app/books/invoices/${id}`, headers: { cookie: owner } })).body;
     expect(page).toContain('Credit notes');
     expect(page).toContain(`/app/books/credit-notes/${noteId}`);

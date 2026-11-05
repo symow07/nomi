@@ -1,0 +1,20 @@
+/** Supporting Books views use exact saved records; untranslated locales fall back to these English labels. */
+export const BOOKS_OVERVIEW_REPORTS_EN = {
+ 'booksReport.cash':'Cash movements', 'booksReport.profit':'Profit supporting entries',
+ 'booksReport.suppliers':'Supplier balances', 'booksReport.supplierEntries':'Supplier supporting entries',
+ 'booksReport.bank':'Bank lines to match', 'booksReport.filters':'Filter movements',
+ 'booksReport.transfers':'Transfers', 'booksReport.external':'Receipts and payments', 'booksReport.review':'Needs review',
+ 'booksReport.excluded':'Excluded from cash totals', 'booksReport.unclear':'Amounts need review',
+ 'booksReport.cashDetail':'Cash totals use saved entries only. Matching a statement does not add money again. Opening balances and currency valuations are excluded.',
+ 'booksReport.cashPartial':'No total is shown while a movement needs review. Open its entry to check the selected accounts and recorded counterpart.',
+ 'booksReport.contribution':'Contribution to profit', 'booksReport.assigned':'Assigned supplier balances',
+ 'booksReport.advances':'Supplier advances', 'booksReport.unassigned':'Balances without a supplier',
+ 'booksReport.unassignedAdvance':'Advances without a supplier', 'booksReport.noSupplier':'Supplier not recorded',
+ 'booksReport.notSupplier':'Not assigned to a supplier', 'booksReport.advanceBasis':'Advances are shown separately and do not reduce another supplier’s balance.',
+ 'booksReport.owed':'Still owed', 'booksReport.account':'Account', 'booksReport.entry':'Open entry',
+ 'booksReport.debit':'Balance reduced', 'booksReport.credit':'Balance increased',
+ 'booksReport.entriesHint':'Saved lines in the selected supplier accounts through the stated date. Open an entry for its full context.',
+ 'booksReport.bankHint':'Every imported line still waiting for a match. These lines do not add to cash totals until their movement is recorded in the books.',
+ 'booksReport.reviewLine':'Review this bank line', 'booksReport.noDescription':'No description recorded',
+ 'booksReport.reference':'Reference', 'booksReport.currencyBasis':'Amounts are shown in {currency}, the books’ currency.',
+} as const;

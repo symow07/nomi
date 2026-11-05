@@ -237,10 +237,10 @@ d('B2 · the Nomi workbook, in and out (requires DATABASE_URL + MIGRATE_DATABASE
     expect([theirs.statusCode, theirs.headers['location']]).toEqual([302, '/app/books']);
     expect(await snapshot()).toBe(before);
     // the books' home offers them the copy, and no way in
-    const home = await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: accountant } });
+    const home = await app.inject({ method: 'GET', url: '/app/books/reports', headers: { cookie: accountant } });
     expect(home.body).toContain('href="/app/books/workbook.xlsx"');
     expect(home.body).not.toContain('action="/app/books/workbook"');
-    const mine = await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } });
+    const mine = await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: owner } });
     expect(mine.body).toContain('action="/app/books/workbook"');
   });
 });

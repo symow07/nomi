@@ -35,11 +35,12 @@ export type OpenLine = {
 export type MatchedLine = OpenLine & { readonly matchId: string; readonly entryId: string; readonly key: string };
 
 /** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
-export async function openLines(tx: Tx, businessId: string, accountId: string): Promise<OpenLine[]> {
+export async function openLines(tx: Tx, businessId: string, accountId: string, lineId?: string): Promise<OpenLine[]> {
   const lines = (await sql<{ id: string; booked_on: string; amount: string; currency: string; wording: string | null; reference: string | null }>`
     select s.id::text as id, s.booked_on::text as booked_on, s.amount::text as amount, s.currency, s.wording, s.reference
       from statement_lines s
      where s.business_id = ${businessId}::uuid and s.account_id = ${accountId}::uuid
+       and ${lineId ? sql`s.id::text = ${lineId}` : sql`true`}
        and not exists (select 1 from statement_matches m where m.statement_line_id = s.id and m.unmatched_at is null)
      order by s.booked_on, s.id limit 200`.execute(tx)).rows;
   const out: OpenLine[] = [];

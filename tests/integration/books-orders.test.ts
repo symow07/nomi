@@ -97,8 +97,8 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(await notice(await post(`/app/books/orders/${orders.mad}/draft`))).toContain('Choose the accounts first');
   });
 
-  it('chosen on the books\' home, the confirmed and shipped orders are listed — never one waiting or cancelled', async () => {
-    expect((await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: owner } })).body).toContain('action="/app/books/settings/accounts"');
+  it('chosen in Books settings, the confirmed and shipped orders are listed — never one waiting or cancelled', async () => {
+    expect((await app.inject({ method: 'GET', url: '/app/settings/books/accounts', headers: { cookie: owner } })).body).toContain('action="/app/books/settings/accounts"');
     expect(await notice(await post('/app/books/settings/accounts', { salesJournal: k.ve, receivable: k.receivable, sales: k.sales, fxLoss: k.loss, fxGain: k.gain })))
       .toContain('The accounts are saved.');
     const body = (await page()).body;

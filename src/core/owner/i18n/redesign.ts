@@ -1,3 +1,7 @@
+import { BOOKS_SPENDING_EN } from './booksSpending.js';
+import { BOOKS_OVERVIEW_REPORTS_EN } from './booksOverviewReports.js';
+import { BOOKS_AREA_EN } from './booksArea.js';
+import { BOOKS_DOCUMENTS_EN } from './booksDocuments.js';
 import { PRODUCT_AREA_EN } from './productArea.js';
 import { PRODUCT_IMPORT_EN } from './productImport.js';
 import { COPILOT_EN } from './copilot.js';
@@ -11,6 +15,10 @@ import { INBOX_LISTS_EN } from './inboxLists.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...BOOKS_OVERVIEW_REPORTS_EN,
+  ...BOOKS_AREA_EN,
+  ...BOOKS_SPENDING_EN,
+  ...BOOKS_DOCUMENTS_EN,
   ...PRODUCT_AREA_EN,
   ...PRODUCT_IMPORT_EN,
   ...CUSTOMER_AREA_EN,

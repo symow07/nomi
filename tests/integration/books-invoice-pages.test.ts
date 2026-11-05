@@ -94,7 +94,7 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('ISSUED, F-2026-0001; then a part paid, more than owed refused, the rest paid', async () => {
-    expect(await notice(await post(`/app/books/invoices/${invoice}/issue`))).toContain('Issued as F-2026-0001, and its entry posted.');
+    expect(await notice(await post(`/app/books/invoices/${invoice}/issue`))).toContain('Issued as F-2026-0001 and saved to the books.');
     const pay = (amount: string) => post(`/app/books/invoices/${invoice}/payments`, { paidOn: '2026-04-20', amount, journal: k.bq, account: k.bank });
     expect(await notice(await pay('20'))).toContain('The payment is recorded');
     expect((await get('/app/books/invoices')).body).toContain('Partly paid');

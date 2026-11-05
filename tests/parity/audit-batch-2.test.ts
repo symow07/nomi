@@ -5,7 +5,7 @@ import { tradesForExport } from '../../src/core/owner/sellingStyle.js';
 import { BUSINESS_KINDS } from '../../src/core/owner/business.js';
 import { keepsMoroccanBooks } from '../../src/core/books/identifiers.js';
 import { isExportRoute, isMoroccanBooksRoute } from '../../src/api/web/layout.js';
-import { renderBooksHome } from '../../src/api/web/books.js';
+import { renderBooksReportsHome } from '../../src/api/web/booksOverview.js';
 
 /**
  * AUDIT BATCH 2 (2026-10-30) — what a business is shown follows what it is.
@@ -99,18 +99,17 @@ describe('B17 · the Moroccan FEC and the CGNC chart are for books kept to Moroc
   });
 
   it('the gate knows the FEC page, its files, its file name and the chart', () => {
-    for (const url of ['/app/books/fec', '/app/books/fec/0f0e0d0c-0000-4000-8000-000000000001.txt', '/app/books/fec/filename', '/app/books/chart/cgnc'])
+    for (const url of ['/app/books/reports/fec', '/app/books/fec', '/app/books/fec/0f0e0d0c-0000-4000-8000-000000000001.txt', '/app/books/fec/filename', '/app/books/chart/cgnc'])
       expect(isMoroccanBooksRoute(url), url).toBe(true);
     for (const url of ['/app/books', '/app/books/trial-balance', '/app/books/closing', '/app/books/fecx'])
       expect(isMoroccanBooksRoute(url), url).toBe(false);
   });
 
-  it('the books\' home draws the FEC door only for Moroccan books, in every language', () => {
-    const holding = { hasBooks: false, keepUntil: null, law: null, lastCopyAt: null, copyCoversAll: true };
+  it('the reports hub draws the FEC door only for Moroccan books, in every language', () => {
     for (const l of LOCALES) {
-      expect(renderBooksHome(l, { isOwner: true }, holding), l).not.toContain('href="/app/books/fec"');
-      expect(renderBooksHome(l, { isOwner: true }, holding, undefined, { moroccanBooks: false }), l).not.toContain('href="/app/books/fec"');
-      expect(renderBooksHome(l, { isOwner: true }, holding, undefined, { moroccanBooks: true }), l).toContain('href="/app/books/fec"');
+      expect(renderBooksReportsHome(l), l).not.toContain('href="/app/books/reports/fec"');
+      expect(renderBooksReportsHome(l, false, false), l).not.toContain('href="/app/books/reports/fec"');
+      expect(renderBooksReportsHome(l, false, true), l).toContain('href="/app/books/reports/fec"');
     }
   });
 });

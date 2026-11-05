@@ -100,7 +100,7 @@ d('D6 · the books\' papers, read into a draft (requires DATABASE_URL + MIGRATE_
     const kept = (await as((q) => q(`select outcome, reading->>'number' as number, reading->>'total' as total, jsonb_array_length(problems) as problems from document_readings where document_id = $1`, [paper]))).rows;
     expect(kept).toEqual([{ outcome: 'read', number: 'FA-311', total: '1250', problems: 0 }]);
     expect((await as((q) => q(`select photo_reads from allowance_today()`))).rows[0].photo_reads).toBe(1);
-    const body = (await app.inject({ method: 'GET', url: `/app/books/papers/${paper}`, headers: { cookie: owner } })).body;
+    const body = (await app.inject({ method: 'GET', url: `/app/books/spending/${paper}`, headers: { cookie: owner } })).body;
     expect(body).toContain('Rif Coton');
     expect(body).toContain('action="/app/books/papers/' + paper + '/draft"');
   });
@@ -110,8 +110,9 @@ d('D6 · the books\' papers, read into a draft (requires DATABASE_URL + MIGRATE_
     const choice = { reading, journal: k.ac, party: k.supplier, payable: k.payable, account0: k.purchases, tax0: k.tax, account1: k.purchases, tax1: '' };
     expect(await notice(await post(`/app/books/papers/${paper}/draft`, { ...choice, account1: '' }))).toContain('Choose the journal, the supplier');
     const r = await post(`/app/books/papers/${paper}/draft`, choice);
-    expect(await notice(r)).toContain('Drafted. Check it, then post it.');
-    const entry = String(r.headers['location']).split('/').pop()!;
+    expect(await notice(r)).toContain('Draft ready. Check it before saving it to the books.');
+    const entry = (await as((q) => q(`select entry_id::text as id from document_readings where id = $1 and document_id = $2`, [reading, paper]))).rows[0].id as string;
+    expect(String(r.headers['location'])).toBe(`/app/books/spending/${paper}/draft?entry=${entry}`);
     const e = (await as((q) => q(`select state, document_ref, document_date::text as day, number from journal_entries where id = $1`, [entry]))).rows[0];
     expect(e).toEqual({ state: 'draft', document_ref: 'FA-311', day: '2026-04-05', number: null });
     const lines = (await as((q) => q(`select a.code, p.code as party, l.debit::text, l.credit::text from journal_lines l join accounts a on a.id = l.account_id
@@ -127,7 +128,7 @@ d('D6 · the books\' papers, read into a draft (requires DATABASE_URL + MIGRATE_
     const other = String(r.headers['location']).split('/').pop()!;
     answer = bill({ total: '1 300,00' });
     expect(await notice(await post(`/app/books/papers/${other}/read`))).toContain('Read, with problems');
-    const body = (await app.inject({ method: 'GET', url: `/app/books/papers/${other}`, headers: { cookie: owner } })).body;
+    const body = (await app.inject({ method: 'GET', url: `/app/books/spending/${other}`, headers: { cookie: owner } })).body;
     expect(body).toContain('The lines come to 1250, the total says 1300.');
     expect(body).not.toContain('/draft"');
     const reading = (await as((q) => q(`select id::text as id from document_readings where document_id = $1`, [other]))).rows[0].id as string;
@@ -146,7 +147,7 @@ d('D6 · the books\' papers, read into a draft (requires DATABASE_URL + MIGRATE_
   });
 
   it('THE ACCOUNTANT sees and takes the papers, and keeps, reads and drafts nothing', async () => {
-    expect((await app.inject({ method: 'GET', url: '/app/books/papers', headers: { cookie: accountant } })).body).toContain('facture-rif.png');
+    expect((await app.inject({ method: 'GET', url: '/app/books/spending', headers: { cookie: accountant } })).body).toContain('facture-rif.png');
     expect((await app.inject({ method: 'GET', url: `/app/books/papers/${paper}/file`, headers: { cookie: accountant } })).statusCode).toBe(200);
     for (const tried of [await upload(PNG, 'x.png', 'image/png', accountant), await post(`/app/books/papers/${paper}/read`, {}, accountant)]) {
       expect([tried.statusCode, tried.headers['location']]).toEqual([302, '/app/books']);

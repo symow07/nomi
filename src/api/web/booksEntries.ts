@@ -1,3 +1,4 @@
+import { safeBooksReturn } from './booksNavigation.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
@@ -29,12 +30,12 @@ const statePill = (locale: Locale, s: EntryRow['state']) =>
 export function renderEntries(locale: Locale, viewer: Who, rows: readonly EntryRow[]): string {
   return `<h1 class="page">${esc(t(locale, 'books.entries.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entries.lede'))}</p>
-    ${mayPost(viewer) ? `<p><a class="deeper" href="/app/books/entries/new">${esc(t(locale, 'books.entries.new'))}</a></p>` : ''}
+    ${mayPost(viewer) ? `<p><a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale, 'books.entries.new'))}</a></p>` : ''}
     ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.home.empty'))}</p>` : `<div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.number'))}</th>
         <th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
       <tbody>${rows.map((r) => `<tr><td>${esc(show.dateYear(locale, new Date(`${r.date}T12:00:00Z`)))}</td>
-        <td><a href="/app/books/entries/${esc(r.id)}"><bdi>${esc(r.state === 'posted' ? r.key : t(locale, 'books.entry.state.draft'))}</bdi></a></td>
+        <td><a href="/app/books/advanced/entries/${esc(r.id)}"><bdi>${esc(r.state === 'posted' ? r.key : t(locale, 'books.entry.state.draft'))}</bdi></a></td>
         <td><bdi>${esc(r.label)}</bdi></td><td>${amount(locale, r.total as Decimal, r.currency)}</td>
         <td>${statePill(locale, r.state)}${r.reversedBy ? ` <span class="pill">${esc(t(locale, 'books.entry.reversed'))}</span>` : ''}</td></tr>`).join('')}</tbody>
     </table></div>`}
@@ -51,7 +52,8 @@ function totals(e: EntryView): { currency: string; debit: Decimal; credit: Decim
   return [...by].map(([currency, x]) => ({ currency, ...x }));
 }
 
-export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: string, bookCurrency: string, fields: readonly BooksField[] = []): string {
+export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: string, bookCurrency: string, fields: readonly BooksField[] = [], opts:{readonly returnHref?:string}={}): string {
+  const returnHref=safeBooksReturn(opts.returnHref);const returnField=returnHref?`<input type="hidden" name="from" value="${esc(returnHref)}">`:'';const returnQuery=returnHref?'?from='+encodeURIComponent(returnHref):'';
   const posted = e.state === 'posted';
   const foreign = e.lines.some((l) => l.rate !== null);
   const sums = totals(e);
@@ -63,19 +65,19 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
     customShown(locale, fields, 'entry', e.custom),
   ].filter(Boolean);
   const actions = !mayPost(viewer) ? '' : e.state === 'draft' ? `
-      <p><a class="deeper" href="/app/books/entries/${esc(e.id)}/edit">${esc(t(locale, 'books.draft.edit'))}</a></p>
+      <p><a class="deeper" href="/app/books/advanced/entries/${esc(e.id)}/edit${returnQuery}">${esc(t(locale, 'books.draft.edit'))}</a></p>
       ${!e.documentRef || !e.documentDate ? `<p class="caption muted">${esc(t(locale, 'books.entry.needsDocument'))}</p>` : ''}
-      <form method="post" action="/app/books/entries/${esc(e.id)}/post" class="pform"><button class="btn send" type="submit">${esc(t(locale, 'books.entry.post'))}</button></form>
-      <form method="post" action="/app/books/entries/${esc(e.id)}/discard" class="pform">
+      <form method="post" action="/app/books/entries/${esc(e.id)}/post" class="pform">${returnField}<button class="btn send" type="submit">${esc(t(locale, 'booksArea.save'))}</button></form>
+      <form method="post" action="/app/books/entries/${esc(e.id)}/discard" class="pform">${returnField}
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.entry.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>`
     : posted && !e.reversedBy ? `
-      <form method="post" action="/app/books/entries/${esc(e.id)}/reverse" class="pform">
+      <form method="post" action="/app/books/entries/${esc(e.id)}/reverse" class="pform">${returnField}
         <label class="pq"><span>${esc(t(locale, 'books.entry.reverseOn'))}</span><input type="date" name="date" value="${esc(today)}" required /></label>
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.entry.reverseAsk'))}">${esc(t(locale, 'books.entry.reverse'))}</button></form>
       <p class="caption muted">${esc(t(locale, 'books.entry.onlyReverse'))}</p>` : '';
-  return `<h1 class="page"><bdi>${esc(posted ? e.key : t(locale, 'books.entry.state.draft'))}</bdi> · <bdi>${esc(e.label)}</bdi></h1>
-    <p>${statePill(locale, e.state)}${e.reversedBy ? ` <a href="/app/books/entries/${esc(e.reversedBy)}">${esc(t(locale, 'books.entry.seeReversal'))}</a>` : ''}${
-      e.reverses ? ` <a href="/app/books/entries/${esc(e.reverses)}">${esc(t(locale, 'books.entry.seeOriginal'))}</a>` : ''}</p>
+  return `${returnHref?`<p><a href="${esc(returnHref)}">${esc(t(locale,'booksArea.support'))}</a></p>`:''}<h1 class="page"><bdi>${esc(posted ? e.key : t(locale, 'books.entry.state.draft'))}</bdi> · <bdi>${esc(e.label)}</bdi></h1>
+    <p>${statePill(locale, e.state)}${e.reversedBy ? ` <a href="/app/books/advanced/entries/${esc(e.reversedBy)}">${esc(t(locale, 'books.entry.seeReversal'))}</a>` : ''}${
+      e.reverses ? ` <a href="/app/books/advanced/entries/${esc(e.reverses)}">${esc(t(locale, 'books.entry.seeOriginal'))}</a>` : ''}</p>
     <p class="caption muted">${meta.join(' · ')}</p>
     <div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
@@ -91,7 +93,7 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
     <p class="caption ${balanced ? 'muted' : ''}">${balanced ? esc(t(locale, 'books.entry.balanced'))
       : esc(t(locale, 'books.entry.notBalanced', { by: sums.filter((s) => compareDecimal(s.debit, s.credit) !== 0).map((s) => `${s.currency} ${s.debit} / ${s.credit}`).join(' · ') }))}</p>
     ${actions}
-    <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>`;
+    <p><a class="deeper" href="/app/books/advanced/entries">${esc(t(locale, 'books.entries.title'))}</a></p>`;
 }
 
 export type EntryChoices = {
@@ -123,7 +125,8 @@ export const formLines = (values: Readonly<Record<string, string>>, base: number
  * 0216 (a) — `editing`, a draft's id: the same form, filled with the draft, saving over it.
  */
 export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string,
-  editing: string | null = null): string {
+  editing: string | null = null, opts:{readonly returnHref?:string}={}): string {
+  const returnHref=safeBooksReturn(opts.returnHref);
   const v = (k: string) => esc(values[k] ?? '');
   const options = (rows: readonly { id: string; code: string; name?: string; label?: string }[], name: string, blank: boolean) =>
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${values[name] === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
@@ -141,7 +144,7 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
   return `<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.entries.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entry.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" action="${editing ? `/app/books/entries/${esc(editing)}/edit` : '/app/books/entries'}" class="pform">
+    <form method="post" action="${editing ? `/app/books/entries/${esc(editing)}/edit` : '/app/books/entries'}" class="pform">${returnHref?`<input type="hidden" name="from" value="${esc(returnHref)}">`:''}
       <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span><select name="journal" required>${options(c.journals, 'journal', false)}</select></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="date" value="${values['date'] ? v('date') : esc(today)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" required maxlength="200" /></label>

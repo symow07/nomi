@@ -28,7 +28,7 @@ export function renderTrialBalance(locale: Locale, p: Period, tb: TrialBalance, 
   return `<h1 class="page">${esc(t(locale, 'books.trial.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.trial.lede', { currency }))}</p>
     ${problem ? `<p class="perr" role="alert">${esc(t(locale, 'books.trial.badPeriod'))}</p>` : ''}
-    <form method="get" action="/app/books/trial-balance" class="pform">
+    <form method="get" action="/app/books/advanced/trial-balance" class="pform">
       <label class="pq"><span>${esc(t(locale, 'books.trial.from'))}</span><input type="date" name="from" value="${esc(p.from)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.trial.to'))}</span><input type="date" name="to" value="${esc(p.to)}" required /></label>
       <button class="btn" type="submit">${esc(t(locale, 'books.bank.show'))}</button>

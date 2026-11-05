@@ -39,7 +39,12 @@ d('D8 · the shop\'s own Xero (requires DATABASE_URL + MIGRATE_DATABASE_URL)', {
   };
   const press = (url: string, who = owner, payload?: string) => app.inject({ method: 'POST', url, headers: { cookie: who,
     ...(payload ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) }, ...(payload ? { payload } : {}) });
-  const home = async (who = owner) => (await app.inject({ method: 'GET', url: '/app/books', headers: { cookie: who } })).body;
+  const home = async (who = owner) => {
+    const page = await app.inject({ method: 'GET', url: '/app/settings/books/connections', headers: { cookie: who } });
+    if (who === accountant) expect([page.statusCode, page.headers['location']]).toEqual([302, '/app/books']);
+    else expect(page.statusCode).toBe(200);
+    return page.body;
+  };
   const connectXero = async () => {
     const start = await app.inject({ method: 'GET', url: '/app/books/xero/start', headers: { cookie: owner } });
     expect(start.statusCode).toBe(302);

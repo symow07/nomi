@@ -38,7 +38,7 @@ d('D1 · the trial balance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
   const as = <T>(fn: (q: Q) => Promise<T>) => asTenant(tenant, BIZ, fn);
   const session = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
-  const page = (qs: string, who = owner) => app.inject({ method: 'GET', url: `/app/books/trial-balance${qs}`, headers: { cookie: who } });
+  const page = (qs: string, who = owner) => app.inject({ method: 'GET', url: `/app/books/advanced/trial-balance${qs}`, headers: { cookie: who } });
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: ADMIN_URL }); await admin.connect();
