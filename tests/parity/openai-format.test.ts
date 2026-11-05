@@ -135,6 +135,40 @@ describe('through the one client', () => {
   });
 });
 
+describe("Anthropic's own address, as the fallback", () => {
+  const OWN: LlmProvider = { ...PROVIDER, baseURL: 'https://api.anthropic.com', model: 'claude-haiku-5-5' };
+  const answers = () => wire(() => json(200, { id: 'x', type: 'message', role: 'assistant', model: OWN.model, stop_reason: 'end_turn', stop_sequence: null,
+    content: [{ type: 'text', text: JSON.stringify({ reply_text: 'Hi', attach_product_image: false, tone: 'warm', phase_action: 'maintain' }) }],
+    usage: { input_tokens: 1, output_tokens: 1 } }));
+
+  it('keeps the forced schema, sends no temperature, thinks not at all, and runs in the United States', async () => {
+    const w = answers();
+    const writer = anthropicReplyWriter(llmClient(OWN, { fetch: w.fetchLike }), OWN.model, requestExtrasFor(OWN));
+    await writer.write({ state: emptyState(), text: 'Hello', quote: null, replyLanguage: 'en', nextQuestion: null, retryAfterViolation: false });
+    const asked = w.calls[0];
+    expect(asked?.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(asked?.body).not.toHaveProperty('temperature');
+    expect(asked?.body['output_config']).toEqual({ format: { type: 'json_schema', schema: WRITER_SCHEMA }, effort: 'low' });
+    expect(asked?.body['thinking']).toEqual({ type: 'disabled' });
+    expect(asked?.body['inference_geo']).toBe('us');
+    expect(asked?.body['model']).toBe('claude-haiku-5-5');
+  });
+
+  it('is only that address: another company in the same format keeps its temperature and is told nothing of the rest', async () => {
+    const other: LlmProvider = { ...OWN, baseURL: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash' };
+    const w = answers();
+    const writer = anthropicReplyWriter(llmClient(other, { fetch: w.fetchLike }), other.model, requestExtrasFor(other));
+    await writer.write({ state: emptyState(), text: 'Hello', quote: null, replyLanguage: 'en', nextQuestion: null, retryAfterViolation: false });
+    expect(w.calls[0]?.body['temperature']).toBe(0.3);
+    expect(w.calls[0]?.body).not.toHaveProperty('inference_geo');
+    expect(w.calls[0]?.body).not.toHaveProperty('output_config');
+  });
+
+  it('prices it with the charge for running in the United States', () => {
+    expect(Number(estimateCost('claude-haiku-5-5', 1_000_000, 1_000_000)?.amount)).toBeCloseTo(0.66, 8);
+  });
+});
+
 describe('a provider in the other format', () => {
   it('is asked for no schema: the rollback to it works as it did', async () => {
     const seen: Record<string, unknown>[] = [];

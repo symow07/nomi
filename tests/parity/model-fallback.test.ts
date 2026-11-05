@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type Anthropic from '@anthropic-ai/sdk';
 import {
-  breaker, failoverClient, fallbackSwitchedOn, llmFallbackFrom, type LlmProvider,
+  breaker, failoverClient, fallbackSwitchedOn, llmClient, llmFallbackFrom, type LlmProvider,
 } from '../../src/llm/provider.js';
 import { servingOf } from '../../src/core/ops/modelHealth.js';
-import { renderPrivacy } from '../../src/api/web/legal.js';
+import { renderDataDeletion, renderPrivacy } from '../../src/api/web/legal.js';
 import { HOSTING } from '../../src/core/legal/processors.js';
+
+
 // @ts-expect-error — the operator tools, plain JS on purpose.
 import { uptime } from '../../tools/model-uptime.mjs';
 // @ts-expect-error — the operator tools, plain JS on purpose.
@@ -140,6 +142,42 @@ describe('0166 · who writes replies now, and where it is said', () => {
     expect(src('src/worker/heartbeat.ts')).toContain(": o.model ? { probeModel: async () => (await readModelView(o.db, o.model!)).serving !== 'none' } : {}),");
     expect(src('src/worker/main.ts')).toContain('const anthropic = modelClient((a) => watchOf?.observe(a));');
   });
+  it('every sentence that names where words go names both while failing over is on: replies, advisor, documents, the deletion page', () => {
+    const on = { processor: { name: 'OpenAI', country: 'US' }, fallback: { name: 'Anthropic', country: 'US' }, hosting: HOSTING };
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+      const privacy = renderPrivacy(l, null, on);
+      // the replies' line, the advisor's in the list and its own section, the owner's, the document reader's
+      expect(privacy.match(/Anthropic/g)?.length, l).toBeGreaterThanOrEqual(5);
+      expect(renderDataDeletion(l, null, { ...on, transcriber: null }), l).toContain('Anthropic');
+      expect(renderDataDeletion(l, null, { ...on, fallback: null, transcriber: null }), l).not.toContain('Anthropic');
+    }
+    const en = renderPrivacy('en', null, on);
+    expect(en).toContain('To word each answer, the question and its records are sent to OpenAI (USA), or Anthropic (USA) when OpenAI does not answer.');
+  });
+
+  it('through the real clients: OpenAI does not answer, and Anthropic is asked in its own format with its own model', async () => {
+    const primary: LlmProvider = { name: 'custom', apiKey: KEY, baseURL: 'https://api.openai.com/v1', model: 'gpt-6-luna' };
+    const asked: { url: string; body: Record<string, unknown> }[] = [];
+    const fetchLike = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      asked.push({ url, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      const headers = { 'content-type': 'application/json' };
+      return url.includes('openai')
+        ? new Response(JSON.stringify({ error: { message: 'overloaded' } }), { status: 503, headers })
+        : new Response(JSON.stringify({ id: 'x', type: 'message', role: 'assistant', model: FALLBACK.model, stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: 'OK' }], usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200, headers });
+    };
+    const client = failoverClient({
+      primary: { provider: primary, client: llmClient(primary, { fetch: fetchLike }), name: 'OpenAI' },
+      fallback: { provider: FALLBACK, client: llmClient(FALLBACK, { fetch: fetchLike }), name: 'Anthropic' },
+      on: true, breaker: breaker(), log: () => {},
+    });
+    const res = await client.messages.create({ model: primary.model, max_tokens: 8, temperature: 0.3, messages: [{ role: 'user', content: 'Hi' }] });
+    expect(res.content[0]).toMatchObject({ type: 'text', text: 'OK' });
+    expect(asked.map((a) => a.url)).toEqual(['https://api.openai.com/v1/chat/completions', 'https://api.anthropic.com/v1/messages']);
+    expect(asked[1]?.body).toMatchObject({ model: 'claude-haiku-5-5', thinking: { type: 'disabled' }, inference_geo: 'us' });
+    expect(asked[1]?.body).not.toHaveProperty('temperature');
+  });
+
   it('the privacy page names the fallback only while failing over to it is on — in every language', () => {
     const facts = { processor: { name: 'DeepSeek', country: 'CN' }, hosting: HOSTING };
     for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {

@@ -121,6 +121,14 @@ export type LegalFacts = {
 };
 
 /**
+ * 0166 — every part of Nomi that asks a model fails over, not only the replies: while failing over is on, each sentence
+ * that names where words go names both companies.
+ */
+const processorsOf = (l: Locale, facts: Pick<LegalFacts, 'processor' | 'fallback'>): string => facts.fallback
+  ? t(l, 'legal.privacy.processorOrFallback', { processor: processorLabel(facts.processor, l), fallback: processorLabel(facts.fallback, l), primary: facts.processor.name })
+  : processorLabel(facts.processor, l);
+
+/**
  * §9.3 — the sentence that names where an advisor question goes, with the line
  * that says what that provider keeps. This batch has ONE provider (`LLM_*`), so
  * `{processors}` is that one, named as the "who" list names it.
@@ -132,8 +140,7 @@ export type LegalFacts = {
  * keeps. Every locale's sentence ends in a colon and `{providerLines}`, which
  * privacy-advisor-cookies.test.ts holds, so the cut is always the same cut.
  */
-function advisorProviders(l: Locale, p: Processor): string {
-  const processors = processorLabel(p, l);
+function advisorProviders(l: Locale, p: Processor, processors: string): string {
   const line = providerLineKey(p);
   if (line) return t(l, 'legal.privacy.advisor.providers', { processors, providerLines: t(l, line, { provider: p.name }) });
   const said = t(l, 'legal.privacy.advisor.providers', { processors, providerLines: '\u0000' });
@@ -218,7 +225,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
       ${facts.fallback ? `<li>${esc(t(l, 'legal.privacy.who.aiFallback', { processor: processorLabel(facts.fallback, l), primary: facts.processor.name }))}</li>` : ''}
       ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live.
-           The advisor's history (2026-10-07) — and Nomi keeps those conversations for whoever allows it: said here, told below. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorLabel(facts.processor, l) }))}${
+           The advisor's history (2026-10-07) — and Nomi keeps those conversations for whoever allows it: said here, told below. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorsOf(l, facts) }))}${
         history ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.advisorKept'))}` : ''}</li>
       ${/* §9.3 — the transcriber, only when one is configured: a voice message's sound goes there. */
         facts.transcriber ? `<li>${esc(t(l, 'legal.privacy.who.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))}</li>` : ''}
@@ -237,7 +244,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
       history ? `<h2 id="advisor">${esc(t(l, 'legal.privacy.advisor.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.advisor.what'))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.basis'))}</p>
-    <p>${esc(advisorProviders(l, facts.processor))}</p>
+    <p>${esc(advisorProviders(l, facts.processor, processorsOf(l, facts)))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.customers'))}</p>` : ''}
     ${/* D5 (the data-protection audit, 2026-10-12) — the people who use Nomi at a business: what is kept about them,
@@ -247,7 +254,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.owner.staff'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.why'))}</p>
     ${/* Phase 1 (0148) — the sign-up's abuse check, the fingerprint named as one. */ ''}<p id="signup-check">${esc(t(l, 'legal.privacy.owner.signupCheck'))}</p>
-    <p>${esc(t(l, 'legal.privacy.owner.who', { sender: facts.mailSender ?? 'Google', processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
+    <p>${esc(t(l, 'legal.privacy.owner.who', { sender: facts.mailSender ?? 'Google', processor: processorsOf(l, facts), hosting: processorLabel(facts.hosting, l) }))}${
       facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
       l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.howLong'))}${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.howLongBooks'))}</p>
@@ -259,7 +266,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
          leaves with their copy (0172, 0205). Google Sheets, Xero and QuickBooks are not named: D18 holds them off. */ ''}<h2 id="books">${esc(t(l, 'legal.privacy.books.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.books.what'))}</p>
     <p>${esc(t(l, 'legal.privacy.books.odoo'))}</p>
-    <p>${esc(t(l, 'legal.privacy.books.reader', { processor: processorLabel(facts.processor, l) }))}</p>
+    <p>${esc(t(l, 'legal.privacy.books.reader', { processor: processorsOf(l, facts) }))}</p>
     <p>${esc(t(l, 'legal.privacy.books.kept'))}</p>
     ${/* 0218 — how long, by country: the page's copy of books_retention (src/core/legal/booksRetention.ts). */ ''}<p>${esc(t(l, 'legal.privacy.books.years.lead'))}</p>
     <ul>${BOOKS_RETENTION.map((r) => `<li>${esc(t(l, r.key))}</li>`).join('')}</ul>
@@ -357,7 +364,7 @@ export function renderRefunds(l: Locale, email: string | null, facts: { readonly
  * languages, and holds the old promises out.
  */
 /** What the deletion page names by its configured name; a page drawn without them names the defaults. */
-type DeletionFacts = Pick<LegalFacts, 'processor' | 'hosting' | 'transcriber'>;
+type DeletionFacts = Pick<LegalFacts, 'processor' | 'fallback' | 'hosting' | 'transcriber'>;
 const DEFAULT_DELETION_FACTS: DeletionFacts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING, transcriber: null };
 
 export function renderDataDeletion(l: Locale, email: string | null, facts: DeletionFacts = DEFAULT_DELETION_FACTS, home = '/site', person: string | null = null): string {
@@ -369,7 +376,7 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
   const gap = l === 'zh' ? '' : ' ';
   const line = providerLineKey(facts.processor);
   const outside = [
-    `${esc(t(l, 'legal.deletion.kept.processor', { processor: processorLabel(facts.processor, l) }))}${
+    `${esc(t(l, 'legal.deletion.kept.processor', { processor: processorsOf(l, facts) }))}${
       line ? `${gap}${esc(t(l, line, { provider: facts.processor.name }))}` : ''}`,
     ...(facts.transcriber ? [esc(t(l, 'legal.deletion.kept.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))] : []),
     esc(t(l, 'legal.deletion.kept.logs', { hosting: processorLabel(facts.hosting, l) })),

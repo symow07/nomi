@@ -69,6 +69,8 @@ export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, {
   'deepseek-flash': { input: usd('0.3'), cachedInput: usd('0.006'), output: usd('1.2'), asOf: '2026-11-04' },
   // OpenAI's pricing page, Standard tier, read 2026-11-04.
   'gpt-6-luna': { input: usd('0.1'), cachedInput: usd('0.01'), output: usd('0.5'), asOf: '2026-11-04' },
+  // Anthropic's list price, with its 1.1× for running in the United States (`anthropicsOwnFetch` asks for that).
+  'claude-haiku-5-5': { input: usd('0.11'), output: usd('0.55'), asOf: '2026-11-05' },
 };
 
 /** The currency travels with the amount (M43a): an estimate is money, not a bare number. */
