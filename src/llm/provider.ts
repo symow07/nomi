@@ -210,6 +210,17 @@ export function breaker(ms: number = BREAKER_MS, clock: () => number = Date.now)
 }
 
 /**
+ * WHICH MODEL REALLY ANSWERED (the owner, 2026-11-05). Every adapter is built with the primary's model, so a reply the
+ * fallback wrote was recorded as the primary's. The failing-over client marks each answer with the configured name of
+ * the provider that gave it; the name a provider echoes back may carry a date the price table does not know.
+ */
+const ANSWERED_BY = Symbol('answeredBy');
+
+/** The model that wrote this answer: the one that answered if a failover client marked it, else the one asked. */
+export const modelOf = (answer: object, asked: string): string =>
+  (answer as { readonly [ANSWERED_BY]?: string })[ANSWERED_BY] ?? asked;
+
+/**
  * 0166 — ONE client that answers from the primary, and from the fallback when the primary does not: a timeout, a
  * refusal (billing included), an overload, a rate limit, a dead key, a server error, no connection
  * (`failureCounts`). A request the provider rejected as ours (a 400) is not retried anywhere: the fallback would
@@ -232,10 +243,10 @@ export function failoverClient(o: {
   const primary = o.primary;
   const fallback = o.fallback;
   type Params = Record<string, unknown>;
-  const ask = (t: typeof primary, params: Params, options: Record<string, unknown> | undefined) =>
-    (t.client.messages.create as unknown as (p: Params, opt?: Record<string, unknown>) => Promise<unknown>)(
+  const ask = async (t: typeof primary, params: Params, options: Record<string, unknown> | undefined) =>
+    Object.defineProperty(await (t.client.messages.create as unknown as (p: Params, opt?: Record<string, unknown>) => Promise<object>)(
       { ...params, model: t.provider.model, ...requestExtrasFor(t.provider) },
-      t === primary ? { ...(options ?? {}), maxRetries: 0 } : options);
+      t === primary ? { ...(options ?? {}), maxRetries: 0 } : options), ANSWERED_BY, { value: t.provider.model });
   const create = async (params: Params, options?: Record<string, unknown>): Promise<unknown> => {
     const order = o.breaker.isOpen() ? [fallback, primary] : [primary, fallback];
     let last: unknown = null;

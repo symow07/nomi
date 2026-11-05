@@ -126,7 +126,7 @@ describe('layer 2 · "are you a human?" is answered, not handed off — and answ
   it('the identity rule still decides what may be said (rule 3): an honest answer goes out', async () => {
     const p = ports();
     p.analyzer.next = analysis(false);
-    const honest = "I'm an AI assistant for this business. If you'd like a person from our team, say so and someone will reply.";
+    const honest = "Yes, I'm an AI assistant for this business.";
     p.replyWriter.replies = [honest];
     const { r, fx } = await run(p, 'Are you a human?');
     expect(p.replyWriter.calls).toBe(1);

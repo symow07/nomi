@@ -16202,7 +16202,7 @@ translated.
 | `site.reel.s4.paid` | 已付款 |
 | `site.reel.s4.caption` | 记账——即将推出。 |
 
-**Strict mode's starters** (`strict.ts`, `PROPOSED.zh`, 9 sentences):
+**Strict mode's starters** (`strict.ts`, `PROPOSED.zh`, 8 sentences):
 
 1. 您好，感谢您的留言。
 2. 请问您对哪款产品感兴趣？
@@ -16211,8 +16211,7 @@ translated.
 5. {product}的起订量是{qty}件。
 6. {product}可以在{days}天内备好。
 7. 我们可以寄送{product}的样品。
-8. 我们团队的同事会尽快回复您。
-9. 谢谢！
+8. 谢谢！
 
 **The Telegram /start greeting** (`greeting.ts`):
 
@@ -16272,7 +16271,7 @@ Reviewer (zh): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 | `site.reel.s4.paid` | مدفوع |
 | `site.reel.s4.caption` | مسك الدفاتر — قريبًا. |
 
-**Strict mode's starters** (`strict.ts`, `PROPOSED.ar`, 9 sentences):
+**Strict mode's starters** (`strict.ts`, `PROPOSED.ar`, 8 sentences):
 
 1. مرحبًا، شكرًا على الرسالة.
 2. ما المنتج المطلوب؟
@@ -16281,8 +16280,7 @@ Reviewer (zh): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 5. الحد الأدنى للطلب من {product} هو {qty} قطعة.
 6. يمكن تجهيز {product} خلال {days} يومًا.
 7. يمكن إرسال عينة من {product}.
-8. سيصل الرد من أحد أفراد فريقنا في أقرب وقت ممكن.
-9. شكرًا!
+8. شكرًا!
 
 **The Telegram /start greeting** (`greeting.ts`):
 
@@ -16342,7 +16340,7 @@ Reviewer (ar): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 | `site.reel.s4.paid` | Pagado |
 | `site.reel.s4.caption` | Lleva las cuentas: próximamente. |
 
-**Strict mode's starters** (`strict.ts`, `PROPOSED.es`, 9 sentences):
+**Strict mode's starters** (`strict.ts`, `PROPOSED.es`, 8 sentences):
 
 1. Hola, gracias por tu mensaje.
 2. ¿Qué producto te interesa?
@@ -16351,8 +16349,7 @@ Reviewer (ar): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 5. El pedido mínimo de {product} es de {qty} piezas.
 6. {product} puede estar listo en {days} días.
 7. Podemos enviar una muestra de {product}.
-8. Una persona de nuestro equipo responderá lo antes posible.
-9. ¡Gracias!
+8. ¡Gracias!
 
 **The Telegram /start greeting** (`greeting.ts`):
 
@@ -16412,7 +16409,7 @@ Reviewer (es): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 | `site.reel.s4.paid` | Payé |
 | `site.reel.s4.caption` | Tenir les comptes : bientôt. |
 
-**Strict mode's starters** (`strict.ts`, `PROPOSED.fr`, 9 sentences):
+**Strict mode's starters** (`strict.ts`, `PROPOSED.fr`, 8 sentences):
 
 1. Bonjour, merci pour votre message.
 2. Quel produit vous intéresse ?
@@ -16421,8 +16418,7 @@ Reviewer (es): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 5. La commande minimum pour {product} est de {qty} pièces.
 6. {product} peut être prêt en {days} jours.
 7. Nous pouvons envoyer un échantillon de {product}.
-8. Une personne de notre équipe va répondre dès que possible.
-9. Merci !
+8. Merci !
 
 **The Telegram /start greeting** (`greeting.ts`):
 
@@ -16442,7 +16438,7 @@ Reviewer (fr): ______  Date: ______  Signed: front page ☐ · starters ☐ · /
 
 The front page's English is read (`REEL_NATIVE_REVIEW.en` = yes) and is not repeated here. These four are unsigned:
 
-**Strict mode's starters** (`strict.ts`, `PROPOSED.en`, 9 sentences):
+**Strict mode's starters** (`strict.ts`, `PROPOSED.en`, 8 sentences):
 
 1. Hello, thank you for your message.
 2. Which product are you interested in?
@@ -16451,8 +16447,7 @@ The front page's English is read (`REEL_NATIVE_REVIEW.en` = yes) and is not repe
 5. The minimum order for {product} is {qty} pieces.
 6. {product} can be ready in {days} days.
 7. We can send a sample of {product}.
-8. Someone from our team will reply as soon as possible.
-9. Thank you!
+8. Thank you!
 
 **The Telegram /start greeting** (`greeting.ts`):
 
@@ -16556,3 +16551,11 @@ New line in zh, ar, es and fr, none read by a native reader. Not a gate. It appe
 
 - **Key:** `legal.privacy.processorOrFallback`, inside the sentences that name where the words go (advisor, the owner's section, the document reader, the deletion page).
 - **To check:** that each language reads well with a company's name and country either side of it: 「{processor}（{primary}没有回应时改用{fallback}）」, «{processor}، أو {fallback} عند عدم استجابة {primary}», "{processor}, o {fallback} cuando {primary} no responde", "{processor}, ou {fallback} lorsque {primary} ne répond pas".
+
+## What the second language service keeps (2026-11-05)
+
+New line in zh, ar, es and fr, none read by a native reader. Not a gate. It appears on the privacy and deletion pages while Anthropic is the provider or the fallback.
+
+- **Key:** `legal.privacy.provider.anthropic`, written to run parallel to `.openai`.
+- **To check:** that "keeps up to 30 days, longer to enforce its usage policy or by law, not for training unless the account opts in" reads as plain fact and addresses nobody in a gender.
+- **Also:** strict mode's starters are eight now. "Someone from our team will reply…" left all five lists, because nothing kept it.

@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type Anthropic from '@anthropic-ai/sdk';
 import {
-  breaker, failoverClient, fallbackSwitchedOn, llmClient, llmFallbackFrom, type LlmProvider,
+  breaker, failoverClient, fallbackSwitchedOn, llmClient, llmFallbackFrom, modelOf, type LlmProvider,
 } from '../../src/llm/provider.js';
 import { servingOf } from '../../src/core/ops/modelHealth.js';
 import { renderDataDeletion, renderPrivacy } from '../../src/api/web/legal.js';
 import { HOSTING } from '../../src/core/legal/processors.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 
 // @ts-expect-error — the operator tools, plain JS on purpose.
@@ -176,6 +177,30 @@ describe('0166 · who writes replies now, and where it is said', () => {
     expect(asked.map((a) => a.url)).toEqual(['https://api.openai.com/v1/chat/completions', 'https://api.anthropic.com/v1/messages']);
     expect(asked[1]?.body).toMatchObject({ model: 'claude-haiku-5-5', thinking: { type: 'disabled' }, inference_geo: 'us' });
     expect(asked[1]?.body).not.toHaveProperty('temperature');
+  });
+
+  it('the record says which model answered: the fallback when it did, the one asked when no failover client is there', async () => {
+    const p = fake(() => { throw timeout(); });
+    const f = fake(() => ({ content: [] }));
+    const client = failoverClient({
+      primary: { provider: PRIMARY, client: p.client, name: 'DeepSeek' },
+      fallback: { provider: FALLBACK, client: f.client, name: 'Anthropic' },
+      on: true, breaker: breaker(), log: () => {},
+    });
+    const res = await client.messages.create({ model: PRIMARY.model, max_tokens: 8, messages: [] });
+    expect(modelOf(res, PRIMARY.model)).toBe('claude-haiku-5-5');
+    expect(modelOf({}, PRIMARY.model)).toBe('deepseek-flash');
+  });
+
+  it('both companies say what they keep while failing over is on, and the fallback only then', () => {
+    const on = { processor: { name: 'OpenAI', country: 'US' }, fallback: { name: 'Anthropic', country: 'US' }, hosting: HOSTING };
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+      const anthropic = t(l, 'legal.privacy.provider.anthropic', { provider: 'Anthropic' });
+      const read = (html: string) => html.replace(/[\u2066-\u2069]/g, '');
+      expect(read(renderPrivacy(l, null, on)), l).toContain(anthropic);
+      expect(read(renderDataDeletion(l, null, { ...on, transcriber: null })), l).toContain(anthropic);
+      expect(renderPrivacy(l, null, { ...on, fallback: null }), l).not.toContain('Anthropic');
+    }
   });
 
   it('the privacy page names the fallback only while failing over to it is on — in every language', () => {

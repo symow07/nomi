@@ -31,7 +31,6 @@ const PROPOSED: Readonly<Record<StrictLocale, readonly string[]>> = {
     'The minimum order for {product} is {qty} pieces.',
     '{product} can be ready in {days} days.',
     'We can send a sample of {product}.',
-    'Someone from our team will reply as soon as possible.',
     'Thank you!',
   ],
   zh: [
@@ -42,7 +41,6 @@ const PROPOSED: Readonly<Record<StrictLocale, readonly string[]>> = {
     '{product}的起订量是{qty}件。',
     '{product}可以在{days}天内备好。',
     '我们可以寄送{product}的样品。',
-    '我们团队的同事会尽快回复您。',
     '谢谢！',
   ],
   // No gender for the buyer (rule 6): noun phrases and the passive, never an imperative or an agreeing verb.
@@ -54,7 +52,6 @@ const PROPOSED: Readonly<Record<StrictLocale, readonly string[]>> = {
     'الحد الأدنى للطلب من {product} هو {qty} قطعة.',
     'يمكن تجهيز {product} خلال {days} يومًا.',
     'يمكن إرسال عينة من {product}.',
-    'سيصل الرد من أحد أفراد فريقنا في أقرب وقت ممكن.',
     'شكرًا!',
   ],
   es: [
@@ -65,7 +62,6 @@ const PROPOSED: Readonly<Record<StrictLocale, readonly string[]>> = {
     'El pedido mínimo de {product} es de {qty} piezas.',
     '{product} puede estar listo en {days} días.',
     'Podemos enviar una muestra de {product}.',
-    'Una persona de nuestro equipo responderá lo antes posible.',
     '¡Gracias!',
   ],
   fr: [
@@ -76,7 +72,6 @@ const PROPOSED: Readonly<Record<StrictLocale, readonly string[]>> = {
     'La commande minimum pour {product} est de {qty} pièces.',
     '{product} peut être prêt en {days} jours.',
     'Nous pouvons envoyer un échantillon de {product}.',
-    'Une personne de notre équipe va répondre dès que possible.',
     'Merci !',
   ],
 };

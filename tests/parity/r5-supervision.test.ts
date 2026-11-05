@@ -48,7 +48,7 @@ describe('R5 · a wrong price', () => {
 describe('R5 · spot checks reach work sent alone', () => {
   it('the turn records what it sent alone: the words as queued, the capability, the message it answered', () => {
     expect(src('src/pipeline/turn.ts')).toContain(
-      "await tenant.events.append(req.conversationId, 'auto_sent', { capability, messageId: req.messageId, body: outbound.reply });");
+      "await tenant.events.append(req.conversationId, 'auto_sent', { capability, messageId: req.messageId, body: outbound.reply,");
   });
   it('only work that actually left is offered, from the last fortnight, and never twice', () => {
     const s = src('src/pipeline/spotChecks.ts');

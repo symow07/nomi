@@ -155,7 +155,7 @@ describe('G8 · a forbidden word in HER OWN text', () => {
       orderId: 'o1', reference: 'PI-T-0001',
       update: { state: 'shipped', at: new Date('2026-07-10T00:00:00Z'), note: null, trackingReference: 'DHL 4471', by: 'owner' },
     };
-    p.replyWriter.replies = ['Let me check on that for you.'];
+    p.replyWriter.replies = ['Which order is this about?'];
 
     const { r, said, events } = await run(p, 'where is my order?');
     expect(r.forbiddenInHerText.map((x) => x.path)).toEqual(['order_status']);
