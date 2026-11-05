@@ -116,7 +116,7 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   it('a sales assistant cannot decide it, and is not shown it', async () => {
     const add = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
     const issued = String(add.headers['set-cookie'] ?? '').split(';')[0]!;
-    const people = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const people = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: `${ownerCookie}; ${issued}` } });
     const staff = await login(/class="code"><bdi>([^<]+)</.exec(people.body)?.[1] ?? '');
     expect(staff).not.toBe('');
     const before = await modes();

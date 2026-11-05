@@ -154,6 +154,7 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
 // B18 — and their own sign-in: the password and the language are theirs to change, like anyone's.
 export const ACCOUNTANT_ALSO: ReadonlySet<string> = new Set([
+  'GET /app/settings/personal/account', 'GET /app/settings/personal/language',
   'POST /logout', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
 ]);
 
@@ -414,5 +415,5 @@ export function renderBooksChart(locale: Locale): string {
 export function renderBooksOff(locale: Locale, business: string): string {
   return `<h1 class="page">${esc(t(locale, 'books.off.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.off.body', { business }))}</p>
-    <p><a class="deeper" href="/app/settings/account">${esc(t(locale, 'account.title'))}</a></p>`;
+    <p><a class="deeper" href="/app/settings/personal/account">${esc(t(locale, 'account.title'))}</a></p>`;
 }

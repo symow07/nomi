@@ -72,11 +72,11 @@ describe('G8 · the owner sees them', () => {
       const html = renderConversationDetail(detail({ herWords: [{ path: 'taught_answer', terms: ['Guangzhou Textile'] }] }), l, NOW, null);
       expect(html, l).toContain(esc(t(l, 'herwords.title')));
       expect(html, l).toContain('Guangzhou Textile');
-      expect(html, l).toContain('href="/app/knowledge"');
+      expect(html, l).toContain('href="/app/assistant/knowledge"');
       expect(t(l, 'herwords.taught_answer' as MessageKey, { terms: 'x', name: ASSISTANT_FALLBACK[l] }), l).not.toContain('{');
     }
     const order = renderConversationDetail(detail({ herWords: [{ path: 'order_status', terms: ['DHL'] }] }), 'en', NOW, null);
-    expect(order).toContain('href="/app/settings/forbidden"');
+    expect(order).toContain('href="/app/settings/assistant/words"');
   });
 
   it('nothing to say, no card', () => {

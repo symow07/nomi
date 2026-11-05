@@ -141,9 +141,9 @@ describe('V1-512 · Who works here names itself and leads back to Setup', () => 
   it('the back link, and the tab is the heading', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      expect(html.indexOf('<a class="back" href="/app/settings/setup">'), l).toBeGreaterThan(-1);
-      expect(html.indexOf('<a class="back" href="/app/settings/setup">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
-      const doc = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: '/app/settings/people', bodyHtml: html }));
+      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeGreaterThan(-1);
+      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
+      const doc = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: '/app/settings/team', bodyHtml: html }));
       expect(doc, l).toContain(`<title>${esc(t(l, 'people.title'))} · 义乌宏发日用品厂 (demo)</title>`);
     }
   });
@@ -339,10 +339,10 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
   it('nothing to convert is a panel, with the currency by its name and the door to where it is set, and the way back', () => {
     for (const l of LOCALES) {
       const html = noRate(l);
-      expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">'), l).toBe(0);
+      expect(html.indexOf('<a class="back" href="/app/settings/business/selling">'), l).toBe(0);
       expect(html, l).toContain('<div class="empty notset" role="status">');
       expect(html, l).toContain(esc(currencyInLine(l, 'USD')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/profile#zone"/);
+      expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/business\/profile#zone"/);
     }
     expect(text(noRate('en'))).toContain('Your prices are in US dollars (USD)');   // the warmth run (-11): as a sentence says it
     // ar: the last two words never part
@@ -351,7 +351,7 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
   });
   it('with a rate to set, the way back too', () => {
     const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
-    expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">')).toBe(0);
+    expect(html.indexOf('<a class="back" href="/app/settings/business/selling">')).toBe(0);
   });
 });
 
@@ -369,7 +369,7 @@ describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where t
   it('in every locale', () => {
     for (const l of LOCALES) {
       for (const html of [samples(l), terms(l)]) {
-        expect(html.indexOf(`<a class="back" href="/app/business/how-you-sell">${BACK}${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
+        expect(html.indexOf(`<a class="back" href="/app/settings/business/selling">${BACK}${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
       }
     }
   });

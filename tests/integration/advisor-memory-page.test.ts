@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -102,7 +103,7 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     const r = await a.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
     return String(r.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   };
-  const get = (cookie: string, url: string, a = app) => a.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie } });
+  const get = (cookie: string, url: string, a = app) => a.inject({ method: 'GET', url:settingsHref(assistantPageUrl(url)), headers: { cookie } });
   const post = (cookie: string, url: string, form: Record<string, string> = {}, a = app) =>
     a.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(form).toString() });
   const ask = (cookie: string, q: string, thread?: string, a = app) => post(cookie, '/app/advisor', { q, ...(thread ? { thread } : {}) }, a);
@@ -166,7 +167,7 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect((await ask(owner, 'How many customers do I have?')).body).not.toContain(en('advisor.memory.ask'));
     expect(await threadsOf(OWNER)).toBe(0);
     // Settings is then the only way in
-    const s = await get(owner, '/app/settings/advisor-history');
+    const s = await get(owner, '/app/settings/personal/advisor-history');
     expect(s.body).toContain(en('advisor.memory.ask'));
     expect((await post(owner, '/app/settings/advisor-history/me', { on: 'on' })).statusCode).toBe(302);
   });
@@ -255,7 +256,7 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     const staffThread = threadIn(mine.body)!;
     expect(await threadsOf(STAFF)).toBe(1);
     expect((await get(owner, `/app/advisor/c/${staffThread}`)).statusCode).toBe(404);
-    for (const url of ['/app/advisor', '/app/advisor/earlier', '/app/settings/advisor-history', '/app/settings/data']) {
+    for (const url of ['/app/advisor', '/app/advisor/earlier', '/app/settings/personal/advisor-history', '/app/settings/assistant/history-policy', '/app/settings/business/data']) {
       expect((await get(owner, url)).body, url).not.toContain(STAFF_MARK);
     }
     // the redesign — earlier conversations on a page of their own: each person's own
@@ -326,7 +327,7 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect(latest(r.body)).not.toContain(en('advisor.failed'));
     expect(r.body).not.toContain(en('advisor.memory.ask'));
     expect(await n('select count(*) as n from advisor_turns where person_id = $1', [OWNER])).toBe(before);
-    expect((await get(owner, '/app/settings/advisor-history', noKey)).body).toContain(en('advisor.history.keyMissing'));
+    expect((await get(owner, '/app/settings/personal/advisor-history', noKey)).body).toContain(en('advisor.history.keyMissing'));
   });
 
   it('taking it back deletes at once, with its ledger line; nothing is kept after', async () => {

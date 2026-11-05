@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -33,7 +34,7 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
   const as = <T>(fn: (q: Q) => Promise<T>) => asTenant(tenant, BIZ, fn);
   const notice = async (r: { headers: Record<string, unknown> }) => {
     const set = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).join('; ');
-    return (await app.inject({ method: 'GET', url: String(r.headers['location']).split('#')[0]!, headers: { cookie: `${owner}; ${set}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(String(r.headers['location']).split('#')[0]!), headers: { cookie: `${owner}; ${set}` } })).body;
   };
   const post = (url: string, body = '') => app.inject({ method: 'POST', url, payload: body,
     headers: { cookie: owner, 'content-type': 'application/x-www-form-urlencoded' } });

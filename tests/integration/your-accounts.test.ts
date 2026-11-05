@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
@@ -66,10 +67,10 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
     const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
     return withTenantTx(prod.db, b.value, fn);
   };
-  const get = (url: string, extra = '') => prod.app.inject({ method: 'GET', url, headers: { cookie: extra ? `${cookie}; ${extra}` : cookie } });
+  const get = (url: string, extra = '') => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: extra ? `${cookie}; ${extra}` : cookie } });
   /** The panel alone, so a mark elsewhere on the page cannot pass for one of its steps. */
   const panel = async (): Promise<string> => {
-    const r = await get('/app/channels/meta');
+    const r = await get('/app/settings/channels/meta');
     expect(r.statusCode).toBe(200);
     return /<section class="block" id="your-accounts"[\s\S]*?<\/section>/.exec(r.body)?.[0] ?? '';
   };
@@ -107,7 +108,7 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
     expect(html).toContain(t('en', 'accounts.title'));
     expect(markOf(html, 'accounts.page')).toBe('todo');
     expect(markOf(html, 'accounts.test')).toBe('todo');
-    expect(html).toContain('href="/app/help/meta#page"');
+    expect(html).toContain('href="/app/settings/channels/meta/help#page"');
     expect(asked.filter((a) => a.includes('debug_token'))).toEqual([]);   // nothing to ask Meta about
   });
 
@@ -149,7 +150,7 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
   });
 
   it('a first message from another account shows when it arrives — and the page\'s live mark moves', async () => {
-    const drawn = await get('/app/channels/meta');
+    const drawn = await get('/app/settings/channels/meta');
     const mark = /data-live="\/app\/live\/channels\?since=([0-9a-f.]+)"/.exec(drawn.body)?.[1];
     expect(mark).toBeTruthy();
     expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: false });   // phase 8: no order count on a live answer (the rail's question carries who waits)
@@ -179,12 +180,12 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
   });
 
   it('CH2 — the help page says what to check and why, for each step, in the panel\'s order', async () => {
-    const r = await get('/app/help/meta');
+    const r = await get('/app/settings/channels/meta/help');
     expect(r.statusCode).toBe(200);
     for (const id of ['page', 'instagram', 'connect', 'permissions', 'subscription', 'test-message']) expect(r.body, id).toContain(`id="${id}"`);
     expect(r.body).toContain(t('en', 'help.meta.permissions.check'));
     expect(r.body).toContain('href="https://www.facebook.com/business/help/898752960195806" rel="noopener noreferrer" target="_blank"');
-    const ar = await get('/app/help/meta', 'yf_locale=ar');
+    const ar = await get('/app/settings/channels/meta/help', 'yf_locale=ar');
     expect(ar.body).toContain('<html lang="ar" dir="rtl"');
     expect(ar.body).toContain(t('ar', 'help.meta.title'));
   });

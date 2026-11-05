@@ -20,7 +20,7 @@ Refused command fields are escaped, retained and marked; invalid external return
 
 ## Repository verification
 
-Node 22 check passed 9,299 assertions, trust passed 44, and build passed. Both the first and final full isolated integration runs passed 2,067 of 2,067 with none skipped. The final run tested the frozen source after incorporating the Books merge (971.62 seconds). Exact-head CI and the gated merge remain separate release requirements.
+Node 22 check passed 9,299 assertions, trust passed 44, and build passed. Both the first and final full isolated integration runs passed 2,067 of 2,067 with none skipped. The final run tested the frozen source after incorporating the Books merge (971.62 seconds). Both exact-head CI checks passed and `tools/gated-merge.sh` merged #433 at `694cb4f9`.
 
 ## Limits
 

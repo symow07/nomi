@@ -105,12 +105,12 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     const setup = renderSetup({ people: 1 }, 'en', null);
     expect(setup).not.toContain('class="langsw"');
     expect(setup).not.toContain('action="/logout"');
-    expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/language">[^]*?<bdi>English<\/bdi>/);
+    expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/personal\/language">[^]*?<bdi>English<\/bdi>/);
     // Phase 9 (w4-today-setup-29) — the screen is five rows like every menu's; the one in force says so.
     expect(renderLanguage('en')).toContain('<a class="srow sr-menu" href="/locale?set=zh&next=/app/settings/language" hreflang="zh">');
     expect(renderLanguage('en')).toContain('href="/locale?set=en&next=/app/settings/language" hreflang="en" aria-current="true"');
     const settings = renderSettingsHome('en', null);
-    const lastRow = settings.indexOf('href="/app/settings/setup"');
+    const lastRow = settings.indexOf('href="/app/settings"');
     const out = settings.indexOf('<form class="scard sr-foot" method="post" action="/logout">');
     expect(out, 'log out comes after every row').toBeGreaterThan(lastRow);
     expect(settings).not.toContain('href="/logout"');

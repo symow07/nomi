@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -36,7 +37,7 @@ d('D7 · a copy of one customer (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
   let staff = '';
   const C = { wa: '', mail: '', waConv: '', mailConv: '', other: '', otherConv: '', theirs: '', theirsConv: '' };
 
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const one = async (q: string, p: unknown[]) => (await admin.query(q, p)).rows[0];
 
   beforeAll(async () => {

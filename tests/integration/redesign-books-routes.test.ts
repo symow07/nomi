@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {dayKey} from '../../src/core/owner/i18n/format.js';
 import { draftEntryForm, loadEntry } from '../../src/db/booksEntries.js';
 import { keepReading } from '../../src/db/booksDocuments.js';
@@ -18,7 +19,7 @@ const FORM={'content-type':'application/x-www-form-urlencoded'};
 d('Approved Books destinations and bounded read-only overview',()=>{
  let db:Db,app:ReturnType<typeof Fastify>,owner='',staff='',accountant='',invoice='',paper='',foreignPaper='',calls=0;const ids:Record<string,string>={};
  const tx=<T>(fn:(t:Tx)=>Promise<T>,biz=B)=>{const b=parseBusinessId(biz);if(!b.ok)throw Error('fixture');return withTenantTx(db,b.value,fn);};
- const get=(url:string,cookie=owner)=>app.inject({method:'GET',url,headers:{cookie}});
+ const get=(url:string,cookie=owner)=>app.inject({method:'GET',url: settingsHref(url),headers:{cookie}});
  const post=(url:string,body:Record<string,string>={},cookie=owner)=>app.inject({method:'POST',url,payload:new URLSearchParams(body).toString(),headers:{cookie,...FORM}});
  const plain=(body:string)=>body.replace(/<(style|script)\b[\s\S]*?<\/\1>/gi,'').replace(/<[^>]*>/g,' ');
  const scopes=()=>new URLSearchParams({cash:ids['cash']!,payable:ids['payable']!}).toString();

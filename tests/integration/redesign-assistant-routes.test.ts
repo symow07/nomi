@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {beforeAll,afterAll,describe,it,expect} from 'vitest';
 import Fastify from 'fastify';
 import {randomUUID} from 'node:crypto';
@@ -9,7 +10,7 @@ const d=process.env['DATABASE_URL']&&process.env['MIGRATE_DATABASE_URL']?describ
 const B=randomUUID(),missing=randomUUID(),FORM={'content-type':'application/x-www-form-urlencoded'};
 d('Approved daily Assistant destinations preserve grants and commands',()=>{
  let db:Db,app:ReturnType<typeof Fastify>,owner='',staff='',accountant='',calls=0;
- const get=(url:string,cookie=owner)=>app.inject({method:'GET',url,headers:{cookie}});
+ const get=(url:string,cookie=owner)=>app.inject({method:'GET',url: settingsHref(url),headers:{cookie}});
  const post=(url:string,body:Record<string,string>={},cookie=owner)=>app.inject({method:'POST',url,payload:new URLSearchParams(body).toString(),headers:{cookie,...FORM}});
  beforeAll(async()=>{
   await seedRunTenant();db=createDb(process.env['DATABASE_URL']!);const b=parseBusinessId(B);if(!b.ok)throw Error('fixture');

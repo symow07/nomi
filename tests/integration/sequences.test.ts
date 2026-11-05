@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -52,7 +53,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     method: 'POST', url, headers: { cookie: as, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
   });
-  const get = (url: string, as = cookie) => prod.app.inject({ method: 'GET', url, headers: { cookie: as } });
+  const get = (url: string, as = cookie) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: as } });
   const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const login = async (code: string) => {
     const r = await prod.app.inject({

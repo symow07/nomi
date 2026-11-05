@@ -68,7 +68,7 @@ describe('G6 · the Ready for customers page', () => {
       expect(html).toContain(esc(t(l, 'ready.alone.not')));
       expect(html).toContain('href="/app/assistant/practice"');
       // Phase 7 — the channels step opens their one home, My business's screen.
-      expect(html).toContain('href="/app/business/channels"');
+      expect(html).toContain('href="/app/settings/channels"');
       expect(html).not.toContain(esc(t(l, 'ready.done')));
     });
   }
@@ -82,7 +82,7 @@ describe('G6 · the Ready for customers page', () => {
 describe('G6 · the machine room is the installation\'s', () => {
   it('only the installation\'s own workspace reaches it, and no owner\'s page links to it (phase 9)', () => {
     const app = src('src/api/web/app.ts');
-    const at = app.indexOf("app.get('/app/onboarding/technical', {");
+    const at = app.indexOf("app.get('/app/settings/channels/technical', {");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(at, at + 300)).toContain('if (s && s.businessId !== deps.businessId) return reply.callNotFound();');
     expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s), { embedded: true })');

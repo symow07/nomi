@@ -555,7 +555,7 @@ export async function loadFactory(
  * The assistant's page links to these same addresses for what it can talk
  * about; neither page keeps a second copy of either.
  */
-export const BUSINESS_FACTS_PATH = '/app/settings/profile';
+export const BUSINESS_FACTS_PATH = '/app/settings/business/profile';
 
 /**
  * The profile is done once it holds what setting up asks of it (a name, a
@@ -569,8 +569,8 @@ export const BUSINESS_PRODUCTS_PATH = '/app/products';
 
 export type BusinessScreen = 'channels' | 'allowlist' | 'ready' | 'promises' | 'how';
 export const BUSINESS_SCREEN_PATH: Readonly<Record<BusinessScreen, string>> = {
-  channels: '/app/business/channels', allowlist: '/app/business/allowlist', ready: '/app/business/ready',
-  promises: '/app/business/promises', how: '/app/business/how-you-sell',
+  channels: '/app/settings/channels', allowlist: '/app/settings/channels/whatsapp/test-numbers', ready: '/app/settings/assistant/ready',
+  promises: '/app/settings/assistant/promises', how: '/app/settings/business/selling',
 };
 
 /**

@@ -63,7 +63,7 @@ const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
 describe('w4-settings-a-24 · a form sent back keeps the rail: its waiting count and its live check', () => {
   it('the page drawn for a GET has them (the baseline the sent-back page must match)', async () => {
     const a = appWith();
-    const r = await a.inject({ method: 'GET', url: '/app/settings/closures', headers: { ...HTML, cookie: cookieFor(PILOT) } });
+    const r = await a.inject({ method: 'GET', url: '/app/settings/business/hours', headers: { ...HTML, cookie: cookieFor(PILOT) } });
     expect(r.statusCode).toBe(200);
     expect(r.body).toMatch(/data-rail="\/app\/live\/rail\?since=3\.[0-9]+"/);   // the count, and when the latest began to wait (w4-whole-03)
   });
@@ -236,7 +236,7 @@ describe('Your data · w4-settings-a-16, -17, -18', () => {
       expect(h, l).toMatch(new RegExp(`<details class="data-more"><summary>${esc(t(l, 'data.buyers.fromChatTitle'))}</summary>`));
       expect(h, l).not.toContain(`${esc(t(l, 'data.buyers.lead'))} ${esc(t(l, 'data.buyers.fromChat'))}`);
       // a file is saved, not opened: no door's chevron on Download
-      expect(h, l).not.toMatch(/class="deeper" href="\/app\/settings\/data\//);
+      expect(h, l).not.toMatch(/class="deeper" href="\/app\/settings\/business\/data\//);
     }
     // Chinese runs two sentences on after 。 — no stray space (three places)
     const zh = renderDataRights(view as never, 'zh', null, OWNER_VIEW, 'Setup');

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
@@ -60,7 +61,7 @@ d('BILL · billing (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
   const post = (a: typeof app, cookie: string, url: string, fields: Record<string, string> = {}) =>
     a.inject({ method: 'POST', url, headers: { ...FORM, cookie }, payload: new URLSearchParams(fields).toString() });
-  const get = (a: typeof app, cookie: string, url: string) => a.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (a: typeof app, cookie: string, url: string) => a.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const hook = (event: Record<string, unknown>, secret = WHSEC, at = Math.floor(Date.now() / 1000)) => {
     const body = JSON.stringify(event);
     return app.inject({ method: 'POST', url: '/hooks/stripe', payload: body,

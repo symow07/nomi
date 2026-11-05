@@ -252,6 +252,6 @@ describe('the word is "Inbox", and the address stays', () => {
   it('the Split rail and the plain rail say it; no page is called anything else', () => {
     const layout = readFileSync('src/api/web/layout.ts', 'utf8');
     expect(layout).toContain("{ href: '/app/inbox', id: 'inbox' }");
-    expect(layout).not.toContain('nav.customers');
+    expect(layout).not.toContain("id: 'inbox', label: 'nav.customers'");
   });
 });

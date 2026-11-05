@@ -121,7 +121,7 @@ describe('rule 13 · while the assistant answers, its Stop is on its own page; o
       // Not for staff (rule 11); not while already stopped (Start's door instead); not while nothing is connected.
       expect(landing(set, false)).not.toContain('stop-assistant');
       expect(landing({ ...set, stopped: true })).not.toContain('stop-assistant');
-      expect(landing({ ...set, stopped: true })).toContain('href="/app/business/ready#stop"');
+      expect(landing({ ...set, stopped: true })).toContain('href="/app/settings/assistant/ready#stop"');
       expect(landing({ ...set, answering: false })).not.toContain('stop-assistant');
     });
   }

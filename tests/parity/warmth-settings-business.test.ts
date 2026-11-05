@@ -1,3 +1,4 @@
+import {renderSettingsGroup,renderSettingsIndex} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
@@ -119,8 +120,8 @@ describe('phase 7 · every former section is one tap from the landing', () => {
     ['factory.prices.title', '/app/products/price-limits'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
     ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['business.row.live', BUSINESS_SCREEN_PATH.ready],
   ];
-  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
-    '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data'];
+  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+    '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'];
 
   for (const l of LOCALES) {
     it(`${l} · My business and Setup`, () => {
@@ -148,7 +149,7 @@ describe('phase 7 · every former section is one tap from the landing', () => {
       expect(reach, l).toContain(say('channel.state.ready.hint'));
       // the alert number, as it stands (its own screen holds the form)
       expect(reach, l).toContain('971500001111');
-      expect(reach, l).toContain('href="/app/channels/alerts"');
+      expect(reach, l).toContain('href="/app/settings/personal/notifications#whatsapp"');
       // who may be messaged: the note, the list, the form
       const list = screen('allowlist', l);
       expect(list, l).toContain(say('allowlist.note'));
@@ -180,7 +181,7 @@ describe('phase 7 · every former section is one tap from the landing', () => {
       const all = [business(l, SET_UP, staff), ...(['channels', 'allowlist', 'ready', 'promises', 'how'] as const).map((s) => screen(s, l, SET_UP, staff))].join('');
       expect(all, l).not.toMatch(/action="\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/add|allowlist\/remove|pilot\/end|pilot\/resume)"/);
       expect(all, l).not.toContain('href="/app/products/price-limits"');
-      expect(all, l).not.toContain('href="/app/business/selling"');
+      expect(all, l).not.toContain('href="/app/settings/business/selling/price"');
       expect(all, l).toContain(inScope(() => esc(t(l, 'staff.ownerDecides'))));
     }
   });
@@ -193,7 +194,7 @@ describe('phase 7 · the channels have ONE home: My business', () => {
       expect(row.label).toBe(inScope(() => esc(t(l, 'factory.reach.title'))));
       expect(row.value).toBe(`${inScope(() => t(l, 'reach.channel.whatsapp'))} · ${inScope(() => t(l, 'reach.channel.instagram'))}`);
       // Phase 9 (w4-business-assistant-05) — a row per channel, each opening its own screen once.
-      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="/app/channels/${s}"`).length - 1, `${l} ${s}`).toBe(1);
+      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="${s==='alerts'?'/app/settings/personal/notifications#whatsapp':'/app/settings/channels/'+s}"`).length - 1, `${l} ${s}`).toBe(1);
       const s = setup(l);
       for (const gone of ['href="/app/channels"', `href="${BUSINESS_SCREEN_PATH.channels}"`, `>${inScope(() => esc(t(l, 'nav.channels')))}<`])
         expect(s, `${l} ${gone}`).not.toContain(gone);
@@ -210,7 +211,7 @@ describe('phase 7 · the channels have ONE home: My business', () => {
 
 describe('phase 7 · every screen a level down starts with its way back', () => {
   const backs: Record<BusinessScreen, string> = {
-    channels: '/app/business', allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/business', promises: '/app/business', how: '/app/business',
+    channels: '/app/settings/business', allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', promises: '/app/settings/business', how: '/app/settings/business',
   };
   for (const l of LOCALES) {
     it(`${l} · My business's screens, and the pages its rows open`, () => {
@@ -222,8 +223,8 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
       }
       const from = (html: string, href: string) => expect(withoutIsolates(html).trimStart().startsWith(`<a class="back" href="${href}">`), `${l} → ${href}`).toBe(true);
       inScope(() => {
-        from(renderProfile(SET_UP.profile, l, null), '/app/business');
-        from(renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.factory')), '/app/business');
+        from(renderProfile(SET_UP.profile, l, null), '/app/settings/business');
+        from(renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.factory')), '/app/settings/business');
         // Price limits now belong to Products; the wrapper preserves a first-child back link.
         const limits = renderPriceRules(SET_UP.prices, l);
         expect(limits).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
@@ -232,7 +233,7 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
         from(renderSamples({ policy: null, waiting: [] }, l, null, new Date()), BUSINESS_SCREEN_PATH.how);
         from(renderClosures({ closures: [] }, l, null), BUSINESS_SCREEN_PATH.how);
         from(renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderLanguage(l), '/app/settings/setup');
+        from(renderLanguage(l), '/app/settings');
       });
     });
   }
@@ -240,7 +241,7 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
   it('primary Products has no legacy business breadcrumb; channel screens return to their own home', () => {
     expect(BACK_TO['/app/products']).toBeUndefined();
     const html = inScope(() => shell({ title: 'x', active: 'products', locale: 'en', path: '/app/products', bodyHtml: '<h1 class="page">x</h1>' }));
-    expect(html).not.toContain('<a class="back" href="/app/business">');
+    expect(html).not.toContain('<a class="back" href="/app/settings/business">');
     // Phase 9 (w4-business-assistant-07) — no screen is named like the one above it.
     expect(BACK_TO['/app/channels']).toBeUndefined();
     for (const s of CHANNEL_SCREENS) {
@@ -254,7 +255,7 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
 
 describe('phase 7 · two doors, one data', () => {
   it('the business’s facts and its products are edited in ONE place each, which the assistant’s page links to', () => {
-    expect(BUSINESS_FACTS_PATH).toBe('/app/settings/profile');
+    expect(BUSINESS_FACTS_PATH).toBe('/app/settings/business/profile');
     expect(BUSINESS_PRODUCTS_PATH).toBe('/app/products');
     const rows = rowsOf(business('en'));
     expect(rows[0]!.href).toBe(BUSINESS_FACTS_PATH);
@@ -274,10 +275,10 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
   // without a database: the owner's view of a business that sells in dollars
   // from China (so the rate has something to convert, as the walk's tenant).
   const drawn: Record<string, string> = {
-    '/app/business': business('en'),
-    [BUSINESS_SCREEN_PATH.how]: screen('how', 'en'),
+    '/app/settings/business': inScope(()=>renderSettingsGroup('en','business',{isOwner:true},null)),
     [BUSINESS_SCREEN_PATH.channels]: screen('channels', 'en'),
-    '/app/settings/setup': setup('en'),
+    '/app/settings': withWorkspace({...SCOPE,books:true},()=>renderSettingsIndex('en',null,{isOwner:true})),
+    '/app/settings/personal':inScope(()=>renderSettingsGroup('en','personal',{isOwner:true},null)),
   };
   for (const [hub, html] of Object.entries(drawn)) {
     it(`${hub} links to every route the map names under it`, () => {
@@ -288,8 +289,8 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
   }
 
   it('the rate row is there only where something converts, as before', () => {
-    expect(screen('how', 'en', { ...SET_UP, connection: { ...SET_UP.connection, country: 'US' } })).not.toContain('href="/app/settings/rate"');
-    expect(screen('how', 'en', { ...SET_UP, prices: { ...SET_UP.prices, currency: 'CNY' } })).not.toContain('href="/app/settings/rate"');
+    expect(screen('how', 'en', { ...SET_UP, connection: { ...SET_UP.connection, country: 'US' } })).not.toContain('href="/app/settings/business/currency"');
+    expect(screen('how', 'en', { ...SET_UP, prices: { ...SET_UP.prices, currency: 'CNY' } })).not.toContain('href="/app/settings/business/currency"');
   });
 
   it('How you sell says what each of its rows is set to now', () => {
@@ -301,6 +302,6 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
     const empty = rowsOf(screen('how', 'en', FIRST_DAY, { isOwner: true }));
     expect(empty.map((r) => r.value)).toEqual(['0 of 9 answered', 'Not set up', 'Not set up', 'None planned']);
     const waiting = rowsOf(screen('how', 'en', { ...SET_UP, menu: { ...SET_UP.menu!, samples: { price: usd('5'), waiting: 2 } } }));
-    expect(waiting.find((r) => r.href === '/app/settings/samples')!.value).toBe('2 requests waiting');
+    expect(waiting.find((r) => r.href === '/app/settings/business/samples')!.value).toBe('2 requests waiting');
   });
 });

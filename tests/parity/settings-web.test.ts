@@ -56,7 +56,7 @@ describe('M11.1 · settings renderer (localized)', () => {
     expect(html).toContain('Working hours'); expect(html).toContain('Languages served');
     // The warmth run (V1-006): what it sells is How you sell's answer, in words, with the door to that question.
     expect(html).toContain('What you sell'); expect(html).toContain('Something else');
-    expect(html).toContain('href="/app/business/selling/product_claims"');
+    expect(html).toContain('href="/app/settings/business/selling/product-claims"');
     expect(html).toContain('action="/app/settings"');
   });
 

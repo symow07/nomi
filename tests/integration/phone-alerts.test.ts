@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createECDH, createHmac, createDecipheriv, generateKeyPairSync } from 'node:crypto';
@@ -85,7 +86,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
   };
   const post = (url: string, form: Record<string, string>) => prod.app.inject({
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: new URLSearchParams(form).toString() });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const phones = () => q((tx) => sql<{ endpoint: string; archived_reason: string | null }>`
     select endpoint, archived_reason from push_subscriptions where business_id = ${BIZ}::uuid order by created_at`.execute(tx).then((r) => r.rows));
 
@@ -159,7 +160,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
   });
 
   it('TURNED ON FROM THE PAGE and chosen on Notifications, a hand-over reaches the phone — encrypted to it, with the conversation it opens; a waiting reply does not', async () => {
-    const page = await get('/app/settings/alerts');
+    const page = await get('/app/settings/personal/notifications');
     expect(page.body).toContain(`data-push-key="${process.env['VAPID_PUBLIC_KEY']}"`);
     const on = await post('/app/settings/alerts/phone', { subscription: mine.subscription, device: 'Mona’s iPhone' });
     // The warmth run, phase 9 (w4-settings-a-06) — one name: notifications.

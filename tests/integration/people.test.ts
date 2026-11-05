@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -100,11 +101,11 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const set = String(res.headers['set-cookie'] ?? '');
     expect(set).toMatch(/^yf_issued=/);
     expect(set).toContain('HttpOnly');
-    expect(set).toContain('Path=/app/settings/people');
+    expect(set).toContain('Path=/app/settings/team');
     expect(Number(set.match(/Max-Age=(\d+)/)?.[1])).toBeLessThanOrEqual(300);
     const issued = set.split(';')[0]!;
 
-    const page = await app.inject({ method: 'GET', url: location, headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const page = await app.inject({ method: 'GET', url: settingsHref(location), headers: { cookie: `${ownerCookie}; ${issued}` } });
     staffCode = page.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
     expect(staffCode).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
     expect(location).not.toContain(staffCode);
@@ -114,7 +115,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(String(page.headers['set-cookie'] ?? '')).toMatch(/^yf_issued=; .*Max-Age=0/);
 
     // And it is gone from the page the moment she navigates away from it.
-    const again = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    const again = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
     expect(again.body).not.toContain(staffCode);
 
     staffId = await tx((t) => sql<{ id: string }>`
@@ -183,7 +184,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     // G9a — and the PAGES behind the two most sensitive forms: her floor, and
     // the form that hands someone a way in.
     for (const url of ['/app/settings/people', '/app/products/price-limits']) {
-      const res = await app.inject({ method: 'GET', url, headers: { cookie: staffCookie } });
+      const res = await app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: staffCookie } });
       expect(res.statusCode, url).toBe(302);
       expect(flashSaid(res, SECRET), url).toContain('Only the owner');
     }
@@ -198,12 +199,12 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
 
   it('staff are not SHOWN the controls that would only refuse them', async () => {
     const get = async (cookie: string, url: string) =>
-      (await app.inject({ method: 'GET', url, headers: { cookie } })).body;
+      (await app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } })).body;
     // Phase 9 — a screen per channel: writing first on WhatsApp's and e-mail's, the sending domain on e-mail's.
-    const both = async (cookie: string) => (await get(cookie, '/app/channels/whatsapp')) + (await get(cookie, '/app/channels/email'));
-    const owner = { factory: await get(ownerCookie, '/app/business'), channels: await both(ownerCookie) };
+    const both = async (cookie: string) => (await get(cookie, '/app/settings/channels/whatsapp')) + (await get(cookie, '/app/settings/channels/email'));
+    const owner = { factory: (await get(ownerCookie, '/app/settings/business'))+(await get(ownerCookie, '/app/products')), channels: await both(ownerCookie) };
     const staff = {
-      factory: (await get(staffCookie, '/app/business')) + (await get(staffCookie, '/app/business/ready')),
+      factory: (await get(staffCookie, '/app/settings/business')) + (await get(staffCookie, '/app/settings/assistant/ready')),
       employee: await get(staffCookie, '/app/settings/assistant'),
       channels: await both(staffCookie),
     };
@@ -405,7 +406,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       .execute(t).then((r) => r.rows[0]!.name));
     const before = await nameOf();
     await tx((t) => sql`update people set name = (select name from businesses where id = ${BIZ}::uuid) where id = ${ownerId}::uuid`.execute(t));
-    const asked = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    const asked = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
     expect(asked.body).toContain(`action="/app/settings/people/${ownerId}/name"`);
     // an empty name changes nothing and says why
     const empty = await post(ownerCookie, `/app/settings/people/${ownerId}/name`, 'name=%20');
@@ -414,7 +415,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(saved.statusCode).toBe(302);
     expect(flashSaid(saved, SECRET)).toContain('Mrs Wang');
     expect(await nameOf()).toBe('Mrs Wang');
-    const after = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    const after = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
     expect(after.body).not.toContain('/name"');
     // a person of another business is not reachable: nothing saves
     const stranger = await post(ownerCookie, `/app/settings/people/${randomUUID()}/name`, 'name=Nobody');
@@ -462,7 +463,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(owner.last_seen_at).not.toBeNull();
     expect(Date.now() - owner.last_seen_at!.getTime()).toBeLessThan(5 * 60_000);
 
-    const page = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Online now');
     expect(page.body).toContain('Signs in with an access code');
@@ -473,7 +474,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     // A colleague of her own, so the people the earlier tests rely on stay.
     const added = await post(ownerCookie, '/app/settings/people', 'name=Temp%20Hire');
     const issued = String(added.headers['set-cookie'] ?? '').split(';')[0]!;
-    const page = await app.inject({ method: 'GET', url: String(added.headers['location']), headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const page = await app.inject({ method: 'GET', url: settingsHref(String(added.headers['location'])), headers: { cookie: `${ownerCookie}; ${issued}` } });
     const code = page.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
     const temp = await login(code);
     expect(temp.status).toBe(302);
@@ -486,7 +487,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
 
     // The very next request, with the SAME cookie — not "within a minute".
     for (const url of ['/app', '/app/inbox', `/app/inbox/${convId}`]) {
-      const r = await app.inject({ method: 'GET', url, headers: { cookie: temp.cookie } });
+      const r = await app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie: temp.cookie } });
       expect([r.statusCode, r.headers['location']], url).toEqual([302, '/login']);
     }
     const out = await app.inject({ method: 'GET', url: '/app', headers: { cookie: temp.cookie } });

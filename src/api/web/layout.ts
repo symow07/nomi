@@ -1,3 +1,5 @@
+import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
+import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
 import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
 import { BOOKS_AREA_CSS } from './booksAreaStyle.js';
@@ -96,25 +98,9 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
-  // THE WARMTH RUN, phase 7 — My business is a menu: each row opens a page
-  // that already owned its part (the profile, the kind, the products, the
-  // price limits) or a screen of its own a level down.
-  { hub: '/app/business', routes: [
-    '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
-    '/app/business/promises', '/app/business/how-you-sell',
-  ] },
-  // …How you sell is a menu of its own: the questions, then the same facts changed directly.
-  { hub: '/app/business/how-you-sell', routes: [
-    '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
-  ] },
-  // …and the channels have ONE home, Where customers reach you: each of its rows opens a channel's own screen (phase 9).
-  { hub: '/app/business/channels', routes: ['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts'] },
-  // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
-  // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
-  // row only while a check waits, so it is not walked from here). The advisor
-  // run — one level into Settings (`ASSISTANT_HOME`).
-  { hub: ASSISTANT_HOME, routes: ['/app/settings/forbidden',
-    ...['alone', 'name', 'replies', 'one-kind', 'month', 'next'].map((s) => `${ASSISTANT_HOME}/${s}`)] },
+  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s) },
+  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s) },
+  { hub: ASSISTANT_HOME, routes: ['alone','name','words','promises','ready','history-policy'].map(s=>ASSISTANT_HOME+'/'+s) },
   { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/practice','/app/assistant/review','/app/assistant/activity','/app/assistant/ask'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
@@ -123,24 +109,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/inbox', routes: ['/app/inbox/replies'] },
   { hub: '/app/customers', routes: ['/app/customers/orders', '/app/customers/labels', '/app/customers/feedback'] },
   { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits'] },
-  // THE WARMTH RUN — My business is a row of Settings now, and the pages
-  // reached from it follow it there (the map chains).
-  { hub: '/app/settings', routes: [ASSISTANT_HOME, '/app/business', '/app/settings/setup'] },
-  // Phase 7 — Setup is how the app is wired for the owner: getting started,
-  // what is checked before going live, alerts, the language; the account.
-  { hub: '/app/settings/setup', routes: [
-    '/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
-    '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data',
-    // 0130 — the advisor's history (everyone's own; the owner's workspace and team), a door of Your data too.
-    '/app/settings/advisor-history',
-  ] },
-  // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
-  // is no longer a door on Setup: it is a page for whoever builds the product
-  // (the screenshots tool walks it), not a setting. It still lights Setup, by
-  // sitting under its address.
-  // Phase 4b — the machine room was reached from Getting ready. Phase 9: no
-  // owner's page links to it any more (it is the operator's, by its address),
-  // so it is not a contextual route of any hub; it lights nothing.
+  { hub: '/app/settings', routes: ['business','channels','assistant','books','team','billing','personal'].map(s=>'/app/settings/'+s) },
+  { hub: '/app/settings/personal', routes: ['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s) },
   { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
@@ -181,7 +151,7 @@ const under = (prefixes: readonly string[], url: string): boolean => {
   return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
 };
 /** Audit B14 — the export trade's pages (`tradesForExport`): 404 for a shop, a brand or an agency, read by the gate in app.ts. */
-export const EXPORT_PREFIXES: readonly string[] = ['/app/settings/terms', '/app/settings/samples'];
+export const EXPORT_PREFIXES: readonly string[] = ['/app/settings/terms', '/app/settings/samples', '/app/settings/business/terms', '/app/settings/business/samples', '/app/customers/samples'];
 export const isExportRoute = (url: string): boolean => under(EXPORT_PREFIXES, url);
 /** Audit B17 — the Moroccan FEC and the CGNC chart (`keepsMoroccanBooks`): 404 for any other books. */
 export const MOROCCAN_BOOKS_PREFIXES: readonly string[] = ['/app/books/fec', '/app/books/reports/fec', '/app/books/chart/cgnc'];
@@ -210,7 +180,7 @@ export const missingPage = (locale: Locale, title: string, door: { readonly href
   `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
 
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
 
 /** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
 export const unescapeHtml = (s: string): string =>
@@ -230,7 +200,7 @@ export const byAssistant = (name: string): string =>
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
-  `<a class="back" href="${href}">${BACK}${esc(label)}</a>`;
+  `<a class="back" href="${settingsHref(href)}">${BACK}${esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';
@@ -2762,7 +2732,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2826,6 +2796,7 @@ const scriptTo = (href: string): string => `<script src="${href}" defer></script
  * light nothing twice over.
  */
 export function hubFor(path: string, active: string): string {
+  path = settingsHref(path);
   const url = (path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '') || '/app';
   // Transitional addresses stay in the destination that will own their content.
   const belongs: readonly [string, readonly string[]][] = [
@@ -2884,33 +2855,24 @@ export function hubFor(path: string, active: string): string {
  * it only where the page has none, so a page that draws its own keeps it.
  */
 export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
-  '/app/settings/closures': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
-  '/app/settings/rate': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
-  '/app/settings/samples': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
-  '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
-  '/app/settings/forbidden': { href: ASSISTANT_HOME, label: 'nav.employee' },
-  // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
-  '/app/knowledge': { href: ASSISTANT_HOME, label: 'nav.employee' },
-  // The advisor run — the assistant's settings are a row of Settings.
+  ...Object.fromEntries(['hours','currency','samples','terms'].map(s=>['/app/settings/business/'+s,{href:'/app/settings/business',label:'settingsArea.business' as MessageKey}])),
+  '/app/settings/assistant/words': { href: ASSISTANT_HOME, label: 'nav.employee' },
   [ASSISTANT_HOME]: { href: '/app/settings', label: 'nav.settings' },
-  '/app/settings/people': { href: '/app/settings/setup', label: 'nav.setup' },
-  // S1 — the saved replies lead back to Buyers.
+  '/app/settings/team': { href: '/app/settings', label: 'nav.settings' },
+  '/app/settings/business': { href: '/app/settings', label: 'nav.settings' },
+  '/app/settings/channels/technical': { href: '/app/settings/channels', label: 'settingsArea.channels' },
+  '/app/knowledge': { href: '/app/assistant', label: 'nav.assistant' },
   '/app/replies': { href: '/app/inbox', label: 'nav.inbox' },
-  '/app/labels': { href: '/app/inbox', label: 'nav.inbox' },
-  '/app/surveys': { href: '/app/inbox', label: 'nav.inbox' },
-  '/app/guide': { href: '/app/settings/setup', label: 'nav.setup' },
-  '/app/onboarding': { href: '/app/settings/setup', label: 'nav.setup' },
-  // THE WARMTH RUN — Settings' two rows lead back to it.
-  '/app/settings/setup': { href: '/app/settings', label: 'nav.settings' },
-  '/app/business': { href: '/app/settings', label: 'nav.settings' },
-  '/app/ready': { href: '/app/onboarding', label: 'nav.onboarding' },
-  // The warmth run, phase 9 — the checklist's two screens, and the machine room (w4-today-setup-20: its way back above its heading).
-  '/app/onboarding/practice': { href: '/app/onboarding', label: 'nav.onboarding' },
-  '/app/onboarding/activity': { href: '/app/onboarding', label: 'nav.onboarding' },
-  '/app/onboarding/technical': { href: '/app/onboarding', label: 'nav.onboarding' },
+  '/app/labels': { href: '/app/customers', label: 'nav.customers' },
+  '/app/surveys': { href: '/app/customers', label: 'nav.customers' },
+  '/app/guide': { href: '/app', label: 'nav.home' },
+  '/app/onboarding': { href: '/app', label: 'nav.home' },
+  '/app/ready': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
+  '/app/onboarding/practice': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
+  '/app/onboarding/activity': { href: '/app/results', label: 'nav.home' },
 };
 const wayBack = (locale: Locale, path: string, body: string): string => {
-  const to = BACK_TO[(path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')];
+  const to = BACK_TO[(settingsHref(path).split(/[?#]/)[0] ?? path).replace(/\/+$/, '')] ?? BACK_TO[path];
   return to && !body.includes('class="back"') ? back(to.href, t(locale, to.label)) : '';
 };
 
@@ -2969,7 +2931,7 @@ export function shell(input: {
   };
   if (role === 'accountant') {
     const books = entry('books', '/app/books', t(locale, 'nav.books'), 'notebook-minimalistic');
-    const account = entry('account', '/app/settings/account', t(locale, 'account.title'), 'key');
+    const account = entry('account', '/app/settings/personal/account', t(locale, 'account.title'), 'key');
     const logout = `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout">${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
     return shellWith(input, `<div class="navgroup">${books}${account}</div><div class="navfoot">${logout}</div>`);
   }

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -62,7 +63,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
   });
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, SECRET);
   const login = async (code: string) => String((await app.inject({
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,

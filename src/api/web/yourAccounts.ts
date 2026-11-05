@@ -36,7 +36,7 @@ const MARK: Record<Mark, string> = { done: shape('ok'), todo: shape('waiting'), 
 const step = (locale: Locale, mark: Mark, label: MessageKey, said: string, help: string): string => `
     <div class="pr ${mark}"><span class="mk" aria-hidden="true">${MARK[mark]}</span>
       <span class="lbl"><b>${esc(t(locale, label))}</b> <span class="sr">${esc(t(locale, `accounts.mark.${mark}` as MessageKey))}</span></span>
-      <span class="pr-note">${esc(said)} <a href="/app/help/meta#${help}">${esc(t(locale, 'accounts.help'))}</a></span></div>`;
+      <span class="pr-note">${esc(said)} <a href="/app/settings/channels/meta/help#${help}">${esc(t(locale, 'accounts.help'))}</a></span></div>`;
 
 export function renderYourAccounts(v: YourAccounts, locale: Locale): string {
   const c = v.check;

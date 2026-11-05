@@ -64,7 +64,7 @@ export async function saveBusinessKind(
   return 'saved';
 }
 
-export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: Flash | null, backLabel: string, kept: Kept | null = null): string {
+export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: Flash | null, backLabel: string, kept: Kept | null = null, embedded = false): string {
   const option = (value: string, label: string, chosen: string | null): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
   const pick = `<option value="">${esc(t(locale, 'signup.pick'))}</option>`;
@@ -75,8 +75,7 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   // the page holds, as Setup's row does; (V1-473) and the page says what each
   // is used for, and when a change counts.
   // Phase 7 — a fact about the business: reached from My business, and back there.
-  return `${back('/app/business', backLabel)}
-    <h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>
+  return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
     <form method="post" action="/app/settings/business" class="sform">

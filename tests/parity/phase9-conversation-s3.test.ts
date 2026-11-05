@@ -410,9 +410,9 @@ describe('V1-273, conversation-missed-09 · deleting their data, said plainly, w
       const html = renderCustomerFile(file(), l, NOW);
       expect(plain(html), l).toContain(esc(t(l, 'conv.deletion.lead')));
       // 0126 — onto the list itself.
-      expect(html, l).toContain(`href="/app/settings/data#buyers">${esc(t(l, 'data.title'))}<span class="go"`);
+      expect(html, l).toContain(`href="/app/settings/business/data#buyers">${esc(t(l, 'data.title'))}<span class="go"`);
       const waiting = renderCustomerFile(file({ deletionAsk: { id: 'a-1', askedAt: ago(30), asks: 1, conversationId: 'conv-here', words: 'please delete my data', buyer: 'Aisha Bello' } }), l, NOW);
-      expect(waiting, l).toContain(`href="/app/settings/data#buyers">${esc(t(l, 'data.title'))}<span class="go"`);
+      expect(waiting, l).toContain(`href="/app/settings/business/data#buyers">${esc(t(l, 'data.title'))}<span class="go"`);
     }
     for (const k of ['conv.deletion.lead', 'conv.deletion.waiting'] as const) {
       expect(t('en', k)).not.toMatch(/operator|by hand|usually/);

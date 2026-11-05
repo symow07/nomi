@@ -200,7 +200,7 @@ describe('M46 · the owner page', () => {
         // The warmth run (V1-537) — payment terms with no delivery term is a
         // state of its own: the page names the one thing a proforma lacks.
         expect(html).toContain(esc(t(locale, over.paymentTerms === null ? 'order.invoice.noTerms' : 'order.invoice.noIncoterm')));
-        expect(html).toContain('href="/app/settings/terms"');
+        expect(html).toContain('href="/app/settings/business/terms"');
       }
     }
   });
@@ -212,11 +212,11 @@ describe('M46 · the owner page', () => {
           const html = renderOrder(view({ ...over, sellerKind }), locale, null);
           expect(html, `${locale} ${sellerKind}`).not.toContain(esc(t(locale, 'order.invoice.noTerms')));
           expect(html, `${locale} ${sellerKind}`).not.toContain(esc(t(locale, 'order.invoice.noIncoterm')));
-          expect(html, `${locale} ${sellerKind}`).not.toContain('href="/app/settings/terms"');
+          expect(html, `${locale} ${sellerKind}`).not.toContain('href="/app/settings/business/terms"');
         }
         // a factory, an exporter, a wholesaler — and a workspace with no kind — are still told
         for (const sellerKind of ['manufacturer', 'trading', 'wholesale', null]) {
-          expect(renderOrder(view({ ...over, sellerKind }), locale, null), `${locale} ${sellerKind}`).toContain('href="/app/settings/terms"');
+          expect(renderOrder(view({ ...over, sellerKind }), locale, null), `${locale} ${sellerKind}`).toContain('href="/app/settings/business/terms"');
         }
       }
     }

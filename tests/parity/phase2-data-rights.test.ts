@@ -183,7 +183,7 @@ describe('who may do it', () => {
 
   it('both the page and the file are gated, not only the form', () => {
     const src = read('src/api/web/app.ts');
-    expect(src).toMatch(/app\.get\('\/app\/settings\/data', ownerPage\('data_rights'/);
+    expect(src).toMatch(/app\.get\('\/app\/settings\/business\/data', ownerPage\('data_rights'/);
     expect(src).toMatch(/app\.get\('\/app\/settings\/data\/:file'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
     expect(src).toMatch(/app\.post\('\/app\/settings\/data\/delete'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
     expect(src).toMatch(/app\.post\('\/app\/settings\/data\/withdraw'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
@@ -193,7 +193,7 @@ describe('who may do it', () => {
   });
 
   it('it is reachable — Settings links to it', () => {
-    expect(read('src/api/web/settings.ts')).toContain("'/app/settings/data'");
+    expect(read('src/api/web/settingsArea.ts')).toContain("['data','settingsArea.data']");
   });
 });
 

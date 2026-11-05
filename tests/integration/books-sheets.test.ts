@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -34,7 +35,7 @@ d('B3 · the books in Google Sheets, through the routes (requires DATABASE_URL +
   const notice = async (r: { headers: Record<string, unknown> }) => {
     const set = cookiesOf(r).join('; ');
     const to = String(r.headers['location']).split('#')[0]!;
-    return (await app.inject({ method: 'GET', url: to, headers: { cookie: `${owner}; ${set}` } })).body;
+    return (await app.inject({ method: 'GET', url: settingsHref(to), headers: { cookie: `${owner}; ${set}` } })).body;
   };
   const connection = () => as(async (q) => (await q(`select state, reason, settings, credential_id from books_connections where system = 'sheets'`)).rows[0]);
   const connect = async () => {

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -48,7 +49,7 @@ d('D7 · custom fields, defined, filled in, and through every road (requires DAT
     ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!);
   const session = (r: { headers: Record<string, unknown> }) => cookiesOf(r).find((c) => c.startsWith('yf_session=')) ?? '';
   const notice = async (r: { headers: Record<string, unknown> }, who = owner) =>
-    (await app.inject({ method: 'GET', url: String(r.headers['location']).split('#')[0]!, headers: { cookie: `${who}; ${cookiesOf(r).join('; ')}` } })).body;
+    (await app.inject({ method: 'GET', url: settingsHref(String(r.headers['location']).split('#')[0]!), headers: { cookie: `${who}; ${cookiesOf(r).join('; ')}` } })).body;
   const form = (url: string, fields: Record<string, string>, who = owner) => app.inject({ method: 'POST', url,
     payload: new URLSearchParams(fields).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
   const books = async (biz: string) => {
@@ -142,7 +143,7 @@ d('D7 · custom fields, defined, filled in, and through every road (requires DAT
     const row = await as(async (q) => (await q(`select e.custom as entry, (select json_agg(l.custom order by l.line_no) from journal_lines l where l.entry_id = e.id) as lines
       from journal_entries e where e.label = $1`, [`Salon ${RUN}`])).rows[0]);
     expect(row).toEqual({ entry: { project: 'Salon de Rabat', site: 'Tanger' }, lines: [{}, { weight_kg: '3.5' }] });
-    const shown = (await app.inject({ method: 'GET', url: String(made.headers['location']), headers: { cookie: owner } })).body;
+    const shown = (await app.inject({ method: 'GET', url: settingsHref(String(made.headers['location'])), headers: { cookie: owner } })).body;
     expect(shown).toContain('<bdi>Project</bdi>: <bdi>Salon de Rabat</bdi>');
     expect(shown).toContain('<bdi>Weight (kg)</bdi>: <bdi>3.5</bdi>');
     // a party: the required segment, and a date

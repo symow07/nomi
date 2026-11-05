@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -54,7 +55,7 @@ d('D4 · frozen on lapse (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => 
   const post = (url: string, form: Record<string, string>) => prod.app.inject({
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded', referer: `https://app.example.test/app/inbox/${conv}` },
     payload: new URLSearchParams(form).toString() });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const customerRecord = async (conversationId: string) => {
     const moved = await get(`/app/conversations/${conversationId}`);
     expect(moved.statusCode).toBe(302);

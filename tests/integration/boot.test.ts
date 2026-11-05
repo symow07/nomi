@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tenant.js';
@@ -109,6 +110,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
       values (${DEMO_BIZ}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')
       on conflict (channel, external_ref) do nothing
     `.execute(tx));
+    await withTenantTx(setup,bid.value,tx=>sql`update businesses set books_area=true where id=${DEMO_BIZ}::uuid`.execute(tx));
     await setup.destroy();
     prod = await buildProduction({
       provider: 'meta',
@@ -522,8 +524,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     // Phase 9 — the old address answers with the channels' one home.
     const old = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
-    expect([old.statusCode, old.headers['location']]).toEqual([302, '/app/business/channels']);
-    const res = await prod.app.inject({ method: 'GET', url: '/app/business/channels', headers: { cookie } });
+    expect([old.statusCode, old.headers['location']]).toEqual([302, '/app/settings/channels']);
+    const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('WhatsApp');        // English default
     expect(res.body).toContain('Not available yet');
@@ -544,7 +546,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const cookie = await login();
     // Phase 9 — a screen per channel; what each allows is said on its own.
-    const screens = await Promise.all(['whatsapp', 'meta', 'email'].map((s) => prod.app.inject({ method: 'GET', url: `/app/channels/${s}`, headers: { cookie } })));
+    const screens = await Promise.all(['whatsapp', 'meta', 'email'].map((s) => prod.app.inject({ method: 'GET', url: settingsHref(`/app/channels/${s}`), headers: { cookie } })));
     for (const s of screens) expect(s.statusCode).toBe(200);
     const res = { body: screens.map((s) => s.body).join('\n') };
     expect(res.body).toContain(t('en', 'reach.title.one', { channel: 'WhatsApp' }));
@@ -575,7 +577,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const disc = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(disc.statusCode).toBe(302);
-    expect(disc.headers['location']).toBe('/app/channels/whatsapp');
+    expect(disc.headers['location']).toBe('/app/settings/channels/whatsapp');
     expect(flashSaid(disc, WEB_SECRET)).not.toBe('');
     expect(await active()).toBe(false);                 // real effect: inbound resolution stops
     expect(await auditCount('disconnect')).toBe(before + 1);
@@ -591,7 +593,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/test',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe('/app/channels/whatsapp');
+    expect(res.headers['location']).toBe('/app/settings/channels/whatsapp');
     expect(flashSaid(res, WEB_SECRET)).not.toBe('');
   });
 
@@ -679,21 +681,21 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
+    expect(res.body).toContain(`<h1 class="page">${esc(t('en','settingsArea.permissions'))}</h1>`);  // Phase C: the page IS the assistant
     // THE WARMTH RUN, phase 7 — the landing is a menu; each section is its row's screen.
-    expect(res.body).toContain(`href="/app/settings/assistant/replies"><svg`);
+    expect(res.body).toContain('id="reply-types"');
     expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
     // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
-    expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
+    expect(res.body).toContain('id="progress"');
     expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
     expect(res.body).not.toContain('置信度');       // no invented score
-    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: assistantPageUrl(`/app/settings/assistant/${s}`), headers: { cookie } }));
+    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: settingsHref(assistantPageUrl(`/app/settings/assistant/${s}`)), headers: { cookie } }));
     const replies = await screen('replies');
     expect(replies.statusCode).toBe(200);
     expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
     expect(replies.body).toContain('Greeting');
-    expect(replies.body).toContain('<a class="back" href="/app/settings/assistant">');
+    expect(replies.body).toContain('id="reply-types"');
     for (const s of ['history', 'next']) {
       const r = await screen(s);
       expect(r.statusCode, s).toBe(200);
@@ -791,7 +793,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-000000000301`, headers: { cookie } });
     expect(moved.statusCode).toBe(302);
     expect(String(moved.headers['location'])).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
-    const res = await prod.app.inject({ method: 'GET', url: String(moved.headers['location']), headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: settingsHref(String(moved.headers['location'])), headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('About this customer');   // A — one word: customer (the positioning rewrite)
@@ -976,7 +978,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000004')}2` });
     expect(save.statusCode).toBe(302);
-    expect(save.headers['location']).toBe('/app/channels/alerts');
+    expect(save.headers['location']).toBe('/app/settings/personal/notifications#whatsapp');
     expect(flashSaid(save, WEB_SECRET)).not.toBe('');
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
@@ -1017,7 +1019,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       sql`update businesses set name='Yiwu Demo Factory', location='Yiwu, Zhejiang' where id=${parsed.value}`.execute(tx));
 
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Business profile');          // English default — its own page since UI-PASS 7
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
@@ -1027,7 +1029,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).not.toContain('Product categories');
     expect(res.body).not.toMatch(/bags · drinkware/);
     expect(res.body).toContain('What you sell');
-    expect(res.body).toContain('href="/app/business/selling/product_claims"');
+    expect(res.body).toContain('href="/app/settings/business/selling/product-claims"');
     // Phase F: no second "what is missing" list here — My factory owns that.
     expect(res.body).not.toContain('Profile checklist');
   });
@@ -1615,7 +1617,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(html).toContain(esc(t('en', 'home.wins.connect')));
       expect(html).not.toContain("You're all caught up");
       // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
-      expect(html).toContain('href="/app/business/channels"');
+      expect(html).toContain('href="/app/settings/channels"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
       expect(html).toContain(`<h2 id="today-now" class="tw-head home-calm">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
@@ -1742,7 +1744,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Phase 4b (F2/F4) — on the technical page, one door from Getting ready.
     it('the owner surface DOES show which build is running (behind login)', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding/technical', headers: { cookie } });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('This installation');
       expect(res.body).toContain('Running version');
@@ -1750,7 +1752,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('and it is NOT reachable without a session', async () => {
-      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding/technical' });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical' });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toBe('/login');
     });
@@ -2019,11 +2021,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);
-      expect(res.body).toContain(esc(t('en', 'her.knows.title')));
+      expect(res.body).toContain(`<h1 class="page">${esc(t('en','settingsArea.permissions'))}</h1>`);
+      expect(res.body).toContain('href="/app/settings/assistant/words"');
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
-      expect(res.body).toContain(esc(t('en', 'her.recent.title')));
-      expect(res.body).toContain(esc(t('en', 'her.teach.title')));
+      expect(res.body).toContain('id="progress"');
+      expect(res.body).toContain('id="reply-types"');
     });
 
     it('THE WARMTH RUN, phase 7 — what the assistant can talk about is My business\'s, opened there, edited nowhere else', async () => {
@@ -2389,7 +2391,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const page = await html();
       const FIX: Record<string, string | null> = {
         schema_stale: '/app/onboarding', not_ready: '/app/onboarding',
-        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels/whatsapp',
+        secrets_not_rotated: '/app/onboarding', no_channel: '/app/settings/channels/whatsapp',
         no_allowlist: null,
       };
       for (const b of f.readiness.blockers) {
@@ -2452,12 +2454,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('SECURITY: the page requires an owner session, and shows only that owner’s factory', async () => {
-      const anon = await prod.app.inject({ method: 'GET', url: '/app/business' });
+      const anon = await prod.app.inject({ method: 'GET', url: '/app/settings/business' });
       expect(anon.statusCode).toBe(302);
       expect(anon.headers['location']).toBe('/login');
 
       const cookie = await login();
-      const mine = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      const mine = await prod.app.inject({ method: 'GET', url: '/app/settings/business', headers: { cookie } });
       expect(mine.statusCode).toBe(200);
       const demoName = (await view()).profile.name;
       expect(mine.body).toContain(demoName);
@@ -2479,7 +2481,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // CUR — and the rate page exists only where there is something to
       // convert, so the demo is what it depicts: a Yiwu factory selling in dollars.
       await withTenantTx(prod.db, bid.value, (tx) =>
-        sql`update businesses set outreach_area = true, country = 'CN' where id = ${DEMO_BIZ}::uuid`.execute(tx));
+        sql`update businesses set outreach_area = true, books_area = true, country = 'CN' where id = ${DEMO_BIZ}::uuid`.execute(tx));
       const cookie = await login();
       // EVERY contextual route, against the page that declares it — not just
       // the My-factory ones with the rest named in an exclusion list. A route
@@ -2492,16 +2494,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       '/app/onboarding/activity': '/app/results?view=setup', '/app/replies': '/app/inbox/replies',
       };
       for (const { hub, routes } of CONTEXTUAL_ROUTES_BY_HUB) {
-        const page = await prod.app.inject({ method: 'GET', url: moved[hub] ?? hub, headers: { cookie } });
+        const page = await prod.app.inject({ method: 'GET', url: settingsHref(moved[hub] ?? hub), headers: { cookie } });
         expect(page.statusCode, hub).toBe(200);
         for (const route of routes) {
           const destination = moved[route];
           // Existing hub links may use their stable alias while that area migrates.
           expect(page.body.includes(`href="${route}"`) || !!destination && page.body.includes(`href="${destination}"`), `${route} must stay linked from ${hub}`).toBe(true);
-          const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
+          const r = await prod.app.inject({ method: 'GET', url: settingsHref(route), headers: { cookie } });
           if (destination) {
             expect([r.statusCode, r.headers['location']], route).toEqual([302, destination]);
-            const canonical = await prod.app.inject({ method: 'GET', url: destination, headers: { cookie } });
+            const canonical = await prod.app.inject({ method: 'GET', url: settingsHref(destination), headers: { cookie } });
             expect(canonical.statusCode, destination).toBe(200);
           } else expect(r.statusCode, route).toBe(200);
         }
@@ -2675,7 +2677,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(flashSaid(r, WEB_SECRET)).toContain('start with your own');
 
       // the page and the refusal must say the SAME thing (phase 7: going live's screen)
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant/ready', headers: { cookie } });
       expect(page.body).toContain('start with your own');
       expect(page.body).not.toContain('action="/app/business/activate"');
 
@@ -2757,7 +2759,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
         .execute(tx as never).then((x) => x.rows[0]!.n))).toBe(buyersBefore);
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant/ready', headers: { cookie } });
       expect(page.body).not.toContain('is talking to real buyers');
     });
 
@@ -2842,7 +2844,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(flashSaid(add, WEB_SECRET)).toContain('can now receive');
 
       // Phase 7 — the list is a screen of its own under My business.
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business/allowlist', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/whatsapp/test-numbers', headers: { cookie } });
       expect(page.body).toContain('my own phone');
 
       const rm = await post('/app/business/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);

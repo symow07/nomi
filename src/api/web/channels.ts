@@ -746,8 +746,8 @@ export type InboundLink = {
  */
 export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts' | 'chat' | 'telegram' | 'tiktok';
 export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts', 'chat', 'telegram', 'tiktok'];
-export const CHANNELS_HOME = '/app/business/channels';
-export const channelScreenHref = (s: ChannelScreen): string => `/app/channels/${s}`;
+export const CHANNELS_HOME = '/app/settings/channels';
+export const channelScreenHref = (s: ChannelScreen): string => s==='alerts'?'/app/settings/personal/notifications#whatsapp':`/app/settings/channels/${s}`;
 /** The screen a channel's own controls are on. */
 export const screenOfChannel = (c: OutreachChannel): ChannelScreen =>
   c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : c === 'web_chat' ? 'chat' : c === 'telegram' ? 'telegram'
@@ -1065,4 +1065,9 @@ export { satisfiedRequirements };
 export type HostChannels = { readonly number: string | null; readonly instagram: string | null; readonly messenger: string | null };
 export function hostChannelsFor(businessId: string, installation: string, host: HostChannels): HostChannels {
   return businessId === installation ? host : { number: null, instagram: null, messenger: null };
+}
+
+/** Same notification-number control, now alongside personal notification preferences. */
+export function renderNotificationNumber(data:ChannelsData,locale:Locale,viewer:Viewer):string {
+ return `<section id="whatsapp" class="sa-subject"><h2>${esc(t(locale,'settingsArea.whatsapp'))}</h2>${alertsScreen(data,locale,viewer)}</section>`;
 }

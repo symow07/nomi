@@ -536,7 +536,7 @@ export function renderAskAboutThree(locale: Locale, importId: string, count: num
   if (count === 0) return '';
   return `<div class="block"><p>${esc(t(locale, 'import.ask.intro', { name: assistantName(locale) }))}</p>
     <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}${GO}</a>
-    <a class="deeper" href="/app/business/selling">${esc(t(locale, 'import.next.hs', { name: assistantName(locale) }))}${GO}</a></div>`;
+    <a class="deeper" href="/app/settings/business/selling">${esc(t(locale, 'import.next.hs', { name: assistantName(locale) }))}${GO}</a></div>`;
 }
 
 /** K6 — in Practice: the three questions, each a door that fills the box. */

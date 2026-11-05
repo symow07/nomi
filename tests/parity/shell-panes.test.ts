@@ -36,7 +36,7 @@ describe('the rail', () => {
     expect(at('href="/app/assistant"')).toBeLessThan(at('<div class="navfoot">'));
     expect(at('<div class="navfoot">')).toBeLessThan(at('href="/app/settings"'));
     expect(nav).not.toContain('/logout');
-    expect(nav).not.toContain('href="/app/business"');
+    expect(nav).not.toContain('href="/app/settings/business"');
     // five entries — the phone's one row — each with its shape
     expect(nav.match(/class="navlink[ "]/g)).toHaveLength(7);
     expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni sl"'))).toBe(true);

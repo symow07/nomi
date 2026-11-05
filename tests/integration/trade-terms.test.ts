@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -47,7 +48,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     });
 
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
 
   const tx = async <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -131,12 +132,12 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
     const page = await get(ownerCookie, `/app/orders/${orderId}`);
     expect(page.statusCode).toBe(200);
     expect(page.body).not.toContain('PROFORMA INVOICE');
-    expect(page.body).toContain('href="/app/settings/terms"');
+    expect(page.body).toContain('href="/app/settings/business/terms"');
     expect(page.body).not.toMatch(/deposit|\bFOB\b/);
   });
 
   it('staff may read the page but may not set her terms', async () => {
-    const page = await get(staffCookie, '/app/settings/terms');
+    const page = await get(staffCookie, '/app/settings/business/terms');
     expect(page.statusCode).toBe(200);
     // Phase 4 — and are not shown a form that could only refuse them.
     expect(page.body).not.toContain('action="/app/settings/terms"');
@@ -168,7 +169,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
        where business_id = ${BIZ} and kind = 'incoterm' and claim_key = 'CIF'`.execute(t).then((r) => r.rows));
     expect(claim).toEqual([{ allowed: true }]);
 
-    const page = await get(ownerCookie, '/app/settings/terms');
+    const page = await get(ownerCookie, '/app/settings/business/terms');
     expect(page.body).toContain(HERS);
     expect(page.body).toContain('<option value="CIF" selected>');
   });
@@ -210,7 +211,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
     expect(latest).toMatchObject({ payment_terms: 'Cash when you collect', incoterm: null });
     expect(await claims()).toEqual(sayable);
 
-    const page = await get(ownerCookie, '/app/settings/terms');
+    const page = await get(ownerCookie, '/app/settings/business/terms');
     expect(page.body).toContain('<option value="" selected>No delivery term</option>');
     expect(page.body).toContain('A proforma needs one, so none is made');
 

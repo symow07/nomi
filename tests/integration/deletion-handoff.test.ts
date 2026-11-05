@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -102,7 +103,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
   const post = (w: { rawBody: string; headers: Record<string, string> }) =>
     prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
       headers: { 'content-type': 'application/json', ...w.headers } });
-  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (url: string) => prod.app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const customerRecord = async (conversationId: string) => {
     const moved = await get(`/app/conversations/${conversationId}`);
     expect(moved.statusCode).toBe(302);
@@ -292,7 +293,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     const tab = (await get('/app/inbox?filter=deletion')).body;
     for (const r of REQUESTS) expect(tab, r.lang).toContain(`/app/inbox/${convs[r.lang]}`);
     expect(tab).not.toContain(`/app/inbox/${await convOf(PASSING.from)}`);
-    const data = (await get('/app/settings/data')).body;
+    const data = (await get('/app/settings/business/data')).body;
     for (const r of REQUESTS) expect(data, r.lang).toContain(`href="/app/conversations/${convs[r.lang]}#deletion"`);
     expect((await get(`/app/inbox/${conv}`)).body)
       .toContain(esc(t('en', 'deletionAsked.noted' as never, { date: formatDate('en', noted!.asked_at, 'Asia/Shanghai') })));

@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import {assistantPageUrl} from './assistant-paths.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
@@ -73,7 +74,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const b = parseBusinessId(biz); if (!b.ok) throw new Error('fixture');
     return withTenantTx(db, b.value, fn);
   };
-  const get = (url: string, extra = '') => app.inject({ method: 'GET', url:assistantPageUrl(url), headers: { cookie: `${cookie}${extra}` } });
+  const get = (url: string, extra = '') => app.inject({ method: 'GET', url:settingsHref(assistantPageUrl(url)), headers: { cookie: `${cookie}${extra}` } });
   const post = (url: string, fields: Record<string, string> = {}) => app.inject({
     method: 'POST', url, headers: { ...FORM, cookie }, payload: new URLSearchParams(fields).toString(),
   });
@@ -190,7 +191,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(record).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
     expect(new URL(record, 'http://local').searchParams.get('conversation')).toBe(conv);
     // the calendar's list, nothing chosen: what is owed leads it, and yesterday's sample, never dealt with, is owed whatever today is
-    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/settings/samples',
+    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/customers/samples',
       '/app/inbox?filter=all', record]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);

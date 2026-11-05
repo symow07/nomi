@@ -211,7 +211,7 @@ describe('M45 · the owner surfaces', () => {
   it('the CONVERSATION says a sample was asked for, and why she said nothing', () => {
     const unstated = renderConversationDetail(detail({ policyStated: false }), 'en', now, null);
     expect(unstated).toContain(t('en', 'samples.asked.title'));
-    expect(unstated).toContain('/app/settings/samples');
+    expect(unstated).toContain('/app/settings/business/samples');
 
     const known = renderConversationDetail(detail({ policyStated: true }), 'en', now, null);
     expect(known).toContain(t('en', 'samples.asked.title'));
@@ -227,7 +227,7 @@ describe('M45 · the owner surfaces', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/samples'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    for (const r of ["app.get('/app/settings/samples'", "app.post('/app/settings/samples'",
+    for (const r of ["app.get('/app/settings/business/samples'", "app.post('/app/settings/samples'",
       "app.post('/app/settings/samples/:id/address'", "app.post('/app/settings/samples/:id/handled'"]) {
       expect(app, r).toContain(r);
     }

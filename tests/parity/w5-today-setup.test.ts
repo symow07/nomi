@@ -112,7 +112,7 @@ describe('w4-whole-11 · w4-today-setup-21 · today-onboarding-missed-01 · Toda
       // The quiet-day run — a headline states what IS (was "No customer can reach Lily yet").
       expect(html).toContain(`<h2 id="today-done" class="td-head is-plain">${esc(t(l, 'home.wins.title', { name: 'Lily' }))}</h2><p class="td-ready">${esc(t(l, 'home.wins.connect', { name: 'Lily' }))}</p>`);
       expect(html).toContain(`href="${STEP_LINK.channels}"`);
-      expect(html).not.toContain('href="/app/business/ready"');
+      expect(html).not.toContain('href="/app/settings/assistant/ready"');
       // and it is never "all caught up"
       expect(html).not.toContain(esc(t(l, 'today.calm.title')));
     });
@@ -213,7 +213,7 @@ describe('w4-today-setup-28 · Settings\' My business row does not repeat the na
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const html = inScope(() => renderSettingsHome(l, null));
-      const row = /<a class="srow sr-menu" href="\/app\/business">[^]*?<\/a>/.exec(html)![0];
+      const row = /<a class="srow sr-menu" href="\/app\/settings\/business">[^]*?<\/a>/.exec(html)![0];
       expect(row).not.toContain('sr-value');
       expect(row).not.toContain('义乌宏发日用品厂');
     });
@@ -277,7 +277,8 @@ describe('w4-today-setup-15 · the checklist is the owner\'s chores; what follow
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/onboarding/practice',movedPage('/app/assistant/practice#checklist'))");
     expect(app).toContain("renderPilotScreen('activity', runbook");
-    for (const p of Object.values(PILOT_SCREEN_PATH)) expect(BACK_TO[p]).toEqual({ href: '/app/onboarding', label: 'nav.onboarding' });
+    expect(BACK_TO[PILOT_SCREEN_PATH.practice]).toEqual({ href: '/app/assistant/practice', label: 'assistantArea.practice' });
+    expect(BACK_TO[PILOT_SCREEN_PATH.activity]).toEqual({ href: '/app/results', label: 'nav.home' });
   });
 });
 
@@ -375,7 +376,7 @@ describe('V1-006 · w4-today-setup-20 · the machine room says who sees it; its 
     it(`${l}`, () => {
       const html = inScope(() => renderPilotTechnical(l, {}));
       expect(html).not.toContain('class="back"');
-      expect(BACK_TO['/app/onboarding/technical']).toEqual({ href: '/app/onboarding', label: 'nav.onboarding' });
+      expect(BACK_TO['/app/settings/channels/technical']).toEqual({ href: '/app/settings/channels', label: 'settingsArea.channels' });
     });
   }
   it('it is served only to the installation\'s own workspace, and says so', () => {

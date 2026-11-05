@@ -1,3 +1,4 @@
+import {settingsHref} from '../../src/api/web/settingsNavigation.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
@@ -86,7 +87,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
   const login = async (code: string) => String((await app.inject({
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
   })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
-  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url: settingsHref(url), headers: { cookie } });
   const post = (cookie: string, url: string, payload = '') =>
     app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
   const ask = (cookie: string, note: string) =>
@@ -172,7 +173,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     const added = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
     const issued = String(added.headers['set-cookie'] ?? '').split(';')[0]!;
     const people = await app.inject({
-      method: 'GET', url: String(added.headers['location']),
+      method: 'GET', url: settingsHref(String(added.headers['location'])),
       headers: { cookie: `${ownerCookie}; ${issued}` },
     });
     const code = people.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
@@ -218,7 +219,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
   it('an open request is on Your data — deleted from there, or taken back while it waits', async () => {
     const id = await openRequest();
     const row = (await requests()).find((r) => r.id === id)!;
-    const page = (await get(ownerCookie, '/app/settings/data')).body;
+    const page = (await get(ownerCookie, '/app/settings/business/data')).body;
     expect(page).toContain(t('en', 'data.buyers.title'));
     expect(page).toContain(BUYER);
     expect(page).toContain(t('en', 'data.buyers.open', { asked: formatDate('en', row.asked_at, ZONE) }));
@@ -238,7 +239,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     await admin.query(
       `update deletion_requests set state = 'done', closed_at = $2, closed_by = 'operator' where id = $1`, [row.id, done]);
 
-    const data = (await get(ownerCookie, '/app/settings/data')).body;
+    const data = (await get(ownerCookie, '/app/settings/business/data')).body;
     expect(data).toContain(t('en', 'data.buyers.done', {
       asked: formatDate('en', row.asked_at, ZONE), done: formatDate('en', done, ZONE),
     }));
