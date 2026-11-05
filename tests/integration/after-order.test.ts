@@ -248,7 +248,7 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
     const res = await app.inject({
       method: 'GET', url: `/app/orders/${randomUUID()}`, headers: { cookie },
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(404);
     expect(res.body).toContain('That order is not here');
   });
 });

@@ -183,9 +183,14 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   it('Today, the calendar, an order, the samples list, Buyers and the buyer file open it on its newest message', async () => {
     const landing = `href="/app/inbox/${conv}#latest"`;
     const top = `href="/app/inbox/${conv}"`;
+    const moved = await get(`/app/conversations/${conv}`);
+    expect(moved.statusCode).toBe(302);
+    const record = String(moved.headers['location']);
+    expect(record).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(record, 'http://local').searchParams.get('conversation')).toBe(conv);
     // the calendar's list, nothing chosen: what is owed leads it, and yesterday's sample, never dealt with, is owed whatever today is
     for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/settings/samples',
-      '/app/inbox?filter=all', `/app/conversations/${conv}`]) {
+      '/app/inbox?filter=all', record]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);
       if (url.startsWith('/app/inbox?')) expect(r.body, url).toContain(`class="si-door" href="/app/inbox/${conv}?from=`);

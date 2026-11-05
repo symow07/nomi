@@ -269,7 +269,12 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
   });
 
   it('the buyer file’s history is the recent part — the newest words — with a door to the whole conversation', async () => {
-    const html = await page(`/app/conversations/${long}`);
+    const moved = await get(`/app/conversations/${long}`);
+    expect(moved.statusCode).toBe(302);
+    const location = String(moved.headers['location']);
+    expect(location).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
+    expect(new URL(location, 'http://local').searchParams.get('conversation')).toBe(long);
+    const html = await page(location);
     expect(html).toContain('m-450');
     expect(html).not.toContain('m-001');
     expect(html).toContain(latestDoor(long));
