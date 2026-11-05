@@ -178,7 +178,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
   });
 
   it('and her page says so, rather than showing him as writable', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/contacts', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/customers/outreach', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(CARD);
     expect(res.body).toContain('You have not said you may write to them');
@@ -211,7 +211,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     // that names the person and states the permanence, and THAT page posts.
     const confirm = await app.inject({
       method: 'GET', headers: { cookie },
-      url: `/app/contacts/suppress?channel=email&identity=${encodeURIComponent(CARD)}`,
+      url: `/app/customers/outreach/suppress?channel=email&identity=${encodeURIComponent(CARD)}`,
     });
     expect(confirm.statusCode).toBe(200);
     expect(confirm.body).toContain('Mei');
@@ -278,7 +278,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     expect(after[0]!.archivedAt, 'and not as someone she removed').toBeNull();
     expect(after[0]!.consent!.evidence).toBe('inbound_message');
 
-    const res = await app.inject({ method: 'GET', url: '/app/contacts', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/customers/outreach', headers: { cookie } });
     expect(res.body).toContain('They wrote to you first');
   });
 
@@ -301,13 +301,14 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
   });
 
   it('HER PAGE AND THE ONE READER AGREE — no actions where there is no undo', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/contacts', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/customers/outreach', headers: { cookie } });
     const card = res.body.slice(res.body.indexOf(CARD));
     const nextRow = card.indexOf('<li class="ct');
     const block = nextRow === -1 ? card : card.slice(0, nextRow);
     expect(block).toContain('They asked you to stop');
     expect(block).not.toContain('/app/contacts/consent');
     expect(block).not.toContain('/app/contacts/suppress');
+    expect(block).not.toContain('/app/customers/outreach/suppress');
   });
 
   it('ANOTHER TENANT’S LIST IS INVISIBLE — the same address, a different answer', async () => {
@@ -326,7 +327,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     await post('/app/contacts', `channel=email&identity=${encodeURIComponent(FRESH)}&name=Yusuf`);
     await post('/app/contacts/consent', `channel=email&identity=${encodeURIComponent(FRESH)}`);
 
-    const res = await app.inject({ method: 'GET', url: '/app/contacts', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/customers/outreach', headers: { cookie } });
     expect(res.statusCode).toBe(200);
 
     /**

@@ -1,4 +1,5 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
+import type { CustomerValue } from '../../db/customerValue.js';
 import type { CustomerCard } from '../../db/customerCard.js';
 import { t } from './say.js';
 import { esc, conversationUrl, deeper } from './layout.js';
@@ -31,7 +32,7 @@ import * as show from './values.js';
  *   - the door is the graphite primary action (w4-customers-26), its words
  *     inside its own padding.
  */
-export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null): string {
+export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null, opts: { readonly fullRecordHref?: string; readonly overview?: boolean } = {}): string {
   const name = c.name ?? t(locale, 'common.buyer');
   const where = c.channels.length > 0
     ? t(locale, 'pcard.on', { channels: c.channels.map((ch) => channelName(locale, ch)).join(' · ') }) : '';
@@ -46,7 +47,7 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
     : c.askedAbout.length > 0
       ? `<h2 class="pc-h">${esc(t(locale, 'pcard.askedAbout'))}</h2><ul class="pc-list">${c.askedAbout.map(item).join('')}</ul>`
       : `<p class="pc-none">${esc(t(locale, 'pcard.nothingYet'))}</p>`;
-  const spent = c.value.spent ? show.money(locale, c.value.spent) : t(locale, 'pcard.nothingSpent');
+  const spent = c.value.spent ? show.money(locale, c.value.spent) : t(locale, opts.overview ? (c.value.orders ? 'customers.noAmount' : 'customers.noOrders') : 'pcard.nothingSpent');
   return `<article class="pcard" data-card-body aria-labelledby="pc-name">
     <div class="pc-top">
       ${face({ clientId: c.clientId, name: c.name, photo: c.photo }, 'xl')}
@@ -56,12 +57,21 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
       <p class="pc-meta">${where ? `<span>${esc(where)}</span>` : ''}<span>${esc(wrote)}</span></p>
     </div>
     <dl class="pc-facts">
-      <div><dt>${esc(t(locale, 'pcard.spent'))}</dt><dd>${esc(spent)}</dd></div>
-      <div><dt>${esc(t(locale, 'pcard.orders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div>
+      <div><dt>${esc(t(locale, opts.overview ? 'customers.orderValue' : 'pcard.spent'))}</dt><dd>${esc(spent)}</dd></div>
+      <div><dt>${esc(t(locale, opts.overview ? 'customers.standingOrders' : 'pcard.orders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div>
     </dl>
+    ${opts.overview ? `<p class="ca-basis">${esc(t(locale, 'customers.valueBasis'))}</p>${customerValueNote(c.value, locale)}` : ''}
     <section class="pc-things">${things}</section>
     ${c.conversationId && c.conversationId !== openedFrom ? deeper(conversationUrl(c.conversationId), t(locale, 'pcard.open'), 'pc-open') : ''}
+    ${opts.fullRecordHref ? `<a class="pc-full" href="${esc(opts.fullRecordHref)}">${esc(t(locale,'customers.fullRecord'))}</a>` : ''}
   </article>`;
+}
+
+/** The amount's omissions are facts, never a converted cross-currency total. */
+export function customerValueNote(value: CustomerValue, locale: Locale): string {
+  const notes = [value.omittedCurrencyOrders ? t(locale,'customers.otherCurrencies',{n:show.count(locale,value.omittedCurrencyOrders)}) : '',
+    value.unknownAmountOrders ? t(locale,'customers.unknownAmounts',{n:show.count(locale,value.unknownAmountOrders)}) : ''].filter(Boolean);
+  return notes.length ? `<p class="ca-value-note">${notes.map(esc).join(' ')}</p>` : '';
 }
 
 /**

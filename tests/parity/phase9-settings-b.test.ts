@@ -475,13 +475,13 @@ const cview = (contacts: readonly ContactRow[], over: Partial<ContactsView> = {}
 const rowsOf = (html: string) => html.split('<li class="ct ').length - 1;
 
 describe('V1-543, V1-545, V1-555 · the heading promises nothing the rows deny; each reason is said once', () => {
-  it('the page is "Contacts", and says up front how many can be written to first', () => {
+  it('the page is "Follow-ups", and says up front how many can be written to first', () => {
     for (const l of LOCALES) {
       const html = renderContacts(cview(seventyOne), l, null);
-      expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'contacts.title'))}</h1>`);
+      expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'customers.followups'))}</h1>`);
       expect(html, l).toContain(esc(t(l, 'contacts.summary', { can: show.count(l, 0), total: show.count(l, 71) })));
     }
-    expect(t('en', 'contacts.title')).toBe('Contacts');
+    expect(t('en', 'customers.followups')).toBe('Follow-ups');
   });
   it('WhatsApp people sit under one head that says, once, that a first message goes by e-mail only', () => {
     for (const l of LOCALES) {
@@ -500,7 +500,7 @@ describe('V1-544 · the list is searched and paged, and adding someone opens abo
     const html = renderContacts(cview(seventyOne), 'en', null);
     expect(rowsOf(html)).toBe(CONTACTS_PAGE);
     expect(html).toContain('1–25 of 71');
-    expect(html).toContain('href="/app/contacts?page=2"');
+    expect(html).toContain('href="/app/customers/outreach?page=2"');
     const last = renderContacts(cview(seventyOne, { page: 3 }), 'en', null);
     expect(rowsOf(last)).toBe(21);
     expect(last).toContain('51–71 of 71');
@@ -530,7 +530,7 @@ describe('V1-548, V1-562, V1-563 · one name for the page, wherever it is named'
     const { renderProspects } = await import('../../src/api/web/prospects.js');
     const { renderSequenceList } = await import('../../src/api/web/sequences.js');
     for (const l of LOCALES) {
-      const back = `<a class="back" href="/app/contacts">${BACK}${esc(t(l, 'contacts.title'))}</a>`;
+      const back = `<a class="back" href="/app/customers/outreach">${BACK}${esc(t(l, 'customers.followups'))}</a>`;
       expect(renderProspects({ status: { kind: 'none' }, filter: null, outcome: null }, l, null), l).toContain(back);
       expect(renderSequenceList([], l, null), l).toContain(back);
       const doc = shell({ title: t(l, 'nav.sequences'), active: 'sequences', locale: l, path: '/app/sequences', bodyHtml: renderSequenceList([], l, null) });
@@ -594,12 +594,12 @@ describe('V1-554, V1-556 · an address that names nobody, or someone not reached
 });
 
 describe('V1-557, V1-558, settings-b-outreach-new-12 · never again: what it changes, asked as the dialog asks', () => {
-  it('says the customer is still answered; the act in red, then the way back with the focus', () => {
+  it('says the customer is still answered; the destructive act, then the way back with the focus', () => {
     for (const l of LOCALES) {
       const html = renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, l);
       expect(html, l).toContain(esc(t(l, 'contacts.suppress.hint')));
       const danger = html.indexOf(`<button class="btn danger" type="submit">${esc(t(l, 'contacts.suppress.confirm'))}</button>`);
-      const cancel = html.indexOf(`<a class="back" href="/app/contacts" autofocus>${BACK}${esc(t(l, 'contacts.suppress.cancel'))}</a>`);
+      const cancel = html.indexOf(`<a class="back" href="/app/customers/outreach" autofocus>${BACK}${esc(t(l, 'contacts.suppress.cancel'))}</a>`);
       expect(danger, l).toBeGreaterThan(-1);
       expect(cancel, l).toBeGreaterThan(danger);
     }
@@ -645,7 +645,7 @@ describe('V1-560, V1-561 · before a key, the page says what the search will be'
     for (const l of LOCALES) expect(prospects(l), l).toContain(`<div class="empty notset">${esc(t(l, 'prospects.preview'))}</div>`);
     const open = prospects('en', storedKey);
     expect(open).not.toContain(t('en', 'prospects.preview'));
-    expect(open).toContain('<form method="get" action="/app/prospects" class="sform">');
+    expect(open).toContain('<form method="get" action="/app/customers/outreach/find" class="sform">');
     expect(t('en', 'prospects.intro')).not.toMatch(/their row says so/);
   });
   it('zh reads as said, not as a rule', () => {
@@ -660,8 +660,8 @@ describe('V1-564, V1-565, settings-b-outreach-new-14 · first e-mails say what t
       expect(html, l).toContain(esc(t(l, 'seq.needs')));
       expect(html, l).toContain(esc(t(l, 'seq.noneReady')));
       // The warmth run (w4-settings-b-outreach-20) — the "‹ Contacts" at the top is the door; no second one.
-      expect(html.match(/href="\/app\/contacts"/g)?.length, l).toBe(1);
-      expect(html, l).toMatch(/class="back" href="\/app\/contacts"/);
+      expect(html.match(/href="\/app\/customers\/outreach"/g)?.length, l).toBe(1);
+      expect(html, l).toMatch(/class="back" href="\/app\/customers\/outreach"/);
       expect(html, l).not.toContain('class="sqform"');
       expect(html, l).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">/);
     }

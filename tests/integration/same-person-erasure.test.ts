@@ -147,13 +147,13 @@ d('D3 · the erasure reaches the same person on every channel (requires DATABASE
   });
 
   it('the buyer page names the other rows before anything is pressed — and so does the page that asks', async () => {
-    const page = (await get(owner, `/app/conversations/${R.p.conv}`)).body;
+    const page = (await get(owner, `/app/customers/${R.p.client}?conversation=${R.p.conv}`)).body;
     const line = page.slice(page.indexOf('id="same-person"'), page.indexOf('</p>', page.indexOf('id="same-person"')));
     expect(line).toContain(`rania.ig ${RUN}`);
     expect(line).toContain(`Rania Mail ${RUN}`);
     expect(line).toContain('Instagram');
     expect(line).not.toContain('Samir');
-    expect((await get(owner, `/app/conversations/${R.s.conv}`)).body).not.toContain('id="same-person"');
+    expect((await get(owner, `/app/customers/${R.s.client}?conversation=${R.s.conv}`)).body).not.toContain('id="same-person"');
 
     const ask = await post(owner, `/app/conversations/${R.p.conv}/deletion/erase`, { asked: '0', note: 'On WhatsApp, today' });
     expect(ask.statusCode).toBe(200);

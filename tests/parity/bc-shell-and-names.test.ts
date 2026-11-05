@@ -43,10 +43,10 @@ describe('B · every page knows which hub it belongs to', () => {
     expect(hubFor('/app/prospects', 'nonsense')).toBe('customers');
   });
 
-  it('A — the buyer\'s own pages, still at /app/conversations/:id, light Buyers', () => {
-    expect(hubFor('/app/conversations/abc-123', 'nonsense')).toBe('inbox');
-    expect(hubFor('/app/conversations', 'nonsense')).toBe('inbox');
-    expect(page('/app/conversations/abc-123')).toMatch(/href="\/app\/inbox"[^>]*aria-current="page"/);
+  it('legacy customer-file addresses resolve to the Customers hub', () => {
+    expect(hubFor('/app/conversations/abc-123', 'nonsense')).toBe('customers');
+    expect(hubFor('/app/conversations', 'nonsense')).toBe('customers');
+    expect(page('/app/conversations/abc-123')).toMatch(/href="\/app\/customers"[^>]*aria-current="page"/);
   });
 
   it('a page BELOW a contextual route belongs to the same hub', () => {

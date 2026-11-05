@@ -32,13 +32,13 @@ export function renderSurveys(locale: Locale, f: SurveyFacts, answers: readonly 
   const latest = answers.length === 0 ? '' : `<h2>${esc(t(locale, 'surveys.latest'))}</h2>
     <ul class="rows">${answers.map((a) => `<li class="row"><a href="${esc(conversationUrl(a.conversationId))}"><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></a>
       <span>${esc(tn(locale, 'surveys.score', a.score))} <span class="muted">${esc(show.when(locale, a.answeredAt, now))}</span></span></li>`).join('')}</ul>`;
-  return `<h1 class="page">${esc(t(locale, 'surveys.title'))}</h1>
+  return `<section class="customer-tools tool-feedback"><h1 class="page">${esc(t(locale, 'customers.feedback'))}</h1>
     <p class="lede">${esc(t(locale, 'surveys.lede'))}</p>
-    <div class="block"><p><span class="pill${f.on ? ' ok' : ''}">${esc(t(locale, f.on ? 'surveys.on' : 'surveys.off'))}</span></p>
+    <div class="feedback-layout"><div class="block"><p><span class="pill${f.on ? ' ok' : ''}">${esc(t(locale, f.on ? 'surveys.on' : 'surveys.off'))}</span></p>
       <p class="fdesc">${esc(languages)}</p>
       <p class="caption">${esc(t(locale, 'surveys.asWritten'))}</p>
       <blockquote dir="auto">${esc(surveyText(own).split('{business}').join(f.business || '…'))}</blockquote>
       <p class="caption">${esc(t(locale, 'surveys.thanksWritten'))}</p>
       <blockquote dir="auto">${esc(surveyThanksText(own).split('{business}').join(f.business || '…'))}</blockquote>${control}</div>
-    <div class="block"><h2>${esc(t(locale, 'surveys.lastNinety'))}</h2>${counts}${latest}</div>`;
+    <div class="block"><h2>${esc(t(locale, 'surveys.lastNinety'))}</h2>${counts}${latest}</div></div></section>`;
 }

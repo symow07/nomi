@@ -146,11 +146,11 @@ export function renderProspects(
           </form>
         </li>`).join('')}</ul>
         ${f && v.outcome.totalPages > v.outcome.page
-          ? deeper(`/app/prospects${esc(queryOf(f, v.outcome.page + 1))}`, t(locale, 'prospects.results.next')) : ''}`)
+          ? deeper(`/app/customers/outreach/find${esc(queryOf(f, v.outcome.page + 1))}`, t(locale, 'prospects.results.next')) : ''}`)
     // D5 — a search that failed is a refusal, and now looks like one.
     : flashBanner({ text: failureSentence(locale, v.outcome.kind === 'failed' ? v.outcome.reason : v.outcome.kind), bad: true });
 
-  return `${back('/app/contacts', t(locale, 'contacts.title'))}
+  return `<div class="customer-tools tool-find">${back('/app/customers/outreach', t(locale, 'customers.followups'))}
     <h1 class="page">${esc(t(locale, 'prospects.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block"><p class="muted">${esc(t(locale, 'prospects.intro'))}</p>
@@ -158,7 +158,7 @@ export function renderProspects(
     ${keyBlock(locale, v.status, viewer)}
     ${canSearch ? `<section class="block">
       <h2>${esc(t(locale, 'prospects.search.title'))}</h2>
-      <form method="get" action="/app/prospects" class="sform">
+      <form method="get" action="/app/customers/outreach/find" class="sform">
         <input type="hidden" name="search" value="1" />
         ${rowsCard(null, [
           fieldRow({ label: t(locale, 'prospects.search.titles'), forId: 'pr-titles',
@@ -175,5 +175,5 @@ export function renderProspects(
       </form>
       <p class="muted note">${esc(t(locale, 'prospects.add.hint'))}</p>
       ${results}
-    </section>` : ''}`;
+    </section>` : ''}</div>`;
 }

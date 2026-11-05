@@ -154,6 +154,7 @@ describe('M49 · the two voices are on the right axis', () => {
   const ALLOWED = new Map<string, string>([
     ['layout.ts', 'declares .voice, .bubble and .proposed — the components speech is made of'],
     ['splitStyle.ts', 'the Split Today design: headings and big numbers'],
+    ['customersStyle.ts', 'the approved Customers page heading only; scoped below'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
     ['conversationStyle.ts', 'scopes --font-voice to the body family for the approved Inbox conversation'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
@@ -172,6 +173,9 @@ describe('M49 · the two voices are on the right axis', () => {
     const conversation = await readFile(new URL('conversationStyle.ts', WEB_DIR), 'utf8');
     expect(conversation).toContain('.conversation-workspace { --font-voice:var(--font-family);');
     expect(conversation).not.toMatch(/font-family:\s*var\(--font-voice\)/);
+    const customers = await readFile(new URL('customersStyle.ts', WEB_DIR), 'utf8');
+    const customerSerif = [...customers.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map(m => m[1]!.trim());
+    expect(customerSerif).toEqual(['.ca-heading h1']);
   });
 
   it('and on the Split Today sheet it is on headings and big numbers alone, never running text', async () => {

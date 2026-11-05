@@ -180,7 +180,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(h).not.toContain('href="/app/calendar"');
     expect(CSS).not.toContain('.deeper.on-phone');
     // the door says the page's own name (V1-548, settings-b's fix)
-    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.title'))}`);
+    expect(h).toContain(`href="/app/customers/outreach">${esc(t('en', 'customers.followups'))}`);
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {

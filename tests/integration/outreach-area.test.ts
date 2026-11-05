@@ -140,11 +140,22 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
 
   it('ON: the area answers, and the hubs link into it', async () => {
     await area(true);
-    for (const p of OUTREACH_PREFIXES.slice(0, 3)) expect((await get(p)).statusCode, p).toBe(200);
+    for (const [old,current] of [['/app/contacts','/app/customers/outreach'],['/app/prospects','/app/customers/outreach/find'],['/app/sequences','/app/customers/outreach/sequences']]) {
+      expect(OUTREACH_PREFIXES).toContain(old);
+      const redirected=await get(old!);expect([redirected.statusCode,redirected.headers['location']]).toEqual([302,current]);
+      expect((await get(current!)).statusCode,current).toBe(200);
+    }
     for (const { hub, routes, outreach } of CONTEXTUAL_ROUTES_BY_HUB.filter((g) => g.outreach)) {
       expect(outreach).toBe(true);
       const page = await get(hub);
-      for (const route of routes) expect(page.body, `${route} from ${hub}`).toContain(`href="${route}"`);
+      for (const route of routes) {
+        // These doors belong to a contact's identity, not a bare hub link. With no contact selected,
+        // the existing GET explains the refusal and sends nothing; general tools remain linked here.
+        if (route.endsWith('/suppress') || route.endsWith('/write')) {
+          expect(page.body,route).not.toContain(`href="${route}"`);
+          expect((await get(route)).statusCode,route).toBe(200);
+        } else expect(page.body, `${route} from ${hub}`).toContain(`href="${route}"`);
+      }
     }
     // and the switch on the channels page is back
     expect((await get('/app/channels/whatsapp')).body).toContain('action="/app/channels/outreach"');

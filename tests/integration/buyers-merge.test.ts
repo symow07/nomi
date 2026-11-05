@@ -288,24 +288,28 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
   it('/app/conversations answers with the one list, the search carried; a stranger is sent to sign in', async () => {
     const all = await get('/app/conversations');
     expect(all.statusCode).toBe(302);
-    expect(all.headers['location']).toBe('/app/inbox?filter=all');
+    expect(all.headers['location']).toBe('/app/customers');
     const q = await get('/app/conversations?q=Zhang');
-    expect(q.headers['location']).toBe('/app/inbox?q=Zhang');
+    expect(q.headers['location']).toBe('/app/customers?q=Zhang');
     const zh = await get(`/app/conversations?q=${encodeURIComponent('张三')}`);
-    expect(zh.headers['location']).toBe(`/app/inbox?q=${encodeURIComponent('张三')}`);
-    expect(listed((await get(String(q.headers['location']))).body)).toEqual([zhang]);
+    expect(zh.headers['location']).toBe(`/app/customers?q=${encodeURIComponent('张三')}`);
+    const client = (await as(BIZ, (x) => sql<{id:string}>`select client_id::text as id from conversations where id=${zhang}::uuid`.execute(x))).rows[0]!.id;
+    expect([...((await get(String(q.headers['location']))).body).matchAll(/<li id="customer-([0-9a-f-]+)"/g)].map((m)=>m[1])).toEqual([client]);
     const stranger = await app.inject({ method: 'GET', url: '/app/conversations' });
     expect(stranger.statusCode).toBe(302);
     expect(stranger.headers['location']).toBe('/login');
   });
 
-  it('/app/conversations/<id> is still the buyer\'s page, lit as Buyers, one door from the conversation', async () => {
-    const page = await get(`/app/conversations/${zhang}`);
+  it('/app/conversations/<id> redirects to the same customer record with its original conversation selected', async () => {
+    const old = await get(`/app/conversations/${zhang}`);
+    expect(old.statusCode).toBe(302);
+    expect(String(old.headers['location'])).toMatch(new RegExp(`/app/customers/[0-9a-f-]+\\?conversation=${zhang}$`));
+    const page = await get(String(old.headers['location']));
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Zhang Wei');
     expect(page.body).toContain('About this customer');
-    expect(page.body).toContain('<a class="back" href="/app/inbox">');
-    expect(page.body).toMatch(/href="\/app\/inbox" class="navlink active" data-nav="inbox" aria-current="page"/);
+    expect(page.body).toContain('<a class="back" href="/app/customers">');
+    expect(page.body).toMatch(/href="\/app\/customers" class="navlink active" data-nav="customers" aria-current="page"/);
     const conversation = await get(`/app/inbox/${zhang}`);
     expect(conversation.body).toContain(`href="/app/conversations/${zhang}"`);
     const missing = await get(`/app/conversations/${randomUUID()}`);

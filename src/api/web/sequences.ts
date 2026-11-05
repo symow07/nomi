@@ -140,7 +140,7 @@ export function renderSequenceList(
   opts: { readonly ready?: number } = {},
 ): string {
   const rows = list.map((s) => `<li class="sq ${s.state === 'archived' ? 'gone' : ''}">
-      <div class="sq-h"><a class="sq-name" href="/app/sequences/${esc(s.id)}"><bdi>${esc(s.name)}</bdi></a>
+      <div class="sq-h"><a class="sq-name" href="/app/customers/outreach/sequences/${esc(s.id)}"><bdi>${esc(s.name)}</bdi></a>
         ${statePill(locale, s.state)}${s.awaiting > 0
           ? ` <span class="pill wait">${esc(t(locale, 'seq.list.awaiting', { count: String(s.awaiting) }))}</span>` : ''}</div>
       <div class="muted sq-b">${esc(t(locale, 'seq.list.counts', {
@@ -148,7 +148,7 @@ export function renderSequenceList(
       }))}</div>
     </li>`).join('');
 
-  return `${back('/app/contacts', t(locale, 'contacts.title'))}
+  return `<div class="customer-tools tool-sequences">${back('/app/customers/outreach', t(locale, 'customers.followups'))}
     <h1 class="page">${esc(t(locale, 'seq.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
@@ -165,7 +165,7 @@ export function renderSequenceList(
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'seq.new.button'))}</button>`),
         ])}
       </form>
-    </section>`;
+    </section></div>`;
 }
 
 /**
@@ -301,7 +301,7 @@ export function renderSequenceDetail(
       </form>
     </section>`;
 
-  return `${back('/app/sequences', t(locale, 'seq.title'))}
+  return `<div class="customer-tools tool-sequence">${back('/app/customers/outreach/sequences', t(locale, 'seq.title'))}
     <h1 class="page"><bdi>${esc(d.name)}</bdi> ${statePill(locale, d.state)}</h1>
     ${flashBanner(flash)}
     <section class="block">
@@ -309,5 +309,5 @@ export function renderSequenceDetail(
       ${approvedLine}
       ${d.steps.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.steps.empty'))}</div>` : `<ol class="sts">${steps}</ol>`}
     </section>
-    ${addForm}${approval}${enrol}${history}${archive}`;
+    ${addForm}${approval}${enrol}${history}${archive}</div>`;
 }

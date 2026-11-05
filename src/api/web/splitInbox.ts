@@ -141,7 +141,7 @@ export function renderInboxViews(data: InboxList, locale: Locale, options: { rea
 
 /** Existing tools remain doors, and the outreach feature remains workspace-gated. */
 export function renderInboxTools(locale: Locale): string {
-  return `<nav class="si-doors" aria-label="${esc(t(locale, 'area2.inbox.tools'))}">${deeper('/app/inbox/replies', t(locale, 'savedReplies.title'))}${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/surveys', t(locale, 'surveys.title'))}</nav>`;
+  return `<nav class="si-doors" aria-label="${esc(t(locale, 'area2.inbox.tools'))}">${deeper('/app/inbox/replies', t(locale, 'savedReplies.title'))}${outreachShown() ? deeper('/app/customers/outreach', t(locale, 'customers.followups')) : ''}${deeper('/app/customers/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/customers/feedback', t(locale, 'customers.feedback'))}</nav>`;
 }
 
 /** Existing order/deletion priority, values and opened-state semantics, with optional visual selection only. */
@@ -193,7 +193,7 @@ export function renderSplitInbox(data: InboxList, locale: Locale, now: Date, peo
       <span class="sp-rday">${esc(t(locale, 'buyers.page.position', { from: show.quantity(locale, page.from), to: show.quantity(locale, page.to), total: show.quantity(locale, page.total) }))}</span>
       ${page.next ? deeper(esc(hrefOf(view, { after: page.next })), t(locale, 'buyers.page.next')) : ''}</nav>` : '';
   const selected = [view.stage ? t(locale, `split.stage.${view.stage}`) : '', lens === 'value' ? t(locale, 'buyers.lens.value') : '', data.label?.name ?? ''].filter(Boolean);
-  const newMessage = outreachShown() ? `<form class="sp-new" method="get" action="/app/contacts/write"><button class="sp-btn" type="submit">${esc(t(locale, 'split.new'))}</button></form>` : '';
+  const newMessage = outreachShown() ? `<form class="sp-new" method="get" action="/app/customers/outreach/write"><button class="sp-btn" type="submit">${esc(t(locale, 'split.new'))}</button></form>` : '';
   const business = businessName();
   return `<div class="si il-page">
     <header class="il-header"><h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>${newMessage}${business ? `<p class="il-business"><bdi>${esc(business)}</bdi></p>` : ''}${LIVE_SLOT}</header>

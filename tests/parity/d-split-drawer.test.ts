@@ -217,10 +217,10 @@ describe('D · the doors moved, the pages did not', () => {
 
 describe('D · the outreach area exists only where it is switched on', () => {
   it('its addresses are known by prefix, query strings and sub-pages included', () => {
-    expect(OUTREACH_PREFIXES).toEqual(['/app/contacts', '/app/prospects', '/app/sequences', '/app/channels/outreach']);
-    for (const u of ['/app/contacts', '/app/contacts/write', '/app/contacts?flash=1', '/app/prospects', '/app/sequences/abc/steps', '/app/channels/outreach', '/app/channels/outreach/cap'])
+    expect(OUTREACH_PREFIXES).toEqual(['/app/contacts', '/app/prospects', '/app/sequences', '/app/channels/outreach', '/app/customers/outreach']);
+    for (const u of ['/app/contacts', '/app/contacts/write', '/app/contacts?flash=1', '/app/prospects', '/app/sequences/abc/steps', '/app/channels/outreach', '/app/channels/outreach/cap', '/app/customers/outreach', '/app/customers/outreach?flash=1', '/app/customers/outreach/sequences/abc'])
       expect(isOutreachRoute(u), u).toBe(true);
-    for (const u of ['/app', '/app/channels', '/app/contactsx', '/app/inbox/abc', '/app/settings'])
+    for (const u of ['/app', '/app/channels', '/app/contactsx', '/app/customers/outreachx', '/app/inbox/abc', '/app/settings'])
       expect(isOutreachRoute(u), u).toBe(false);
     // the groups that need it say so in the map
     for (const g of CONTEXTUAL_ROUTES_BY_HUB)
@@ -244,8 +244,8 @@ describe('D · the outreach area exists only where it is switched on', () => {
 
   it('the door to contacts, the Apollo card and the writing-first switch appear only with the area on', () => {
     const off = facts({ outreach: false }); const on = facts({ outreach: true });
-    expect(withWorkspace(off, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/contacts"');
-    expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).toContain('href="/app/contacts"');
+    expect(withWorkspace(off, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).toContain('href="/app/customers/outreach"');
 
     // Phase 9 (V1-434) — Apollo is not one of the owner's accounts: its key is set on Prospects, in the area itself.
     expect(withWorkspace(off, () => renderAccounts(accounts, 'en'))).not.toContain('/app/prospects');

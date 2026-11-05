@@ -27,6 +27,8 @@ import { type Money, moneyFromRow } from '../core/types/money.js';
 export const SPEND_STATUSES = ['confirmed', 'in_production', 'shipped'] as const;
 export const REGULAR_ORDERS = 3;
 export const QUIET_FLOOR_DAYS = 30;
+/** Existing Inbox callers keep their scope; the full directory explicitly excludes owner tests. */
+export type CustomerReadScope = { readonly realOnly?: boolean };
 
 export type CustomerValue = {
   readonly clientId: string;
@@ -37,28 +39,35 @@ export type CustomerValue = {
   readonly regular: boolean;
   /** For a regular who has not ordered in a while: when they last did. Null otherwise. */
   readonly quietSince: Date | null;
+  /** Present on explicitly scoped reads: standing orders outside the headline currency. */
+  readonly omittedCurrencyOrders?: number;
+  /** Present on explicitly scoped reads: standing orders without a recorded total (may also be outside the currency). */
+  readonly unknownAmountOrders?: number;
 };
 
 const DAY = 86_400_000;
 
 /** Their value for each customer asked about; a customer with no order is there with nothing spent. */
-export async function customerValues(tx: Tx, clientIds: readonly string[], now: Date = new Date()): Promise<ReadonlyMap<string, CustomerValue>> {
+export async function customerValues(tx: Tx, clientIds: readonly string[], now: Date = new Date(), scope: CustomerReadScope = {}): Promise<ReadonlyMap<string, CustomerValue>> {
   const ids = [...new Set(clientIds)].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
   const out = new Map<string, CustomerValue>();
   if (ids.length === 0) return out;
-  const rows = (await sql<{ client_id: string; currency: string | null; spent: string | null; orders: number; last_at: Date | null; median_gap_days: number | null }>`
+  const rows = (await sql<{ client_id: string; currency: string | null; spent: string | null; orders: number; last_at: Date | null; median_gap_days: number | null; omitted: number; unknown_amount: number }>`
     with o as (
-      select o.client_id, o.currency, o.total_value_usd, coalesce(o.confirmed_at, o.created_at) as at
+      select o.id, o.client_id, o.currency, o.total_value_usd, coalesce(o.confirmed_at, o.created_at) as at
         from orders o
        where o.client_id = any(${ids}::uuid[]) and o.status = any(${[...SPEND_STATUSES]}::text[])
+         ${scope.realOnly ? sql`and not exists (select 1 from conversations tc where tc.id = o.conversation_id and tc.owner_testing)` : sql``}
     ), newest as (
-      select distinct on (client_id) client_id, currency from o order by client_id, at desc
+      select distinct on (client_id) client_id, currency from o order by client_id, at desc${scope.realOnly ? sql`, id desc` : sql``}
     ), gaps as (
       select client_id, extract(epoch from at - lag(at) over (partition by client_id order by at)) / 86400.0 as gap from o
     )
     select n.client_id::text as client_id, n.currency,
            (select sum(o.total_value_usd) from o where o.client_id = n.client_id and o.currency = n.currency)::text as spent,
            (select count(*)::int from o where o.client_id = n.client_id) as orders,
+           (select count(*)::int from o where o.client_id = n.client_id and o.currency is distinct from n.currency) as omitted,
+           (select count(*)::int from o where o.client_id = n.client_id and o.total_value_usd is null) as unknown_amount,
            (select max(o.at) from o where o.client_id = n.client_id) as last_at,
            (select percentile_cont(0.5) within group (order by g.gap) from gaps g where g.client_id = n.client_id and g.gap is not null)::float8 as median_gap_days
       from newest n`.execute(tx)).rows;
@@ -67,10 +76,12 @@ export async function customerValues(tx: Tx, clientIds: readonly string[], now: 
     const regular = r.orders >= REGULAR_ORDERS;
     const quietAfterDays = Math.max(QUIET_FLOOR_DAYS, 2 * (r.median_gap_days ?? 0));
     const quiet = regular && r.last_at !== null && now.getTime() - r.last_at.getTime() > quietAfterDays * DAY;
-    out.set(r.client_id, { clientId: r.client_id, spent, orders: r.orders, lastOrderAt: r.last_at, regular, quietSince: quiet ? r.last_at : null });
+    out.set(r.client_id, { clientId: r.client_id, spent, orders: r.orders, lastOrderAt: r.last_at, regular, quietSince: quiet ? r.last_at : null,
+      ...(scope.realOnly ? { omittedCurrencyOrders: r.omitted, unknownAmountOrders: r.unknown_amount } : {}) });
   }
   for (const id of ids) {
-    if (!out.has(id)) out.set(id, { clientId: id, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null });
+    if (!out.has(id)) out.set(id, { clientId: id, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null,
+      ...(scope.realOnly ? { omittedCurrencyOrders: 0, unknownAmountOrders: 0 } : {}) });
   }
   return out;
 }

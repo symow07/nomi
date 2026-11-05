@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { faceVersions } from './faces.js';
-import { customerValues, SPEND_STATUSES, type CustomerValue } from './customerValue.js';
+import { customerValues, SPEND_STATUSES, type CustomerValue, type CustomerReadScope } from './customerValue.js';
 import { needsOwnerFor } from './buyersList.js';
 import { askedAbout as askedAboutOf } from './askedAbout.js';
 
@@ -41,39 +41,46 @@ export type CustomerCard = {
   readonly conversationId: string | null;
 };
 
-export async function loadCustomerCard(tx: Tx, clientId: string, viewerId?: string): Promise<CustomerCard | null> {
+export async function loadCustomerCard(tx: Tx, clientId: string, viewerId?: string, scope: CustomerReadScope = {}): Promise<CustomerCard | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId)) return null;
   const who = (await sql<{ name: string | null }>`
-    select display_name as name from clients where id = ${clientId}::uuid`.execute(tx)).rows[0];
+    select display_name as name from clients where id = ${clientId}::uuid
+      ${scope.realOnly ? sql`and (not exists (select 1 from conversations c where c.client_id = clients.id)
+        or exists (select 1 from conversations c where c.client_id = clients.id and not c.owner_testing))` : sql``}`.execute(tx)).rows[0];
   if (!who) return null;
 
   const conversations = (await sql<{ id: string; channel: string; waiting: boolean }>`
     select c.id::text as id, c.channel, ${needsOwnerFor(viewerId)} as waiting
       from conversations c
      where c.client_id = ${clientId}::uuid
-     order by 3 desc, (select max(m.sent_at) from messages m where m.conversation_id = c.id) desc nulls last, c.id`.execute(tx)).rows;
+       ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
+     order by 3 desc, (select max(m.sent_at) from messages m where m.conversation_id = c.id) desc nulls last, c.id
+       ${scope.realOnly ? sql`limit 1` : sql``}`.execute(tx)).rows;
   // Where they write: newest conversation first, whichever needs the reader.
   const channels = (await sql<{ channel: string }>`
     select c.channel from conversations c
      where c.client_id = ${clientId}::uuid
+       ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
      group by c.channel
      order by max((select max(m.sent_at) from messages m where m.conversation_id = c.id)) desc nulls last, c.channel`.execute(tx)).rows;
 
   const lastWrote = (await sql<{ at: Date | null }>`
     select max(m.sent_at) as at from messages m join conversations c on c.id = m.conversation_id
-     where c.client_id = ${clientId}::uuid and m.direction = 'inbound'`.execute(tx)).rows[0]?.at ?? null;
+     where c.client_id = ${clientId}::uuid and m.direction = 'inbound'
+       ${scope.realOnly ? sql`and not c.owner_testing` : sql``}`.execute(tx)).rows[0]?.at ?? null;
 
   const bought = (await sql<{ name: string | null; name_zh: string | null; quantity: number | null; unit: string | null }>`
     select p.name, p.name_zh, sum(o.quantity)::int as quantity, min(o.unit) as unit
       from orders o left join products p on p.id = o.product_id
      where o.client_id = ${clientId}::uuid and o.status = any(${[...SPEND_STATUSES]}::text[])
-     group by p.id, p.name, p.name_zh
-     order by max(coalesce(o.confirmed_at, o.created_at)) desc limit 3`.execute(tx)).rows
+       ${scope.realOnly ? sql`and not exists (select 1 from conversations tc where tc.id = o.conversation_id and tc.owner_testing)` : sql``}
+     group by p.id, p.name, p.name_zh${scope.realOnly ? sql`, o.unit` : sql``}
+     order by max(coalesce(o.confirmed_at, o.created_at)) desc${scope.realOnly ? sql`,p.id,o.unit` : sql``} limit 3`.execute(tx)).rows
     .map((r) => ({ name: r.name, nameZh: r.name_zh, quantity: r.quantity, unit: r.unit }));
 
-  const askedAbout = bought.length > 0 ? [] : await askedAboutOf(tx, clientId);
+  const askedAbout = bought.length > 0 ? [] : await askedAboutOf(tx, clientId, 3, scope);
 
-  const [values, faces] = await Promise.all([customerValues(tx, [clientId]), faceVersions(tx, [clientId])]);
+  const [values, faces] = await Promise.all([customerValues(tx, [clientId], new Date(), scope), faceVersions(tx, [clientId])]);
   return {
     clientId, name: who.name, photo: faces.get(clientId) ?? null,
     channels: channels.map((c) => c.channel),

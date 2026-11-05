@@ -1,3 +1,4 @@
+import { customerReturnHref } from './customerNavigation.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -19,7 +20,8 @@ import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
 import { faceLink } from './faces.js';
 import { faceVersions } from '../../db/faces.js';
-import { customerValues, type CustomerValue } from '../../db/customerValue.js';
+import { customerValues, type CustomerValue, type CustomerReadScope } from '../../db/customerValue.js';
+import { customerIdShape } from '../../db/customerPaging.js';
 import { agentMark } from './agentMark.js';
 
 /**
@@ -152,9 +154,13 @@ export type CustomerFile = {
 const mile = (kind: MilestoneKind, at: Date | null, extra: Partial<Milestone> = {}): Milestone =>
   ({ kind, at, text: null, qty: null, unitPrice: null, orderStatus: null, ...extra });
 
-export async function loadCustomerFile(db: Db, businessIdRaw: string, conversationId: string, now: Date = new Date()): Promise<CustomerFile | null> {
+export type CustomerFileScope = CustomerReadScope & { readonly expectedClientId?: string };
+
+export async function loadCustomerFile(db: Db, businessIdRaw: string, conversationId: string, nowOrScope: Date | CustomerFileScope = new Date()): Promise<CustomerFile | null> {
+  const now = nowOrScope instanceof Date ? nowOrScope : new Date();
+  const scope = nowOrScope instanceof Date ? {} : nowOrScope;
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return null;
+  if (!bid.ok || !customerIdShape(conversationId) || (scope.expectedClientId !== undefined && !customerIdShape(scope.expectedClientId))) return null;
 
   return withTenantTx(db, bid.value, async (tx) => {
     const head = (await sql<{
@@ -177,7 +183,10 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
         left join products p on p.id = cs.identified_product_id
-       where c.id = ${conversationId} limit 1
+       where c.id = ${conversationId} and c.business_id = ${bid.value}::uuid
+         ${scope.realOnly ? sql`and not c.owner_testing` : sql``}
+         ${scope.expectedClientId === undefined ? sql`` : sql`and c.client_id = ${scope.expectedClientId}::uuid`}
+       limit 1
     `.execute(tx)).rows[0];
     if (!head) return null;
 
@@ -203,8 +212,9 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     // earlier one.
     const orderRow = (await sql<{ id: string; status: string; order_reference: string; quantity: number; total_value_usd: string | null; currency: string }>`
       select o.id::text as id, o.status, o.order_reference, o.quantity, o.total_value_usd, o.currency from orders o
-       where o.client_id = (select client_id from conversations where id = ${conversationId})
-       order by o.created_at desc limit 1`.execute(tx)).rows[0];
+       where o.client_id = ${head.client_id}::uuid
+         ${scope.realOnly ? sql`and not exists (select 1 from conversations tc where tc.id = o.conversation_id and tc.owner_testing)` : sql``}
+       order by o.created_at desc${scope.realOnly ? sql`,o.id desc` : sql``} limit 1`.execute(tx)).rows[0];
 
     const corrections = (await sql<{ capability: string }>`
       select distinct capability from drafts
@@ -218,7 +228,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     const customer = client ? {
       clientId: client,
       photo: (await faceVersions(tx, [client])).get(client) ?? null,
-      value: (await customerValues(tx, [client], now)).get(client)
+      value: (await customerValues(tx, [client], now, scope)).get(client)
         ?? { clientId: client, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null },
     } : null;
 
@@ -272,6 +282,15 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     const latestQuoteTotal = latestQuoteRow ? moneyFromRow(latestQuoteRow.total_usd, latestQuoteRow.currency) : null;
     const identified = (head.name || head.name_zh) ? [{ name: head.name, nameZh: head.name_zh }] : [];
     const profileProducts = products.length ? products.map((p) => ({ name: p.name, nameZh: p.nameZh })) : identified;
+
+    // Canonical composition may follow a separate directory read. A reassignment during these reads
+    // cannot put another client's channel controls/history on the requested customer's record.
+    if (scope.expectedClientId !== undefined) {
+      const stillOwn = (await sql<{id:string}>`select id from conversations where id = ${conversationId}::uuid
+        and business_id = ${bid.value}::uuid and client_id = ${scope.expectedClientId}::uuid
+        ${scope.realOnly ? sql`and not owner_testing` : sql``}`.execute(tx)).rows[0];
+      if (!stillOwn) return null;
+    }
 
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, channel: head.channel, address: head.address,
@@ -413,7 +432,7 @@ export async function renameBuyer(
  * Not standing: anyone looking after them may record one, for a message that
  * asked to stop and was not caught (it only ever stops sending).
  */
-function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
+function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer, returnHref?: string): string {
   const o = f.optOut ?? null;
   const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
   const channel = channelName(locale, f.channel);
@@ -421,7 +440,7 @@ function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer): string 
     return `<details class="block" id="opt-out">
       <summary>${esc(t(locale, 'conv.optOut.record'))}</summary>
       <p class="muted">${esc(t(locale, 'conv.optOut.recordNote', { channel }))}</p>
-      <form method="post" action="${here}/opt-out/record">
+      <form method="post" action="${here}/opt-out/record">${returnHref ? `<input type="hidden" name="from" value="${esc(customerReturnHref(returnHref))}">` : ''}
         <button class="btn" type="submit" data-confirm="${esc(t(locale, 'conv.optOut.recordConfirm', { channel }))}">${esc(t(locale, 'conv.optOut.record'))}</button>
       </form>
     </details>`;
@@ -430,7 +449,7 @@ function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer): string 
     <h2>${esc(t(locale, 'conv.optOut.title', { channel }))}</h2>
     <p>${esc(t(locale, o.repliedSince ? 'conv.optOut.replied' : 'conv.optOut.body', { date: show.date(locale, o.lastAskedAt) }))}</p>
     ${viewer.isOwner
-      ? `<form method="post" action="${here}/opt-out/lift">
+      ? `<form method="post" action="${here}/opt-out/lift">${returnHref ? `<input type="hidden" name="from" value="${esc(customerReturnHref(returnHref))}">` : ''}
           <button class="btn" type="submit" data-confirm="${esc(t(locale, 'conv.optOut.liftConfirm'))}">${esc(t(locale, 'conv.optOut.lift'))}</button>
         </form>`
       : `<p class="muted">${esc(t(locale, 'conv.optOut.staff'))}</p>`}
@@ -561,6 +580,7 @@ export const customerFileTitle = (locale: Locale, f: Pick<CustomerFile, 'buyer'>
 
 export function renderCustomerFile(
   f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+  opts: { readonly embedded?: boolean; readonly returnHref?: string } = {},
 ): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
@@ -572,12 +592,12 @@ export function renderCustomerFile(
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${esc(show.count(locale, p.quoteCount))}</b></div>` : '',
     // The fix wave (w4-conversation-19) — what they spent and how many orders stand, in the card's own
     // words and by its one definition; with no customer rows (a fixture), this conversation's orders.
-    f.customer ? `<div class="prow"><span class="muted">${esc(t(locale, 'pcard.spent'))}</span><b>${
+    !opts.embedded && f.customer ? `<div class="prow"><span class="muted">${esc(t(locale, 'pcard.spent'))}</span><b>${
       f.customer.value.spent ? `<bdi>${esc(show.money(locale, f.customer.value.spent))}</bdi>` : esc(t(locale, 'pcard.nothingSpent'))}</b></div>
       <div class="prow"><span class="muted">${esc(t(locale, 'pcard.orders'))}</span><b>${esc(show.count(locale, f.customer.value.orders))}</b></div>`
-    : p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
+    : !opts.embedded && p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
   ].filter(Boolean).join('');
-  const nameForm = `<form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/name" class="name-form">
+  const nameForm = `<form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/name" class="name-form">${opts.returnHref ? `<input type="hidden" name="from" value="${esc(customerReturnHref(opts.returnHref))}">` : ''}
       <label for="buyer-name">${esc(t(locale, 'conv.file.name'))}</label>
       <div class="name-row">
         <input id="buyer-name" name="name" maxlength="80" value="${esc(f.buyer ?? '')}" placeholder="${esc(t(locale, 'common.buyer'))}">
@@ -607,7 +627,7 @@ export function renderCustomerFile(
       perPiece(locale, ctx.latestQuote.unitPrice),
       `${t(locale, 'product.detail.total')} ${show.money(locale, ctx.latestQuote.total)}`,
     ].map((x) => `<bdi class="fig">${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
-    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
+    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, opts.embedded ? 'customers.latestCustomerOrder' : 'conv.ctx.order'))}</div><div>${
       // G4 — the reference opens the order, so what she tells a buyer who asks
       // after it is one tap away.
       ctx.order.id ? `<a href="/app/orders/${encodeURIComponent(ctx.order.id)}">${esc(show.orderNumber(locale, ctx.order.reference))}</a>` : esc(show.orderNumber(locale, ctx.order.reference))
@@ -624,14 +644,14 @@ export function renderCustomerFile(
 
   // A — back to Buyers, where every buyer is listed now (Customers was the same list).
   return `
-    <div class="dhead">
+    ${opts.embedded ? '' : `<div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       ${/* The fix wave (w4-conversation-19) — the one customer page that had no face: theirs, opening their card like every other. */ ''}${
         f.customer ? faceLink({ clientId: f.customer.clientId, name: f.buyer, photo: f.customer.photo },
           { size: 'm', label: t(locale, 'catchup.card', { who: f.buyer ?? t(locale, 'common.buyer') }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, f.buyer, f.country)}</h1>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
-    </div>
+    </div>`}
     <div class="muted subline">${esc(channelName(locale, f.channel))}${f.address
       ? ` <bdi dir="ltr">${esc(f.channel === 'whatsapp' && /^\d+$/.test(f.address) ? `+${f.address}` : f.address)}</bdi>` : ''}</div>
     ${flashBanner(flash)}
@@ -639,7 +659,7 @@ export function renderCustomerFile(
     ${profile}
     ${timeline}
     ${context}
-    ${optOutSection(f, locale, viewer)}
+    ${optOutSection(f, locale, viewer, opts.returnHref)}
     ${copySection(f, locale, viewer)}
     ${deletionSection(f, locale, viewer, now)}`;
 }

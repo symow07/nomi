@@ -294,11 +294,11 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
     const actions = stopped ? '' : `
       ${!decision.ok ? `<form method="post" action="/app/contacts/consent" class="inline">${hidden}
         <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>` : ''}
-      ${g === 'can' ? deeper(`/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
+      ${g === 'can' ? deeper(`/app/customers/outreach/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
         t(locale, 'contacts.write.button')) : ''}
       ${/* The warmth run (-16) — the row's act drawn as a button, outlined like its neighbours; ghost words read as a caption.
            Audit batch 5 (2026-10-31) — and folded under "More": on every row it was the page's loudest thing, and it cannot be undone. */ ''}<details class="ct-more"><summary>${esc(t(locale, 'contacts.more'))}</summary>
-      <form method="get" action="/app/contacts/suppress" class="inline">${hidden}
+      <form method="get" action="/app/customers/outreach/suppress" class="inline">${hidden}
         <button class="btn" type="submit">${esc(t(locale, 'contacts.suppress.button'))}</button></form>
       ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
@@ -345,7 +345,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       <ul class="cts">${here.map((x) => row(x.c, x.g)).join('')}</ul></section>`;
   }).join('');
 
-  const href = (p: number) => `/app/contacts?${q ? `q=${encodeURIComponent(q)}&amp;` : ''}page=${p}`;
+  const href = (p: number) => `/app/customers/outreach?${q ? `q=${encodeURIComponent(q)}&amp;` : ''}page=${p}`;
   const position = t(locale, 'buyers.page.position', {
     from: show.count(locale, (page - 1) * CONTACTS_PAGE + 1),
     to: show.count(locale, (page - 1) * CONTACTS_PAGE + shownNow.length),
@@ -357,10 +357,10 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       ${page < pages ? deeper(href(page + 1), t(locale, 'buyers.page.next')) : ''}
     </nav>` : '';
 
-  const search = v.contacts.length === 0 ? '' : `<form class="search" method="get" action="/app/contacts" role="search">
+  const search = v.contacts.length === 0 ? '' : `<form class="search" method="get" action="/app/customers/outreach" role="search">
       <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'contacts.search.placeholder'))}" aria-label="${esc(t(locale, 'contacts.search.label'))}" />
       <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-      ${q ? `<a class="clear" href="/app/contacts">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
+      ${q ? `<a class="clear" href="/app/customers/outreach">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
     </form>`;
 
   const list = v.contacts.length === 0
@@ -390,20 +390,20 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       </form>
     </details>`;
 
-  // The warmth run (w4-settings-b-outreach-13) — reached from the Inbox, and back there, as every other page here leads back.
-  return `${back('/app/inbox', t(locale, 'nav.inbox'))}
-    <h1 class="page">${esc(t(locale, 'contacts.title'))}</h1>
+  // Follow-ups belongs to Customers; the shared area wrapper provides the secondary menu.
+  return `<div class="customer-tools tool-contacts">${back('/app/customers', t(locale, 'customers.back'))}
+    <h1 class="page">${esc(t(locale, 'customers.followups'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
       ${v.contacts.length ? `<p class="note">${esc(t(locale, 'contacts.summary', { can: show.count(locale, canFirst), total: show.count(locale, all.length) }))}</p>` : ''}
-      ${deeper('/app/sequences', t(locale, 'seq.title'))}
-      ${deeper('/app/prospects', t(locale, 'prospects.title'))}
+      <div class="customer-tool-doors">${deeper('/app/customers/outreach/sequences', t(locale, 'seq.title'))}
+      ${deeper('/app/customers/outreach/find', t(locale, 'prospects.title'))}</div>
       ${add}
       ${search}
       ${canAttest ? `<p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>` : ''}
       ${list}
-    </section>`;
+    </section></div>`;
 }
 
 /**
@@ -431,16 +431,16 @@ export function renderSuppressConfirm(
   locale: Locale,
 ): string {
   const name = who.displayName ?? shown(who);
-  return `<h1 class="page">${esc(t(locale, 'contacts.suppress.title', { who: name }))}</h1>
+  return `<div class="customer-tools tool-suppress"><h1 class="page">${esc(t(locale, 'contacts.suppress.title', { who: name }))}</h1>
     <section class="block">
       <p>${esc(t(locale, 'contacts.suppress.hint'))}</p>
       <form method="post" action="/app/contacts/suppress" class="confirm">
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
         <button class="btn danger" type="submit">${esc(t(locale, 'contacts.suppress.confirm'))}</button>
-        <a class="back" href="/app/contacts" autofocus>${BACK}${esc(t(locale, 'contacts.suppress.cancel'))}</a>
+        <a class="back" href="/app/customers/outreach" autofocus>${BACK}${esc(t(locale, 'contacts.suppress.cancel'))}</a>
       </form>
-    </section>`;
+    </section></div>`;
 }
 
 /**
@@ -470,7 +470,7 @@ export function renderWriteFirst(
 ): string {
   const name = who.displayName ?? shown(who);
   const draft = opts.draft ?? { subject: '', body: '' };
-  return `<h1 class="page">${esc(t(locale, 'contacts.write.title', { who: name }))}</h1>
+  return `<div class="customer-tools tool-write"><h1 class="page">${esc(t(locale, 'contacts.write.title', { who: name }))}</h1>
     ${flashBanner(opts.flash ?? null)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.write.hint'))}</p>
@@ -483,8 +483,8 @@ export function renderWriteFirst(
           <textarea name="body" dir="auto" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
         <div class="wact">
           <button class="btn send" type="submit">${esc(t(locale, 'contacts.write.send'))}</button>
-          ${back('/app/contacts', t(locale, 'contacts.write.cancel'))}
+          ${back('/app/customers/outreach', t(locale, 'contacts.write.cancel'))}
         </div>
       </form>
-    </section>`;
+    </section></div>`;
 }

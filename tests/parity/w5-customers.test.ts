@@ -113,8 +113,9 @@ describe('w4-customers-25 · w4-conversation-12 · the card: what they asked abo
     expect(cardOpenedFrom(undefined, 'app.nomidoes.com')).toBeNull();
     expect(cardOpenedFrom('not a url', 'app.nomidoes.com')).toBeNull();
     const app = read('src/api/web/app.ts');
-    expect(app).toContain('loadCustomerCard(tx, id, personOf(s).id)');
-    expect(app).toContain("from ? back(conversationUrl(from), t(locale, 'pcard.back'))");
+    expect(app).toContain('readCustomerSelection(tx, {businessId:bid.value,clientId:id,viewerId:personOf(s).id');
+    expect(app).toContain('cardOpenedFrom(req.headers.referer, req.headers.host)');
+    expect(read('src/api/web/customers.ts')).toContain("opts.openedFrom?conversationUrl(opts.openedFrom):'/app/customers'");
   });
 
   it('w4-customers-26 · its one action is the primary one (the brand fill), its words inside their padding', () => {

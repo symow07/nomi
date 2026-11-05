@@ -408,7 +408,7 @@ describe('C4.b · the pages', () => {
       id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',
       steps: 3, live: 1, finished: 0, stopped: 2, awaiting: 0, createdAt: NOW,
     }], 'ar', null));
-    expect(html).toContain('href="/app/sequences/22222222-2222-4222-8222-222222222222"');
+    expect(html).toContain('href="/app/customers/outreach/sequences/22222222-2222-4222-8222-222222222222"');
     expect(html).not.toContain(esc(t('ar', 'seq.list.awaiting', { count: '0' })));
     const waiting = withoutIsolates(renderSequenceList([{
       id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',

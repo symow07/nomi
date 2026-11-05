@@ -243,7 +243,7 @@ describe('M38 · her page', () => {
     // the second page posts.
     // Phase 9 (V1-546): a button that opens the question, never one that posts.
     const html = renderContacts(view([row({ consent: consent() })]), 'en', null);
-    expect(html).toContain('<form method="get" action="/app/contacts/suppress" class="inline">');
+    expect(html).toContain('<form method="get" action="/app/customers/outreach/suppress" class="inline">');
     expect(html).not.toMatch(/<form method="post" action="\/app\/contacts\/suppress"/);
 
     const confirm = renderSuppressConfirm(
@@ -254,7 +254,7 @@ describe('M38 · her page', () => {
     // Going back has the focus: the reflex that carries her through every
     // other page must not land on the one action she cannot take back. Phase 9
     // (V1-558, new-12): the act in red, the way back beside it with the focus.
-    expect(confirm).toContain('<a class="back" href="/app/contacts" autofocus>');
+    expect(confirm).toContain('<a class="back" href="/app/customers/outreach" autofocus>');
     expect(confirm).toMatch(/class="btn danger" type="submit"/);
   });
 
@@ -269,14 +269,16 @@ describe('M38 · her page', () => {
   it('it is registered as routes, and reachable from the Buyers surface', async () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     for (const r of [
-      "app.get('/app/contacts'", "app.post('/app/contacts'",
-      "app.post('/app/contacts/consent'", "app.get('/app/contacts/suppress'",
+      "app.get('/app/customers/outreach'", "app.post('/app/contacts'",
+      "app.post('/app/contacts/consent'", "app.get('/app/customers/outreach/suppress'",
       "app.post('/app/contacts/suppress'",
       "app.post('/app/contacts/:id/archive'",
     ]) expect(app, r).toContain(r);
     // A — the door hangs off the list of everyone who wrote, which is Buyers
     // since Customers merged into it.
     const buyers = await readFile(new URL('../../src/api/web/splitInbox.ts', import.meta.url), 'utf8');
-    expect(buyers).toContain("deeper('/app/contacts'");
+    expect(buyers).toContain("deeper('/app/customers/outreach'");
+    expect(app).toContain("['/app/contacts', '/app/customers/outreach']");
+    expect(app).toContain("['/app/contacts/suppress', '/app/customers/outreach/suppress']");
   });
 });

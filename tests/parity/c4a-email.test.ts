@@ -364,7 +364,7 @@ describe('C4.a · the button appears only where the gate has said yes', () => {
   const view = (contacts: ContactRow[], over: Partial<ContactsView> = {}): ContactsView => ({
     contacts, outreach: new Map([['email', true]]), satisfied: VERIFIED, ...over,
   });
-  const WRITE = '/app/contacts/write?';
+  const WRITE = '/app/customers/outreach/write?';
 
   it('yes: consent, switch on, domain verified', () => {
     expect(renderContacts(view([row({})]), 'en', null)).toContain(WRITE);
