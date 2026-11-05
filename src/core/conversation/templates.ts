@@ -41,6 +41,10 @@ const qtyIn = (lang: FixedLanguage, n: number, unit: string): string =>
  * product can keep: it sends no e-mail at all until M40 has a sender. The buyer
  * was told to wait for a message that would never come. What happens next is
  * the factory's own step, and that is what is said.
+ *
+ * The Books audit (2026-11-05) — "We'll send you the invoice next" was the same promise: nothing in the product can
+ * send an invoice yet, and most shops never send one. The reply says what happened and promises nothing. Bring a next
+ * step back when invoices can be sent, in the same change.
  */
 export function orderConfirmedReply(input: {
   orderReference: string;
@@ -51,17 +55,14 @@ export function orderConfirmedReply(input: {
 }): string {
   const { orderReference, productName, quantity, unit } = input;
   const lang = input.language ?? 'en';
-  // The positioning rewrite (2026-09-30): not every business is a factory,
-  // and not every one sends a proforma.
-  if (lang === 'zh') return `您的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。接下来我们会把发票发给您。`;
-  if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}. وستصلك الفاتورة بعد ذلك.`;
-  if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}. Te enviaremos la factura a continuación.`;
-  if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}. Nous vous enverrons ensuite la facture.`;
-  if (lang === 'pt') return `Seu pedido está confirmado — referência ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}. Em seguida enviaremos a fatura.`;
+  if (lang === 'zh') return `您的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。`;
+  if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}.`;
+  if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.`;
+  if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}.`;
+  if (lang === 'pt') return `Seu pedido está confirmado — referência ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.`;
   return (
     `Your order is confirmed — reference ${orderReference}: ` +
-    `${qtyIn(lang, quantity, unit)} of ${productName}. ` +
-    `We'll send you the invoice next.`
+    `${qtyIn(lang, quantity, unit)} of ${productName}.`
   );
 }
 

@@ -1,3 +1,4 @@
+import { holdsMoney } from '../core/books/moneyAccounts.js';
 import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
@@ -100,6 +101,15 @@ export async function unmatch(tx: Tx, businessId: string, by: string, matchId: s
 export async function bankAccounts(tx: Tx, businessId: string) {
   return (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from accounts
     where business_id = ${businessId}::uuid and kind = 'asset' and is_active order by code`.execute(tx)).rows;
+}
+
+/** The accounts a customer's payment or refund can go through: the bank and cash accounts of the chart, by `holdsMoney`. */
+export async function paymentAccounts(tx: Tx, businessId: string) {
+  const rows = (await sql<{ id: string; code: string; name: string }>`select a.id::text as id, a.code, a.name from accounts a
+    where a.business_id = ${businessId}::uuid and a.kind = 'asset' and a.is_active
+      and not exists (select 1 from accounts c where c.business_id = a.business_id and c.parent_id = a.id and c.is_active)
+    order by a.code`.execute(tx)).rows;
+  return rows.filter((a) => holdsMoney(a.code, a.name));
 }
 
 /** 0216 (d) — the columns kept for this bank account's CSV files, or null. */

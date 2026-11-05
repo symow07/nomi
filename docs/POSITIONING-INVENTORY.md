@@ -44,7 +44,7 @@ These come from `src/core/conversation/templates.ts`, `fastpath.ts`, `src/core/c
 | Where | Today (en) | Suggested (en) | zh / ar | Note |
 |---|---|---|---|---|
 | `templates.ts:76` hand-off reply | "one of our specialists will follow up with you personally, shortly." | "someone from our team will reply to you personally, as soon as they can." | — | **High visibility.** It assumes a sales team, which a solo brand does not have. `response.txt:92` says the same. |
-| `templates.ts:29-31` order confirmed | "…The factory will send you the proforma invoice." | "…We'll send you the invoice next." | — | |
+| `templates.ts:29-31` order confirmed | "…The factory will send you the proforma invoice." | Since 2026-11-05 no next step at all: nothing can send an invoice yet (the Books audit). | — | |
 | `fastpath.ts:59-63` product confirmed | "Now, roughly how many pieces are you looking at?" | "How many would you like?" | 请问需要多少？ / ما الكمية المطلوبة؟ | The es line has the same problem ("piezas"). |
 | `templates.ts:44` quantity missing | "How many pieces should I put on the order?" | "How many would you like?" | — | It says "pieces" whatever the product's own unit is. |
 | `orderState.ts:115, 124` order status | "Order {ref} is in production as of {when}." | "Order {ref} is being prepared as of {date}." | — | The date is worked out in Shanghai time and always formatted in English (§5 › Time zone). |

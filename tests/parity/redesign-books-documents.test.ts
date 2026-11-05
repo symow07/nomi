@@ -10,7 +10,8 @@ const invoice:InvoiceView={id:'invoice',key:'F-2026-0001',party:billedTo.name,is
 const note:CreditNoteView={id:'credit',key:'A-2026-0001',state:'issued',issueDate:'2026-11-02',reason:'Price adjustment',currency:'GBP',invoiceId:invoice.id,invoiceKey:invoice.key!,entryId:'credit-entry',billedTo,total:d('12'),lines:[{invoiceLineNo:1,label:'Two items',quantity:d('0'),net:d('10'),tax:d('2')}]};
 const choices:InvoiceChoices={parties:[{id:'customer',code:'C1',name:'Customer One'}],accounts:[{id:'sales',code:'S1',name:'Sales'}],taxCodes:[{id:'vat',code:'VAT20',label:'VAT 20%'}],bookCurrency:'GBP',salesAccountId:'sales'};
 const issuer={name:'Store <Two>',postalAddress:'20 Shop Street',contactEmail:'shop@example.test',contactPhone:null,identifiers:null};
-const pay={journals:[],accounts:[]};
+// #427 — the payment and refund forms are drawn only when the chart has a bank or cash account: the fixture gives one.
+const pay={journals:[],accounts:[{id:'bank',code:'5141',name:'Bank'}]};
 describe('Books invoice and credit-note presentation',()=>{
  it('carries only the exact local invoice list filters and row anchor',()=>{
   const from='/app/books/invoices?q=Atlas&state=overdue&page=4#invoice-11111111-1111-4111-8111-111111111111';

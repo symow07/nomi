@@ -16559,3 +16559,10 @@ New line in zh, ar, es and fr, none read by a native reader. Not a gate. It appe
 - **Key:** `legal.privacy.provider.anthropic`, written to run parallel to `.openai`.
 - **To check:** that "keeps up to 30 days, longer to enforce its usage policy or by law, not for training unless the account opts in" reads as plain fact and addresses nobody in a gender.
 - **Also:** strict mode's starters are eight now. "Someone from our team will reply…" left all five lists, because nothing kept it.
+
+## Choosing where a payment landed (2026-11-05)
+
+New lines in zh, ar, es and fr, none read by a native reader. Not a gate.
+
+- **Keys:** `books.invoice.bankChoose`, `books.invoice.bankNeeded`, `books.invoice.noBank`.
+- **To check:** that `noBank` reads naturally, with the words to put in an account's name quoted as an owner would type them.
