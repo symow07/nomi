@@ -26,6 +26,16 @@ d('Grouped Settings preserve command and permission ownership',()=>{
    expect((await get(old,'' )).headers.location,old).toBe('/login');
   }
  });
+ it('moves dynamic selling bookmarks without loops and preserves original POST question names',async()=>{
+  for(const q of ['product_claims','not-a-question','123'])for(const suffix of ['','/confirm']){
+   const old='/app/business/selling/'+q+suffix,canonical='/app/settings/business/selling/'+q.replaceAll('_','-')+suffix;
+   const r=await get(old+'?context=kept');expect([r.statusCode,r.headers.location],old).toEqual([302,canonical+'?context=kept']);
+   expect((await get(old,'')).headers.location).toBe('/login');
+  }
+  const invalid=await get('/app/settings/business/selling/not-a-question');expect(invalid.headers.location).toBe('/app/business/selling');
+  const originalPost=await post('/app/business/selling/product-claims',{answer:'Not an original command name'});
+  expect([originalPost.statusCode,originalPost.headers.location]).toEqual([302,'/app/business/selling']);
+ });
  it('opens one focused page per subject with the original forms and role boundaries',async()=>{
   const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/terms','/app/settings/business/samples','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/assistant/history-policy','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/language','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
   for(const path of paths){const r=await get(path);expect(r.statusCode,path).toBe(200);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);expect(r.body,path).toContain('settings-area');expect(r.body,path).toContain('data-nav="settings" aria-current="page"');}

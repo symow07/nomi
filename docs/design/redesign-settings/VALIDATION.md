@@ -12,7 +12,7 @@ The scripted pre-pilot passes all 14 scenarios before and after. Its forbidden-w
 
 ## Repository checks
 
-Seven focused route tests cover authenticated bookmark moves/query preservation, permissions, complete profile refusals, single-use code cookies, personal/workspace history, export-only pages, sample separation and disabled Books/technical setup. Existing integration expectations are being migrated to the canonical GET pages; original POST and download assertions remain. Dedicated route tests still exercise old GETs directly.
+Eight focused route tests cover authenticated bookmark moves/query preservation, permissions, complete profile refusals, single-use code cookies, personal/workspace history, export-only pages, sample separation and disabled Books/technical setup. Existing integration expectations are being migrated to the canonical GET pages; original POST and download assertions remain. Dedicated route tests still exercise old GETs directly. A reproduced malformed selling-bookmark redirect loop was corrected; 16 focused route/selling tests pass, including unchanged original POST question names.
 
 The final check, trust, build and frozen full isolated integration results will be recorded before the PR is opened. Exact-head CI and tools/gated-merge.sh are separate release requirements.
 
