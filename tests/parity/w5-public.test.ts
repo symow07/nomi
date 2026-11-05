@@ -128,7 +128,7 @@ describe('w4-public-09 · "What goes out alone" is its conditions as a list, no 
 
 describe('w4-public-10 · the door\'s heading leaves no word alone', () => {
   it('balanced, in the door\'s sheet', () => {
-    expect(linkedCss(loginPage({ locale: 'es', path: '/login?with=code', withCode: true }))).toContain('.login h1 { text-wrap:balance; }');
+    expect(linkedCss(loginPage({ locale: 'es', path: '/login?with=code', withCode: true }))).toContain('.login h1 { text-wrap:balance; text-align:center; margin-bottom:var(--space-24); }');
   });
 });
 

@@ -404,7 +404,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       }
     }
     const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
-    expect(door).toContain('.login .brand { flex-direction:column; justify-content:center; gap:var(--space-4); text-align:center;');
+    expect(door).toContain('.login .brand { flex-direction:column; justify-content:center; gap:var(--space-12); text-align:center;');
   });
 
   it('the knowledge page says its title once (it printed it twice), with its lede under it', () => {

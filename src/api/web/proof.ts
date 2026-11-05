@@ -389,7 +389,7 @@ const PROOF_CSS = `
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
-  .proof { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
+  .proof { background:var(--color-surface); border:1px solid var(--color-border); max-width:var(--measure-prose); margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
   .head { padding-bottom:var(--space-16); border-bottom:1px solid var(--color-border);
           margin-bottom:var(--space-24); }
   .seller { color:var(--color-ink-secondary); font-size:var(--font-size-small);
@@ -402,6 +402,7 @@ const PROOF_CSS = `
   .fact { display:flex; align-items:baseline; gap:var(--space-12); flex-wrap:wrap;
           padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .fact:last-child { border-bottom:0; }
+  .proof .head h1 { font-family:var(--font-voice); font-size:var(--font-size-display); font-weight:400; }
   .f-l { color:var(--color-ink-secondary); min-width:9rem; flex:0 0 auto; }
   .f-v { font-weight:600; flex:1 1 auto; }
   .f-s { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }

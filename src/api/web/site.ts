@@ -163,7 +163,7 @@ export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
       </div>
       <div class="site-said site-draft">
         ${/* V1-018, public-new-01 — the product's own draft card, in its own words: who drafted it and
-           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span>${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
+           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span>${markSmall(18,null)}${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
         <p class="site-bubble" dir="auto">${k('site.example.draft')}</p>
         <p class="site-acts">${k('site.example.acts')}</p>
       </div>
@@ -252,24 +252,24 @@ export const SITE_CSS = `
 
   .site-hero { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-32); align-items:center;
     padding-block:var(--space-24); }
-  .site-hero h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); margin:0 0 var(--space-24); font-weight:700;
+  .site-hero h1 { font-family:var(--font-voice); font-size:var(--font-size-hero); line-height:1.1; margin:0 0 var(--space-24); font-weight:400;
     color:var(--color-ink); letter-spacing:var(--tracking-tight); }
   /* The type pass (2026-10-04) — the lead is large and quiet: light, the one place a stranger meets the light weight first. */
   .site-lead { font-size:var(--font-size-title); font-weight:300; color:var(--color-ink); }
   .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
     margin:var(--space-32) 0 0; }
   .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
-    border-radius:var(--radius-control); background:var(--color-brand); color:var(--color-surface);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
     font-weight:600; text-decoration:none; text-align:center; text-wrap:balance; }
   /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
      that wraps is centred in its button, in even lines. */
-  .site-go:hover { box-shadow:var(--shadow-lift2); }
+  .site-go:hover { box-shadow:none; }
   .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
   .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .site-member a { display:inline-block; padding-block:var(--space-12); font-weight:600; }
 
   .site-example { margin:0; padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-card);
-    box-shadow:var(--shadow-lift2); display:flex; flex-direction:column; gap:var(--space-16); }
+    border:1px solid var(--color-border); box-shadow:none; display:flex; flex-direction:column; gap:var(--space-16); }
   .site-example figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .site-said { display:flex; flex-direction:column; gap:var(--space-4); align-items:flex-start; }
   .site-said.site-draft { align-items:flex-end; }
@@ -307,25 +307,23 @@ export const SITE_CSS = `
   /* w4-public-09 — one card to a row at every width, each as tall as its own words. */
   .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24);
     max-width:var(--measure-prose); }
-  .site-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card);
-    padding:var(--space-24); }
+  .site-card { background:transparent; border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
   .site-card p { margin:0; }
   .site-card p + p, .site-when + p { margin-top:var(--space-12); }
   .site-when { margin:var(--space-8) 0 0; padding-inline-start:var(--space-24); }
   .site-when li { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
-  .site-honest { margin-top:var(--space-24); padding-inline-start:var(--space-16);
-    border-inline-start:3px solid var(--color-border); }
+  .site-honest { margin-top:var(--space-24); padding-top:var(--space-16);
+    border-top:1px solid var(--color-border); }
 
   .site-channels { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-12);
     grid-template-columns:minmax(0, 1fr); }
   .site-channels li { display:flex; flex-direction:column; gap:var(--space-4); margin:0; padding:var(--space-16) var(--space-24);
-    background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); }
+    background:transparent; border-top:1px solid var(--color-border); }
   .site-channels strong { color:var(--color-ink); font-size:var(--font-size-title); }
   .site-channels span { font-size:var(--font-size-small); }
 
   /* V1-020 — the invitation's indent is a box you can see. */
-  .site-invite { border-top:0; padding:var(--space-32) var(--space-24); background:var(--color-surface);
-    border:1px solid var(--color-border); border-radius:var(--radius-card); }
+  .site-invite { padding:var(--space-32) 0; background:transparent; border-top:1px solid var(--color-border); }
 
   .site-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--space-16); flex-wrap:wrap;
     padding-top:var(--space-24); border-top:1px solid var(--color-border); }

@@ -190,7 +190,7 @@ const PROFORMA_CSS = `
   .pi-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:var(--space-24);
              padding-bottom:var(--space-24); border-bottom:2px solid var(--color-ink); }
   .pi-from { min-width:0; flex:1 1 16rem; }
-  .pi-seller { font-size:var(--font-size-display); line-height:var(--line-height-tight); font-weight:700;
+  .pi-seller { font-family:var(--font-voice); font-size:var(--font-size-display); line-height:var(--line-height-tight); font-weight:700;
                letter-spacing:var(--tracking-tight); color:var(--color-ink); }
   .pi-address { margin-top:var(--space-8); color:var(--color-ink-secondary); font-size:var(--font-size-small); white-space:pre-line; }
   .pi-doc { flex:0 1 auto; text-align:end; }
@@ -209,7 +209,7 @@ const PROFORMA_CSS = `
   .pi-lines .num { text-align:end; padding-inline-start:var(--space-24); white-space:nowrap; }
   .pi-lines td.item { font-weight:600; }
   .pi-sku { display:block; margin-top:var(--space-4); font-weight:400; font-size:var(--font-size-small);
-            color:var(--color-ink-secondary); white-space:nowrap; }
+            color:var(--color-ink-secondary); overflow-wrap:anywhere; }
   .pi-sum { margin:calc(-1 * var(--space-16)) 0 0 auto; width:min(24rem, 100vw); display:grid; font-variant-numeric:tabular-nums; }
   .pi-sumrow { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-24); padding:var(--space-8) 0; }
   .pi-sumrow dt { color:var(--color-ink-secondary); }

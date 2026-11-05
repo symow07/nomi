@@ -80,7 +80,7 @@ describe('Legal pages · what a stranger may read', () => {
     for (const { name, html } of pages('privacy@nomidoes.test')) {
       for (const l of LOCALES) {
         const h = html(l);
-        expect(h, `${name} ${l}`).toMatch(/<main><header class="pub-top"><a class="pub-brand" href="\/site"><svg class="mark"[^>]*aria-hidden="true"/);
+        expect(h, `${name} ${l}`).toMatch(/<main class="legal"><header class="pub-top"><a class="pub-brand" href="\/site"><svg class="mark"[^>]*aria-hidden="true"/);
         expect(h, `${name} ${l}`).toContain(`href="/locale?set=${l === 'en' ? 'zh' : 'en'}&next=/${name}"`);
         expect(h, `${name} ${l}`).toMatch(/<h1>[^<]+<\/h1>/);
       }

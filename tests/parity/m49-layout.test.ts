@@ -158,6 +158,9 @@ describe('M49 · the two voices are on the right axis', () => {
     ['productsStyle.ts', 'the approved Products page heading only; scoped below'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
     ['conversationStyle.ts', 'scopes --font-voice to the body family for the approved Inbox conversation'],
+    ['site.ts', 'approved public website headline'],
+    ['legal.ts', 'approved legal page headline'],
+    ['proforma.ts', 'seller heading on the paper document'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
     ['conversations.ts', 'the buyer\'s own message that asked for their data to be deleted (0076)'],
   ]);
@@ -302,6 +305,7 @@ describe('M49 · buttons and empty states', () => {
       ['splitStyle.ts  .sp-stages li', 'stage labels sit under their dots'],
       ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
       ['layout.ts  nav.side a.navlink.sub', 'the same tab bar: Inbox and Calendar are two of its five cells'],
+      ['layout.ts  .login h1', 'approved centred access form under the large seal'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
       ['layout.ts  .login .brand', 'Phase 9 (V1-040) — the mark and name over that card, centred like the pill above and the links below'],
       ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
