@@ -168,8 +168,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
-    // Phase 7 — the rate's row is How you sell's, and absent there too.
-    expect((await get('/app/settings/business/selling')).body).not.toContain('href="/app/settings/business/currency"');
+    // Currency remains navigable, but no exchange-rate command is offered without a currency pair.
+    expect((await get('/app/settings/business/currency')).body).not.toContain('action="/app/settings/rate"');
   });
 
   it('A QUOTE FROM THOSE ROWS IS IN DIRHAMS, and the same figure in dollars does not leave', async () => {

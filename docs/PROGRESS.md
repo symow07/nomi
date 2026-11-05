@@ -15,7 +15,7 @@ under "Decided" below.
 
 ## Approved redesign, Area 6: Assistant (2026-11-06; no migration)
 
-Implemented on `codex/redesign-assistant`; all four local checks passed and exact-head CI/gated merge are next. Schema remains 223. Daily work has Overview, Knowledge, Practice, Check replies, Activity and Ask Nomi. Knowledge separates unanswered questions, taught facts, products and source readings. Complete bounded pages, literal filters and return context keep large lists reachable. Source sentences precede unticked AI proposals; review shows the exact recorded reply. Existing advisor, allowance, authority and command services remain authoritative, including signed Undo.
+Merged through `tools/gated-merge.sh` in #433 at `694cb4f9`, with both exact-head CI checks green. Schema remains 223. Daily work has Overview, Knowledge, Practice, Check replies, Activity and Ask Nomi. Knowledge separates unanswered questions, taught facts, products and source readings. Complete bounded pages, literal filters and return context keep large lists reachable. Source sentences precede unticked AI proposals; review shows the exact recorded reply. Existing advisor, allowance, authority and command services remain authoritative, including signed Undo.
 
 Local check (9,299), trust (44), build and final full isolated integration (2,067; none skipped) passed. Browser evidence covers 70 English desktop/phone visits before and after, nine read-only workflow groups, six actual local command groups and unchanged snapshots of ten source/authority tables. No paid calls, production changes or customer sends. Images, moves and limits: `docs/design/redesign-assistant/README.md`.
 

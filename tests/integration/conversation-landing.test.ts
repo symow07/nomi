@@ -191,7 +191,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(record).toMatch(/^\/app\/customers\/[0-9a-f-]+\?conversation=/);
     expect(new URL(record, 'http://local').searchParams.get('conversation')).toBe(conv);
     // the calendar's list, nothing chosen: what is owed leads it, and yesterday's sample, never dealt with, is owed whatever today is
-    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/settings/samples',
+    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/customers/samples',
       '/app/inbox?filter=all', record]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);

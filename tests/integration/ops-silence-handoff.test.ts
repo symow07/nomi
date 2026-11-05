@@ -270,9 +270,9 @@ d('Silence · DOOR — nothing takes a waiting buyer off Needs you during the si
     expect((await get('/app/inbox?filter=pending')).body).toContain(`/app/inbox/${drafted}`);
   });
 
-  it('DOOR · My business says sending is paused, and nothing says the assistant is answering', async () => {
+  it('DOOR · Assistant settings say sending is paused, and nothing says the assistant is answering', async () => {
     // Phase 7 — on its going-live screen; the menu's row says it in a word.
-    expect((await get('/app/settings/business')).body).toContain(`<bdi>${t('en', 'business.live.paused')}</bdi>`);
+    expect((await get('/app/settings/assistant')).body).toContain(t('en', 'today.silenced.title', {name:'your assistant'}));
     const html = (await get('/app/settings/assistant/ready')).body;
     expect(html).toContain('data-golive="silenced"');
     expect(html).toContain('this was not you');

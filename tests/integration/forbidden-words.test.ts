@@ -193,7 +193,7 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
     expect(shown.statusCode).toBe(200);
     expect(shown.body).toContain('Your own words had a word you forbade');
     expect(shown.body).toContain('Guangzhou Textile');
-    expect(shown.body).toContain('href="/app/knowledge"');
+    expect(shown.body).toContain('href="/app/assistant/knowledge"');
 
     // Not the employee's failure: no guard violation counted for any capability.
     expect(before.policyViolations).toBe(0);

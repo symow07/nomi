@@ -111,7 +111,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     for (const r of [await post(cookie, '/app/channels/whatsapp/connect'), await post(cookie, '/app/channels/messenger/connect'),
       await post(cookie, '/app/channels/instagram/connect'), await get(cookie, '/app/connect/meta/start'),
       await get(cookie, '/app/connect/meta/callback?code=x&state=y'), await post(cookie, '/app/connect/meta/choose', { state: 'x', page: '1' })]) {
-      expect(r.headers['location']).toBe('/app/business/channels');   // phase 9: the channels' home, where the approval card is
+      expect(r.headers['location']).toBe('/app/settings/channels');   // phase 9: the channels' home, where the approval card is
       expect(flashSaid(r, SECRET)).toBe(t('en', 'connect.flash.approval'));
       expect(flashWasRefusal(r, SECRET)).toBe(true);
     }

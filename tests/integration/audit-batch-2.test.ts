@@ -64,7 +64,7 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
   });
   afterAll(async () => { await app?.close(); await db?.destroy(); await purgeBusinesses(admin, [BIZ], 'audit-batch-2-test'); await admin?.end(); });
 
-  const EXPORT_PAGES = ['/app/settings/terms', '/app/settings/samples'];
+  const EXPORT_PAGES = ['/app/settings/business/terms', '/app/settings/business/samples'];
 
   it('B14 · A SHOP, A BRAND OR AN AGENCY: Terms and Samples are not there, their forms change nothing, and no page opens a door to them', async () => {
     for (const kind of ['brand', 'online_shop', 'agency']) {

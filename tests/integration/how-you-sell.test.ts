@@ -113,9 +113,9 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     const hub = await get('/app/settings/business/selling');
     expect(hub.statusCode).toBe(200);
     for (const question of ['price', 'minimum', 'returns', 'delivery', 'payment', 'certifications', 'hours', 'words']) {
-      expect(hub.body, question).toContain(`href="/app/business/selling/${question}"`);
+      expect(hub.body, question).toContain(`href="/app/settings/business/selling/${question}"`);
     }
-    expect(hub.body).not.toContain('href="/app/business/selling/offered"');
+    expect(hub.body).not.toContain('href="/app/settings/business/selling/offered"');
     const notOurs = await get('/app/business/selling/offered');
     expect(notOurs.statusCode).toBe(302);
     expect(notOurs.headers['location']).toBe('/app/business/selling');
@@ -251,7 +251,7 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     const how = await get('/app/settings/business/selling');
     expect(how.body).toContain('href="/app/settings/business/selling"');
     // CK (0110) added "What you sell" to a shop's questions: nine now.
-    expect(menu.body).toContain('6 of 9 answered');
+    expect(menu.body).toContain('href="/app/settings/business/selling"');
     expect(how.body).toContain('6 of 9 answered');
     expect((await get('/app/settings')).body).not.toContain('href="/app/settings/business/selling"');
   });

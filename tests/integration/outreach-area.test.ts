@@ -112,7 +112,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
         r = await get(moved[url]!);
       }
       // Books is declared in the shared navigation but disabled for this workspace.
-      if (url === '/app/books') { expect(r.statusCode).toBe(404); continue; }
+      if (url === '/app/books' || url.startsWith('/app/settings/books')) { expect(r.statusCode).toBe(404); continue; }
       // The practice room is mounted only where a sandbox is configured; a
       // page this installation does not have has no links on it.
       if (url === '/app/sandbox' && r.statusCode === 404) continue;

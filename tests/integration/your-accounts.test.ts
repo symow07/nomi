@@ -108,7 +108,7 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
     expect(html).toContain(t('en', 'accounts.title'));
     expect(markOf(html, 'accounts.page')).toBe('todo');
     expect(markOf(html, 'accounts.test')).toBe('todo');
-    expect(html).toContain('href="/app/help/meta#page"');
+    expect(html).toContain('href="/app/settings/channels/meta/help#page"');
     expect(asked.filter((a) => a.includes('debug_token'))).toEqual([]);   // nothing to ask Meta about
   });
 
