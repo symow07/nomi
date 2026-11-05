@@ -13,6 +13,14 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Approved redesign, Area 7: Settings (2026-11-06; no migration)
+
+Implemented on `codex/redesign-settings`, based on merged Assistant #433. Settings has seven focused groups and native phone group/subject choosers. Business profile keeps its complete original write and separate business-type form; sample requests move to Customers. Assistant identity leaves Team, which retains people/codes/rotation. Personal history consent and owner workspace policy are separate; notifications gather the existing browser, email and owner-number controls. Original commands, downloads, callbacks, grants, confirmations and signed Undo remain authoritative. Schema remains 223.
+
+All four local gates passed: check 9,301, trust 44, build, and full isolated integration 2,075/2,075 with none skipped. The review includes 154 before/154 after English desktop/phone visits, enabled-chat supplements, 28 final selling recaptures, 59 preserved original form contracts, eight read-only groups, seven actual local command groups and unchanged snapshots of 15 source/authority tables. Scripted pre-pilot passes 14/14 before and after. No paid calls, real sends or production changes. Images and moves: `docs/design/redesign-settings/README.md`.
+
+Next: Settings exact-head CI/gated merge, then Public. Public has passed all four local gates on the combined implementation.
+
 ## Approved redesign, Area 6: Assistant (2026-11-06; no migration)
 
 Merged through `tools/gated-merge.sh` in #433 at `694cb4f9`, with both exact-head CI checks green. Schema remains 223. Daily work has Overview, Knowledge, Practice, Check replies, Activity and Ask Nomi. Knowledge separates unanswered questions, taught facts, products and source readings. Complete bounded pages, literal filters and return context keep large lists reachable. Source sentences precede unticked AI proposals; review shows the exact recorded reply. Existing advisor, allowance, authority and command services remain authoritative, including signed Undo.
