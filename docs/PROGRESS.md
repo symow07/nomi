@@ -13,6 +13,22 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## A conversation in the Split look (2026-11-05; no migration)
+
+The owner's order: the conversation page drawn like Today and the Inbox, behind `SPLIT_TODAY` (on in production), phone
+first, every act and safety kept. The labels stay الرسائل, Mensajes, Messages. CLAUDE.md rule 90 has the detail; screenshots
+are in `docs/design/split-conversation/`.
+
+Claude's calls, reported on the PR:
+
+- The list beside the conversation is gone in this look; the door back to the Inbox replaces it.
+- Where each figure came from is open by default, not behind a fold.
+- The assistant's switch, "my own test" and the doors moved below the page's acts.
+- Confirm the order is ink, not magenta: magenta is Send's alone.
+- The customer's full page and Practice keep the old look for now.
+
+Still queued: re-record the first_success guide video once the other pages have the new look.
+
 ## The page is "Inbox" again, and the Inbox in the Split look (2026-11-05; no migration)
 
 The owner's correction: #418's "Customers" is reversed in all five languages; the address stays `/app/inbox`. Then the

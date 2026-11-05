@@ -152,6 +152,97 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-row.sp-entry { grid-template-columns:36px minmax(0, 1fr) 96px 72px 60px 16px; }
 
 
+/* A conversation. Written for a phone first; the wider screen only adds room. */
+.sp-head.sc-head { display:block; padding-block-end:${K.space[16]}px; }
+.sc-top { display:flex; flex-wrap:wrap; align-items:center; gap:${K.space[12]}px; min-block-size:44px; }
+.sc-top .back { margin:0; }
+.sc-top .live { margin-inline-start:auto; }
+.sc-top .sp-headmark { margin-inline-start:auto; }
+.sc-top .live + .sp-headmark { margin-inline-start:0; }
+.sc-who { display:flex; align-items:center; gap:${K.space[12]}px; margin-block-start:${K.space[8]}px; min-inline-size:0; }
+.sc-who > .face-link { flex:none; }
+.sc-who .face { flex:none; inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
+.sc-whot { min-inline-size:0; }
+.split .sc-head h1.page { font-size:${K.size.question}px; line-height:1.25; overflow-wrap:anywhere; }
+.sc-deal { display:flex; flex-wrap:wrap; align-items:center; gap:${K.space[4]}px ${K.space[8]}px; margin:${K.space[4]}px 0 0; }
+.sc-deal:empty { display:none; }
+.sc-value { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); font-variant-numeric:lining-nums tabular-nums; }
+.sc-story { display:grid; gap:${K.space[4]}px; margin-block-start:${K.space[8]}px; font-size:var(--font-size-caption); color:var(--color-ink); }
+.sc-story p { margin:0; }
+.sc-story .cu-state { display:flex; flex-wrap:wrap; align-items:center; gap:${K.space[4]}px ${K.space[8]}px; }
+.sc-body { position:relative; display:grid; gap:${K.space[20]}px; padding-inline:${K.space[12]}px; }
+.sc-main { display:grid; grid-template-columns:minmax(0, 1fr); gap:${K.space[16]}px; align-content:start; min-inline-size:0; }
+.sc-aside { display:none; }
+
+/* The messages: the customer at the start of the line, ours at its end, so a right-to-left page mirrors them by itself. */
+.sc .timeline { gap:${K.space[12]}px; }
+.sc .msg { max-inline-size:88%; }
+.sc .bubble { padding:${K.space[12]}px ${K.space[16]}px; font-size:var(--font-size-base); line-height:1.5; border-radius:${K.radius.panel}px; }
+.sc .msg.inbound .bubble { background:var(--color-surface); border:1px solid var(--color-border); border-start-start-radius:${K.space[4]}px; }
+.sc .msg.outbound .bubble, .sc .msg.outbound .bubble.by-as { background:${K.color.neutral}; border:1px solid transparent; border-start-end-radius:${K.space[4]}px; }
+.sc .msg.outbound { display:flex; flex-direction:column; align-items:flex-end; }
+.sc .msg-by, .sc .ts { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+.sc .msg.outbound .ts, .sc .msg.outbound .msg-by { text-align:end; }
+.sc .bubble.sent-photo { padding:${K.space[4]}px; }
+.split .sc .msg-by .as { padding:0; background:transparent; }
+
+/* The reply waiting: the same voice as the messages, on our side's colour until it goes. */
+.sc-draft { display:grid; gap:${K.space[12]}px; }
+.sc-draft .sp-from { margin:0; }
+.sc-draft .stateline { font-size:var(--font-size-small); line-height:1.5; }
+.split .sc-draft .sp-reply { margin-block-end:${K.space[12]}px; font-family:var(--font-voice); font-size:var(--font-size-base); background:${K.color.neutral}; border-color:transparent; border-radius:${K.radius.panel}px; }
+.split .sc-draft .sp-reply:focus { background:var(--color-surface); }
+.sc-draft .sp-acts .sp-btn { flex:1 1 auto; }
+.sc-after { display:flex; flex-wrap:wrap; align-items:center; gap:0 ${K.space[12]}px; margin-block-start:${K.space[4]}px; }
+.sc-after .sp-window { margin:0; flex:1 1 100%; }
+.sp-btn.sc-noreply { padding-inline:0; background:transparent; border-color:transparent; color:var(--color-ink-secondary); text-decoration:underline; font-weight:400; }
+.sp-btn.sc-noreply:hover { background:transparent; color:var(--color-ink); }
+
+/* Where each figure in the reply came from: open, ruled, and as large as the page's own text. */
+.sc-draft details.reading { margin:0; padding-block-start:${K.space[4]}px; border-block-start:1px solid var(--color-border); }
+.sc-draft .reading > summary { display:flex; flex-wrap:wrap; align-items:center; gap:${K.space[4]}px ${K.space[12]}px; min-block-size:44px; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); cursor:pointer; }
+.sc-draft .reading > summary .c { font-weight:600; color:${K.color.ochreText}; }
+.split .sc-draft .und { margin:0; padding-block-end:${K.space[8]}px; font-size:var(--font-size-small); line-height:1.5; }
+.split .sc-draft .reasons { margin:0; padding:0; gap:0; background:transparent; font-size:var(--font-size-small); line-height:1.5; }
+.split .sc-draft .reasons li { grid-template-columns:20px minmax(0, 1fr); gap:0 ${K.space[8]}px; padding-block:${K.space[8]}px; border-block-start:1px solid var(--color-border); }
+.split .sc-draft .reasons li > :nth-child(2) { font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); font-variant-numeric:lining-nums; }
+.split .sc-draft .reasons li > :last-child { grid-column:2; color:var(--color-ink); }
+
+/* The page's other cards are hairline panels too. */
+.split .sc-main .card, .split .sc-main .ctx { margin:0; padding:${K.space[16]}px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:${K.radius.panel}px; box-shadow:none; }
+.split .sc .btn { border-width:1px; border-radius:${K.radius.control}px; }
+.split .sc .btn.send, .split .sc .btn.send.needs { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }
+.split .sc .sp-send { color:${K.color.onSend}; }
+.sc-more { display:grid; gap:${K.space[12]}px; font-size:var(--font-size-small); }
+.sc-more:empty { display:none; }
+.split .sc-more .testing, .split .sc-more .deeper { margin:0; }
+.split .sc-main .btn.ghost { padding-inline:0; }
+.split .sc-aside .panel { padding:${K.space[20]}px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:${K.radius.panel}px; }
+/* The head beside it already names them and shows their face. */
+.split .sc-aside .pn-who { display:none; }
+.split .sc-aside .pn-head .pn-facts:first-of-type { margin-block-start:0; }
+.split .sc-aside .label-add { display:flex; flex-wrap:wrap; gap:${K.space[8]}px; margin:${K.space[8]}px 0 0; }
+.split .sc-aside .label-add input { flex:1 1 100%; min-inline-size:0; min-block-size:44px; border-radius:${K.radius.control}px; }
+.split .sc-aside .label-add .btn { flex:none; border:1px solid var(--color-ink-secondary); }
+
+@media (min-width: 721px) {
+  .sc-body { padding-inline:${GUT}; }
+  .sc .msg { max-inline-size:72%; }
+  .sc-who { gap:${K.space[16]}px; }
+  .sc-who .face { inline-size:72px; block-size:72px; font-size:${K.size.question}px; }
+  .split .sc-head h1.page { font-size:${K.size.titlePhone}px; }
+  .sc-draft .sp-acts .sp-btn { flex:0 0 auto; }
+  .sc-after .sp-window { flex:1 1 200px; }
+  .split .sc-draft .reasons { grid-template-columns:20px fit-content(40%) minmax(0, 1fr); }
+  .split .sc-draft .reasons li { grid-column:1 / -1; grid-template-columns:subgrid; gap:0 ${K.space[12]}px; align-items:baseline; }
+  .split .sc-draft .reasons li > :last-child { grid-column:auto; }
+}
+@media (min-width: 1100px) {
+  .sc-body { grid-template-columns:minmax(0, 1fr) 300px; align-items:start; }
+  .sc-aside { display:block; position:sticky; inset-block-start:${K.space[16]}px; max-block-size:calc(100vh - ${K.space[32]}px); overflow-y:auto; }
+  .sc-more .file-door { display:none; }
+}
+
 /* The Inbox: its views over one flat sheet of Today's rows */
 .si-body { position:relative; padding-inline:${GUT}; }
 .si-tabs { display:flex; gap:${K.space[4]}px; margin-block-end:${K.space[12]}px; overflow-x:auto; scrollbar-width:none; border-block-end:1px solid var(--color-border); }

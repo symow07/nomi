@@ -1906,7 +1906,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
     </div>`;
 }
 
-function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
+function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer, replySend?: string): string {
   const cid = encodeURIComponent(d.conversationId);
   const reasons = d.handoffReasons.length
     ? `<div class="why muted">${esc(labelled(locale, t(locale, 'takeover.why'),
@@ -1981,7 +1981,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
           ${savedReplyPick(d, locale)}
-          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          <button class="${heldByOther ? 'btn send' : replySend ? replySend : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         ${photoForm(d, locale)}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
@@ -2276,7 +2276,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
  * read, each figure's and claim's source — one definition, drawn by the card above and by the Split Today preview's
  * decision card, so neither can lose one. `statesPrice`: the reply's own words carry a price or a total.
  */
-export function approvalChecks(d: ConversationDetail, p: NonNullable<ConversationDetail['pendingDraft']>, locale: Locale, now: Date, to: ApprovalTargets) {
+export function approvalChecks(d: ConversationDetail, p: NonNullable<ConversationDetail['pendingDraft']>, locale: Locale, now: Date, to: ApprovalTargets, o: { readonly readingOpen?: boolean } = {}) {
   const name = assistantName(locale);
   const channel = d.channel ? channelName(locale, d.channel) : null;
   const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
@@ -2399,7 +2399,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   // off the line whenever a figure had no source, and the owner had to open the fold to learn it.
   const check = (words: string) => `<span class="c check"><span aria-hidden="true">${UNSURE[locale]}</span> ${esc(words)}</span>`;
   const how = reasons.length || und
-    ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
+    ? `<details class="reading"${o.readingOpen ? ' open' : ''}><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
         unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : ''}${
         unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
@@ -2482,7 +2482,7 @@ const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '�
  * face sits at the start (the right) and every name, figure and address is
  * isolated.
  */
-function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
+function catchUpParts(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer) {
   const c = d.catchUp ?? null;
   const who = d.buyer ?? t(locale, 'common.buyer');
   const row = {
@@ -2543,19 +2543,34 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   ].filter(Boolean) : [asked, `<span class="fig">${esc(t(locale, 'catchup.none'))}</span>`].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
+  return {
+    face: c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : '',
+    where: c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : '',
+    facts: facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : '',
+    state: `<p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>`,
+  };
+}
+
+function catchUpStrip(d: ConversationDetail, locale: Locale, part: ReturnType<typeof catchUpParts>): string {
   // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.
-  return `<header class="catchup${c ? '' : ' bare'}">
-      ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
+  return `<header class="catchup${d.catchUp ? '' : ' bare'}">
+      ${part.face}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
-      ${c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : ''}
-      ${facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}
-      <p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>
+      ${part.where}
+      ${part.facts}
+      ${part.state}
     </header>`;
 }
 
-export function renderConversationDetail(
-  d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
-): string {
+/**
+ * THE PAGE, IN ITS PARTS: every message, card and act a conversation has, one definition, whichever look draws them
+ * (`renderConversationDetail`; behind `SPLIT_TODAY`, `renderSplitConversation`). A look may bring its own draft card and
+ * its own class for the reply's send; everything else on this page is shared, so neither look can lose a safety.
+ */
+export function conversationParts(
+  d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer,
+  look: { readonly draftCard?: string; readonly replySend?: string } = {},
+) {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
   // Each figure isolated: in Arabic one run of quantity, unit, price and total
@@ -2629,13 +2644,10 @@ export function renderConversationDetail(
     // and not on one whose every message was a reaction left out (G2c).
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
-  const log = `<div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>
-      ${earlier ? back(conversationUrl(d.conversationId, earlier), t(locale, 'inbox.log.earlier')) : ''}
-      ${timeline}
-      ${older ? deeper(conversationUrl(d.conversationId), t(locale, 'inbox.log.latest')) : ''}
-    </div>`;
+  const earlierDoor = earlier ? back(conversationUrl(d.conversationId, earlier), t(locale, 'inbox.log.earlier')) : '';
+  const latestDoor = older ? deeper(conversationUrl(d.conversationId), t(locale, 'inbox.log.latest')) : '';
 
-  const draftCard = approvalCard(d, locale, now);
+  const draftCard = look.draftCard ?? approvalCard(d, locale, now);
   // Phase 5 — while the assistant is at work on the newest message, the place
   // its reply will take says so, directly under that message; the page's
   // script draws the reply in when it lands. "No reply" is not said meanwhile.
@@ -2878,7 +2890,7 @@ export function renderConversationDetail(
     ${orderCard(d, locale)}
     ${working}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
-    ${takeoverCard(d, locale, now, viewer)}
+    ${takeoverCard(d, locale, now, viewer, look.replySend)}
     ${billingCard}
     ${maybeYesCard}
     ${deletionCard}
@@ -2894,33 +2906,52 @@ export function renderConversationDetail(
     ${knew}
     ${context}`;
 
-  return `
-    <div class="dhead">
-      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      ${LIVE_SLOT}
-    </div>
-    ${catchUpStrip(d, locale, now, viewer)}
-    ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
-    ${older ? '' : assistantControl(d, locale, viewer)}
-    ${/* The fix wave (w4-conversation-05, -15) — the strip names it, labelled; this line stays only where the strip has no customer rows. */ ''}${
-      !d.catchUp && (prod || d.quantity !== null) ? `<div class="muted subline">${[
+  return {
+    answeredBy: d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : '',
+    control: older ? '' : assistantControl(d, locale, viewer),
+    earlierDoor, timeline, latestDoor, flashHtml, acts,
+    /* The fix wave (w4-conversation-05, -15) — the strip names it, labelled; this line stays only where the strip has no customer rows. */
+    about: !d.catchUp && (prod || d.quantity !== null) ? `<div class="muted subline">${[
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
-    ].filter(Boolean).join(' · ')}</div>` : ''}
-    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now.
+    ].filter(Boolean).join(' · ')}</div>` : '',
+    doors: `${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now.
          The fix wave (w4-whole-13, w4-conversation-16) — ONE door to "About this customer", in one place, by one name:
          on a phone the page; where the panel is folded away (1100–1440 px) the panel, which ends with the
          door to the full page; from 1440 px the panel stands beside, and neither door is drawn. The face
          opens the card. The stylesheet chooses; nothing waits on a script. */ ''}${
       deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}${
-      deeper('#customer', t(locale, 'panel.open'), 'panel-open')}
-    ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
-      viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
+      deeper('#customer', t(locale, 'panel.open'), 'panel-open')}`,
+    /* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */
+    testing: viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
       <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
       ${/* Phase 9 (V1-219, V1-255) — an act, said as one, and asked first when it takes a conversation out of the count. */ ''}<button class="btn ghost quiet" type="submit"${d.ownerTesting ? ''
-        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
-    ${log}
-    ${flashHtml}
-    ${acts}`;
+        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : '',
+    catchUp: catchUpParts(d, locale, now, viewer),
+  };
+}
+
+export function renderConversationDetail(
+  d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
+): string {
+  const part = conversationParts(d, locale, now, flash, viewer);
+  return `
+    <div class="dhead">
+      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
+      ${LIVE_SLOT}
+    </div>
+    ${catchUpStrip(d, locale, part.catchUp)}
+    ${part.answeredBy}
+    ${part.control}
+    ${part.about}
+    ${part.doors}
+    ${part.testing}
+    <div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>
+      ${part.earlierDoor}
+      ${part.timeline}
+      ${part.latestDoor}
+    </div>
+    ${part.flashHtml}
+    ${part.acts}`;
 }

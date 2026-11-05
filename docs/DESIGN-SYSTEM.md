@@ -1,16 +1,16 @@
 # Nomi design system: the Split Today
 
-For anyone building or reviewing a Nomi page in this look. Two pages are drawn in it so far, **Today** and the **Inbox**,
-behind `SPLIT_TODAY=on` (on in production). With the flag off, nothing here is reached.
+For anyone building or reviewing a Nomi page in this look. Three pages are drawn in it so far, **Today**, the **Inbox** and a
+**conversation**, behind `SPLIT_TODAY=on` (on in production). With the flag off, nothing here is reached.
 
 | What | Where |
 |---|---|
 | Tokens | `SPLIT_TOKENS` in `src/core/owner/tokens.ts` |
 | Rules | `src/api/web/splitStyle.ts`, linked only by a page drawn with `body.split` |
-| The pages | `src/api/web/splitToday.ts`, `src/api/web/splitInbox.ts` |
+| The pages | `src/api/web/splitToday.ts`, `src/api/web/splitInbox.ts`, `src/api/web/splitConversation.ts` |
 | Their figures | `src/db/splitToday.ts`, `src/db/customerStage.ts`, `src/db/buyersList.ts` |
-| Tests | `tests/parity/split-today.test.ts`, `tests/parity/split-inbox.test.ts`, and the same two names under `tests/integration/` |
-| Screenshots | `docs/design/split-today/`, `docs/design/split-inbox/` |
+| Tests | `tests/parity/split-today.test.ts`, `split-inbox.test.ts`, `split-conversation.test.ts`, and the same names under `tests/integration/` |
+| Screenshots | `docs/design/split-today/`, `docs/design/split-inbox/`, `docs/design/split-conversation/` |
 
 To see it locally: `npm run build`, start the app with `SPLIT_TODAY=on`, then `node tools/split-preview.mjs seed` and
 `shots` (the tool's header has the variables). It refuses any database but a local one.
@@ -29,7 +29,7 @@ Each colour has one job. A colour used for anything else is a defect.
 | washInk, washHalo | `#9C4F52`, `#B8767A` | The header's wash, nothing else |
 | secondary | `#665D55` | Quieter text; the edge of an outlined button |
 | border | `#E8E1D8` | Hairlines |
-| neutral | `#EDE7DF` | A customer's initial; a plain chip; the rail's current page |
+| neutral | `#EDE7DF` | A customer's initial; a plain chip; the rail's current page; our messages in a conversation, and the reply waiting |
 | jade | `#3F6B5C` | Money in, done. `jadeWash` `#E6EDE9` behind a chip |
 | ochre | `#B8862F` | Waiting, overdue: marks, and the bold "1 overdue" |
 | ochreText | `#7C5A14` | Waiting, overdue: any smaller text. `ochreWash` `#F6EEDC` behind a chip |
@@ -157,6 +157,38 @@ No cards and no banner.
 - The stage comes from one definition, `STAGE_OF_CONVERSATION` in `src/db/customerStage.ts`, the same one Today reads.
   Value is the figure on record. A price the assistant worked out and never gave does not make a stage or a value.
 - On a phone: name and value, then chip, reason and days, then the last message, with the tab bar at the foot.
+
+## A conversation
+
+The address stays `/app/inbox/:id`. Written for a phone first. Only the arrangement is new: every message, card and act
+comes from the plain page's `conversationParts`, every check on the draft from `approvalChecks`.
+
+**The head**, on the wash: a door back to the Inbox, the live line, then the photo or initial, the name (the one `h1`), and
+one line with the product's thumbnail, the stage chip and the value. Under them: where they write, what they asked about,
+who has it. Stage and value are the Inbox's, read the same way: a price worked out and never given is not a stage or a value.
+
+**The messages** sit on the paper, full size, in the serif.
+
+| Who | Where | Fill |
+|---|---|---|
+| The customer | Start of the line | Surface, with a hairline |
+| Us, the assistant or a person | End of the line | Neutral. The name above the words says which |
+
+Everything is logical properties, so Arabic mirrors it with no rule of its own.
+
+**The reply waiting** is one panel: who drafted it and where it goes, then why it waited; the reply once, in the box, in the
+serif on our side's neutral; Send (magenta), Edit, Hand to me; "No reply needed" as a quiet word, still asking first; the
+window's line.
+
+**Where each figure came from** is in that panel, open, not behind a fold: each figure at the page's text size and weight
+600, its source under it on a phone and beside it from 721 px, ruled by hairlines. A figure nobody can source is said in
+the summary line, in ochre.
+
+**The other cards** are hairline panels. Their primary act is ink: Confirm the order is not magenta. Where the owner holds
+the conversation, the reply box's Send is the one magenta on the page.
+
+**The customer's panel** stands beside the chat from 1100 px, without their name and face (the head has them). Narrower, a
+door to the customer's page stands instead. There is no list pane: the door back to the Inbox is the way to the others.
 
 ## Chips
 

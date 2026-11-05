@@ -31,8 +31,9 @@ import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
+import { renderSplitConversation } from './splitConversation.js';
 import { renderSplitInbox } from './splitInbox.js';
-import { stageOf } from '../../db/customerStage.js';
+import { stageFacts, stageOf } from '../../db/customerStage.js';
 import { face } from './faces.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { loadProformaPage, renderProformaPage } from './proforma.js';
@@ -4231,8 +4232,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const people = await loadPeople(deps.db, s.businessId);
     // 0223 — opened: before the list beside it is read, so this row is not bold there.
     if (bid.ok) await markConversationOpened(deps.db, bid.value, conversationId);
-    // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
-    const list = await loadInboxList(deps.db, s.businessId, 'all', me);
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => {
       const panel = await loadCustomerPanel(tx, conversationId);
       // S2 (0196) — the buyer's labels, and the workspace's to pick from.
@@ -4248,6 +4247,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : [];
     // 0128 — whether the model provider refuses for billing, said on the page while it lasts.
     const refusing = await providerRefusing(deps.db);
+    const panel = (): string => customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '';
+    const live = mark && bid.ok ? { live:
+      withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {};
+    // In the Split look (`SPLIT_TODAY=on`): the chat and the customer beside it; the Inbox is one door back.
+    if (deps.splitToday) {
+      const stage = bid.ok ? (await withTenantTx(deps.db, bid.value, (tx) => stageFacts(tx, [conversationId]))).get(conversationId) ?? null : null;
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true, split: splitRail(personOf(s)),
+        bodyHtml: withAssistantName(detail.assistantName, () => renderSplitConversation({ ...withProof, catchUp, providerRefusing: refusing }, stage, panel(), locale, now, flash, personOf(s))),
+        ...live,
+      }));
+    }
+    // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
+    const list = await loadInboxList(deps.db, s.businessId, 'all', me);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
@@ -4257,10 +4270,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
         renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s)),
-        customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
+        panel())),
       // CC-26 — and its line names the same assistant.
-      ...(mark && bid.ok ? { live:
-        withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {}),
+      ...live,
     }));
   });
 
