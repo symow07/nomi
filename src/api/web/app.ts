@@ -5973,9 +5973,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderHub(v, locale, takeFlash(req, reply)) : '',
     }));
   });
-  const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? '').replaceAll('-','_'));
+  const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? ''));
+  const hsPageQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? '').replaceAll('-','_'));
   app.get('/app/settings/business/selling/:q', async (req, reply) => {
-    const q = hsQuestion(req);
+    const q = hsPageQuestion(req);
     const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
     if (!s) return reply;
     const v = q ? await loadQuestion(deps.db, s.businessId, q) : null;
@@ -5999,7 +6000,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderQuestion(v, locale, null, r.errors, body) : '' }));
   });
   app.get('/app/settings/business/selling/:q/confirm', async (req, reply) => {
-    const q = hsQuestion(req);
+    const q = hsPageQuestion(req);
     const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
     if (!s) return reply;
     const v = q ? await loadQuestion(deps.db, s.businessId, q) : null;
@@ -6537,7 +6538,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/business/prices', movedPage('/app/products/price-limits'));
   for(const [old,destination] of Object.entries(SETTINGS_MOVES)) app.get(old,movedPage(destination));
-  for(const suffix of ['', '/confirm'])app.get('/app/business/selling/:q'+suffix,(req,reply)=>movedPage(settingsHref('/app/business/selling/'+String((req.params as {q:string}).q)+suffix))(req,reply));
+  for(const suffix of ['', '/confirm'])app.get('/app/business/selling/:q'+suffix,(req,reply)=>movedPage('/app/settings/business/selling/'+encodeURIComponent(String((req.params as {q:string}).q).replaceAll('_','-'))+suffix)(req,reply));
   app.get('/app/replies', movedPage('/app/inbox/replies'));
   app.get('/app/replies/:id', (req, reply) => movedPage(`/app/inbox/replies/${encodeURIComponent((req.params as { id: string }).id)}`)(req, reply));
   app.get('/app/analytics', movedPage('/app/results'));
