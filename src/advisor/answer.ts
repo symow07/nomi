@@ -94,6 +94,10 @@ export async function answerFollowUp(a: AskContext, question: string, earlier: r
     counted(r.usage);
     asked = r.pick;
   } catch { return failed(); }
+  // Block 1 #13 (2026-11-06) — B1 and B7 overlap ("who is waiting for my reply?" is both who needs the owner and who
+  // wrote last with no answer), and the model picked either from one run to the next. B1 is the tie-break: a B7 pick
+  // resolves to B1, whose sheet carries B7's rows after its own, so nothing the owner could learn is lost.
+  if (asked?.id === 'B7') asked = { ...asked, id: 'B1' };
   const entry = asked ? entryOf(asked.id) : undefined;
   if (!asked || !entry) return done({ kind: 'unknown', text: say('advisor.unknown') });
 

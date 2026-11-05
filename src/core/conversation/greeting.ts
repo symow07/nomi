@@ -3,8 +3,8 @@
  * nothing thinks the bot is broken, so the start is answered — but only in words a reader signed, like every sentence
  * Nomi sends on its own: sent in a language only once its reader signed this exact sentence (`SIGNED`, by name, in the
  * same commit). It is the first automated message of the conversation, so the AI disclosure goes in front of it.
- * Nobody has signed it yet: until then a /start is answered by silence — a known gap, waiting on that signature, not
- * a decision. Pure.
+ * English is signed (the owner, 2026-11-06, Block 1 #4); in the other languages a /start is still answered by silence
+ * until their readers sign — a known gap, waiting on those signatures, not a decision. Pure.
  */
 export const GREETING_LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
 export type GreetingLocale = (typeof GREETING_LOCALES)[number];
@@ -17,7 +17,9 @@ const TEXT: Readonly<Record<GreetingLocale, string>> = {
   es: 'Te damos la bienvenida a {business} en Telegram. Escribe aquí tu pregunta y recibirás respuesta.',
   fr: 'Bienvenue chez {business} sur Telegram. Écrivez votre question ici : une réponse vous sera donnée.',
 };
-const SIGNED: Readonly<Partial<Record<GreetingLocale, { readonly text: string; readonly by: string }>>> = {};
+const SIGNED: Readonly<Partial<Record<GreetingLocale, { readonly text: string; readonly by: string }>>> = {
+  en: { text: TEXT.en, by: 'symow, the owner, 2026-11-06 — read and signed as the finishing roadmap, Block 1 #4, orders (English only; the other languages wait for their readers)' },
+};
 
 export type GreetingSigned = Readonly<Partial<Record<GreetingLocale, string>>>;
 export const GREETING_SIGNED: GreetingSigned = Object.freeze(Object.fromEntries(

@@ -397,13 +397,22 @@ async function waiting(ctx: ReadCtx): Promise<Sheet> {
       from conversations c left join clients cl on cl.id = c.client_id
      where ${needsOwnerFor(ctx.viewerId)} and not c.owner_testing and c.client_id is not null
      order by c.client_id, c.created_at desc`.execute(tx)).rows);
-  if (rows.length === 0) return nothing('advisor.none.waiting', undefined, WAITING);
+  // Block 1 #13 — B7's rows ride with B1's: the customers who wrote last and have no answer yet, those not already
+  // named above. "Who is waiting for me?" is answered whole whichever entry the model picked.
+  const named = new Set(rows.map((r) => r.client_id));
+  const wrote = (await unansweredRows(ctx)).filter((r) => !named.has(r.client_id));
+  if (rows.length === 0 && wrote.length === 0) return nothing('advisor.none.waiting', undefined, WAITING);
   const why = (r: typeof rows[number]): string => r.order ? t(ctx.locale, 'advisor.k.why.order') : r.deletion ? t(ctx.locale, 'advisor.k.why.deletion')
     : r.review ? t(ctx.locale, 'advisor.k.why.review')
     : (r.reason && (messages[ctx.locale] as Record<string, string>)[`takeover.reason.${r.reason}`]) || t(ctx.locale, 'advisor.k.why.person');
-  return sheet([L(ctx, 'advisor.k.waitingCount', { n: count(ctx, rows.length) }),
-    ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.row', { name: nameOf(ctx, r.name), detail: why(r) })))], rows.map((r) => r.name ?? ''), WAITING,
-    { subjects: shown(rows).map((r) => r.client_id) });
+  const waitingLines = rows.length === 0 ? [L(ctx, 'advisor.none.waiting')]
+    : [L(ctx, 'advisor.k.waitingCount', { n: count(ctx, rows.length) }),
+      ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.row', { name: nameOf(ctx, r.name), detail: why(r) })))];
+  const wroteLines = wrote.length === 0 ? []
+    : [L(ctx, 'advisor.k.unansweredCount', { n: count(ctx, wrote.length) }),
+      ...cap(ctx, wrote.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })))];
+  return sheet([...waitingLines, ...wroteLines], [...rows, ...wrote].map((r) => r.name ?? ''), WAITING,
+    { subjects: [...shown(rows), ...shown(wrote)].map((r) => r.client_id) });
 }
 
 /** B2 · B3 · B4 · B9 — a count by one of the Inbox's own definitions. */
@@ -431,9 +440,9 @@ async function conversations(ctx: ReadCtx): Promise<Sheet> {
     L(ctx, 'advisor.k.inbound', { n: count(ctx, r.activity.inbound) })], [], resultsDoor(range));
 }
 
-/** B7 — customers whose newest message, on any conversation, is theirs: the Inbox's "unanswered". */
-async function unanswered(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ client_id: string; name: string | null; at: Date }>`
+/** B7's rows — customers whose newest message, on any conversation, is theirs: the Inbox's "unanswered". */
+async function unansweredRows(ctx: ReadCtx): Promise<readonly { client_id: string; name: string | null; at: Date }[]> {
+  return ro(ctx, async (tx) => (await sql<{ client_id: string; name: string | null; at: Date }>`
     with last as (
       select distinct on (c.client_id) c.client_id, m.direction, m.sent_at
         from messages m join conversations c on c.id = m.conversation_id and not c.owner_testing
@@ -442,6 +451,11 @@ async function unanswered(ctx: ReadCtx): Promise<Sheet> {
     )
     select l.client_id::text as client_id, cl.display_name as name, l.sent_at as at from last l join clients cl on cl.id = l.client_id
      where l.direction = 'inbound' order by l.sent_at desc limit 30`.execute(tx)).rows);
+}
+
+/** B7 — the same rows as a sheet of their own (Block 1 #13: a B7 pick is answered as B1, which carries these too). */
+async function unanswered(ctx: ReadCtx): Promise<Sheet> {
+  const rows = await unansweredRows(ctx);
   if (rows.length === 0) return nothing('advisor.none.unanswered', undefined, INBOX);
   return sheet([L(ctx, 'advisor.k.unansweredCount', { n: count(ctx, rows.length) }),
     ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })))], rows.map((r) => r.name ?? ''), INBOX,

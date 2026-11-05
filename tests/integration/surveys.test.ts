@@ -104,13 +104,15 @@ d('S6 · how did we do? asked only where free (requires DATABASE_URL)', () => {
     for (const b of [late, mail, zh]) expect(await queued(b.conv)).toBe(0);
   });
 
-  it('NOBODY SIGNED, NOBODY ASKED: with the sentences as they are (none signed), the question is set aside', async () => {
-    const { SURVEY_SIGNED } = await import('../../src/core/conversation/survey.js');
-    expect(SURVEY_SIGNED).toEqual({});
-    const b = await buyer();
-    expect(await sweep(SURVEY_SIGNED)).toEqual([]);
-    expect(await ask(b.conv)).toMatchObject({ state: 'skipped', why: 'unsigned' });
-    expect(await queued(b.conv)).toBe(0);
+  it('AS THE SENTENCES ARE: English is signed (the owner, 2026-11-06) and asked; a French buyer, whose reader has not signed, is set aside', async () => {
+    const { SURVEY_SIGNED, surveyText } = await import('../../src/core/conversation/survey.js');
+    expect(SURVEY_SIGNED).toEqual({ en: surveyText('en') });
+    const fr = await buyer({ language: 'fr' });
+    const en = await buyer();
+    expect(await sweep(SURVEY_SIGNED)).toEqual([en.conv]);
+    expect(await ask(fr.conv)).toMatchObject({ state: 'skipped', why: 'unsigned' });
+    expect(await queued(fr.conv)).toBe(0);
+    expect(await queued(en.conv)).toBe(1);
   });
 
   it('THE OWNER\'S WORD: switched off since, held by a person, no name for the disclosure it needs — set aside; off, none is due at all', async () => {
