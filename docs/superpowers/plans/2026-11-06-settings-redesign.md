@@ -68,7 +68,7 @@ expect(settingsGroup('/app/settings/books/accounts')).toBe('books');
 - [x] Freeze the final Assistant build as before; clone its synthetic database twice under owned names; use ports 18894/18895, disabled provider, blocked external fetch and no workers.
 - [x] Capture every Settings manifest row before and after at 1440×900 and 390×844. Capture supplementary new groups and empty/error/permission states. Inspect long forms and all actual phone controls, not only document overflow.
 - [x] Run GET-only source/authority snapshots and compare row counts/hashes. Exercise only local synthetic forms for profile refusal/save, selling confirmation, closure Undo, notification preference, team code lifecycle and history permission separation.
-- [ ] Run the required Node 22 commands in this worktree:
+- [x] Run the required Node 22 commands in this worktree:
 
 ```sh
 npm run check
@@ -79,7 +79,7 @@ node tools/run-integration-isolated.mjs
 
 Use `env -u DATABASE_URL -u MIGRATE_DATABASE_URL` for check and integration; include the owned Postgres binary path for the isolated runner. Expected: all four commands exit 0; integration reports every test ran and none skipped.
 
-- [ ] Review the diff for changed commands/permissions, cross-tenant reads, secrets and dropped fields. Document evidence and limits. Update the page map and progress; commit/push with Codex attribution.
+- [x] Review the diff for changed commands/permissions, cross-tenant reads, secrets and dropped fields. Document evidence and limits. Update the page map and progress; commit/push with Codex attribution.
 - [ ] Create one Settings PR based on current main. Run `tools/gated-merge.sh <PR> <full-head-sha>`. When it returns 0, fast-forward shared main and report desktop/phone screenshots plus the moves, then continue Public pages.
 
 ## Self-review
