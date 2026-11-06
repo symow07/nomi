@@ -3765,8 +3765,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/books/accounts/money', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
-    const raw = ((req.body ?? {}) as Record<string, unknown>)['money'];
-    const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x));
+    const ids = Object.keys((req.body ?? {}) as Record<string, unknown>).flatMap((k) => { const m = /^money_([0-9a-f-]{36})$/i.exec(k); return m ? [m[1]!] : []; });
     await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, ids));
     return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
   });

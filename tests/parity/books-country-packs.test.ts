@@ -223,9 +223,9 @@ describe('the page, drawn for each country', () => {
       { id: 'a3', code: '1010', name: 'Savings account', marked: true, byRule: false },
     ]);
     expect(html).toContain('action="/app/books/accounts/money"');
-    expect(html).toMatch(/value="a1" checked disabled/);
-    expect(html).toMatch(/value="a2" \/>/);
-    expect(html).toMatch(/value="a3" checked \/>/);
+    expect(html).toMatch(/name="money_a1" value="1" checked disabled/);
+    expect(html).toMatch(/name="money_a2" value="1" \/>/);
+    expect(html).toMatch(/name="money_a3" value="1" checked \/>/);
     expect(html).toContain('by its name');
     expect(renderMoneyAccounts('en', [])).toContain('No asset account yet.');
   });

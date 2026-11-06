@@ -165,7 +165,8 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
       'Date_Validation', 'Montant_Devise', 'Id_devise', 'ICE', 'Identifiant_Fiscal', 'Num_RC', 'Tribunal_RC']);
     expect(lines.length).toBe(6);
     expect(lines.every((l) => l.length === 22)).toBe(true);
-    expect(lines[1]!.slice(0, 6)).toEqual(['VE', 'Ventes', '1', today.replace(/-/g, ''), '3421', 'Clients']);
+    // the file is ordered by journal (BQ before VE on one day): the sale's line, found by its journal
+    expect(lines.find((l) => l[0] === 'VE' && l[4] === '3421')!.slice(0, 6)).toEqual(['VE', 'Ventes', '1', today.replace(/-/g, ''), '3421', 'Clients']);
     // the country stays: said in one sentence, nothing written
     expect(await notice('MA', await post('MA', '/app/books/country', { country: 'GB', company_number: '12345678' }))).toContain('The country stays Morocco: entries are already posted under it.');
     expect(await business('MA')).toEqual({ country: 'MA', company_number: null, ein: null });
@@ -183,7 +184,7 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     expect(await notice('GB', saved)).toContain('Saved: United Kingdom. Added 43 accounts, 7 journals and 4 tax codes.');
     expect(await business('GB')).toEqual({ country: 'GB', company_number: '01234567', ein: null });
     expect((await as('GB', (q) => q(`select books_start::text as day, period_length from books_settings`))).rows[0]).toEqual({ day: '2026-04-06', period_length: 'quarter' });
-    expect((await as('GB', (q) => q(`select starts_on::text as s, ends_on::text as e, lock_date::text as l from fiscal_years`))).rows).toEqual([{ s: '2026-04-06', e: '2027-04-05', l: '2026-04-05' }]);
+    expect((await as('GB', (q) => q(`select starts_on::text as s, ends_on::text as e, lock_date::text as l from fiscal_years`))).rows).toEqual([{ s: '2026-04-06', e: '2027-04-05', l: null }]);   // a start on the year's first day moves no lock (0211)
     expect((await taxCodes('GB')).map((c) => [c.code, c.rate, c.kind, c.account, c.valid_from])).toEqual([
       ['EXEMPT', '0.0000', 'exempt', null, '2026-04-06'], ['VAT0', '0.0000', 'collected', '2100', '2026-04-06'],
       ['VAT20', '20.0000', 'collected', '2100', '2026-04-06'], ['VAT5', '5.0000', 'collected', '2100', '2026-04-06']]);
@@ -220,15 +221,15 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     expect(page).toContain('action="/app/books/accounts/money"');
     expect(page).toContain('Barclays Current');
     const ids = Object.fromEntries((await as('GB', (q) => q(`select code, id::text as id from accounts where code in ('1000', '1010', '1020', '1100')`))).rows.map((r) => [r.code, r.id]));
-    // untick 1000, keep 1010 (1020 "Cash" is the rule's, and stays whatever is sent)
-    const r = await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money=${ids['1010']}`, headers: { cookie: owners.GB!, ...FORM } });
+    // untick 1000 (1010 "Bank savings account" and 1020 "Cash" are the rule's, and stay whatever is sent)
+    const r = await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money_${ids['1010']}=1`, headers: { cookie: owners.GB!, ...FORM } });
     expect(await notice('GB', r)).toContain('Saved which accounts hold money.');
     expect(await moneyMarks('GB', ['1000', '1010', '1020'])).toEqual({ '1000': false, '1010': true, '1020': true });
     expect(await offered()).toEqual(['1010', '1020']);
     // tick 1000 and 1010 again, and a receivable ticked too is a receivable that holds money (the owner's say)
-    await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money=${ids['1000']}&money=${ids['1010']}&money=${ids['1100']}`, headers: { cookie: owners.GB!, ...FORM } });
+    await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money_${ids['1000']}=1&money_${ids['1010']}=1&money_${ids['1100']}=1`, headers: { cookie: owners.GB!, ...FORM } });
     expect(await offered()).toEqual(['1000', '1010', '1020', '1100']);
-    await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money=${ids['1000']}&money=${ids['1010']}`, headers: { cookie: owners.GB!, ...FORM } });
+    await apps.GB!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: `money_${ids['1000']}=1&money_${ids['1010']}=1`, headers: { cookie: owners.GB!, ...FORM } });
     expect(await offered()).toEqual(['1000', '1010', '1020']);
     // staff and the accountant change nothing
     for (const who of [staff, accountant]) await apps.MA!.inject({ method: 'POST', url: '/app/books/accounts/money', payload: '', headers: { cookie: who, ...FORM } });

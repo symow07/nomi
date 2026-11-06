@@ -111,14 +111,15 @@ function renderStateTaxes(locale: Locale, states: readonly { readonly state: str
 
 /**
  * THE ACCOUNTS PAGE'S OWN SUBJECT (0225): which accounts hold money. Every active asset account with nothing under it,
- * a tick each; one Save. An account the code's rules already recognise says so, and its tick changes nothing.
+ * a tick each (`money_<id>`: the form parser keeps the last of a repeated key, so one key per account); one Save. An
+ * account the code's rules already recognise says so, and its tick changes nothing.
  */
 export function renderMoneyAccounts(locale: Locale, accounts: readonly { readonly id: string; readonly code: string; readonly name: string; readonly marked: boolean; readonly byRule: boolean }[]): string {
   return `<div class="block" id="money">
       <h2>${esc(t(locale, 'books.country.money'))}</h2>
       <p>${esc(t(locale, 'books.country.moneyWhy'))}</p>
       ${accounts.length === 0 ? `<p class="muted">${esc(t(locale, 'books.country.moneyNone'))}</p>` : `<form method="post" action="/app/books/accounts/money" class="pform">
-        <ul class="choices">${accounts.map((a) => `<li><label><input type="checkbox" name="money" value="${esc(a.id)}"${a.marked || a.byRule ? ' checked' : ''}${a.byRule ? ' disabled' : ''} /> <bdi dir="ltr">${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi>${a.byRule ? ` <span class="muted">${esc(t(locale, 'books.country.moneyByRule'))}</span>` : ''}</label></li>`).join('')}</ul>
+        <ul class="choices">${accounts.map((a) => `<li><label><input type="checkbox" name="money_${esc(a.id)}" value="1"${a.marked || a.byRule ? ' checked' : ''}${a.byRule ? ' disabled' : ''} /> <bdi dir="ltr">${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi>${a.byRule ? ` <span class="muted">${esc(t(locale, 'books.country.moneyByRule'))}</span>` : ''}</label></li>`).join('')}</ul>
         <button class="btn" type="submit">${esc(t(locale, 'books.country.moneySave'))}</button>
       </form>`}
     </div>`;
