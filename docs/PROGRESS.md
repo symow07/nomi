@@ -28,6 +28,7 @@ after each.
 - #440 — Block 2 PR 1, the books' country packs (0225): `/app/settings/books/country` loads MA (CGNC + TVA codes), GB (plain chart + VAT codes + company number, 6 years) or US (plain chart + sales tax per state + EIN, 7 years); `accounts.holds_money` from the template, the owner's tick or the old rule. Proof: `tests/integration/books-country-packs.test.ts`, the full isolated suite 2100/2100, `npm run check` 9,404; a backup before the merge; `migrate-mark --expect` after the deploy; `schema_version` = 225.
 - #441 — Block 2 PR 2, invoices that go out (0226): a PDF document where the channel carries files (WhatsApp, Messenger, Telegram, e-mail), the proforma link where not; reminders at +3 and +10 days from the send, by the channel inside its window or e-mail where a mailbox is connected, else a draft for the owner (no Meta template — the owner's correction); "We'll send you the invoice next" back only where `invoice_sending` is on. Proof: `tests/integration/invoices-out.test.ts`, the full isolated suite 2109/2109, `npm run check` 9,431, trust 44/44; a backup before the merge; `migrate-mark --expect` after; `schema_version` = 226. The one real WhatsApp send from Westlake is the owner's (PROGRESS, the PR's section).
 - #442 — Block 2 PR 3, Spending (0227): a bill in one form with its number, gross, tax code, category or account, paid from a bank or cash account or owed to the supplier until paid; the owner's categories; recurring costs proposed on their day by a daily job and posted or skipped only by the owner. Proof: `tests/integration/books-spending.test.ts` (the trial balance ties after the month's spending), the full isolated suite 2118/2118, `npm run check` 9,439, trust 44/44; backup `nomi-backup-20261106T165219Z` three minutes before the merge (`24d841ce`); deploy SUCCESS, `/health` ok; `migrate-mark --expect` ✓ (applied 1); `schema_version` = 227.
+- #443 — Block 2 PR 4, the Books home wired (no migration): Cash today by account on the home and the cash report; the chart's own money accounts when none are chosen; each figure the sum of its rows. Proof: `tests/integration/books-home.test.ts` (each figure equals the sum of its rows after a month of fixture activity; it found a future-dated line leaking into a per-account balance, fixed), the full isolated suite 2121/2121, `npm run check` 9,439; merge `bb33faae`, deploy SUCCESS, `/health` ok.
 ## Block 2 PR 1 — country packs (2026-11-06; 0225)
 
 **What shipped.** One page under Books settings, `/app/settings/books/country` (owner-only, like every other books
@@ -72,6 +73,48 @@ through the routes, the FEC's checks on the Moroccan one).
 existing US-country workspaces (test fixtures only in production today) should keep ten years rather than seven:
 `books_keep_until` reads the table from now on, nothing already held changes. The PR itself (not opened by this
 session), and the deploy, which migrates: a backup from the same hour first.
+
+## Block 2 PR 5 — reports in the owner's words (2026-11-06; no migration)
+
+Branch `b2-owner-reports`, on `main` with #443. The roadmap's PR 5: five reports, each a page and a spreadsheet, named
+plainly, the accountant pack untouched.
+
+**What shipped** (`src/db/booksOwnerReports.ts`, `src/api/web/booksOwnerReports.ts`; doors first on
+`/app/books/reports`; `/app/books/reports/<kind>?period=month|quarter|year` and `/app/books/reports/<kind>.xlsx`):
+
+- **What you made** — sold less spent, by account, from posted lines in the period (the closing journal is not a
+  result). A negative result is called "What you lost".
+- **Money in and out** — what came into and left the bank and cash accounts (the chart's own, rule 97's default): per
+  entry, the part that merely moved between two of them (the smaller side) counts on neither; opening-journal lines are
+  "brought forward", said apart, never money that came in.
+- **Tax you owe** — the pack's own reading (D3): each code's base and tax at its rate, collected less deductible; a
+  negative figure is "Owed to you".
+- **Top customers** — issued invoices in the period by customer, net of the credit notes issued in it; the ten largest,
+  the rest counted on one line.
+- **Unpaid invoices by age** — what is still owed today on each issued invoice (payments and credit notes to date), in
+  five buckets from "not yet due" to "over 90 days late", oldest first.
+- The period: this month, this calendar quarter, or the fiscal year holding today, each up to today
+  (`periodFor`). The spreadsheet (`xlsxWrite`, one sheet: the figures, then the rows, numbers as numbers) goes through
+  the export throttle like the pack.
+- Proof: `tests/integration/books-owner-reports.test.ts` — on a Moroccan fixture (an opening balance, old and new
+  invoices with TVA, a credit note, a payment into the till, a supplier bill with deductible TVA, rent, a transfer), for
+  each span: what you made = −(the trial balance's movement on income and expense accounts); in − out + brought
+  forward = the trial balance's movement on the money accounts; tax owed = −(its movement on the tax accounts); the
+  rows of each report sum to its figure; top customers and the unpaid buckets agree with the invoices and with the
+  overview's "customers owe you". `tests/parity/books-owner-reports.test.ts` holds the age buckets, the spans, the
+  page's words and the sheet's shape.
+
+**Claude's calls**
+
+- A transfer between two money accounts is netted per entry (the smaller side), so a bank-to-till entry shows on
+  neither side and a bank payment with a fee shows the fee as money out. The overview's finer classification (review
+  states) is not repeated here: this page is the owner's figure, that one the accountant's check.
+- The brought-forward balance is said under the figures rather than folded into "came in": the proof then holds
+  in − out + brought forward to the trial balance exactly.
+- "Tax you owe" reads the lines that carry a code (as the pack does), not the tax accounts' balances: an uncoded line
+  posted straight to a tax account would make the two differ, and the pack's tax sheet is where that difference shows.
+- Top customers link to the invoices list filtered by the customer's name (the list's own search), not to a new page.
+- English only, listed in `docs/NATIVE-REVIEW-UI.md`.
 
 ## Block 2 PR 4 — the Books home, wired (2026-11-06; no migration)
 

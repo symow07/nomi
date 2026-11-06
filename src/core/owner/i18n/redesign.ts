@@ -2,6 +2,7 @@ import { SETTINGS_AREA_EN } from './settingsArea.js';
 import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
 import { BOOKS_OVERVIEW_REPORTS_EN } from './booksOverviewReports.js';
+import { BOOKS_OWNER_REPORTS_EN } from './booksOwnerReports.js';
 import { BOOKS_AREA_EN } from './booksArea.js';
 import { BOOKS_DOCUMENTS_EN } from './booksDocuments.js';
 import { PRODUCT_AREA_EN } from './productArea.js';
@@ -20,6 +21,7 @@ export const REDESIGN_EN = {
   ...SETTINGS_AREA_EN,
   ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,
+  ...BOOKS_OWNER_REPORTS_EN,
   ...BOOKS_AREA_EN,
   ...BOOKS_SPENDING_EN,
   ...BOOKS_DOCUMENTS_EN,
