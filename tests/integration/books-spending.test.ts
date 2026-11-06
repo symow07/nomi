@@ -181,7 +181,7 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
     const bank = await idOf('accounts', '5141');
     // Typed AND ticked is refused; a typed reference in the reserved shape is refused; neither is NB008's own refusal (above).
     expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Both', ref: 'R-1', noref: '1', gross: '10', account: expenseId, payFrom: bank }))).toContain('not both');
-    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Reserved', ref: `NOREF-${day}-7`, gross: '10', account: expenseId, payFrom: bank }))).toContain('the books&#39; own');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Reserved', ref: `NOREF-${day}-7`, gross: '10', account: expenseId, payFrom: bank }))).toContain("the books' own");
     expect((await as((q) => q(`select count(*)::int as n from journal_entries where label in ('Both', 'Reserved')`))).rows[0].n).toBe(0);
     // Ticked: the day's first reference; the next counts up, whether paid on the spot or owed.
     expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Market vegetables', noref: '1', gross: '85', account: expenseId, payFrom: bank })))
@@ -190,10 +190,10 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
     const refs = (await as((q) => q(`select label, document_ref, document_date::text as doc from journal_entries where label in ('Market vegetables', 'Taxi') order by label`))).rows;
     expect(refs.map((r) => [r.document_ref, r.doc])).toEqual([[`NOREF-${day}-1`, today], [`NOREF-${day}-2`, today]]);
     // Shown as Nomi's: the owed taxi's row on the spending book, and the entry's own page.
-    expect((await get('/app/books/spending')).body).toContain(`no number on the bill; Nomi&#39;s reference NOREF-${day}-2`);
+    expect((await get('/app/books/spending')).body).toContain(`no number on the bill; Nomi's reference NOREF-${day}-2`);
     const entry = (await as((q) => q(`select id::text as id from journal_entries where label = 'Taxi'`))).rows[0].id as string;
     expect((await get(`/app/books/advanced/entries/${entry}`)).body).toContain(`<bdi>NOREF-${day}-2</bdi>`);
-    expect((await get(`/app/books/advanced/entries/${entry}`)).body).toContain('this reference is Nomi&#39;s own');
+    expect((await get(`/app/books/advanced/entries/${entry}`)).body).toContain("this reference is Nomi's own");
     // The accountant pack's journal carries it as the entry's document, verbatim: the prefix is the marker there.
     const { packData } = await import('../../src/db/booksReports.js');
     const { withTenantTx } = await import('../../src/db/client.js');
