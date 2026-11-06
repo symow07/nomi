@@ -93,6 +93,19 @@ export function whatsappClient(cfg: {
       });
     },
     /**
+     * 0226 — a document by link, as the image: Meta fetches the address; `filename` is what the customer's WhatsApp
+     * shows. Same `post`, same rules.
+     */
+    sendDocument(to: string, url: string, filename: string, caption: string): Promise<WhatsAppSendResult> {
+      return post({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'document',
+        document: caption.trim() === '' ? { link: url, filename } : { link: url, filename, caption },
+      });
+    },
+    /**
      * WA-S — an approved message template, the one way to write after the
      * customer's 24 hours have passed. Its body's parameters fill {{1}}, {{2}}…
      * in order; same `post`, same retry rules.

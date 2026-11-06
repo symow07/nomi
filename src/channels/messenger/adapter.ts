@@ -1,6 +1,6 @@
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
-import { parseMetaMessaging, metaMessagingSender, metaImageSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, metaImageSender, metaFileSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
 
 /**
  * Facebook Messenger conversations, as this product's contract sees them.
@@ -41,6 +41,8 @@ export function messengerAdapter(cfg: {
     sendText: send,
     // Phase 2d — the same Send API as Instagram's: a product's photo, by the address Nomi serves it at.
     sendMedia: metaImageSender(sendAs),
+    // 0226 — an invoice as a PDF, a file attachment by the address Nomi serves it at. Instagram has no such thing.
+    sendDocument: metaFileSender(sendAs),
     nameOf,
   };
 }

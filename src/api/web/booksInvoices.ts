@@ -11,8 +11,10 @@ import { formLines } from './booksEntries.js';
 import { DATE_FORMATS, type LayoutGuess } from '../../core/books/statements.js';
 import { registryLabelKey } from '../../core/books/registry.js';
 import { t } from './say.js';
-import { esc, back } from './layout.js';
+import { esc, back, conversationUrl } from './layout.js';
 import type { BusinessProfile } from './settings.js';
+import { DOCUMENT_CHANNELS, type InvoiceSendHistory } from '../../db/invoiceSending.js';
+import { REMINDER_DAYS } from '../../core/books/invoiceWords.js';
 import * as show from './values.js';
 
 /**
@@ -31,7 +33,47 @@ const status = (locale: Locale, s: InvoiceStatus) => `<span class="pill ${PILL[s
 export type BooksDocumentContext = {
   readonly issuer?: Pick<BusinessProfile, 'name' | 'postalAddress' | 'contactEmail' | 'contactPhone' | 'identifiers'>;
   readonly returnHref?: string;
+  /** 0226 — sending the invoice to its customer: the switch, where it would go, and what went before. */
+  readonly sending?: InvoiceSendingView;
 };
+
+/**
+ * 0226 — what the invoice's page knows about sending it: whether the workspace sends invoices from Nomi, the
+ * conversation the order names (none for an invoice typed by hand) and its channel, and the sends and reminders so far.
+ */
+export type InvoiceSendingView = {
+  readonly on: boolean;
+  readonly conversationId: string | null;
+  readonly channel: string | null;
+  readonly history: InvoiceSendHistory;
+};
+
+/** The Send block on an issued invoice's page (owner only): one button, how it goes, and what went before. */
+function sendingBlock(locale: Locale, v: InvoiceView, s: InvoiceSendingView, opts: BooksDocumentContext): string {
+  const past = [
+    ...s.history.sends.map((x) => `<li class="row"><span>${esc(t(locale, x.carried === 'pdf' ? 'invoice.send.wentPdf' : 'invoice.send.wentLink', { channel: channelName(locale, x.channel) }))}</span><span>${esc(show.dateYear(locale, x.at))}</span></li>`),
+    ...s.history.reminders.map((x) => `<li class="row"><span>${esc(t(locale, x.sent ? 'invoice.send.reminderSent' : 'invoice.send.reminderDrafted', { days: String(REMINDER_DAYS[x.nth]) }))}</span><span>${esc(show.dateYear(locale, x.at))}</span></li>`),
+  ];
+  const history = past.length ? `<ul class="rows">${past.join('')}</ul>` : '';
+  let body: string;
+  if (!s.on) {
+    body = `<p>${esc(t(locale, 'invoice.send.off'))}</p><p><a class="deeper" href="/app/settings/books/invoices-out">${esc(t(locale, 'invoice.settings.title'))}</a></p>`;
+  } else if (!s.conversationId || !s.channel) {
+    body = `<p>${esc(t(locale, 'invoice.send.noConversation'))}</p>`;
+  } else {
+    const how = DOCUMENT_CHANNELS.includes(s.channel) ? 'invoice.send.howPdf' : 'invoice.send.howLink';
+    body = `<p>${esc(t(locale, how, { channel: channelName(locale, s.channel) }))}</p>
+      <form method="post" action="/app/books/invoices/${esc(v.id)}/send" class="pform">${documentReturnField(opts)}
+        <button class="btn send" type="submit">${esc(t(locale, 'invoice.send.button'))}</button></form>
+      <p><a class="deeper" href="${esc(conversationUrl(s.conversationId))}">${esc(t(locale, 'invoice.send.conversation'))}</a></p>
+      <p class="caption muted">${esc(t(locale, 'invoice.send.reminders'))}</p>`;
+  }
+  return `<div class="block" id="send"><h2>${esc(t(locale, 'invoice.send.title'))}</h2>${body}${history}</div>`;
+}
+/** The channel's name as the conversation page says it (inbox.ts `channelName`), or the code where none is. */
+const channelName = (locale: Locale, channel: string): string =>
+  CHANNEL_NAME_KEYS.has(channel) ? t(locale, `conv.channel.${channel}` as MessageKey) : channel;
+const CHANNEL_NAME_KEYS = new Set(['whatsapp', 'instagram', 'messenger', 'email', 'web_chat', 'telegram', 'tiktok']);
 export type InvoiceListOptions = {
   readonly q?: string; readonly state?: string; readonly returnHref?: string;
   readonly page?: { readonly from: number; readonly to: number; readonly total: number; readonly next: string | null; readonly prev: string | null };
@@ -140,6 +182,8 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       </form>`}</div>` : '';
   const creditDoor = mayPost(viewer) && v.status !== 'draft' && v.status !== 'discarded' && compareDecimal(v.credited, v.total) < 0
     ? `<p><a class="deeper" href="/app/books/invoices/${esc(v.id)}/credit-notes/new${documentReturnQuery(opts)}">${esc(t(locale, 'books.credit.make'))}</a></p>` : '';
+  // 0226 — sending the invoice: only an issued one, only to the owner, only where the page was given what it needs.
+  const sending = mayPost(viewer) && opts.sending && v.status !== 'draft' && v.status !== 'discarded' ? sendingBlock(locale, v, opts.sending, opts) : '';
   const notes = v.creditNotes.length === 0 ? '' : `<h2>${esc(t(locale, 'books.credit.title'))}</h2><ul class="rows">${v.creditNotes.map((c) =>
     `<li class="row"><span><a href="/app/books/credit-notes/${esc(c.id)}${documentReturnQuery(opts)}"><bdi>${esc(c.key ?? t(locale, 'books.entry.state.draft'))}</bdi></a> · ${day(locale, c.issueDate)}</span><span>${money(locale, c.total, v.currency)}</span></li>`).join('')}</ul>`;
   return `<section class="book-doc-page"><div class="bd-outside">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}</div><article class="book-document"><header class="bd-header"><h1 class="page">${esc(t(locale,'booksDocs.invoice'))} <bdi>${esc(v.key ?? t(locale, 'books.entry.state.draft'))}</bdi></h1><p><bdi>${esc(v.party)}</bdi></p>
@@ -163,7 +207,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
     ${v.payments.length > 0 ? `<h2>${esc(t(locale, 'books.invoice.payments'))}</h2><ul class="rows">${v.payments.map((p) =>
       `<li class="row"><span>${day(locale, p.paidOn)} · <bdi>${esc(p.account)}</bdi>${p.refund ? ` · ${esc(t(locale, 'books.credit.refunded'))}` : ''}</span><span>${money(locale, p.amount, v.currency)}${p.paid ? ` · ${esc(t(locale, 'books.invoice.arrived', { amount: plainMoney(locale, p.paid.amount, p.paid.currency) }))}` : ''} <a href="/app/books/advanced/entries/${esc(p.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></span></li>`).join('')}</ul>` : ''}
     ${notes}${creditDoor}
-    ${actions ? `<section class="bd-actions"><h2>${esc(t(locale,'booksDocs.actions'))}</h2>${actions}</section>` : ''}
+    ${actions ? `<section class="bd-actions"><h2>${esc(t(locale,'booksDocs.actions'))}</h2>${actions}${sending}</section>` : ''}
     <p><a class="deeper" href="${esc(invoiceReturnHref(opts.returnHref))}">${esc(t(locale, 'books.invoices.title'))}</a></p></div></section>`;
 }
 

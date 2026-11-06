@@ -71,6 +71,93 @@ existing US-country workspaces (test fixtures only in production today) should k
 `books_keep_until` reads the table from now on, nothing already held changes. The PR itself (not opened by this
 session), and the deploy, which migrates: a backup from the same hour first.
 
+## Block 2 PR 2 — invoices that go out (2026-11-06; 0226)
+
+Branch `b2-invoices-out`, built on `ad64c417`; not merged, not deployed. The roadmap's "Invoices that go out" with the
+owner's corrections of 2026-11-06 (reminders go by e-mail where the customer has one, else they are a draft for the
+owner; NO Meta template submission — on WhatsApp, Instagram and Messenger a reminder outside the 24 hours is a draft and
+nothing is submitted to Meta). The rule is CLAUDE.md §5 rule 95.
+
+**What shipped**
+
+- The switch: `books_settings.invoice_sending`, off; the owner turns it on at `/app/settings/books/invoices-out`
+  (a door on the Books settings page). On, the order-confirmed reply says "We'll send you the invoice next" again —
+  the six sentences #427 removed, word for word — and only then.
+- Send an invoice, from its page (`#send`) or from the conversation (the row beside the proforma's): a PDF on WhatsApp
+  (a `document` message), Messenger (a `file` attachment), Telegram (`sendDocument`) and e-mail (attached, the mail
+  multipart); the order's proforma link on Instagram and the web chat, or where the PDF cannot be drawn. One path:
+  `enqueueOutboundRow(origin 'owner', approved, kind 'document')` → the worker → the adapter; the gate binds it.
+- The PDF: `src/core/books/invoicePdf.ts`, written by hand (one page, Helvetica/WinAnsi, deterministic, no library),
+  rendered on demand at `/inv/<token>/<key>.pdf` behind a 14-day unguessable link (`invoice_links`, definer resolver);
+  nothing stored. No payment details, by the proforma link's rule, with one line saying so.
+- Reminders at +3 and +10 days after the invoice went, by its channel, once each (`invoice_reminders`), hourly in the
+  workspace's daytime: sent alone in English inside the channel's window where a mailbox or the channel can carry it and
+  the assistant has a name (the disclosure first); otherwise a `follow_up` draft for the owner with the reason on the
+  card (window, language, mailbox, held, unnamed). The expiry sweep leaves those drafts alone.
+- Erasure: the three tables classified (link unrelated; sends and reminders detached), the contract and edges re-made,
+  `erase_customer_rows` wrapped; RLS, `not_for_accountants`, no DELETE for the app role; `PRACTICE_SKIP` and the tool's
+  RULES updated.
+- Proof: `tests/parity/invoice-pdf.test.ts`, `tests/parity/invoice-words.test.ts`, the re-pinned
+  `tests/parity/books-money-accounts.test.ts`, `tests/integration/invoices-out.test.ts` (over the WhatsApp simulator,
+  Meta's and Telegram's recorders and the fake mail transport).
+
+**Claude's calls, where the spec was silent**
+
+- Reminders count from the day the invoice WENT (the latest `invoice_sends` row), not from its issue date: a customer
+  cannot be reminded of a document they never received. An invoice never sent from Nomi gets no reminder.
+- An invoice reaching day ten with no reminder yet gets the second alone — never two in one hour.
+- The owner's send needs no take-over: it is a person's decision, as confirming an order is (`orderProposal.ts`), so
+  it goes while the assistant holds the conversation; the gate still binds it at send time.
+- The reminder sentence is fixed and asks no model, so the numeral guard (which reads a model's words) has nothing to
+  check; the figures are the invoice row's own. "the books will catch up" was dropped from the draft sentence: it
+  promised a reconciliation nothing performs. The sentence passes `promisesWhatNothingKeeps`.
+- The sentences a customer reads (caption, mail, link sentence, reminder) and the PDF's labels are English only, as the
+  text proforma is; the owner-facing strings are in five languages, listed in `docs/NATIVE-REVIEW-UI.md`.
+- The PDF refuses what WinAnsi cannot draw (a Chinese or Arabic name) and more than 28 lines; the link goes instead.
+  Embedding Noto to draw every script is a later change, and `invoicePdf.ts` says where.
+- Reminder drafts are excluded from `expire_waiting_drafts()`: a shut window is why the draft exists, and the owner
+  decides (send when they write again, reach them another way, or skip).
+- `erase_customer_rows` is wrapped by renaming whatever definition is live to `erase_customer_rows_before_0226`, so the
+  merge order with 0224 (which re-makes the contract) cannot lose either's work; the second to land must carry the
+  first's contract rows (a comment in 0226's header says so).
+- Messenger carries no caption on a file (Meta's rule, as for pictures): the document goes with an empty body.
+- A per-workspace switch page of its own rather than a row on the accounts page, so the page can say what the switch
+  does before the owner ticks it.
+
+**Waiting on the owner**
+
+- Merge order: `main` has 0225 (`books_country_packs`) since this branch forked; 0224 (`block1_records`) is ahead too.
+  This branch numbers its migration 0226 and sets `REQUIRED_SCHEMA_VERSION = 226`. At the rebase, check that
+  `customer_erasure_contract()` in 0226 still carries every row 0224 added (0224 re-makes it too — whichever lands
+  second must include the other's rows; `tests/integration/customer-erasure.test.ts` fails the rebase if not). Then
+  `tools/gated-merge.sh` as always; a fresh backup in the same hour before the deploy that migrates.
+- **The one real send: an invoice to your own WhatsApp from Westlake.** Never run by Claude. Steps, after the deploy:
+  1. Books → Settings → "Invoices to customers" → tick "Send invoices and reminders from Nomi" → Save.
+  2. From your own phone (the one on Westlake's pilot allowlist), write to the Westlake number so the 24-hour window is
+     open and the conversation exists.
+  3. On that conversation, confirm (or make) an order, then Books → Get paid → "Enter an order" → draft the invoice for
+     a party of the books → open it → Issue.
+  4. On the invoice's page, "Send it to the customer" → "Send the invoice" (or on the conversation page, the row
+     "Invoice F-… · Send the invoice"). The flash says "on its way as a PDF".
+  5. On your phone: a document `F-<year>-<n>.pdf` arrives with the caption "Invoice F-… — USD …". Open it: one page,
+     Westlake's name and address, your party's name, the line, the totals, the line about payment details.
+  6. Back on the invoice's page, under "Send it to the customer": "Sent as a PDF on WhatsApp · <date>". Then turn the
+     switch off again if you do not want reminders to go to that conversation on day 3 and day 10 (or record the
+     payment, which ends them).
+  7. If the PDF does not arrive: the conversation page shows the refused row and its reason (window, allowlist,
+     ceiling, `media_unsupported` where `PUBLIC_BASE_URL` is unset); `railway logs` shows `[outbound]` lines.
+- The customer-facing sentences and the PDF are English only; a native reader for the forty-one owner-facing lines
+  (zh, ar, es, fr) is yours to find, as for every line in NATIVE-REVIEW-UI.
+
+**Found on the way**
+
+- `expire_waiting_drafts()` (0098) expires every pending draft on a Meta channel once the customer's last message is a
+  day old, with no exception for a draft that exists BECAUSE the window shut. 0226 exempts reminder drafts only.
+- `DraftRepo.create` requires a turn (`turnMessageId: string`), so a draft made by a sweep is written by SQL with
+  `turn_message_id` null, as `send-path.test.ts` does; the card reads it like any other.
+- Instagram's messaging API carries no files (the roadmap's own correction), and Meta's Send API takes no caption on
+  an attachment: a document to Messenger goes with no words beside it.
+
 ## Approved redesign, Area 8: Public pages (2026-11-06; no migration)
 
 The final area completes the approved eight-area implementation. Sign-in and signup use the unchanged large seal over minimal centred forms. Website sections are flat, legal pages have a readable measure and clear headings, and customer proof/proforma pages retain paper layouts. Public chat keeps its original composer and send path. All 19 public routes, exact visible text, legal wording/accepted-terms version, original forms and token/privacy headers remain unchanged. Schema remains 223.

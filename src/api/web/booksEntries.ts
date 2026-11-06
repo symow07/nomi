@@ -189,6 +189,26 @@ export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
 
+/**
+ * 0226 — INVOICES TO CUSTOMERS, the Books settings page's one switch (owner only; the route refuses anyone else). Off:
+ * nothing is sent and the order-confirmed reply promises no invoice. On: the owner can send an issued invoice from its
+ * page or the conversation, reminders go at three and ten days (English, inside the channel's window, else a draft),
+ * and the reply says the invoice comes next. The page says all of it, so the tick is an informed one.
+ */
+export function renderInvoicesOut(locale: Locale, on: boolean): string {
+  return `<div class="block" id="invoices-out">
+      <h2>${esc(t(locale, 'invoice.settings.title'))}</h2>
+      <p>${esc(t(locale, 'invoice.settings.explain'))}</p>
+      <p>${esc(t(locale, 'invoice.settings.reminders'))}</p>
+      <p>${esc(t(locale, 'invoice.settings.promise'))}</p>
+      <form method="post" action="/app/settings/books/invoices-out" class="pform">
+        <label class="chkbox"><input type="checkbox" name="on" value="1"${on ? ' checked' : ''} /> <span>${esc(t(locale, 'invoice.settings.switch'))}</span></label>
+        <button class="btn send" type="submit">${esc(t(locale, 'invoice.settings.save'))}</button>
+      </form>
+      <p class="caption muted">${esc(t(locale, on ? 'invoice.settings.stateOn' : 'invoice.settings.stateOff'))}</p>
+    </div>`;
+}
+
 export function renderBooksAccounts(locale: Locale, c: EntryChoices, a: BooksAccounts): string {
   const pick = (name: string, rows: readonly { id: string; code: string; name: string }[], chosen: string | null) =>
     `<select name="${name}"><option value=""></option>${rows.map((r) => `<option value="${esc(r.id)}"${chosen === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name)}</option>`).join('')}</select>`;

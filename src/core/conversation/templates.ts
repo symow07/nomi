@@ -42,9 +42,11 @@ const qtyIn = (lang: FixedLanguage, n: number, unit: string): string =>
  * was told to wait for a message that would never come. What happens next is
  * the factory's own step, and that is what is said.
  *
- * The Books audit (2026-11-05) — "We'll send you the invoice next" was the same promise: nothing in the product can
- * send an invoice yet, and most shops never send one. The reply says what happened and promises nothing. Bring a next
- * step back when invoices can be sent, in the same change.
+ * The Books audit (2026-11-05) — "We'll send you the invoice next" was the same promise: nothing in the product could
+ * send an invoice, and most shops never send one. 0226 (2026-11-06) brings the sentence back — the words #427 removed,
+ * in six languages — ONLY where the workspace's switch is on (`books_settings.invoice_sending`): there the owner can
+ * send the invoice from the order's conversation or its page, so the sentence is true. "We" is the business: the
+ * invoice is the owner's act, not the assistant's. Off, the reply says what happened and promises nothing.
  */
 export function orderConfirmedReply(input: {
   orderReference: string;
@@ -52,19 +54,32 @@ export function orderConfirmedReply(input: {
   quantity: number;
   unit: string;
   language?: FixedLanguage;
+  /** 0226 — the workspace sends invoices from Nomi, so the next step can be named. Default: not said. */
+  invoiceNext?: boolean;
 }): string {
   const { orderReference, productName, quantity, unit } = input;
   const lang = input.language ?? 'en';
-  if (lang === 'zh') return `您的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。`;
-  if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}.`;
-  if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.`;
-  if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}.`;
-  if (lang === 'pt') return `Seu pedido está confirmado — referência ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.`;
+  const next = input.invoiceNext === true ? INVOICE_NEXT[lang] : '';
+  if (lang === 'zh') return `您的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。${next}`;
+  if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}.${next}`;
+  if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.${next}`;
+  if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}.${next}`;
+  if (lang === 'pt') return `Seu pedido está confirmado — referência ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}.${next}`;
   return (
     `Your order is confirmed — reference ${orderReference}: ` +
-    `${qtyIn(lang, quantity, unit)} of ${productName}.`
+    `${qtyIn(lang, quantity, unit)} of ${productName}.${next}`
   );
 }
+
+/** 0226 — the sentence #427 removed (af9c8e2a), word for word, said only where invoices really go out. */
+export const INVOICE_NEXT: Readonly<Record<FixedLanguage, string>> = {
+  en: " We'll send you the invoice next.",
+  zh: '接下来我们会把发票发给您。',
+  ar: ' وستصلك الفاتورة بعد ذلك.',
+  es: ' Te enviaremos la factura a continuación.',
+  fr: ' Nous vous enverrons ensuite la facture.',
+  pt: ' Em seguida enviaremos a fatura.',
+};
 
 /** The sentences `orderBlockedReply` says, one per reason, in each language. */
 const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'product_not_confirmed_by_client' | 'quantity_missing'

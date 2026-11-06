@@ -139,6 +139,8 @@ export const QUEUES = {
    * an answer is marked expired (0098, `expire_waiting_drafts`).
    */
   draftExpiry: 'ops.draft_expiry',
+  /** 0226 — every hour: an invoice still open three or ten days after it went is reminded once, or drafted for the owner. */
+  invoiceReminders: 'books.invoice_reminders',
   /** G1 — once a day: the operator's list of the last day's sign-ups. */
   signupDigest: 'ops.signup_digest',
   // G3 — every five minutes: who crossed 80% or 100% of today's allowance.

@@ -268,6 +268,18 @@ export const RULES = Object.freeze({
   answer_decisions: { do: 'unrelated' },
   // 0202 (S6) — what a buyer was asked after an order, and their answer: theirs, erased with them.
   survey_asks: { do: 'erase' },
+  // 0226 — an invoice's public link (a token and its expiry on the business's own invoice): no customer in it.
+  invoice_links: { do: 'unrelated' },
+  // 0226 — that an invoice went, and the reminders about it: the business's record of its invoice stays (when, which
+  // channel, how many reminders); the keys to the customer's conversation, message and draft go.
+  invoice_sends: {
+    do: 'detach', detach: ['conversation_id', 'outbound_id'],
+    says: 'the record that the invoice went stays; the links to their conversation and message go',
+  },
+  invoice_reminders: {
+    do: 'detach', detach: ['conversation_id', 'outbound_id', 'draft_id'],
+    says: 'the record of each reminder stays; the links to their conversation, message and draft go',
+  },
   // 0172 (A2.4) — receipts of the owner's book downloads.
   books_exports: { do: 'unrelated' },
   // 0174 (A4) — the papers behind the books, and their sealed bytes.

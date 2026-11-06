@@ -41,6 +41,24 @@ export type OutboundMedia = {
 };
 
 /**
+ * 0226 — a FILE, with the words that go with it: an invoice as a PDF. The address is one Nomi serves (the worker
+ * refuses any other, F1); `filename` is what the customer's app shows and saves it as. `caption` is ordinary text
+ * and may be empty: Meta's attachments carry none.
+ */
+export type OutboundDocument = {
+  readonly url: string;
+  readonly filename: string;
+  readonly caption: string;
+};
+
+/** 0226 — a file attached to a mail: the bytes themselves, since a mail carries no link a provider fetches. */
+export type MailAttachment = {
+  readonly filename: string;
+  readonly contentType: string;
+  readonly bytes: Uint8Array;
+};
+
+/**
  * C4.a — a message that needs more than a body.
  *
  * `sendText(to, body)` is the WhatsApp shape and it has no room for a subject.
@@ -72,6 +90,8 @@ export type MailMessage = {
    * carries no unsubscribe link either and is refused before it gets here.
    */
   readonly tag: string | null;
+  /** 0226 — files attached to the mail (an invoice as a PDF). Absent or empty: a plain-text mail, as every mail was. */
+  readonly attachments?: readonly MailAttachment[];
 };
 
 export interface ChannelAdapter {
@@ -89,6 +109,12 @@ export interface ChannelAdapter {
    * picture is a different message from the one the owner approved.
    */
   sendMedia?(to: string, media: OutboundMedia): Promise<SendResult>;
+  /**
+   * 0226 — a file (an invoice as a PDF). Optional like `sendMedia`: an adapter that cannot carry a file says so by
+   * omission, and the worker refuses the row (`media_unsupported`) rather than sending its caption alone. Instagram
+   * and the web chat carry none; e-mail attaches the bytes through `sendMail` instead.
+   */
+  sendDocument?(to: string, document: OutboundDocument): Promise<SendResult>;
   /**
    * WA-S — an approved WhatsApp message template (the only way to write after
    * the 24-hour window closed). Optional: only WhatsApp has templates.

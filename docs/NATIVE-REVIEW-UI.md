@@ -16597,3 +16597,20 @@ New lines in zh, ar, es and fr, none read by a native reader. Not a gate. They a
 - **Choices to check:** "Country and tax" as 国家与税务 / البلد والضرائب / País e impuestos / Pays et taxes; "Periods" as 会计期间 / الفترات / Periodos / Périodes, with Months / Quarters as 按月 / 按季度, أشهر / فصول, Meses / Trimestres, Mois / Trimestres; "Accounts that hold money" as 存放资金的科目 / الحسابات التي تحفظ المال / Cuentas que guardan dinero / Comptes qui détiennent de l’argent.
 - **To check:** that the TVA / VAT / sales-tax sentences (`tax.MA`, `tax.GB`, `tax.US`) read as plain fact; that `keptYears` ("{n} years after the end of the last financial year with an entry") takes 6, 7 and 10 in each language (Arabic: سنوات for all three); that `periodWhy` says "chosen once" clearly enough that an owner does not expect to change it; that `moneyWhy` quotes the words bank / cash as an owner would type them in each language (银行 / 现金, بنك / صندوق, banco / caja, banque / caisse — the rule reads those words).
 - **Not translated by design:** the chart templates' account names (English for the UK and US charts, the CGNC's French for Morocco) and the tax codes' labels (`TVA 20 % facturée`, `VAT standard rate 20%`, `Sales tax CA`) are data the owner renames, not catalogue copy; `EIN`, `ICE`, `IF`, `RC` stay as they are.
+
+## Invoices that go out (2026-11-06; 0226)
+
+Forty-one new lines in zh, ar, es and fr, none read by a native reader. Not a gate. Every one is owner-facing; the
+sentences a CUSTOMER reads (the caption beside the PDF, the mail, the link sentence, the reminder) are English only and
+are not translated at all (`src/core/books/invoiceWords.ts`), by the owner's rule that no gate is lifted for another
+language. The PDF's own labels are English too, as the text proforma's are.
+
+- **Keys:** `inbox.draft.held.invoice_window`, `.invoice_language`, `.invoice_mailbox`, `.invoice_held`, `.invoice_unnamed`
+  (why a reminder waits for the owner, naming the invoice `{key}`); `invoice.row.*` (the invoice beside the proforma row on
+  the conversation page); `invoice.send.*` (the Send block on the invoice's page: how it goes on this channel, what went
+  before, the reminders); `invoice.settings.*` (the Books settings page's switch and what it does); `invoice.flash.*`.
+- **To check:** that "the window … has been closed for more than a day" reads as the channel's rule, not the customer's
+  fault; that the Arabic addresses nobody in a gender (the owner sweep passes; "مالك الحساب" is the existing owner noun);
+  that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
+  name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
+  order (3 and 10 days; English; the window; else a draft).

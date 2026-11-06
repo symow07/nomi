@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderBank, renderInvoice, type PaymentChoices } from '../../src/api/web/booksInvoices.js';
-import { orderConfirmedReply } from '../../src/core/conversation/templates.js';
+import { INVOICE_NEXT, orderConfirmedReply } from '../../src/core/conversation/templates.js';
 import { FIXED_LANGUAGES } from '../../src/core/conversation/gateLanguage.js';
 import { holdsMoney } from '../../src/core/books/moneyAccounts.js';
 import type { InvoiceView } from '../../src/db/booksInvoices.js';
@@ -78,13 +78,33 @@ describe('the account a payment lands in', () => {
   });
 });
 
-describe('a confirmed order promises only what happened', () => {
-  const said = (language: (typeof FIXED_LANGUAGES)[number]) =>
-    orderConfirmedReply({ orderReference: 'NM-1042', productName: 'Serum', quantity: 2, unit: 'pcs', language });
+describe('a confirmed order promises only what happened — and the invoice, only where one really goes out (0226)', () => {
+  const said = (language: (typeof FIXED_LANGUAGES)[number], invoiceNext?: boolean) =>
+    orderConfirmedReply({ orderReference: 'NM-1042', productName: 'Serum', quantity: 2, unit: 'pcs', language, ...(invoiceNext === undefined ? {} : { invoiceNext }) });
 
-  it.each([...FIXED_LANGUAGES])('%s: no invoice is promised, and the order is still named', (language) => {
-    expect(said(language)).not.toMatch(/invoice|发票|الفاتورة|factura|facture|fatura/iu);
-    expect(said(language)).toContain('NM-1042');
-    expect(said(language)).toContain('Serum');
+  it.each([...FIXED_LANGUAGES])('%s: with invoice sending OFF (the default) no invoice is promised, and the order is still named', (language) => {
+    for (const reply of [said(language), said(language, false)]) {
+      expect(reply).not.toMatch(/invoice|发票|الفاتورة|factura|facture|fatura/iu);
+      expect(reply).toContain('NM-1042');
+      expect(reply).toContain('Serum');
+    }
+  });
+
+  it.each([...FIXED_LANGUAGES])('%s: with invoice sending ON the sentence #427 removed is back, word for word, after the order', (language) => {
+    const reply = said(language, true);
+    expect(reply).toBe(said(language) + INVOICE_NEXT[language]);
+    expect(reply).toMatch(/invoice|发票|الفاتورة|factura|facture|fatura/iu);
+    expect(reply.endsWith(INVOICE_NEXT[language])).toBe(true);
+  });
+
+  it('the sentences are the ones af9c8e2a removed', () => {
+    expect(INVOICE_NEXT).toEqual({
+      en: " We'll send you the invoice next.",
+      zh: '接下来我们会把发票发给您。',
+      ar: ' وستصلك الفاتورة بعد ذلك.',
+      es: ' Te enviaremos la factura a continuación.',
+      fr: ' Nous vous enverrons ensuite la facture.',
+      pt: ' Em seguida enviaremos a fatura.',
+    });
   });
 });
