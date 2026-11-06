@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { storePracticeMedia, type PracticeMediaKind } from '../../db/practiceMedia.js';
 import { sql } from 'kysely';
 import { type Money, type Currency, usd, moneyFromStored, parseCurrency } from '../../core/types/money.js';
 import { type Decimal, compareDecimal, decimal, roundDecimal, signOf } from '../../core/types/decimal.js';
@@ -85,6 +86,31 @@ export async function sayInPractice(
   });
   if (expected !== null && signOf(expected) > 0) await expectTotal(deps.db, live, messageId, expected);
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
+  return 'sent';
+}
+
+/**
+ * 0224 (Block 1 #11) — the owner sends a photo or a voice note as a customer would. The same gates as a typed line
+ * (the operator's switch, the day's fifty, the copy brought in line), then the bytes are kept on the copy and the job
+ * joins the inbound queue as a channel's media job does: the worker hears or sees it with the real transcriber and
+ * vision, and records the message with what it heard or saw, as it does for any customer.
+ */
+export async function sayMediaInPractice(
+  deps: { readonly db: Db; readonly enqueue: (job: InboundJob) => Promise<void> },
+  live: BusinessId, media: { readonly kind: PracticeMediaKind; readonly mediaType: string; readonly bytes: Buffer; readonly caption: string | null },
+): Promise<'sent' | 'empty' | PracticeRefusal> {
+  if (media.bytes.length === 0) return 'empty';
+  const refused = await practiceRefusal(deps.db, live);
+  if (refused) return refused;
+  await countPracticeLine(deps.db, live);
+  const copy = await refreshPractice(deps.db, live);
+  const messageId = `practice:${randomUUID()}`;
+  const { conversationId, mediaId } = await withTenantTx(deps.db, copy, async (tx) => {
+    const id = await practiceConversation(tx, copy);
+    return { conversationId: id, mediaId: await storePracticeMedia(tx, copy, id, media) };
+  });
+  const caption = media.caption?.trim() || '';
+  await deps.enqueue({ businessId: copy, conversationId, messageId, text: caption, messageType: media.kind, mediaId, received: media.kind === 'image' ? 'image' : 'audio' });
   return 'sent';
 }
 
@@ -290,6 +316,12 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
         <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
     </form>
+    ${/* 0224 (Block 1 #11) — a photo or a voice note, as a customer would send one: through the real vision and transcriber. */ ''}<details class="practice-media"><summary>${esc(t(locale, 'sandbox.media.label'))}</summary>
+    <form method="post" action="/app/sandbox/media" enctype="multipart/form-data" class="mediabar">
+      <label class="pq"><span>${esc(t(locale, 'sandbox.media.label'))}</span><input type="file" name="media" accept="image/jpeg,image/png,image/webp,audio/ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/aac,audio/x-m4a" required /></label>
+      <label class="pq"><span>${esc(t(locale, 'sandbox.media.caption'))}</span><input name="caption" maxlength="500" autocomplete="off" /></label>
+      <button class="btn" type="submit">${esc(t(locale, 'sandbox.media.send'))}</button>
+    </form></details>
     <details class="practice-scenarios"><summary>${esc(t(locale,'sandbox.scenario.label'))}</summary>
     <form method="post" action="/app/sandbox/scenario" class="scenariobar">
       <label class="muted" for="scenario">${esc(t(locale, 'sandbox.scenario.label'))}</label>

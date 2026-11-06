@@ -74,7 +74,7 @@ import { waDialogUrl, type WaLogin } from '../../channels/whatsapp/embeddedSignu
 import { liveWhatsAppAccount } from '../../db/whatsappAccounts.js';
 import { reopenFor, listReopenTemplates, recordSubmitted, recordStatuses } from '../../db/whatsappTemplates.js';
 import {
-  metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount, metaAccountToken,
+  metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount, unsubscribeMetaPage, metaAccountToken,
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
@@ -101,6 +101,8 @@ import { loadToday } from './today.js';
 import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
+import { practiceMediaKind } from '../../db/practiceMedia.js';
+import { decryptSecret } from '../../security/credentials.js';
 import {
   loadChannels, renderChannelScreen, renderNotificationNumber, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
   channelScreenHref, channelScreenTitle, screenOfChannel,
@@ -108,7 +110,7 @@ import {
 } from './channels.js';
 import {
   loadProductList, loadProductPage, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
-  renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
+  renderAddForm, updateProduct, removeProductName, removeProductTier, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
@@ -222,7 +224,7 @@ import {
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, renderKnowledgePeriod, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
-  loadPracticeView, renderSandbox, sayInPractice, parseTotal,
+  loadPracticeView, renderSandbox, sayInPractice, sayMediaInPractice, parseTotal,
   runScriptedPractice, renderPractice, renderPracticeChecklist, practiceUrl,
 } from './sandbox.js';
 import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, setPractice, practiceSettings, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
@@ -496,7 +498,7 @@ export type WebDeps = {
    * 0080 — `asks`: the question the reply asks, stamped when it leaves.
    */
   /** Audit batch 1 (B7) — in the decision's own transaction (`tx`): see `ApplyDeps.kickOutbound`. */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks: PendingQuestion | null, notice: 'handoff' | 'opt_out' | null, tx: Tx) => Promise<void>;
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks: PendingQuestion | null, notice: 'handoff' | 'opt_out' | null, tx: Tx, quoteId?: string | null) => Promise<void>;
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
@@ -4200,7 +4202,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'data.title'), active: 'settings', bodyHtml: renderCloseAsk(locale, typed, name),
       }));
     }
+    // Block 1 #8 (2026-11-06) — the Page's subscription at Meta goes with the workspace: read BEFORE the erasure takes the
+    // row, told to Meta AFTER the closure is committed (as suspend-workspace does), a failure recorded, the closure
+    // complete either way — nothing of theirs may keep arriving at a webhook for a workspace that no longer exists.
+    const mc = deps.metaConnect ?? null;
+    const metaPage = mc?.credentialKey && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveMetaAccount(tx, bid.value)).catch(() => null) : null;
     const r = await closeWorkspace(deps.db, s.businessId, typed, personOf(s).id);
+    if (r.outcome === 'closed' && metaPage && mc?.credentialKey) {
+      try {
+        const token = decryptSecret(metaPage.ciphertext, mc.credentialKey).plain;
+        await unsubscribeMetaPage({ pageId: metaPage.pageId, token }, mc.graphVersion, mc.fetchImpl);
+      } catch (e) {
+        req.log.warn({ err: e }, 'the closed workspace\'s Page could not be unsubscribed at Meta');
+        if (deps.reportError) void deps.reportError(e, 'web', { route: 'POST /app/settings/data/close (meta unsubscribe)', businessId: s.businessId });
+      }
+    }
     if (r.outcome === 'refused') {
       req.log.error({ err: r.error }, 'closing a workspace was refused by the erasure');
       if (deps.reportError) void deps.reportError(r.error, 'web', { route: 'POST /app/settings/data/close', businessId: s.businessId });
@@ -5925,6 +5941,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const ok = await removeProductName(deps.db, s.businessId, id, personOf(s).id, alias);
     facts.evict(s.businessId);   // 2026-10-14 — a name taken off can leave a product with none in a served script
     return flashTo(reply, `${back}#names`, ok ? 'product.alias.removed' : 'product.alias.notRemoved');
+  });
+
+  // 0224 (Block 1 #6) — one larger-order price, taken off; the owner's, as every price is.
+  app.post('/app/products/:id/tiers/remove', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const back = productBack(id, productFrom(req));
+    const s = await ownerOnly(req, reply, 'price_rules', back);
+    if (!s) return reply;
+    const minQty = String(((req.body ?? {}) as Record<string, string | undefined>)['minQty'] ?? '');
+    const ok = await removeProductTier(deps.db, s.businessId, id, personOf(s).id, minQty);
+    facts.evict(s.businessId);
+    return flashTo(reply, `${back}#prices`, ok ? 'product.tier.removed' : 'product.tier.notRemoved');
   });
 
   app.post('/app/products/:id/edit', async (req, reply) => {
@@ -8504,6 +8532,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s0) return reply.redirect('/login');
       const b = (req.body ?? {}) as { text?: string; expected?: string };
       return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected)));
+    });
+
+    // 0224 (Block 1 #11) — a photo or a voice note, as a customer would send one. Multipart: the file and a caption.
+    app.post('/app/sandbox/media', async (req, reply) => {
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      const live = liveOf(s0);
+      if (!live.ok || !deps.enqueueInbound) return said(reply, 'empty');
+      let bytes: Buffer | null = null; let mediaType = ''; let caption = '';
+      try {
+        for await (const part of req.parts({ limits: { files: 1, parts: 4 } })) {
+          if (part.type === 'field' && part.fieldname === 'caption' && typeof part.value === 'string') caption = part.value.slice(0, 500);
+          if (part.type === 'file' && part.fieldname === 'media') { bytes = await part.toBuffer(); mediaType = part.mimetype; }
+        }
+      } catch {
+        return flashTo(reply, practiceUrl(), 'practice.flash.media_refused');
+      }
+      const kind = practiceMediaKind(mediaType);
+      if (!bytes || bytes.length === 0 || !kind) return flashTo(reply, practiceUrl(), 'practice.flash.media_refused');
+      const outcome = await sayMediaInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, { kind, mediaType, bytes, caption: caption || null });
+      if (outcome === 'sent') return flashTo(reply, practiceUrl(), 'practice.flash.media_sent', { name: assistantName(localeOf(req)) });
+      return said(reply, outcome);
     });
 
     // A situation from the golden set: its customer's words, answered live.

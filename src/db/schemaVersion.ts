@@ -471,7 +471,8 @@ import type { Db } from './client.js';
 // 220 = a page of her site read again: one paid reading, the old one replaced, or its knowledge replaced only when the new one is approved (0220).
 // 221 = a year locked and closed on the workspace's own day, not the database's UTC one (0221).
 // 223 = when a conversation was last opened: a row that needs the owner is bold until then (0223).
-export const REQUIRED_SCHEMA_VERSION = 223;
+// 224 = the quote a reply carried, a larger-order price taken off, a practice photo or voice note kept (0224).
+export const REQUIRED_SCHEMA_VERSION = 224;
 
 export type SchemaState = {
   readonly required: number;

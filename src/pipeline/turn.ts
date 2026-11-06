@@ -1211,7 +1211,9 @@ export type TurnEffects = {
    * 0080 — `asks`: the question it asks, set as the conversation's pending
    * question by the send path when the message leaves, not before.
    */
-  outbound: { conversationId: ConversationId; reply: string; asks?: PendingQuestion | null; notice?: Notice | null } | null;
+  outbound: { conversationId: ConversationId; reply: string; asks?: PendingQuestion | null; notice?: Notice | null;
+    /** 0224 — the quote whose figure the reply carries, stamped on the sent message so the panel can say it was told. */
+    quoteId?: string | null } | null;
   /** Present when the reply needs owner approval (capability in draft mode):
    * a pending draft was persisted; the owner resolves it via applyOwnerCommand. */
   draftCreated: { conversationId: ConversationId; draftId: string } | null;
@@ -1689,6 +1691,7 @@ export async function commitTurn(
       outbound = {
         conversationId: req.conversationId, reply: joined, asks: r.asks,
         ...(r.notice ? { notice: r.notice } : {}),
+        ...(quoteId ? { quoteId } : {}),
       };
       if (say) await recordDisclosure(r.newState.aiDisclosureDeliveredAt === null ? 'first_auto_send' : 'identity_question');
       // R5 (0109) — work sent alone is on the record, so it can be spot-checked
@@ -1715,6 +1718,7 @@ export async function commitTurn(
         ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
         asks: r.asks,
         ...(r.notice ? { notice: r.notice } : {}),
+        ...(quoteId ? { quoteId } : {}),
       });
       draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
       // G10 — the language the reply is in, so the card can say when the owner may not read it.

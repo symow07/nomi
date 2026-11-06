@@ -21,6 +21,7 @@ import { modelHealth } from '../pipeline/modelHealth.js';
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
+import { isPracticeMediaId, practiceMediaFetchers, practicePayerOf } from '../db/practiceMedia.js';
 import { recordSpendAlone } from '../db/usage.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
@@ -382,6 +383,8 @@ export async function startWorker(
         asks: effects.outbound.asks ?? null,
         // 0135 — the line that answers a stop.
         notice: effects.outbound.notice ?? null,
+        // 0224 — the quote it carries, stamped on the message when it leaves.
+        quoteId: effects.outbound.quoteId ?? null,
         channel: 'auto',
       }, { singletonKey: input.messageId });
     }
@@ -696,26 +699,31 @@ export async function startWorker(
     const own = media.ownMedia && (job.data.messageType === 'audio' || job.data.messageType === 'image')
       ? await media.ownMedia({ db, businessId: businessId.value })
       : null;
+    // 0224 (Block 1 #11) — a practice photo or voice note: its bytes are kept on the copy and read back here, where a
+    // channel's download would be; what it costs goes on the workspace's ledger, as every practice turn does (P5).
+    const practice = isPracticeMediaId(job.data.mediaId) ? practiceMediaFetchers(db, businessId.value) : null;
+    const mediaPayer: BusinessId = practice ? await practicePayerOf(db, businessId.value) : businessId.value;
     const heard = job.data.messageType === 'audio'
       ? await hearVoiceNote({
           transcriber: transcriber && ((a: Parameters<typeof transcriber>[0]) => { transcriptions++; return transcriber(a); }),
-          audio: own?.audio ?? audio,
+          audio: practice?.audio ?? own?.audio ?? audio,
         }, job.data.mediaId)
       : null;
-    if (transcriptions > 0) await recordSpendAlone(db, businessId.value, { llmCalls: transcriptions, inputTokens: 0, outputTokens: 0 }, { turn: false });
+    if (transcriptions > 0) await recordSpendAlone(db, mediaPayer, { llmCalls: transcriptions, inputTokens: 0, outputTokens: 0 }, { turn: false });
 
     // M4.5 — the same treatment for a photo, and for the same reason.
+    const imageSource = practice?.image ?? own?.image ?? mediaFetcher;
     const seen = job.data.messageType === 'image'
       ? await seeImage({
-          image: (own?.image ?? mediaFetcher)
-            ? productionImageDeps({ media: (own?.image ?? mediaFetcher)!, vision, db, businessId: businessId.value })
+          image: imageSource
+            ? productionImageDeps({ media: imageSource, vision, db, businessId: businessId.value })
             : undefined,
         }, {
           mediaId: job.data.mediaId, caption: job.data.text || null,
         })
       : null;
     // T7 — and so is looking at a photo.
-    if (seen?.usage) await recordSpendAlone(db, businessId.value, seen.usage, { turn: false });
+    if (seen?.usage) await recordSpendAlone(db, mediaPayer, seen.usage, { turn: false });
 
     /**
      * ── CH7 · THE SHOP'S OWN POST, MATCHED TO A PRODUCT ─────────────────

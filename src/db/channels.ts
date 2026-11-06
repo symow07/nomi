@@ -328,9 +328,11 @@ export function channelStore(
       // 'sent' — the provider accepted it — and once per outbound row.
       if (to === 'sent') {
         await sql`
-          insert into messages (conversation_id, external_id, direction, input_type, text_content, image_url, sent_at)
+          insert into messages (conversation_id, external_id, direction, input_type, text_content, image_url, sent_at, quote_id)
           select conversation_id, ${'out:' + id}, 'outbound',
-                 case when media_url is null then 'text' else 'image' end, body, media_url, now()
+                 case when media_url is null then 'text' else 'image' end, body, media_url, now(),
+                 -- 0224 — the quote the words carried: what the customer was told, and when.
+                 quote_id
             from outbound_messages where id = ${id}
           on conflict do nothing
         `.execute(tx);
@@ -639,6 +641,8 @@ export async function enqueueOutboundRow(
    * job that may run again, which the identical-body check below keeps from queueing its reply twice.
    */
   dedupe = true,
+  /** 0224 — the quote whose figure this message carries; copied onto the sent `messages` row by the 'sent' transition. */
+  quoteId: string | null = null,
 ): Promise<string | null> {
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
@@ -683,11 +687,11 @@ export async function enqueueOutboundRow(
   // on body either: two contacts can honestly receive the same first line.
   const row = await sql<{ id: string }>`
     insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks, notice, approved, kind, media_url)
+      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks, notice, approved, kind, media_url, quote_id)
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
            ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
-           ${media ? 'image' : 'text'}, ${media?.url ?? null}
+           ${media ? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not ${dedupe} or not exists (
       select 1 from outbound_messages

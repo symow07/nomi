@@ -76,6 +76,8 @@ export const PRACTICE_SKIP = [
   'usage_ledger', 'tenant_budgets', 'subscriptions', 'app_errors',
   // What the WORKSPACE has seen in Practice (0091): written on the workspace, never on a copy.
   'practice_checks', 'practice_totals',
+  // 0224 — a practice photo or voice note: Practice's own, written on the copy, erased with its conversation.
+  'practice_media',
   // K1 (0094) — the owner's lists being checked, and their photos: how the
   // catalogue was taught, not what Practice answers from (it copies the products).
   'catalog_imports', 'catalog_import_photos',

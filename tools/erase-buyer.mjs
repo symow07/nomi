@@ -339,6 +339,8 @@ export const RULES = Object.freeze({
   ops_flags: { do: 'unrelated' },
   practice_checks: { do: 'unrelated' },
   practice_totals: { do: 'unrelated' },
+  // 0224 — a practice photo or voice note hangs off its practice conversation (0142 reaches a customer's words there): goes with it.
+  practice_media: { do: 'erase' },
   capability_events: { do: 'unrelated' },
   erasure_ledger: { do: 'unrelated' },
   // Words the owner or the operator wrote, never linked to a customer: a calendar entry, the pilot's log.

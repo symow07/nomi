@@ -125,7 +125,9 @@ export function renderCustomerPanel(
   const prices = p.prices.map((q) => li(
     // Phase 9 (V1-226) — the price and what it is for on one line, when on the next:
     // run together, a narrow panel broke "LED String Lights 10m · 17:20" at random.
-    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${esc(show.shortWhen(locale, q.at, now))}</span>`,
+    // 0224 — a figure that reached the customer says so, with when it did; one only worked out keeps its time.
+    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${
+      q.toldAt ? esc(t(locale, 'panel.toldOn', { when: show.shortWhen(locale, q.toldAt, now) })) : esc(show.shortWhen(locale, q.at, now))}</span>`,
     // conversation-missed-05 — a door like every other, its chevron set off from its words.
     elsewhere(q.conversationId) ? `<a class="pn-door" href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}${GO}</a>` : ''));
   const record = [
