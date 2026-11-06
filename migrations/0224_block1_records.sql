@@ -99,6 +99,72 @@ drop trigger if exists practice_media_only_copy on practice_media;
 create trigger practice_media_only_copy before insert or update on practice_media
   for each row execute function practice_media_only_copy();
 
+-- The links the erasure follows, re-made from their latest definition (0202) with the four new ones.
+create or replace function customer_erasure_edges()
+returns table (child text, col text, parent text, pcol text)
+language sql immutable set search_path = public as $$
+  values
+    ('client_channels', 'client_id', 'clients', 'id'),
+    ('client_faces', 'client_id', 'clients', 'id'),
+    -- 0196 (S2) — a label on a buyer: theirs.
+    ('buyer_labels', 'client_id', 'clients', 'id'),
+    -- 0202 (S6) — a survey asked of a buyer, about one of their conversations: theirs.
+    ('survey_asks', 'client_id', 'clients', 'id'),
+    ('survey_asks', 'conversation_id', 'conversations', 'id'),
+    ('conversations', 'client_id', 'clients', 'id'),
+    ('customers_answered', 'client_id', 'clients', 'id'),
+    ('deletion_asks', 'client_id', 'clients', 'id'),
+    ('deletion_requests', 'client_id', 'clients', 'id'),
+    ('order_proposals', 'client_id', 'clients', 'id'),
+    ('orders', 'client_id', 'clients', 'id'),
+    ('conversation_notes', 'conversation_id', 'conversations', 'id'),
+    ('conversation_signals', 'conversation_id', 'conversations', 'id'),
+    ('conversation_state', 'conversation_id', 'conversations', 'id'),
+    ('deletion_asks', 'conversation_id', 'conversations', 'id'),
+    ('deliveries', 'conversation_id', 'conversations', 'id'),
+    ('drafts', 'conversation_id', 'conversations', 'id'),
+    -- 0224 — a practice photo or voice note hangs off its practice conversation.
+    ('practice_media', 'conversation_id', 'conversations', 'id'),
+    ('escalation_events', 'conversation_id', 'conversations', 'id'),
+    ('handoffs', 'conversation_id', 'conversations', 'id'),
+    ('message_fragments', 'conversation_id', 'conversations', 'id'),
+    ('messages', 'conversation_id', 'conversations', 'id'),
+    ('order_proposals', 'conversation_id', 'conversations', 'id'),
+    ('orders', 'conversation_id', 'conversations', 'id'),
+    ('outbound_messages', 'conversation_id', 'conversations', 'id'),
+    ('promised_dates', 'conversation_id', 'conversations', 'id'),
+    ('quote_proofs', 'conversation_id', 'conversations', 'id'),
+    ('quotes', 'conversation_id', 'conversations', 'id'),
+    ('repairs', 'conversation_id', 'conversations', 'id'),
+    ('sample_requests', 'conversation_id', 'conversations', 'id'),
+    ('sequence_enrollments', 'conversation_id', 'conversations', 'id'),
+    ('spot_checks', 'conversation_id', 'conversations', 'id'),
+    ('turns', 'conversation_id', 'conversations', 'id'),
+    ('conversation_events', 'conversation_id', 'conversations', 'id'),
+    ('shadow.turn_decisions', 'conversation_id', 'conversations', 'id'),
+    ('deletion_asks', 'message_id', 'messages', 'id'),
+    ('deletion_asks', 'request_id', 'deletion_requests', 'id'),
+    ('drafts', 'turn_message_id', 'turns', 'message_id'),
+    ('message_fragments', 'processed_in', 'turns', 'message_id'),
+    ('email_confirmations', 'order_id', 'orders', 'id'),
+    ('order_proposals', 'order_id', 'orders', 'id'),
+    ('order_updates', 'order_id', 'orders', 'id'),
+    ('orders', 'quote_id', 'quotes', 'id'),
+    ('quote_proofs', 'quote_id', 'quotes', 'id'),
+    ('turns', 'quote_id', 'quotes', 'id'),
+    -- 0224 — the quote a reply carried, on the draft, the outbound row and the sent message; set null when the quote goes.
+    ('drafts', 'quote_id', 'quotes', 'id'),
+    ('messages', 'quote_id', 'quotes', 'id'),
+    ('outbound_messages', 'quote_id', 'quotes', 'id'),
+    ('outbound_transitions', 'outbound_id', 'outbound_messages', 'id'),
+    ('promised_dates', 'outbound_id', 'outbound_messages', 'id'),
+    ('sequence_sends', 'outbound_id', 'outbound_messages', 'id'),
+    ('sequence_sends', 'enrollment_id', 'sequence_enrollments', 'id'),
+    -- 0130 — the advisor's link to each customer a turn named.
+    ('advisor_turn_subjects', 'client_id', 'clients', 'id')
+$$;
+revoke all on function customer_erasure_edges() from public;
+
 -- The erasure contract, re-made from its latest definition (0217) with the new table.
 create or replace function customer_erasure_contract()
 returns table (tbl text, action text, clear text[], blank text[], detach text[], match text)

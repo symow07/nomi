@@ -203,9 +203,9 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
       const c = await ensureConversation(tx, bid.value, `9716${RUN.replace(/\D/g, '2').padEnd(7, '2')}`, 'Bao', 'whatsapp');
       const quote = (await sql<{ id: string }>`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, discount_pct, total_usd, currency, engine_version)
         values (${PILOT}, ${c.conversationId}, ${PRODUCT}, 10, '{}'::jsonb, 2.5, 0, 25, 'USD', 'test') returning id::text as id`.execute(tx)).rows[0]!.id;
-      // A draft hangs off the message its turn answered.
-      for (const k of ['a', 'b']) await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
-        values (${c.conversationId}, ${`m-${RUN}-${k}`}, 'inbound', 'text', 'How much for ten totes?', now())`.execute(tx);
+      // A draft hangs off the turn that wrote it (drafts.turn_message_id → turns.message_id).
+      for (const k of ['a', 'b']) await sql`insert into turns (message_id, business_id, conversation_id, state_before, input, decision, engine_version)
+        values (${`m-${RUN}-${k}`}, ${PILOT}, ${c.conversationId}, '{}'::jsonb, '{"text":"How much for ten totes?"}'::jsonb, '{"action":{"kind":"reply"}}'::jsonb, 'test')`.execute(tx);
       const repos = tenantRepos(tx, bid.value);
       const a = await repos.drafts.create({ conversationId: c.conversationId as never, capability: 'quote', draftText: `Ten totes come to $25 ${RUN}.`, turnMessageId: `m-${RUN}-a`, quoteId: quote });
       const b = await repos.drafts.create({ conversationId: c.conversationId as never, capability: 'quote', draftText: `Ten totes come to $25 ${RUN} b.`, turnMessageId: `m-${RUN}-b`, quoteId: quote });
