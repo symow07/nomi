@@ -1287,6 +1287,19 @@ export async function buildProduction(
       for (const d of due) moved += (await sql<{ n: number }>`select books_roll_periods(${d.business_id}::uuid) as n`.execute(db)).rows[0]?.n ?? 0;
       if (moved > 0) console.log(`[books] periods: ${moved} lock(s) moved on to keep two current periods open`);
     });
+    // 0227 (Block 2 PR 3) — every morning, each workspace with a recurring cost due by its own today gets the cost
+    // PROPOSED on the Spending page (`spending_proposals`), once per due day; the owner posts or skips it. Nothing posts here.
+    await boss.schedule(QUEUES.spendingProposals, '35 5 * * *', {});
+    await boss.work(QUEUES.spendingProposals, async () => {
+      const { proposeDue, spendingToday } = await import('./db/booksSpending.js');
+      const due = (await sql<{ id: string }>`select spending_due_workspaces((now() + interval '14 hours')::date)::text as id`.execute(db)).rows;
+      let made = 0;
+      for (const d of due) {
+        const b = parseBusinessId(d.id); if (!b.ok) continue;
+        made += await withTenantTx(db, b.value, async (tx) => proposeDue(tx, b.value, await spendingToday(tx, b.value)));
+      }
+      if (made > 0) console.log(`[books] spending: ${made} recurring cost(s) proposed for the owner's tick`);
+    });
     // 0212 — THE STALE GRANT: every hour, each QuickBooks, Xero or Google Sheets grant Nomi no longer uses that its system has not
     // confirmed given back is given back again (src/books/staleGrants.ts), until it is, or its life there is over.
     await boss.schedule(QUEUES.booksStaleGrants, '37 * * * *', {});
