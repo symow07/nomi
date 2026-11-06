@@ -176,6 +176,39 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
     const owed = await closing('4411'); expect(owed.credit - owed.debit).toBeCloseTo(2400, 2);          // the rent, still owed
   });
 
+  it('a bill with no number: ticked, the books give it NOREF-<day>-<n>, unique for the day, shown as Nomi\'s on the row, the entry and in the pack', async () => {
+    const day = today.replace(/-/g, '');
+    const bank = await idOf('accounts', '5141');
+    // Typed AND ticked is refused; a typed reference in the reserved shape is refused; neither is NB008's own refusal (above).
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Both', ref: 'R-1', noref: '1', gross: '10', account: expenseId, payFrom: bank }))).toContain('not both');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Reserved', ref: `NOREF-${day}-7`, gross: '10', account: expenseId, payFrom: bank }))).toContain("the books' own");
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where label in ('Both', 'Reserved')`))).rows[0].n).toBe(0);
+    // Ticked: the day's first reference; the next counts up, whether paid on the spot or owed.
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Market vegetables', noref: '1', gross: '85', account: expenseId, payFrom: bank })))
+      .toContain(`The bill has no number; in the books its reference is NOREF-${day}-1.`);
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Taxi', noref: '1', gross: '40', account: expenseId, newSupplier: 'Cash purchases' }))).toContain(`NOREF-${day}-2`);
+    const refs = (await as((q) => q(`select label, document_ref, document_date::text as doc from journal_entries where label in ('Market vegetables', 'Taxi') order by label`))).rows;
+    expect(refs.map((r) => [r.document_ref, r.doc])).toEqual([[`NOREF-${day}-1`, today], [`NOREF-${day}-2`, today]]);
+    // Shown as Nomi's: the owed taxi's row on the spending book, and the entry's own page.
+    expect((await get('/app/books/spending')).body).toContain(`no number on the bill; Nomi's reference NOREF-${day}-2`);
+    const entry = (await as((q) => q(`select id::text as id from journal_entries where label = 'Taxi'`))).rows[0].id as string;
+    expect((await get(`/app/books/advanced/entries/${entry}`)).body).toContain(`<bdi>NOREF-${day}-2</bdi>`);
+    expect((await get(`/app/books/advanced/entries/${entry}`)).body).toContain("this reference is Nomi's own");
+    // The accountant pack's journal carries it as the entry's document, verbatim: the prefix is the marker there.
+    const { packData } = await import('../../src/db/booksReports.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
+    const pack = await withTenantTx(db, b.value, (tx) => packData(tx, b.value, { from: `${today.slice(0, 4)}-01-01`, to: `${today.slice(0, 4)}-12-31` }));
+    expect(pack.lines.filter((l) => l.label === 'Taxi').map((l) => l.documentRef)).toEqual([`NOREF-${day}-2`, `NOREF-${day}-2`]);
+    // The books still tie, with the two bills in their accounts.
+    const exp = await closing(expense);
+    expect(exp.balanced).toBe(true);
+    expect(exp.debit - exp.credit).toBeCloseTo(1000 + 300 + 2400 + 85 + 40, 2);
+    const bankNow = await closing('5141'); expect(bankNow.credit - bankNow.debit).toBeCloseTo(300 + 1200 + 85, 2);
+    const owed = await closing('4411'); expect(owed.credit - owed.debit).toBeCloseTo(2400 + 40, 2);
+  });
+
   it('the app role deletes nothing of it', async () => {
     for (const t of ['spending_categories', 'spending_bills', 'recurring_costs', 'spending_proposals']) {
       const r = await as((q) => q(`select has_table_privilege('nomi_app', $1, 'DELETE') as can`, [t]));

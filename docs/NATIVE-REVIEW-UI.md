@@ -16625,6 +16625,10 @@ translates them.
   schedule and its form); `.categories.*` (the owner's words on an expense account); `.flash.*`.
 - **To translate first:** the asking lines (`skipAsk`, `stopAsk`, `removeAsk`) — they are the only words the owner
   must read before something changes; then the form labels.
+- **Added 2026-11-07 (#446), English only too:** `booksSpending.bill.noRef` (the tick "No number on this bill"),
+  `.noRefHint`, `.noRefShown` (on the unpaid row), `.noRefEntry` (on the entry's page), `booksSpending.flash.billPostedNoRef`,
+  `booksSpending.refused.ref_and_no_number`, `.noref_typed`. "NOREF" itself is not translated: it is the reference's prefix
+  in the books and the spreadsheets.
 
 ## Invoices that go out (2026-11-06; 0226)
 

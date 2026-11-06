@@ -7,7 +7,7 @@ import type { Decimal } from '../../core/types/decimal.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
-import { EVERY } from '../../core/books/spending.js';
+import { EVERY, isNoref } from '../../core/books/spending.js';
 import type { Category, Proposal, Recurring, SpendingChoices, UnpaidBill } from '../../db/booksSpending.js';
 
 /**
@@ -56,12 +56,13 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
     ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">
       ${input('date', t(locale, 'books.entry.date'), 'date', ` value="${esc(d.today)}" required`)}
       ${input('label', t(locale, 'books.entry.label'), 'text', ' maxlength="200" required')}
-      ${input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" required autocomplete="off"')}
+      ${input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" autocomplete="off"')}
+      <label class="pq"><span><input type="checkbox" name="noref" value="1" /> ${esc(t(locale, 'booksSpending.bill.noRef'))}</span><small class="muted">${esc(t(locale, 'booksSpending.bill.noRefHint'))}</small></label>
       ${input('gross', t(locale, 'booksSpending.bill.gross', { currency: cur }), 'text', ' inputmode="decimal" required')}
       ${supplierFields(locale, c)}${costFields(locale, c)}
       <button class="btn send" type="submit">${esc(t(locale, 'booksSpending.bill.record'))}</button></form>` : `<p>${esc(t(locale, 'booksSpending.bill.noChart'))}</p><p><a class="deeper" href="/app/settings/books/country">${esc(t(locale, 'books.country.nav'))}</a></p>`}</section>`;
   const unpaid = `<section class="block" id="unpaid"><h2>${esc(t(locale, 'booksSpending.unpaid.title'))}</h2>${d.unpaid.length === 0 ? `<p class="muted">${esc(t(locale, 'booksSpending.unpaid.none'))}</p>` : `<ul class="rows">${d.unpaid.map((b) =>
-    `<li class="row"><span><a href="/app/books/advanced/entries/${esc(b.entryId)}"><bdi>${esc(b.key)}</bdi></a> · ${esc(booksDay(locale, b.date))} · <bdi>${esc(b.label)}</bdi>${b.supplier ? ` · <bdi>${esc(b.supplier)}</bdi>` : ''}</span><b>${money(locale, b.gross, b.currency)}</b>${may && c.payAccounts.length ? `
+    `<li class="row"><span><a href="/app/books/advanced/entries/${esc(b.entryId)}"><bdi>${esc(b.key)}</bdi></a> · ${esc(booksDay(locale, b.date))} · <bdi>${esc(b.label)}</bdi>${b.supplier ? ` · <bdi>${esc(b.supplier)}</bdi>` : ''}${b.noNumber ? ` · ${esc(t(locale, 'booksSpending.bill.noRefShown', { ref: b.documentRef ?? '' }))}` : ''}</span><b>${money(locale, b.gross, b.currency)}</b>${may && c.payAccounts.length ? `
       <form method="post" action="/app/books/spending/bills/${esc(b.id)}/pay" class="pform inline">${input('date', t(locale, 'books.invoice.paidOn'), 'date', ` value="${esc(d.today)}" required`)}
       ${select('account', t(locale, 'books.invoice.bank'), option('', t(locale, 'books.invoice.bankChoose')) + c.payAccounts.map((a) => option(a.id, `${a.code} · ${a.name}`)).join(''), ' required')}
       <button class="btn" type="submit">${esc(t(locale, 'booksSpending.unpaid.pay'))}</button></form>` : ''}</li>`).join('')}</ul>`}</section>`;

@@ -11,6 +11,17 @@ export type Every = 'month' | 'quarter' | 'year';
 export const EVERY: readonly Every[] = ['month', 'quarter', 'year'];
 export const isEvery = (s: string | null | undefined): s is Every => s === 'month' || s === 'quarter' || s === 'year';
 
+/**
+ * A BILL WITH NO NUMBER (the owner, 2026-11-07). Every posted entry still carries a document reference (NB008); when
+ * the paper has none — a cash receipt, a market purchase — the owner ticks "No number on this bill" and the books give
+ * it one of Nomi's own, `NOREF-<YYYYMMDD>-<n>`, unique in the workspace for that day and shown as Nomi's wherever a
+ * reference is shown. The shape is reserved: a typed reference that looks like one is refused, so the prefix always
+ * means what it says.
+ */
+export const NOREF_SHAPE = /^NOREF-([0-9]{8})-([0-9]+)$/;
+export const norefFor = (date: string, n: number): string => `NOREF-${date.replace(/-/g, '')}-${n}`;
+export const isNoref = (ref: string | null | undefined): boolean => typeof ref === 'string' && NOREF_SHAPE.test(ref.trim());
+
 const MONTHS: Readonly<Record<Every, number>> = { month: 1, quarter: 3, year: 12 };
 const isLeap = (y: number): boolean => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 const daysIn = (y: number, m: number): number => [31, isLeap(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]!;
