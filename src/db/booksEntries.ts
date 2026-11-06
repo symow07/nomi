@@ -61,7 +61,9 @@ export type EntryView = EntryRow & {
 };
 
 const side = (v: string): Decimal | null => { const d = parseDecimal(v); return d === null || d === '0' ? null : d; };
-const KEY = sql`case when e.state = 'posted' then j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number else 'draft' end`;
+/** An entry's key as the pages show it — needs `journal_entries e`, `journals j` and `fiscal_years f` in the query (0227 reads it too). */
+export const ENTRY_KEY = sql`case when e.state = 'posted' then j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number else 'draft' end`;
+const KEY = ENTRY_KEY;
 
 /** The newest entries first (drafts and posted; a discarded draft only when asked), 50 at a time. */
 export async function listEntries(tx: Tx, businessId: string, o: { readonly withDiscarded?: boolean } = {}): Promise<EntryRow[]> {

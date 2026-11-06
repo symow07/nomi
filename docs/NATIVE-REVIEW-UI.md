@@ -16598,6 +16598,20 @@ New lines in zh, ar, es and fr, none read by a native reader. Not a gate. They a
 - **To check:** that the TVA / VAT / sales-tax sentences (`tax.MA`, `tax.GB`, `tax.US`) read as plain fact; that `keptYears` ("{n} years after the end of the last financial year with an entry") takes 6, 7 and 10 in each language (Arabic: سنوات for all three); that `periodWhy` says "chosen once" clearly enough that an owner does not expect to change it; that `moneyWhy` quotes the words bank / cash as an owner would type them in each language (银行 / 现金, بنك / صندوق, banco / caja, banque / caisse — the rule reads those words).
 - **Not translated by design:** the chart templates' account names (English for the UK and US charts, the CGNC's French for Morocco) and the tax codes' labels (`TVA 20 % facturée`, `VAT standard rate 20%`, `Sales tax CA`) are data the owner renames, not catalogue copy; `EIN`, `ICE`, `IF`, `RC` stay as they are.
 
+## Spending (2026-11-06; 0227)
+
+No new line in zh, ar, es or fr: the spending book's sixty-odd owner-facing lines are English only, in
+`src/core/owner/i18n/booksSpending.ts` (`BOOKS_SPENDING_EN`, spread into the redesign's English set), by the run's
+standing rule that new text is English and listed here. Every other language shows the English until a native reader
+translates them.
+
+- **Keys:** `booksSpending.*` — the title and the month's figure; `.waiting.*` (a recurring cost proposed on its day,
+  Post it / Skip this one and the asking); `.bill.*` (the form: supplier, what it was, the gross tax included, the tax
+  code, category or account, paid from or not yet); `.unpaid.*` (the bills owed and "Paid from"); `.recurring.*` (the
+  schedule and its form); `.categories.*` (the owner's words on an expense account); `.flash.*`.
+- **To translate first:** the asking lines (`skipAsk`, `stopAsk`, `removeAsk`) — they are the only words the owner
+  must read before something changes; then the form labels.
+
 ## Invoices that go out (2026-11-06; 0226)
 
 Forty-one new lines in zh, ar, es and fr, none read by a native reader. Not a gate. Every one is owner-facing; the

@@ -1,4 +1,4 @@
-import { type Decimal, addDecimal, divDecimal, mulDecimal, roundDecimal, subDecimal, decimal, signOf } from '../types/decimal.js';
+import { type Decimal, addDecimal, divDecimal, roundDecimal, subDecimal, decimal, signOf } from '../types/decimal.js';
 
 /**
  * SPENDING, THE PURE PARTS (Block 2 PR 3; 0227). A bill is one amount the owner typed, gross; its tax is split off by
@@ -39,5 +39,3 @@ export function splitGross(gross: Decimal, ratePct: Decimal | null): { readonly 
   return { net, tax: subDecimal(roundDecimal(gross, 2), net) };
 }
 
-/** The tax on a net figure, for the test's own sums. */
-export const taxOn = (net: Decimal, ratePct: Decimal): Decimal => roundDecimal(mulDecimal(net, divDecimal(ratePct, decimal('100'), 10)), 2);

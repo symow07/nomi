@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { nextOn, splitGross, taxOn, dayOf, isEvery, EVERY } from '../../src/core/books/spending.js';
+import { nextOn, splitGross, dayOf, isEvery, EVERY } from '../../src/core/books/spending.js';
 import { decimal } from '../../src/core/types/decimal.js';
 import { BOOKS_SPENDING_EN } from '../../src/core/owner/i18n/booksSpending.js';
 
@@ -41,9 +41,9 @@ describe('a bill\'s gross, split into the net and its tax', () => {
     expect(splitGross(decimal('45.5'), null)).toEqual({ net: '45.5', tax: '0' });
     expect(splitGross(decimal('45.5'), decimal('0'))).toEqual({ net: '45.5', tax: '0' });
   });
-  it('taxOn, the test\'s own check, agrees with the split within a cent', () => {
+  it('the net at the rate agrees with the tax within a cent', () => {
     const { net, tax } = splitGross(decimal('1250.00'), decimal('20'));
-    expect(Math.abs(Number(taxOn(net, decimal('20'))) - Number(tax))).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(Number(net) * 0.2 - Number(tax))).toBeLessThanOrEqual(0.01);
   });
 });
 

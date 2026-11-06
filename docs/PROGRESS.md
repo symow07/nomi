@@ -72,6 +72,59 @@ existing US-country workspaces (test fixtures only in production today) should k
 `books_keep_until` reads the table from now on, nothing already held changes. The PR itself (not opened by this
 session), and the deploy, which migrates: a backup from the same hour first.
 
+## Block 2 PR 3 — Spending (2026-11-06; 0227)
+
+Branch `b2-spending`, on `main` with 0226. The roadmap's "Spending": a Spending page where a bill is typed (or, as
+before, read from a photo by D6's reader — the same page, `/app/books/spending`, now opens on the owner's book above
+the papers), categorised with the owner's own categories, paid from a bank or cash account (rule 91) or left as owed;
+recurring costs that PROPOSE their entry each period and post only on a tick. The rule is CLAUDE.md §5 rule 96.
+
+**What shipped**
+
+- Four tables (0227): `spending_categories` (the owner's word for a cost, on one expense account; archived, never
+  deleted), `spending_bills` (one row per bill posted here: its entry, supplier, gross, and the entry that paid it),
+  `recurring_costs` (label, amount, tax code, category or account, supplier, pay-from account, every month / quarter /
+  year, `next_on`), `spending_proposals` (one per due day per cost: `waiting`, `posted` or `skipped`). The books'
+  tables: the accountant reads them, staff do not (`not_for_staff`), the app role cannot delete, no customer's data
+  (`unrelated` in the erasure contract, re-made from 0226's definition).
+- One form for a bill: supplier (one of the books' or a new name), what it was, the gross as the bill says it, the tax
+  code, a category or an expense account, and "paid from" — a bank or cash account (only `paymentAccounts`) or "not
+  paid yet". `splitGross` takes the tax off by the code's rate; the entry goes through `draftEntry` + `postEntry` like
+  every other (the net on the expense account, the tax on the code's account, the gross on the account that paid or,
+  with the supplier, on the pack's creditors account). A bill left owed shows under "Not paid yet" until the owner
+  names the account that paid it (`payBill`: a bank-journal entry, the supplier's creditors line cleared).
+- Recurring costs: the schedule on the page (what, how much, every what, next on, paid from); a daily job
+  (`books.spending_proposals`, 05:35 UTC, `spending_due_workspaces(today)`) makes one proposal per cost due by today
+  in the workspace's own day; the page leads with "Waiting for your tick" — Post it (dated its due day, through
+  `recordBill`) or Skip this one; either moves `next_on` on (`nextOn`: month-end clamped). **Nothing posts by itself.**
+- The page's one figure: spent since the first of the month, read from posted entries (`spentBetween`: expense
+  debits less credits), never a kept sum.
+- Proof: `tests/parity/books-spending.test.ts` (the schedule, the split, the page's forms), 
+  `tests/integration/books-spending.test.ts` (a Moroccan workspace: bills paid and owed, a bill paid later, a recurring
+  cost proposed and posted, and the trial balance ties after the month's spending).
+
+**Claude's calls, where the spec was silent**
+
+- A bill carries its own number as printed (`ref`, required): the books post no entry without its document's
+  reference and date (NB008, 0169), and a bill's document is the bill. A recurring cost has no paper, so its entry's
+  reference is the schedule's line for that day ("Rent 2026-12-01"); the payment of an owed bill cites the bill's
+  entry key, dated the day it was paid.
+- A category is a name on ONE expense account, not a tree: the chart already has the structure, and the owner's word
+  is what the form shows. A category whose account is not an expense account is refused.
+- "Paid from" is `paymentAccounts` (rule 91) — the one list of accounts that hold money; a bill with no such account
+  waits as owed, with the supplier, on the pack's creditors account (4411 in the CGNC, 2000 in the plain charts).
+- A proposal is made for a due day once, and stays until decided — so a cost falls due while the owner is away and is
+  still there when they come back, dated its own day. Posting dates the entry on the due day, not today.
+- The job is a sweep over every workspace with an active cost (`spending_due_workspaces`, definer), not one job per
+  workspace: the schedule is read, not queued, so a change on the page needs no requeue.
+- The page's words are English only (`BOOKS_SPENDING_EN`, listed in `docs/NATIVE-REVIEW-UI.md`), by the standing rule
+  for new text in this run.
+
+**Found on the way**
+
+- `tests/parity/audit-closeout.test.ts` reads the asking (`onclick="return confirm(...)"`) only in a form's own markup;
+  a helper that returns the button is not seen. The three archive/skip forms carry it inline.
+
 ## Block 2 PR 2 — invoices that go out (2026-11-06; 0226)
 
 Branch `b2-invoices-out`, built on `ad64c417`; not merged, not deployed. The roadmap's "Invoices that go out" with the

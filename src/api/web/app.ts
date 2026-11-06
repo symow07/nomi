@@ -3609,7 +3609,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const gross = readTypedAmount(str('gross'));
     const date = dayOf(str('date'));
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
-    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
+    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
       taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') }));
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billPosted', { key: out.key })
       : flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });

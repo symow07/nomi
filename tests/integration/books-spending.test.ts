@@ -58,7 +58,7 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
     const { dayKey } = await import('../../src/core/owner/i18n/format.js');
     today = dayKey(new Date(), 'Africa/Casablanca');
     db = createDb(DATABASE_URL!);
-    app = Fastify({ logger: false });
+    app = Fastify({ logger: { level: 'error' } });   // a 500 says why in the run's log
     registerWebApp(app, {
       db, businessId: BIZ, accessCode: `spend-${RUN}`, sessionSecret: SECRET, factsTtlMs: 0,
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled', secureCookie: false, messagingEnabled: false,
@@ -86,7 +86,7 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
     expect(read.statusCode).toBe(200);
     expect(read.body).toContain('Costs that come back');
     expect(read.body).not.toContain('action="/app/books/spending/bills"');
-    const tried = await post('/app/books/spending/bills', { date: today, label: 'Nope', gross: '10', account: expenseId }, staff);
+    const tried = await post('/app/books/spending/bills', { date: today, label: 'Nope', ref: 'X-1', gross: '10', account: expenseId }, staff);
     expect(tried.statusCode).toBe(302);
     expect((await as((q) => q(`select count(*)::int as n from spending_bills`))).rows[0].n).toBe(0);
   });
@@ -99,7 +99,7 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
   });
 
   it('a bill with tax, not yet paid, from a new supplier: the net on the account, the tax on the code\'s, the gross owed to the supplier', async () => {
-    const r = await post('/app/books/spending/bills', { date: today, label: 'Cotton, March', gross: '1200', newSupplier: 'Rif Coton', tax: await idOf('tax_codes', 'TVA20_D'), account: expenseId });
+    const r = await post('/app/books/spending/bills', { date: today, label: 'Cotton, March', ref: 'RC-2026-031', gross: '1200', newSupplier: 'Rif Coton', tax: await idOf('tax_codes', 'TVA20_D'), account: expenseId });
     expect(await notice(r)).toMatch(/Posted as /);
     const lines = (await as((q) => q(`select a.code, l.debit::text as debit, l.credit::text as credit, p.name as party from journal_lines l join accounts a on a.id = l.account_id
       left join parties p on p.id = l.party_id join journal_entries e on e.id = l.entry_id where e.label = 'Cotton, March' order by l.line_no`))).rows;
@@ -110,7 +110,7 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
 
   it('a bill with no tax, paid on the spot from the bank: nothing owed, the bank credited', async () => {
     const category = (await as((q) => q(`select id::text as id from spending_categories where archived_at is null`))).rows[0].id as string;
-    const r = await post('/app/books/spending/bills', { date: today, label: 'Window cleaning', gross: '300', category, payFrom: await idOf('accounts', '5141') });
+    const r = await post('/app/books/spending/bills', { date: today, label: 'Window cleaning', ref: 'T-118', gross: '300', category, payFrom: await idOf('accounts', '5141') });
     expect(await notice(r)).toMatch(/Posted as /);
     const lines = (await as((q) => q(`select a.code, l.debit::text as debit, l.credit::text as credit from journal_lines l join accounts a on a.id = l.account_id
       join journal_entries e on e.id = l.entry_id where e.label = 'Window cleaning' order by l.line_no`))).rows;
@@ -120,9 +120,10 @@ d('0227 · spending: bills, categories, recurring costs; the trial balance ties 
 
   it('a bill refused by the books is refused in words: a fixed asset cannot pay; a bill needs a supplier or a payer', async () => {
     const fixed = (await as((q) => q(`select id::text as id from accounts where code ~ '^2' and kind = 'asset' and is_active limit 1`))).rows[0].id as string;
-    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', gross: '10', account: expenseId, payFrom: fixed }))).toContain('only a bank or cash account can pay');
-    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', gross: '10', account: expenseId }))).toContain('needs a supplier');
-    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', gross: 'ten', account: expenseId }))).toContain('not recorded');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', ref: 'X-1', gross: '10', account: expenseId, payFrom: fixed }))).toContain('only a bank or cash account can pay');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', ref: 'X-1', gross: '10', account: expenseId }))).toContain('needs a supplier');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'Nope', ref: 'X-1', gross: 'ten', account: expenseId }))).toContain('not recorded');
+    expect(await notice(await post('/app/books/spending/bills', { date: today, label: 'No number', gross: '10', account: expenseId, payFrom: await idOf('accounts', '5141') }))).toContain("document's reference and date");
     expect((await as((q) => q(`select count(*)::int as n from journal_entries where label = 'Nope'`))).rows[0].n).toBe(0);
   });
 

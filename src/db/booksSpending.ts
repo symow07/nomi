@@ -3,7 +3,7 @@ import type { Tx } from './client.js';
 import { zoneOf } from './zone.js';
 import { dayKey } from '../core/owner/i18n/format.js';
 import { paymentAccounts } from './bankStatements.js';
-import { draftEntry, postEntry, type DraftLine, type EntryRefusal } from './booksEntries.js';
+import { ENTRY_KEY, draftEntry, postEntry, type DraftLine, type EntryRefusal } from './booksEntries.js';
 import { type Decimal, decimal, signOf, subDecimal } from '../core/types/decimal.js';
 import { nextOn, splitGross, type Every } from '../core/books/spending.js';
 
@@ -86,7 +86,8 @@ export type BillInput = {
   readonly accountId: string | null;
   /** Paid on the spot from this bank or cash account; null: not yet paid, credited to the creditors account. */
   readonly payFromAccountId: string | null;
-  readonly documentRef?: string | null;
+  /** The bill's own number as printed (NB008: a posted entry carries its document's reference and date). */
+  readonly documentRef: string;
 };
 export type BillOutcome = { readonly kind: 'posted'; readonly key: string; readonly entryId: string; readonly billId: string }
   | { readonly kind: 'refused'; readonly reason: 'choices' | 'supplier' | 'pay_account' | 'tax_account'; readonly detail: string | null }
@@ -111,6 +112,7 @@ async function supplierOf(tx: Tx, businessId: string, id: string | null, name: s
 export async function recordBill(tx: Tx, businessId: string, by: string, b: BillInput, c?: SpendingChoices): Promise<BillOutcome> {
   const ch = c ?? await spendingChoices(tx, businessId);
   if (!ch.purchasesJournal || signOf(b.gross) <= 0 || !b.label.trim()) return { kind: 'refused', reason: 'choices', detail: null };
+  if (!b.documentRef.trim()) return { kind: 'refused', reason: 'needs_document', detail: null };
   const category = b.categoryId ? ch.categories.find((x) => x.id === b.categoryId) ?? null : null;
   const accountId = category?.accountId ?? (b.accountId && ch.expenseAccounts.some((a) => a.id === b.accountId) ? b.accountId : null);
   if (!accountId) return { kind: 'refused', reason: 'choices', detail: null };
@@ -131,7 +133,7 @@ export async function recordBill(tx: Tx, businessId: string, by: string, b: Bill
     ...(tax && signOf(taxAmount) > 0 ? [{ accountId: tax.accountId!, partyId: null, taxCodeId: null, currency: cur, debit: taxAmount, credit: null, label: tax.label.slice(0, 200), isFx: false } as DraftLine] : []),
     { accountId: payFrom ?? ch.payableAccount!, partyId: payFrom ? null : party, taxCodeId: null, currency: cur, debit: null, credit: b.gross, label: null, isFx: false },
   ];
-  const made = await draftEntry(tx, businessId, by, { journalId: ch.purchasesJournal, date: b.date, label: b.label.trim().slice(0, 200), documentRef: b.documentRef?.slice(0, 120) ?? null, documentDate: b.date, lines });
+  const made = await draftEntry(tx, businessId, by, { journalId: ch.purchasesJournal, date: b.date, label: b.label.trim().slice(0, 200), documentRef: b.documentRef.trim().slice(0, 120), documentDate: b.date, lines });
   if (made.kind !== 'drafted') return made;
   const posted = await postEntry(tx, businessId, made.id, by);
   if (posted.kind !== 'posted') return posted;
@@ -144,9 +146,10 @@ export async function recordBill(tx: Tx, businessId: string, by: string, b: Bill
 export type UnpaidBill = { readonly id: string; readonly entryId: string; readonly key: string; readonly date: string; readonly label: string; readonly supplier: string | null; readonly gross: Decimal; readonly currency: string };
 export async function unpaidBills(tx: Tx, businessId: string): Promise<UnpaidBill[]> {
   return (await sql<{ id: string; entry_id: string; key: string; date: string; label: string; supplier: string | null; gross: string; currency: string }>`
-    select b.id::text as id, b.entry_id::text as entry_id, coalesce(e.key, '') as key, e.entry_date::text as date, e.label, p.name as supplier, b.gross::text as gross, b.currency
-      from spending_bills b join journal_entries e on e.id = b.entry_id left join parties p on p.id = b.party_id
-     where b.business_id = ${businessId}::uuid and b.paid_entry_id is null and e.state = 'posted' order by e.entry_date, e.key`.execute(tx)).rows
+    select b.id::text as id, b.entry_id::text as entry_id, ${ENTRY_KEY} as key, e.entry_date::text as date, e.label, p.name as supplier, b.gross::text as gross, b.currency
+      from spending_bills b join journal_entries e on e.id = b.entry_id join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
+      left join parties p on p.id = b.party_id
+     where b.business_id = ${businessId}::uuid and b.paid_entry_id is null and e.state = 'posted' order by e.entry_date, e.number`.execute(tx)).rows
     .map((r) => ({ id: r.id, entryId: r.entry_id, key: r.key, date: r.date, label: r.label, supplier: r.supplier, gross: decimal(r.gross), currency: r.currency }));
 }
 
@@ -156,11 +159,12 @@ export async function payBill(tx: Tx, businessId: string, by: string, billId: st
   if (!ch.payAccounts.some((a) => a.id === accountId)) return { kind: 'refused', reason: 'pay_account', detail: null };
   if (!ch.bankJournal || !ch.payableAccount) return { kind: 'refused', reason: 'choices', detail: null };
   const bill = (await sql<{ party_id: string | null; gross: string; label: string; key: string | null }>`
-    select b.party_id::text as party_id, b.gross::text as gross, e.label, e.key from spending_bills b join journal_entries e on e.id = b.entry_id
-     where b.business_id = ${businessId}::uuid and b.id = ${billId}::uuid and b.paid_entry_id is null for update`.execute(tx)).rows[0];
+    select b.party_id::text as party_id, b.gross::text as gross, e.label, ${ENTRY_KEY} as key from spending_bills b join journal_entries e on e.id = b.entry_id
+      join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
+     where b.business_id = ${businessId}::uuid and b.id = ${billId}::uuid and b.paid_entry_id is null for update of b`.execute(tx)).rows[0];
   if (!bill) return { kind: 'refused', reason: 'choices', detail: null };
   const gross = decimal(bill.gross);
-  const made = await draftEntry(tx, businessId, by, { journalId: ch.bankJournal, date, label: `${bill.label} — ${bill.key ?? ''}`.trim().slice(0, 200), documentRef: bill.key, documentDate: null, lines: [
+  const made = await draftEntry(tx, businessId, by, { journalId: ch.bankJournal, date, label: `${bill.label} — ${bill.key ?? ''}`.trim().slice(0, 200), documentRef: bill.key, documentDate: date, lines: [
     { accountId: ch.payableAccount, partyId: bill.party_id, taxCodeId: null, currency: ch.bookCurrency, debit: gross, credit: null, label: null, isFx: false },
     { accountId, partyId: null, taxCodeId: null, currency: ch.bookCurrency, debit: null, credit: gross, label: null, isFx: false },
   ] });
@@ -238,7 +242,9 @@ export async function decideProposal(tx: Tx, businessId: string, by: string, id:
     return { kind: 'skipped' };
   }
   const out = await recordBill(tx, businessId, by, { date: date ?? p.due_on, label: p.label, gross: decimal(p.amount), supplierId: p.party_id, newSupplier: null,
-    taxCodeId: p.tax_code_id, categoryId: p.category_id, accountId: p.account_id, payFromAccountId: p.pay_from });
+    taxCodeId: p.tax_code_id, categoryId: p.category_id, accountId: p.account_id, payFromAccountId: p.pay_from,
+    // No paper stands behind a recurring cost: the document is the schedule's line for that day.
+    documentRef: `${p.label} ${p.due_on}` });
   if (out.kind !== 'posted') return out;
   await sql`update spending_proposals set state = 'posted', entry_id = ${out.entryId}::uuid, decided_at = now(), decided_by = ${by} where id = ${id}::uuid`.execute(tx);
   await advance();

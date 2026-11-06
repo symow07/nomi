@@ -12,6 +12,7 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.bill.title': 'Add a bill',
   'booksSpending.bill.lede': 'One amount, as the bill says it, tax included. The tax is split off by the code you pick; the rest goes to the category\'s account. Posted when you press the button.',
   'booksSpending.bill.gross': 'Amount, tax included ({currency})',
+  'booksSpending.bill.ref': 'Bill or receipt number, as printed',
   'booksSpending.bill.supplier': 'Supplier',
   'booksSpending.bill.supplierNone': '— none, or a new one below —',
   'booksSpending.bill.newSupplier': 'New supplier\'s name',

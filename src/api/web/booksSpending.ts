@@ -28,12 +28,9 @@ export type SpendingBook = {
 
 const money = (locale: Locale, d: Decimal, currency: string): string => { const m = moneyFromRow(d, currency); return esc(m ? show.money(locale, m) : d); };
 const owner = (v: Who): boolean => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
-const hidden = (name: string, value: string) => `<input type="hidden" name="${esc(name)}" value="${esc(value)}" />`;
 const option = (value: string, label: string, selected = false) => `<option value="${esc(value)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
 const select = (name: string, label: string, options: string, extra = '') => `<label class="pq"><span>${esc(label)}</span><select name="${name}"${extra}>${options}</select></label>`;
 const input = (name: string, label: string, type = 'text', extra = '') => `<label class="pq"><span>${esc(label)}</span><input type="${type}" name="${name}"${extra} /></label>`;
-const confirmBtn = (locale: Locale, label: MessageKey, ask: MessageKey, cls = 'btn ghost') =>
-  `<button class="${cls}" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, ask))}">${esc(t(locale, label))}</button>`;
 
 function supplierFields(locale: Locale, c: SpendingChoices): string {
   return select('supplier', t(locale, 'booksSpending.bill.supplier'), option('', t(locale, 'booksSpending.bill.supplierNone')) + c.suppliers.map((s) => option(s.id, `${s.code} · ${s.name}`)).join(''))
@@ -53,12 +50,13 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
   const waiting = d.proposals.length === 0 ? '' : `<section class="block" id="waiting"><h2>${esc(t(locale, 'booksSpending.waiting.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.waiting.lede'))}</p>
     <ul class="rows">${d.proposals.map((p) => `<li class="row"><span><bdi>${esc(p.label)}</bdi> · ${esc(booksDay(locale, p.dueOn))}${p.category ? ` · <bdi>${esc(p.category)}</bdi>` : ''}${p.payFrom ? ` · ${esc(t(locale, 'booksSpending.waiting.payFrom', { account: p.payFrom }))}` : ` · ${esc(t(locale, 'booksSpending.bill.notPaid'))}`}</span><b>${money(locale, p.amount, p.currency)}</b>${may ? `
       <form method="post" action="/app/books/spending/proposals/${esc(p.id)}/post" class="inline"><button class="btn send" type="submit">${esc(t(locale, 'booksSpending.waiting.post'))}</button></form>
-      <form method="post" action="/app/books/spending/proposals/${esc(p.id)}/skip" class="inline">${confirmBtn(locale, 'booksSpending.waiting.skip', 'booksSpending.waiting.skipAsk')}</form>` : ''}</li>`).join('')}</ul></section>`;
+      <form method="post" action="/app/books/spending/proposals/${esc(p.id)}/skip" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'booksSpending.waiting.skipAsk'))}">${esc(t(locale, 'booksSpending.waiting.skip'))}</button></form>` : ''}</li>`).join('')}</ul></section>`;
   const month = `<p class="caption muted">${esc(t(locale, 'booksSpending.month', { amount: show.money(locale, moneyFromRow(d.spentThisMonth, cur)!) , from: booksDay(locale, d.monthFrom) }))}</p>`;
   const bill = !may ? '' : `<section class="block" id="bill"><h2>${esc(t(locale, 'booksSpending.bill.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.bill.lede'))}</p>
     ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">
       ${input('date', t(locale, 'books.entry.date'), 'date', ` value="${esc(d.today)}" required`)}
       ${input('label', t(locale, 'books.entry.label'), 'text', ' maxlength="200" required')}
+      ${input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" required autocomplete="off"')}
       ${input('gross', t(locale, 'booksSpending.bill.gross', { currency: cur }), 'text', ' inputmode="decimal" required')}
       ${supplierFields(locale, c)}${costFields(locale, c)}
       <button class="btn send" type="submit">${esc(t(locale, 'booksSpending.bill.record'))}</button></form>` : `<p>${esc(t(locale, 'booksSpending.bill.noChart'))}</p><p><a class="deeper" href="/app/settings/books/country">${esc(t(locale, 'books.country.nav'))}</a></p>`}</section>`;
@@ -70,7 +68,7 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
   const recurring = `<section class="block" id="recurring"><h2>${esc(t(locale, 'booksSpending.recurring.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.recurring.lede'))}</p>
     ${d.recurring.length === 0 ? `<p class="muted">${esc(t(locale, 'booksSpending.recurring.none'))}</p>` : `<ul class="rows">${d.recurring.map((r) =>
     `<li class="row"><span><bdi>${esc(r.label)}</bdi> · ${esc(t(locale, `booksSpending.every.${r.every}` as MessageKey))} · ${esc(t(locale, 'booksSpending.recurring.next', { date: booksDay(locale, r.nextOn) }))}${r.category ? ` · <bdi>${esc(r.category)}</bdi>` : ''}</span><b>${money(locale, r.amount, r.currency)}</b>${may ? `
-      <form method="post" action="/app/books/spending/recurring/${esc(r.id)}/archive" class="inline">${confirmBtn(locale, 'booksSpending.recurring.stop', 'booksSpending.recurring.stopAsk')}</form>` : ''}</li>`).join('')}</ul>`}
+      <form method="post" action="/app/books/spending/recurring/${esc(r.id)}/archive" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'booksSpending.recurring.stopAsk'))}">${esc(t(locale, 'booksSpending.recurring.stop'))}</button></form>` : ''}</li>`).join('')}</ul>`}
     ${may && c.purchasesJournal ? `<form method="post" action="/app/books/spending/recurring" class="pform"><h3>${esc(t(locale, 'booksSpending.recurring.add'))}</h3>
       ${input('label', t(locale, 'books.entry.label'), 'text', ' maxlength="120" required')}
       ${input('amount', t(locale, 'booksSpending.bill.gross', { currency: cur }), 'text', ' inputmode="decimal" required')}
@@ -80,10 +78,9 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
       <button class="btn" type="submit">${esc(t(locale, 'booksSpending.recurring.save'))}</button></form>` : ''}</section>`;
   const categories = `<section class="block" id="categories"><h2>${esc(t(locale, 'booksSpending.categories.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.categories.lede'))}</p>
     ${c.categories.length === 0 ? '' : `<ul class="rows">${c.categories.map((x: Category) => `<li class="row"><span><bdi>${esc(x.name)}</bdi> · ${esc(x.accountCode)} · <bdi>${esc(x.accountName)}</bdi></span>${may ? `
-      <form method="post" action="/app/books/spending/categories/${esc(x.id)}/archive" class="inline">${confirmBtn(locale, 'booksSpending.categories.remove', 'booksSpending.categories.removeAsk')}</form>` : ''}</li>`).join('')}</ul>`}
+      <form method="post" action="/app/books/spending/categories/${esc(x.id)}/archive" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'booksSpending.categories.removeAsk'))}">${esc(t(locale, 'booksSpending.categories.remove'))}</button></form>` : ''}</li>`).join('')}</ul>`}
     ${may && c.expenseAccounts.length ? `<form method="post" action="/app/books/spending/categories" class="pform">${input('name', t(locale, 'booksSpending.categories.name'), 'text', ' maxlength="60" required')}
       ${select('account', t(locale, 'booksSpending.bill.account'), c.expenseAccounts.map((a) => option(a.id, `${a.code} · ${a.name}`)).join(''), ' required')}
       <button class="btn" type="submit">${esc(t(locale, 'booksSpending.categories.add'))}</button></form>` : ''}</section>`;
   return `<section class="books-spending-book">${month}${waiting}${bill}${unpaid}${recurring}${categories}</section>`;
 }
-export { hidden };
