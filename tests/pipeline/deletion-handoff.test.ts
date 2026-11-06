@@ -371,6 +371,23 @@ describe('2026-11-04 · the analysis reads a request the fixed check does not kn
     }
   });
 
+  // The finishing roadmap, Block 1 #12 (2026-11-06): the analysis's `wants_deletion` ALONE forces the hand-off, whatever
+  // the reply would have said. A reply that never mentions their data cannot be what goes out, because no reply is
+  // written: the writer is never asked. Pinned in both modes, with the writer primed to answer innocently.
+  for (const [mode, grant] of [['auto', 'auto'], ['draft', 'draft']] as const) {
+    it(`${mode}: wants_deletion alone, with a writer that would have said nothing about their data — still nothing goes out`, async () => {
+      const p = ports();
+      p.tenant.grantRows = CAPABILITIES.filter((c) => c !== 'confirm_order').map((capability) => ({ capability, mode: grant, timeWindow: null }));
+      p.analyzer.next = { ...analysis(), wantsDeletion: true };
+      p.replyWriter.replies = ['Sure — which colour did you have in mind?'];
+      const { r, fx } = await run(p, 'Please get rid of what you have on me, and which colours do you do?');
+      expect(p.replyWriter.calls).toBe(0);
+      expect(r.deletionPromiseWithheld).toBeNull();
+      expect(r.deletionAsked).toBe(true);
+      expectSilentHandoff(p, r, fx);
+    });
+  }
+
   for (const [mode, grant] of [['auto', 'auto'], ['draft', 'draft']] as const) {
     it(`${mode}: every layer but the reply missed it, and a reply about removing their data is thrown away`, async () => {
       const p = ports();
