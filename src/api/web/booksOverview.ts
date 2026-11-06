@@ -28,7 +28,7 @@ export function booksDoors(locale:Locale,links:readonly [string,MessageKey][]):s
 export function renderBooksReportsHome(locale:Locale,advanced=false,moroccanBooks=false):string {
  const links:[string,MessageKey][]=advanced
   ? [['/app/books/advanced/entries','books.entries.title'],['/app/books/advanced/trial-balance','books.trial.title']]
-  : [['/app/books/reports/profit','booksArea.profitDetails'],['/app/books/reports/cash','booksArea.cashDetails'],['/app/books/reports/suppliers','booksArea.supplierDetails'],['/app/books/books.csv','booksArea.fullDownload'],['/app/books/workbook.xlsx','booksArea.workbook'],['/app/books/pack.xlsx','booksArea.pack'],['/app/books/advanced','booksArea.advanced']];
+  : [['/app/books/reports/made','ownerReport.made'],['/app/books/reports/money','ownerReport.money'],['/app/books/reports/tax','ownerReport.tax'],['/app/books/reports/customers','ownerReport.customers'],['/app/books/reports/unpaid','ownerReport.unpaid'],['/app/books/reports/profit','booksArea.profitDetails'],['/app/books/reports/cash','booksArea.cashDetails'],['/app/books/reports/suppliers','booksArea.supplierDetails'],['/app/books/books.csv','booksArea.fullDownload'],['/app/books/workbook.xlsx','booksArea.workbook'],['/app/books/pack.xlsx','booksArea.pack'],['/app/books/advanced','booksArea.advanced']];
  if(!advanced&&moroccanBooks)links.push(['/app/books/reports/fec','books.fec.title']);
  return `<h1 class="page">${esc(t(locale,advanced?'booksArea.advanced':'booksArea.reports'))}</h1><p class="lede">${esc(t(locale,advanced?'booksArea.advancedHint':'booksArea.reportsHint'))}</p>`+booksDoors(locale,links);
 }

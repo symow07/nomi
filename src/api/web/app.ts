@@ -10,6 +10,8 @@ import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
 import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOverviewPaper, readOverviewHistoryPapers, readOverviewBankLines, readOverviewCashEntries, readOverviewSuppliers, readOverviewSupplierEntries, readOverviewProfitEntries, type BooksOverviewOptions } from '../../db/booksOverview.js';
 import { renderSpendingBook } from './booksSpending.js';
+import { renderOwnerReport, ownerReportSheet, OWNER_REPORT_KINDS, type OwnerReport, type OwnerReportKind } from './booksOwnerReports.js';
+import { periodFor, isSpan, madeReport, moneyReport, taxReport, customersReport, unpaidReport, type Span } from '../../db/booksOwnerReports.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
@@ -3066,6 +3068,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
     return flashTo(reply, '/app/books/orders', 'books.flash.entryRefused', { why });
   });
+  // Block 2 PR 5 — the five reports in the owner's words (`src/db/booksOwnerReports.ts`), a page and a spreadsheet each.
+  const ownerReportOf=async(tx:Tx,bid:BusinessId,kind:OwnerReportKind,span:Span):Promise<OwnerReport>=>{
+    const today=booksToday();const period=await periodFor(tx,bid,today,span);
+    switch(kind){
+      case 'made':return {kind,data:await madeReport(tx,bid,period)};
+      case 'money':return {kind,data:await moneyReport(tx,bid,period)};
+      case 'tax':return {kind,data:await taxReport(tx,bid,period)};
+      case 'customers':return {kind,data:await customersReport(tx,bid,period)};
+      case 'unpaid':return {kind,data:await unpaidReport(tx,bid,today)};
+    }
+  };
+  for(const kind of OWNER_REPORT_KINDS){
+    app.get('/app/books/reports/'+kind,async(req,reply)=>{
+      const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
+      const q=(req.query as {period?:unknown}).period;const span:Span=isSpan(q)?q:'month';
+      const got=await withTenantTx(deps.db,bid,async(tx)=>({report:await ownerReportOf(tx,bid,kind,span),currency:await bookCurrencyOf(bid)}));
+      return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,`ownerReport.${kind}` as MessageKey),active:'settings',bodyHtml:renderOwnerReport(locale,got.report,span,got.currency)}));
+    });
+    app.get('/app/books/reports/'+kind+'.xlsx',async(req,reply)=>{
+      const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
+      if(!exportThrottle.allow(`export:${s.businessId}`,Date.now()))return flashTo(reply,'/app/books/reports','data.export.flash.tooMany');
+      const q=(req.query as {period?:unknown}).period;const span:Span=isSpan(q)?q:'month';
+      const got=await withTenantTx(deps.db,bid,async(tx)=>({report:await ownerReportOf(tx,bid,kind,span),currency:await bookCurrencyOf(bid)}));
+      const sheet=ownerReportSheet(locale,got.report,got.currency);
+      return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').header('content-disposition',`attachment; filename="${kind}-${span}-${booksToday()}.xlsx"`).header('cache-control','no-store').send(xlsxWrite([sheet]));
+    });
+  }
   for(const kind of ['cash','profit','suppliers','suppliers/entries'] as const)app.get('/app/books/reports/'+kind,async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);const scope=booksScopeOf(req),p={page:overviewPageOf(req)};const query=req.query as Record<string,unknown>;
     const state=['review','external','transfer'].find(v=>v===query['state']) as 'review'|'external'|'transfer'|undefined;

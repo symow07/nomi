@@ -102,6 +102,8 @@ type Scope={state:'available'|'needs_setup'|'unavailable';ids:string[];transfers
 /** Block 2 PR 4 — nothing chosen: the chart's own bank and cash accounts (0225's `holds_money`, or rule 91's words in the
  * name), the receivable account never among them; for suppliers, the pack's creditors account (4411 / 2000). The home
  * then shows its figures without a choice; the chooser still overrides for one view. None in the chart: `needs_setup`. */
+/** The chart's own bank and cash accounts (Block 2 PR 5 reads them too). */
+export const moneyAccountIds=(tx:Tx,businessId:string):Promise<string[]>=>defaultScope(tx,businessId,'cash');
 async function defaultScope(tx:Tx,businessId:string,kind:'cash'|'payable'):Promise<string[]> {
  if(kind==='payable')return (await sql<{id:string}>`select id::text as id from accounts where business_id=${businessId}::uuid and is_active and kind='liability' and code in ('4411','2000') order by case code when '4411' then 0 else 1 end limit 1`.execute(tx)).rows.map(r=>r.id);
  const rows=(await sql<{id:string;code:string;name:string;holds_money:boolean}>`select a.id::text as id,a.code,a.name,a.holds_money from accounts a where a.business_id=${businessId}::uuid and a.is_active and a.kind='asset'

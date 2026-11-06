@@ -24,6 +24,9 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   {method:'GET',url:'/app/books/advanced/trial-balance',action:'see'},
   {method:'GET',url:'/app/books/year-end',action:'see'},
   {method:'GET',url:'/app/books/reports/fec',action:'see'},
+  // Block 2 PR 5 — the reports in the owner's words, and their spreadsheets.
+  {method:'GET',url:'/app/books/reports/:kind',action:'see'},
+  {method:'GET',url:'/app/books/reports/:kind.xlsx',action:'see'},
   {method:'GET',url:'/app/books/spending',action:'see'},
   // 0227 (Block 2 PR 3) — the spending book's writes: the owner's.
   {method:'POST',url:'/app/books/spending/bills',action:'post'},
