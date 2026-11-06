@@ -250,6 +250,7 @@ Recent PRs, newest first:
 | 436 | **Block 1 send path**: the identity path and `wants_deletion` alone pinned; `tools/check-identity.mjs` (3 calls, 3/3 on gpt-6-luna) |
 | 427 | **A payment lands in a bank or cash account the owner names**; no invoice promised — see §5 rule 91 |
 | 426 | **Honest answers in French; a denied name is a denial** |
+| 440 | **The books' country packs: Morocco, the United Kingdom, the United States** (0225) — see §5 rule 94 |
 | 439 | **Block 1's records** (0224): the quote a reply carried ("Told"), a larger-order price taken off, a practice photo or voice note, the Page unsubscribed on closure — see §5 rule 93 |
 | 416 | **The Split Today design, behind `SPLIT_TODAY`** (open, the owner reviews before any merge) — see §5 rule 85 |
 | 418 | **Who needs you** (0223): a wine count, a dot, bold until opened; the page was "Customers" everywhere (reversed by the owner the same day, rule 88); Needs attention under the rows that need you; Recent entries' latest event; names and messages take their own direction — see §5 rule 86 |
