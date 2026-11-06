@@ -51,6 +51,7 @@ export const CATALOGUE: readonly Entry[] = [
   g('B4', 'Replies that failed to reach a customer.'),
   g('B5', 'How many conversations there were in a period.'),
   none('B6', 'Unread messages; what the owner has not read yet.', 'advisor.notStored.unread'),
+  // Block 1 #13 — kept so the model may still name it; a B7 pick is answered as B1, whose sheet carries these rows.
   g('B7', 'Customers who wrote last and have had no answer yet.'),
   { id: 'B8', kind: 'metric', ask: 'How fast the business replies to customers; reply time in a period.' },
   g('B9', 'Customers\' requests to delete their data that wait.'),

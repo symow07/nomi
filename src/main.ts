@@ -11,6 +11,7 @@ import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
 import { anthropicPageTranscriber, anthropicDocumentReader, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
 import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
+import { speaksOpenAi } from './llm/openAiFormat.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
@@ -965,7 +966,9 @@ export async function buildProduction(
       documentReader,
       // EXT — a PDF is offered only where the provider reads documents (Anthropic's does;
       // this installation's custom provider answered one with nothing, 2026-10-01).
-      pdfReadable: llm.name === 'anthropic',
+      // EXT — a PDF is offered only where the provider reads documents: Anthropic's own, and (Block 1 #3, 2026-11-06) the
+      // OpenAI format, where it travels as the chat format's `file` part (`toChatCompletion`). Any other address: refused.
+      pdfReadable: llm.name === 'anthropic' || speaksOpenAi(llm.baseURL),
       catalogExtractor,
       pageFactsReader,
       draftTranslator,

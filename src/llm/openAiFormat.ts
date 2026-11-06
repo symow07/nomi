@@ -8,7 +8,8 @@
  *
  * WHAT IT TRANSLATES. A request: system prompt, text, base64 images, `max_tokens`, `temperature`, a forced JSON schema
  * (`output_config.format`), thinking switched off. An answer: the words, why it stopped, and the tokens. A PDF has no
- * block here and throws: `pdfReadable` never offers one on this provider (src/main.ts).
+ * block here and throws — except a PDF, which is the chat format's `file` part (Block 1 #3, 2026-11-06), so `pdfReadable`
+ * offers one at this address too (src/main.ts).
  *
  * TOKENS. `prompt_tokens` includes what was read from the cache, Anthropic's `input_tokens` does not, so the cached
  * part is moved aside: `usageOf` (src/llm/anthropic.ts) adds it back and prices it apart.
@@ -33,6 +34,11 @@ function partOf(block: unknown): Obj {
   if (b['type'] === 'text') return { type: 'text', text: b['text'] };
   if (b['type'] === 'image' && isObj(b['source'])) {
     return { type: 'image_url', image_url: { url: `data:${String(b['source']['media_type'])};base64,${String(b['source']['data'])}` } };
+  }
+  // Block 1 #3 (2026-11-06) — a PDF is the chat format's `file` part, its bytes as a data address: the same document the
+  // page reader and the papers reader send Anthropic (`pdfReadable` offers one here since this).
+  if (b['type'] === 'document' && isObj(b['source']) && b['source']['media_type'] === 'application/pdf') {
+    return { type: 'file', file: { filename: 'document.pdf', file_data: `data:application/pdf;base64,${String(b['source']['data'])}` } };
   }
   throw new Error(`the OpenAI format has no ${String(b['type'])} block here`);
 }

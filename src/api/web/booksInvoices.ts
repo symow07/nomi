@@ -234,8 +234,11 @@ export function renderBank(locale: Locale, viewer: Who, c: {
   readonly open: readonly import('../../db/bankStatements.js').OpenLine[]; readonly matched: readonly import('../../db/bankStatements.js').MatchedLine[];
 }): string {
   const owner = mayPost(viewer);
-  const choose = `<form method="get" action="/app/books/bank" class="pform bb-account">
-      <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account">${c.accounts.map((a) =>
+  // Block 1 #2 — bank and cash accounts only (`paymentAccounts`), none chosen for her; a chart with none says what to do.
+  const choose = c.accounts.length === 0
+    ? `<p>${esc(t(locale, 'books.invoice.noBank'))}</p><p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.title'))}</a></p>`
+    : `<form method="get" action="/app/books/bank" class="pform bb-account">
+      <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account" required><option value=""${c.accountId ? '' : ' selected'}>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${c.accounts.map((a) =>
         `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select></label>
       <button class="btn" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
   const head=`<section class="books-bank"><h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1><p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>${choose}`;

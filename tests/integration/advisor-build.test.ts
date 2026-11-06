@@ -198,9 +198,18 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     const b1 = (await READS['B1']!(await ctx())).lines;
     expect(b1[0]).toBe('Waiting for you: 1');
     expect(b1.join('\n')).toContain('Amira Haddad — a reply to review');
+    // Block 1 #13 — B1 carries B7's rows after its own: who wrote last with no answer yet, not already named above.
+    expect(b1.join('\n')).toContain('Customers who wrote last and have no answer yet: 1');
+    expect(b1.join('\n')).toContain('Bao Lin');
+    expect(b1.join('\n')).not.toContain('Me testing');
     const b7 = (await READS['B7']!(await ctx())).lines.join('\n');
     expect(b7).toContain('Bao Lin');
     expect(b7).not.toContain('Me testing');
+    // …and a model that picks B7 is answered as B1, recorded as B1: the tie-break of the two overlapping entries.
+    const picked = await ask('who is waiting for my reply?', fakeModel({ 'who is waiting for my reply?': { id: 'B7' } }));
+    expect(picked.kind).toBe('fact');
+    expect(JSON.stringify(picked)).toContain('Waiting for you: 1');      // B1's sheet answered a B7 pick
+    expect(JSON.stringify(picked)).toContain('Bao Lin');
   });
 
   it('B8 · reply times: the median, the replies measured, and — always with them — the messages still unanswered', async () => {

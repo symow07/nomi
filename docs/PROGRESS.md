@@ -19,8 +19,11 @@ One line per merged PR: number, what changed, proof. The plan is `docs/nomi-fini
 the owner's corrections of 2026-11-06 are in the final report. Deploys: every merge to main deploys; `/health` is read
 after each.
 
-- #426 — honest answers to "are you a bot?" in French; a denied name is a denial. Proof: `tests/parity/identity-guard.test.ts` (81). Deploy FAILED: not this PR — production had refused every deploy since the owner set the Stripe and VAPID keys (D18, below); the previous build kept serving, `/health` ok.
-- D18 fix (this PR) — Stripe and the browsers' push services named on the privacy page's business section in five languages; their keys no longer stop the boot. Proof: `tests/parity/data-protection-pages.test.ts` (the D18 block), the next deploy SUCCESS.
+- #426 — honest answers to "are you a bot?" in French; a denied name is a denial. Proof: `tests/parity/identity-guard.test.ts` (81). Deploy FAILED: not this PR — production had refused every deploy since the owner set the Stripe and VAPID keys (D18, #437); the previous build kept serving, `/health` ok.
+- #427 — a payment or refund lands only in a bank or cash account the owner names; "We'll send you the invoice next" gone in six languages. Proof: `books-money-accounts` (18), `books-payment-accounts` (integration). Deploy FAILED (D18, #437); the previous build kept serving.
+- #437 — Stripe and the browsers' push services named on the privacy page's business section in five languages; their keys no longer stop the boot. Proof: `tests/parity/data-protection-pages.test.ts` (the D18 block); the deploy after it is the first to succeed since the keys were set.
+- #436 — Block 1 send path: the identity path and `wants_deletion` alone pinned; `tools/check-identity.mjs` run once on gpt-6-luna, 3/3 (9,090 tokens in, 110 out). Proof: `identity-path` (15), `deletion-handoff` (109).
+- #438 — Block 1's items without a migration: the Bank page's accounts (#2), a PDF on the OpenAI format (#3; `check-ext.mjs` once on gpt-6-luna: the PDF read, 3/3 contained), the English survey, thank-you and greeting signed (#4; strict mode's set deliberately not — CLAUDE.md rule 92), B1 the tie-break for B7 (#13), the example token (#15), the zone backfill tool and the profile flag (#9). Proof: rule 92's tests; `npm run check` green.
 
 ## Approved redesign, Area 8: Public pages (2026-11-06; no migration)
 

@@ -225,7 +225,7 @@ Expected: JSON containing `"mail.send"` in the scopes array. If you get a 403, t
    - Bot username: something like `nomi_alerts_bot` (must end in `bot`)
 4. BotFather replies with your bot token. Save it:
    ```
-   TELEGRAM_BOT_TOKEN = 123456789:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TELEGRAM_BOT_TOKEN = <token>
    ```
 
 5. Create or open your escalation group/channel:

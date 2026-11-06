@@ -4,7 +4,7 @@
  * It is a sentence the buyer reads, sent without anyone pressing send, so it is held exactly as the disclosure is:
  * written here, and sent in a language only once a reader of that language has signed THAT sentence (`SIGNED`, by
  * name and date, in the same commit). Change one letter and the language stops being asked until it is signed again.
- * Nobody has signed one yet: until the owner (English) and native readers (the rest) do, no buyer is asked anything,
+ * English is signed (the owner, 2026-11-06, Block 1 #4); until native readers sign the rest, no buyer is asked in them,
  * whatever the switch says.
  *
  * Asked only where it is free (the owner, 2026-10-21): on a chat channel inside the buyer's own 24 hours — free-form
@@ -27,7 +27,9 @@ const TEXT: Readonly<Record<SurveyLocale, string>> = {
  * The sentences a reader signed, by language: the exact text and who signed it. Written here only in the commit that
  * names the reader; never by an assistant.
  */
-const SIGNED: Readonly<Partial<Record<SurveyLocale, { readonly text: string; readonly by: string }>>> = {};
+const SIGNED: Readonly<Partial<Record<SurveyLocale, { readonly text: string; readonly by: string }>>> = {
+  en: { text: TEXT.en, by: 'symow, the owner, 2026-11-06 — read and signed as the finishing roadmap, Block 1 #4, orders (English only; the other languages wait for their readers)' },
+};
 
 /** Which languages may be asked, and in which words: the signed sentence that is still the one written above. */
 export type SurveySigned = Readonly<Partial<Record<SurveyLocale, string>>>;
@@ -107,7 +109,9 @@ const THANKS: Readonly<Record<SurveyLocale, string>> = {
   es: 'Gracias, eso ayuda a {business}.',
   fr: 'Merci, cela aide {business}.',
 };
-const THANKS_SIGNED: Readonly<Partial<Record<SurveyLocale, { readonly text: string; readonly by: string }>>> = {};
+const THANKS_SIGNED: Readonly<Partial<Record<SurveyLocale, { readonly text: string; readonly by: string }>>> = {
+  en: { text: THANKS.en, by: 'symow, the owner, 2026-11-06 — read and signed as the finishing roadmap, Block 1 #4, orders (English only; the other languages wait for their readers)' },
+};
 export const SURVEY_THANKS_SIGNED: SurveySigned = Object.freeze(Object.fromEntries(
   SURVEY_LOCALES.flatMap((l) => (THANKS_SIGNED[l]?.text === THANKS[l] ? [[l, THANKS[l]]] : []))) as SurveySigned);
 /** The thank-you as written, for its reader (and the tests). */

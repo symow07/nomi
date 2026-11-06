@@ -1,3 +1,4 @@
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -97,6 +98,26 @@ d('BPAY · where a payment lands (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
     expect(await notice(r)).toContain('Choose a bank or cash account.');
     expect(await payments()).toEqual([]);
     expect((await get(`/app/books/invoices/${invoice}`)).body).toContain('id="pay"');
+  });
+
+  it('Block 1 #2 · the Bank page offers the same accounts, opens on none, and reads a statement only against one chosen', async () => {
+    const bank = await get('/app/books/bank');
+    expect(bank.statusCode).toBe(200);
+    const options = [...(/<select name="account" required>(.*?)<\/select>/s.exec(bank.body)?.[1] ?? '').matchAll(/<option value="([^"]*)"([^>]*)>([^<]*)</g)].map((m) => [m[1], m[3]!.split(' ')[0], /selected/.test(m[2]!)]);
+    expect(options[0]).toEqual(['', t('en', 'books.invoice.bankChoose').split(' ')[0], true]);
+    // The same list the invoice form offers (a test above may have added a bank account named as one): every bank and cash
+    // code of the chart, and nothing that is not one.
+    const codes = options.slice(1).map((o) => o[1]);
+    expect(codes).toEqual(expect.arrayContaining(['5141', '5143', '5146', '5148', '51611', '51613', '51614', '5165']));
+    expect(codes.every((c) => /^51[46]/.test(String(c)) || c === '1000')).toBe(true);
+    expect(options.slice(1).some((o) => o[2])).toBe(false);
+    expect(bank.body).not.toContain('id="bank-open"');            // nothing is read until an account is chosen
+    expect(bank.body).not.toContain('2340');                      // never a fixed asset among the choices
+    const chosen = await get(`/app/books/bank?account=${await idOf('accounts', '5141')}`);
+    expect(chosen.statusCode).toBe(200);
+    expect(chosen.body).toContain('id="bank-open"');
+    const fixed = await get(`/app/books/bank?account=${await idOf('accounts', '2340')}`);
+    expect(fixed.statusCode).toBe(404);                           // a fixed asset is not an address here
   });
 
   it('a bank account takes the payment, and the money is on that account', async () => {

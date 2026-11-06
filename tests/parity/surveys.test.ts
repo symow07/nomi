@@ -26,9 +26,10 @@ describe('S6 · only a score is an answer', () => {
 });
 
 describe('S6 · asked only in a signed sentence, only where free', () => {
-  it('NOBODY HAS SIGNED A SENTENCE YET: until a reader does, in this file, no buyer is asked anything', () => {
-    expect(SURVEY_SIGNED).toEqual({});
-    for (const l of SURVEY_LOCALES) expect(surveyFor(l, 'Atlas Bags'), l).toBeNull();
+  it('ENGLISH IS SIGNED (the owner, 2026-11-06, Block 1 #4); in every other language nobody is asked until its reader signs, in this file', () => {
+    expect(SURVEY_SIGNED).toEqual({ en: surveyText('en') });
+    expect(surveyFor('en', 'Atlas Bags')?.text).toBe('Thank you for your order with Atlas Bags. How did we do? Reply with a number from 1 (poor) to 5 (excellent).');
+    for (const l of SURVEY_LOCALES) if (l !== 'en') expect(surveyFor(l, 'Atlas Bags'), l).toBeNull();
   });
   it('a signed sentence is asked in the buyer\'s own language, with the business named; another language is not', () => {
     const signed = { en: surveyText('en'), ar: surveyText('ar') };

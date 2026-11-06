@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderInvoice, type PaymentChoices } from '../../src/api/web/booksInvoices.js';
+import { renderBank, renderInvoice, type PaymentChoices } from '../../src/api/web/booksInvoices.js';
 import { orderConfirmedReply } from '../../src/core/conversation/templates.js';
 import { FIXED_LANGUAGES } from '../../src/core/conversation/gateLanguage.js';
 import { holdsMoney } from '../../src/core/books/moneyAccounts.js';
@@ -51,6 +51,21 @@ describe('the account a payment lands in', () => {
     const html = renderInvoice('en', owner, invoice({ total: '100', credited: '100', paid: '100' }), choices, '2026-11-05');
     expect(html).toContain('/refunds"');
     expect([...accountSelect(html).matchAll(/<option value="([^"]*)"/g)].map((m) => m[1])).toEqual(['', 'a1', 'a2']);
+  });
+
+  it('Block 1 #2 · the Bank page: the same accounts, none opened for her, a choice asked; with none in the chart it says so', () => {
+    const bank = (accounts: PaymentChoices['accounts'], accountId: string | null = null) =>
+      renderBank('en', owner, { accounts, accountId, open: [], matched: [] });
+    const html = bank(choices.accounts);
+    const options = [...html.matchAll(/<option value="([^"]*)"( selected)?>/g)];
+    expect(options.map((m) => m[1])).toEqual(['', 'a1', 'a2']);
+    expect(options[0]![2]).toBe(' selected');
+    expect(html).not.toContain('id="bank-open"');
+    expect(bank(choices.accounts, 'a1')).toContain('id="bank-open"');
+    const none = bank([]);
+    expect(none).toContain('no bank or cash account');
+    expect(none).toContain('href="/app/books#workbook"');
+    expect(none).not.toContain('name="account"');
   });
 
   it('with no bank or cash account in the chart, it says so and draws no form', () => {

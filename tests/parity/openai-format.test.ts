@@ -67,7 +67,17 @@ describe('the request', () => {
     expect((asked['messages'] as { content: unknown }[])[1]?.content).toEqual([
       { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } }, { type: 'text', text: 'What is this?' },
     ]);
-    expect(() => toChatCompletion({ ...base, messages: [{ role: 'user', content: [{ type: 'document', source: {} }] }] })).toThrow(/document/);
+    expect(() => toChatCompletion({ ...base, messages: [{ role: 'user', content: [{ type: 'tool_result', content: 'x' }] }] })).toThrow(/tool_result/);
+  });
+
+  it('Block 1 #3 · a PDF travels as the chat format\'s file part, its bytes as a data address; any other document is refused', () => {
+    const asked = toChatCompletion({ ...base, messages: [{ role: 'user', content: [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0x' } }, { type: 'text', text: 'Transcribe every page.' },
+    ] }] });
+    expect((asked['messages'] as { content: unknown }[])[1]?.content).toEqual([
+      { type: 'file', file: { filename: 'document.pdf', file_data: 'data:application/pdf;base64,JVBERi0x' } }, { type: 'text', text: 'Transcribe every page.' },
+    ]);
+    expect(() => toChatCompletion({ ...base, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'text/plain', data: 'aGk=' } }] }] })).toThrow(/document/);
   });
 });
 
