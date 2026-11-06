@@ -104,7 +104,7 @@ d('BPAY · where a payment lands (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
     const bank = await get('/app/books/bank');
     expect(bank.statusCode).toBe(200);
     const options = [...(/<select name="account" required>(.*?)<\/select>/s.exec(bank.body)?.[1] ?? '').matchAll(/<option value="([^"]*)"([^>]*)>([^<]*)</g)].map((m) => [m[1], m[3]!.split(' ')[0], /selected/.test(m[2]!)]);
-    expect(options[0]).toEqual(['', t('en', 'books.invoice.bankChoose'), true]);
+    expect(options[0]).toEqual(['', t('en', 'books.invoice.bankChoose').split(' ')[0], true]);
     expect(options.slice(1).map((o) => o[1])).toEqual(['5141', '5143', '5146', '5148', '51611', '51613', '51614', '5165']);
     expect(options.slice(1).some((o) => o[2])).toBe(false);
     expect(bank.body).not.toContain('id="bank-open"');            // nothing is read until an account is chosen
