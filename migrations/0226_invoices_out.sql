@@ -173,6 +173,8 @@ language sql immutable set search_path = public as $$
     ('messages', 'erase', null, null, null, null),
     ('message_fragments', 'erase', null, null, null, null),
     ('turns', 'erase', null, null, null, null),
+    -- 0224 — a practice photo or voice note hangs off its practice conversation: goes with it.
+    ('practice_media', 'erase', null, null, null, null),
     ('drafts', 'erase', null, null, null, null),
     ('conversation_state', 'erase', null, null, null, null),
     ('conversation_signals', 'erase', null, null, null, null),
@@ -382,6 +384,8 @@ language sql immutable set search_path = public as $$
     ('deletion_asks', 'conversation_id', 'conversations', 'id'),
     ('deliveries', 'conversation_id', 'conversations', 'id'),
     ('drafts', 'conversation_id', 'conversations', 'id'),
+    -- 0224 — a practice photo or voice note hangs off its practice conversation.
+    ('practice_media', 'conversation_id', 'conversations', 'id'),
     ('escalation_events', 'conversation_id', 'conversations', 'id'),
     ('handoffs', 'conversation_id', 'conversations', 'id'),
     ('message_fragments', 'conversation_id', 'conversations', 'id'),
@@ -409,6 +413,10 @@ language sql immutable set search_path = public as $$
     ('orders', 'quote_id', 'quotes', 'id'),
     ('quote_proofs', 'quote_id', 'quotes', 'id'),
     ('turns', 'quote_id', 'quotes', 'id'),
+    -- 0224 — the quote a reply carried, on the draft, the outbound row and the sent message.
+    ('drafts', 'quote_id', 'quotes', 'id'),
+    ('messages', 'quote_id', 'quotes', 'id'),
+    ('outbound_messages', 'quote_id', 'quotes', 'id'),
     ('outbound_transitions', 'outbound_id', 'outbound_messages', 'id'),
     ('promised_dates', 'outbound_id', 'outbound_messages', 'id'),
     ('sequence_sends', 'outbound_id', 'outbound_messages', 'id'),
