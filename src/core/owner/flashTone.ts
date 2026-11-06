@@ -30,6 +30,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
   // 0212 — a stale grant not yet given back, and one that ended the live connection with it: the owner has to act or wait
   'books.flash.staleNotYet', 'books.flash.staleEndedConnectAgain',
+  // 0226 — an invoice that did not go, and a switch only the owner may touch.
+  'invoice.flash.ownerOnly', 'invoice.flash.window', 'invoice.flash.not_found', 'invoice.flash.not_issued', 'invoice.flash.no_conversation',
+  'invoice.flash.no_address', 'invoice.flash.no_proforma', 'invoice.flash.no_channel', 'invoice.flash.off',
   // 0215 — TikTok's connect refusals
   'connect.tiktok.flash.scopes_missing', 'connect.tiktok.flash.account_taken', 'connect.tiktok.flash.unavailable', 'connect.tiktok.flash.not_configured',
   // HS — saved with no line ticked: nothing was written.
@@ -156,6 +159,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.entryPosted', 'books.flash.entryDiscarded', 'books.flash.entryReversed', 'books.flash.orderDrafted', 'books.flash.accountsSaved',
   'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded', 'books.flash.creditDrafted', 'books.flash.draftSaved', 'books.flash.columnsSaved', 'books.flash.creditIssued', 'books.flash.creditDiscarded', 'books.flash.refundRecorded', 'books.flash.chartApplied', 'books.flash.paperKept', 'books.flash.paperRead', 'books.flash.paperDrafted', 'books.flash.locked', 'books.flash.reopened', 'books.flash.yearOpened', 'books.flash.yearClosed', 'books.flash.journalAdded',
   'settings.flash.identifiersSaved',
+  // 0226 — an invoice on its way, and the switch saved either way.
+  'invoice.flash.switchedOn', 'invoice.flash.switchedOff', 'invoice.flash.sentPdf', 'invoice.flash.sentLink',
   'books.flash.booksStarted',
   'books.flash.fecFilenameSaved',
   'books.flash.workbookReadHistory',

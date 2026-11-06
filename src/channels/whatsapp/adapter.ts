@@ -30,5 +30,7 @@ export function whatsappAdapter(cfg: {
     // M26 — the simulator is built on this factory, so implementing it here is
     // what lets the media path be driven end to end in tests without a provider.
     sendMedia: (to, media) => client.sendImage(to, media.url, media.caption),
+    // 0226 — an invoice as a PDF, by the address Nomi serves it at.
+    sendDocument: (to, doc) => client.sendDocument(to, doc.url, doc.filename, doc.caption),
   };
 }

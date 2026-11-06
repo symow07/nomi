@@ -128,6 +128,8 @@ export const PRACTICE_SKIP = [
   'tax_codes', 'parties', 'custom_field_defs', 'books_exports', 'documents', 'document_blobs', 'connector_records', 'books_connections', 'tax_start_dates',
   'invoice_counters', 'invoices', 'invoice_lines', 'invoice_payments', 'statement_imports', 'statement_lines', 'statement_matches',
   'credit_note_counters', 'credit_notes', 'credit_note_lines', 'period_locks', 'document_readings',
+  // 0226 — an invoice's public link, each send and each reminder: the workspace's record, never copied into Practice.
+  'invoice_links', 'invoice_sends', 'invoice_reminders',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

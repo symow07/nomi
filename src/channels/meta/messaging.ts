@@ -1,4 +1,4 @@
-import type { SendResult, OutboundMedia } from '../contract.js';
+import type { SendResult, OutboundDocument, OutboundMedia } from '../contract.js';
 import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
 import type { ChannelEvent, InboundMessageEvent } from '../whatsapp/parse.js';
 
@@ -338,6 +338,18 @@ export function metaImageSender(cfg: MetaSendConfig) {
   return async (to: string, media: OutboundMedia): Promise<SendResult> => media.caption.trim()
     ? { ok: false, retryable: false, error: 'meta takes no caption on a picture' }
     : post(to, { attachment: { type: 'image', payload: { url: media.url, is_reusable: false } } });
+}
+
+/**
+ * 0226 — a file (an invoice as a PDF), as a `file` attachment Meta fetches from the address given (one Nomi serves).
+ * Like a picture: no caption travels with it, so words beside it are REFUSED rather than dropped. Messenger only —
+ * Instagram's messaging carries no files, and its adapter does not offer this.
+ */
+export function metaFileSender(cfg: MetaSendConfig) {
+  const post = metaPoster(cfg);
+  return async (to: string, doc: OutboundDocument): Promise<SendResult> => doc.caption.trim()
+    ? { ok: false, retryable: false, error: 'meta takes no caption on a file' }
+    : post(to, { attachment: { type: 'file', payload: { url: doc.url, is_reusable: false } } });
 }
 
 function metaPoster(cfg: MetaSendConfig) {

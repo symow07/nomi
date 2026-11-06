@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import type { ChannelAdapter, OutboundMedia, SendResult } from '../contract.js';
+import type { ChannelAdapter, OutboundDocument, OutboundMedia, SendResult } from '../contract.js';
 import { acceptedWithoutId, thrownSend } from '../sendFailure.js';
 import type { ChannelEvent } from '../whatsapp/parse.js';
 
@@ -92,7 +92,7 @@ export function telegramAdapter(cfg: {
     const r = await fetch(url, init);
     return { ok: r.ok, status: r.status, json: () => r.json() };
   });
-  const call = async (method: 'sendMessage' | 'sendPhoto', body: Record<string, unknown>, to: string): Promise<SendResult> => {
+  const call = async (method: 'sendMessage' | 'sendPhoto' | 'sendDocument', body: Record<string, unknown>, to: string): Promise<SendResult> => {
     let r: Awaited<ReturnType<TelegramFetch>>;
     try {
       // B9 — bounded like every other channel's send: a hung call held the conversation's send for good.
@@ -122,6 +122,8 @@ export function telegramAdapter(cfg: {
       return call('sendMessage', { chat_id: to, text: body }, to);
     },
     sendMedia: async (to, media: OutboundMedia) => call('sendPhoto', { chat_id: to, photo: media.url, ...(media.caption ? { caption: media.caption.slice(0, 1024) } : {}) }, to),
+    // 0226 — an invoice as a PDF: Telegram fetches the address and names the file after its last path segment.
+    sendDocument: async (to, doc: OutboundDocument) => call('sendDocument', { chat_id: to, document: doc.url, ...(doc.caption ? { caption: doc.caption.slice(0, 1024) } : {}) }, to),
   };
 }
 

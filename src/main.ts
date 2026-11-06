@@ -14,7 +14,13 @@ import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor 
 import { speaksOpenAi } from './llm/openAiFormat.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
-import { businessesReadingInbox } from './db/mailAccounts.js';
+import { businessesReadingInbox, liveMailAccount } from './db/mailAccounts.js';
+import { invoiceLinkToken, resolveInvoiceLink } from './db/invoiceLinks.js';
+import { invoicePdfViewOf } from './db/invoiceSending.js';
+import { invoicePdf, invoicePdfFilename } from './core/books/invoicePdf.js';
+import { remindDueInvoices } from './outbound/invoiceReminders.js';
+import { zoneOf } from './db/zone.js';
+import { dayKey } from './core/owner/i18n/format.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { euUkSignupOpenFrom } from './core/legal/transfer.js';
@@ -91,7 +97,7 @@ import { alarmReasons, backupFailureAlerts, mailboxAlerts } from './pipeline/ala
 import type { JobWithMetadata } from 'pg-boss';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
-import type { ChannelAdapter } from './channels/contract.js';
+import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
 import type { PgBoss } from 'pg-boss';
@@ -1155,7 +1161,7 @@ export async function buildProduction(
   type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null; approved?: boolean;
     /** 0224 — the quote whose figure a turn's reply carries, if any (set with `reply`). */
     quoteId?: string | null };
-  type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor; mediaOrigin?: string | null };
+  type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor; mediaOrigin?: string | null; documentBytes?: (url: string) => Promise<MailAttachment | null> };
   /**
    * P3 — PRACTICE'S SENDS (docs/PRACTICE.md). A practice copy's replies go
    * through this worker and its send gate like anyone's — Stop, the window,
@@ -1564,8 +1570,37 @@ export async function buildProduction(
       mailHeaders: mailHeadersFor(businessId),
       // F1 — a picture is sent only from Nomi's own public address.
       mediaOrigin: cfg.PUBLIC_BASE_URL ?? null,
+      // 0226 — a document to an e-mail address is attached: its bytes rendered here from the invoice the address names,
+      // inside the send's own call, through the same resolver the public page uses (an expired link attaches nothing).
+      documentBytes: async (url) => {
+        const token = invoiceLinkToken(url);
+        const found = token ? await resolveInvoiceLink(db, token) : null;
+        const bid = found ? parseBusinessId(found.businessId) : null;
+        if (!found || !bid?.ok) return null;
+        const view = await withTenantTx(db, bid.value, async (tx) => invoicePdfViewOf(tx, bid.value, found.invoiceId, dayKey(new Date(), await zoneOf(tx, bid.value))));
+        const bytes = view ? invoicePdf(view) : null;
+        return view && bytes ? { filename: invoicePdfFilename(view.key), contentType: 'application/pdf', bytes } : null;
+      },
     };
   }));
+
+  /**
+   * 0226 — INVOICE REMINDERS, every hour: an invoice that went from Nomi and is still open three or ten days later is
+   * reminded on its channel, once each — sent alone where the sweep may (English, the window open, a mailbox to send
+   * from), else drafted for the owner with the reason on the card (outbound/invoiceReminders.ts). Registered beside the
+   * outbound worker it feeds, for the same reason the follow-ups are.
+   */
+  await boss.schedule(QUEUES.invoiceReminders, '20 * * * *', {});
+  await boss.work(QUEUES.invoiceReminders, async () => {
+    const r = await remindDueInvoices({
+      db, now: () => new Date(),
+      kickDrive: async (businessId, conversationId) => { await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId }); },
+      // A mail can leave where the installation has SMTP (or a test's transport), else only from a connected mailbox.
+      mailboxConnected: async (tx, businessId) => Boolean(overrides?.mailTransport) || smtpConfig !== null || (await liveMailAccount(tx, businessId)) !== null,
+      notifyDraft: async (businessId, conversationId) => { await sendAlert(boss, { businessId, kind: 'draft_waiting', conversationId }); },
+    });
+    if (r.sent + r.drafted > 0) console.log(`[invoices] reminders: ${r.sent} sent, ${r.drafted} drafted for the owner`);
+  });
 
   /**
    * C4.b — follow-ups. Once a minute, whatever is due for this installation's

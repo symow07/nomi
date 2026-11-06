@@ -7,6 +7,7 @@ import { orderConfirmedReply } from '../core/conversation/templates.js';
 import { fixedLanguage } from '../core/conversation/gateLanguage.js';
 import { lockProposal, decideProposal } from '../db/orderProposals.js';
 import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
+import { invoiceSendingOn } from '../db/invoiceSending.js';
 import { takeOver } from '../conversations/takeover.js';
 import { noteSurveyDue } from '../db/surveys.js';
 
@@ -94,6 +95,8 @@ export async function confirmOrderProposal(
       unit: p.unit,
       // LG — in the customer's language where it is one of the three.
       language: fixedLanguage(p.customerLanguage),
+      // 0226 — "the invoice next" only where this workspace sends invoices from Nomi.
+      invoiceNext: await invoiceSendingOn(tx, input.businessId),
     });
     // B7 — queued in this transaction: the order and the message that tells the customer commit together.
     if (sendText) await deps.kickOutbound(input.businessId, input.conversationId, sendText, null, null, tx);

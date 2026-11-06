@@ -78,3 +78,10 @@ Phase 2c. Whoever aligns them changes one rule in one place and updates this sec
 How the link reaches the customer beyond the owner copying it: a "send it in the chat" button (the owner's own
 message), or the assistant's order-confirmed reply carrying the link (a send-path change). Decide later. The reply promises no
 invoice since 2026-11-05: nothing in the product could send one (the Books audit).
+
+**Since 0226 (2026-11-06), one of those is built, for the INVOICE:** where a workspace has invoice sending on, the owner
+sends an issued invoice from the conversation or the invoice's page, and on a channel that carries no files (Instagram,
+the web chat) — or where the PDF cannot be drawn — it is THIS link that goes, made by `makeProformaLink` and sent in one
+fixed English sentence with the invoice's number and amount (`src/outbound/invoiceSend.ts`). The page itself is
+unchanged: a proforma stays a proforma until paid, and its rules above (no bank details, never indexed) are the PDF's
+rules too (`src/core/books/invoicePdf.ts`).

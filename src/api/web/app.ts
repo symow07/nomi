@@ -59,6 +59,11 @@ import { face } from './faces.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { loadProformaPage, renderProformaPage } from './proforma.js';
 import { makeProformaLink, stopProformaLink, proformaUrl } from '../../db/proformaLinks.js';
+import { resolveInvoiceLink } from '../../db/invoiceLinks.js';
+import { zoneOf } from '../../db/zone.js';
+import { invoicePdfViewOf, invoiceSendHistory, invoiceSendingOn, sendableInvoice, setInvoiceSending } from '../../db/invoiceSending.js';
+import { invoicePdf, invoicePdfFilename } from '../../core/books/invoicePdf.js';
+import { invoiceConversation, sendInvoice } from '../../outbound/invoiceSend.js';
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
@@ -281,7 +286,7 @@ import { readBooks, readInBooks, rememberWritten, type BeforeBooks } from '../..
 import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, draftEntryForm, entryChoices, listEntries, loadEntry, postEntry, redraftEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
-import { ENTRY_CUSTOM, ENTRY_FORM_LINES, formLines, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { ENTRY_CUSTOM, ENTRY_FORM_LINES, formLines, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderInvoicesOut, renderNewEntry } from './booksEntries.js';
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
@@ -651,6 +656,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
+  { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
   { method: 'POST', url: '/chat/:key', why: 'S7 — a message to that page, stored once and queued like a webhook\'s; throttled per caller; refused while the page is off or the workspace frozen' },
@@ -1548,6 +1554,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('referrer-policy', 'no-referrer')
       .header('x-robots-tag', 'noindex, nofollow')
       .send(renderProformaPage(view));
+  });
+
+  /**
+   * 0226 — the invoice's PDF, for the channel that fetches it (and for the customer who kept the address, two weeks).
+   * Rendered from the invoice's rows each time; nothing is stored. Unknown, expired or erased: 404, plain, no page.
+   */
+  app.get('/inv/:token/:name', async (req, reply) => {
+    const { token, name } = req.params as { token: string; name: string };
+    const found = await resolveInvoiceLink(deps.db, token);
+    const bid = found ? parseBusinessId(found.businessId) : null;
+    if (!found || !bid?.ok) return reply.code(404).type('text/plain; charset=utf-8').header('cache-control', 'no-store').send('Not found');
+    const view = await withTenantTx(deps.db, bid.value, async (tx) => invoicePdfViewOf(tx, bid.value, found.invoiceId, dayKey(new Date(), await zoneOf(tx, bid.value))));
+    const bytes = view ? invoicePdf(view) : null;
+    if (!view || !bytes || decodeURIComponent(name) !== invoicePdfFilename(view.key)) {
+      return reply.code(404).type('text/plain; charset=utf-8').header('cache-control', 'no-store').send('Not found');
+    }
+    return reply.type('application/pdf')
+      .header('content-disposition', `inline; filename="${invoicePdfFilename(view.key)}"`)
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .send(Buffer.from(bytes));
   });
 
   // The legal pages. Public and indexable — Meta fetches them before the app
@@ -3052,7 +3080,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3079,6 +3107,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       salesJournalId: one('salesJournal', c.journals), receivableAccountId: one('receivable', c.accounts), salesAccountId: one('sales', c.accounts),
       fxLossAccountId: one('fxLoss', c.accounts), fxGainAccountId: one('fxGain', c.accounts) }));
     return flashTo(reply, '/app/settings/books/accounts', 'books.flash.accountsSaved');
+  });
+  /**
+   * 0226 — INVOICES TO CUSTOMERS: the workspace's one switch (`books_settings.invoice_sending`). The owner's alone
+   * (`booksMay 'post'`): sending a document to a customer is going live with it, so staff and the accountant read the
+   * page and change nothing.
+   */
+  app.get('/app/settings/books/invoices-out', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const on = await withTenantTx(deps.db, bid, (tx) => invoiceSendingOn(tx, bid));
+    const owner = booksMay(personOf(s), 'post');
+    const body = `<h1 class="page">${esc(t(locale, 'invoice.settings.title'))}</h1>`
+      + (owner ? renderInvoicesOut(locale, on)
+        : `<p>${esc(t(locale, on ? 'invoice.settings.stateOn' : 'invoice.settings.stateOff'))}</p><p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`)
+      + booksDoors(locale, [['/app/settings/books', 'booksArea.settings']]);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'invoice.settings.title'), active: 'settings', bodyHtml: flashBanner(takeFlash(req, reply)) + body }));
+  });
+  app.post('/app/settings/books/invoices-out', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    if (!booksMay(personOf(s), 'post')) return flashTo(reply, '/app/settings/books/invoices-out', 'invoice.flash.ownerOnly');
+    const on = ((req.body ?? {}) as Record<string, unknown>)['on'] === '1';
+    await withTenantTx(deps.db, bid, (tx) => setInvoiceSending(tx, bid, on));
+    return flashTo(reply, '/app/settings/books/invoices-out', on ? 'invoice.flash.switchedOn' : 'invoice.flash.switchedOff');
   });
   /**
    * C2 (item 5) — INVOICES AND PAYMENTS. The list and each invoice are the books' to see; drafting, issuing,
@@ -3191,11 +3244,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const v = await loadInvoice(tx, bid, id, booksToday());
       const journals = (await sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from journals
         where business_id = ${bid}::uuid and kind in ('bank', 'cash') order by code`.execute(tx)).rows;
-      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) } };
+      // 0226 — sending it: the switch, the conversation its order names, and what went before.
+      const sendable = v ? await sendableInvoice(tx, bid, id) : null;
+      const sending = v ? { on: await invoiceSendingOn(tx, bid), conversationId: sendable?.conversationId ?? null, channel: sendable?.channel ?? null,
+        history: await invoiceSendHistory(tx, bid, id) } : null;
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId)})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}` }));
+  });
+  /**
+   * 0226 — SEND THE INVOICE from its page (the owner's alone): the same one path as from the conversation
+   * (`sendInvoiceFrom`, below), the owner told the outcome on the invoice's page.
+   */
+  app.post('/app/books/invoices/:id/send', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const to = invoiceDestination(req, `/app/books/invoices/${encodeURIComponent(id)}#send`);
+    if (!booksMay(personOf(s), 'post')) return flashTo(reply, to, 'invoice.flash.ownerOnly');
+    const key = await sendInvoiceFrom(bid, id, personOf(s).id);
+    return flashTo(reply, to, key);
   });
   app.post('/app/books/invoices/:id/issue', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -5060,6 +5130,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, `/app/replies/${id}`, done ? (archived ? 'savedReplies.flash.archived' : 'savedReplies.flash.restored') : 'savedReplies.flash.notRestored');
     });
   }
+
+  /**
+   * 0226 — the invoice, sent from wherever the owner pressed: the window is asked first (`ownerSendWindow`, as for a
+   * photo: a closed window is a refusal the owner reads at once, and the reopening template carries no document), then
+   * the one path (outbound/invoiceSend.ts). The flash key for what happened.
+   */
+  const sendInvoiceFrom = async (bid: BusinessId, invoiceId: string, actor: string): Promise<MessageKey> => {
+    const cid = await invoiceConversation(deps.db, bid, invoiceId);
+    if (cid) {
+      const { verdict, reopening } = await ownerSendWindow(bid, cid);
+      if (verdict !== 'ok') return `inbox.blocked.${verdict}` as MessageKey;
+      if (reopening) return 'invoice.flash.window';
+    }
+    const r = await sendInvoice(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}), publicBaseUrl: deps.publicBaseUrl },
+      { businessId: bid, invoiceId, actor },
+    );
+    if (r.outcome === 'queued') return messagingEnabled ? (r.carried === 'pdf' ? 'invoice.flash.sentPdf' : 'invoice.flash.sentLink') : 'inbox.flash.sentNotLive';
+    return `invoice.flash.${r.outcome}` as MessageKey;
+  };
+  app.post('/app/inbox/:conversationId/invoice/send', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    if (!booksMay(personOf(s), 'post')) return flashTo(reply, conversationUrl(cid), 'invoice.flash.ownerOnly');
+    const invoiceId = String((req.body as { invoice?: string } | undefined)?.invoice ?? '');
+    // Only an invoice whose order is THIS conversation's goes from this page.
+    if (!UUID.test(invoiceId) || (await invoiceConversation(deps.db, bid.value, invoiceId)) !== cid) return flashTo(reply, conversationUrl(cid), 'invoice.flash.not_found');
+    return flashTo(reply, conversationUrl(cid), await sendInvoiceFrom(bid.value, invoiceId, personOf(s).id));
+  });
 
   /**
    * Phase 2d (0152) — the owner sends a product's photo in the conversation they hold: the same checks as their

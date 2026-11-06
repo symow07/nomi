@@ -9,7 +9,7 @@ import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../core/owner/i18n/messages.js';
-import type { ChannelAdapter, SendResult } from '../channels/contract.js';
+import type { MailAttachment, ChannelAdapter, SendResult } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { carriesOurJson } from '../core/safety/rawOutput.js';
@@ -49,7 +49,7 @@ export type OutboundWorkRow = OutboundRow & {
   /** C4.b — a schedule released this row, not a person (see `GateInput.automated`). */
   readonly automated?: boolean;
   readonly sendingSince: Date | null;
-  /** M26 — 'text' (default), 'quote_card', or 'image'. */
+  /** M26 — 'text' (default), 'quote_card', or 'image'; 0226 — 'document' (a file Nomi serves, `mediaUrl` where). */
   readonly kind?: string;
   /** M26 — where the picture is, for kind='image'. One of the owner's own
    *  product_images.url rows. Null for every text row. */
@@ -311,6 +311,16 @@ const adapterFor = (deps: { adapter?: ChannelAdapter; adapters?: AdapterFor }, c
   return deps.adapter?.kind === wanted ? deps.adapter : undefined;
 };
 
+/** 0226 — what a document is called: the last segment of its address (`/inv/<token>/F-2026-0001.pdf`). */
+export function documentFilename(url: string): string {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).at(-1) ?? '');
+    return /^[A-Za-z0-9._-]{1,120}$/.test(last) ? last : 'document.pdf';
+  } catch {
+    return 'document.pdf';
+  }
+}
+
 /** F1 — an address on Nomi's own public origin, over https: the only kind of picture that may be sent. */
 export function servedByNomi(url: string, origin: string | null): boolean {
   if (!origin) return false;
@@ -344,6 +354,11 @@ export async function prepareConversationOutbound(
      * (PUBLIC_BASE_URL). Absent, no picture is sent.
      */
     mediaOrigin?: string | null;
+    /**
+     * 0226 — the bytes of a document row for a channel that attaches rather than fetches (e-mail): rendered on demand
+     * from the address the row carries, inside the send's own call. Absent, a document to an e-mail address is refused.
+     */
+    documentBytes?: (url: string) => Promise<MailAttachment | null>;
   },
   conversationId: string,
 ): Promise<Prepared> {
@@ -487,7 +502,7 @@ export async function prepareConversationOutbound(
     // its origin suggests: an automatic reply that waited past the 24 hours
     // went as the template too, and nobody had approved it.
     if (ctx.reopen && tAdapter?.sendTemplate && candidate.automated !== true
-        && candidate.origin !== 'outreach' && candidate.kind !== 'image'
+        && candidate.origin !== 'outreach' && candidate.kind !== 'image' && candidate.kind !== 'document'
         && (candidate.origin === 'owner' || candidate.approved === true)) {
       await deps.store.transition(candidate.id, 'sending', null);
       const reopen = ctx.reopen;
@@ -521,6 +536,16 @@ export async function prepareConversationOutbound(
   // something does. Refused like a picture that cannot be carried, never sent as its caption.
   if (candidate.kind === 'image') {
     if (!candidate.mediaUrl || !servedByNomi(candidate.mediaUrl, deps.mediaOrigin ?? null) || !adapterFor(deps, candidate.channel)?.sendMedia) {
+      await refuse(deps, candidate, 'media_unsupported');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
+    }
+  }
+  // 0226 — a DOCUMENT (an invoice as a PDF) the same way: only from Nomi's own address, and only through an adapter
+  // that carries files — or a mail, which attaches the bytes rendered from that address. Never sent as its caption.
+  if (candidate.kind === 'document') {
+    const a = adapterFor(deps, candidate.channel);
+    const carried = a?.sendDocument !== undefined || (a?.sendMail !== undefined && deps.documentBytes !== undefined);
+    if (!candidate.mediaUrl || !servedByNomi(candidate.mediaUrl, deps.mediaOrigin ?? null) || !carried) {
       await refuse(deps, candidate, 'media_unsupported');
       return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
     }
@@ -587,11 +612,21 @@ export async function prepareConversationOutbound(
   // rolling it back to 'queued', which sent it again.
   await deps.store.transition(candidate.id, 'sending', null);
   const mediaUrl = candidate.kind === 'image' ? candidate.mediaUrl ?? null : null;
-  const call = (): Promise<SendResult> => (asMail && adapter.sendMail
-    ? adapter.sendMail({ to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag })
-    : mediaUrl && adapter.sendMedia
-      ? adapter.sendMedia(candidate.to, { url: mediaUrl, caption: candidate.body })
-      : adapter.sendText(candidate.to, candidate.body));
+  const documentUrl = candidate.kind === 'document' ? candidate.mediaUrl ?? null : null;
+  const sendMail = adapter.sendMail?.bind(adapter);
+  const mail = (attachments: readonly MailAttachment[] | undefined): Promise<SendResult> =>
+    sendMail!({ to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag, ...(attachments ? { attachments } : {}) });
+  const call = async (): Promise<SendResult> => {
+    if (asMail && sendMail) {
+      if (!documentUrl) return mail(undefined);
+      // The bytes are made here, in the call itself, so no provider is contacted while they are missing.
+      const attachment = deps.documentBytes ? await deps.documentBytes(documentUrl) : null;
+      return attachment ? mail([attachment]) : { ok: false, retryable: false, error: 'document unavailable' };
+    }
+    if (documentUrl && adapter.sendDocument) return adapter.sendDocument(candidate.to, { url: documentUrl, filename: documentFilename(documentUrl), caption: candidate.body });
+    if (mediaUrl && adapter.sendMedia) return adapter.sendMedia(candidate.to, { url: mediaUrl, caption: candidate.body });
+    return adapter.sendText(candidate.to, candidate.body);
+  };
   return { effects, send: { row: candidate, conversationId, call } };
 }
 

@@ -45,9 +45,20 @@ function encodeHeader(v: string): string {
 /** Header values may not carry a line break: that is how a header gets injected. */
 const oneLine = (v: string): string => v.replace(/[\r\n]+/g, ' ').trim();
 
+const b64Lines = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64').replace(/.{76}/g, `$&${CRLF}`);
+
+/** 0226 — a file name a MIME header may carry: ASCII, no quotes, no line breaks, no path. */
+const safeFilename = (name: string): string => {
+  const plain = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\/]/g, '_').trim();
+  return plain || 'attachment';
+};
+
 export function mimeMessage(
   m: MailMessage & { readonly from: string }, messageId: string, date: Date,
 ): string {
+  const attachments = m.attachments ?? [];
+  // 0226 — with a file to carry the mail is multipart/mixed: the text first, then each file, base64 like the text.
+  const boundary = attachments.length ? `=_nomi_${randomUUID().replace(/-/g, '')}` : null;
   const headers: [string, string][] = [
     ['From', oneLine(m.from)],
     ['To', oneLine(m.to)],
@@ -55,8 +66,9 @@ export function mimeMessage(
     ['Date', date.toUTCString().replace('GMT', '+0000')],
     ['Message-ID', `<${messageId}>`],
     ['MIME-Version', '1.0'],
-    ['Content-Type', 'text/plain; charset=UTF-8'],
-    ['Content-Transfer-Encoding', 'base64'],
+    ...(boundary
+      ? [['Content-Type', `multipart/mixed; boundary="${boundary}"`] as [string, string]]
+      : [['Content-Type', 'text/plain; charset=UTF-8'] as [string, string], ['Content-Transfer-Encoding', 'base64'] as [string, string]]),
   ];
   const reserved = new Set(headers.map(([k]) => k.toLowerCase()));
   for (const [k, v] of Object.entries(m.headers)) {
@@ -64,8 +76,19 @@ export function mimeMessage(
     if (!/^[A-Za-z0-9-]+$/.test(k) || reserved.has(k.toLowerCase())) continue;
     headers.push([k, oneLine(v)]);
   }
-  const body = Buffer.from(m.text, 'utf8').toString('base64').replace(/.{76}/g, `$&${CRLF}`);
-  return `${headers.map(([k, v]) => `${k}: ${v}`).join(CRLF)}${CRLF}${CRLF}${body}${CRLF}`;
+  const text = b64Lines(Buffer.from(m.text, 'utf8'));
+  if (!boundary) return `${headers.map(([k, v]) => `${k}: ${v}`).join(CRLF)}${CRLF}${CRLF}${text}${CRLF}`;
+  const parts = [
+    `--${boundary}${CRLF}Content-Type: text/plain; charset=UTF-8${CRLF}Content-Transfer-Encoding: base64${CRLF}${CRLF}${text}${CRLF}`,
+    ...attachments.map((a) => {
+      const name = safeFilename(a.filename);
+      const type = /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(a.contentType) ? a.contentType : 'application/octet-stream';
+      return `--${boundary}${CRLF}Content-Type: ${type}; name="${name}"${CRLF}Content-Disposition: attachment; filename="${name}"${CRLF}`
+        + `Content-Transfer-Encoding: base64${CRLF}${CRLF}${b64Lines(a.bytes)}${CRLF}`;
+    }),
+    `--${boundary}--${CRLF}`,
+  ];
+  return `${headers.map(([k, v]) => `${k}: ${v}`).join(CRLF)}${CRLF}${CRLF}${parts.join('')}`;
 }
 
 /** A Message-ID on HER domain, so it reads as hers and cannot collide with anyone's. */

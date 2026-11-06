@@ -48,6 +48,8 @@ import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
 import * as show from './values.js';
 import { quantitiesSaid } from '../../core/conversation/acceptance.js';
 import { workspaceZone } from './zone.js';
+import { invoiceSendingOn, invoicesOfOrder } from '../../db/invoiceSending.js';
+import type { ReminderWithheld } from '../../outbound/invoiceReminders.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
 
@@ -675,6 +677,8 @@ export type ConversationDetail = {
      * by the route, as the price link's) the link as the customer opens it — null when no public address is set.
      */
     proforma?: { readonly ready: boolean; readonly token: string | null; readonly url?: string | null };
+    /** 0226 — the issued invoice made from this order, if one: a door to it, and a Send where the workspace sends invoices. */
+    invoice?: { readonly id: string; readonly key: string; readonly owed: string; readonly currency: string } | null;
   } | null;
   /** CC-25 — one window of the transcript (the newest, unless `transcript.older`), oldest first. */
   readonly messages: readonly TimelineMessage[];
@@ -709,6 +713,8 @@ export type ConversationDetail = {
      * at all. The card names the language and why.
      */
     withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; readonly language: string }
+      // 0226 — an invoice reminder the sweep could not send alone: the invoice's key and why it waits.
+      | { readonly reason: ReminderWithheld; readonly key: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
       | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
@@ -757,6 +763,8 @@ export type ConversationDetail = {
    * Optional so a detail built before 0080 (a fixture, the sandbox) still types.
    */
   readonly orderProposal?: PendingProposal | null;
+  /** 0226 — the workspace sends invoices from Nomi: the order-confirmed preview names the next step, the order's invoice has a Send. */
+  readonly invoiceSending?: boolean;
   /** 2026-10-14 — a reply that may be a yes the list did not know: their words, and the last price they were given. */
   readonly maybeYes?: {
     readonly said: string | null;
@@ -1099,6 +1107,7 @@ export async function loadConversationDetail(
         id: o.id, status: o.status, reference: o.order_reference,
         total: o.total_value_usd !== null ? moneyFromRow(o.total_value_usd, o.currency) : null,
         proforma: { ready: o.proforma_ready && o.total_value_usd !== null && moneyFromRow(o.total_value_usd, o.currency) !== null, token: o.proforma_token },
+        invoice: (await invoicesOfOrder(tx, bid.value, o.id))[0] ?? null,
       } : null,
       messages,
       transcript: { earlier: transcript.earlier, older: transcript.older },
@@ -1135,6 +1144,7 @@ export async function loadConversationDetail(
       deletionRecorded: await buyerDeletionOf(tx, conversationId)
         .then((r) => (r?.state === 'open' ? { askedAt: r.askedAt } : null)),
       orderProposal: await pendingProposalOf(tx, conversationId),
+      invoiceSending: await invoiceSendingOn(tx, bid.value),
       maybeYes,
       unheardReason,
       unreadable,
@@ -1259,10 +1269,14 @@ export const perPiece = (locale: Locale, m: Money): string => `${show.money(loca
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
-  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' }
+  | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
-  const { reason, language } = v as { reason?: unknown; language?: unknown };
+  const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
   if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
+  if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
+    && typeof key === 'string') return { reason, key: key.slice(0, 40) };
   if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new'
     && reason !== 'language_withdrawn' && reason !== 'strict_unapproved') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
@@ -1500,6 +1514,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
     productName: p.productName, quantity: p.quantity, unit: p.unit,
     // LG — the sentence the customer will read, in their language.
     language: fixedLanguage(p.customerLanguage),
+    // 0226 — and the next step, where this workspace sends invoices from Nomi.
+    invoiceNext: d.invoiceSending === true,
   });
   return `<div class="card draft order" role="region" id="order">
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
@@ -1908,7 +1924,9 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
     p.withheld ? waits('language' in p.withheld
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
-      : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
+      : 'key' in p.withheld
+        ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, key: String(p.withheld.key) })
+        : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
@@ -2220,6 +2238,7 @@ export function renderConversationDetail(
         <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}${GO}</a></div>` : ''}
       ${proofRow(d, locale)}
       ${d.order ? proformaRow(d.order, locale, 'conversation') : ''}
+      ${d.order?.invoice ? invoiceRow(d.conversationId, d.order.invoice, d.invoiceSending === true, locale) : ''}
     </div>` : '';
 
   /**
@@ -2565,4 +2584,24 @@ export function renderConversationDetail(
     ${log}
     ${flashHtml}
     ${acts}`;
+}
+
+/**
+ * 0226 — the issued invoice made from the order, beside the proforma row: a door to its page, and — where the workspace
+ * sends invoices from Nomi — one button that sends it in THIS conversation (as a PDF where the channel carries files,
+ * else the proforma link; outbound/invoiceSend.ts). Off, the door alone: the invoice page says how to turn it on.
+ */
+export function invoiceRow(
+  conversationId: string, invoice: { readonly id: string; readonly key: string; readonly owed: string; readonly currency: string },
+  sending: boolean, locale: Locale,
+): string {
+  const owed = moneyFromRow(invoice.owed, invoice.currency);
+  const figure = owed ? ` · ${show.money(locale, owed)}` : '';
+  const door = `<a class="deeper" href="/app/books/invoices/${esc(invoice.id)}#send">${esc(t(locale, 'invoice.row.open'))}${GO}</a>`;
+  if (!sending) return `<div class="proofrow"><span class="muted">${esc(t(locale, 'invoice.row.title', { key: invoice.key }))}${esc(figure)}</span> ${door}</div>`;
+  return `<form method="post" action="/app/inbox/${encodeURIComponent(conversationId)}/invoice/send" class="proofrow">
+      <input type="hidden" name="invoice" value="${esc(invoice.id)}">
+      <span class="muted">${esc(t(locale, 'invoice.row.title', { key: invoice.key }))}${esc(figure)}</span> ${door}
+      <button class="btn" type="submit">${esc(t(locale, 'invoice.row.send'))}</button>
+    </form>`;
 }

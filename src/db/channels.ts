@@ -68,7 +68,9 @@ export function channelStore(
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
                origin, sending_since, kind, media_url, channel, subject, asks, notice, approved,
                -- C4.b — released by a follow-up schedule rather than a person; S6 (0202) — or a survey the sweep asked.
+               -- 0226 — or an invoice reminder the sweep sent.
                (exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id)
+                or exists (select 1 from invoice_reminders ir where ir.outbound_id = outbound_messages.id)
                 or exists (select 1 from survey_asks sa where sa.outbound_id = outbound_messages.id)) as automated
           from outbound_messages
          where conversation_id = ${conversationId}
@@ -633,8 +635,9 @@ export async function enqueueOutboundRow(
   /**
    * Phase 2d (0152) — a photo Nomi serves, at its absolute public address: the row goes as a picture
    * (`kind = 'image'`, 0024), its body the caption. The worker still refuses one it does not serve (F1).
+   * 0226 — or a document (`kind: 'document'`, an invoice as a PDF), the same way.
    */
-  media: { readonly url: string } | null = null,
+  media: { readonly url: string; readonly kind?: 'image' | 'document' } | null = null,
   /**
    * Audit batch 1 (B8) — false where the caller's own transaction makes the row exactly once (a person's approval,
    * an order confirmed): two identical replies approved minutes apart are two replies, and both go. Left true for a
@@ -691,7 +694,7 @@ export async function enqueueOutboundRow(
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
            ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
-           ${media ? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
+           ${media ? media.kind ?? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not ${dedupe} or not exists (
       select 1 from outbound_messages
