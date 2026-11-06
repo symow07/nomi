@@ -76,8 +76,8 @@ import * as show from '../../src/api/web/values.js';
 const NOW = new Date('2026-10-02T10:00:00Z');
 const you: TeamMember = { id: 'p-you', name: 'Mei', isOwner: true, addedAt: new Date('2026-10-02T08:00:00Z'), signsInWithEmail: true, lastSeenAt: NOW };
 const chen: TeamMember = { id: 'p-chen', name: '陈莉', isOwner: false, addedAt: new Date('2026-10-02T09:00:00Z'), signsInWithEmail: false, lastSeenAt: null };
-const lily: Assistant = { id: '00000000-0000-4000-8000-000000000001', name: 'Lily', role: 'sales', note: null, channels: [], isDefault: true };
-const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noor', role: 'support', note: null, channels: ['instagram'], isDefault: false };
+const lily: Assistant = { id: '00000000-0000-4000-8000-000000000001', name: 'Lily', role: 'sales', note: null, channels: [], isDefault: true, voice: { tone: 'warm', length: 'normal', emoji: 'never' } };
+const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noor', role: 'support', note: null, channels: ['instagram'], isDefault: false, voice: { tone: 'warm', length: 'normal', emoji: 'never' } };
 const people = (l: (typeof LOCALES)[number], extra: Partial<Parameters<typeof renderPeople>[0]> = {}) =>
   renderPeople({ people: [you, chen], justIssued: null, assistants: [lily, noor], ...extra }, l, null, NOW);
 const SCOPE = { name: null, several: false, outreach: false, setup: null, business: '义乌宏发日用品厂 (demo)' };

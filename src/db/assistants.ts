@@ -4,22 +4,23 @@ import type { BusinessId } from '../core/types/ids.js';
 import { defaultAssistantName } from '../core/owner/assistants.js';
 import { parseLocale } from '../core/owner/i18n/locale.js';
 import { planLimits } from './billing.js';
-import { assistantFor, type Assistant, type AssistantChannel, type AssistantRole, type ValidAssistant } from '../core/owner/assistants.js';
+import { assistantFor, type Assistant, type AssistantChannel, type AssistantRole, type ValidAssistant, type VoiceEmoji, type VoiceLength, type VoiceTone } from '../core/owner/assistants.js';
 
 /**
  * A5 — the business's assistants. Every function takes the tenant transaction,
  * so row-level security scopes it and the caller decides what happens together.
  */
 
-type Row = { id: string; name: string; role: AssistantRole; note: string | null; channels: string[]; is_default: boolean };
+type Row = { id: string; name: string; role: AssistantRole; note: string | null; channels: string[]; is_default: boolean; tone: VoiceTone; length: VoiceLength; emoji: VoiceEmoji };
 const toAssistant = (r: Row): Assistant => ({
   id: r.id, name: r.name, role: r.role, note: r.note, channels: r.channels as AssistantChannel[], isDefault: r.is_default,
+  voice: { tone: r.tone, length: r.length, emoji: r.emoji },
 });
 
 /** Live assistants, the default first. */
 export async function listAssistants(tx: Tx, businessId: BusinessId): Promise<readonly Assistant[]> {
   const r = await sql<Row>`
-    select id::text as id, name, role, note, channels, is_default from assistants
+    select id::text as id, name, role, note, channels, is_default, tone, length, emoji from assistants
      where business_id = ${businessId}::uuid and archived_at is null
      order by is_default desc, created_at`.execute(tx);
   return r.rows.map(toAssistant);
@@ -33,7 +34,7 @@ export async function listAssistants(tx: Tx, businessId: BusinessId): Promise<re
  */
 export async function ensureDefaultAssistant(tx: Tx, businessId: BusinessId, nameIfNew?: string): Promise<Assistant> {
   const read = async () => (await sql<Row>`
-    select id::text as id, name, role, note, channels, is_default from assistants
+    select id::text as id, name, role, note, channels, is_default, tone, length, emoji from assistants
      where business_id = ${businessId}::uuid and is_default and archived_at is null limit 1`.execute(tx)).rows[0];
   const existing = await read();
   if (existing) return toAssistant(existing);
@@ -93,8 +94,8 @@ export async function addAssistant(tx: Tx, businessId: BusinessId, v: ValidAssis
     if (n >= assistants) return 'assistant_limit';
   }
   const r = await sql<{ id: string }>`
-    insert into assistants (business_id, name, role, note, channels, created_by)
-    values (${businessId}::uuid, ${v.name}, ${v.role}, ${v.note}, ${v.channels as string[]}, ${actor})
+    insert into assistants (business_id, name, role, note, channels, created_by, tone, length, emoji)
+    values (${businessId}::uuid, ${v.name}, ${v.role}, ${v.note}, ${v.channels as string[]}, ${actor}, ${v.voice.tone}, ${v.voice.length}, ${v.voice.emoji})
     returning id::text as id`.execute(tx);
   await audit(tx, businessId, 'assistant_added', actor, { id: r.rows[0]!.id, role: v.role, channels: v.channels });
   return 'saved';
@@ -107,9 +108,10 @@ export async function updateAssistant(tx: Tx, businessId: BusinessId, id: string
   // The default answers whatever nobody else claimed, so it is given no channels of its own.
   const channels = cur.is_default ? [] : v.channels;
   if (await channelTaken(tx, businessId, channels, id)) return 'channel_taken';
-  await sql`update assistants set name = ${v.name}, role = ${v.role}, note = ${v.note}, channels = ${channels as string[]}
+  await sql`update assistants set name = ${v.name}, role = ${v.role}, note = ${v.note}, channels = ${channels as string[]},
+             tone = ${v.voice.tone}, length = ${v.voice.length}, emoji = ${v.voice.emoji}
              where business_id = ${businessId}::uuid and id = ${id}::uuid`.execute(tx);
-  await audit(tx, businessId, 'assistant_changed', actor, { id, fields: ['name', 'role', 'note', 'channels'] });
+  await audit(tx, businessId, 'assistant_changed', actor, { id, fields: ['name', 'role', 'note', 'channels', 'voice'] });
   return 'saved';
 }
 

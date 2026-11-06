@@ -125,7 +125,7 @@ describe('A5.3 · in the turn', () => {
 describe('A5.3 · the owner can say how each one should sound', () => {
   it('the team page offers the note, with what it does and does not change', () => {
     const html = renderAssistantsSection([{ id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales',
-      note: 'Friendly & direct', channels: [], isDefault: true }], 'en');
+      note: 'Friendly & direct', channels: [], isDefault: true, voice: { tone: 'warm', length: 'normal', emoji: 'never' } }], 'en');
     expect(html).toContain('name="note"');
     expect(html).toContain('Friendly &amp; direct');
     expect(html).toMatch(/tone only/i);

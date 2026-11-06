@@ -16612,6 +16612,15 @@ Four English-only lines in `src/core/owner/i18n/booksArea.ts` (`BOOKS_AREA_EN`):
 figure), `booksArea.cashByAccount` (its door), `booksArea.cashTodayBasis` (what the figure is made of),
 `booksArea.ownAccounts` (the default scope said). Other languages show the English until a native reader translates.
 
+## The assistant's voice (2026-11-07; 0228)
+
+Fifteen new lines, English only, in `src/core/owner/i18n/assistantArea.ts` (`ASSISTANT_AREA_EN`): `assistants.field.tone`,
+`.tone.plain / .warm / .formal`, `assistants.field.length`, `.length.short / .normal`, `assistants.field.emoji`,
+`.emoji.never / .like_customer`, `assistants.field.voiceLine` and its hint (the one line "how we talk"), and the three
+refusals `assistants.flash.note_long / .note_injection / .voice_invalid`. The old `assistants.field.note` and its hint
+stay translated in the catalogue but are no longer shown. Every other language shows the English until a native reader
+translates them.
+
 ## Spending (2026-11-06; 0227)
 
 No new line in zh, ar, es or fr: the spending book's sixty-odd owner-facing lines are English only, in

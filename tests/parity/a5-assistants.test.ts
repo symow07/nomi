@@ -18,8 +18,8 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
-const lily: Assistant = { id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales', note: null, channels: [], isDefault: true };
-const noor: Assistant = { id: '22222222-2222-4222-8222-222222222222', name: 'Noor', role: 'support', note: null, channels: ['instagram', 'messenger'], isDefault: false };
+const lily: Assistant = { id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales', note: null, channels: [], isDefault: true, voice: { tone: 'warm', length: 'normal', emoji: 'never' } };
+const noor: Assistant = { id: '22222222-2222-4222-8222-222222222222', name: 'Noor', role: 'support', note: null, channels: ['instagram', 'messenger'], isDefault: false, voice: { tone: 'warm', length: 'normal', emoji: 'never' } };
 
 describe('A5 · what an assistant is', () => {
   it('needs a name and a known job; tidies the name', () => {
@@ -28,7 +28,7 @@ describe('A5 · what an assistant is', () => {
     expect(validateAssistant({ name: 'Noor', role: 'boss', note: '', channels: [] })).toEqual({ ok: false, problem: 'role_invalid' });
     expect(validateAssistant({ name: 'Noor', role: 'sales', note: 'x'.repeat(NOTE_MAX + 1), channels: [] })).toEqual({ ok: false, problem: 'note_long' });
     const ok = validateAssistant({ name: '  Noor   Al  ', role: 'after_sales', note: '  ', channels: [] });
-    expect(ok).toEqual({ ok: true, value: { name: 'Noor Al', role: 'after_sales', note: null, channels: [] } });
+    expect(ok).toEqual({ ok: true, value: { name: 'Noor Al', role: 'after_sales', note: null, channels: [], voice: { tone: 'warm', length: 'normal', emoji: 'never' } } });
   });
 
   it('keeps only real channels, once each', () => {

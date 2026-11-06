@@ -5,6 +5,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import {
   ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, NOTE_MAX, validateAssistant,
+  VOICE_TONES, VOICE_LENGTHS, VOICE_EMOJI, DEFAULT_VOICE,
   type Assistant, type AssistantProblem,
 } from '../../core/owner/assistants.js';
 import {
@@ -50,6 +51,7 @@ export type AssistantOutcome = AssistantWrite | AssistantProblem;
 const inputFrom = (body: Record<string, unknown>) => ({
   name: String(body['name'] ?? ''), role: String(body['role'] ?? ''),
   note: String(body['note'] ?? ''), channels: channelsFromForm(body),
+  tone: String(body['tone'] ?? ''), length: String(body['length'] ?? ''), emoji: String(body['emoji'] ?? ''),
 });
 
 export async function addAssistantFromForm(
@@ -89,7 +91,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** A1 — the KEY the notice says, for the page that will write it out. */
 export function assistantFlash(outcome: AssistantOutcome, verb: 'added' | 'saved' | 'archived'): MessageKey {
   if (outcome === 'saved') return `assistants.flash.${verb}` as MessageKey;
-  if (outcome === 'channel_taken' || outcome === 'name_missing' || outcome === 'name_long' || outcome === 'is_default' || outcome === 'assistant_limit') {
+  if (outcome === 'channel_taken' || outcome === 'name_missing' || outcome === 'name_long' || outcome === 'is_default' || outcome === 'assistant_limit'
+    || outcome === 'note_long' || outcome === 'note_injection' || outcome === 'voice_invalid') {
     return `assistants.flash.${outcome}` as MessageKey;
   }
   return 'people.flash.failed';
@@ -117,10 +120,19 @@ function fields(locale: Locale, a: Assistant | null, idPrefix: string): string[]
     fieldRow({ label: t(locale, 'assistants.field.role'), forId: `${idPrefix}-role`,
       control: `<select id="${idPrefix}-role" name="role">${roleOptions}</select>` }),
     ...boxes,
-    fieldRow({ label: t(locale, 'assistants.field.note'), forId: `${idPrefix}-note`, desc: t(locale, 'assistants.field.note.hint'),
+    // Block 3 PR 1 — the voice: three choices and the owner's one line, fixed for every reply this one writes.
+    fieldRow({ label: t(locale, 'assistants.field.tone'), forId: `${idPrefix}-tone`,
+      control: `<select id="${idPrefix}-tone" name="tone">${voiceOptions(locale, 'tone', VOICE_TONES, (a?.voice ?? DEFAULT_VOICE).tone)}</select>` }),
+    fieldRow({ label: t(locale, 'assistants.field.length'), forId: `${idPrefix}-length`,
+      control: `<select id="${idPrefix}-length" name="length">${voiceOptions(locale, 'length', VOICE_LENGTHS, (a?.voice ?? DEFAULT_VOICE).length)}</select>` }),
+    fieldRow({ label: t(locale, 'assistants.field.emoji'), forId: `${idPrefix}-emoji`,
+      control: `<select id="${idPrefix}-emoji" name="emoji">${voiceOptions(locale, 'emoji', VOICE_EMOJI, (a?.voice ?? DEFAULT_VOICE).emoji)}</select>` }),
+    fieldRow({ label: t(locale, 'assistants.field.voiceLine'), forId: `${idPrefix}-note`, desc: t(locale, 'assistants.field.voiceLine.hint'),
       control: `<textarea id="${idPrefix}-note" name="note" rows="2" maxlength="${NOTE_MAX}">${esc(a?.note ?? '')}</textarea>` }),
   ];
 }
+const voiceOptions = (locale: Locale, kind: 'tone' | 'length' | 'emoji', list: readonly string[], current: string): string =>
+  list.map((v) => `<option value="${v}"${v === current ? ' selected' : ''}>${esc(t(locale, `assistants.${kind}.${v}` as MessageKey))}</option>`).join('');
 
 export function renderAssistantsSection(assistants: readonly Assistant[], locale: Locale): string {
   // Phase 9 (V1-511) — one name on the page. The main assistant's row name

@@ -274,7 +274,9 @@ export function speakerContext(speaker: Speaker | null | undefined): Record<stri
         ...(speaker.note ? { how_to_sound: speaker.note } : {}),
       } }
     : {};
-  return { business, ...who };
+  // Block 3 PR 1 — the owner's voice, fixed for every reply; present only where an assistant row answers.
+  const voice = speaker.voice ? { voice: { tone: speaker.voice.tone, length: speaker.voice.length, emoji: speaker.voice.emoji } } : {};
+  return { business, ...who, ...voice };
 }
 
 export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): ReplyWriter {

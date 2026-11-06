@@ -1,3 +1,5 @@
+import { detectInjection } from '../safety/injection.js';
+
 /**
  * A5 — more than one assistant, and what one IS.
  *
@@ -17,7 +19,36 @@ export const ASSISTANT_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'email'
 export type AssistantChannel = (typeof ASSISTANT_CHANNELS)[number];
 
 export const NAME_MAX = 40;
-export const NOTE_MAX = 600;
+/** The owner's line on how the assistant talks: one line since Block 3 PR 1 (the column keeps 0059's 600). */
+export const NOTE_MAX = 200;
+
+/**
+ * THE VOICE (Block 3 PR 1 of the finishing roadmap; 0228). How the owner chose the replies should sound: the tone, the
+ * length and whether an emoji may appear. Read by the reply writer as fixed instructions beside the owner's own line
+ * (`note`); no guard reads any of it, and it cannot widen what the assistant may say.
+ */
+export const VOICE_TONES = ['plain', 'warm', 'formal'] as const;
+export type VoiceTone = (typeof VOICE_TONES)[number];
+export const VOICE_LENGTHS = ['short', 'normal'] as const;
+export type VoiceLength = (typeof VOICE_LENGTHS)[number];
+export const VOICE_EMOJI = ['never', 'like_customer'] as const;
+export type VoiceEmoji = (typeof VOICE_EMOJI)[number];
+export type Voice = { readonly tone: VoiceTone; readonly length: VoiceLength; readonly emoji: VoiceEmoji };
+/** What a workspace made before 0228 keeps: the way replies already sounded. */
+export const DEFAULT_VOICE: Voice = { tone: 'warm', length: 'normal', emoji: 'never' };
+
+const pick = <T extends readonly string[]>(list: T, v: string | undefined, fallback: T[number]): T[number] | null => {
+  const s = (v ?? '').trim();
+  if (s === '') return fallback;
+  return (list as readonly string[]).includes(s) ? (s as T[number]) : null;
+};
+/** The form's three choices; an empty one is the default, a word outside its list is nothing (refused). */
+export function voiceFrom(input: { readonly tone?: string; readonly length?: string; readonly emoji?: string }): Voice | null {
+  const tone = pick(VOICE_TONES, input.tone, DEFAULT_VOICE.tone);
+  const length = pick(VOICE_LENGTHS, input.length, DEFAULT_VOICE.length);
+  const emoji = pick(VOICE_EMOJI, input.emoji, DEFAULT_VOICE.emoji);
+  return tone && length && emoji ? { tone, length, emoji } : null;
+}
 
 /**
  * What a business's FIRST assistant is called, by the language they signed up
@@ -56,11 +87,13 @@ export const defaultAssistantName = (locale: string): string =>
 export type Assistant = {
   readonly id: string; readonly name: string; readonly role: AssistantRole; readonly note: string | null;
   readonly channels: readonly AssistantChannel[]; readonly isDefault: boolean;
+  readonly voice: Voice;
 };
 
-export type AssistantInput = { readonly name: string; readonly role: string; readonly note: string; readonly channels: readonly string[] };
-export type AssistantProblem = 'name_missing' | 'name_long' | 'role_invalid' | 'note_long';
-export type ValidAssistant = { readonly name: string; readonly role: AssistantRole; readonly note: string | null; readonly channels: readonly AssistantChannel[] };
+export type AssistantInput = { readonly name: string; readonly role: string; readonly note: string; readonly channels: readonly string[];
+  readonly tone?: string; readonly length?: string; readonly emoji?: string };
+export type AssistantProblem = 'name_missing' | 'name_long' | 'role_invalid' | 'note_long' | 'note_injection' | 'voice_invalid';
+export type ValidAssistant = { readonly name: string; readonly role: AssistantRole; readonly note: string | null; readonly channels: readonly AssistantChannel[]; readonly voice: Voice };
 
 const isRole = (v: string): v is AssistantRole => (ASSISTANT_ROLES as readonly string[]).includes(v);
 const isChannel = (v: string): v is AssistantChannel => (ASSISTANT_CHANNELS as readonly string[]).includes(v);
@@ -72,9 +105,13 @@ export function validateAssistant(input: AssistantInput): { ok: true; value: Val
   if (!isRole(input.role)) return { ok: false, problem: 'role_invalid' };
   const note = input.note.trim();
   if (note.length > NOTE_MAX) return { ok: false, problem: 'note_long' };
+  // Block 3 PR 1 — the line reaches the writer's prompt, so an instruction dressed as a way of talking is refused.
+  if (note && detectInjection(note).detected) return { ok: false, problem: 'note_injection' };
+  const voice = voiceFrom(input);
+  if (!voice) return { ok: false, problem: 'voice_invalid' };
   // A channel that is not one is dropped, not refused: it cannot be wrong in a way she can fix.
   const channels = [...new Set(input.channels.map((c) => c.trim()).filter(isChannel))];
-  return { ok: true, value: { name, role: input.role, note: note === '' ? null : note, channels } };
+  return { ok: true, value: { name, role: input.role, note: note === '' ? null : note, channels, voice } };
 }
 
 /**
@@ -102,6 +139,8 @@ export type Speaker = {
   readonly name: string | null;
   readonly role: AssistantRole | null;
   readonly note: string | null;
+  /** Block 3 PR 1 — how the owner chose it should talk; absent when the conversation has no assistant row. */
+  readonly voice?: Voice;
   readonly business: {
     readonly name: string; readonly kind: string | null;
     readonly country: string | null; readonly description: string | null;

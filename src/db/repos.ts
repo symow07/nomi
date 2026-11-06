@@ -10,7 +10,7 @@ import { sql } from 'kysely';
 const HISTORY_MESSAGE_CHARS = 1000;
 import { autonomyReleasedFor } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel, chosenName } from './assistants.js';
-import type { AssistantRole } from '../core/owner/assistants.js';
+import type { AssistantRole, VoiceEmoji, VoiceLength, VoiceTone } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
 import { writeOrderState } from './orders.js';
@@ -228,9 +228,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async speaker(id) {
       const r = (await sql<{
         a_name: string | null; a_role: AssistantRole | null; a_note: string | null;
+        a_tone: VoiceTone | null; a_length: VoiceLength | null; a_emoji: VoiceEmoji | null;
         b_name: string; b_kind: string | null; b_country: string | null; b_description: string | null;
       }>`
-        select ${chosenName('a')} as a_name, a.role as a_role, a.note as a_note,
+        select ${chosenName('a')} as a_name, a.role as a_role, a.note as a_note, a.tone as a_tone, a.length as a_length, a.emoji as a_emoji,
                b.name as b_name, b.kind as b_kind, b.country as b_country, b.description as b_description
           from conversations c
           join businesses b on b.id = c.business_id
@@ -241,6 +242,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       if (!r) return null;
       return {
         name: r.a_name, role: r.a_role, note: r.a_note,
+        // Block 3 PR 1 — the voice, only where an assistant row answers (the left join found one).
+        ...(r.a_tone && r.a_length && r.a_emoji ? { voice: { tone: r.a_tone, length: r.a_length, emoji: r.a_emoji } } : {}),
         business: { name: r.b_name, kind: r.b_kind, country: r.b_country, description: r.b_description },
       };
     },
