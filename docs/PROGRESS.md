@@ -27,6 +27,7 @@ after each.
 - #439 — Block 1's records (0224): `quote_id` with the reply, "Told {when}" on the customer panel; a larger-order price taken off (`remove_price_tier`); Practice's photo and voice note through the real vision and transcriber, metered on the workspace; the Page unsubscribed on closure; Block 1 #14's cause found and fixed in `turn-once` (its second process had no image fetcher). Proof: `tests/integration/block1-records.test.ts`; the full isolated suite 2085/2085; a same-hour backup before the merge; `migrate-mark --expect <merge sha>` after the deploy; production `schema_version` = 224.
 - #440 — Block 2 PR 1, the books' country packs (0225): `/app/settings/books/country` loads MA (CGNC + TVA codes), GB (plain chart + VAT codes + company number, 6 years) or US (plain chart + sales tax per state + EIN, 7 years); `accounts.holds_money` from the template, the owner's tick or the old rule. Proof: `tests/integration/books-country-packs.test.ts`, the full isolated suite 2100/2100, `npm run check` 9,404; a backup before the merge; `migrate-mark --expect` after the deploy; `schema_version` = 225.
 - #441 — Block 2 PR 2, invoices that go out (0226): a PDF document where the channel carries files (WhatsApp, Messenger, Telegram, e-mail), the proforma link where not; reminders at +3 and +10 days from the send, by the channel inside its window or e-mail where a mailbox is connected, else a draft for the owner (no Meta template — the owner's correction); "We'll send you the invoice next" back only where `invoice_sending` is on. Proof: `tests/integration/invoices-out.test.ts`, the full isolated suite 2109/2109, `npm run check` 9,431, trust 44/44; a backup before the merge; `migrate-mark --expect` after; `schema_version` = 226. The one real WhatsApp send from Westlake is the owner's (PROGRESS, the PR's section).
+- #442 — Block 2 PR 3, Spending (0227): a bill in one form with its number, gross, tax code, category or account, paid from a bank or cash account or owed to the supplier until paid; the owner's categories; recurring costs proposed on their day by a daily job and posted or skipped only by the owner. Proof: `tests/integration/books-spending.test.ts` (the trial balance ties after the month's spending), the full isolated suite 2118/2118, `npm run check` 9,439, trust 44/44; backup `nomi-backup-20261106T165219Z` three minutes before the merge (`24d841ce`); deploy SUCCESS, `/health` ok; `migrate-mark --expect` ✓ (applied 1); `schema_version` = 227.
 ## Block 2 PR 1 — country packs (2026-11-06; 0225)
 
 **What shipped.** One page under Books settings, `/app/settings/books/country` (owner-only, like every other books
@@ -72,9 +73,40 @@ existing US-country workspaces (test fixtures only in production today) should k
 `books_keep_until` reads the table from now on, nothing already held changes. The PR itself (not opened by this
 session), and the deploy, which migrates: a backup from the same hour first.
 
+## Block 2 PR 4 — the Books home, wired (2026-11-06; no migration)
+
+Branch `b2-books-home`, on `main` with 0227. The roadmap's PR 4 said "waits for Codex"; Codex's redesign is merged
+(#428–#435) and its home already draws the figures as queries over posted entries (`readBooksOverview`), each with a
+door to the rows behind it. What was left to wire, and is this PR:
+
+- **Cash today** — the roadmap's first figure, missing from the home: the balances of the bank and cash accounts as of
+  today (`cashToday`: every posted line on them up to today, opening balances included), its own section before
+  "This month"; its door opens the cash report's `#today`, where the balances are listed by account (the rows behind it).
+- **The money accounts without a choice.** The home's cash figures asked the owner to choose accounts before showing
+  anything (`needs_setup`). With nothing chosen, the scope is now the chart's own money accounts — 0225's
+  `holds_money` marker or rule 91's words in the name, never the receivable account — and for "You owe" the pack's
+  creditors account (4411 / 2000). The page says so ("as the chart marks them"); the chooser still overrides for one
+  view; a chart with no such account asks as before.
+- Proof: `tests/integration/books-home.test.ts` — after a month of fixture activity (an opening balance, a sale half
+  paid, an expense from the bank, a bill owed, a transfer between the two money accounts, a draft, a future-dated
+  entry), each figure equals the sum of its rows: cash today = the balances by account = the posted lines on each;
+  received / paid out = the cash report's rows; customers owe = the unpaid invoices; you owe = the supplier rows; profit
+  = the profit report's rows. The draft and the future entry count nowhere.
+
+**Claude's calls**
+
+- Codex's layout is kept whole: no new section, no nav change; the new figure is one more `metric` in the existing
+  money list, and the balances a section of the existing cash report. The roadmap's "five sections" are Codex's
+  seven-entry area nav, which stands.
+- "Cash today" includes opening balances and every journal; "Received / Paid out" keep Codex's rule (opening and
+  valuation excluded, transfers between money accounts excluded): a balance is what is there, a movement is what came
+  and went.
+- The redesign's scope test (`redesign-books-overview.test.ts`) pinned "nothing chosen → needs_setup"; it now pins
+  "nothing chosen → the chart's own money accounts", and `needs_setup` is pinned where the chart has none.
+
 ## Block 2 PR 3 — Spending (2026-11-06; 0227)
 
-Branch `b2-spending`, on `main` with 0226. The roadmap's "Spending": a Spending page where a bill is typed (or, as
+Merged as #442 (`24d841ce`, 2026-11-06 16:55 UTC) and deployed; production `schema_version` = 227. The roadmap's "Spending": a Spending page where a bill is typed (or, as
 before, read from a photo by D6's reader — the same page, `/app/books/spending`, now opens on the owner's book above
 the papers), categorised with the owner's own categories, paid from a bank or cash account (rule 91) or left as owed;
 recurring costs that PROPOSE their entry each period and post only on a tick. The rule is CLAUDE.md §5 rule 96.

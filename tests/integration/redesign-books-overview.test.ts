@@ -43,7 +43,7 @@ d('Area 5 truthful dated Books overview',()=>{
  const chosen=(f:Fixture)=>({cashAccountIds:[f.ids['cash']!,f.ids['bank']!],payableAccountIds:[f.ids['ap']!]});
 
  it('distinguishes missing selections from confirmed zero, rejects foreign/wrong-kind IDs, and reads without writes',async()=>{
-  const f=await setup(),other=await setup();const missing=await read(f);expect(missing.cash.state).toBe('needs_setup');expect(missing.cash.received).toBeNull();expect(missing.supplierOwed.state).toBe('needs_setup');
+  const f=await setup(),other=await setup();const missing=await read(f);expect(missing.cash.state).toBe('available');expect(missing.cash.defaulted).toBe(true);expect([...missing.cash.selectedIds].sort()).toEqual([f.ids['cash']!,f.ids['bank']!].sort());expect(missing.supplierOwed.state).toBe('needs_setup');
   const empty=await read(f,chosen(f));expect(empty.cash).toMatchObject({state:'available',received:'0',paidOut:'0'});expect(empty.supplierOwed).toMatchObject({state:'available',owed:'0',advances:'0'});
   for(const cashAccountIds of [[other.ids['cash']!],[f.ids['sales']!],['not-a-uuid']])expect((await read(f,{cashAccountIds})).cash.state).toBe('unavailable');
   expect((await read(f,{payableAccountIds:[other.ids['ap']!]})).supplierOwed.state).toBe('unavailable');
