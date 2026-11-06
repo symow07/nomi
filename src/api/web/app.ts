@@ -3744,8 +3744,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const lineId=typeof query.line==='string'&&/^[0-9a-f-]{36}$/i.test(query.line)?query.line:undefined;
     if(query.line!==undefined&&!lineId)return reply.callNotFound();
     const got = await withTenantTx(deps.db, bid, async (tx) => {
-      // Block 1 #2 (2026-11-06; the half of #427 left for later) — only the chart's bank and cash accounts are offered,
-      // and none is opened for her: a statement read against a fixed asset was the mistake #427 fixed on the invoice.
+      // Block 1 #2 (2026-11-06; the half of PR 427 left for later) — only the chart's bank and cash accounts are offered,
+      // and none is opened for her: a statement read against a fixed asset was the mistake PR 427 fixed on the invoice.
       const accounts = await paymentAccounts(tx, bid);
       const historical=typeof query.account==='string'&&!accounts.some(a=>a.id===query.account)?(await sql<{id:string;code:string;name:string}>`select a.id::text as id,a.code,a.name from accounts a where a.business_id=${bid}::uuid and a.id::text=${query.account} and a.kind='asset' and not a.is_active and exists(select 1 from statement_lines l where l.business_id=a.business_id and l.account_id=a.id)`.execute(tx)).rows:[];
       const choices=[...accounts,...historical];
