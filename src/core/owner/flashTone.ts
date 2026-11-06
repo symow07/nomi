@@ -25,6 +25,9 @@ import type { MessageKey } from './i18n/messages.js';
 
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
+  // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
+  // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
+  'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
   // 0212 — a stale grant not yet given back, and one that ended the live connection with it: the owner has to act or wait
   'books.flash.staleNotYet', 'books.flash.staleEndedConnectAgain',
   // 0215 — TikTok's connect refusals
@@ -146,6 +149,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
+  'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',
   // B2 — a workbook read in.
   'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected', 'books.flash.taxStartSaved',
   'books.flash.entryPosted', 'books.flash.entryDiscarded', 'books.flash.entryReversed', 'books.flash.orderDrafted', 'books.flash.accountsSaved',

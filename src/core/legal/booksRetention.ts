@@ -15,7 +15,7 @@ export type BooksRetention = {
   /** The privacy page's line for it, in every language. */
   readonly key:
     | 'legal.privacy.books.years.gb' | 'legal.privacy.books.years.fr' | 'legal.privacy.books.years.ma'
-    | 'legal.privacy.books.years.es' | 'legal.privacy.books.years.other';
+    | 'legal.privacy.books.years.es' | 'legal.privacy.books.years.us' | 'legal.privacy.books.years.other';
 };
 
 export const BOOKS_RETENTION: readonly BooksRetention[] = [
@@ -23,5 +23,7 @@ export const BOOKS_RETENTION: readonly BooksRetention[] = [
   { country: 'FR', years: 10, key: 'legal.privacy.books.years.fr' },
   { country: 'MA', years: 10, key: 'legal.privacy.books.years.ma' },
   { country: 'ES', years: 10, key: 'legal.privacy.books.years.es' },
+  // 0225 (Block 2 PR 1) — seven years, Nomi's own choice: the period commonly cited for US federal tax records.
+  { country: 'US', years: 7, key: 'legal.privacy.books.years.us' },
   { country: '*', years: 10, key: 'legal.privacy.books.years.other' },
 ];

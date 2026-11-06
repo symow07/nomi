@@ -28,6 +28,11 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   {method:'GET',url:'/app/books/spending/:id',action:'see'},
   {method:'GET',url:'/app/settings/books/fields',action:'see'},
   {method:'GET',url:'/app/settings/books',action:'post'},
+  // 0225 (Block 2 PR 1) — the country page and its writes: the owner's, like every other books setting.
+  {method:'GET',url:'/app/settings/books/country',action:'post'},
+  {method:'POST',url:'/app/books/country',action:'post'},
+  {method:'POST',url:'/app/books/country/state-tax',action:'post'},
+  {method:'POST',url:'/app/books/accounts/money',action:'post'},
   {method:'GET',url:'/app/settings/books/connections',action:'post'},
   {method:'GET',url:'/app/settings/books/accounts',action:'post'},
   {method:'GET',url:'/app/settings/books/tax',action:'post'},

@@ -47,7 +47,9 @@ describe('A6 · the books on /privacy and /data-deletion, in every language', ()
   it('each country\'s period is said with its law, in every language; the systems D18 holds off are not named', () => {
     // 0218: the United Kingdom's six years, France's, Morocco's and Spain's ten, ten everywhere else (booksRetention.ts)
     const LAWS: Record<string, readonly string[]> = {
-      GB: ['Finance Act 1998', 'Value Added Tax Act 1994'], FR: ['L123-22'], MA: ['211'], ES: ['Ley General Tributaria', '66 bis'], '*': [],
+      GB: ['Finance Act 1998', 'Value Added Tax Act 1994'], FR: ['L123-22'], MA: ['211'], ES: ['Ley General Tributaria', '66 bis'],
+      // 0225 — the United States: seven years, Nomi's own choice; no law to name
+      US: ['Nomi'], '*': [],
     };
     expect(BOOKS_RETENTION.map((r) => r.country).sort()).toEqual(Object.keys(LAWS).sort());
     for (const l of LOCALES) {

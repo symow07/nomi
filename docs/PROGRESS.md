@@ -25,6 +25,51 @@ after each.
 - #436 — Block 1 send path: the identity path and `wants_deletion` alone pinned; `tools/check-identity.mjs` run once on gpt-6-luna, 3/3 (9,090 tokens in, 110 out). Proof: `identity-path` (15), `deletion-handoff` (109).
 - #438 — Block 1's items without a migration: the Bank page's accounts (#2), a PDF on the OpenAI format (#3; `check-ext.mjs` once on gpt-6-luna: the PDF read, 3/3 contained), the English survey, thank-you and greeting signed (#4; strict mode's set deliberately not — CLAUDE.md rule 92), B1 the tie-break for B7 (#13), the example token (#15), the zone backfill tool and the profile flag (#9). Proof: rule 92's tests; `npm run check` green.
 - #439 — Block 1's records (0224): `quote_id` with the reply, "Told {when}" on the customer panel; a larger-order price taken off (`remove_price_tier`); Practice's photo and voice note through the real vision and transcriber, metered on the workspace; the Page unsubscribed on closure; Block 1 #14's cause found and fixed in `turn-once` (its second process had no image fetcher). Proof: `tests/integration/block1-records.test.ts`; the full isolated suite 2085/2085; a same-hour backup before the merge; `migrate-mark --expect <merge sha>` after the deploy; production `schema_version` = 224.
+- #440 — Block 2 PR 1, the books' country packs (0225): `/app/settings/books/country` loads MA (CGNC + TVA codes), GB (plain chart + VAT codes + company number, 6 years) or US (plain chart + sales tax per state + EIN, 7 years); `accounts.holds_money` from the template, the owner's tick or the old rule. Proof: `tests/integration/books-country-packs.test.ts`, the full isolated suite 2100/2100, `npm run check` 9,404; a backup before the merge; `migrate-mark --expect` after the deploy; `schema_version` = 225.
+## Block 2 PR 1 — country packs (2026-11-06; 0225)
+
+**What shipped.** One page under Books settings, `/app/settings/books/country` (owner-only, like every other books
+setting): the country (Morocco, the United Kingdom, the United States; any other country is named with the three Nomi
+keeps books for), the currency read from the workspace with a door to its own page, the period length (months or
+quarters — `books_start()`'s one-time choice, said so on the page), the first financial year (the first `fiscal_years`
+row, twelve months from the day given), the pack's tax scheme, how long the records are kept, and the identifier the
+pack asks for. One Save: it writes the country (refused in one sentence once any entry is posted — the database was
+unguarded; the route guards it now), opens the first year and starts the books where none exist, keeps the identifier,
+and loads the pack idempotently — Morocco: `apply_chart_template('cgnc-normal')` exactly as `applyCgncChart` always did
+(`POST /app/books/chart/cgnc` still works), TVA 20/14/10/7 collected on 4455 and deductible on 34552, EXO exempt, the ICE,
+IF and RC still on the profile; the UK: a new plain chart `uk-plain` (43 accounts, four-digit codes, a VAT control
+account), VAT20/VAT5/VAT0 (collected at 0) and EXEMPT, `businesses.company_number` by R3's Companies House rule, six years
+(0218); the US: `us-plain` (Sales tax payable, no VAT), `businesses.ein` as 00-0000000, a rate per state typed by the
+owner (`ST_<STATE>` collected on 2100, from today), and a US row in `books_retention` — seven years. The chart marks
+which accounts hold money: `accounts.holds_money` and `chart_template_accounts.holds_money`, copied by
+`apply_chart_template`, set on the CGNC's 514 and 516 families by UPDATE (0190 untouched), backfilled by the code's own
+rules for asset accounts; `paymentAccounts` offers the marker OR the rule, so "Barclays Current" marked in the chart is
+offered; the owner ticks and unticks on the accounts page (one more subject, its own Save). Tests:
+`tests/parity/books-country-packs.test.ts`, `tests/integration/books-country-packs.test.ts` (three fixture workspaces
+through the routes, the FEC's checks on the Moroccan one).
+
+**Claude's calls, where the spec was silent.**
+- The page writes `businesses.country` itself (not a books-only copy): retention, the Moroccan gate, the FEC and the
+  periods all read that one column, and a second column would let them disagree. The write is audited as the profile's
+  are (`update_profile`, field names only).
+- The books start on the first financial year's first day. For a Moroccan workspace that means Avis 24's roll locks the
+  periods before the current two at once, as D10 decided for any start; the page says the period is chosen once.
+- Morocco gets the deductible TVA codes too (`TVA20_D` … on 34552): Spending (PR 3) needs them, and the spec named the
+  account. The UK gets the four codes the spec lists and no input-side codes: one VAT control account takes both sides.
+- A state is one of the fifty or DC (USPS codes), not any two letters; the rate takes either decimal mark and a % sign.
+- An account the code's rule already recognises (CGNC 514/516, "bank"/"cash" in the name) is drawn ticked and fixed on
+  the accounts page: unticking it would change nothing, and the chart's marker on it is left alone.
+- The US retention row's `law` text is Nomi's own choice in so many words — the data page shows that column.
+- The UK and US plain charts are flat (no parent accounts) and Nomi's own; no law prescribes either. France, Spain and
+  China stay RESEARCHED (docs/PHASE-5.md §1b updated: UK and USA to BUILT).
+- The migration is 0225 and `REQUIRED_SCHEMA_VERSION` is 225: 0224 is another branch's, and the order is settled at
+  merge. The schema-version parity tests pin the highest migration file to the constant, so they pass with 0224 absent
+  and will pass with it present.
+
+**Waiting on the owner.** The zh/ar/es/fr lines (docs/NATIVE-REVIEW-UI.md, "The books' country page"). Whether the
+existing US-country workspaces (test fixtures only in production today) should keep ten years rather than seven:
+`books_keep_until` reads the table from now on, nothing already held changes. The PR itself (not opened by this
+session), and the deploy, which migrates: a backup from the same hour first.
 
 ## Approved redesign, Area 8: Public pages (2026-11-06; no migration)
 

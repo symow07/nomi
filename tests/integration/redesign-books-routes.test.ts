@@ -46,7 +46,7 @@ d('Approved Books destinations and bounded read-only overview',()=>{
   for(const path of ['/app/books','/app/books/invoices','/app/books/spending','/app/books/bank','/app/books/bank?view=unmatched','/app/books/reports','/app/books/reports/cash','/app/books/reports/profit','/app/books/reports/suppliers','/app/books/reports/suppliers/entries','/app/books/year-end','/app/books/advanced','/app/books/advanced/entries','/app/books/advanced/trial-balance']){
    expect((await get(path)).statusCode,path).toBe(200);expect((await get(path,accountant)).statusCode,path+' accountant').toBe(200);expect((await get(path,staff)).statusCode,path+' staff').toBe(302);
   }
-  for(const path of ['/app/settings/books','/app/settings/books/connections','/app/settings/books/accounts','/app/settings/books/tax','/app/settings/books/starting-balances']){expect((await get(path)).statusCode,path).toBe(200);for(const who of [staff,accountant])expect((await get(path,who)).statusCode,path).toBe(302);}
+  for(const path of ['/app/settings/books','/app/settings/books/country','/app/settings/books/connections','/app/settings/books/accounts','/app/settings/books/tax','/app/settings/books/starting-balances']){expect((await get(path)).statusCode,path).toBe(200);for(const who of [staff,accountant])expect((await get(path,who)).statusCode,path).toBe(302);}
   expect((await get('/app/settings/books/fields',accountant)).statusCode).toBe(200);
   for(const path of ['/app/books/fec','/app/books/reports/fec'])expect((await get(path)).statusCode,path).toBe(404);
  });
