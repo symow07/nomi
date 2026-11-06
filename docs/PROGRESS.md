@@ -29,6 +29,35 @@ after each.
 - #441 — Block 2 PR 2, invoices that go out (0226): a PDF document where the channel carries files (WhatsApp, Messenger, Telegram, e-mail), the proforma link where not; reminders at +3 and +10 days from the send, by the channel inside its window or e-mail where a mailbox is connected, else a draft for the owner (no Meta template — the owner's correction); "We'll send you the invoice next" back only where `invoice_sending` is on. Proof: `tests/integration/invoices-out.test.ts`, the full isolated suite 2109/2109, `npm run check` 9,431, trust 44/44; a backup before the merge; `migrate-mark --expect` after; `schema_version` = 226. The one real WhatsApp send from Westlake is the owner's (PROGRESS, the PR's section).
 - #442 — Block 2 PR 3, Spending (0227): a bill in one form with its number, gross, tax code, category or account, paid from a bank or cash account or owed to the supplier until paid; the owner's categories; recurring costs proposed on their day by a daily job and posted or skipped only by the owner. Proof: `tests/integration/books-spending.test.ts` (the trial balance ties after the month's spending), the full isolated suite 2118/2118, `npm run check` 9,439, trust 44/44; backup `nomi-backup-20261106T165219Z` three minutes before the merge (`24d841ce`); deploy SUCCESS, `/health` ok; `migrate-mark --expect` ✓ (applied 1); `schema_version` = 227.
 - #443 — Block 2 PR 4, the Books home wired (no migration): Cash today by account on the home and the cash report; the chart's own money accounts when none are chosen; each figure the sum of its rows. Proof: `tests/integration/books-home.test.ts` (each figure equals the sum of its rows after a month of fixture activity; it found a future-dated line leaking into a per-account balance, fixed), the full isolated suite 2121/2121, `npm run check` 9,439; merge `bb33faae`, deploy SUCCESS, `/health` ok.
+- #444 — Block 2 PR 5, reports in the owner's words (no migration): what you made, money in and out, tax you owe, top customers, unpaid invoices by age — a page for this month / quarter / year and a spreadsheet each, first on `/app/books/reports`; the accountant pack untouched. Proof: `tests/integration/books-owner-reports.test.ts` (each figure equals the trial balance's movement on the same fixture, every span), `tests/parity/books-owner-reports.test.ts`, the A1 money scan; the full isolated suite 2124/2124, `npm run check` 9,443; merge `4e037d66`, deploy SUCCESS, `/health` ok.
+
+### Resume note — Block 2 done (2026-11-06 21:10 UTC)
+
+**State.** Blocks 1 and 2 of `docs/nomi-finishing-roadmap-claude-code-side.md` are merged and deployed: #436–#444
+(the lines above). Production `main` = `4e037d66`; `schema_version` = 227 (0224 records, 0225 country packs, 0226
+invoices out, 0227 spending); `/health` ok, `fallback: not_answering` (the Anthropic verification step is the owner's;
+`LLM_FALLBACK` stays off until `/health` says "answering"). Nothing reverted. No live model call in Block 2; the run's
+live spend so far is about $0.01 (Block 1: `check-identity` 3 calls ≈ $0.00096, `check-ext` 2 calls).
+
+**Next session starts Block 3** (the assistant: tone and length chosen once → procedures → "did teaching break
+anything?" → the hand-off that carries context → the voice-note live check), in that order, one PR each, from a fresh
+branch off `main`. Blocks 4–6 follow; 6.2 (the public site) and the guide videos wait for the owner.
+
+**How to work** (the owner, 2026-11-06): one worktree at `../nomi-claude` (make it from `main`; `npm ci` in it — the
+owner's rule is never to work in `~/Desktop/Projects/Active/nomi` itself); no sub-agents; one blocking wait per gate or
+CI (`gh pr checks <n> --watch`, then `tools/gated-merge.sh <n> <sha>`); tests quiet, failures only; a migration PR
+only after a same-hour backup whose exit code gates the merge, then `migrate-mark --expect <merge sha>`. **Push
+every commit before gating:** the worktree at `../nomi-claude` (and `../nomi-claude-b4` before it) was removed from
+disk, and from `git worktree list`, at the minute of each of the last three gated merges — `tools/gated-merge.sh`
+contains no such step and the cause is not found; nothing was lost because every branch was pushed. Recreate it with
+`git worktree add -B <branch> ../nomi-claude origin/main`.
+
+**Waiting on the owner** (exact steps are in the PR sections): the one real invoice send from Westlake to the
+owner's WhatsApp ("Invoices that go out"); `tools/backfill-zones.mjs` dry run then `--yes`; the old sandbox's erasure;
+the practice photo and voice note on production; phone alerts on real devices; one PDF upload on production;
+`LLM_FALLBACK=on` once the fallback answers; the strict-mode English decision (rule 92); native readers for the
+English-only lines listed in `docs/NATIVE-REVIEW-UI.md` (Block 2 added the spending book, the Books home's four lines
+and the owner's reports).
 ## Block 2 PR 1 — country packs (2026-11-06; 0225)
 
 **What shipped.** One page under Books settings, `/app/settings/books/country` (owner-only, like every other books
