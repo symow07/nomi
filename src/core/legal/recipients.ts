@@ -7,7 +7,8 @@
  * Stripe (an owner's billing), the browsers' push services (alerts), Resend or
  * Postmark (sign-in codes and alerts), 360dialog (every WhatsApp message), the
  * installation's own SMTP server (mail to customers), and Apollo (prospect
- * searches). (Resend or Postmark was named on 2026-10-30, the owner's line.)
+ * searches). (Resend or Postmark was named on 2026-10-30, the owner's line;
+ * Stripe and the push services on 2026-11-06, in the business section.)
  * Each is listed here with what switches it on. While `named` is
  * false, switching it on fails: the boot refuses the variable (`validateEnv`),
  * and Apollo, switched on per business by a stored key, is not wired at all.
@@ -31,8 +32,10 @@ const set = (env: Readonly<Record<string, string | undefined>>, ...names: string
   names.filter((n) => (env[n] ?? '').trim() !== '');
 
 export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
-  { id: 'stripe', name: 'Stripe', switchedOnBy: (env) => set(env, 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'), named: false },
-  { id: 'webPush', name: 'the browsers\' push services (web push)', switchedOnBy: (env) => set(env, 'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY'), named: false },
+  // 2026-11-06 — both named in the privacy page's business section, in every language, the day the owner set their keys
+  // and production refused to boot (every deploy after #435 failed on this line until then).
+  { id: 'stripe', name: 'Stripe', switchedOnBy: (env) => set(env, 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'), named: { key: 'legal.privacy.owner.stripe' } },
+  { id: 'webPush', name: 'the browsers\' push services (web push)', switchedOnBy: (env) => set(env, 'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY'), named: { key: 'legal.privacy.owner.webPush' } },
   // MAIL (2026-10-30) — named in the "who" list by the provider in use, in every language, and in the business section.
   { id: 'httpsMail', name: 'Resend or Postmark', switchedOnBy: (env) => set(env, 'MAIL_PROVIDER', 'MAIL_API_KEY'), named: { key: 'legal.privacy.who.httpsMail' } },
   {

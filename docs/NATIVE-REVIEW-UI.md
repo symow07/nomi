@@ -16566,3 +16566,13 @@ New lines in zh, ar, es and fr, none read by a native reader. Not a gate.
 
 - **Keys:** `books.invoice.bankChoose`, `books.invoice.bankNeeded`, `books.invoice.noBank`.
 - **To check:** that `noBank` reads naturally, with the words to put in an account's name quoted as an owner would type them.
+## Stripe and the push services on the privacy page (2026-11-06)
+
+Two new lines in zh, ar, es and fr, none read by a native reader. Not a gate. Each appears in the privacy page's business
+section only where this installation runs the service (D18, `src/core/legal/recipients.ts`).
+
+- **Keys:** `legal.privacy.owner.stripe` (the card is typed on Stripe's own page, goes to Stripe directly, never through
+  Nomi; Stripe sees no customer and no message) and `legal.privacy.owner.webPush` (the browser's or phone's push service —
+  Apple, Google or Mozilla — carries the alert, encrypted, and cannot read it).
+- **To check:** that "directly, never through Nomi" and "cannot read it" read as plain fact; that the Arabic addresses
+  nobody in a gender (the owner-side sweep passes); that the French avoids a personal pronoun for the service.

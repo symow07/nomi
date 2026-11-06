@@ -13,6 +13,15 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The finishing roadmap run (2026-11-06 → )
+
+One line per merged PR: number, what changed, proof. The plan is `docs/nomi-finishing-roadmap-claude-code-side.md`;
+the owner's corrections of 2026-11-06 are in the final report. Deploys: every merge to main deploys; `/health` is read
+after each.
+
+- #426 — honest answers to "are you a bot?" in French; a denied name is a denial. Proof: `tests/parity/identity-guard.test.ts` (81). Deploy FAILED: not this PR — production had refused every deploy since the owner set the Stripe and VAPID keys (D18, below); the previous build kept serving, `/health` ok.
+- D18 fix (this PR) — Stripe and the browsers' push services named on the privacy page's business section in five languages; their keys no longer stop the boot. Proof: `tests/parity/data-protection-pages.test.ts` (the D18 block), the next deploy SUCCESS.
+
 ## Approved redesign, Area 8: Public pages (2026-11-06; no migration)
 
 The final area completes the approved eight-area implementation. Sign-in and signup use the unchanged large seal over minimal centred forms. Website sections are flat, legal pages have a readable measure and clear headings, and customer proof/proforma pages retain paper layouts. Public chat keeps its original composer and send path. All 19 public routes, exact visible text, legal wording/accepted-terms version, original forms and token/privacy headers remain unchanged. Schema remains 223.

@@ -382,8 +382,8 @@ describe('D18 · no service receives anyone\'s data before the privacy page name
       'odoo', 'smtp', 'stripe', 'telegram', 'tiktok', 'webPush', 'xero']);   // A5 adds the books' six
     expect(unnamedRecipientProblems({})).toEqual([]);
     for (const [env, name] of [
-      [{ STRIPE_SECRET_KEY: 'sk_test_x' }, 'Stripe'], [{ VAPID_PRIVATE_KEY: 'x' }, 'web push'],
       [{ WHATSAPP_PROVIDER: '360dialog' }, '360dialog'], [{ SMTP_HOST: 'smtp.example.test' }, 'SMTP server'],
+      [{ XERO_CLIENT_ID: 'x' }, 'Xero'], [{ TIKTOK_APP_ID: 'x' }, 'TikTok'],
     ] as const) {
       const p = unnamedRecipientProblems(env);
       expect(p, name).toHaveLength(1);
@@ -395,6 +395,27 @@ describe('D18 · no service receives anyone\'s data before the privacy page name
     // MAIL (2026-10-30) — Resend is named on the privacy page, so its variables no longer stop the boot.
     expect(OPTIONAL_RECIPIENTS.find((r) => r.id === 'httpsMail')).toMatchObject({ named: { key: 'legal.privacy.who.httpsMail' } });
     expect(unnamedRecipientProblems({ MAIL_PROVIDER: 'resend', MAIL_API_KEY: 'x' })).toEqual([]);
+    // 2026-11-06 — Stripe and the push services are named in the business section: their keys no longer stop the boot
+    // (production refused every deploy after #435 the day the owner set them).
+    expect(OPTIONAL_RECIPIENTS.find((r) => r.id === 'stripe')).toMatchObject({ named: { key: 'legal.privacy.owner.stripe' } });
+    expect(OPTIONAL_RECIPIENTS.find((r) => r.id === 'webPush')).toMatchObject({ named: { key: 'legal.privacy.owner.webPush' } });
+    expect(unnamedRecipientProblems({ STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x', VAPID_PRIVATE_KEY: 'x', VAPID_PUBLIC_KEY: 'y' })).toEqual([]);
+  });
+  it('Stripe and the push services are on the page only where this installation runs them, in the business section, in every language', () => {
+    const FACTS = { processor: aiProcessor('https://api.deepseek.com/anthropic'), hosting: HOSTING, transcriber: null, botCheck: null };
+    const page = (l: (typeof LOCALES)[number], facts: Parameters<typeof renderPrivacy>[2] = FACTS) => withoutIsolates(renderPrivacy(l, 'privacy@nomi.test', facts));
+    for (const l of LOCALES) {
+      const off = page(l);
+      expect(off).not.toContain(t(l, 'legal.privacy.owner.stripe'));
+      expect(off).not.toContain(t(l, 'legal.privacy.owner.webPush'));
+      const on = page(l, { ...FACTS, stripe: true, webPush: true });
+      const business = on.slice(on.indexOf('id="business"'), on.indexOf('id="books"'));
+      expect(business).toContain(t(l, 'legal.privacy.owner.stripe'));
+      expect(business).toContain(t(l, 'legal.privacy.owner.webPush'));
+      // The card never passes through Nomi, and the push service cannot read an alert: said in so many words.
+      expect(t(l, 'legal.privacy.owner.stripe')).toMatch(/Stripe/);
+      expect(t(l, 'legal.privacy.owner.webPush')).toMatch(/Apple|Google|Mozilla/);
+    }
   });
   it('a service marked named has its line on the privacy page, in every language', async () => {
     const { OPTIONAL_RECIPIENTS } = await import('../../src/core/legal/recipients.js');

@@ -128,6 +128,10 @@ export type LegalFacts = {
    * named in the "who" list, and in the business section in place of Google. Absent, Google carries it.
    */
   readonly mailSender?: string | null;
+  /** D18 (2026-11-06) — Stripe bills the business here: named in the business section, where the card goes. */
+  readonly stripe?: boolean;
+  /** D18 (2026-11-06) — phone alerts are on here: the browsers' push services carry them, and are named. */
+  readonly webPush?: boolean;
 };
 
 /**
@@ -273,6 +277,9 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     ${/* Phase 1 (0148) — the sign-up's abuse check, the fingerprint named as one. */ ''}<p id="signup-check">${esc(t(l, 'legal.privacy.owner.signupCheck'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.who', { sender: facts.mailSender ?? 'Google', processor: processorsOf(l, facts), hosting: processorLabel(facts.hosting, l) }))}${
       facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
+      /* D18 (2026-11-06) — Stripe and the push services, each only where this installation runs it (recipients.ts). */
+      facts.stripe ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.stripe'))}` : ''}${
+      facts.webPush ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.webPush'))}` : ''}${
       l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.howLong'))}${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.howLongBooks'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.export', { data: t(l, 'data.title') }))}</p>
