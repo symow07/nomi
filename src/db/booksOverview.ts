@@ -3,6 +3,7 @@ import type { Tx } from './client.js';
 import { decimal, type Decimal } from '../core/types/decimal.js';
 import { invoiceKey, statusOf, type InvoiceRow } from './booksInvoices.js';
 import { literalLike } from './customerPaging.js';
+import { holdsMoney } from '../core/books/moneyAccounts.js';
 
 export type BooksOverviewOptions = {
   readonly today: string; readonly cashAccountIds?: readonly string[]; readonly payableAccountIds?: readonly string[];
@@ -18,6 +19,7 @@ export type OverviewHistoryPaper = {readonly id:string;readonly name:string;read
 export type OverviewBankLine = {readonly id:string;readonly accountId:string;readonly account:string;readonly bookedOn:string;readonly currency:string;readonly amount:Decimal;readonly wording:string|null;readonly reference:string|null};
 export type OverviewSupplier = {readonly id:string;readonly partyId:string|null;readonly party:string|null;readonly accountId:string;readonly account:string;readonly owed:Decimal;readonly advance:Decimal;readonly unassigned:boolean};
 export type OverviewSupplierEntry = {readonly id:string;readonly entryId:string;readonly date:string;readonly label:string;readonly partyId:string|null;readonly party:string|null;readonly accountId:string;readonly account:string;readonly bookDebit:Decimal;readonly bookCredit:Decimal};
+export type OverviewCashBalance = {readonly id:string;readonly code:string;readonly name:string;readonly balance:Decimal};
 export type OverviewProfitEntry = {readonly id:string;readonly date:string;readonly label:string;readonly amount:Decimal};
 export type OverviewCashEntry = {readonly id:string;readonly date:string;readonly label:string;readonly classification:'external'|'transfer'|'transfer_fee'|'review'|'valuation';readonly received:Decimal;readonly paidOut:Decimal;readonly reason:string|null};
 export type BooksOverview = {
@@ -26,7 +28,9 @@ export type BooksOverview = {
   readonly needsYou:{readonly overdueInvoices:number;readonly unmatchedLines:number;readonly papers:{readonly unread:number;readonly problem:number;readonly ready:number;readonly draft:number;readonly posted:number;readonly setAside:number;readonly pending:number}};
   readonly customerOwed:{readonly byCurrency:readonly {readonly currency:string;readonly owed:Decimal;readonly refundDue:Decimal;readonly count:number;readonly overdue:number}[]};
   readonly profit:{readonly amount:Decimal;readonly from:string;readonly to:string;readonly basis:'fiscal'|'calendar'};
-  readonly cash:{readonly state:OverviewState;readonly received:Decimal|null;readonly paidOut:Decimal|null;readonly selectedIds:readonly string[];readonly transferIds:readonly string[];readonly reviewEntryIds:readonly string[];readonly reviewCount:number;readonly excludedTransferCount:number};
+  /** Block 2 PR 4 — the money in the bank and cash accounts as of today: posted balances, by account, never a kept sum. */
+  readonly cashToday:{readonly state:OverviewState;readonly balance:Decimal|null;readonly defaulted:boolean;readonly byAccount:readonly OverviewCashBalance[]};
+  readonly cash:{readonly state:OverviewState;readonly received:Decimal|null;readonly paidOut:Decimal|null;readonly defaulted:boolean;readonly selectedIds:readonly string[];readonly transferIds:readonly string[];readonly reviewEntryIds:readonly string[];readonly reviewCount:number;readonly excludedTransferCount:number};
   readonly supplierOwed:{readonly state:OverviewState;readonly owed:Decimal|null;readonly advances:Decimal|null;readonly knownOwed:Decimal;readonly knownAdvances:Decimal;readonly unassignedOwed:Decimal;readonly unassignedAdvances:Decimal;readonly selectedIds:readonly string[]};
 };
 const uuid=(s:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -94,11 +98,20 @@ export async function readOverviewBankLines(tx:Tx,businessId:string,o:OverviewPa
  return {...p,rows:p.rows.map(r=>({...r,amount:decimal(r.amount)}))};
 }
 
-type Scope={state:'available'|'needs_setup'|'unavailable';ids:string[];transfers:string[]};
+type Scope={state:'available'|'needs_setup'|'unavailable';ids:string[];transfers:string[];defaulted?:boolean};
+/** Block 2 PR 4 — nothing chosen: the chart's own bank and cash accounts (0225's `holds_money`, or rule 91's words in the
+ * name), the receivable account never among them; for suppliers, the pack's creditors account (4411 / 2000). The home
+ * then shows its figures without a choice; the chooser still overrides for one view. None in the chart: `needs_setup`. */
+async function defaultScope(tx:Tx,businessId:string,kind:'cash'|'payable'):Promise<string[]> {
+ if(kind==='payable')return (await sql<{id:string}>`select id::text as id from accounts where business_id=${businessId}::uuid and is_active and kind='liability' and code in ('4411','2000') order by case code when '4411' then 0 else 1 end limit 1`.execute(tx)).rows.map(r=>r.id);
+ const rows=(await sql<{id:string;code:string;name:string;holds_money:boolean}>`select a.id::text as id,a.code,a.name,a.holds_money from accounts a where a.business_id=${businessId}::uuid and a.is_active and a.kind='asset'
+  and not exists(select 1 from accounts c where c.parent_id=a.id) and not exists(select 1 from books_settings b where b.business_id=a.business_id and b.receivable_account_id=a.id) order by a.code,a.id`.execute(tx)).rows;
+ return rows.filter(a=>a.holds_money||holdsMoney(a.code,a.name)).map(a=>a.id);
+}
 async function selected(tx:Tx,businessId:string,ids:readonly string[]|undefined,kind:'cash'|'payable',transfers:readonly string[]=[],payable:readonly string[]=[]):Promise<Scope>{
  const picked=[...new Set((ids??[]).map(id=>id.toLowerCase()))],clearing=[...new Set(transfers.map(id=>id.toLowerCase()))];const no:Scope={state:'unavailable',ids:[],transfers:[]};
  if([...picked,...clearing].some(x=>!uuid(x))||picked.length+clearing.length>200||picked.some(x=>clearing.includes(x))||kind==='cash'&&clearing.some(x=>payable.some(id=>id.toLowerCase()===x)))return no;
- if(!picked.length)return {state:'needs_setup',ids:[],transfers:[]};
+ if(!picked.length){const own=(await defaultScope(tx,businessId,kind)).filter(id=>!clearing.includes(id));return own.length?{state:'available',ids:own,transfers:clearing,defaulted:true}:{state:'needs_setup',ids:[],transfers:[]};}
  const all=[...picked,...clearing];const rows=(await sql<{id:string;kind:string;receivable:boolean}>`select a.id::text as id,a.kind,exists(select 1 from books_settings b where b.business_id=a.business_id and b.receivable_account_id=a.id) as receivable
   from accounts a where a.business_id=${businessId}::uuid and a.id=any(${all}::uuid[])`.execute(tx)).rows;
  if(rows.length!==all.length||rows.some(r=>picked.includes(r.id)?r.kind!==(kind==='cash'?'asset':'liability')||(kind==='cash'&&r.receivable):!['asset','liability'].includes(r.kind)||r.receivable))return no;
@@ -207,6 +220,10 @@ export async function readBooksOverview(tx:Tx,businessId:string,o:BooksOverviewO
  const cash=(await sql<{received:string;paidOut:string;reviews:number;transfers:number}>`select coalesce(sum(received::numeric),0)::text as received,coalesce(sum("paidOut"::numeric),0)::text as "paidOut",count(*) filter(where classification='review')::int as reviews,count(*) filter(where classification in ('transfer','transfer_fee'))::int as transfers from (${cashSource(businessId,o,cashScope)}) c`.execute(tx)).rows[0]!;
  const reviewIds=cash.reviews?(await sql<{id:string}>`select id from (${cashSource(businessId,o,cashScope)}) c where classification='review' order by date desc,id limit 50`.execute(tx)).rows.map(r=>r.id):[];
  const cashState:OverviewState=cashScope.state!=='available'?cashScope.state:cash.reviews?'needs_review':'available';
+ const byAccount=cashScope.state==='available'?(await sql<{id:string;code:string;name:string;balance:string}>`select a.id::text as id,a.code,a.name,coalesce(sum(case when e.id is null then 0 else l.book_debit-l.book_credit end),0)::text as balance
+  from accounts a left join journal_lines l on l.account_id=a.id and l.business_id=a.business_id left join journal_entries e on e.id=l.entry_id and e.business_id=l.business_id and e.state='posted' and e.entry_date<=${o.today}::date
+  where a.business_id=${businessId}::uuid and a.id=any(${cashScope.ids}::uuid[]) group by a.id,a.code,a.name order by a.code,a.id`.execute(tx)).rows.map(r=>({...r,balance:decimal(r.balance)})):[];
+ // A line whose entry is not posted by today joins no entry (e.id null) and counts nothing: each account's balance is its posted lines alone.
  const payableScope=await selected(tx,businessId,o.payableAccountIds,'payable');
  const supplier=(await sql<{owed:string;advances:string;unassignedOwed:string;unassignedAdvances:string;unassigned:number}>`select coalesce(sum(owed::numeric) filter(where not unassigned),0)::text as owed,coalesce(sum(advance::numeric) filter(where not unassigned),0)::text as advances,coalesce(sum(owed::numeric) filter(where unassigned),0)::text as "unassignedOwed",coalesce(sum(advance::numeric) filter(where unassigned),0)::text as "unassignedAdvances",count(*) filter(where unassigned)::int as unassigned from (${supplierSource(businessId,o.today,payableScope.ids)}) s`.execute(tx)).rows[0]!;
  const supplierState:OverviewState=payableScope.state!=='available'?payableScope.state:supplier.unassigned?'needs_review':'available';
@@ -214,6 +231,8 @@ export async function readBooksOverview(tx:Tx,businessId:string,o:BooksOverviewO
   needsYou:{overdueInvoices:owed.reduce((n,r)=>n+r.overdue,0),unmatchedLines:bank,papers:paper},
   customerOwed:{byCurrency:owed.map(r=>({...r,owed:decimal(r.owed),refundDue:decimal(r.refundDue)}))},
   profit:{amount:decimal(profit),from,to:o.today,basis:year?'fiscal':'calendar'},
-  cash:{state:cashState,received:cashState==='available'?decimal(cash.received):null,paidOut:cashState==='available'?decimal(cash.paidOut):null,selectedIds:cashScope.ids,transferIds:cashScope.transfers,reviewEntryIds:reviewIds,reviewCount:cash.reviews,excludedTransferCount:cash.transfers},
+  cashToday:{state:cashScope.state,balance:cashScope.state==='available'?decimal((await sql<{s:string}>`select coalesce(sum(l.book_debit-l.book_credit),0)::text as s from journal_lines l join journal_entries e on e.id=l.entry_id and e.business_id=l.business_id
+   where l.business_id=${businessId}::uuid and l.account_id=any(${cashScope.ids}::uuid[]) and e.state='posted' and e.entry_date<=${o.today}::date`.execute(tx)).rows[0]!.s):null,defaulted:cashScope.defaulted===true,byAccount},
+  cash:{state:cashState,defaulted:cashScope.defaulted===true,received:cashState==='available'?decimal(cash.received):null,paidOut:cashState==='available'?decimal(cash.paidOut):null,selectedIds:cashScope.ids,transferIds:cashScope.transfers,reviewEntryIds:reviewIds,reviewCount:cash.reviews,excludedTransferCount:cash.transfers},
   supplierOwed:{state:supplierState,owed:supplierState==='available'?decimal(supplier.owed):null,advances:supplierState==='available'?decimal(supplier.advances):null,knownOwed:decimal(supplier.owed),knownAdvances:decimal(supplier.advances),unassignedOwed:decimal(supplier.unassignedOwed),unassignedAdvances:decimal(supplier.unassignedAdvances),selectedIds:payableScope.ids}};
 }

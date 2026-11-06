@@ -28,7 +28,8 @@ describe('A5 · who may do what in the books', () => {
       today:'2026-11-01',bookCurrency:'GBP',month:{from:'2026-11-01',to:'2026-11-01'},fiscalYear:null,
       needsYou:{overdueInvoices:0,unmatchedLines:0,papers:{unread:0,problem:0,ready:0,draft:0,posted:0,setAside:0,pending:0}},
       customerOwed:{byCurrency:[]},profit:{amount:decimal('0'),from:'2026-01-01',to:'2026-11-01',basis:'calendar'},
-      cash:{state:'needs_setup',received:null,paidOut:null,selectedIds:[],transferIds:[],reviewEntryIds:[],reviewCount:0,excludedTransferCount:0},
+      cashToday:{state:'needs_setup',balance:null,defaulted:false,byAccount:[]},
+      cash:{state:'needs_setup',defaulted:false,received:null,paidOut:null,selectedIds:[],transferIds:[],reviewEntryIds:[],reviewCount:0,excludedTransferCount:0},
       supplierOwed:{state:'needs_setup',owed:null,advances:null,knownOwed:decimal('0'),knownAdvances:decimal('0'),unassignedOwed:decimal('0'),unassignedAdvances:decimal('0'),selectedIds:[]},
     };
     const page=(isOwner:boolean)=>renderBooksOverview('en',isOwner?owner:accountant,b,{today:b.today},[],[],{year:false,accounts:false});

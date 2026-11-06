@@ -16598,6 +16598,12 @@ New lines in zh, ar, es and fr, none read by a native reader. Not a gate. They a
 - **To check:** that the TVA / VAT / sales-tax sentences (`tax.MA`, `tax.GB`, `tax.US`) read as plain fact; that `keptYears` ("{n} years after the end of the last financial year with an entry") takes 6, 7 and 10 in each language (Arabic: سنوات for all three); that `periodWhy` says "chosen once" clearly enough that an owner does not expect to change it; that `moneyWhy` quotes the words bank / cash as an owner would type them in each language (银行 / 现金, بنك / صندوق, banco / caja, banque / caisse — the rule reads those words).
 - **Not translated by design:** the chart templates' account names (English for the UK and US charts, the CGNC's French for Morocco) and the tax codes' labels (`TVA 20 % facturée`, `VAT standard rate 20%`, `Sales tax CA`) are data the owner renames, not catalogue copy; `EIN`, `ICE`, `IF`, `RC` stay as they are.
 
+## The Books home (2026-11-06; no migration)
+
+Four English-only lines in `src/core/owner/i18n/booksArea.ts` (`BOOKS_AREA_EN`): `booksArea.cashToday` (a heading and the
+figure), `booksArea.cashByAccount` (its door), `booksArea.cashTodayBasis` (what the figure is made of),
+`booksArea.ownAccounts` (the default scope said). Other languages show the English until a native reader translates.
+
 ## Spending (2026-11-06; 0227)
 
 No new line in zh, ar, es or fr: the spending book's sixty-odd owner-facing lines are English only, in
