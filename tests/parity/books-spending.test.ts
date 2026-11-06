@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { nextOn, splitGross, dayOf, isEvery, EVERY } from '../../src/core/books/spending.js';
+import { nextOn, splitGross, dayOf, isEvery, EVERY, norefFor, isNoref } from '../../src/core/books/spending.js';
 import { decimal } from '../../src/core/types/decimal.js';
 import { BOOKS_SPENDING_EN } from '../../src/core/owner/i18n/booksSpending.js';
 
@@ -44,6 +44,26 @@ describe('a bill\'s gross, split into the net and its tax', () => {
   it('the net at the rate agrees with the tax within a cent', () => {
     const { net, tax } = splitGross(decimal('1250.00'), decimal('20'));
     expect(Math.abs(Number(net) * 0.2 - Number(tax))).toBeLessThanOrEqual(0.01);
+  });
+});
+
+describe('a bill with no number (the owner, 2026-11-07)', () => {
+  it('Nomi\'s reference is NOREF-<day>-<n>, and only that shape reads as one', () => {
+    expect(norefFor('2026-11-07', 1)).toBe('NOREF-20261107-1');
+    expect(norefFor('2026-11-07', 12)).toBe('NOREF-20261107-12');
+    expect(isNoref('NOREF-20261107-1')).toBe(true);
+    expect(isNoref(' NOREF-20261107-12 ')).toBe(true);
+    for (const s of ['noref-20261107-1', 'NOREF-2026-11-07-1', 'NOREF-20261107', 'NOREF-20261107-', 'RC-2026-031', 'Rent 2026-11-07', '', null, undefined]) expect(isNoref(s), String(s)).toBe(false);
+  });
+  it('the form no longer requires a number; the tick is there; the words say whose reference it is', () => {
+    const page = readFileSync(new URL('../../src/api/web/booksSpending.ts', import.meta.url), 'utf8');
+    expect(page).toContain(`input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" autocomplete="off"')`);
+    expect(page).toContain('type="checkbox" name="noref" value="1"');
+    expect(BOOKS_SPENDING_EN['booksSpending.bill.noRef']).toBe('No number on this bill');
+    expect(BOOKS_SPENDING_EN['booksSpending.bill.noRefHint']).toContain('NOREF-date-number');
+    expect(BOOKS_SPENDING_EN['booksSpending.bill.noRefShown']).toContain('{ref}');
+    expect(BOOKS_SPENDING_EN['booksSpending.flash.billPostedNoRef']).toContain('{ref}');
+    expect(BOOKS_SPENDING_EN['booksSpending.refused.ref_and_no_number']).toContain('not both');
   });
 });
 

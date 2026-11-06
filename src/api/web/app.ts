@@ -3626,7 +3626,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return { s, bid };
   };
   const spendingWhy = (locale: Locale, out: { kind: 'refused'; reason: string; detail: string | null } | EntryRefusal): string =>
-    out.reason === 'choices' || out.reason === 'supplier' || out.reason === 'pay_account' ? t(locale, `booksSpending.refused.${out.reason}` as MessageKey)
+    out.reason === 'choices' || out.reason === 'supplier' || out.reason === 'pay_account' || out.reason === 'ref_and_no_number' || out.reason === 'noref_typed' ? t(locale, `booksSpending.refused.${out.reason}` as MessageKey)
     : out.reason === 'tax_account' ? t(locale, 'booksSpending.refused.tax_account', { code: out.detail ?? '' })
     : entryRefusedWhy(locale, out as EntryRefusal);
   app.post('/app/books/spending/bills', async (req, reply) => {
@@ -3638,9 +3638,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const gross = readTypedAmount(str('gross'));
     const date = dayOf(str('date'));
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
-    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
+    const noNumber = str('noref') === '1';
+    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
       taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') }));
-    return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billPosted', { key: out.key })
+    return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
       : flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
   });
   app.post('/app/books/spending/bills/:id/pay', async (req, reply) => {

@@ -10,6 +10,7 @@ import type { BooksField } from '../../core/books/interchange.js';
 import { customHeads, customInputs, customShown } from './booksFields.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
+import { isNoref } from '../../core/books/spending.js';
 import * as show from './values.js';
 
 /**
@@ -61,7 +62,7 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
   const meta = [
     `${esc(t(locale, 'books.entry.journal'))}: <bdi>${esc(e.journal)}</bdi>`,
     `${esc(t(locale, 'books.entry.date'))}: ${esc(show.dateYear(locale, new Date(`${e.date}T12:00:00Z`)))}`,
-    e.documentRef ? `${esc(t(locale, 'books.entry.document'))}: <bdi>${esc(e.documentRef)}</bdi>${e.documentDate ? ` · ${esc(show.dateYear(locale, new Date(`${e.documentDate}T12:00:00Z`)))}` : ''}` : '',
+    e.documentRef ? `${esc(t(locale, 'books.entry.document'))}: <bdi>${esc(e.documentRef)}</bdi>${e.documentDate ? ` · ${esc(show.dateYear(locale, new Date(`${e.documentDate}T12:00:00Z`)))}` : ''}${isNoref(e.documentRef) ? ` · ${esc(t(locale, 'booksSpending.bill.noRefEntry'))}` : ''}` : '',
     customShown(locale, fields, 'entry', e.custom),
   ].filter(Boolean);
   const actions = !mayPost(viewer) ? '' : e.state === 'draft' ? `
