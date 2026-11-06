@@ -49,6 +49,12 @@ d('B24 · one message, one turn — two processes, and a retried photo (requires
   let prod: import('../../src/main.js').Production;
   let second: Awaited<ReturnType<typeof import('../../src/worker/main.js')['startWorker']>> | null = null;
   let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
+  // Block 1 #14 (2026-11-06) — the SAME image fetcher for both processes (below). The second process was started with no
+  // media port at all, so whenever IT took the photo's job (the first is inside the held turn, and a workspace runs one
+  // job at a time per process — the likelier outcome under load) the photo could not be downloaded, was refused
+  // `media_failed`, went to a person with no reply, and `answers` counted 1 where the test expected 2. The flake the
+  // roadmap lists as "turn-once counts 1 answer not 2 under load" was this: a test fixture, not the worker.
+  let imageFetcher: import('../../src/channels/whatsapp/media.js').MediaFetcher | undefined;
   const analyzer = new HeldAnalyzer();
   analyzer.next = {
     language: { detected: 'en', replyIn: 'en' },
@@ -104,12 +110,13 @@ d('B24 · one message, one turn — two processes, and a retried photo (requires
       on conflict (channel, external_ref) do nothing`.execute(tx));
     await setup.destroy();
     const media = { baseUrl: SIM_MEDIA_BASE, apiKey: 'sim', fetchImpl: sim.mediaFetch };
+    imageFetcher = whatsappMediaFetcher(media);
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
       META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'b24-verify-token-xx', CREDENTIAL_KEY: 'a'.repeat(64), PORT: 0,
-    }, { adapter: sim.adapter, logger: false, media: { image: whatsappMediaFetcher(media) }, models: { analyzer, replyWriter, vision } });
+    }, { adapter: sim.adapter, logger: false, media: { image: imageFetcher }, models: { analyzer, replyWriter, vision } });
   }, 60_000);
 
   afterAll(async () => {
@@ -121,7 +128,7 @@ d('B24 · one message, one turn — two processes, and a retried photo (requires
   it('two processes holding the same batch: the second finds it answered under the lock — the lines answered once', async () => {
     const { startWorker } = await import('../../src/worker/main.js');
     // The second process: the same database and queue, the same scripted model.
-    second = await startWorker({ DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid' }, {}, { analyzer, replyWriter, vision });
+    second = await startWorker({ DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid' }, { image: imageFetcher }, { analyzer, replyWriter, vision });
 
     const LINE = 'Do you make bamboo cutting boards?';
     try {
@@ -151,6 +158,7 @@ d('B24 · one message, one turn — two processes, and a retried photo (requires
       // The line went to the model once; the conversation has two answers — the line's and the photo's — never three.
       expect(analyzer.texts.filter((t) => t === LINE)).toHaveLength(1);
       expect(await answers(conversationId)).toBe(2);
+      expect(looked, 'the photo was seen, by whichever process took it').toBeGreaterThanOrEqual(1);
     } finally {
       // The second process leaves, pass or fail: every job after this is production's own, which can see photos.
       analyzer.release?.();

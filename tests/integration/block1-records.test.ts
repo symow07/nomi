@@ -217,7 +217,7 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
     expect(sent.outcome).toBe('sent');
     expect(kicked.at(-1)).toMatchObject({ quoteId: made.quote });
     const edited = await applyOwnerCommand(deps as never, { businessId: bid.value, draftId: made.b, rawReply: `改 Ten totes come to $24 today ${RUN}.`, decidedBy: 'owner' });
-    expect(edited.outcome).toBe('sent');
+    expect(edited.outcome).toBe('edited_sent');
     expect(kicked.at(-1)?.quoteId ?? null).toBeNull();
   });
 
