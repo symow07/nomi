@@ -68,6 +68,8 @@ export const QUEUES = {
   booksRead: 'books.read',
   // D10 (0211) — every hour, Avis 24's periods kept on each Moroccan workspace's locks
   booksPeriods: 'books.periods',
+  /** 0227 — every morning, the recurring costs due are PROPOSED (never posted) for the owner's tick. */
+  spendingProposals: 'books.spending_proposals',
   booksStaleGrants: 'books.stale-grants',
   /**
    * CC-02a — the once-a-day look at deletion requests: is any open one within

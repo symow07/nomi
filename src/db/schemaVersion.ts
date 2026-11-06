@@ -475,7 +475,8 @@ import type { Db } from './client.js';
 // 225 = the books' country packs: which accounts hold money, the UK and US plain charts, the company number and the EIN,
 //       seven years' retention in the US (0225).
 // 226 = invoices that go out: the workspace's switch, the PDF's expiring link, each send and each reminder recorded (0226).
-export const REQUIRED_SCHEMA_VERSION = 226;
+// 227 = spending: the owner's categories, bills, recurring costs and their proposals (0227).
+export const REQUIRED_SCHEMA_VERSION = 227;
 
 export type SchemaState = {
   readonly required: number;

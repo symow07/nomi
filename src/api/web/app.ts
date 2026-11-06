@@ -9,12 +9,15 @@ import { renderBooksHistory } from './booksHistory.js';
 import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
 import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOverviewPaper, readOverviewHistoryPapers, readOverviewBankLines, readOverviewCashEntries, readOverviewSuppliers, readOverviewSupplierEntries, readOverviewProfitEntries, type BooksOverviewOptions } from '../../db/booksOverview.js';
+import { renderSpendingBook } from './booksSpending.js';
+import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
+import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
 import { booksArea } from './booksArea.js';
 import { renderAssistantsSection } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
-import type { Decimal } from '../../core/types/decimal.js';
+import { signOf, type Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { markConversationOpened } from '../../db/conversationOpened.js';
@@ -3577,8 +3580,95 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const asked=(req.query as {state?:unknown}).state;
     const states=['pending','unread','problem','ready','draft','posted','set_aside'] as const;const state=states.find(x=>x===asked);
     const body=asked==='history'?renderBooksHistory(locale,await withTenantTx(deps.db,bid,tx=>readOverviewHistoryPapers(tx,bid,{page:overviewPageOf(req)}))):renderSpending(locale,personOf(s),await withTenantTx(deps.db,bid,tx=>readOverviewPapers(tx,bid,{page:overviewPageOf(req),...(state?{state}:{})})),Boolean(deps.documents),{...(state?{state}:{}),returnHref:req.url});
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+body}));
+    // 0227 (Block 2 PR 3) — the owner's spending book above the papers: what waits for a tick, a bill, what is unpaid, the schedule, the categories.
+    const book = asked==='history' ? '' : await withTenantTx(deps.db, bid, async (tx) => {
+      const today = await spendingToday(tx, bid);
+      const monthFrom = `${today.slice(0, 7)}-01`;
+      return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today) }, await spendingChoices(tx, bid));
+    });
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+book+body}));
   });
+
+  // ── 0227 · the spending book's writes (the owner's, `booksMay 'post'`) ───────────────────────────────────────────
+  const spendingOwner = async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req); if (!s) { void reply.redirect('/login'); return null; }
+    const bid = bidOf(s); if (!bid) { void reply.callNotFound(); return null; }
+    if (!booksMay(personOf(s), 'post')) { void flashTo(reply, '/app/books/spending', 'staff.notAllowed'); return null; }
+    return { s, bid };
+  };
+  const spendingWhy = (locale: Locale, out: { kind: 'refused'; reason: string; detail: string | null } | EntryRefusal): string =>
+    out.reason === 'choices' || out.reason === 'supplier' || out.reason === 'pay_account' ? t(locale, `booksSpending.refused.${out.reason}` as MessageKey)
+    : out.reason === 'tax_account' ? t(locale, 'booksSpending.refused.tax_account', { code: out.detail ?? '' })
+    : entryRefusedWhy(locale, out as EntryRefusal);
+  app.post('/app/books/spending/bills', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const locale = localeOf(req);
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+    const uuid = (k: string) => (/^[0-9a-f-]{36}$/i.test(str(k)) ? str(k) : null);
+    const gross = readTypedAmount(str('gross'));
+    const date = dayOf(str('date'));
+    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
+    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
+      taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') }));
+    return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billPosted', { key: out.key })
+      : flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
+  });
+  app.post('/app/books/spending/bills/:id/pay', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const f = (req.body ?? {}) as Record<string, string | undefined>;
+    const date = dayOf(String(f['date'] ?? '')); const account = String(f['account'] ?? '');
+    if (!date || !/^[0-9a-f-]{36}$/i.test(account) || !/^[0-9a-f-]{36}$/i.test(id)) return flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.pay_account') });
+    const out = await withTenantTx(deps.db, got.bid, (tx) => payBill(tx, got.bid, personOf(got.s).id, id, account, date));
+    return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.paid', { key: out.key })
+      : flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
+  });
+  app.post('/app/books/spending/categories', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const f = (req.body ?? {}) as Record<string, string | undefined>;
+    const account = String(f['account'] ?? '');
+    const r = /^[0-9a-f-]{36}$/i.test(account) ? await withTenantTx(deps.db, got.bid, (tx) => addCategory(tx, got.bid, String(f['name'] ?? ''), account)) : 'refused';
+    return flashTo(reply, '/app/books/spending#categories', r === 'added' ? 'booksSpending.flash.categoryAdded' : 'booksSpending.flash.categoryRefused');
+  });
+  app.post('/app/books/spending/categories/:id/archive', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const id = (req.params as { id: string }).id;
+    const ok = /^[0-9a-f-]{36}$/i.test(id) && await withTenantTx(deps.db, got.bid, (tx) => archiveCategory(tx, got.bid, id));
+    return flashTo(reply, '/app/books/spending#categories', ok ? 'booksSpending.flash.categoryRemoved' : 'booksSpending.flash.categoryRefused');
+  });
+  app.post('/app/books/spending/recurring', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+    const uuid = (k: string) => (/^[0-9a-f-]{36}$/i.test(str(k)) ? str(k) : null);
+    const amount = readTypedAmount(str('amount')); const firstOn = dayOf(str('firstOn')); const every = str('every');
+    if (amount === null || amount === 'ambiguous' || signOf(amount) <= 0 || !firstOn || !isEvery(every)) return flashTo(reply, '/app/books/spending#recurring', 'booksSpending.flash.recurringRefused');
+    const r = await withTenantTx(deps.db, got.bid, (tx) => addRecurring(tx, got.bid, personOf(got.s).id, { label: str('label'), amount, every, firstOn, taxCodeId: uuid('tax'), categoryId: uuid('category'),
+      accountId: uuid('account'), supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null, payFromAccountId: uuid('payFrom') }));
+    return flashTo(reply, '/app/books/spending#recurring', r === 'added' ? 'booksSpending.flash.recurringAdded' : 'booksSpending.flash.recurringRefused');
+  });
+  app.post('/app/books/spending/recurring/:id/archive', async (req, reply) => {
+    const got = await spendingOwner(req, reply); if (!got) return reply;
+    const id = (req.params as { id: string }).id;
+    const ok = /^[0-9a-f-]{36}$/i.test(id) && await withTenantTx(deps.db, got.bid, (tx) => archiveRecurring(tx, got.bid, id));
+    return flashTo(reply, '/app/books/spending#recurring', ok ? 'booksSpending.flash.recurringStopped' : 'booksSpending.flash.recurringRefused');
+  });
+  for (const decision of ['post', 'skip'] as const) {
+    app.post(`/app/books/spending/proposals/:id/${decision}`, async (req, reply) => {
+      const got = await spendingOwner(req, reply); if (!got) return reply;
+      const locale = localeOf(req);
+      const id = (req.params as { id: string }).id;
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return flashTo(reply, '/app/books/spending#waiting', 'booksSpending.flash.proposalGone');
+      const out = await withTenantTx(deps.db, got.bid, (tx) => decideProposal(tx, got.bid, personOf(got.s).id, id, decision));
+      if (out.kind === 'skipped') return flashTo(reply, '/app/books/spending#waiting', 'booksSpending.flash.skipped');
+      if (out.kind === 'posted') return flashTo(reply, '/app/books/spending#unpaid', 'booksSpending.flash.billPosted', { key: out.key });
+      return out.reason === 'choices' && out.detail === null && decision === 'post'
+        ? flashTo(reply, '/app/books/spending#waiting', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) })
+        : flashTo(reply, '/app/books/spending#waiting', 'booksSpending.flash.proposalGone');
+    });
+  }
   app.post('/app/books/papers', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();

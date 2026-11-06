@@ -254,6 +254,11 @@ export const RULES = Object.freeze({
   fiscal_years: { do: 'unrelated' },
   journal_counters: { do: 'unrelated' },
   journal_entries: { do: 'unrelated' },
+  // 0227 — spending: the owner's categories, bills, recurring costs and their proposals; nothing of a customer.
+  spending_categories: { do: 'unrelated' },
+  spending_bills: { do: 'unrelated' },
+  recurring_costs: { do: 'unrelated' },
+  spending_proposals: { do: 'unrelated' },
   journal_lines: { do: 'unrelated' },
   // 0170 (A2.2) — tax codes, custom-field definitions, and parties (no buyer link yet; re-decided in A2.4).
   tax_codes: { do: 'unrelated' },

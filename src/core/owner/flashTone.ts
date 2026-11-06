@@ -119,6 +119,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'autonomy.flash.notReleased',
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
+  'booksSpending.flash.billRefused', 'booksSpending.flash.categoryRefused', 'booksSpending.flash.recurringRefused', 'booksSpending.flash.proposalGone',
   'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'product.tier.notRemoved', 'practice.flash.media_refused', 'proof.owner.flash.failed',
   // Found 2026-10-13 by the walk of every key a route hands a notice (pr3-errors-countries-flash): named no `.flash.`.
   'staff.notAllowed', 'product.add.nothingRead', 'business.kind.invalid', 'pi.owner.flash.failed',
@@ -157,7 +158,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // B2 — a workbook read in.
   'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected', 'books.flash.taxStartSaved',
   'books.flash.entryPosted', 'books.flash.entryDiscarded', 'books.flash.entryReversed', 'books.flash.orderDrafted', 'books.flash.accountsSaved',
-  'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded', 'books.flash.creditDrafted', 'books.flash.draftSaved', 'books.flash.columnsSaved', 'books.flash.creditIssued', 'books.flash.creditDiscarded', 'books.flash.refundRecorded', 'books.flash.chartApplied', 'books.flash.paperKept', 'books.flash.paperRead', 'books.flash.paperDrafted', 'books.flash.locked', 'books.flash.reopened', 'books.flash.yearOpened', 'books.flash.yearClosed', 'books.flash.journalAdded',
+  'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded', 'books.flash.creditDrafted', 'books.flash.draftSaved', 'books.flash.columnsSaved', 'books.flash.creditIssued', 'books.flash.creditDiscarded', 'books.flash.refundRecorded', 'books.flash.chartApplied', 'books.flash.paperKept', 'books.flash.paperRead', 'books.flash.paperDrafted', 'booksSpending.flash.billPosted', 'booksSpending.flash.paid', 'booksSpending.flash.categoryAdded', 'booksSpending.flash.categoryRemoved', 'booksSpending.flash.recurringAdded', 'booksSpending.flash.recurringStopped', 'booksSpending.flash.skipped', 'books.flash.locked', 'books.flash.reopened', 'books.flash.yearOpened', 'books.flash.yearClosed', 'books.flash.journalAdded',
   'settings.flash.identifiersSaved',
   // 0226 — an invoice on its way, and the switch saved either way.
   'invoice.flash.switchedOn', 'invoice.flash.switchedOff', 'invoice.flash.sentPdf', 'invoice.flash.sentLink',
