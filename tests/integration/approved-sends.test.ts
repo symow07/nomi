@@ -53,7 +53,8 @@ d('0136 · approved sends, written and read back (requires DATABASE_URL)', () =>
     const kick = main.slice(main.indexOf('kickOutbound: async'), main.indexOf('kickDrive: async'));
     // Audit batch 1 (B7/B8): the kick writes the row itself, in the decision's transaction — approved (the `true`),
     // and with no identical-body check (the `false`): it is written once, by the person's act.
-    expect(kick).toMatch(/enqueueOutboundRow\(tx, bid\.value, conversationId, reply, 'employee', null, asks \?\? null,\s*notice === 'opt_out' \|\| notice === 'handoff' \? notice : null, true, null, false\)/);
+    // 0224 — and the quote the draft carried, last.
+    expect(kick).toMatch(/enqueueOutboundRow\(tx, bid\.value, conversationId, reply, 'employee', null, asks \?\? null,\s*notice === 'opt_out' \|\| notice === 'handoff' \? notice : null, true, null, false, quoteId \?\? null\)/);
     // …and the turn's own send does not.
     const worker = readFileSync(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
     const turnSend = worker.slice(worker.indexOf('if (effects.outbound) {'), worker.indexOf("}, { singletonKey: input.messageId });"));

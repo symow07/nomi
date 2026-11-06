@@ -10,8 +10,8 @@ import { practiceOf } from './practice.js';
  * send it; its bytes are kept on the practice copy, and the worker's media port reads them back where a channel's
  * download would be — so the photo goes through the real vision and the voice note through the real transcriber,
  * and the turn is the real turn. The job names the media `practice:<id>`; the worker recognises the prefix.
- * Only a practice copy may hold one (a trigger refuses the rest); Start over and the thirty days erase them with the
- * conversation they were sent in. The app role may insert and read; it deletes nothing.
+ * Only a practice copy may hold one (a trigger refuses the rest); the row hangs off its practice conversation, so Start
+ * over and the thirty days take it with the conversation. The app role may insert and read; it deletes nothing.
  */
 export const PRACTICE_MEDIA_PREFIX = 'practice:';
 
@@ -30,10 +30,10 @@ export function practiceMediaKind(mediaType: string): PracticeMediaKind | null {
 }
 
 /** Keeps the bytes on the copy; returns the media id the inbound job names (`practice:<uuid>`). */
-export async function storePracticeMedia(tx: Tx, copy: BusinessId, media: { readonly kind: PracticeMediaKind; readonly mediaType: string; readonly bytes: Buffer }): Promise<string> {
+export async function storePracticeMedia(tx: Tx, copy: BusinessId, conversationId: string, media: { readonly kind: PracticeMediaKind; readonly mediaType: string; readonly bytes: Buffer }): Promise<string> {
   const r = (await sql<{ id: string }>`
-    insert into practice_media (business_id, kind, media_type, bytes)
-    values (${copy}::uuid, ${media.kind}, ${media.mediaType.toLowerCase()}, ${media.bytes})
+    insert into practice_media (business_id, conversation_id, kind, media_type, bytes)
+    values (${copy}::uuid, ${conversationId}::uuid, ${media.kind}, ${media.mediaType.toLowerCase()}, ${media.bytes})
     returning id::text as id`.execute(tx)).rows[0]!;
   return `${PRACTICE_MEDIA_PREFIX}${r.id}`;
 }

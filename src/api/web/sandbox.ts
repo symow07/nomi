@@ -105,10 +105,10 @@ export async function sayMediaInPractice(
   await countPracticeLine(deps.db, live);
   const copy = await refreshPractice(deps.db, live);
   const messageId = `practice:${randomUUID()}`;
-  const { conversationId, mediaId } = await withTenantTx(deps.db, copy, async (tx) => ({
-    conversationId: await practiceConversation(tx, copy),
-    mediaId: await storePracticeMedia(tx, copy, media),
-  }));
+  const { conversationId, mediaId } = await withTenantTx(deps.db, copy, async (tx) => {
+    const id = await practiceConversation(tx, copy);
+    return { conversationId: id, mediaId: await storePracticeMedia(tx, copy, id, media) };
+  });
   const caption = media.caption?.trim() || '';
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: caption, messageType: media.kind, mediaId, received: media.kind === 'image' ? 'image' : 'audio' });
   return 'sent';
