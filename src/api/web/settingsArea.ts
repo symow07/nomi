@@ -23,7 +23,7 @@ export const SETTINGS_PAGES:Readonly<Partial<Record<SettingsGroup,readonly [stri
  business:[['profile','settingsArea.profile'],['selling','settingsArea.selling'],['hours','settingsArea.hours'],['terms','settingsArea.terms'],['currency','settingsArea.currency'],['samples','settingsArea.samples'],['data','settingsArea.data']],
  assistant:[['','settingsArea.permissions'],['name','settingsArea.identity'],['promises','settingsArea.promises'],['ready','settingsArea.ready'],['words','settingsArea.words'],['history-policy','settingsArea.historyPolicy']],
  personal:[['account','settingsArea.account'],['notifications','settingsArea.notifications'],['language','settingsArea.language'],['advisor-history','settingsArea.history']],
- books:[['','booksArea.setup'],['connections','booksArea.connections'],['accounts','booksArea.accounts'],['starting-balances','booksArea.opening'],['tax','booksArea.taxDetails'],['fields','booksArea.fields']],
+ books:[['','booksArea.setup'],['country','books.country.nav'],['connections','booksArea.connections'],['accounts','booksArea.accounts'],['starting-balances','booksArea.opening'],['tax','booksArea.taxDetails'],['fields','booksArea.fields']],
 };
 export function settingsPageLinks(locale:Locale,group:SettingsGroup,path:string,viewer:Viewer):string {
  const pages=SETTINGS_PAGES[group];if(!pages)return '';

@@ -105,11 +105,13 @@ export async function bankAccounts(tx: Tx, businessId: string) {
 
 /** The accounts a customer's payment or refund can go through: the bank and cash accounts of the chart, by `holdsMoney`. */
 export async function paymentAccounts(tx: Tx, businessId: string) {
-  const rows = (await sql<{ id: string; code: string; name: string }>`select a.id::text as id, a.code, a.name from accounts a
+  // 0225 — the chart's own marker (`holds_money`: the template's, or the owner's tick on the accounts page) OR the
+  // code's rules: "Barclays Current" marked in the chart is offered; "5141 Banques" is offered whatever the marker.
+  const rows = (await sql<{ id: string; code: string; name: string; holds_money: boolean }>`select a.id::text as id, a.code, a.name, a.holds_money from accounts a
     where a.business_id = ${businessId}::uuid and a.kind = 'asset' and a.is_active
       and not exists (select 1 from accounts c where c.business_id = a.business_id and c.parent_id = a.id and c.is_active)
     order by a.code`.execute(tx)).rows;
-  return rows.filter((a) => holdsMoney(a.code, a.name));
+  return rows.filter((a) => a.holds_money || holdsMoney(a.code, a.name)).map(({ id, code, name }) => ({ id, code, name }));
 }
 
 /** 0216 (d) — the columns kept for this bank account's CSV files, or null. */

@@ -125,8 +125,10 @@ One word was doing two jobs ("verified countries"). A country is now in one of t
 
 | Tier | Countries |
 |---|---|
-| BUILT | **Morocco** — the CGNC chart, the Moroccan FEC, the ICE, IF and RC (D4, R2, 0208) |
-| RESEARCHED | **France, Spain, the United Kingdom** (Block R: R1–R3; R3's registry formats ship as identifier validation under the normal rules, outside D3); **China** and **the USA** (the addendum, 2026-10-24: docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md) |
+| BUILT | **Morocco** — the CGNC chart, the Moroccan FEC, the ICE, IF and RC (D4, R2, 0208); the TVA codes and the one-page country setup (Block 2 PR 1, 0225, 2026-11-06) |
+| BUILT | **The United Kingdom** — the plain chart `uk-plain`, VAT 20/5/0/exempt, the company number, six years (Block 2 PR 1, 0225; the owner's decision, 2026-11-06). No country tax file: the UK publishes none Nomi would produce |
+| BUILT | **The USA** — the plain chart `us-plain`, sales tax as a rate per state, the EIN, no VAT, seven years (Block 2 PR 1, 0225; the owner's decision, 2026-11-06). No country tax file |
+| RESEARCHED | **France, Spain** (Block R: R1–R3; R3's registry formats ship as identifier validation under the normal rules, outside D3); **China** (the addendum, 2026-10-24: docs/RESEARCH-2026-10-24-CHINA-USA-LEDGERS.md) |
 
 A RESEARCHED country's identifier may still be checked in code where the issuing authority publishes the rule (R3's
 shapes): that is identifier validation, not a country tax file, and it does not move the country to BUILT.

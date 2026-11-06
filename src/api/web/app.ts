@@ -323,6 +323,9 @@ import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
 import { checkRegistry } from '../../core/books/registry.js';
+import { COUNTRY_PACKS, einAsTyped, isBooksCountry, isEin, taxRateOf, usStateOf } from '../../core/books/countryPacks.js';
+import { addStateTax, countryBooksOf, loadCountryPack, moneyAccountChoices, saveBooksCountry, saveCountryIdentifier, setMoneyAccounts, stateTaxesOf } from '../../db/booksCountry.js';
+import { renderBooksCountry, renderMoneyAccounts, type CountryForm } from './booksCountry.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -348,7 +351,7 @@ import { checkSignup, markSignupAttempt, markSignupRefused, markSignupWorkspace,
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
+import { countryName, type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, needsYouCount, outreachShown, booksShown, viewerRole, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
@@ -3049,12 +3052,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
-    const c=await withTenantTx(deps.db,bid,async(tx)=>({choices:await entryChoices(tx,bid),accounts:await booksAccountsOf(tx,bid)}));const where=await kindAndCountryOf(bid);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.accounts'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+`<h1 class="page">${esc(t(locale,'booksArea.accounts'))}</h1>`+renderBooksAccounts(locale,c.choices,c.accounts)+(keepsMoroccanBooks(where)?`<details class="ba-scope"><summary>${esc(t(locale,'booksArea.advanced'))}</summary>${renderBooksChart(locale)}</details>`:'')}));
+    const c=await withTenantTx(deps.db,bid,async(tx)=>({choices:await entryChoices(tx,bid),accounts:await booksAccountsOf(tx,bid),money:await moneyAccountChoices(tx,bid)}));const where=await kindAndCountryOf(bid);
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.accounts'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+`<h1 class="page">${esc(t(locale,'booksArea.accounts'))}</h1>`+renderBooksAccounts(locale,c.choices,c.accounts)+renderMoneyAccounts(locale,c.money)+(keepsMoroccanBooks(where)?`<details class="ba-scope"><summary>${esc(t(locale,'booksArea.advanced'))}</summary>${renderBooksChart(locale)}</details>`:'')}));
   });
   app.get('/app/settings/books/tax',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3679,6 +3682,93 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const out = await withTenantTx(deps.db, bid, (tx) => applyCgncChart(tx, bid));
     return flashTo(reply, '/app/settings/books/accounts#chart', 'books.flash.chartApplied', { accounts: out.accounts, journals: out.journals });
+  });
+  /**
+   * 0225 (Block 2 PR 1) — THE COUNTRY PAGE: one subject, one Save. Choosing the country loads its pack (the chart, the
+   * tax codes, the identifier, the retention the page says); the first financial year and the period length are
+   * written once, here, where none exist (`books_start()` is the database's one-time choice); a country change after
+   * anything is posted is refused in one sentence, and nothing else is written then. Roles: BOOKS_ROUTES (the owner's).
+   */
+  const countryPage = async (req: FastifyRequest, reply: FastifyReply, bid: BusinessId, status: number, form: CountryForm | null) => {
+    const locale = localeOf(req);
+    const v = await withTenantTx(deps.db, bid, async (tx) => ({ view: await countryBooksOf(tx, bid), states: await stateTaxesOf(tx, bid) }));
+    return reply.code(status).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.country.title'), active: 'settings', booksPath: '/app/settings/books/country',
+      bodyHtml: flashBanner(takeFlash(req, reply)) + renderBooksCountry(locale, v.view, form, v.states, booksToday()) }));
+  };
+  app.get('/app/settings/books/country', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    return countryPage(req, reply, bid, 200, null);
+  });
+  app.post('/app/books/country', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req); const by = personOf(s).id;
+    const country = str('country').toUpperCase();
+    // a country the packs do not cover: nothing to load, nothing written
+    if (!isBooksCountry(country)) return flashTo(reply, '/app/settings/books/country', 'books.flash.countryNotYet');
+    const pack = COUNTRY_PACKS[country];
+    const form: CountryForm = { values: { country, period: str('period'), year_start: str('year_start'), company_number: str('company_number'), ein: str('ein') }, errors: {} };
+    // the pack's identifier, checked before anything is written; a refusal is said under its field
+    let ident: { readonly field: 'company_number' | 'ein'; readonly value: string | null } | null = null;
+    if (pack.identifier === 'company_number') {
+      const r = checkRegistry({ country: 'GB', registry: str('company_number'), siret: '', registro: '', taxNumber: '' });
+      if (!r.ok) return countryPage(req, reply, bid, 422, { ...form, errors: { company_number: t(locale, 'books.country.err.companyNumber') } });
+      ident = { field: 'company_number', value: r.value.registry };
+    } else if (pack.identifier === 'ein') {
+      const e = einAsTyped(str('ein'));
+      if (e !== '' && !isEin(e)) return countryPage(req, reply, bid, 422, { ...form, errors: { ein: t(locale, 'books.country.err.ein') } });
+      ident = { field: 'ein', value: e === '' ? null : e };
+    }
+    const yearEndOf = (start: string) => { const d = new Date(`${start}T12:00:00Z`); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+    // one transaction: a refusal anywhere throws, and nothing of it is kept
+    class Refused extends Error { constructor(readonly key: MessageKey, readonly params: Record<string, string | number> = {}) { super('refused'); } }
+    try {
+      const out = await withTenantTx(deps.db, bid, async (tx) => {
+        const cur = await countryBooksOf(tx, bid);
+        if (await saveBooksCountry(tx, bid, country, by) === 'posted') throw new Refused('books.flash.countryPosted', { country: countryName(locale, cur.country) ?? cur.country ?? '' });
+        let year = cur.firstYear;
+        if (!year) {
+          const start = str('year_start');
+          if (!isDayStr(start)) throw new Refused('books.flash.countryRefused', { why: t(locale, 'books.close.refused.bad_year') });
+          const end = yearEndOf(start);
+          const r = await openYear(tx, bid, start, end);
+          if (r.kind === 'refused') throw new Refused('books.flash.countryRefused', { why: closeWhy(locale, r as CloseRefusal) });
+          year = { startsOn: start, endsOn: end };
+        }
+        if (!cur.start) {
+          const r = await startBooks(tx, bid, year.startsOn, str('period') === 'quarter' ? 'quarter' : 'month', by);
+          if (r.kind === 'refused') throw new Refused('books.flash.countryRefused', { why: closeWhy(locale, r as CloseRefusal) });
+        }
+        if (ident) await saveCountryIdentifier(tx, bid, ident.field, ident.value, by);
+        return loadCountryPack(tx, bid, pack, year.startsOn);
+      });
+      return flashTo(reply, '/app/settings/books/country', 'books.flash.countrySaved',
+        { country: countryName(locale, country) ?? country, accounts: out.accounts, journals: out.journals, taxes: out.taxCodes });
+    } catch (e) {
+      if (e instanceof Refused) return flashTo(reply, '/app/settings/books/country', e.key, e.params);
+      throw e;
+    }
+  });
+  /** The United States only: one sales-tax rate per state, a tax code on the sales-tax account from today. */
+  app.post('/app/books/country/state-tax', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const str = closeForm(req);
+    const state = usStateOf(str('state')); const rate = taxRateOf(str('rate'));
+    if (!state || rate === null) return flashTo(reply, '/app/settings/books/country#states', 'books.flash.stateBad');
+    const r = await withTenantTx(deps.db, bid, async (tx) => (await countryBooksOf(tx, bid)).country !== 'US' ? 'no_account' as const : addStateTax(tx, bid, state, rate, booksToday()));
+    if (r === 'added') return flashTo(reply, '/app/settings/books/country#states', 'books.flash.stateAdded', { state, rate: `${rate}%` });
+    return flashTo(reply, '/app/settings/books/country#states', r === 'exists' ? 'books.flash.stateExists' : 'books.flash.stateNoAccount', { state });
+  });
+  /** Which accounts hold money: the owner's ticks on the accounts page (the chart's marker; the code's rule still applies). */
+  app.post('/app/books/accounts/money', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const raw = ((req.body ?? {}) as Record<string, unknown>)['money'];
+    const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x));
+    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, ids));
+    return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
   // D7 — the owner's custom fields: seen by the books' readers; added, retired and used again by the owner.

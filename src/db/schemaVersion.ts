@@ -472,7 +472,9 @@ import type { Db } from './client.js';
 // 221 = a year locked and closed on the workspace's own day, not the database's UTC one (0221).
 // 223 = when a conversation was last opened: a row that needs the owner is bold until then (0223).
 // 224 = the quote a reply carried, a larger-order price taken off, a practice photo or voice note kept (0224).
-export const REQUIRED_SCHEMA_VERSION = 224;
+// 225 = the books' country packs: which accounts hold money, the UK and US plain charts, the company number and the EIN,
+//       seven years' retention in the US (0225).
+export const REQUIRED_SCHEMA_VERSION = 225;
 
 export type SchemaState = {
   readonly required: number;
