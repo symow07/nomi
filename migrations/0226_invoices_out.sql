@@ -161,7 +161,7 @@ revoke all on function expire_waiting_drafts() from public;
 grant execute on function expire_waiting_drafts() to nomi_app;
 
 -- ── the erasure knows the three tables ─────────────────────────────────────────────────────────────────────────────
--- customer_erasure_contract, re-made from its latest definition (0217) with the three tables. 0224 (block1_records)
+-- customer_erasure_contract, re-made from its latest definition (0224, after 0217) with the three tables. 0224 (block1_records)
 -- re-makes it too: whichever lands second carries the other's rows.
 create or replace function customer_erasure_contract()
 returns table (tbl text, action text, clear text[], blank text[], detach text[], match text)
@@ -360,7 +360,7 @@ language sql immutable set search_path = public as $$
 $$;
 revoke all on function customer_erasure_contract() from public;
 
--- customer_erasure_edges, re-made from its latest definition (0202) with the five new links.
+-- customer_erasure_edges, re-made from its latest definition (0224, after 0202) with the five new links and 0224's four.
 create or replace function customer_erasure_edges()
 returns table (child text, col text, parent text, pcol text)
 language sql immutable set search_path = public as $$

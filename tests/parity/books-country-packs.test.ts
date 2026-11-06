@@ -121,7 +121,7 @@ describe('the two plain charts in 0225, and the money marker', () => {
   });
 
   it('the schema this build needs is 0225', () => {
-    expect(REQUIRED_SCHEMA_VERSION).toBe(225);
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(225);
     expect(m0225).toContain("insert into _migrations (version, name) values (225, 'books_country_packs')");
   });
 });
