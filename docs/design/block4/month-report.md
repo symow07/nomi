@@ -44,8 +44,8 @@ Scope rules carried from the brief:
 
 | Viewer | Sees |
 |---|---|
-| Owner | Every section. Also the time-saved disclosure and its minutes field (§2). |
-| Staff | Every section except **Invoices**: Books shows staff nothing. Staff get no minutes field. If the owner set minutes, staff see the estimate read-only with "Set by the owner." (§2.3). |
+| Owner | Every section. Also the time-saved disclosure and its minutes field (§2), and the monthly e-mail switch (§3.3). |
+| Staff | Every section except **Invoices**: Books shows staff nothing. Staff get no minutes field and no e-mail switch. If the owner set minutes, staff see the estimate read-only with "Set by the owner." (§2.3). |
 | Accountant | Sent to the Books, as from every sales page (rule 102). |
 
 ### 1.4 Layout and section order
@@ -70,6 +70,7 @@ banner. It is a single reading column on both widths.
 8. **Invoices:** invoices paid in full, then the value, one line per currency. Owner only.
 9. **Handed to you:** the total, then one row per reason.
 10. **Time saved:** owner only, at the foot (§2).
+11. **Monthly e-mail:** the owner's switch, the last thing on the page (§3.3). Staff never see it.
 
 Why this order: what Nomi did comes first (customers, replies, speed). What it led to comes next (orders,
 invoices). What needed the owner comes last (hand-offs).
@@ -130,11 +131,11 @@ running month.
 
 | Figure | Label (key) | Definition shown (key) | Counted from |
 |---|---|---|---|
-| Customers answered | `monthReport.n.answered` | `monthReport.def.answered` | Distinct customers (client) with at least one message that reached them in the month, written by {name}: sent alone (`auto_sent`), or a draft approved or edited and sent. The owner's own typed replies don't count. **Not** the billing table `customers_answered`: that counts a draft even when it never went out, by UTC month. See §6, question 1. |
+| Customers answered | `monthReport.n.answered` | `monthReport.def.answered` | Distinct customers (client) with at least one message that reached them in the month, written by {name}: sent alone (`auto_sent`), or a draft approved or edited and sent. The owner's own typed replies don't count. **Never** billing's figure (decided, §6.1): the billing table `customers_answered` counts a draft even when it never went out, by UTC month. The PR notes the difference. |
 | Replies sent alone | `monthReport.n.alone` | `monthReport.def.alone` | `auto_sent` events created in the month. |
 | Drafts sent as written | `monthReport.n.asWritten` | `monthReport.def.asWritten` | Drafts with status `approved` and `decided_at` in the month. Since R1, "Edit & send" with the words unchanged is recorded as `approved`. |
 | Drafts edited, then sent | `monthReport.n.edited` | `monthReport.def.edited` | Drafts with status `edited` and `decided_at` in the month. |
-| Drafts not sent | `monthReport.n.unsent` | `monthReport.def.unsent` | Drafts that became `rejected`, `expired` or `superseded` in the month. This row is the designer's addition, so "drafted" is never shown as only the drafts that went out. |
+| Drafts not sent | `monthReport.replies.notSent` | `monthReport.def.notSent` | Drafts that became `rejected`, `expired` or `superseded` in the month. Accepted (§6.4), so "drafted" is never shown as only the drafts that went out. |
 | Median time to first reply | `monthReport.median.label` | `monthReport.def.median` + `monthReport.median.from` | For each customer whose first inbound message of the month has a later message that reached them (any writer: sent alone, a draft, or the owner), take the clock time between the two. Show the median of those times. Nights and weekends count, because business hours are free text (as in G9). Display: under a minute → `monthReport.duration.underMinute`; otherwise hours and minutes (days and hours past 48 h), through `Intl.NumberFormat` units joined by `Intl.ListFormat`, as `formatTimeLeft` does (no `Intl.DurationFormat`). |
 | Customers still waiting | `monthReport.median.waiting` | — | Customers who wrote in the month and have had no reply since. They are left out of the median, and this line says so. It shows only when the count is above 0. |
 | Orders confirmed | `monthReport.n.orders` | `monthReport.def.orders` | Orders in `SPEND_STATUSES` with `coalesce(confirmed_at, created_at)` in the month: the same rule as the Sales tab and Today. |
@@ -217,7 +218,7 @@ These are drawn by `flashBanner` on the month page, never painted by the page it
   - the month had no activity (§1.6, "No activity");
   - the workspace is a practice copy;
   - the installation has no system mail;
-  - the owner turned it off (§3.3).
+  - the owner turned it off with the switch on the month page (§3.3).
 - It goes through MAIL's sender under the `alerts` daily cap (rule 70). Each send is claimed once per owner
   per month, so a retry never sends it twice.
 - It is English for every owner, with English dates and money (`en`). New owner text is English only.
@@ -247,7 +248,7 @@ Time saved, an estimate: 42 replies × 5 min = 3.5 h
 
 See the month in Nomi: {url}
 
-This e-mail comes on the 1st of each month. To stop it: Settings › Notifications.
+This e-mail comes on the 1st of each month. You can stop it at the foot of that page.
 ```
 
 - The lines are the same figures as the page, by the same definitions.
@@ -260,14 +261,31 @@ This e-mail comes on the 1st of each month. To stop it: Settings › Notificatio
 - `{url}` = `PUBLIC_BASE_URL` + `/app/results/month?month=YYYY-MM`, the month just ended. It is the only
   link in the e-mail.
 
-### 3.3 The switch
+### 3.3 The switch, on the month page (decided, §6.2)
 
-The last line promises a switch, so the switch must exist:
-- a per-person boolean (on by default) on the Notifications page, beside the morning summary's switch;
-- label `monthMail.setting.label`, hint `monthMail.setting.hint`.
+The e-mail's last line points at this switch; there is no Settings or Notifications switch.
 
-If that is not built in 4.3, drop the last line of the e-mail. Never ship the line without the switch.
-See §6, question 2.
+- **Storage:** one workspace setting, on by default. Suggested: `businesses.month_report_mail boolean not
+  null default true`. That's the backend's call.
+- **Route:** `POST /app/results/month/mail` with `mail=on|off`, and `month` carried through so the owner
+  lands back on the same month.
+  - Owner only. A staff POST is refused and changes nothing.
+  - Any other `mail` value is refused and changes nothing.
+- **On the page:** the last section, owner only, h2 `monthReport.section.mail`.
+  - **While on:**
+    - the line `monthReport.mail.on`;
+    - one secondary button (black text, neutral border), `monthReport.mail.stop`, posting `mail=off`.
+  - **While off:**
+    - the line `monthReport.mail.off`;
+    - one secondary button, `monthReport.mail.start`, posting `mail=on`.
+  - It is one form with one button. The button names the action, never the state.
+- **Staff:** the section is not drawn at all.
+- **Flash after the POST:**
+  - stopped: `monthMail.flash.mailOff`;
+  - started: `monthMail.flash.mailOn`;
+  - a non-owner: `monthMail.flash.ownerOnly`.
+  - A `mail` value other than `on` or `off` can only come from a hand-made request: it is a 400 with
+    nothing changed and no flash.
 
 ---
 
@@ -308,9 +326,9 @@ See §6, question 2.
 | `monthReport.n.edited.one` | draft you edited, then sent |
 | `monthReport.n.edited.other` | drafts you edited, then sent |
 | `monthReport.def.edited` | {name} drafted them and you changed the words before they went. |
-| `monthReport.n.unsent.one` | draft not sent |
-| `monthReport.n.unsent.other` | drafts not sent |
-| `monthReport.def.unsent` | You chose no reply, answered in the channel's own app, or the time to reply ran out. |
+| `monthReport.replies.notSent.one` | draft not sent |
+| `monthReport.replies.notSent.other` | drafts not sent |
+| `monthReport.def.notSent` | You chose no reply, answered in the channel's own app, or the time to reply ran out. |
 | `monthReport.section.speed` | Time to first reply |
 | `monthReport.median.label` | median time to first reply |
 | `monthReport.def.median` | Half of the customers got their first reply faster than this, half slower. Clock time, nights and weekends included, from their first message this month to the first reply that reached them, whoever wrote it. |
@@ -350,6 +368,11 @@ See §6, question 2.
 | `monthReport.estimate.minutes` | Minutes a reply would take you |
 | `monthReport.estimate.hint` | A whole number from 1 to 60. Leave it empty to remove the estimate. |
 | `monthReport.estimate.save` | Save |
+| `monthReport.section.mail` | Monthly e-mail |
+| `monthReport.mail.on` | On the 1st of each month, Nomi e-mails you last month's figures, with no customer named. |
+| `monthReport.mail.off` | The monthly e-mail is stopped. This page still has every month. |
+| `monthReport.mail.stop` | Stop the monthly e-mail |
+| `monthReport.mail.start` | E-mail me each month |
 
 ### 4.2 MAIL keys (`monthMail.`): the e-mail, the Results tab, the minutes flashes, the switch
 
@@ -362,7 +385,7 @@ See §6, question 2.
 | `monthMail.alone` | Replies {name} sent alone: {n} |
 | `monthMail.asWritten` | Drafts you sent as written: {n} |
 | `monthMail.edited` | Drafts you edited, then sent: {n} |
-| `monthMail.unsent` | Drafts not sent: {n} |
+| `monthMail.notSent` | Drafts not sent: {n} |
 | `monthMail.median` | Median time to first reply: {time}, from {n} customers |
 | `monthMail.medianOne` | Median time to first reply: {time}, from 1 customer |
 | `monthMail.medianNone` | Median time to first reply: no first replies to measure |
@@ -374,9 +397,9 @@ See §6, question 2.
 | `monthMail.handedReason` | {reason}: {n} |
 | `monthMail.estimate` | Time saved, an estimate: {replies} replies × {minutes} min = {hours} h |
 | `monthMail.open` | See the month in Nomi: {url} |
-| `monthMail.off` | This e-mail comes on the 1st of each month. To stop it: Settings › Notifications. |
-| `monthMail.setting.label` | E-mail me the monthly report |
-| `monthMail.setting.hint` | On the 1st of each month: the figures for the month before, with no customer named. |
+| `monthMail.off` | This e-mail comes on the 1st of each month. You can stop it at the foot of that page. |
+| `monthMail.flash.mailOff` | The monthly e-mail is stopped. Nothing more will be sent. |
+| `monthMail.flash.mailOn` | The monthly e-mail is on. The next one comes on the 1st. |
 | `monthMail.flash.minutesSaved` | Saved. The estimate now uses {minutes} minutes a reply. |
 | `monthMail.flash.minutesCleared` | Removed. The page no longer shows an estimate. |
 | `monthMail.flash.minutesInvalid` | Type a whole number from 1 to 60, or leave it empty. Nothing was changed. |
@@ -387,7 +410,8 @@ Copy checks the writer runs before committing any key:
 - no "AI";
 - no she, her, it or they for the assistant;
 - no "free";
-- no promise the code doesn't keep (`monthMail.off` needs §3.3);
+- no promise the code doesn't keep (`monthMail.off` and `monthMail.flash.mailOn` need §3.3's switch and the
+  1st-of-month job);
 - no CSS-scanned words in class names ("token", "stack", "%").
 
 ---
@@ -424,7 +448,8 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
 9. The median is shown with "Measured on N customers" and the still-waiting line. With one reply only,
    "Measured on 1 customer".
 10. Hand-off reasons use the existing reason words. The rows are ordered by count.
-11. Staff: no Invoices section, no minutes field, no disclosure. Accountant: redirected to the Books.
+11. Staff: no Invoices section, no minutes field, no disclosure, no Monthly e-mail section. Accountant:
+    redirected to the Books.
 
 ### 5.3 States
 
@@ -455,10 +480,10 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
 
 ### 5.6 Interaction and access
 
-25. **Buttons do things, doors go places:** the only `<button>`s are Show and Save, each inside a form.
-    No `<a class="btn">`. `buttons-and-doors.ts` passes on the page.
+25. **Buttons do things, doors go places:** the only `<button>`s are Show, Save and the e-mail switch's one
+    button, each inside its own form. No `<a class="btn">`. `buttons-and-doors.ts` passes on the page.
 26. **Keyboard order:** skip link → rail → tabs → back door → previous month → Month select → Show → next
-    month → (owner) the disclosure summary → minutes field → Save.
+    month → (owner) the disclosure summary → minutes field → Save → the e-mail switch's button.
     - Focus is visible on paper and surface.
     - The disclosure opens with Enter and Space.
     - After Save, focus lands on the flash or the page top, not lost.
@@ -485,16 +510,35 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
 33. An empty month sends nothing. A practice copy sends nothing. With the switch off, nothing is sent. A
     retry of the job does not send twice.
 
+### 5.8 The e-mail switch, on the month page
+
+34. **Owner sees it:** the last section is "Monthly e-mail", with the "on" line and the button "Stop the
+    monthly e-mail" (on by default, for every workspace).
+35. **Staff do not:** the section isn't drawn for staff at either width or in either language. A staff POST
+    to `/app/results/month/mail` changes nothing.
+36. Owner presses Stop:
+    - the flash "The monthly e-mail is stopped…";
+    - the same month is shown again;
+    - the line now says it is stopped, and the button reads "E-mail me each month".
+    - Pressing that button turns it back on, with its flash.
+37. A hand-made POST with `mail=maybe` is refused (400) and the setting is unchanged.
+38. The mail's last line says it can be stopped at the foot of the month page. It names no Settings or
+    Notifications page, and the e-mail still has exactly one URL.
+
 ---
 
-## 6 · Open questions for the supervisor
+## 6 · Decisions (the supervisor, t1r, 2026-11-07)
 
-1. **"Customers answered" vs billing's unit.** The billing table `customers_answered` (0117) counts a
-   customer once a **UTC** month when a draft is *made* for them, even if it is never sent. This page counts
-   customers who were actually sent a reply {name} wrote, by the workspace's month. The two will differ.
-   Pricing is the owner's (4.1). If the plan's unit should be the figure shown here, that is a billing
-   decision; this spec does not change billing.
-2. **The e-mail's off switch** (§3.3) lives on Notifications. That is Settings territory (frontend/backend).
-   Build it in 4.3, or drop `monthMail.off`. The line must not ship without the switch.
-3. **Start date:** `signed_up_at`, else `created_at`. The 59 operator-made workspaces have no `signed_up_at`;
-   their first month is the month they were made.
+These were open questions in the first commit. The spec above now follows each one.
+
+1. **"Customers answered"** counts the customers who were actually SENT a reply {name} wrote, by the
+   workspace's month. It is never billing's figure. Billing's `customers_answered` (0117) counts a draft
+   that never went out, by UTC month. Pricing is the owner's; the PR notes the difference.
+2. **The e-mail is stopped by an owner-only switch on the month page itself** (§3.3,
+   `POST /app/results/month/mail`, `mail=on|off`). The Settings › Notifications line is dropped. The
+   e-mail's last line says it can be stopped on that page. Its browser checks are §5.8: the owner sees it,
+   staff do not.
+3. **First month** = `signed_up_at`, else `created_at`. Accepted. The 59 operator-made workspaces have no
+   `signed_up_at`, so their first month is the month they were made.
+4. **"Drafts not sent"** is accepted, keyed `monthReport.replies.notSent` (`.one` / `.other`), with
+   `monthReport.def.notSent`.
