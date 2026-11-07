@@ -46,6 +46,7 @@ const withheldBecause = (language: string | null | undefined): 'language_unknown
 /** The two letters a language is known by here ("pt-BR" → "pt"); English when none was read. */
 const languageHead = (language: string | null | undefined): string => (language ?? '').slice(0, 2).toLowerCase() || 'en';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
+import { stepNow, procedureContext } from '../core/owner/procedures.js';
 import { detectSignals, personRequestLanguage, stockQuestionLanguage } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
@@ -234,6 +235,11 @@ export type TurnResult = {
    */
   forbiddenInHerText: readonly ForbiddenInHerText[];
   /**
+   * 0229 — the step of the owner's procedure this turn did (a reply written for a 'do' step, or the hand-off step
+   * reached), for the conversation's record and the card. Null when none applied.
+   */
+  procedure: { readonly id: string; readonly title: string; readonly step: number; readonly of: number; readonly handoff: boolean } | null;
+  /**
    * M45 — this buyer asked for a sample.
    *
    * Decided once per turn, from the buyer's own words, by a deterministic
@@ -340,6 +346,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let modelId: string | null = null;
   let ownUnderstanding: TurnResult['ownUnderstanding'] = null;
 
+  // 0229 — the owner's live procedures, read once: the analyser is given their titles, the writer one step.
+  const procedures = gated ? [] : await tenant.catalog.procedures();
   if (!gated) {
     const tr = Date.now();
     retrieved = await retriever.byText(req.text, 20);
@@ -352,6 +360,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // Q1 — what was said before, both sides, as the prompt promises.
       recentMessages: await history(),
       ...(selling.quantityFirst ? {} : { priceFirst: true }),
+      ...(procedures.length ? { procedures: procedures.map((p) => ({ id: p.id, title: p.title })) } : {}),
     });
     timings.analyzerMs = Date.now() - ta;
     usage.llmCalls++;
@@ -435,6 +444,13 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const byKind = new Map<Signal['kind'], Signal>();
   for (const s of historic) byKind.set(s.kind, s);
   for (const s of fresh) byKind.set(s.kind, s); // fresh wins
+  /**
+   * 0229 — THE OWNER'S PROCEDURE. One step per inbound message: the first when the analyser names the procedure this
+   * message starts (an id from the live list, nothing else counts), the next on every message after, until the steps
+   * run out. The step that hands to a person is a hand-off of its own kind, before anything is written.
+   */
+  const procedureNow = gated ? null : stepNow(procedures, state.procedure, analysis?.procedureStarted);
+  if (procedureNow?.step.kind === 'handoff') byKind.set('procedure_handoff', { kind: 'procedure_handoff' });
   /**
    * K5 · LAYER 1 — "PRICES GO TO ME". The business states no price; the
    * analysis says the customer asked one. The owner answers it: a hand-off
@@ -586,6 +602,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       d.action.kind === 'handoff' && !d.action.notifyOnly
         ? (UNCLAIMED_AGENT as ConversationState['assignedTo'])
         : state.assignedTo,
+    // 0229 — a 'do' step done by a written reply moves the conversation on; a hand-off step, a turn that hands off for
+    // any other reason, or steps that ran out end the procedure; a gated turn (a bare yes, an injection) keeps its place.
+    procedure: gated ? (state.procedure ?? null)
+      : procedureNow && procedureNow.step.kind === 'do' && d.action.kind === 'generate_reply'
+        ? { id: procedureNow.procedure.id, step: procedureNow.index }
+        : null,
   });
   let newState = stateAfter(decision);
 
@@ -899,6 +921,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           ...(speaker ? { speaker } : {}),
           // RT — a price-first business: the writer gives the price as soon as the product is known.
           ...(priceFirst ? { priceFirst: true } : {}),
+          // 0229 — the owner's step for this turn.
+          ...(procedureNow && procedureNow.step.kind === 'do' ? { procedure: procedureContext(procedureNow) } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
@@ -1190,6 +1214,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     unkeptPromise,
     addressUnwritten: addressHandOver && deletionPromiseWithheld === null,
     forbiddenInHerText,
+    procedure: procedureNow && (procedureNow.step.kind === 'handoff' || (decision.action.kind === 'generate_reply' && reply !== null))
+      ? { id: procedureNow.procedure.id, title: procedureNow.procedure.title, step: procedureNow.index, of: procedureNow.procedure.steps.length, handoff: procedureNow.step.kind === 'handoff' }
+      : null,
     sampleRequested,
     hold,
     asks: reply !== null ? decision.pendingQuestion : null,
@@ -1400,6 +1427,8 @@ export async function commitTurn(
 
   // Funnel events.
   if (r.decision.hotLead) await tenant.events.append(req.conversationId, 'lead_hot', {});
+  // 0229 — the conversation's record says which step of the owner's procedure this turn did.
+  if (r.procedure) await tenant.events.append(req.conversationId, 'procedure_step', r.procedure);
   if (r.decision.action.kind === 'handoff') {
     await tenant.events.append(req.conversationId, 'handoff', {});
   }
@@ -1731,6 +1760,8 @@ export async function commitTurn(
         gate: language,
         // R3 — the product it quotes, so the owner's approval vets that product.
         ...(quotedProduct ? { productId: quotedProduct } : {}),
+        // 0229 — the step of the owner's procedure this reply does, so the card says so.
+        ...(r.procedure && !r.procedure.handoff ? { procedure: { title: r.procedure.title, step: r.procedure.step, of: r.procedure.of } } : {}),
         // The audit trail says WHY this one waited, so a draft the owner did
         // not ask for is explicable rather than mysterious.
         // G7a — and the inbox reads it back, so the card says why too.

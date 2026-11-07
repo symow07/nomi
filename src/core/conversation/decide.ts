@@ -52,6 +52,12 @@ export type Analysis = {
    * (`not_answered`), absent means this analyser was not asked.
    */
   readonly wantsDeletion?: boolean | null;
+  /**
+   * 0229 — the id of the owner's procedure this message starts, from the list the analyser was given; null when none
+   * fits or none was given; absent when this analyser does not answer the question. The turn checks the id against
+   * the live list before anything follows from it.
+   */
+  readonly procedureStarted?: string | null;
 };
 
 export type TurnInput = {

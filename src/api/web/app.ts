@@ -12,6 +12,9 @@ import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOvervi
 import { renderSpendingBook } from './booksSpending.js';
 import { renderOwnerReport, ownerReportSheet, OWNER_REPORT_KINDS, type OwnerReport, type OwnerReportKind } from './booksOwnerReports.js';
 import { periodFor, isSpan, madeReport, moneyReport, taxReport, customersReport, unpaidReport, type Span } from '../../db/booksOwnerReports.js';
+import { listProcedures, addProcedure, archiveProcedure } from '../../db/procedures.js';
+import { renderProceduresPage } from './procedures.js';
+import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
@@ -8706,6 +8709,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b={productId:str('productId'),id:str('id'),kind:str('kind'),label:str('label'),content:str('content')},locale=localeOf(req);
     return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,'nav.knowledge'),active:'knowledge',bodyHtml:renderKnowledgeRefusal(locale,action,b,from)}));
   };
+  // 0229 — the owner's procedures: read by anyone signed in, written by the owner (it directs what the assistant does).
+  const PROCEDURES = '/app/assistant/knowledge/procedures';
+  app.get(PROCEDURES, authed('knowledge', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return missingPage(locale, t(locale, 'knowledge.empty'), { href: '/app/assistant', label: t(locale, 'nav.assistant') });
+    const rows = await withTenantTx(deps.db, bid.value, (tx) => listProcedures(tx, bid.value));
+    return renderProceduresPage(locale, mayDo(personOf(s), 'capability_grant'), rows, takeFlash(req, reply));
+  }));
+  app.post(PROCEDURES, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', PROCEDURES); if (!s) return reply;
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const v = validateProcedure({ title: String(f['title'] ?? ''), steps: String(f['steps'] ?? '') });
+    if (!v.ok) return flashTo(reply, `${PROCEDURES}#new-procedure`, `procedures.flash.refused.${v.problem}` as MessageKey, { step: v.step ?? 0 });
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, PROCEDURES, 'people.flash.failed');
+    await withTenantTx(deps.db, bid.value, (tx) => addProcedure(tx, bid.value, personOf(s).id, v.value));
+    return flashTo(reply, PROCEDURES, 'procedures.flash.added');
+  });
+  app.post(`${PROCEDURES}/:id/archive`, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', PROCEDURES); if (!s) return reply;
+    const id = (req.params as { id: string }).id;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(id)) return flashTo(reply, PROCEDURES, 'people.flash.failed');
+    const done = await withTenantTx(deps.db, bid.value, (tx) => archiveProcedure(tx, bid.value, personOf(s).id, id));
+    return flashTo(reply, PROCEDURES, done ? 'procedures.flash.archived' : 'people.flash.failed');
+  });
+
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };

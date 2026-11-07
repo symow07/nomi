@@ -37,6 +37,8 @@ export const PRACTICE_COPY = [
   // The operator's switches bind Practice as they bind the workspace: a
   // silenced assistant is silenced in Practice too.
   'ops_flags',
+  // 0229 — the owner's procedures: the assistant follows them in Practice as it will live.
+  'procedures',
 ] as const;
 
 /** Child tables (no business_id of their own) copied with their parent product. */

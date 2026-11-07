@@ -16612,6 +16612,13 @@ Four English-only lines in `src/core/owner/i18n/booksArea.ts` (`BOOKS_AREA_EN`):
 figure), `booksArea.cashByAccount` (its door), `booksArea.cashTodayBasis` (what the figure is made of),
 `booksArea.ownAccounts` (the default scope said). Other languages show the English until a native reader translates.
 
+## Procedures (2026-11-07; 0229)
+
+Thirty-odd lines, English only, in `src/core/owner/i18n/procedures.ts` (`PROCEDURES_EN`): the page (`procedures.*`: title,
+lede, the door, the form's labels and hints, Remove and its asking), the eleven refusals (`procedures.flash.refused.*`,
+each naming the step), `takeover.reason.procedure_handoff` (the hand-off's reason on the inbox rows) and
+`inbox.draft.procedure` (the approval card's line). To translate first: `procedures.removeAsk` and the refusals.
+
 ## The assistant's voice (2026-11-07; 0228)
 
 Fifteen new lines, English only, in `src/core/owner/i18n/assistantArea.ts` (`ASSISTANT_AREA_EN`): `assistants.field.tone`,

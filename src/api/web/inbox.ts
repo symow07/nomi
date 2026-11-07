@@ -53,6 +53,13 @@ import type { ReminderWithheld } from '../../outbound/invoiceReminders.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
 
+/** 0229 — the procedure step the turn wrote beside the draft, read defensively from the event's payload. */
+const procedureOf = (raw: unknown): { readonly title: string; readonly step: number; readonly of: number } | null => {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const o = raw as Record<string, unknown>;
+  return typeof o['title'] === 'string' && typeof o['step'] === 'number' && typeof o['of'] === 'number' ? { title: o['title'], step: o['step'], of: o['of'] } : null;
+};
+
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -722,6 +729,8 @@ export type ConversationDetail = {
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
     language?: string | null;
+    /** 0229 — the step of the owner's procedure this reply does. */
+    procedure?: { readonly title: string; readonly step: number; readonly of: number; readonly do?: string } | null;
     /** G10 — the owner's translation of it, kept on the draft; never sent. */
     translation?: { readonly text: string; readonly locale: string } | null;
   } | null;
@@ -1121,6 +1130,7 @@ export async function loadConversationDetail(
             withheld: withheldOf(draft.pending?.['withheld']),
             ownerEdit: draft.owner_edit,
             language: typeof draft.pending?.['language'] === 'string' ? String(draft.pending['language']).slice(0, 8) : null,
+            procedure: procedureOf(draft.pending?.['procedure']),
             translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
@@ -1921,6 +1931,8 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
+    // 0229 — which step of the owner's procedure this reply does.
+    p.procedure ? `<p class="stateline" role="note">${esc(t(locale, 'inbox.draft.procedure', { title: p.procedure.title, step: p.procedure.step, of: p.procedure.of, do: p.procedure.do ?? '' }))}</p>` : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
     p.withheld ? waits('language' in p.withheld
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })

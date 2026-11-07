@@ -1,3 +1,4 @@
+import type { Procedure } from '../core/owner/procedures.js';
 import type { ProductOption } from '../core/commerce/options.js';
 import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/types/ids.js';
 import type { Money } from '../core/types/money.js';
@@ -310,6 +311,8 @@ export interface CatalogRepo {
    * row and no repo can remove it.
    */
   forbiddenTerms(): Promise<readonly string[]>;
+  /** 0229 — the owner's live procedures: a title the analyser matches, steps the writer does one per turn. */
+  procedures(): Promise<readonly Procedure[]>;
   /**
    * M44 — the days her factory is shut, as SHE stated them. Empty means she
    * has stated none, which is not "open all year": it is "she has not told

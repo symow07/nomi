@@ -153,6 +153,7 @@ class HarnessTenant implements Tenant {
     productOptions: async (id) => this.productOptionRows.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
+    procedures: async () => [],
     forbiddenTerms: async () => this.forbidden,
     /** M44 — closures the owner stated. Empty unless a scenario sets them. */
     factoryClosures: async () => this.closures,

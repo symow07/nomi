@@ -477,7 +477,9 @@ import type { Db } from './client.js';
 // 226 = invoices that go out: the workspace's switch, the PDF's expiring link, each send and each reminder recorded (0226).
 // 227 = spending: the owner's categories, bills, recurring costs and their proposals (0227).
 // 228 = the assistant's voice, chosen once: tone, length and emoji on each assistant, copied to Practice (0228).
-export const REQUIRED_SCHEMA_VERSION = 228;
+// 229 = procedures: the owner's step-by-step for a situation, where a conversation stands in one, the hand-off step's own
+//       signal and reason (0229).
+export const REQUIRED_SCHEMA_VERSION = 229;
 
 export type SchemaState = {
   readonly required: number;

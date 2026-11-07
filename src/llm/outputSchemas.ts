@@ -27,6 +27,7 @@ export const WRITER_SCHEMA: Schema = obj({
 export const ANALYSIS_SCHEMA: Schema = obj({
   wants_person: bool,
   wants_deletion: bool,
+  procedure_started: orNull(str),
   language: obj({ detected: str, confidence: num, script: str, formality: str, reply_in: str }),
   signals: obj({
     is_greeting: bool, is_question: bool, has_product_mention: bool, has_quantity_mention: bool,

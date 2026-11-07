@@ -143,6 +143,8 @@ export class FakeTenant implements Tenant {
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
     forbiddenTerms: async () => this.forbidden,
+    // 0229 — the owner's procedures, as a test lays them down.
+    procedures: async () => this.procedures,
     factoryClosures: async () => this.closures,
     samplePolicy: async () => this.sample,
     tradeTerms: async () => this.terms,
@@ -151,6 +153,9 @@ export class FakeTenant implements Tenant {
     bundleRules: async () => [],
     substitutions: async () => [],
   };
+
+  /** 0229 — the owner's live procedures. */
+  procedures: import('../../src/core/owner/procedures.js').Procedure[] = [];
 
   /** G6 — every order handed to the repo, so a test can read what it carried. */
   ordersCreated: Array<Parameters<OrderRepo['create']>[1]> = [];

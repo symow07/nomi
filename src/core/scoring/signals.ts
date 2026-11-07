@@ -172,6 +172,8 @@ export type Signal =
    * here. A person answers, and the buyer hears the ordinary hand-off sentence. Scored like a request for a person.
    */
   | { readonly kind: 'language_held' }
+  /** 0229 — the owner's procedure reached the step that hands to a person. */
+  | { readonly kind: 'procedure_handoff' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -232,6 +234,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'address_unwritten',
   // 0159 — the buyer writes in a language held out of this workspace; a person answers, the buyer is told.
   'language_held',
+  // 0229 — the owner's procedure reached its hand-off step: a person takes over.
+  'procedure_handoff',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -267,6 +271,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   maybe_confirmation: { kind: 'maybe_confirmation' },
   address_unwritten: { kind: 'address_unwritten' },
   language_held: { kind: 'language_held' },
+  procedure_handoff: { kind: 'procedure_handoff' },
   high_value: { kind: 'high_value', total: usd('1') },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -313,6 +318,7 @@ export const TRIGGER_REASONS = [
   'maybe_confirmation',
   'address_unwritten',
   'language_held',
+  'procedure_handoff',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -351,6 +357,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'price_to_owner';
     case 'stock_asked':
       return 'stock_asked';
+    case 'procedure_handoff':
+      return 'procedure_handoff';
     case 'allowance_used':
       return 'allowance_used';
     case 'billing_lapsed':
@@ -426,6 +434,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'not_answered':
         problem = 100; // absolute: nobody knows what it asked, so a person answers.
+        break;
+      case 'procedure_handoff':
+        problem = 100; // absolute: the owner's own step says a person takes it from here.
         break;
       case 'provider_billing':
         problem = 100; // absolute: no reply can be written, so a person answers.

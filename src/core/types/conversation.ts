@@ -93,6 +93,11 @@ export type ConversationState = {
 
   readonly preferredLanguage: string | null;
   readonly contextSummary: string | null;
+  /**
+   * 0229 — the owner's procedure this conversation is in the middle of, and the step last done (1-based). Null or
+   * absent: none. Optional so every state built before procedures existed still means what it meant.
+   */
+  readonly procedure?: { readonly id: string; readonly step: number } | null;
 
   /**
    * When this conversation was told it is talking to an AI, on the first
