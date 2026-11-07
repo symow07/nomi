@@ -317,6 +317,7 @@ import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
 import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
+import type { Suggestion } from '../../pipeline/suggestReply.js';
 import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
@@ -524,6 +525,8 @@ export type WebDeps = {
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
   /** 0230 — a check's job: the saved cases run against the staged change `checkId`. Absent: no check, changes go live at once. */
   readonly kickCaseCheck?: (businessId: string, checkId: string) => Promise<void>;
+  /** Block 3 PR 4 — the words the assistant would write now, for a person to send themselves (src/pipeline/suggestReply.ts). */
+  readonly suggestReply?: (businessId: string, conversationId: string) => Promise<Suggestion>;
   /**
    * C5 — the installation's CREDENTIAL_KEY, derived, so a connector key she
    * pastes is encrypted before it touches a row. Absent: keys cannot be kept,
@@ -5132,6 +5135,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return true;
     });
     return flashTo(reply, conversationUrl(cid), done ? 'savedReplies.flash.inserted' : 'savedReplies.flash.notInserted');
+  });
+
+  /**
+   * Block 3 PR 4 — "SUGGEST A REPLY": the reply form's second button, or the Copilot panel's tap (JSON). The words the
+   * assistant would write now, every guard on them, go in the box after what was typed, kept as CC-24 keeps a reply —
+   * or, for the panel, come back as JSON with nothing written. NOTHING IS SENT: the person reads, changes and sends with
+   * the box's own button, by the one way an owner's reply goes (src/pipeline/suggestReply.ts). Owner and staff.
+   */
+  app.post('/app/conversations/:conversationId/copilot/suggest', async (req, reply) => {
+    const asJson = String(req.headers.accept ?? '').includes('application/json');
+    const json = (code: number, body: unknown) => reply.code(code).header('cache-control', 'no-store').send(body);
+    const s = sessionOf(req);
+    if (!s || personOf(s).kind === 'accountant') return asJson ? json(401, { ok: false, reason: 'not_signed_in' }) : reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return asJson ? json(404, { ok: false, reason: 'not_found' }) : reply.redirect('/app/inbox');
+    const r: Suggestion = deps.suggestReply ? await deps.suggestReply(s.businessId, cid) : { ok: false, reason: 'unavailable' };
+    if (asJson) return r.ok ? json(200, { ok: true, text: r.text }) : json(r.reason === 'not_found' ? 404 : 409, { ok: false, reason: r.reason });
+    if (!r.ok) return r.reason === 'not_found' ? reply.redirect('/app/inbox') : flashTo(reply, conversationUrl(cid), `copilot.flash.notSuggested.${r.reason}` as MessageKey);
+    const typed = typeof (req.body as { text?: unknown } | undefined)?.text === 'string' ? String((req.body as { text: string }).text).slice(0, 4000) : '';
+    await withTenantTx(deps.db, bid.value, (tx) => keepUnsentReply(tx, bid.value, cid, boxWithSaved(typed, r.text)));
+    return flashTo(reply, conversationUrl(cid), 'copilot.flash.suggested');
   });
 
   /**

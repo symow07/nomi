@@ -3,7 +3,8 @@ import type { AdvisorIO, AdvisorViewer } from './advisor.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MemoryState } from '../../advisor/memory.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { readConversationContext } from '../../advisor/reads.js';
+import { readConversationContext, readHandoffFacts, knownNames } from '../../advisor/reads.js';
+import { handoffSummary, forgetHandoff } from '../../advisor/handoff.js';
 import { answerConversation, replyForConversation, CONVERSATION_INTENTS, type ConversationAnswer, type ConversationContext, type ConversationIntent } from '../../advisor/conversation.js';
 import { t, withAssistantName } from './say.js';
 import { esc } from './layout.js';
@@ -75,6 +76,34 @@ export function conversationAdvisorRoutes(app: FastifyInstance, io: Conversation
       if (id) threadHref = `/app/advisor/c/${id}`;
     }
     return draw(req, reply, view(req, c, able, q, answered.answer, answered.intent, memoryState.ask, threadHref, memoryState.keep));
+  });
+
+  /**
+   * Block 3 PR 4 — THE HAND-OFF'S THREE LINES, as JSON for the Copilot panel (its layout is the redesign's; this route
+   * and its answer are the contract): what the customer wants, what was already said with each figure's source, and
+   * what waits on the owner. The advisor's read-only pool; the one worded line asked within the day's allowance, put
+   * on the ledger, and kept per conversation until a newer message lands (src/advisor/handoff.ts). Nothing here
+   * reaches a customer: no draft, no reply, no conversation is written.
+   */
+  app.get('/app/conversations/:conversationId/copilot', { logLevel: 'warn' }, async (req, reply) => {
+    const json = (code: number, body: unknown) => reply.code(code).header('cache-control', 'no-store').send(body);
+    const v = io.viewer(req); if (!v) return json(401, { ok: false, reason: 'not_signed_in' });
+    const bid = parseBusinessId(v.businessId);
+    if (!io.db || !bid.ok) return json(503, { ok: false, reason: 'unavailable' });
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const locale = io.locale(req);
+    const ctx = { db: io.db, businessId: bid.value, viewerId: v.viewerId, locale, now: new Date(), params: { period: null, customer: null, product: null, reference: null } };
+    const facts = await readHandoffFacts(ctx, cid);
+    if (!facts) { forgetHandoff(v.businessId, cid); return json(404, { ok: false, reason: 'not_found' }); }
+    const able = await allowance(v);
+    const r = await handoffSummary(facts, { businessId: v.businessId, locale, model: able === 'available' ? io.model : null, known: () => knownNames(ctx) });
+    if (r.spent.llmCalls) await io.spent(v.businessId, r.spent);
+    const sm = r.summary;
+    return json(200, {
+      ok: true, conversationId: cid, asOf: sm.asOf, cached: r.cached, allowance: able,
+      lines: [sm.wants.text, sm.said.text, sm.waiting.text], wants: sm.wants, said: sm.said, waiting: sm.waiting,
+      suggest: { method: 'POST', href: `/app/conversations/${cid}/copilot/suggest` },
+    });
   });
 
   // Validation recomputes the text from current records; browser-provided text is never accepted.

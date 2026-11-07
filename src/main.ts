@@ -75,6 +75,7 @@ import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { prepareConversationOutbound, finishConversationOutbound, callProvider, type AdapterFor, type DriveEffect, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { runCheck } from './pipeline/caseChecks.js';
+import { suggestReply } from './pipeline/suggestReply.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { stopClock, type StopClock, runningJobs } from './queue/stopClock.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
@@ -932,6 +933,12 @@ export async function buildProduction(
   // and its own small pool, read-only at the server, the only database it is given.
   const advisorModel = overrides?.advisorModel ?? anthropicAdvisorModel(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   const advisorDb = createReadOnlyDb(cfg.DATABASE_URL);
+  // Block 3 PR 4 — "Suggest a reply": the turn's own analyser and writer, asked for the person holding a conversation, in a
+  // transaction that is rolled back (src/pipeline/suggestReply.ts). The words are handed back; nothing is sent.
+  const suggestModels = {
+    analyzer: overrides?.models?.analyzer ?? anthropicAnalyzer(modelClient(watch.observe), llm.model, requestExtrasFor(llm)),
+    replyWriter: overrides?.models?.replyWriter ?? anthropicReplyWriter(modelClient(watch.observe), llm.model, requestExtrasFor(llm)),
+  };
   // THE ADVISOR'S MEMORY (0130; D8) — the key its history is sealed with. Missing or wrong, the advisor answers
   // as ever and nothing is kept: said once here, never a reason not to start. Proven by a round trip, and the
   // rows a rotation has not yet reached are counted (never opened).
@@ -1114,6 +1121,11 @@ export async function buildProduction(
       // SAME outbound worker (no second send path).
       // 0230 — a check's job, from the route that staged the change.
       kickCaseCheck: async (businessId, checkId) => { await boss.send(QUEUES.caseChecks, { businessId, checkId }); },
+      suggestReply: (businessId, conversationId) => {
+        const b = parseBusinessId(businessId);
+        return b.ok ? suggestReply({ db, businessId: b.value, conversationId, models: suggestModels, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null })
+          : Promise.resolve({ ok: false as const, reason: 'not_found' as const });
+      },
       kickDrive: async (businessId, conversationId) => {
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });

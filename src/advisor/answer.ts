@@ -44,7 +44,7 @@ export type AskContext = {
   readonly now: Date;
 };
 
-const LANGUAGE: Readonly<Record<Locale, string>> = { en: 'English', zh: 'Simplified Chinese', ar: 'Arabic', es: 'Spanish', fr: 'French' };
+export const LANGUAGE: Readonly<Record<Locale, string>> = { en: 'English', zh: 'Simplified Chinese', ar: 'Arabic', es: 'Spanish', fr: 'French' };
 const PERIODS = new Set(['today', 'week', 'month']);
 
 export async function answerQuestion(a: AskContext, question: string): Promise<AdvisorAnswer> {
