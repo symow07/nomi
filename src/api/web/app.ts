@@ -274,7 +274,7 @@ import {
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
-import { refusedByCap } from '../../channels/email/httpsMail.js';
+import { refusedByCap } from '../../core/ops/mailCap.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
   newOtpCode, otpHash, mintPendingOtp, readPendingOtp, mintKnownDevice, isKnownDevice, maskEmail,

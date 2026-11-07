@@ -1,4 +1,5 @@
 import type { SystemMail } from './systemMail.js';
+import { capRefusal } from '../../core/ops/mailCap.js';
 
 /**
  * MAIL (decision 36) — A DEDICATED SENDER OVER HTTPS, for the mail strangers
@@ -92,9 +93,8 @@ export function cappedMail(mail: SystemMail, claim: (to: string) => Promise<'ok'
     from: mail.from,
     async send(message) {
       const c = await claim(message.to);
-      if (c !== 'ok') return { ok: false, error: `daily_cap: ${c}` };
+      if (c !== 'ok') return { ok: false, error: capRefusal(c) };
       return mail.send(message);
     },
   };
 }
-export const refusedByCap = (r: { ok: boolean; error?: string }): boolean => !r.ok && (r.error ?? '').startsWith('daily_cap:');

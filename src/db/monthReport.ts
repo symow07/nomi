@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import type { Tx } from './client.js';
+import type { Db, Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { zoneOf } from './zone.js';
 import { notOwnerTesting } from './handled.js';
@@ -129,18 +129,20 @@ export async function loadMonthReport(tx: Tx, businessId: BusinessId, month: str
   // Time to the first reply — per customer who wrote in the month: from their first message of the month to the
   // first message that reached them after it, whoever wrote it (`messages` holds a reply only once it was sent).
   // Clock time: business hours are free text. Those with no reply since are waiting, and are not in the median.
+  // Every read here names the workspace, as every other: the operator's tool reads with a role row security does not filter.
   const first = (await sql<{ measured: number; waiting: number; median: number | null }>`
     with wrote as (
       select c.client_id, case when c.client_id is null then c.id end as lone, min(m.sent_at) as first_at
         from messages m join conversations c on c.id = m.conversation_id
-       where m.direction = 'inbound' and m.sent_at >= ${from} and m.sent_at < ${to} and not c.owner_testing
+       where c.business_id = ${B} and m.direction = 'inbound' and m.sent_at >= ${from} and m.sent_at < ${to}
+         and not c.owner_testing
        group by 1, 2
     ), timed as (
       select w.first_at,
              (select min(o.sent_at) from messages o
                where o.direction = 'outbound' and o.sent_at > w.first_at
                  and o.conversation_id in (select oc.id from conversations oc
-                                            where not oc.owner_testing
+                                            where oc.business_id = ${B} and not oc.owner_testing
                                               and ((w.client_id is not null and oc.client_id = w.client_id) or oc.id = w.lone))) as reply_at
         from wrote w
     )
@@ -262,4 +264,24 @@ export async function saveMonthMail(tx: Tx, businessId: BusinessId, on: boolean,
      where id = ${businessId}::uuid and (month_report_mail_off_at is null) is distinct from ${on}::boolean
      returning id::text`.execute(tx)).rows.length > 0;
   if (changed) await auditProfile(tx, businessId, actor, 'month_report_mail_off_at');
+}
+
+/** A workspace whose monthly e-mail is due, claimed once for the month just ended (`claim_month_reports`, 0231). */
+export type MonthReportClaim = { readonly businessId: string; readonly month: string; readonly zone: string };
+export type MonthReportOutcome = 'sent' | 'empty' | 'no_address' | 'not_sent' | 'failed';
+
+/**
+ * Every workspace whose 1st has reached 08:00 in its zone (and is within its first week), outside the owner's quiet
+ * hours, with the e-mail on, not a practice copy, not suspended, begun before the month — each claimed ONCE for the
+ * month just ended, so a second run, a retry or a second worker never sends it twice.
+ */
+export async function claimMonthReports(db: Db, now: Date): Promise<MonthReportClaim[]> {
+  return (await sql<{ business_id: string; month: string; zone: string }>`
+    select business_id::text as business_id, month, zone from claim_month_reports(${now}::timestamptz)`.execute(db)).rows
+    .map((r) => ({ businessId: r.business_id, month: r.month, zone: r.zone }));
+}
+
+/** What became of a claimed month's e-mail, on its claim row. */
+export async function monthReportDone(db: Db, businessId: string, month: string, outcome: MonthReportOutcome): Promise<void> {
+  await sql`select month_report_done(${businessId}::uuid, ${month}, ${outcome})`.execute(db);
 }

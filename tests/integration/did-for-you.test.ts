@@ -258,6 +258,19 @@ d('Block 4.3 · what Nomi did for you, one month (requires DATABASE_URL + MIGRAT
     const r = await report(EMPTY);
     expect(r.customersAnswered + r.replies.alone + r.orders.confirmed + r.invoicesPaid.count).toBe(0);
   });
+
+  it('every read names the workspace: through the admin role, which row security does not filter, the same month', async () => {
+    // tools/month-report.mjs reads with MIGRATE_DATABASE_URL. A query that left the workspace to row security read
+    // every workspace's customers there (the first-reply median said "from 343 customers" on a shared database).
+    const adminDb = createDb(process.env['MIGRATE_DATABASE_URL']!);
+    try {
+      const asAdmin = (b: string) => withTenantTx(adminDb, bid(b), (t) => loadMonthReport(t, bid(b), '2026-10', NOW));
+      expect(await asAdmin(BIZ)).toEqual(await report());
+      expect(await asAdmin(EMPTY)).toEqual(await report(EMPTY));
+    } finally {
+      await adminDb.destroy();
+    }
+  });
 });
 
 /**
@@ -381,5 +394,128 @@ d('Block 4.3 · the month page\'s routes (requires DATABASE_URL + MIGRATE_DATABA
     expect([r.statusCode, (await setting()).off]).toEqual([400, false]);
     r = await post(staffCookie, '/app/results/month/mail', 'mail=off&month=2026-10');
     expect((await setting()).off).toBe(false);
+  });
+});
+
+/**
+ * Block 4.3 B4 — THE MONTHLY E-MAIL, through the real job (src/pipeline/monthMail.ts) and the claim (0231), with a
+ * fake sender at the port. The clock is the job's argument: 08:05 on 1 November in London (GMT by then).
+ */
+d('Block 4.3 · the monthly e-mail (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
+  let db: Db, admin: pg.Client;
+  const R = randomUUID().slice(0, 8);
+  const W = {
+    sent: randomUUID(), off: randomUUID(), copy: randomUUID(), empty: randomUUID(), late: randomUUID(),
+    night: randomUUID(), noAddress: randomUUID(), capped: randomUUID(),
+  };
+  const ours = new Set<string>(Object.values(W));
+  const address = (who: string) => `${who}-${R}@month-mail.test`;
+  type Sent = { to: string; subject: string; text: string };
+  const outbox: Sent[] = [];
+  const fakeMail = { from: 'nomi@month-mail.test', send: async (m: Sent) => { outbox.push(m); return { ok: true as const }; } };
+  const BASE = 'https://app.month-mail.test';
+
+  const workspace = async (id: string, name: string, o: { began?: string; owner?: string | null; quiet?: [number, number]; active?: boolean } = {}) => {
+    await admin.query(`insert into businesses (id, name, timezone, created_at) values ($1, $2, 'Europe/London', $3)`,
+      [id, name, o.began ?? '2026-09-14T10:00:00Z']);
+    const owner = (await admin.query<{ id: string }>(`insert into people (business_id, name, is_owner, quiet_from, quiet_until) values ($1, 'Owner', true, $2, $3) returning id`,
+      [id, o.quiet?.[0] ?? null, o.quiet?.[1] ?? null])).rows[0]!.id;
+    if (o.owner !== null) await admin.query(`insert into logins (business_id, person_id, email, password_hash) values ($1, $2, $3, 'scrypt$never-used')`, [id, owner, o.owner ?? address(name.split(' ')[0]!.toLowerCase())]);
+    if (o.active !== false) {
+      const client = (await admin.query<{ id: string }>(`insert into clients (business_id, display_name) values ($1, 'Customer Zed') returning id`, [id])).rows[0]!.id;
+      const conv = (await admin.query<{ id: string }>(`insert into conversations (business_id, client_id, channel) values ($1, $2, 'whatsapp') returning id`, [id, client])).rows[0]!.id;
+      await admin.query(`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values ($1, $2, 'inbound', 'text', 'Hi', '2026-10-10T09:00:00Z')`, [conv, `mm-${R}-${id.slice(0, 8)}-in`]);
+      await admin.query(`insert into outbound_messages (business_id, conversation_id, seq, body, status, origin, sent_at) values ($1, $2, 1, 'Hello', 'sent', 'employee', '2026-10-10T09:04:00Z')`, [id, conv]);
+      await admin.query(`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values ($1, $2, 'outbound', 'text', 'Hello', '2026-10-10T09:04:00Z')`, [conv, `mm-${R}-${id.slice(0, 8)}-out`]);
+    }
+  };
+  const due = async (now: string, mail: typeof fakeMail | import('../../src/channels/email/systemMail.js').SystemMail = fakeMail) => {
+    const { monthReportsDue } = await import('../../src/pipeline/monthMail.js');
+    return (await monthReportsDue({ db, mail, publicBaseUrl: `${BASE}/` }, at(now))).filter((c) => ours.has(c.businessId));
+  };
+  const outcome = async (id: string) => (await admin.query<{ month: string; outcome: string | null }>(
+    'select month, outcome from month_report_sends where business_id = $1', [id])).rows;
+  const mineIn = (box: readonly Sent[]) => box.filter((m) => m.to.endsWith(`-${R}@month-mail.test`));
+
+  beforeAll(async () => {
+    db = createDb(process.env['DATABASE_URL']!);
+    admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await admin.connect();
+    await workspace(W.sent, 'Sent Co');
+    // A colleague who signs in too: the e-mail is the owner's alone.
+    const staff = (await admin.query<{ id: string }>(`insert into people (business_id, name, is_owner) values ($1, 'Colleague', false) returning id`, [W.sent])).rows[0]!.id;
+    await admin.query(`insert into logins (business_id, person_id, email, password_hash) values ($1, $2, $3, 'scrypt$never-used')`, [W.sent, staff, address('colleague')]);
+    await workspace(W.off, 'Off Co');
+    await admin.query('update businesses set month_report_mail_off_at = now() where id = $1', [W.off]);
+    // A practice copy with everything a workspace would need to be sent one (an owner with an address, a month's
+    // activity) — made a copy afterwards, as the database allows: only the claim's own rule keeps it out.
+    await workspace(W.copy, 'Copy Co');
+    await admin.query('update businesses set practice_of = $1 where id = $2', [W.sent, W.copy]);
+    await workspace(W.empty, 'Empty Co', { active: false });
+    await workspace(W.late, 'Late Co', { began: '2026-11-01T00:30:00Z' });
+    await workspace(W.night, 'Night Co', { quiet: [7, 10] });
+    await workspace(W.noAddress, 'Nobody Co', { owner: null });
+    await workspace(W.capped, 'Capped Co');
+  }, 60_000);
+  afterAll(async () => { await db?.destroy(); await admin?.end(); });
+
+  it('nothing before 08:00 on the 1st in the workspace\'s zone', async () => {
+    expect(await due('2026-11-01T07:55:00Z')).toEqual([]);
+    expect(mineIn(outbox)).toEqual([]);
+  });
+
+  it('at 08:00: one e-mail to the owner for the month just ended — empty, stopped, a copy, begun after, quiet hours: none', async () => {
+    const { cappedMail } = await import('../../src/channels/email/httpsMail.js');
+    // The installation's cap, as main.ts composes it: here it holds Capped Co's address back.
+    const mail = cappedMail(fakeMail, async (to) => to === address('capped') ? 'address_cap' : 'ok');
+    const claims = await due('2026-11-01T08:05:00Z', mail);
+    const byId = new Map(claims.map((c) => [c.businessId, c]));
+    expect(new Set(byId.keys())).toEqual(new Set([W.sent, W.empty, W.noAddress, W.capped]));
+    expect([...byId.values()].every((c) => c.month === '2026-10' && c.zone === 'Europe/London')).toBe(true);
+    expect([byId.get(W.sent)!.outcome, byId.get(W.empty)!.outcome, byId.get(W.noAddress)!.outcome, byId.get(W.capped)!.outcome])
+      .toEqual(['sent', 'empty', 'no_address', 'not_sent']);
+    const mine = mineIn(outbox);
+    expect(mine.map((m) => m.to)).toEqual([address('sent')]);
+    for (const id of [W.off, W.copy, W.late, W.night]) expect(await outcome(id)).toEqual([]);
+    expect(await outcome(W.sent)).toEqual([{ month: '2026-10', outcome: 'sent' }]);
+  });
+
+  it('the e-mail is the month page\'s figures: no customer named, one address, the month\'s page', async () => {
+    const m = mineIn(outbox).find((x) => x.to === address('sent'))!;
+    expect(m.subject).toBe('Sent Co · What Nomi did for you in October 2026');
+    expect(m.text).not.toContain('Customer Zed');
+    expect(m.text.match(/https?:\/\/\S+/g)).toEqual([`${BASE}/app/results/month?month=2026-10`]);
+    const { monthMailOf } = await import('../../src/core/report/monthMail.js');
+    const p = parseBusinessId(W.sent); if (!p.ok) throw Error('fixture');
+    const report = await withTenantTx(db, p.value, (t) => loadMonthReport(t, p.value, '2026-10', at('2026-11-01T08:05:00Z')));
+    expect(report.customersAnswered).toBe(1);
+    expect(m.text).toBe(monthMailOf(report, { business: 'Sent Co', name: null, url: `${BASE}/app/results/month?month=2026-10` }).text);
+    expect(m.text).toContain('Customers answered: 1\nReplies your assistant sent alone: 0\n');
+    expect(m.text).not.toContain('Time saved');
+  });
+
+  it('a retry sends nothing twice; quiet hours wait, then it goes', async () => {
+    const before = mineIn(outbox).length;
+    expect(await due('2026-11-01T08:20:00Z')).toEqual([]);
+    expect(mineIn(outbox).length).toBe(before);
+    const later = await due('2026-11-01T10:05:00Z');
+    expect(later.map((c) => [c.businessId, c.outcome])).toEqual([[W.night, 'sent']]);
+    expect(mineIn(outbox).slice(before).map((m) => m.to)).toEqual([address('night')]);
+    expect(await due('2026-11-01T11:05:00Z')).toEqual([]);
+  });
+
+  it('turned on again after the first week: last month\'s e-mail is not sent late', async () => {
+    await admin.query('update businesses set month_report_mail_off_at = null where id = $1', [W.off]);
+    expect(await due('2026-11-08T09:00:00Z')).toEqual([]);
+    expect(await outcome(W.off)).toEqual([]);
+  });
+
+  it('without a sender or the public address nothing is claimed; MONTH_REPORT_MAIL must say on', async () => {
+    const { monthReportsDue, monthMailOn } = await import('../../src/pipeline/monthMail.js');
+    expect(await monthReportsDue({ db, mail: null, publicBaseUrl: BASE }, at('2026-12-01T08:05:00Z'))).toEqual([]);
+    expect(await monthReportsDue({ db, mail: fakeMail, publicBaseUrl: null }, at('2026-12-01T08:05:00Z'))).toEqual([]);
+    expect(await outcome(W.sent)).toEqual([{ month: '2026-10', outcome: 'sent' }]);
+    expect([monthMailOn({ MONTH_REPORT_MAIL: 'on' }), monthMailOn({ MONTH_REPORT_MAIL: ' on ' }), monthMailOn({}), monthMailOn({ MONTH_REPORT_MAIL: 'off' }), monthMailOn({ MONTH_REPORT_MAIL: 'true' })])
+      .toEqual([true, true, false, false, false]);
   });
 });

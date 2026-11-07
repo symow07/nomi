@@ -26,6 +26,8 @@ export const MONTH_MAIL_EN = {
   'monthMail.invoicesBare': 'Invoices paid in full: {n}',
   'monthMail.handed': 'Hand-offs to you: {n}',
   'monthMail.handedReason': '{reason}: {n}',
+  // A hand-off whose reason has no words of its own (the page's `monthReport.handed.other`, said the same way).
+  'monthMail.handedOther': 'Another reason',
   'monthMail.estimate': 'Time saved, an estimate: {replies} replies × {minutes} min = {hours} h',
   'monthMail.open': 'See the month in Nomi: {url}',
   'monthMail.off': 'This e-mail comes on the 1st of each month. You can stop it at the foot of that page.',
