@@ -248,6 +248,8 @@ export const RULES = Object.freeze({
   procedures: { do: 'unrelated' },
   // 0230 — the checks before a change goes live: a staged change and case references, no customer's words.
   case_checks: { do: 'unrelated' },
+  // 0231 — that a month's report went to the owner, and when: no customer in it.
+  month_report_sends: { do: 'unrelated' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the
