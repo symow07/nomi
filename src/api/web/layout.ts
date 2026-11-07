@@ -200,8 +200,8 @@ export const byAssistant = (name: string): string =>
   `<span class="as">${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
-export const back = (href: string, label: string): string =>
-  `<a class="back" href="${settingsHref(href)}">${BACK}${esc(label)}</a>`;
+export const back = (href: string, label: string, attrs = ''): string =>
+  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';
@@ -811,7 +811,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an edge twice as heavy and weight, not a paler grey than its
      neighbours. The identity system — the edge and the words in the brand: the edge of what you are on is one of the three edges
      the brand may draw (a focus ring and an underline are the others). */
-  .tab.on { background:var(--color-surface); border-color:var(--color-brand); box-shadow:inset 0 0 0 1px var(--color-brand); color:var(--color-brand); font-weight:600; }
+  .tab.on { background:var(--color-surface); border-color:var(--color-accent); box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
@@ -2174,7 +2174,7 @@ const STYLE_PAGES = `
   .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-sand);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); }
   .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
-  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-brand); }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-accent); }
   @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
   .tabs.filters { flex-wrap:wrap; align-items:center; }
   .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);

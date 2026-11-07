@@ -16,8 +16,6 @@ export const MONTH_REPORT_CSS = String.raw`
 .month-report select{flex:1;min-inline-size:0;inline-size:0}
 .month-report input,.month-report select{font:inherit;min-block-size:44px;max-inline-size:100%;box-sizing:border-box}
 .month-report a,.month-report summary{min-block-size:44px;align-content:center}
-.month-report .mr-month-door{display:inline-flex;align-items:center;color:var(--color-brand);text-decoration:none}
-.month-report .mr-month-door:hover{text-decoration:underline}
 .month-report .mr-minutes{border-block-start:1px solid var(--color-border);padding-block:var(--space-16);margin-block-end:var(--space-24)}
 .month-report summary{cursor:pointer;font-weight:600}
 .month-report .pform{margin-block-start:var(--space-16);max-inline-size:var(--measure-form)}

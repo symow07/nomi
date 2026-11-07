@@ -7,6 +7,7 @@ import { shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
 import { unisolatedFigures, withoutIsolates } from './isolates.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { saidFlash, flashBanner, mintFlash, readFlash } from '../../src/api/web/flash.js';
 import type { Locale } from '../../src/core/owner/i18n/locale.js';
 
 const options: MonthPageOptions = {
@@ -36,11 +37,11 @@ describe('Block 4.3 · the month report page', () => {
         expect(section(html, `month-${name}`)).not.toBe('');
       }
       const words = plain(html);
-      expect(words).toContain('customers answered 42');
-      expect(words).toContain('replies Lily sent alone 61');
-      expect(words).toContain('drafts you sent as written 29');
-      expect(words).toContain('drafts you edited, then sent 8');
-      expect(words).toContain('drafts not sent 5');
+      expect(words).toContain('Customers answered 42');
+      expect(words).toContain('Replies Lily sent alone 61');
+      expect(words).toContain('Drafts you sent as written 29');
+      expect(words).toContain('Drafts you edited, then sent 8');
+      expect(words).toContain('Drafts not sent 5');
       expect(words).toContain('Measured on 40 customers.');
       expect(words).toContain('3 customers who wrote this month are still waiting');
       expect(words).not.toMatch(/(?:monthReport|monthMail|takeover)\.[a-z]/);
@@ -129,15 +130,15 @@ describe('Block 4.3 · the month report page', () => {
     expect(plain(noBooks)).toContain('You have not issued an invoice yet');
   });
 
-  it('orders hand-off reasons by count then key, wording unknown ones generically', () => {
+  it('orders known hand-off reasons by count then key, with unknown reasons last', () => {
     const html = draw({ ...FIXTURE_MONTH_REPORT, handedToYou: [
       { reason: 'stock_asked', n: 1 }, { reason: 'unknown_future_reason', n: 9 }, { reason: 'human_requested', n: 2 },
     ] });
     const handed = plain(section(html, 'month-handed'));
-    expect(handed).toContain('hand-offs to you 12');
+    expect(handed).toContain('Hand-offs to you 12');
     expect(handed).toContain('Another reason 9');
     expect(handed).not.toContain('unknown_future_reason');
-    expect(handed.indexOf('Another reason')).toBeLessThan(handed.indexOf('The customer asked for a person'));
+    expect(handed.indexOf('Another reason')).toBeGreaterThan(handed.indexOf('A stock question'));
   });
 
   it.each([[30, 'under a minute'], [3660, '1 hour, 1 minute'], [176400, '2 days, 1 hour']] as const)(
@@ -177,6 +178,45 @@ describe('Block 4.3 · the month report page', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('&lt;strong&gt;Refused&lt;/strong&gt;');
     expect(html).not.toContain('<img');
+  });
+
+  it('marks English fallback flash words without changing the direction of Arabic flashes', () => {
+    const flash = saidFlash('ar', 'monthMail.flash.minutesSaved', { minutes: 5 });
+    expect(draw(undefined, 'ar', { flash })).toContain('<bdi lang="en" dir="ltr">Saved.');
+    const mixed = readFlash('test-secret', mintFlash('test-secret', [
+      { key: 'monthMail.flash.minutesSaved', params: { minutes: 5 } }, { key: 'common.undo' },
+    ], 100), 'ar', 100);
+    expect(flashBanner(mixed)).toContain('<bdi lang="en" dir="ltr">Saved.');
+    expect(flashBanner({ text: 'Nomi جاهز.', bad: false })).toBe('<div class="flash" role="status">Nomi جاهز.</div>');
+    expect(flashBanner(flash)).not.toContain('dir="auto"');
+  });
+
+  it('keeps shared active tabs and month doors magenta despite the owner-shell brand override', () => {
+    const css = linkedCss(shell({ title: 'Month', active: 'analytics', path: '/app/results/month', locale: 'en', bodyHtml: draw() }));
+    // The shell deliberately maps brand to ink for older controls; change this page only.
+    expect(css).toMatch(/\.owner-shell\s*\{\s*--color-brand:var\(--color-ink\)/);
+    const rule = css.match(/(?:^|\n)\s*\.tab\.on\s*\{([^}]+)\}/)?.[1] ?? '';
+    expect(rule).toContain('color:var(--color-accent)');
+    expect(rule).toContain('border-color:var(--color-accent)');
+    expect(rule).toContain('inset 0 0 0 1px var(--color-accent)');
+    const html = draw();
+    expect(html).toMatch(/<a class="back"[^>]*href="\/app\/results\/month\?month=2026-09"/);
+    expect(html).toMatch(/<a class="deeper"[^>]*href="\/app\/results\/month\?month=2026-11"/);
+    expect(html).not.toContain('mr-month-door');
+    expect(css).not.toMatch(/\.tabs:has\(\+ \.month-report\) \.tab\.on/);
+  });
+
+  it('uses the same sentence-case row label when its figure is one', () => {
+    const html = draw({ ...FIXTURE_MONTH_REPORT, customersAnswered: 1, replies: { ...FIXTURE_MONTH_REPORT.replies, asWritten: 1 } });
+    expect(plain(html)).toContain('Customers answered 1');
+    expect(plain(html)).toContain('Drafts you sent as written 1');
+  });
+
+  it('lets the minutes refusal reach the server for out-of-range or fractional input', () => {
+    const input = form(draw(), '/app/results/month/minutes').match(/<input[^>]*id="month-report-minutes"[^>]*>/)?.[0] ?? '';
+    expect(input).toContain('type="text"');
+    expect(input).toContain('inputmode="numeric"');
+    expect(input).not.toMatch(/\b(?:min|max|step|pattern|required)=/);
   });
 
   it('serves its scoped styles with the shell, preserving a single column and wrapping tabs', () => {

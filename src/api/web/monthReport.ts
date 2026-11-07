@@ -1,6 +1,6 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { messages, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { MINUTES_PER_REPLY_MIN, MINUTES_PER_REPLY_MAX, type MonthReport, type MonthPageOptions } from '../../core/report/month.js';
+import type { MonthReport, MonthPageOptions } from '../../core/report/month.js';
 import type { Money } from '../../core/types/money.js';
 import { esc, back, deeper } from './layout.js';
 import { t } from './say.js';
@@ -13,9 +13,7 @@ const href = (month: string): string => `${BASE}?month=${encodeURIComponent(mont
 
 /** New copy is English; the surrounding rows still follow the page's direction. */
 const words = (text: string): string => `<bdi lang="en" dir="ltr">${esc(text)}</bdi>`;
-type CountKey = 'monthReport.n.answered' | 'monthReport.n.alone' | 'monthReport.n.asWritten'
-  | 'monthReport.n.edited' | 'monthReport.replies.notSent' | 'monthReport.n.orders'
-  | 'monthReport.n.invoicesPaid' | 'monthReport.n.handed' | 'monthReport.median.from' | 'monthReport.median.waiting';
+type CountKey = 'monthReport.median.from' | 'monthReport.median.waiting';
 
 /** The fallback's nouns are English (two forms), even on a page with Arabic number formatting. */
 const counted = (locale: Locale, key: CountKey, n: number): string =>
@@ -45,8 +43,8 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
   const row = (label: string, value: string, definition?: MessageKey, english = true): string =>
     `<div class="result-row"><dt>${english ? words(label) : `<bdi>${esc(label)}</bdi>`}</dt><dd>${esc(value)}</dd>${
       definition ? `<dd class="mr-definition caption muted">${words(say(definition))}</dd>` : ''}</div>`;
-  const countRow = (key: CountKey, n: number, definition: MessageKey) =>
-    row(counted(locale, key, n), show.count(locale, n), definition);
+  const countRow = (key: MessageKey, n: number, definition: MessageKey) =>
+    row(say(key), show.count(locale, n), definition);
   const list = (rows: string) => `<dl class="result-rows">${rows}</dl>`;
   const moneyRows = (totals: readonly Money[], key: MessageKey) => totals.map((amount) =>
     row(say(key), show.money(locale, amount))).join('');
@@ -57,8 +55,8 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
   const next = index > 0 ? options.months[index - 1] : undefined;
   const monthDoor = (month: string, direction: 'previous' | 'next') => {
     const label = show.month(locale, month);
-    return `<a class="mr-month-door" href="${esc(href(month))}" aria-label="${esc(say(`monthReport.picker.${direction}Name`, { month: label }))}">${
-      esc(say(`monthReport.picker.${direction}`, { month: label }))}</a>`;
+    const attrs = `aria-label="${esc(say(`monthReport.picker.${direction}Name`, { month: label }))}"`;
+    return direction === 'previous' ? back(href(month), label, attrs) : deeper(href(month), label, '', attrs);
   };
   const picker = `<div class="mr-picker">${previous ? monthDoor(previous, 'previous') : ''}
     <form method="get" action="${BASE}" class="mr-month-form"><label for="month-report-month">${words(say('monthReport.picker.label'))}</label>
@@ -80,7 +78,9 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
     <h1 class="page">${words(say('monthReport.title'))}</h1><p class="muted">${words(say('monthReport.intro'))}</p></header>
     ${flashBanner(options.flash)}<section class="mr-month" aria-labelledby="month-period"><h2 id="month-period">${esc(selectedMonth)}</h2>${states}${picker}</section>`;
 
-  const handed = [...report.handedToYou].sort((a, b) => b.n - a.n || a.reason.localeCompare(b.reason));
+  const knownReason = (reason: string) => Object.hasOwn(messages.en, `takeover.reason.${reason}`);
+  const handed = [...report.handedToYou].sort((a, b) =>
+    Number(knownReason(b.reason)) - Number(knownReason(a.reason)) || b.n - a.n || a.reason.localeCompare(b.reason));
   const handedCount = handed.reduce((sum, item) => sum + item.n, 0);
   const hasActivity = report.customersAnswered + report.replies.alone + report.replies.drafted + report.replies.notSent
     + report.firstReply.measured + report.firstReply.waiting + report.orders.confirmed + report.invoicesPaid.count + handedCount > 0;
@@ -135,7 +135,7 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
   const minutes = options.canSetMinutes ? `<details class="mr-minutes"><summary>${words(say(estimate ? 'monthReport.estimate.change' : 'monthReport.estimate.open'))}</summary>
     <form method="post" action="${BASE}/minutes" class="pform">${hiddenMonth}
       <label for="month-report-minutes">${words(say('monthReport.estimate.minutes'))}</label>
-      <input id="month-report-minutes" name="minutes" type="number" value="${estimate?.minutesPerReply ?? ''}" min="${MINUTES_PER_REPLY_MIN}" max="${MINUTES_PER_REPLY_MAX}" step="1" inputmode="numeric" aria-describedby="month-minutes-hint">
+      <input id="month-report-minutes" name="minutes" type="text" value="${estimate?.minutesPerReply ?? ''}" inputmode="numeric" aria-describedby="month-minutes-hint">
       <p id="month-minutes-hint" class="caption muted">${words(say('monthReport.estimate.hint'))}</p>
       <button class="btn send" type="submit">${words(say('monthReport.estimate.save'))}</button></form></details>` : '';
   const mail = options.canSetMinutes ? section('mail', say('monthReport.section.mail'),
