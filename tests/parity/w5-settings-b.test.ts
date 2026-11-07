@@ -290,7 +290,7 @@ import type { Assistant } from '../../src/core/owner/assistants.js';
 
 const you: TeamMember = { id: 'p-you', name: 'Hongfa Trading', isOwner: true, addedAt: NOW, signsInWithEmail: false, lastSeenAt: NOW };
 const chen: TeamMember = { id: 'p-chen', name: '陈莉', isOwner: false, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null };
-const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noor', role: 'support', note: null, channels: ['instagram'], isDefault: false };
+const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noor', role: 'support', note: null, channels: ['instagram'], isDefault: false, voice: { tone: 'warm', length: 'normal', emoji: 'never' } };
 const people = (l: Locale) => renderPeople({ people: [you, chen], justIssued: null, assistants: [noor], business: 'Hongfa Trading' }, l, null, NOW);
 
 describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {

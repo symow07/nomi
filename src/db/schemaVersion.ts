@@ -476,7 +476,8 @@ import type { Db } from './client.js';
 //       seven years' retention in the US (0225).
 // 226 = invoices that go out: the workspace's switch, the PDF's expiring link, each send and each reminder recorded (0226).
 // 227 = spending: the owner's categories, bills, recurring costs and their proposals (0227).
-export const REQUIRED_SCHEMA_VERSION = 227;
+// 228 = the assistant's voice, chosen once: tone, length and emoji on each assistant, copied to Practice (0228).
+export const REQUIRED_SCHEMA_VERSION = 228;
 
 export type SchemaState = {
   readonly required: number;

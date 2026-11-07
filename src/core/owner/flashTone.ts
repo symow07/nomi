@@ -77,6 +77,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // CUR — a currency not on the list, or one fixed by prices already set: nothing changed.
   'settings.flash.currencyInvalid', 'settings.flash.currencyFixed',
   'assistants.flash.channel_taken', 'assistants.flash.is_default', 'assistants.flash.name_long',
+  'assistants.flash.note_long', 'assistants.flash.note_injection', 'assistants.flash.voice_invalid',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
   'channel.flash.number_taken', 'channel.flash.test_not_connected', 'closures.flash.ends_before_starts',

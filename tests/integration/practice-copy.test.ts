@@ -72,7 +72,7 @@ d('Practice · the per-workspace copy (requires DATABASE_URL + MIGRATE_DATABASE_
       (${LIVE}, 'Half now', 'EXW', now() - interval '1 day', 'owner'), (${LIVE}, 'All up front', 'FOB', now(), 'owner')`.execute(admin);
     await sql`insert into owner_rates (business_id, from_currency, to_currency, rate, stated_at) values
       (${LIVE}, 'USD', 'CNY', 7.0, now() - interval '3 days'), (${LIVE}, 'USD', 'CNY', 7.1, now())`.execute(admin);
-    await sql`insert into assistants (business_id, name, is_default) values (${LIVE}, 'Noor', true)`.execute(admin);
+    await sql`insert into assistants (business_id, name, is_default, tone, length, emoji) values (${LIVE}, 'Noor', true, 'formal', 'short', 'like_customer')`.execute(admin);
     await sql`insert into assistants (business_id, name, is_default, archived_at) values (${LIVE}, 'Old', false, now())`.execute(admin);
     await sql`insert into onboarding_state (business_id, assistant_named_at) values (${LIVE}, now())`.execute(admin);
     await sql`insert into autonomy_policy (business_id, capability, mode) values (${LIVE}, 'quote', 'auto'), (${LIVE}, 'greet', 'draft')`.execute(admin);
@@ -130,6 +130,9 @@ d('Practice · the per-workspace copy (requires DATABASE_URL + MIGRATE_DATABASE_
     expect((await sql<{ r: string }>`select rate::text as r from owner_rates where business_id = ${copy}::uuid`.execute(admin)).rows.map((r) => Number(r.r))).toEqual([7.1]);
     expect((await sql<{ name: string; archived: boolean }>`select name, archived_at is not null as archived from assistants where business_id = ${copy}::uuid order by name`.execute(admin)).rows)
       .toEqual([{ name: 'Noor', archived: false }, { name: 'Old', archived: true }]);
+    // Block 3 PR 1 (0228) — the voice travels with the name: Practice talks as the live one will.
+    expect((await sql<{ tone: string; length: string; emoji: string }>`select tone, length, emoji from assistants where business_id = ${copy}::uuid and name = 'Noor'`.execute(admin)).rows[0])
+      .toEqual({ tone: 'formal', length: 'short', emoji: 'like_customer' });
     expect((await sql<{ named: boolean }>`select assistant_named_at is not null as named from onboarding_state where business_id = ${copy}::uuid`.execute(admin)).rows[0]!.named).toBe(true);
     expect(await count('autonomy_policy', 'business_id', copy)).toBe(2);
     expect((await sql<{ c: string }>`select capability as c from ops_flags where business_id = ${copy}::uuid`.execute(admin)).rows.map((r) => r.c)).toEqual(['quote']);
