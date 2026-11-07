@@ -33,11 +33,55 @@ after each.
 
 - #446 — a bill with no number (no migration; the owner's change before Block 3): "No number on this bill" ticked, the books give it `NOREF-<YYYYMMDD>-<n>`, unique for the day under a per-workspace lock; the shape is reserved (a typed NOREF is refused; a number beside the tick is refused); shown as Nomi's own on the unpaid row, the entry's page and the flash; the pack carries it verbatim. NB008 untouched. Proof: `tests/integration/books-spending.test.ts` (the NOREF block: 1 then 2, the two refusals, the row, the entry, the pack, the trial balance still tied), `tests/parity/books-spending.test.ts`.
 
-- #450 — Block 3 PR 4, the hand-off that carries context (no migration): `/app/conversations/:id/copilot` answers what the customer wants (the advisor's one worded line, checked against the customer's own words and thrown away for them when it names anything they did not say; kept per conversation until a new message, so a second look costs nothing), what was said (each quote told, its figures sourced to the product; other figures the seller's side sent, marked unsourced) and what waits on the owner; "Suggest a reply" runs the real turn with the hold lifted inside a rolled-back transaction and puts the words in the box (or returns them as JSON), nothing sent. Proof: `tests/parity/advisor-copilot.test.ts`, `tests/integration/advisor-copilot.test.ts`. The summary on a real conversation is read after the deploy (below).
+- #450 — Block 3 PR 4, the hand-off that carries context (no migration): `/app/conversations/:id/copilot` answers what the customer wants (the advisor's one worded line, checked against the customer's own words and thrown away for them when it names anything they did not say; kept per conversation until a new message, so a second look costs nothing), what was said (each quote told, its figures sourced to the product; other figures the seller's side sent, marked unsourced) and what waits on the owner; "Suggest a reply" runs the real turn with the hold lifted inside a rolled-back transaction and puts the words in the box (or returns them as JSON), nothing sent. Proof: `tests/parity/advisor-copilot.test.ts` (11), `tests/integration/advisor-copilot.test.ts` (7), the full isolated suite 2140/2140, `npm run check` 9,484, trust 44/44; merge `d397693e`, deploy SUCCESS, `/health` ok, `schema_version` = 230 (no migration). Reading the summary on a real conversation waits for the owner (the Block 3 note).
 - #449 — Block 3 PR 3, "did teaching break anything?" (0230): a taught fact, a procedure, the voice or a moved price is staged when the workspace has saved cases (replies a person gave or accepted), and up to 20 of them — the touching ones first — run again through the real turn against the staged change, each in a rolled-back transaction, each paid on the ledger, none a draft the ramp could count; the check's page shows each case both ways (changed = the figures differ, or no reply where there was one) and the owner keeps (the same write) or reverts. Proof: `tests/parity/b3-cases.test.ts`, `tests/integration/b3-cases.test.ts` (a changed price makes the candle case show the new figure and the shipping case unchanged; Keep moves the price, Revert nothing; staff refused). Claude's calls: a change that would fail is never staged; a workspace with no saved cases changes things at once as before; the re-run is a job, so the route answers at once and the page refreshes itself.
 - #448 — Block 3 PR 2, procedures (0229): the owner's numbered steps for one situation, saved on `/app/assistant/knowledge/procedures` after the validator's checks (money, a figure, a promise nothing keeps, an instruction to the model, a step after the hand-off — each refused by step number); the analyser names the procedure a message starts; the writer is handed one step per turn as an instruction, never a fact; the hand-off step is the `procedure_handoff` signal and reason; `conversation_state` keeps the step last done and a `procedure_step` event records each; the approval card says which step; Practice's copy carries them. Proof: `tests/parity/b3-procedures.test.ts`, `tests/integration/b3-procedures.test.ts` (the page; the whole pipeline on the fake WhatsApp channel: step 1, step 2, the hand-off with the writer never asked), `tests/integration/practice-copy.test.ts`. **The three-step run on Westlake waits for the owner** (a real customer message to Westlake's number).
 - #447 — Block 3 PR 1, the assistant's voice chosen once (0228): tone (plain / warm / formal), length (short / normal), emoji (never / like the customer) on each assistant, with the one line "how we talk" (≤ 200, scanned by the injection guard at save); the writer takes `CONTEXT.voice` as fixed instructions and the prompt says the voice overrides no rule; the guards read none of it; Practice's copy carries it. Proof: `tests/parity/b3-voice.test.ts` (the same message under each tone: the writer gets that tone, the figure guard refuses the same invented figure), `tests/integration/assistants.test.ts` (saved, refused, handed to the writer), `tests/integration/practice-copy.test.ts`. **The bounded live run (`tools/check-voice.mjs`, 12 calls) is built and NOT run: it waits for the owner's yes.**
 - #446 (the worktree): survived this gate, at `~/nomi-work/nomi-claude`. Run from INSIDE the worktree, `tools/gated-merge.sh` printed gh's own line: "Branch noref-bills is checked out in the current worktree … skipping local delete". The gate's `gh pr merge --delete-branch` is the one step that touches a local branch; the three earlier gates ran from the main checkout, where that branch was checked out in `../nomi-claude` — the likely cause of the worktree vanishing, not proven. Running the gate from the worktree avoids it either way.
+
+### Resume note — Block 3 done (2026-11-07 10:15 UTC)
+
+**State.** Block 3 of `docs/nomi-finishing-roadmap-claude-code-side.md` is merged and deployed, with the owner's NOREF
+change before it: #446 (`a2beeb2b`), #447 (`775b3efe`, 0228 voice), #448 (`31272dc0`, 0229 procedures), #449
+(`7dc70197`, 0230 case checks), #450 (`d397693e`, no migration). Production `main` = `d397693e`; `schema_version` = 230;
+`/health` ok, the primary model answering, `fallback: not_answering` (`LLM_FALLBACK` stays off until it answers).
+Each migration merge followed a same-hour backup whose exit code gated it — `nomi-backup-20261107T003501Z` (schema
+227), `…T073242Z` (228), `…T083817Z` (229) — and `migrate-mark --expect <merge sha>` after its deploy. Nothing
+reverted. **No live model call in Block 3**: `tools/check-voice.mjs` is built and not run.
+
+**Voice notes, live (no code).** `TRANSCRIBE_API_KEY` is set (read by name); no voice note reached production in the
+30 days before 2026-11-07; the live privacy page names OpenAI for voice messages. The check is one voice note from a
+phone to Westlake's number; then the timeline is read: transcribed, answered, marked as heard. Code only if it fails.
+
+**The worktrees.** `~/nomi-work/nomi-claude` and `~/nomi-work/nomi-copilot` both survived all five gates (#446–#450),
+each gate run from INSIDE the worktree (gh skips the local branch delete there). The vanishing did not recur; keep
+running the gate from inside the worktree. Recreate one with `git worktree add -B <branch> ~/nomi-work/nomi-claude
+origin/main`, then `npm ci` in it.
+
+**One line on Codex's ground.** The roadmap keeps Claude Code out of the conversation page's templates while Codex
+restyles them. PR 4 added one button to the reply form in `src/api/web/inbox.ts` — "Suggest a reply", before the
+saved-reply picker, pinned by `tests/parity/advisor-copilot.test.ts`. Codex's Copilot
+panel should carry it: the same `POST /app/conversations/:id/copilot/suggest` answers JSON when asked
+(`accept: application/json`), and `GET …/copilot` is the panel's three lines. Moving them into the panel when it lands
+is the one small PR the roadmap names.
+
+**Next session starts Block 4** (money and growth). 4.1 (pricing) waits for the owner's decision — one plan or two, the
+price, the customers answered a month, the trial — so the first PR is **4.3 "What Nomi did for you"**, then **4.4
+setup in minutes**; 4.2 (phone alerts) is the owner's two devices, no code expected; 4.5 (open sign-up) only after 4.1.
+Same rules: one PR at a time from a fresh branch off `main`; no sub-agents; one blocking wait per gate or CI; tests
+quiet, failures only; a migration PR only after a same-hour backup that gates the merge, then `migrate-mark`.
+
+**Waiting on the owner** (Block 3's, then everything in the Block 2 note below, still open):
+1. `tools/check-voice.mjs` — twelve paid calls (3 tones × 2 lengths × 2 messages), samples to `~/nomi-private/`: say yes.
+2. The three-step sample procedure on Westlake: write it on `/app/assistant/knowledge/procedures`, then one real
+   customer message to Westlake's number asking for a sample.
+3. One voice note to Westlake's number (the live voice check above).
+4. The Copilot summary on a real conversation: signed in on production, open
+   `/app/conversations/<id>/copilot` for a conversation handed to a person, and press "Suggest a reply" on it.
+5. Native readers for Block 3's English-only lines (the voice, procedures, case checks, the Copilot) — listed in
+   `docs/NATIVE-REVIEW-UI.md`.
+
+**Block 3 done, start a fresh session.**
 
 ### Resume note — Block 2 done (2026-11-06 21:10 UTC)
 
