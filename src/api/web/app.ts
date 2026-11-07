@@ -13,13 +13,17 @@ import { renderSpendingBook } from './booksSpending.js';
 import { renderOwnerReport, ownerReportSheet, OWNER_REPORT_KINDS, type OwnerReport, type OwnerReportKind } from './booksOwnerReports.js';
 import { periodFor, isSpan, madeReport, moneyReport, taxReport, customersReport, unpaidReport, type Span } from '../../db/booksOwnerReports.js';
 import { listProcedures, addProcedure, archiveProcedure } from '../../db/procedures.js';
+import { casesFor, startCheck, listChecks, checkById, caseTexts, decideCheck } from '../../db/cases.js';
+import { renderChecksPage, renderCheckPage } from './cases.js';
+import { touchWords } from '../../core/owner/cases.js';
+import { applyChange, hasSavedCases, stagedChangeOf, wouldApply, type StagedChange } from '../../pipeline/caseChecks.js';
 import { renderProceduresPage } from './procedures.js';
 import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
 import { booksArea } from './booksArea.js';
-import { renderAssistantsSection } from './assistants.js';
+import { renderAssistantsSection, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
 import { signOf, type Decimal } from '../../core/types/decimal.js';
@@ -518,6 +522,8 @@ export type WebDeps = {
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
+  /** 0230 — a check's job: the saved cases run against the staged change `checkId`. Absent: no check, changes go live at once. */
+  readonly kickCaseCheck?: (businessId: string, checkId: string) => Promise<void>;
   /**
    * C5 — the installation's CREDENTIAL_KEY, derived, so a connector key she
    * pastes is encrypted before it touches a row. Absent: keys cannot be kept,
@@ -6278,6 +6284,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     facts.evict(s.businessId);   // D — a first price is a setup step done
     // The warmth run, phase 9 (V1-305) — the larger orders' prices, one box each ("tier:2000").
     const tiers = Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
+    const edit = {
+      tiers: Object.keys(tiers).length ? tiers : null,
+      price: b['price'] ?? null,
+      moq: b['moq'] ?? null,
+      unit: b['unit'] ?? null,
+      isActive: b['isActive'] === 'on',
+      name: b['name'] ?? null,
+      nameZh: b['nameZh'] ?? null,
+      customerNames: b['customerNames'] ?? null,
+      leadTime: b['leadTime'] ?? null,
+      options: b['options'] ?? null,
+    };
+    // 0230 — a price moved: before it goes live, the saved cases about this product run against it, when there are any.
+    if (/^[0-9a-f-]{36}$/i.test(id) && (b['price'] !== undefined || Object.keys(tiers).length > 0)) {
+      const staged = await checkFirst(s, { kind: 'price', productId: id, edit }, String(b['name'] ?? '').trim().slice(0, 200) || id.slice(0, 8), await productWordsOf(s, id));
+      if (staged) return flashTo(reply, `${CHECKS}/${staged}`, 'cases.flash.started', { n: 0 });
+    }
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
       tiers: Object.keys(tiers).length ? tiers : null,
       price: b['price'] ?? null,
@@ -7558,8 +7581,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/settings/people/assistants/:id', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    // 0230 — before it goes live: every saved case runs against the new voice first, when there are any.
+    if (/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) {
+      const staged = await checkFirst(s, { kind: 'voice', assistantId: (req.params as { id: string }).id, input: { name: String(body['name'] ?? ''), role: String(body['role'] ?? ''), note: String(body['note'] ?? ''),
+        channels: channelsFromForm(body), tone: String(body['tone'] ?? ''), length: String(body['length'] ?? ''), emoji: String(body['emoji'] ?? '') } }, String(body['name'] ?? '').trim().slice(0, 200), []);
+      if (staged) return flashTo(reply, `${CHECKS}/${staged}`, 'cases.flash.started', { n: 0 });
+    }
     const outcome = await updateAssistantFromForm(deps.db, s.businessId, (req.params as { id: string }).id,
-      (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
+      body, personOf(s).id);
     facts.evict(s.businessId);
     return teamFlash(reply, assistantFlash(outcome, 'saved'));
   });
@@ -8709,6 +8739,75 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b={productId:str('productId'),id:str('id'),kind:str('kind'),label:str('label'),content:str('content')},locale=localeOf(req);
     return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,'nav.knowledge'),active:'knowledge',bodyHtml:renderKnowledgeRefusal(locale,action,b,from)}));
   };
+  // 0230 — BEFORE IT GOES LIVE. A change to what the assistant knows is staged when the workspace has saved cases, the
+  // day's allowance is not used and the write would succeed: the cases run against it (a job), and the owner keeps or
+  // reverts on the check's page. Otherwise the route writes as it always did. Never staged: a change that would fail.
+  const CHECKS = '/app/assistant/knowledge/checks';
+  const checkFirst = async (s: OwnerSession, change: StagedChange, summary: string, words: readonly string[]): Promise<string | null> => {
+    if (!deps.kickCaseCheck) return null;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return null;
+    const by = personOf(s).id;
+    const id = await withTenantTx(deps.db, bid.value, async (tx) => {
+      if (!(await hasSavedCases(tx, bid.value))) return null;
+      if (allowanceUsed(await allowanceOf(tx))) return null;
+      if (!(await wouldApply(tx, bid.value, by, change))) return null;
+      const { cases, touching } = await casesFor(tx, bid.value, words);
+      if (cases.length === 0) return null;
+      return startCheck(tx, bid.value, by, change.kind, change, summary, cases, touching);
+    });
+    if (id) await deps.kickCaseCheck(s.businessId, id);
+    return id;
+  };
+  const productWordsOf = async (s: OwnerSession, productId: string): Promise<string[]> => {
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return [];
+    return withTenantTx(deps.db, bid.value, async (tx) => {
+      const r = (await sql<{ w: string | null }>`select name as w from products where business_id = ${bid.value} and id = ${productId}::uuid
+        union all select name_zh from products where business_id = ${bid.value} and id = ${productId}::uuid
+        union all select alias from product_aliases where product_id = ${productId}::uuid`.execute(tx)).rows;
+      return touchWords(r.map((x) => x.w));
+    });
+  };
+  app.get(CHECKS, authed('knowledge', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return missingPage(locale, t(locale, 'knowledge.empty'), { href: '/app/assistant', label: t(locale, 'nav.assistant') });
+    return renderChecksPage(locale, await withTenantTx(deps.db, bid.value, (tx) => listChecks(tx, bid.value)), takeFlash(req, reply));
+  }));
+  app.get(`${CHECKS}/:id`, authed('knowledge', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId); const id = (req.params as { id: string }).id;
+    if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(id)) return missingPage(locale, t(locale, 'knowledge.empty'), { href: CHECKS, label: t(locale, 'cases.title') });
+    const got = await withTenantTx(deps.db, bid.value, async (tx) => { const c = await checkById(tx, bid.value, id); return c ? { c, texts: await caseTexts(tx, bid.value, c.refs) } : null; });
+    if (!got) { reply.code(404); return missingPage(locale, t(locale, 'cases.flash.gone'), { href: CHECKS, label: t(locale, 'cases.title') }); }
+    if (got.c.status === 'running') reply.header('refresh', '5');
+    return renderCheckPage(locale, mayDo(personOf(s), 'capability_grant'), got.c, got.texts, takeFlash(req, reply));
+  }));
+  for (const decision of ['kept', 'reverted'] as const) {
+    app.post(`${CHECKS}/:id/${decision === 'kept' ? 'keep' : 'revert'}`, async (req, reply) => {
+      const s = await ownerOnly(req, reply, 'capability_grant', CHECKS); if (!s) return reply;
+      const id = (req.params as { id: string }).id;
+      const bid = parseBusinessId(s.businessId); if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(id)) return flashTo(reply, CHECKS, 'cases.flash.gone');
+      class Refused extends Error { constructor(readonly why: string) { super(why); } }
+      try {
+        const out = await withTenantTx(deps.db, bid.value, async (tx) => {
+          const d = await decideCheck(tx, bid.value, id, personOf(s).id, decision);
+          if (d === 'not_done' || d === 'gone') return d;
+          if (decision === 'kept') {
+            const change = stagedChangeOf(d.kind, d.change);
+            const applied = change ? await applyChange(tx, bid.value, personOf(s).id, change) : { ok: false as const, why: 'change' };
+            if (!applied.ok) throw new Refused(applied.why);   // rolls the decision back with it
+          }
+          return 'done';
+        });
+        if (out === 'not_done') return flashTo(reply, `${CHECKS}/${id}`, 'cases.flash.notDone');
+        if (out === 'gone') return flashTo(reply, CHECKS, 'cases.flash.gone');
+        facts.evict(s.businessId);
+        return flashTo(reply, `${CHECKS}/${id}`, decision === 'kept' ? 'cases.flash.kept' : 'cases.flash.reverted');
+      } catch (e) {
+        if (e instanceof Refused) return flashTo(reply, `${CHECKS}/${id}`, 'cases.flash.failed', { why: e.why });
+        throw e;
+      }
+    });
+  }
+
   // 0229 — the owner's procedures: read by anyone signed in, written by the owner (it directs what the assistant does).
   const PROCEDURES = '/app/assistant/knowledge/procedures';
   app.get(PROCEDURES, authed('knowledge', async (s, req, locale, reply) => {
@@ -8723,6 +8822,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const v = validateProcedure({ title: String(f['title'] ?? ''), steps: String(f['steps'] ?? '') });
     if (!v.ok) return flashTo(reply, `${PROCEDURES}#new-procedure`, `procedures.flash.refused.${v.problem}` as MessageKey, { step: v.step ?? 0 });
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, PROCEDURES, 'people.flash.failed');
+    const staged = await checkFirst(s, { kind: 'procedure', title: String(f['title'] ?? ''), steps: String(f['steps'] ?? '') }, v.value.title, touchWords([v.value.title]));
+    if (staged) return flashTo(reply, `${CHECKS}/${staged}`, 'cases.flash.started', { n: 0 });
     await withTenantTx(deps.db, bid.value, (tx) => addProcedure(tx, bid.value, personOf(s).id, v.value));
     return flashTo(reply, PROCEDURES, 'procedures.flash.added');
   });
@@ -8738,6 +8839,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };
     const productId = b.productId ? String(b.productId) : null;
+    // 0230 — before it goes live: the saved cases that touch it run first, when there are any.
+    const staged = await checkFirst(s, { kind: 'knowledge', productId, knowledgeKind: String(b.kind ?? ''), label: String(b.label ?? ''), content: String(b.content ?? '') },
+      String(b.label ?? '').trim().slice(0, 200), touchWords([b.label, b.content, ...(productId ? await productWordsOf(s, productId) : [])]));
+    if (staged) return flashTo(reply, `${CHECKS}/${staged}`, 'cases.flash.started', { n: 0 });
     const r = await teachKnowledge(deps.db, s.businessId, { productId, kind: String(b.kind ?? ''), label: String(b.label ?? ''), content: String(b.content ?? '') });
     if(r.code==='invalid'){const response=knowledgeRefusal(req,reply,'teach');if(response)return response;}
     return kBack(reply, req, productId ?? '', r.code);

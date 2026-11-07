@@ -12,6 +12,7 @@ import { CUSTOMER_AREA_EN } from './customerArea.js';
 import { INBOX_CONVERSATION_EN } from './inboxConversation.js';
 import { INBOX_LISTS_EN } from './inboxLists.js';
 import { PROCEDURES_EN } from './procedures.js';
+import { CASES_EN } from './cases.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -33,6 +34,7 @@ export const REDESIGN_EN = {
   ...INBOX_CONVERSATION_EN,
   ...INBOX_LISTS_EN,
   ...PROCEDURES_EN,
+  ...CASES_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

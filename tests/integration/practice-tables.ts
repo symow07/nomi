@@ -56,6 +56,8 @@ export const PRACTICE_SKIP = [
   'orders', 'order_updates', 'order_proposals', 'payments', 'deliveries', 'repairs',
   'sample_requests', 'promised_dates', 'outbound_messages', 'outbound_transitions', 'spot_checks',
   'capability_events', 'deletion_asks', 'deletion_requests', 'calendar_entries',
+  // 0230 — the checks before a change goes live: the workspace's own, never Practice's.
+  'case_checks',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
   // 0155 — a customer's address, now each workspace's own (it carries the business since then).

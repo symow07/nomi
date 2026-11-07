@@ -16612,6 +16612,12 @@ Four English-only lines in `src/core/owner/i18n/booksArea.ts` (`BOOKS_AREA_EN`):
 figure), `booksArea.cashByAccount` (its door), `booksArea.cashTodayBasis` (what the figure is made of),
 `booksArea.ownAccounts` (the default scope said). Other languages show the English until a native reader translates.
 
+## Before it goes live (2026-11-07; 0230)
+
+Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page
+(`cases.*`: title, lede, the door, the states, the kinds, each case's three labels, Keep and Revert and the asking, the
+running line) and the flashes (`cases.flash.*`). To translate first: `cases.revertAsk`, `cases.keep`, `cases.revert`.
+
 ## Procedures (2026-11-07; 0229)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/procedures.ts` (`PROCEDURES_EN`): the page (`procedures.*`: title,
