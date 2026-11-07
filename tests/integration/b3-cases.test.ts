@@ -65,7 +65,7 @@ d('0230 · before it goes live (requires DATABASE_URL)', { timeout: 120_000 }, (
     const { withTenantTx } = await import('../../src/db/client.js');
     return withTenantTx(db, await bidOf(BIZ), fn);
   };
-  const price = () => q((t) => sql<{ p: string }>`select price_usd_per_unit::text as p from products where id = ${PRODUCT}::uuid`.execute(t).then((r) => r.rows[0]!.p));
+  const price = () => q((t) => sql<{ p: string }>`select price_usd_per_unit::numeric(12,2)::text as p from products where id = ${PRODUCT}::uuid`.execute(t).then((r) => r.rows[0]!.p));
   const counts = () => q((t) => sql<{ drafts: number; turns: number; convs: number; calls: number }>`
     select (select count(*)::int from drafts where business_id = ${BIZ}::uuid) as drafts,
            (select count(*)::int from turns where business_id = ${BIZ}::uuid) as turns,

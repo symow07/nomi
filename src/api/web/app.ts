@@ -8759,7 +8759,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return id;
   };
   const productWordsOf = async (s: OwnerSession, productId: string): Promise<string[]> => {
-    const bid = parseBusinessId(s.businessId); if (!bid.ok) return [];
+    // Read before the route has checked the id: anything that is not one names no product (a cast would throw).
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !UUID.test(productId)) return [];
     return withTenantTx(deps.db, bid.value, async (tx) => {
       const r = (await sql<{ w: string | null }>`select name as w from products where business_id = ${bid.value} and id = ${productId}::uuid
         union all select name_zh from products where business_id = ${bid.value} and id = ${productId}::uuid
