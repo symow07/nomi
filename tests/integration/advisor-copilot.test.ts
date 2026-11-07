@@ -193,15 +193,19 @@ d('Block 3 PR 4 · the hand-off that carries context (requires DATABASE_URL)', {
 
   it('not anyone\'s: signed out, the accountant, a conversation that is not there — refused, and no model asked', async () => {
     const n = advisor.phrased;
-    for (const who of ['', accountant]) {
+    // a stranger goes to the door; the accountant to the books, as on every page of the sales side
+    for (const [who, door] of [['', '/login'], [accountant, '/app/books']] as const) {
       const res = await summary(who);
       expect(res.statusCode).toBe(302);
-      expect(String(res.headers['location'])).toBe('/login');
+      expect(String(res.headers['location'])).toBe(door);
     }
     expect((await summary(owner, randomUUID())).statusCode).toBe(404);
     expect((await summary(owner, 'not-a-conversation')).statusCode).toBe(404);
-    expect((await app.inject({ method: 'POST', url: `/app/conversations/${CONV}/copilot/suggest`, payload: '', headers: { cookie: accountant, accept: 'application/json', ...FORM } })).statusCode).toBe(401);
+    const w = writer.calls;
+    const books = await app.inject({ method: 'POST', url: `/app/conversations/${CONV}/copilot/suggest`, payload: '', headers: { cookie: accountant, accept: 'application/json', ...FORM } });
+    expect([books.statusCode, String(books.headers['location'])]).toEqual([302, '/app/books']);
     expect(advisor.phrased).toBe(n);
+    expect(writer.calls).toBe(w);
   });
 
   it('suggest a reply: the real turn\'s words come back, metered — and nothing is sent, drafted, kept or handed back', async () => {
