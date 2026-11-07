@@ -11,7 +11,11 @@ Scope rules carried from the brief:
   "your assistant" fallback) and has no pronouns. Owner copy never says "AI". No sentence promises something
   the code does not do.
 - New text is English only. It goes in an English-only dictionary registered in the redesign fallback, as
-  `COPILOT_EN` and `CASES_EN` are. Plural labels follow those dictionaries' `.one` / `.other` pattern.
+  `COPILOT_EN` and `CASES_EN` are. Row labels are one sentence-case string each, with no count agreement
+  (amended after cand/4.3-0, §7). Only sentences with a figure inside keep the `.one` / `.other` pattern.
+- **The assistant's name inside English fallback text:** when a sentence is drawn from the English
+  fallback, `{name}`'s fallback is the English "your assistant". A chosen name is used as typed, in any
+  language. Resolve this once, where the fallback is resolved, never per page (amended, §7).
 
 ---
 
@@ -143,7 +147,7 @@ running month.
 | Invoices paid in full | `monthReport.n.invoicesPaid` | `monthReport.def.invoices` | Issued invoices whose last payment, refunds aside, is dated in the month and left nothing owed. Each invoice counts once. An invoice settled by a credit note is not "paid". |
 | Value of invoices paid | `monthReport.invoices.value` | (in `def.invoices`) | Those invoices' totals, one per currency. This is not the cash received this month: the definition says so, and nothing relabels it as cash. |
 | Hand-offs to you | `monthReport.n.handed` | `monthReport.def.handed` | `conversation_events` of type `handoff` created in the month. A customer handed over twice counts twice. Times the owner took a conversation over themselves are not included. |
-| One row per reason | The existing words `takeover.reason.<reason>` (no new copy), with the first letter capitalised for a row label. | — | Those events grouped by their recorded reason, ordered by count (highest first), then by key. A reason with no catalogue words shows `monthReport.handed.other`. |
+| One row per reason | The existing words `takeover.reason.<reason>` (no new copy), with the first letter capitalised for a row label. | — | Those events grouped by their recorded reason, ordered by count (highest first), then by key; **"Another reason" (`monthReport.handed.other`) is always last**, whatever its count (amended, §7). A reason with no catalogue words shows `monthReport.handed.other`. |
 
 ---
 
@@ -175,6 +179,10 @@ running month.
   - Its summary is `monthReport.estimate.open`, "Estimate the time this saved you".
   - Opened, it holds the field (label `monthReport.estimate.minutes`, hint `monthReport.estimate.hint`,
     `inputmode="numeric"`) and **Save**.
+  - **The field is `type="text"` with `inputmode="numeric"`**, and has no `min`, `max`, `step`, `pattern`
+    or `required` (amended, §7). The server alone decides what is refused, so the owner always sees our
+    refusal words (§2.4), never a browser's own bubble. The mouse wheel and arrow keys never change the
+    value, and no spinner is drawn.
 - **Set:** a **Time saved** section (h2 `monthReport.section.estimate`) shows:
   - the formula `monthReport.estimate.formula`, "{replies} replies × {minutes} min = {hours} h", with all
     three figures isolated;
@@ -194,6 +202,10 @@ running month.
 - Staff get no disclosure and no field.
 
 ### 2.4 Flash messages after Save
+
+Each flash on this page is English-fallback text. On a page in another language it is wrapped as
+`<bdi lang="en" dir="ltr">…</bdi>`, the same marking the page's English labels carry. Do not put
+`dir="auto"` on the shared flash banner (ruling F03, §7).
 
 These are drawn by `flashBanner` on the month page, never painted by the page itself.
 
@@ -291,7 +303,9 @@ The e-mail's last line points at this switch; there is no Settings or Notificati
 
 ## 4 · Copy: key → English
 
-`{name}` is the assistant's chosen name, or the existing fallback. `{month}` is "October 2026", from `Intl`.
+`{name}` is the assistant's chosen name, as typed. With no chosen name it is "your assistant" in the
+sentence's own language; every key below is English, so it is the English "your assistant" on every page,
+Arabic included (§7). `{month}` is "October 2026", from `Intl`.
 `{date}` comes from `show.date`. Every figure parameter is isolated by `t` / `tn`.
 
 ### 4.1 PAGE keys (`monthReport.`)
@@ -313,24 +327,19 @@ The e-mail's last line points at this switch; there is no Settings or Notificati
 | `monthReport.empty.running` | Nothing yet this month. As customers write in and {name} answers, this fills in. |
 | `monthReport.empty.setup` | Finish getting started |
 | `monthReport.section.customers` | Customers |
-| `monthReport.n.answered.one` | customer answered |
-| `monthReport.n.answered.other` | customers answered |
+| `monthReport.n.answered` | Customers answered |
 | `monthReport.def.answered` | Different customers who got at least one reply {name} wrote, sent alone or sent by you. Replies you typed yourself are not counted. |
 | `monthReport.section.replies` | Replies |
-| `monthReport.n.alone.one` | reply {name} sent alone |
-| `monthReport.n.alone.other` | replies {name} sent alone |
+| `monthReport.n.alone` | Replies {name} sent alone |
 | `monthReport.def.alone` | Sent without waiting for you, within the rules you set. |
-| `monthReport.n.asWritten.one` | draft you sent as written |
-| `monthReport.n.asWritten.other` | drafts you sent as written |
+| `monthReport.n.asWritten` | Drafts you sent as written |
 | `monthReport.def.asWritten` | {name} drafted them and you sent them without changing a word. |
-| `monthReport.n.edited.one` | draft you edited, then sent |
-| `monthReport.n.edited.other` | drafts you edited, then sent |
+| `monthReport.n.edited` | Drafts you edited, then sent |
 | `monthReport.def.edited` | {name} drafted them and you changed the words before they went. |
-| `monthReport.replies.notSent.one` | draft not sent |
-| `monthReport.replies.notSent.other` | drafts not sent |
+| `monthReport.replies.notSent` | Drafts not sent |
 | `monthReport.def.notSent` | You chose no reply, answered in the channel's own app, or the time to reply ran out. |
 | `monthReport.section.speed` | Time to first reply |
-| `monthReport.median.label` | median time to first reply |
+| `monthReport.median.label` | Median time to first reply |
 | `monthReport.def.median` | Half of the customers got their first reply faster than this, half slower. Clock time, nights and weekends included, from their first message this month to the first reply that reached them, whoever wrote it. |
 | `monthReport.median.from.one` | Measured on {n} customer. |
 | `monthReport.median.from.other` | Measured on {n} customers. |
@@ -339,22 +348,19 @@ The e-mail's last line points at this switch; there is no Settings or Notificati
 | `monthReport.median.none` | No customer who wrote this month has had a reply yet. |
 | `monthReport.duration.underMinute` | under a minute |
 | `monthReport.section.orders` | Orders |
-| `monthReport.n.orders.one` | order confirmed |
-| `monthReport.n.orders.other` | orders confirmed |
-| `monthReport.orders.value` | value of confirmed orders |
+| `monthReport.n.orders` | Orders confirmed |
+| `monthReport.orders.value` | Value of confirmed orders |
 | `monthReport.def.orders` | Orders you confirmed this month that still stand. Each currency has its own total; they are never added together. |
 | `monthReport.orders.none` | No order was confirmed this month. |
 | `monthReport.section.invoices` | Invoices |
-| `monthReport.n.invoicesPaid.one` | invoice paid in full |
-| `monthReport.n.invoicesPaid.other` | invoices paid in full |
-| `monthReport.invoices.value` | value of invoices paid |
+| `monthReport.n.invoicesPaid` | Invoices paid in full |
+| `monthReport.invoices.value` | Value of invoices paid |
 | `monthReport.def.invoices` | Invoices whose last payment, dated this month, left nothing owed. The value is what the invoices were for, one total per currency — not the money that arrived this month. |
 | `monthReport.invoices.none` | No invoice was paid in full this month. |
 | `monthReport.invoices.noBooks` | You have not issued an invoice yet, so there is nothing to count here. |
 | `monthReport.invoices.openBooks` | Open Books |
 | `monthReport.section.handed` | Handed to you |
-| `monthReport.n.handed.one` | hand-off to you |
-| `monthReport.n.handed.other` | hand-offs to you |
+| `monthReport.n.handed` | Hand-offs to you |
 | `monthReport.def.handed` | Each time {name} stopped and passed a customer to you, with the reason recorded then. A customer handed over twice counts twice. Times you stepped in yourself are not here. |
 | `monthReport.handed.none` | {name} handed nobody to you this month. |
 | `monthReport.handed.other` | Another reason |
@@ -464,7 +470,10 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
     as owner or staff. The owner sees only the closed disclosure at the foot.
 17. Owner sets 5 → the flash "Saved…", the Time saved section with the formula and the estimate label.
     18 replies → "18 replies × 5 min = 1.5 h".
-18. Each of `0`, `61`, `5.5`, `-3`, `five` → the refusal flash, and the stored value is unchanged.
+18. Each of `0`, `61`, `5.5`, `-3`, `five` → the refusal flash, and the stored value is unchanged. **Typed
+    into the field in the browser and saved**, not only posted. No browser validation bubble appears: the
+    field is `type="text"` `inputmode="numeric"` with no `min` / `max` / `step` / `pattern`. Arrow keys and
+    the mouse wheel over it leave the value unchanged.
 19. An empty field → the "Removed" flash, and no estimate shows.
 20. Staff see the set estimate read-only with "Set by the owner.". A staff POST to the minutes route changes
     nothing.
@@ -476,6 +485,12 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
     check passes on this page. Money reads in the locale's form ("1,240.00 US$").
 23. English fallback labels read left to right inside their own element. No punctuation jumps to the wrong
     end.
+    - The save flash on the ar page is wrapped `<bdi lang="en" dir="ltr">`, and its full stop stays at the
+      end at 390 (F03).
+    - With no chosen name, every English sentence on the ar page says "your assistant". No Arabic fallback
+      name (مساعدك) appears inside English text. With a chosen name, the name appears as typed.
+    - Row labels are sentence case and don't change with the count: "Drafts you sent as written … 1".
+    - In Handed to you, "Another reason" is the last reason row even when its count is higher.
 24. The formula keeps its order: "18 replies × 5 min = 1.5 h" is not reversed.
 
 ### 5.6 Interaction and access
@@ -487,6 +502,11 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
     - Focus is visible on paper and surface.
     - The disclosure opens with Enter and Space.
     - After Save, focus lands on the flash or the page top, not lost.
+    - **Known, shared, pre-launch (N01):** pressing Tab at once after opening the disclosure can skip the
+      minutes field while the opening animation runs. It passes once the content is shown, and under
+      reduced motion. Not a 4.3 blocker. The fix is in the shared `<details>` animation: animate opacity /
+      transform only, so the content can take focus from the moment `open` is set. Re-run the immediate-Tab
+      replay on every page with a `<details>` when it lands, before launch.
 27. 390 wide:
     - no horizontal scroll;
     - the tab row wraps, unclipped;
@@ -495,6 +515,9 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
 28. One `h1`. Each section has an h2 and `aria-labelledby`.
 29. Palette: black Save with a white label; magenta doors and the active tab. There is no wash, gradient,
     shadow card or chart.
+    - Read the computed colour: the active "Monthly report" tab and both month doors are `#9A0F5E`
+      (`rgb(154, 15, 94)`). The month doors use the shell's door class and arrow, not a class of the page's
+      own (F02). All four Results tabs mark the active one the same way.
 30. Banned words: none of "AI", "buyer", or an assistant pronoun in any new string. The owner-term scan
     passes.
 
@@ -540,5 +563,25 @@ These were open questions in the first commit. The spec above now follows each o
    staff do not.
 3. **First month** = `signed_up_at`, else `created_at`. Accepted. The 59 operator-made workspaces have no
    `signed_up_at`, so their first month is the month they were made.
-4. **"Drafts not sent"** is accepted, keyed `monthReport.replies.notSent` (`.one` / `.other`), with
+4. **"Drafts not sent"** is accepted, keyed `monthReport.replies.notSent` (one string since §7.1), with
    `monthReport.def.notSent`.
+
+---
+
+## 7 · Amendments after the design review of cand/4.3-0 (accepted by t1r, 2026-11-08)
+
+1. **Row labels are sentence case, one string each**, with no `.one` / `.other`: "Customers answered",
+   "Drafts you sent as written" and so on (§4.1). The figure follows the label, so a count-agreeing phrase
+   read wrong ("draft you sent as written … 1"). Sentences with a figure inside keep their plural forms.
+2. **"Another reason" is always the last reason row** in Handed to you (§1.7).
+3. **The minutes field is `type="text"` `inputmode="numeric"`**, with no `min` / `max` / `step` / `pattern` /
+   `required`, so our refusal words are what the owner sees (§2.2, check 18).
+4. **The name inside English fallback text is English:** "your assistant" when no name is chosen; a chosen
+   name as typed. Resolved once, where the fallback is resolved (scope rules, §4, check 23).
+5. **An English flash on a page in another language** is wrapped `<bdi lang="en" dir="ltr">`, never
+   `dir="auto"` on the shared banner (F03; §2.4, check 23).
+6. **The month doors and the active tab are magenta**, as already specified (§1.4). In the review, the doors
+   used a class of their own and the shared active-tab rule computed black (F02). Fix the shared rule, not
+   the page. No spec change; restated so the tester checks it (check 29).
+7. **N01 is a known shared defect, to fix before launch.** It is not a 4.3 blocker (check 26).
+
