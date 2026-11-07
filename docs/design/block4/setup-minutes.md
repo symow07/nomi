@@ -3,7 +3,7 @@
 This spec covers three pieces:
 
 1. **CSV contacts** into the customer list.
-2. **A Shopify access token** for a password-protected store.
+2. **A Shopify access token, or a Dev Dashboard app's Client ID and secret**, for a password-protected store.
 3. **Four timed milestones** on Getting started.
 
 It follows `docs/DESIGN-SYSTEM.md`, which is in force.
@@ -17,7 +17,7 @@ Copy rules are the same as D1:
 
 Key prefixes:
 - `contactImport.` for the contacts import;
-- `storeToken.` for the token path;
+- `storeToken.` for the password-protected store path;
 - `setupClock.` for the milestones.
 
 `/app/guide` already redirects to `/app/get-started`, where `renderGuide` is embedded. The milestones go on
@@ -199,67 +199,141 @@ door `contactImport.discard` sits beside it. It goes to a confirm-protected POST
 
 ---
 
-## 2 · A password-protected Shopify store: the access token
+## 2 · A password-protected Shopify store: a token, or a Client ID and secret
+
+Sources, read 2026-11-07. These are the only two Shopify pages this flow links to:
+
+- [Client secrets](https://shopify.dev/docs/apps/build/authentication-authorization/client-secrets)
+  (the "client-secrets" page): where an app's Client ID and Client secret are found.
+- [Client credentials grant](https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant)
+  (the "client-credentials" page): the exchange for an access token.
+
+Background, from the supervisor's reading of shopify.dev (2026-11-07):
+- Since 2026-01-01 a store can no longer create new legacy custom apps in its admin. Apps made before keep
+  working.
+- New apps are made in the Dev Dashboard. They give a Client ID and Client secret.
+
+**The owner-facing copy states no date and names no Shopify screen** beyond what the two pages say.
 
 ### 2.1 When it shows
 
 On Add products' "From your store" form (`renderStoreForms`), in two places:
 
 1. **After a refusal.** Reading the address finds Shopify's password page: `/products.json` answers 401 or
-   redirects to `/password`. That is a new refusal, `import.store.refused.password_protected`: "This
-   Shopify store is password-protected, so its product list is not public. Nomi can read it with an access
-   token from your Shopify admin." Under it, the token form (§2.2) opens with the store's address carried
-   over.
-2. **Upfront.** A closed disclosure under the address field: `storeToken.open`, "Store password-protected?
-   Use an access token". It holds the same form, for an owner who knows already.
+   redirects to `/password`. That is a new refusal, `import.store.refused.password_protected`. Under it, the
+   form in §2.2 opens with the store's address carried over.
+2. **Upfront.** A closed disclosure under the address field, `storeToken.open`. It holds the same form, for
+   an owner who already knows the store is protected.
 
 Owner only, like the rest of the import (`price_rules`).
 
-### 2.2 The form
+### 2.2 The form: one store address, then EITHER way in
 
-- **Address field:** `storeToken.shop`, "Your store's address ending in .myshopify.com".
-  - `inputmode="url"`, `dir="ltr"`, placeholder `myshop.myshopify.com`.
-  - Shopify's Admin API answers only there, not on a custom domain. When the refusal came from a custom
-    domain whose page named its `.myshopify.com` host, that host is filled in. Otherwise the field is empty
-    with the hint `storeToken.shop.hint`.
-- **Token field:** `storeToken.token`, "Admin API access token".
-  - `type="password"`, `autocomplete="off"`, `spellcheck="false"`, `autocapitalize="off"`, `dir="ltr"`.
-- **How to get one:** `storeToken.how`. "In your Shopify admin, create an app for your store that may read
-  products, install it, and copy its Admin API access token." Then a door `storeToken.help` to Shopify's
-  own help page on custom apps.
-  - **The exact page and the admin's wording must be checked against Shopify's current help before this
-    ships.** The designer could not verify them from here.
-- **Currency tick:** the same box the address form has (K8's currency rule applies unchanged).
+This is one form with one button. The two ways in are two `<fieldset>`s, each with a `<legend>`, and a plain
+"or" between them (`storeToken.or`, not a control).
+
+**The store address**, shared by both ways:
+- Label `storeToken.shop`; `inputmode="url"`, `dir="ltr"`, placeholder `myshop.myshopify.com`.
+- Both ways talk only to `https://{shop}.myshopify.com`, never a custom domain (the client-credentials page's
+  URL).
+- When the refusal came from a custom domain whose page named its `.myshopify.com` host, that host is filled
+  in. Otherwise the field is empty with the hint `storeToken.shop.hint`.
+
+**Fieldset A · An app you already have** (legend `storeToken.legacy.legend`):
+- `storeToken.token`: "Admin API access token".
+- One line `storeToken.legacy.how`: it says this is for a custom app already made in the store's Shopify
+  admin, and that new ones are made in the Dev Dashboard (fieldset B).
+
+**Fieldset B · An app from the Dev Dashboard** (legend `storeToken.dev.legend`):
+- `storeToken.clientId`: "Client ID".
+- `storeToken.clientSecret`: "Client secret".
+- The steps, as an ordered list (`storeToken.dev.step1`–`step4`), worded from the two pages.
+- A door `storeToken.dev.helpSecrets` to the client-secrets page, and a door `storeToken.dev.helpGrant` to
+  the client-credentials page. Each opens in a new tab with `rel="noopener noreferrer"`.
+
+**Every secret field** (token, Client ID, Client secret):
+- `type="password"`, `autocomplete="off"`, `spellcheck="false"`, `autocapitalize="off"`, `dir="ltr"`.
+- The client-secrets page says: "Treat it like a password". The Client ID gets the same treatment, so no
+  credential is ever drawn in clear.
+
+**The rest of the form:**
+- **Currency tick:** the same box the address form has. K8's currency rule applies unchanged.
 - **Button** `storeToken.read`, "Read the store". Primary, black.
-- **One line under the button, always visible:** `storeToken.kept`. "Used once, to read this store's
-  products now. Nomi does not keep it. You can delete the app in Shopify when the import is done."
+- **One line under the button, always visible:** `storeToken.kept`.
 
-### 2.3 What happens to the token (the promise in `storeToken.kept`, made true)
+**Which way is used:**
+- The token alone filled → way A.
+- Client ID and Client secret both filled, and no token → way B.
+- Anything else is refused before Shopify is asked:
+  - nothing filled;
+  - both ways filled;
+  - only one of ID / secret.
+  - The key is `storeToken.refused.choose_one`.
 
-- It travels only in the POST body. It never appears in an address, a redirect, a log line, an error report
-  (`app_errors`), the audit trail, or the kept import row.
-- It is sent only to `https://<shop>.myshopify.com`, as Shopify's access-token header. Never to another host,
-  and **never re-sent on a redirect**: a redirect is the `unreachable` refusal.
+### 2.3 What happens to what the owner pastes (the promise in `storeToken.kept`, made true)
+
+**Way A:**
+- The token is sent once, as the `X-Shopify-Access-Token` header, to the shop's Admin API to read its
+  products.
+
+**Way B:**
+- One exchange, exactly as the client-credentials page gives it:
+  - `POST https://{shop}.myshopify.com/admin/oauth/access_token`;
+  - form-encoded `grant_type=client_credentials`, `client_id`, `client_secret`;
+  - **no `scope` parameter** (the page: Shopify ignores it).
+- The answer's `access_token` is then sent as `X-Shopify-Access-Token` to read the products.
+- The answer's `scope` is checked first. Without `read_products`, the flow stops with `no_scope` and reads
+  nothing.
+- The token lasts 24 hours (`expires_in` 86399). Nomi uses it for this one import and drops it. It is never
+  cached for later.
+
+**Both ways:**
+- What was pasted travels only in the POST body. Neither the pasted values nor the exchanged token ever
+  appear in an address, a redirect, a log line, an error report (`app_errors`), the audit trail, or the
+  kept import row.
+- Requests go only to `https://{shop}.myshopify.com`. **A redirect is never followed with a credential**: it
+  is the `unreachable` refusal.
 - The public fetcher's rules hold: no private addresses, 10 s, 5 MB.
-- After the request it is dropped. **After any refusal the token field comes back empty**; only the shop
-  address is kept. The owner pastes it again.
-- Products read this way go into the same kept review as a public store (kind `store`), so every K1 rule
+- **After any refusal, every credential field comes back empty.** Only the shop address is kept. The owner
+  pastes again.
+- Products read either way go into the same kept review as a public store (kind `store`), so every K1 rule
   applies: ticks, currency, floors.
 
-### 2.4 Its refusals (shown under the token field)
+### 2.4 Its refusals
 
-| What Shopify did | Key | English |
+Each refusal is shown under the field it concerns (`role="alert"`, `aria-describedby`). A Shopify answer
+goes under the button.
+
+| What happened | Key | English |
 |---|---|---|
-| The address is not `*.myshopify.com` | `storeToken.refused.not_myshopify` | That is not a .myshopify.com address. Find it in your Shopify admin, under your store's domains. |
-| The field is empty or has spaces inside | `storeToken.refused.empty` | Paste the whole access token, with no spaces. |
-| 401 | `storeToken.refused.rejected` | Shopify did not accept this token. Check you copied the whole Admin API access token, then paste it again. |
-| 403 | `storeToken.refused.no_scope` | The token works, but it may not read products. Give the app permission to read products, then copy its token again. |
+| The address is not `*.myshopify.com` | `storeToken.refused.not_myshopify` | That is not a .myshopify.com address. Type your store's address ending in .myshopify.com. |
+| Nothing filled, both ways filled, or only one of ID / secret | `storeToken.refused.choose_one` | Fill in one way: the access token, or both the Client ID and the Client secret. |
+| A field has spaces inside | `storeToken.refused.spaces` | Paste it again without spaces. |
+| Way B: `shop_not_permitted` (the client-credentials page: "Client credentials cannot be performed on this shop") | `storeToken.refused.shop_not_permitted` | Shopify won't let this app read this store. The app must belong to the same Shopify organization as the store, and be installed on it. |
+| Way B: `application_cannot_be_found` (the app is not in the store's organization, or not installed; on t1r's list, not on the two pages) | `storeToken.refused.app_not_found` | Shopify can't find this app for this store. Check the Client ID, that the app belongs to the store's organization, and that it is installed on the store. |
+| Way B: the exchange answers 401 | `storeToken.refused.client_rejected` | Shopify did not accept this Client ID and Client secret. Copy both again from the app's Settings in the Dev Dashboard. |
+| Way A: 401 on reading | `storeToken.refused.rejected` | Shopify did not accept this access token. Check you copied all of it, then paste it again. |
+| 403, or way B's `scope` lacks `read_products` | `storeToken.refused.no_scope` | The app works, but it may not read products. Give it permission to read products, then try again. |
 | 404, or no store at that host | `storeToken.refused.no_store` | No Shopify store answers at {host}. Check the .myshopify.com address. |
 | 429 | `storeToken.refused.slow_down` | Shopify asked us to slow down. Wait a minute, then read it again. |
 | Timeout, a 5xx, or a redirect | `storeToken.refused.unreachable` | Shopify did not answer. Nothing was added. Try again in a minute, or export the products as a file. |
 | A list with no named product | the existing `import.store.refused.no_products` | — |
 
-No refusal ever echoes the token, any part of it, or Shopify's raw response.
+No refusal ever echoes a credential, any part of one, or Shopify's raw response.
+
+### 2.5 Steps shown to the owner: for the owner to check against Shopify
+
+Owner-facing steps worded from the two pages. **The owner checks each against Shopify's current pages before
+this ships.** A step either page does not support is marked; it stays out of the copy until the owner
+confirms it.
+
+| Key | Owner-facing sentence | Source |
+|---|---|---|
+| `storeToken.dev.step1` | In Shopify's Dev Dashboard, open Apps and choose your app. | client-secrets: "Click Apps and select your app" |
+| `storeToken.dev.step2` | Make sure the app is installed on this store, and belongs to the same Shopify organization as the store. | client-credentials: the grant "only works when the app and the store belong to the same Shopify organization"; "You've installed your app on your store" |
+| `storeToken.dev.step3` | Make sure the store lets the app read products. | client-credentials: the token "carries all scopes the store granted to the installation". **Where the owner grants `read_products` is on neither page: owner to confirm the wording.** |
+| `storeToken.dev.step4` | Open Settings, and copy the Client ID and Client secret under Credentials. | client-secrets: "Click Settings. View or copy your client ID and secret under Credentials" |
+| `storeToken.legacy.how` | If your store already has a custom app made in its Shopify admin, paste that app's Admin API access token. New apps are made in the Dev Dashboard instead. | **Neither page says where an existing custom app's token is shown.** This sentence names no screen; owner to confirm. |
 
 ---
 
@@ -386,15 +460,22 @@ How each row is drawn:
 
 | Key | English |
 |---|---|
-| `import.store.refused.password_protected` | This Shopify store is password-protected, so its product list is not public. Nomi can read it with an access token from your Shopify admin. |
-| `storeToken.open` | Store password-protected? Use an access token |
+| `import.store.refused.password_protected` | This Shopify store is password-protected, so its product list is not public. Nomi can read it with an app you allow on the store. |
+| `storeToken.open` | Store password-protected? Read it through a Shopify app |
 | `storeToken.shop` | Your store's address ending in .myshopify.com |
-| `storeToken.shop.hint` | Your Shopify admin shows it under your store's domains. |
+| `storeToken.shop.hint` | Shopify gives every store one, ending in .myshopify.com. |
+| `storeToken.or` | or |
+| `storeToken.legacy.legend` | An app you already have |
 | `storeToken.token` | Admin API access token |
-| `storeToken.how` | In your Shopify admin, create an app for your store that may read products, install it, and copy its Admin API access token. |
-| `storeToken.help` | Shopify's help on making the app |
+| `storeToken.legacy.how` | As in §2.5. |
+| `storeToken.dev.legend` | An app from the Dev Dashboard |
+| `storeToken.clientId` | Client ID |
+| `storeToken.clientSecret` | Client secret |
+| `storeToken.dev.step1` … `step4` | As in §2.5. |
+| `storeToken.dev.helpSecrets` | Shopify: where to find the Client ID and secret |
+| `storeToken.dev.helpGrant` | Shopify: how an app on your own store is let in |
 | `storeToken.read` | Read the store |
-| `storeToken.kept` | Used once, to read this store's products now. Nomi does not keep it. You can delete the app in Shopify when the import is done. |
+| `storeToken.kept` | Used once, to read this store's products now. Nomi keeps none of it and writes none of it down. You can remove the app's access in Shopify when the import is done. |
 | `storeToken.refused.*` | As in the table in §2.4. |
 
 ### 4.3 `setupClock.`
@@ -419,17 +500,17 @@ How each row is drawn:
 
 ---
 
-## 5 · Decisions taken here, and open questions
+## 5 · Decisions (the supervisor, t1r, 2026-11-07) and what remains open
 
-1. **Owner-only contacts import.** This is the designer's call: a bulk import of people's details is the
-   business's responsibility. If staff should import too, the routes and the door open to them. Nothing
-   else in this spec changes.
+1. **The contacts import is owner-only.** Decided. Staff see no door, and the routes are not found for them.
 2. **Existing customers are never overwritten**, and there is no "fill in what's missing" option. Adding one
    later is a separate, small design.
-3. **The Shopify help door and wording** (§2.2) must be checked against Shopify's current help page before
-   shipping.
-4. **The stopwatch is static.** It shows the elapsed time when the page is drawn. A ticking clock would need
-   the app's one script and adds nothing to the proof (the owner times the acceptance run).
+3. **Shopify:** two ways in (§2), and only the two pages read on 2026-11-07 are linked.
+   - **Still open, and the owner's:** check the sentences in §2.5 against Shopify's current pages before
+     shipping. Two of them say something neither page supports:
+     - where `read_products` is granted;
+     - where an existing custom app's token is shown.
+4. **The stopwatch is static.** Decided. It shows the elapsed time when the page is drawn, with no script.
 
 ---
 
@@ -476,32 +557,64 @@ Check at **1440 × 900** and **390 × 844**, in **en** and **ar**, as owner and 
 12. **Keyboard:** file → Read it; each select in field order; the header checkbox → Continue → Back; on step
     3: Tick/Untick all → each row's tick, in table order → Add → Discard. Focus is always visible.
 
-### 6.2 Shopify token
+### 6.2 Shopify: token, or Client ID and secret
 
-Use a fake Shopify that answers by token.
+Use a fake Shopify at `{shop}.myshopify.com` that records every request: path, headers and body. It answers:
+- products by token;
+- the exchange by Client ID and secret;
+- `shop_not_permitted` and `application_cannot_be_found` on chosen IDs;
+- a token whose `scope` lacks `read_products`;
+- 401, 403, 404, 429, a timeout and a redirect.
 
-13. A password-protected store's address gives the new refusal, and the token form opens below it with the
-    address carried over.
-14. The token field is `type="password"`. After any refusal it comes back empty, and the page source holds
-    no part of the token.
-15. A good token → the same kept review as a public store. In the database, the log output and
-    `app_errors`, the token string appears nowhere. Search the fixture token's last 8 characters.
-16. Each refusal in §2.4 shows its own words: 401, 403, 404, 429, a timeout, a redirect, and a non-myshopify
-    address. A redirect never repeats the token header: the fake records the headers it received.
-17. Staff never see the form (owner-only, as the import already is).
+13. A password-protected store's address gives the new refusal, and the form opens below it with the address
+    carried over. The upfront disclosure opens the same form.
+14. The form shows the shared address, then fieldset A (token) and fieldset B (Client ID, Client secret, the
+    four steps, the two doors), with "or" between.
+    - Each fieldset has a legend.
+    - Every credential field is `type="password"`.
+    - The two doors are the only external links. They go to exactly the client-secrets and client-credentials
+      pages, in a new tab, with `rel="noopener noreferrer"`.
+15. **Way A, a good token:** one products request with `X-Shopify-Access-Token`, then the same kept review as
+    a public store.
+16. **Way B, a good ID and secret:**
+    - exactly one `POST /admin/oauth/access_token` with form-encoded `grant_type=client_credentials`,
+      `client_id`, `client_secret` and **no `scope`**;
+    - then products read with the exchanged token;
+    - then the kept review.
+    - A second import asks for the credentials again: nothing was kept.
+17. **Nothing kept:** search the database, the log output and `app_errors` for the fixture token, the Client
+    secret, the exchanged token and the Client ID (the last 8 characters of each). Each appears nowhere.
+18. **Choose one:**
+    - nothing filled, both ways filled, an ID without a secret, or a secret without an ID → `choose_one`;
+    - the fake receives no request.
+19. **Each refusal in §2.4 shows its own words:**
+    - `shop_not_permitted`, `application_cannot_be_found`;
+    - the exchange's 401; way A's 401;
+    - 403; a scope without `read_products`, which reads no products;
+    - 404, 429, a timeout, a redirect;
+    - a non-myshopify address.
+20. **After every refusal:**
+    - all three credential fields are empty;
+    - the shop address is kept;
+    - the page source holds no part of any credential.
+21. **A redirect never repeats a credential:** the fake's record shows no `X-Shopify-Access-Token` and no
+    `client_secret` sent to the redirect's target.
+22. **Keyboard order:** shop address → token → Client ID → Client secret → the two doors (in the steps) →
+    currency tick → Read the store. Focus is visible. At 390 the two fieldsets stack in one column.
+23. Staff never see the form (owner-only, as the import already is).
 
 ### 6.3 Milestones and stopwatch
 
-18. On a workspace that signed itself up 20 min ago, with products and a channel at known fixture times, the
+24. On a workspace that signed itself up 20 min ago, with products and a channel at known fixture times, the
     page shows:
     - "20 min since you signed up";
     - Products in: "Done, 4 min after you signed up";
     - Channel connected: "Done, 12 min after…";
     - Contacts in and First reply: "Not yet", with their door and line.
-19. When all four are done, the line reads "All four done in {elapsed}", equal to the last milestone's
+25. When all four are done, the line reads "All four done in {elapsed}", equal to the last milestone's
     time.
-20. An operator-made workspace shows no stopwatch, and done rows read "Done on {date}".
-21. The five setup steps and the Setup nav count are unchanged by the four milestones.
-22. Staff see "The owner does this" instead of the three owner-only doors.
-23. **ar:** the elapsed times and dates are isolated, and each row's icon is not its only signal.
-24. **Keyboard:** the milestone doors come in row order, before the guide's own steps.
+26. An operator-made workspace shows no stopwatch, and done rows read "Done on {date}".
+27. The five setup steps and the Setup nav count are unchanged by the four milestones.
+28. Staff see "The owner does this" instead of the three owner-only doors.
+29. **ar:** the elapsed times and dates are isolated, and each row's icon is not its only signal.
+30. **Keyboard:** the milestone doors come in row order, before the guide's own steps.
