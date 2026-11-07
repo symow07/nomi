@@ -75,6 +75,7 @@ d('Practice · the per-workspace copy (requires DATABASE_URL + MIGRATE_DATABASE_
     await sql`insert into assistants (business_id, name, is_default, tone, length, emoji) values (${LIVE}, 'Noor', true, 'formal', 'short', 'like_customer')`.execute(admin);
     await sql`insert into assistants (business_id, name, is_default, archived_at) values (${LIVE}, 'Old', false, now())`.execute(admin);
     await sql`insert into onboarding_state (business_id, assistant_named_at) values (${LIVE}, now())`.execute(admin);
+    await sql`insert into procedures (business_id, title, steps) values (${LIVE}, 'A sample request', '[{"text":"ask the delivery address","kind":"do"},{"text":"hand to me to confirm","kind":"handoff"}]'::jsonb)`.execute(admin);
     await sql`insert into autonomy_policy (business_id, capability, mode) values (${LIVE}, 'quote', 'auto'), (${LIVE}, 'greet', 'draft')`.execute(admin);
     await sql`insert into ops_flags (business_id, flag, capability, reason, set_by) values (${LIVE}, 'force_draft', 'quote', 'test', 'ops')`.execute(admin);
     await sql`insert into ops_flags (business_id, flag, capability, reason, set_by, cleared_at) values (${LIVE}, 'force_draft', 'greet', 'old', 'ops', now())`.execute(admin);
@@ -133,6 +134,10 @@ d('Practice · the per-workspace copy (requires DATABASE_URL + MIGRATE_DATABASE_
     // Block 3 PR 1 (0228) — the voice travels with the name: Practice talks as the live one will.
     expect((await sql<{ tone: string; length: string; emoji: string }>`select tone, length, emoji from assistants where business_id = ${copy}::uuid and name = 'Noor'`.execute(admin)).rows[0])
       .toEqual({ tone: 'formal', length: 'short', emoji: 'like_customer' });
+    // 0229 — the owner's procedure, in place, pointing back at the live row.
+    const proc = (await sql<{ title: string; n: number; source: string | null }>`select title, jsonb_array_length(steps)::int as n, source_id::text as source from procedures where business_id = ${copy}::uuid`.execute(admin)).rows;
+    expect(proc.map((r) => [r.title, r.n])).toEqual([['A sample request', 2]]);
+    expect((await sql<{ id: string }>`select id::text as id from procedures where business_id = ${LIVE}::uuid`.execute(admin)).rows[0]!.id).toBe(proc[0]!.source);
     expect((await sql<{ named: boolean }>`select assistant_named_at is not null as named from onboarding_state where business_id = ${copy}::uuid`.execute(admin)).rows[0]!.named).toBe(true);
     expect(await count('autonomy_policy', 'business_id', copy)).toBe(2);
     expect((await sql<{ c: string }>`select capability as c from ops_flags where business_id = ${copy}::uuid`.execute(admin)).rows.map((r) => r.c)).toEqual(['quote']);

@@ -141,7 +141,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
   const prompt = loadPrompt('analysis.txt');
 
   return {
-    async analyze({ text, state, candidates, recentMessages, priceFirst }) {
+    async analyze({ text, state, candidates, recentMessages, priceFirst, procedures }) {
       // RETRIEVAL, NOT THE CATALOG: only the top-k candidates enter the prompt.
       const catalog = candidates
         // 0081 — a product with no minimum says so; never "MOQ:null".
@@ -164,7 +164,9 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
             `PRODUCT CATALOG:\n${catalog}\n\nCONVERSATION HISTORY:\n${history}\n\n` +
             `CLIENT MESSAGE:\n${text || '[no text]'}\n\nCURRENT PHASE: ${state.phase}` +
             // RT — a shop or a brand gives its price first: no quantity is needed to reach it.
-            (priceFirst ? '\n\nSELLING: price first' : ''),
+            (priceFirst ? '\n\nSELLING: price first' : '') +
+            // 0229 — the owner's procedures, so the analyser can name the one this message starts.
+            (procedures?.length ? `\n\nPROCEDURES:\n${procedures.map((p) => `${p.id}|${p.title}`).join('\n')}` : ''),
         }],
       }, ANALYSIS_REQUEST);
 
@@ -250,6 +252,8 @@ function parseAnalysis(j: Record<string, unknown>, currentPhase: Phase): Analysi
     // read, and hands off (core/scoring/detect.ts).
     wantsPerson: typeof j['wants_person'] === 'boolean' ? j['wants_person'] : null,
     wantsDeletion: typeof j['wants_deletion'] === 'boolean' ? j['wants_deletion'] : null,
+    // 0229 — a string is a claim the turn checks against the live list; anything else is none.
+    procedureStarted: typeof j['procedure_started'] === 'string' && j['procedure_started'].trim() !== '' ? j['procedure_started'].trim() : null,
   };
 }
 
@@ -283,7 +287,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, violation, knowledge, options, sampleNote, closureNote, speaker, priceFirst }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, violation, knowledge, options, sampleNote, closureNote, speaker, priceFirst, procedure }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -316,6 +320,8 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         product_confirmed: state.product?.confirmedByClient ?? false,
         // RT — present only for a business that gives its price first.
         ...(priceFirst ? { selling: { price_first: true } } : {}),
+        // 0229 — the owner's step for this turn, when a procedure applies.
+        ...(procedure ? { procedure } : {}),
       };
 
       const guard = violation === 'unkept_promise'

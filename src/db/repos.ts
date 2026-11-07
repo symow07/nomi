@@ -11,6 +11,7 @@ const HISTORY_MESSAGE_CHARS = 1000;
 import { autonomyReleasedFor } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel, chosenName } from './assistants.js';
 import type { AssistantRole, VoiceEmoji, VoiceLength, VoiceTone } from '../core/owner/assistants.js';
+import { activeProcedures } from './procedures.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
 import { writeOrderState } from './orders.js';
@@ -71,7 +72,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           'cs.identified_product_id', 'cs.product_confidence',
           'cs.product_confirmed_by_client', 'cs.inquiry_quantity', 'cs.inquiry_unit',
           'cs.problem_score', 'cs.lead_score', 'cs.pending_question',
-          'cs.turn_count', 'cs.context_summary',
+          'cs.turn_count', 'cs.context_summary', 'cs.procedure_id', 'cs.procedure_step',
           'cl.email as client_email', 'cl.display_name', 'cl.preferred_language',
         ])
         .where('c.id', '=', id)
@@ -106,6 +107,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         contextSummary: row.context_summary,
         aiDisclosedAt: row.ai_disclosed_at,
         aiDisclosureDeliveredAt: row.ai_disclosure_delivered_at,
+        // 0229 — where it stands in the owner's procedure, if in one.
+        procedure: row.procedure_id && row.procedure_step ? { id: row.procedure_id, step: row.procedure_step } : null,
       };
     },
 
@@ -128,6 +131,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           pending_question: state.pendingQuestion,
           turn_count: state.turnCount,
           last_message_at: new Date(),
+          procedure_id: state.procedure?.id ?? null,
+          procedure_step: state.procedure?.step ?? null,
         })
         .where('conversation_id', '=', state.conversationId)
         .execute();
@@ -348,6 +353,9 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
 
     // M37.5 — live rows only; archived terms are history, not policy.
+    // 0229 — the owner's live procedures, for the analyser's list and the writer's step.
+    procedures: () => activeProcedures(tx, businessId),
+
     async forbiddenTerms() {
       const r = await sql<{ term: string }>`
         select term from forbidden_terms

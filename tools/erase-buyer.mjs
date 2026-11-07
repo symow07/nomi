@@ -244,6 +244,8 @@ export const RULES = Object.freeze({
   trade_terms: { do: 'unrelated' },
   // 0162 — the workspace's count of its own orders: numbers only.
   order_numbers: { do: 'unrelated' },
+  // 0229 — the owner's procedures: instructions to the assistant, no customer in them.
+  procedures: { do: 'unrelated' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the

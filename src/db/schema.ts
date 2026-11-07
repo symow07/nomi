@@ -72,6 +72,9 @@ export interface Database {
     turn_count: number;
     last_message_at: Timestamp;
     context_summary: string | null;
+    // 0229 — the procedure this conversation follows, and the step last done.
+    procedure_id: string | null;
+    procedure_step: number | null;
   };
   messages: {
     id: Generated<string>;

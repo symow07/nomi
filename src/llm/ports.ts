@@ -1,3 +1,4 @@
+import type { ProcedureContext } from '../core/owner/procedures.js';
 import type { ProductOption } from '../core/commerce/options.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { ConversationState } from '../core/types/conversation.js';
@@ -27,6 +28,8 @@ export interface Analyzer {
     recentMessages: readonly { direction: string; text: string }[];
     /** RT — the business gives its price first: a known product with a price question needs no quantity. */
     priceFirst?: boolean;
+    /** 0229 — the owner's procedures, by id and what each is for; the analyser names the one a message starts. */
+    procedures?: readonly { readonly id: string; readonly title: string }[];
   }): Promise<{
     analysis: Analysis;
     promptVersion: string;   // provenance for the turns table (ADR-0010 Q1)
@@ -111,6 +114,11 @@ export interface ReplyWriter {
      * asks how many first. ABSENT for a business that asks how many first.
      */
     priceFirst?: boolean;
+    /**
+     * 0229 — the step of the owner's procedure to do THIS turn (for, step, of, do). An instruction, never words to
+     * repeat and never a source of facts: the guards run on the reply as before. Absent when no procedure applies.
+     */
+    procedure?: ProcedureContext;
   }): Promise<{ reply: string | null; promptVersion: string; modelId: string;
     usage: ModelUsage }>;
 }
