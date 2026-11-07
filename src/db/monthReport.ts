@@ -5,7 +5,7 @@ import { zoneOf } from './zone.js';
 import { notOwnerTesting } from './handled.js';
 import { SPEND_STATUSES } from './customerValue.js';
 import { PROBLEM_SIGNAL_KINDS } from '../core/scoring/signals.js';
-import { type MonthReport, estimateOf, isMonth } from '../core/report/month.js';
+import { type MonthReport, MINUTES_PER_REPLY_MAX, MINUTES_PER_REPLY_MIN, estimateOf, isMonth } from '../core/report/month.js';
 import { type Money, isPositive, moneyFromRow } from '../core/types/money.js';
 
 /**
@@ -222,4 +222,44 @@ export async function loadMonthReport(tx: Tx, businessId: BusinessId, month: str
     estimate: estimateOf(settings?.minutes ?? null, replies),
     mailOff: settings?.mail_off ?? false,
   };
+}
+
+/**
+ * The minutes per reply as the owner typed them (the design spec §2.1): empty clears the setting; otherwise one or two
+ * digits, a whole number from 1 to 60. Spaces around it are a browser's; a space inside, a sign, a decimal mark, a
+ * word, 0, 61 or three digits are refused, and a refusal changes nothing.
+ */
+export function readMinutesPerReply(raw: unknown): { readonly ok: true; readonly minutes: number | null } | { readonly ok: false } {
+  if (raw === undefined || raw === null) return { ok: true, minutes: null };
+  if (typeof raw !== 'string') return { ok: false };
+  const typed = raw.trim();
+  if (typed === '') return { ok: true, minutes: null };
+  if (!/^[0-9]{1,2}$/.test(typed)) return { ok: false };
+  const n = Number(typed);
+  return n >= MINUTES_PER_REPLY_MIN && n <= MINUTES_PER_REPLY_MAX ? { ok: true, minutes: n } : { ok: false };
+}
+
+const auditProfile = (tx: Tx, businessId: BusinessId, actor: string, field: string) =>
+  sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${businessId}::uuid, null, 'update_profile', ${actor}, ${JSON.stringify({ fields: [field] })}::jsonb)`.execute(tx);
+
+/** The owner's minutes per reply, or null to show no estimate. Audited by field name when it changed. */
+export async function saveMinutesPerReply(tx: Tx, businessId: BusinessId, minutes: number | null, actor: string): Promise<void> {
+  const changed = (await sql<{ id: string }>`
+    update businesses set report_minutes_per_reply = ${minutes}
+     where id = ${businessId}::uuid and report_minutes_per_reply is distinct from ${minutes}::smallint
+     returning id::text`.execute(tx)).rows.length > 0;
+  if (changed) await auditProfile(tx, businessId, actor, 'report_minutes_per_reply');
+}
+
+/**
+ * The monthly e-mail on or off (the design spec §3.3). Off is when the owner stopped it, kept until they start it again
+ * (the job skips the workspace: `claim_month_reports`, 0231). Audited by field name when it changed.
+ */
+export async function saveMonthMail(tx: Tx, businessId: BusinessId, on: boolean, actor: string): Promise<void> {
+  const changed = (await sql<{ id: string }>`
+    update businesses set month_report_mail_off_at = case when ${on}::boolean then null else now() end
+     where id = ${businessId}::uuid and (month_report_mail_off_at is null) is distinct from ${on}::boolean
+     returning id::text`.execute(tx)).rows.length > 0;
+  if (changed) await auditProfile(tx, businessId, actor, 'month_report_mail_off_at');
 }

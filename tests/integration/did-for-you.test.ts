@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { createDb, withTenantTx, type Db, type Tx } from '../../src/db/client.js';
 import { parseBusinessId, type BusinessId } from '../../src/core/types/ids.js';
@@ -256,5 +257,129 @@ d('Block 4.3 · what Nomi did for you, one month (requires DATABASE_URL + MIGRAT
   it('another workspace reads none of it', async () => {
     const r = await report(EMPTY);
     expect(r.customersAnswered + r.replies.alone + r.orders.confirmed + r.invoicesPaid.count).toBe(0);
+  });
+});
+
+/**
+ * Block 4.3 B3 — the month page's routes, through the real app: the month in the address (the design spec §1.2), the
+ * owner's minutes per reply (§2.1, §2.4) and the monthly e-mail's switch (§3.3). The page itself is the frontend's;
+ * nothing here reads its markup beyond the Results tabs, which app.ts draws.
+ */
+const RUN = randomUUID().slice(0, 8);
+const ROUTES_BIZ = `dd431000-0000-4000-8000-${RUN}0001`;
+const SECRET = 'a-test-session-secret-of-sufficient-length';
+const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+const CODE = 'month-report-owner-code';
+
+d('Block 4.3 · the month page\'s routes (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
+  let app: import('fastify').FastifyInstance;
+  let db: Db, admin: pg.Client;
+  let ownerCookie = '', staffCookie = '';
+  const login = async (code: string) => String((await app.inject({
+    method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
+  })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
+  const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  const post = (cookie: string, url: string, payload: string) => app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
+  const setting = async () => (await admin.query<{ minutes: number | null; off: boolean }>(
+    'select report_minutes_per_reply as minutes, month_report_mail_off_at is not null as off from businesses where id = $1', [ROUTES_BIZ])).rows[0]!;
+  const current = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+
+  beforeAll(async () => {
+    const { seedRunTenant } = await import('./tenant.js');
+    await seedRunTenant();
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    const { settingsHref } = await import('../../src/api/web/settingsNavigation.js');
+    db = createDb(process.env['DATABASE_URL']!);
+    admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await admin.connect();
+    await admin.query(`insert into businesses (id, name, timezone, created_at) values ($1, 'Month Routes Co', 'Europe/London', '2026-09-14T10:00:00Z')`, [ROUTES_BIZ]);
+    process.env['PILOT_BUSINESS_ID'] = ROUTES_BIZ;
+    app = Fastify({ logger: false });
+    registerWebApp(app, {
+      db, businessId: ROUTES_BIZ, accessCode: CODE, sessionSecret: SECRET,
+      employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
+      secureCookie: false, messagingEnabled: false,
+      kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await app.ready();
+    ownerCookie = await login(CODE);
+    expect(ownerCookie).not.toBe('');
+    const added = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
+    const issued = String(added.headers['set-cookie'] ?? '').split(';')[0]!;
+    const people = await app.inject({ method: 'GET', url: settingsHref(String(added.headers['location'])), headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const code = people.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
+    staffCookie = await login(code);
+    expect(staffCookie).not.toBe('');
+  }, 60_000);
+  afterAll(async () => { await app?.close(); await db?.destroy(); await admin?.end(); });
+
+  it('Results has a fourth tab, a door to the month page; the month page draws the row with it current', async () => {
+    const results = await get(ownerCookie, '/app/results');
+    expect(results.statusCode).toBe(200);
+    expect(results.body).toMatch(/<a class="tab"\s+href="\/app\/results\/month">Monthly report<\/a>/);
+    const month = await get(ownerCookie, '/app/results/month');
+    expect(month.statusCode).toBe(200);
+    expect(month.body).toMatch(/<a class="tab on" aria-current="page"\s+href="\/app\/results\/month">Monthly report<\/a>/);
+    expect(month.body).toMatch(/<a class="tab"\s+href="\/app\/results">/);
+  });
+
+  it('the month in the address: absent is the current month; malformed, too late or too early is a 302', async () => {
+    expect((await get(ownerCookie, '/app/results/month')).statusCode).toBe(200);
+    expect((await get(ownerCookie, '/app/results/month?month=2026-09')).statusCode).toBe(200);
+    expect((await get(ownerCookie, `/app/results/month?month=${current}`)).statusCode).toBe(200);
+    for (const [asked, to] of [['2026-13', current], ['abc', current], ['2026-1', current], ['', current], ['2999-01', current], ['2026-08', '2026-09'], ['2001-01', '2026-09']]) {
+      const r = await get(ownerCookie, `/app/results/month?month=${asked}`);
+      expect([asked, r.statusCode, r.headers['location']]).toEqual([asked, 302, `/app/results/month?month=${to}`]);
+    }
+    expect((await get(staffCookie, '/app/results/month?month=2026-10')).statusCode).toBe(200);
+  });
+
+  it('minutes per reply: the owner saves 1–60, empty removes it, anything else is refused and changes nothing', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    let r = await post(ownerCookie, '/app/results/month/minutes', 'minutes=5&month=2026-10');
+    expect([r.statusCode, r.headers['location'], flashSaid(r, SECRET)]).toEqual([302, '/app/results/month?month=2026-10', 'Saved. The estimate now uses 5 minutes a reply.']);
+    expect((await setting()).minutes).toBe(5);
+    for (const bad of ['0', '61', '5.5', '-3', 'five', '1 0', '005', '1e1', '٥']) {
+      r = await post(ownerCookie, '/app/results/month/minutes', `minutes=${encodeURIComponent(bad)}&month=2026-10`);
+      expect([bad, flashSaid(r, SECRET)]).toEqual([bad, 'Type a whole number from 1 to 60, or leave it empty. Nothing was changed.']);
+    }
+    expect((await setting()).minutes).toBe(5);
+    r = await post(ownerCookie, '/app/results/month/minutes', 'minutes=60&month=2026-10');
+    expect((await setting()).minutes).toBe(60);
+    r = await post(ownerCookie, '/app/results/month/minutes', 'minutes=%2012%20&month=nonsense');
+    expect([r.headers['location'], (await setting()).minutes]).toEqual(['/app/results/month', 12]);
+    r = await post(ownerCookie, '/app/results/month/minutes', 'minutes=&month=2026-10');
+    expect([flashSaid(r, SECRET), (await setting()).minutes]).toEqual(['Removed. The page no longer shows an estimate.', null]);
+    const audited = (await admin.query<{ detail: { fields: string[] } }>(
+      `select detail from channel_audit where business_id = $1 and action = 'update_profile' order by at, id`, [ROUTES_BIZ])).rows;
+    expect(audited.map((a) => a.detail.fields)).toEqual([['report_minutes_per_reply'], ['report_minutes_per_reply'], ['report_minutes_per_reply'], ['report_minutes_per_reply']]);
+  });
+
+  it('minutes per reply are the owner\'s: a colleague\'s post changes nothing', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    await post(ownerCookie, '/app/results/month/minutes', 'minutes=4&month=2026-10');
+    const r = await post(staffCookie, '/app/results/month/minutes', 'minutes=9&month=2026-10');
+    expect([r.headers['location'], flashSaid(r, SECRET)]).toEqual(['/app/results/month?month=2026-10', 'Only the owner can change this. Nothing was changed.']);
+    expect((await setting()).minutes).toBe(4);
+    const cleared = await post(staffCookie, '/app/results/month/minutes', 'minutes=&month=2026-10');
+    expect([flashSaid(cleared, SECRET), (await setting()).minutes]).toEqual(['Only the owner can change this. Nothing was changed.', 4]);
+  });
+
+  it('the monthly e-mail: on by default; the owner stops it and starts it; mail=maybe is a 400; a colleague changes nothing', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    expect((await setting()).off).toBe(false);
+    let r = await post(ownerCookie, '/app/results/month/mail', 'mail=off&month=2026-10');
+    expect([r.headers['location'], flashSaid(r, SECRET), (await setting()).off])
+      .toEqual(['/app/results/month?month=2026-10', 'The monthly e-mail is stopped. Nothing more will be sent.', true]);
+    r = await post(ownerCookie, '/app/results/month/mail', 'mail=maybe&month=2026-10');
+    expect([r.statusCode, flashSaid(r, SECRET), (await setting()).off]).toEqual([400, '', true]);
+    r = await post(staffCookie, '/app/results/month/mail', 'mail=on&month=2026-10');
+    expect([flashSaid(r, SECRET), (await setting()).off]).toEqual(['Only the owner can change this. Nothing was changed.', true]);
+    r = await post(ownerCookie, '/app/results/month/mail', 'mail=on&month=2026-10');
+    expect([flashSaid(r, SECRET), (await setting()).off]).toEqual(['The monthly e-mail is on. The next one comes on the 1st.', false]);
+    r = await post(ownerCookie, '/app/results/month/mail', 'month=2026-10');
+    expect([r.statusCode, (await setting()).off]).toEqual([400, false]);
+    r = await post(staffCookie, '/app/results/month/mail', 'mail=off&month=2026-10');
+    expect((await setting()).off).toBe(false);
   });
 });
