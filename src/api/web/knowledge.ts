@@ -1,7 +1,7 @@
 import { assistantReturnHref } from './assistantNavigation.js';
 import { sql } from 'kysely';
-import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, claimName } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
@@ -136,20 +136,26 @@ export async function teachKnowledge(db: Db, businessIdRaw: string, input: {
   const label = input.label.trim(), content = input.content.trim();
   if (!bid.ok || !KINDS.includes(input.kind as KnowledgeKind) || !label || !content) return { code: 'invalid' };
   if (input.productId !== null && !PRODUCT_ID.test(input.productId)) return { code: 'invalid' };
-  const taught = await withTenantTx(db, bid.value, async (tx) => {
-    // The product must be this workspace's own. A foreign key looks past row security, so the insert alone would
-    // take another business's product id (the IDOR audit, 2026-10-08).
-    if (input.productId !== null) {
-      const mine = await sql`select 1 from products where id = ${input.productId}::uuid and business_id = ${bid.value}`.execute(tx);
-      if (mine.rows.length === 0) return false;
-    }
-    await sql`
-      insert into product_knowledge (business_id, product_id, kind, label, content, source)
-      values (${bid.value}, ${input.productId}, ${input.kind}, ${label}, ${content}, 'owner_confirmed')
-    `.execute(tx);
-    return true;
-  });
+  const taught = await withTenantTx(db, bid.value, (tx) => teachKnowledgeTx(tx, bid.value, { ...input, label, content }));
   return { code: taught ? 'taught' : 'invalid' };
+}
+
+/** The write itself, inside a caller's transaction (0230: a check stages it first). False: not this workspace's product, or no words. */
+export async function teachKnowledgeTx(tx: Tx, businessId: BusinessId, input: { productId: string | null; kind: string; label: string; content: string }): Promise<boolean> {
+  const label = input.label.trim(), content = input.content.trim();
+  if (!KINDS.includes(input.kind as KnowledgeKind) || !label || !content) return false;
+  if (input.productId !== null && !PRODUCT_ID.test(input.productId)) return false;
+  // The product must be this workspace's own. A foreign key looks past row security, so the insert alone would
+  // take another business's product id (the IDOR audit, 2026-10-08).
+  if (input.productId !== null) {
+    const mine = await sql`select 1 from products where id = ${input.productId}::uuid and business_id = ${businessId}`.execute(tx);
+    if (mine.rows.length === 0) return false;
+  }
+  await sql`
+    insert into product_knowledge (business_id, product_id, kind, label, content, source)
+    values (${businessId}, ${input.productId}, ${input.kind}, ${label}, ${content}, 'owner_confirmed')
+  `.execute(tx);
+  return true;
 }
 const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

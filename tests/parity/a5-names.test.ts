@@ -101,7 +101,8 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // 0215 — two more: TikTok connected (the callback) and disconnected.
     // 2026-11-04 — one fewer: the zone's old route left; its save is the profile's form's, counted above.
     // 0224 (Block 1 #6) — one more: a larger-order price taken off a product (the products step reads its prices).
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(28);
+    // 0230 (Block 3 PR 3) — one more: a check kept (a price or a fact the setup steps read, written for good).
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(29);
   });
 });
 

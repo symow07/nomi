@@ -70,6 +70,8 @@ export const QUEUES = {
   booksPeriods: 'books.periods',
   /** 0227 — every morning, the recurring costs due are PROPOSED (never posted) for the owner's tick. */
   spendingProposals: 'books.spending_proposals',
+  /** 0230 — one job per check: the saved cases run against a staged change before it goes live (pipeline/caseChecks.ts). */
+  caseChecks: 'assistant.case_checks',
   booksStaleGrants: 'books.stale-grants',
   /**
    * CC-02a — the once-a-day look at deletion requests: is any open one within

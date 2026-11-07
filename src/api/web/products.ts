@@ -1094,7 +1094,7 @@ export async function updateProduct(
 type EditSource = { readonly via: 'import'; readonly line: string };
 
 /** The one audited edit, inside a caller's transaction (G16: the import's). */
-async function updateProductTx(
+export async function updateProductTx(
   tx: Tx, bid: BusinessId, productId: string, actor: string, edit: ProductEdit, source?: EditSource,
 ): Promise<EditResult> {
   if (!isUuid(productId)) return { ok: false, errors: {} };

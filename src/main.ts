@@ -9,7 +9,7 @@ import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicPageTranscriber, anthropicDocumentReader, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
+import { anthropicPageTranscriber, anthropicDocumentReader, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel, anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
 import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { speaksOpenAi } from './llm/openAiFormat.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
@@ -74,6 +74,7 @@ import { advisorMemory } from './advisor/memory.js';
 import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { prepareConversationOutbound, finishConversationOutbound, callProvider, type AdapterFor, type DriveEffect, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
+import { runCheck } from './pipeline/caseChecks.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { stopClock, type StopClock, runningJobs } from './queue/stopClock.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
@@ -1111,6 +1112,8 @@ export async function buildProduction(
       },
       // M16.1: bare re-drive tick — delivers an owner takeover reply through the
       // SAME outbound worker (no second send path).
+      // 0230 — a check's job, from the route that staged the change.
+      kickCaseCheck: async (businessId, checkId) => { await boss.send(QUEUES.caseChecks, { businessId, checkId }); },
       kickDrive: async (businessId, conversationId) => {
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });
@@ -1289,6 +1292,16 @@ export async function buildProduction(
     });
     // 0227 (Block 2 PR 3) — every morning, each workspace with a recurring cost due by its own today gets the cost
     // PROPOSED on the Spending page (`spending_proposals`), once per due day; the owner posts or skips it. Nothing posts here.
+    // 0230 (Block 3 PR 3) — one job per check: the saved cases run against a staged change before it goes live, each
+    // in a rolled-back transaction, each paid for; the owner keeps or reverts on the check's page.
+    const checkAnalyzer = overrides?.models?.analyzer ?? anthropicAnalyzer(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
+    const checkWriter = overrides?.models?.replyWriter ?? anthropicReplyWriter(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
+    await boss.work(QUEUES.caseChecks, async ([job]: { data: { businessId?: string; checkId?: string } }[]) => {
+      if (!job) return;
+      const b = parseBusinessId(String(job.data.businessId ?? ''));
+      if (!b.ok || !/^[0-9a-f-]{36}$/i.test(String(job.data.checkId ?? ''))) return;   // poison: drop
+      await runCheck({ db, businessId: b.value, checkId: String(job.data.checkId), models: { analyzer: checkAnalyzer, replyWriter: checkWriter }, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null });
+    });
     await boss.schedule(QUEUES.spendingProposals, '35 5 * * *', {});
     await boss.work(QUEUES.spendingProposals, async () => {
       const { proposeDue, spendingToday } = await import('./db/booksSpending.js');
