@@ -1624,6 +1624,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          ${/* Block 3 PR 4 — the words the assistant would write now, put in the box after what is typed; nothing is sent. */ ''}<button class="btn ghost" type="submit" formaction="/app/conversations/${encodeURIComponent(d.conversationId)}/copilot/suggest" formnovalidate>${esc(t(locale, 'copilot.suggest'))}</button>
           ${savedReplyPick(d, locale)}
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>

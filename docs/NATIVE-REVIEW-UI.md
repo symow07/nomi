@@ -16612,6 +16612,14 @@ Four English-only lines in `src/core/owner/i18n/booksArea.ts` (`BOOKS_AREA_EN`):
 figure), `booksArea.cashByAccount` (its door), `booksArea.cashTodayBasis` (what the figure is made of),
 `booksArea.ownAccounts` (the default scope said). Other languages show the English until a native reader translates.
 
+## The hand-off that carries context (2026-11-07; no migration)
+
+About thirty English-only lines in `src/core/owner/i18n/copilot.ts` (`COPILOT_EN`): the button `copilot.suggest`, its
+notice and five refusals (`copilot.flash.*`), and the summary's lines (`copilot.handoff.*`: what they want, what was
+told and by whom, the other figures, each thing that waits). The four `copilot.handoff.fact.*` lines and
+`copilot.handoff.ask` are what the advisor's model is given, in the owner's language. To translate first:
+`copilot.suggest`, `copilot.flash.suggested` and `copilot.handoff.wait.*`.
+
 ## Before it goes live (2026-11-07; 0230)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page

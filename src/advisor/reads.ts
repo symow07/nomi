@@ -27,6 +27,7 @@ import { PROBLEM_SIGNAL_KINDS } from '../core/scoring/signals.js';
 import { moneyFromRow, type Money } from '../core/types/money.js';
 import { compareDecimal, decimal, signOf, divDecimal, fromInteger, mulDecimal, roundDecimal } from '../core/types/decimal.js';
 import type { ConversationContext } from './conversation.js';
+import type { HandoffFacts } from './handoff.js';
 import type { Product, PriceTier, PricingPolicy, NegotiationRule } from '../core/types/commerce.js';
 import { chosenName } from '../db/assistants.js';
 
@@ -168,6 +169,64 @@ export async function readConversationContext(ctx: ReadCtx, conversationId: stri
         ruleIds: s.rules.map((r) => String(r['id'])),
         priorQuotes: s.priors.flatMap((r) => { const unitPrice = amount(r['unit_price_usd'], r['currency']); return unitPrice ? [{ quantity: Number(r['quantity']), unitPrice, at: new Date(String(r['created_at'])) }] : []; }),
       } : null,
+    };
+  });
+}
+
+/**
+ * Block 3 PR 4 — what the hand-off summary is made of (src/advisor/handoff.ts), in one read-only transaction. (Its
+ * isolation cannot be raised: the tenant's setting is the transaction's first query.) A message that lands between two
+ * of these reads shows on the next look; the summary is a reading, never a decision. Null: no such conversation in this business, or one the owner marked as their own testing.
+ */
+export async function readHandoffFacts(ctx: ReadCtx, conversationId: string): Promise<HandoffFacts | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) return null;
+  return ro(ctx, async (tx) => {
+    const c = (await sql<{ assigned_to: string | null; unsent: boolean; customer: string | null; product_id: string | null; product: string | null; unit: string | null; quantity: number | null }>`
+      select c.assigned_to, c.owner_unsent_reply is not null as unsent, cl.display_name as customer,
+             p.id::text as product_id, p.name as product, p.unit, cs.inquiry_quantity as quantity
+        from conversations c join clients cl on cl.id = c.client_id
+        left join conversation_state cs on cs.conversation_id = c.id
+        left join products p on p.id = cs.identified_product_id and p.business_id = ${ctx.businessId}::uuid
+       where c.id = ${conversationId}::uuid and c.business_id = ${ctx.businessId}::uuid and not c.owner_testing`.execute(tx)).rows[0];
+    if (!c) return null;
+    // The seller's side of a message: a person's when its sent row says so, or when it is the owner's own reply from Meta's app.
+    const latest = (await sql<{ id: string; direction: string }>`
+      select id::text, direction from messages where conversation_id = ${conversationId}::uuid order by sent_at desc, id desc limit 1`.execute(tx)).rows[0];
+    const inbound = (await sql<{ id: string; text: string | null; at: Date }>`
+      select id::text, coalesce(transcription, text_content) as text, sent_at as at from messages
+       where conversation_id = ${conversationId}::uuid and direction = 'inbound' order by sent_at desc, id desc limit 6`.execute(tx)).rows.reverse();
+    const told = (await sql<{ product_id: string; name: string; unit: string; quantity: number; unit_price: string; total: string; currency: string; at: Date; origin: string | null }>`
+      select q.product_id::text, p.name, p.unit, q.quantity, q.unit_price_usd::text as unit_price, q.total_usd::text as total, q.currency, t.sent_at as at, t.origin
+        from quotes q join products p on p.id = q.product_id
+        join lateral (select m.sent_at, coalesce(o.origin, case when m.external_id like 'echo:%' then 'owner' end) as origin
+                        from messages m left join outbound_messages o on m.external_id = 'out:' || o.id::text
+                       where m.quote_id = q.id and m.direction = 'outbound' order by m.sent_at, m.id limit 1) t on true
+       where q.business_id = ${ctx.businessId}::uuid and q.conversation_id = ${conversationId}::uuid
+       order by t.sent_at desc, q.id desc limit 3`.execute(tx)).rows;
+    const saidElse = (await sql<{ text: string; at: Date; origin: string | null }>`
+      select m.text_content as text, m.sent_at as at, coalesce(o.origin, case when m.external_id like 'echo:%' then 'owner' end) as origin
+        from messages m left join outbound_messages o on m.external_id = 'out:' || o.id::text
+       where m.conversation_id = ${conversationId}::uuid and m.direction = 'outbound' and m.quote_id is null and m.text_content is not null
+       order by m.sent_at desc, m.id desc limit 10`.execute(tx)).rows;
+    const reasons = (await sql<{ kind: string }>`
+      select kind from conversation_signals where conversation_id = ${conversationId}::uuid and resolved_at is null order by created_at desc, id desc`.execute(tx)).rows;
+    const waits = (await sql<{ draft: boolean; deletion: boolean; order_product: string | null }>`
+      select exists (select 1 from drafts where conversation_id = ${conversationId}::uuid and status = 'pending') as draft,
+             exists (select 1 from deletion_asks where conversation_id = ${conversationId}::uuid and state = 'waiting') as deletion,
+             (select p.name from order_proposals op join products p on p.id = op.product_id
+               where op.conversation_id = ${conversationId}::uuid and op.state = 'pending' order by op.created_at desc limit 1) as order_product`.execute(tx)).rows[0]!;
+    const iso = (d: Date): string => new Date(d).toISOString();
+    return {
+      conversationId, latestMessageId: latest?.id ?? null, lastWasInbound: latest?.direction === 'inbound',
+      customerName: c.customer, assignedTo: c.assigned_to,
+      inbound: inbound.map((m) => ({ id: m.id, text: m.text, at: iso(m.at) })),
+      topic: c.product_id && c.product ? { productId: c.product_id, name: c.product, unit: c.unit ?? '', quantity: c.quantity } : null,
+      told: told.flatMap((q) => {
+        const unitPrice = moneyFromRow(q.unit_price, q.currency); const total = moneyFromRow(q.total, q.currency);
+        return unitPrice && total ? [{ productId: q.product_id, productName: q.name, unit: q.unit, quantity: Number(q.quantity), unitPrice, total, at: iso(q.at), byPerson: q.origin === 'owner' }] : [];
+      }),
+      saidElse: saidElse.map((m) => ({ text: m.text, at: iso(m.at), byPerson: m.origin === 'owner' })),
+      reasons: reasons.map((r) => r.kind), pendingDraft: waits.draft, orderWaiting: waits.order_product, deletionWaiting: waits.deletion, unsentReply: c.unsent,
     };
   });
 }
