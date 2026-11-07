@@ -193,8 +193,11 @@ d('Block 3 PR 4 · the hand-off that carries context (requires DATABASE_URL)', {
 
   it('not anyone\'s: signed out, the accountant, a conversation that is not there — refused, and no model asked', async () => {
     const n = advisor.phrased;
-    expect((await summary('')).statusCode).toBe(401);
-    expect((await summary(accountant)).statusCode).toBe(401);
+    for (const who of ['', accountant]) {
+      const res = await summary(who);
+      expect(res.statusCode).toBe(302);
+      expect(String(res.headers['location'])).toBe('/login');
+    }
     expect((await summary(owner, randomUUID())).statusCode).toBe(404);
     expect((await summary(owner, 'not-a-conversation')).statusCode).toBe(404);
     expect((await app.inject({ method: 'POST', url: `/app/conversations/${CONV}/copilot/suggest`, payload: '', headers: { cookie: accountant, accept: 'application/json', ...FORM } })).statusCode).toBe(401);

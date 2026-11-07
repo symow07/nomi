@@ -87,7 +87,8 @@ export function conversationAdvisorRoutes(app: FastifyInstance, io: Conversation
    */
   app.get('/app/conversations/:conversationId/copilot', { logLevel: 'warn' }, async (req, reply) => {
     const json = (code: number, body: unknown) => reply.code(code).header('cache-control', 'no-store').send(body);
-    const v = io.viewer(req); if (!v) return json(401, { ok: false, reason: 'not_signed_in' });
+    // A stranger goes to the door, as on every route that is not public (tests/integration/public-routes.test.ts).
+    const v = io.viewer(req); if (!v) return reply.redirect('/login');
     const bid = parseBusinessId(v.businessId);
     if (!io.db || !bid.ok) return json(503, { ok: false, reason: 'unavailable' });
     const cid = (req.params as { conversationId: string }).conversationId;

@@ -174,13 +174,13 @@ export async function readConversationContext(ctx: ReadCtx, conversationId: stri
 }
 
 /**
- * Block 3 PR 4 — what the hand-off summary is made of (src/advisor/handoff.ts), in one read-only transaction at one
- * snapshot. Null: no such conversation in this business, or one the owner marked as their own testing.
+ * Block 3 PR 4 — what the hand-off summary is made of (src/advisor/handoff.ts), in one read-only transaction. (Its
+ * isolation cannot be raised: the tenant's setting is the transaction's first query.) A message that lands between two
+ * of these reads shows on the next look; the summary is a reading, never a decision. Null: no such conversation in this business, or one the owner marked as their own testing.
  */
 export async function readHandoffFacts(ctx: ReadCtx, conversationId: string): Promise<HandoffFacts | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) return null;
   return ro(ctx, async (tx) => {
-    await sql`set transaction isolation level repeatable read`.execute(tx);
     const c = (await sql<{ assigned_to: string | null; unsent: boolean; customer: string | null; product_id: string | null; product: string | null; unit: string | null; quantity: number | null }>`
       select c.assigned_to, c.owner_unsent_reply is not null as unsent, cl.display_name as customer,
              p.id::text as product_id, p.name as product, p.unit, cs.inquiry_quantity as quantity
