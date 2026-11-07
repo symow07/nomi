@@ -36,7 +36,7 @@ export const MONTH_REPORT_EN = {
   "monthReport.section.orders": "Orders",
   "monthReport.n.orders": "Orders confirmed",
   "monthReport.orders.value": "Value of confirmed orders",
-  "monthReport.def.orders": "Orders you confirmed this month that still stand. Each currency has its own total; they are never added together.",
+  "monthReport.def.orders": "Orders confirmed this month that still stand. Each currency has its own total; they are never added together.",
   "monthReport.orders.none": "No order was confirmed this month.",
   "monthReport.section.invoices": "Invoices",
   "monthReport.n.invoicesPaid": "Invoices paid in full",

@@ -40,14 +40,18 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
   const say = (key: MessageKey, params?: Record<string, string | number>) => t(locale, key, params);
   const paragraph = (key: MessageKey, params?: Record<string, string | number>) =>
     `<p class="caption muted">${words(say(key, params))}</p>`;
-  const row = (label: string, value: string, definition?: MessageKey, english = true): string =>
-    `<div class="result-row"><dt>${english ? words(label) : `<bdi>${esc(label)}</bdi>`}</dt><dd>${esc(value)}</dd>${
-      definition ? `<dd class="mr-definition caption muted">${words(say(definition))}</dd>` : ''}</div>`;
+  const row = (label: string, value: string | readonly string[], definition?: MessageKey,
+    detail: { readonly english?: boolean; readonly captions?: readonly string[]; readonly subrow?: boolean } = {}): string =>
+    `<div class="result-row${detail.subrow ? ' mr-subrow' : ''}"><dt>${detail.english === false ? `<bdi>${esc(label)}</bdi>` : words(label)}</dt>${
+      typeof value === 'string' ? `<dd>${esc(value)}</dd>`
+        : `<dd class="mr-amounts">${value.map((amount) => `<span>${esc(amount)}</span>`).join('')}</dd>`}${
+      definition ? `<dd class="mr-definition caption muted">${words(say(definition))}${
+        (detail.captions ?? []).map((caption) => `<p>${words(caption)}</p>`).join('')}</dd>` : ''}</div>`;
   const countRow = (key: MessageKey, n: number, definition: MessageKey) =>
     row(say(key), show.count(locale, n), definition);
   const list = (rows: string) => `<dl class="result-rows">${rows}</dl>`;
-  const moneyRows = (totals: readonly Money[], key: MessageKey) => totals.map((amount) =>
-    row(say(key), show.money(locale, amount))).join('');
+  const moneyRow = (totals: readonly Money[], key: MessageKey) => totals.length
+    ? row(say(key), totals.map((amount) => show.money(locale, amount))) : '';
   const selectedMonth = show.month(locale, report.month);
 
   const index = options.months.indexOf(report.month);
@@ -98,19 +102,21 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
       + countRow('monthReport.n.asWritten', report.replies.asWritten, 'monthReport.def.asWritten')
       + countRow('monthReport.n.edited', report.replies.edited, 'monthReport.def.edited')
       + countRow('monthReport.replies.notSent', report.replies.notSent, 'monthReport.def.notSent')));
+    const waiting = report.firstReply.waiting > 0 ? counted(locale, 'monthReport.median.waiting', report.firstReply.waiting) : null;
     figures += section('speed', say('monthReport.section.speed'),
-      (report.firstReply.medianSeconds === null ? paragraph('monthReport.median.none')
-        : list(row(say('monthReport.median.label'), medianTime(locale, report.firstReply.medianSeconds), 'monthReport.def.median'))
-          + `<p class="caption muted">${words(counted(locale, 'monthReport.median.from', report.firstReply.measured))}</p>`)
-      + (report.firstReply.waiting > 0 ? `<p class="caption muted">${words(counted(locale, 'monthReport.median.waiting', report.firstReply.waiting))}</p>` : ''));
+      report.firstReply.medianSeconds === null ? paragraph('monthReport.median.none')
+        + (waiting ? `<p class="caption muted">${words(waiting)}</p>` : '')
+        : list(row(say('monthReport.median.label'), medianTime(locale, report.firstReply.medianSeconds), 'monthReport.def.median', {
+          captions: [counted(locale, 'monthReport.median.from', report.firstReply.measured), ...(waiting ? [waiting] : [])],
+        })));
     figures += section('orders', say('monthReport.section.orders'), list(
       countRow('monthReport.n.orders', report.orders.confirmed, 'monthReport.def.orders')
-      + moneyRows(report.orders.totals, 'monthReport.orders.value'))
+      + moneyRow(report.orders.totals, 'monthReport.orders.value'))
       + (report.orders.confirmed === 0 ? paragraph('monthReport.orders.none') : ''));
     if (options.canSetMinutes) figures += section('invoices', say('monthReport.section.invoices'),
       report.invoicesPaid.booksStarted ? list(
         countRow('monthReport.n.invoicesPaid', report.invoicesPaid.count, 'monthReport.def.invoices')
-        + moneyRows(report.invoicesPaid.totals, 'monthReport.invoices.value'))
+        + moneyRow(report.invoicesPaid.totals, 'monthReport.invoices.value'))
         + (report.invoicesPaid.count === 0 ? paragraph('monthReport.invoices.none') : '')
         : paragraph('monthReport.invoices.noBooks') + `<p>${deeper('/app/books', say('monthReport.invoices.openBooks'))}</p>`);
     figures += section('handed', say('monthReport.section.handed'), list(
@@ -119,7 +125,7 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
         const key = `takeover.reason.${reason}` as MessageKey;
         const known = Object.hasOwn(messages.en, key);
         const label = known ? say(key) : say('monthReport.handed.other');
-        return row(label.charAt(0).toLocaleUpperCase(locale) + label.slice(1), show.count(locale, n), undefined, !known);
+        return row(label.charAt(0).toLocaleUpperCase(locale) + label.slice(1), show.count(locale, n), undefined, { english: !known, subrow: true });
       }).join('')) + (handedCount === 0 ? paragraph('monthReport.handed.none') : ''));
   }
 

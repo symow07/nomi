@@ -99,6 +99,8 @@ describe('Block 4.3 · the month report page', () => {
     expect(section(html, 'month-mail')).toBe('');
     expect(html).not.toContain('<details');
     expect(html).not.toContain('method="post"');
+    expect(plain(html)).toContain('Orders confirmed this month that still stand.');
+    expect(plain(html)).not.toContain('Orders you confirmed');
     expect(draw({ ...FIXTURE_MONTH_REPORT, estimate: null }, 'ar', { canSetMinutes: false })).not.toContain('month-estimate');
   });
 
@@ -120,7 +122,7 @@ describe('Block 4.3 · the month report page', () => {
     const orders = section(html, 'month-orders');
     expect(plain(orders)).toContain('$1,240.00');
     expect(plain(orders)).toContain('AED 300.00');
-    expect(orders.match(/<dt\b/g)).toHaveLength(3);
+    expect(orders.match(/<dt\b/g)).toHaveLength(2);
     const none = draw({ ...FIXTURE_MONTH_REPORT, orders: empty.orders, invoicesPaid: { ...empty.invoicesPaid, booksStarted: true } });
     expect(plain(section(none, 'month-orders'))).toContain('No order was confirmed this month.');
     expect(plain(section(none, 'month-invoices'))).toContain('No invoice was paid in full this month.');
@@ -129,6 +131,34 @@ describe('Block 4.3 · the month report page', () => {
     expect(section(noBooks, 'month-invoices')).toContain('href="/app/books"');
     expect(plain(noBooks)).toContain('You have not issued an invoice yet');
   });
+
+  for (const locale of ['en', 'ar'] as const) {
+    it(`${locale}: groups each set of currency amounts under one label without combining their values`, () => {
+      const totals = [moneyOf('1240', 'USD'), moneyOf('300', 'AED')];
+      const html = draw({ ...FIXTURE_MONTH_REPORT, orders: { confirmed: 2, totals },
+        invoicesPaid: { count: 2, totals, booksStarted: true } }, locale);
+      for (const [id, label] of [['orders', 'Value of confirmed orders'], ['invoices', 'Value of invoices paid']] as const) {
+        const body = section(html, `month-${id}`);
+        expect(plain(body).split(label)).toHaveLength(2);
+        const values = body.match(/<dd class="mr-amounts">([\s\S]*?)<\/dd>/)?.[1] ?? '';
+        expect(values.match(/<span>/g)).toHaveLength(2);
+        expect(plain(values)).toContain('1,240.00');
+        expect(plain(values)).toContain('300.00');
+        expect(plain(values)).not.toContain('1,540');
+      }
+      if (locale === 'ar') expect(unisolatedFigures(html)).toEqual([]);
+    });
+
+    it(`${locale}: keeps the median's sample and waiting captions within its definition row`, () => {
+      const speed = section(draw(undefined, locale), 'month-speed');
+      const definition = speed.match(/<dd class="mr-definition caption muted">([\s\S]*?)<\/dd>/)?.[1] ?? '';
+      expect(plain(definition)).toContain('Clock time, nights and weekends included');
+      expect(plain(definition)).toContain('Measured on 40 customers.');
+      expect(plain(definition)).toContain('3 customers who wrote this month are still waiting');
+      const afterRows = speed.slice(speed.indexOf('</dl>') + 5);
+      expect(plain(afterRows)).toBe('');
+    });
+  }
 
   it('orders known hand-off reasons by count then key, with unknown reasons last', () => {
     const html = draw({ ...FIXTURE_MONTH_REPORT, handedToYou: [
@@ -139,6 +169,10 @@ describe('Block 4.3 · the month report page', () => {
     expect(handed).toContain('Another reason 9');
     expect(handed).not.toContain('unknown_future_reason');
     expect(handed.indexOf('Another reason')).toBeGreaterThan(handed.indexOf('A stock question'));
+    const rows = [...section(html, 'month-handed').matchAll(/<div class="result-row mr-subrow">([\s\S]*?)<\/div>/g)];
+    expect(rows).toHaveLength(3);
+    expect(plain(rows[0]![1]!)).not.toContain('Hand-offs to you');
+    expect(plain(rows[2]![1]!)).toContain('Another reason 9');
   });
 
   it.each([[30, 'under a minute'], [3660, '1 hour, 1 minute'], [176400, '2 days, 1 hour']] as const)(
