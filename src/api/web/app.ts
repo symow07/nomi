@@ -205,6 +205,9 @@ import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
+import { renderMonthReport } from './monthReport.js';
+import { loadMonthReport, monthFrame, readMinutesPerReply, saveMinutesPerReply, saveMonthMail } from '../../db/monthReport.js';
+import { isMonth, type MonthPageOptions } from '../../core/report/month.js';
 import { renderCalendar, parseCalendarQuery, legacyCalendarAddress } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
@@ -271,7 +274,7 @@ import {
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
-import { refusedByCap } from '../../channels/email/httpsMail.js';
+import { refusedByCap } from '../../core/ops/mailCap.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
   newOtpCode, otpHash, mintPendingOtp, readPendingOtp, mintKnownDevice, isKnownDevice, maskEmail,
@@ -6985,12 +6988,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   }));
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
+  /** The Results tabs, drawn once for the three views and (Block 4.3) the month page: the fourth, a door to it. */
+  const RESULTS_TABS = ['sales', 'assistant', 'setup', 'month'] as const;
+  const resultsTabs = (locale: Locale, current: (typeof RESULTS_TABS)[number]) =>
+    `<nav class="tabs" aria-label="${esc(t(locale, 'area1.results.views'))}">${
+      RESULTS_TABS.map((item) => `<a class="tab${item === current ? ' on' : ''}"${item === current ? ' aria-current="page"' : ''}
+        href="${item === 'month' ? '/app/results/month' : `/app/results${item === 'sales' ? '' : `?view=${item}`}`}">${
+        esc(item === 'month' ? t(locale, 'monthMail.tab') : t(locale, `area1.results.${item}`))}</a>`).join('')}</nav>`;
   app.get('/app/results', authed('analytics', async (s, req, locale, reply) => {
     const query = req.query as { range?: string; view?: string };
     const view = query.view === 'assistant' || query.view === 'setup' ? query.view : 'sales';
-    const views = `<nav class="tabs" aria-label="${esc(t(locale, 'area1.results.views'))}">${
-      (['sales', 'assistant', 'setup'] as const).map((item) => `<a class="tab${item === view ? ' on' : ''}"${item === view ? ' aria-current="page"' : ''}
-        href="/app/results${item === 'sales' ? '' : `?view=${item}`}">${esc(t(locale, `area1.results.${item}`))}</a>`).join('')}</nav>`;
+    const views = resultsTabs(locale, view);
     let body: string;
     if (view === 'assistant') {
       const [employee, context] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
@@ -7009,6 +7017,76 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     return { title: t(locale, 'area1.results.title'), bodyHtml: views + body };
   }));
+
+  /**
+   * Block 4.3 — WHAT NOMI DID FOR YOU: one month of the workspace, counted from its own rows (src/db/monthReport.ts)
+   * and drawn by the month page (src/api/web/monthReport.ts). The month in the address is the workspace's, in its
+   * zone (the design spec §1.2): absent, the current month and no redirect; malformed or after the current month, 302
+   * to the current one; before the workspace's first month, 302 to the first. A colleague sees the month without the
+   * invoices — the books' figures are never handed to their page — and without the owner's two forms; an accountant
+   * is sent to the books by the roles hook, as from every sales page.
+   */
+  const monthHref = (month: string) => `/app/results/month?month=${month}`;
+  /** Where the month page's forms land: back on the month they were posted from, else the current one. */
+  const monthBack = (raw: unknown) => isMonth(raw) ? monthHref(raw) : '/app/results/month';
+  app.get('/app/results/month', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    const raw = (req.query as Record<string, unknown>)['month'];
+    const owner = personOf(s).isOwner;
+    const now = new Date();
+    const read = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const frame = await monthFrame(tx, bid.value, now);
+      const month = raw === undefined || !isMonth(raw) ? frame.current
+        : raw < frame.first ? frame.first : raw > frame.current ? frame.current : raw;
+      if (raw !== undefined && month !== raw) return { redirect: month } as const;
+      return { frame, report: await loadMonthReport(tx, bid.value, month, now) } as const;
+    });
+    if ('redirect' in read) return reply.redirect(monthHref(read.redirect), 302);
+    const report = owner ? read.report : { ...read.report, invoicesPaid: { count: 0, totals: [], booksStarted: false } };
+    const options: MonthPageOptions = {
+      canSetMinutes: owner, months: read.frame.months, flash: takeFlash(req, reply), now,
+      startedAt: read.frame.startedAt, setupDone: (setupState()?.next ?? null) === null,
+    };
+    reply.header('cache-control', 'private, no-store');
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'monthMail.tab'), active: 'analytics',
+      bodyHtml: resultsTabs(locale, 'month') + renderMonthReport(report, locale, options),
+    }));
+  });
+  /** The owner's minutes per reply (the design spec §2.1): 1–60, or empty to show no estimate. A refusal changes nothing. */
+  app.post('/app/results/month/minutes', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const back = monthBack(b['month']);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !personOf(s).isOwner) return flashTo(reply, back, 'monthMail.flash.ownerOnly');
+    const typed = readMinutesPerReply(b['minutes']);
+    if (!typed.ok) return flashTo(reply, back, 'monthMail.flash.minutesInvalid');
+    await withTenantTx(deps.db, bid.value, (tx) => saveMinutesPerReply(tx, bid.value, typed.minutes, personOf(s).id));
+    return typed.minutes === null ? flashTo(reply, back, 'monthMail.flash.minutesCleared')
+      : flashTo(reply, back, 'monthMail.flash.minutesSaved', { minutes: typed.minutes });
+  });
+  /**
+   * The monthly e-mail on or off (the design spec §3.3), the owner's. `mail` is `on` or `off`; anything else can only be
+   * a hand-made request: a 400, nothing changed, no notice.
+   */
+  app.post('/app/results/month/mail', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const back = monthBack(b['month']);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !personOf(s).isOwner) return flashTo(reply, back, 'monthMail.flash.ownerOnly');
+    const mail = b['mail'];
+    if (mail !== 'on' && mail !== 'off') return reply.code(400).type('text/plain; charset=utf-8').send('Bad request');
+    await withTenantTx(deps.db, bid.value, (tx) => saveMonthMail(tx, bid.value, mail === 'on', personOf(s).id));
+    return flashTo(reply, back, mail === 'on' ? 'monthMail.flash.mailOn' : 'monthMail.flash.mailOff');
+  });
 
   // ── V2 · the calendar: a read-only list of dates already on record ─────────
   // Reached from Buyers. No writes, no job, no table: a view over the columns
