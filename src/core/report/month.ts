@@ -37,14 +37,21 @@ export type MonthReport = {
     readonly alone: number; readonly drafted: number; readonly asWritten: number; readonly edited: number; readonly notSent: number;
   };
   /**
-   * Time to the first reply, per conversation whose first customer message fell in the month: the median, in
-   * seconds, over the `measured` conversations that were answered. Null when none was.
+   * Time to the first reply. For each customer who wrote in the month, the clock time from their first message of the
+   * month to the first message after it that reached them, whoever wrote it (nights and weekends count: business hours
+   * are free text). `medianSeconds` is the median over the `measured` customers who had such a reply; null when none
+   * did. `waiting` counts those who wrote in the month and have had no reply since: they are left out of the median.
+   * measured + waiting is everyone who wrote in the month.
    */
-  readonly firstReply: { readonly medianSeconds: number | null; readonly measured: number };
+  readonly firstReply: { readonly medianSeconds: number | null; readonly measured: number; readonly waiting: number };
   /** Orders that stand, confirmed in the month, and their value — one total per currency. */
   readonly orders: { readonly confirmed: number; readonly totals: readonly Money[] };
-  /** Invoices paid in the month, from the books' own payment rows — one total per currency. */
-  readonly invoicesPaid: { readonly count: number; readonly totals: readonly Money[] };
+  /**
+   * Invoices paid in full in the month, from the books' own payment rows: issued invoices whose last payment, refunds
+   * aside, is dated in the month and left nothing owed. The totals are what those invoices were for, one per currency —
+   * not the cash received in the month. `booksStarted`: an issued invoice has ever existed in the workspace.
+   */
+  readonly invoicesPaid: { readonly count: number; readonly totals: readonly Money[]; readonly booksStarted: boolean };
   /**
    * Conversations handed to a person in the month, by the reason recorded with the hand-off (a signal type, as
    * `takeover.reason.<reason>` names it), most first.
@@ -57,6 +64,24 @@ export type MonthReport = {
   readonly estimate: null | { readonly minutesPerReply: number; readonly replies: number; readonly minutes: number };
   /** The owner stopped the monthly e-mail on the month page (`businesses.month_report_mail_off_at` is set). */
   readonly mailOff: boolean;
+};
+
+/**
+ * What the month page is drawn with besides the report (`renderMonthReport(report, locale, options)`,
+ * src/api/web/monthReport.ts). `flash` has the shape of the web layer's `Flash` (src/api/web/flash.ts), declared here
+ * so this file stays pure; draw it with `flashBanner`.
+ */
+export type MonthPageOptions = {
+  /** The viewer is the owner: the minutes form, the e-mail switch and the invoices are drawn. Staff: none of them. */
+  readonly canSetMinutes: boolean;
+  /** Every month the picker offers, "YYYY-MM", newest first: the current month down to the workspace's first. */
+  readonly months: readonly string[];
+  readonly flash: { readonly text: string; readonly bad: boolean } | null;
+  readonly now: Date;
+  /** When the workspace began: `signed_up_at`, else `created_at` ("Counted from {date}" on its first month). */
+  readonly startedAt: Date;
+  /** Getting started is complete (the empty current month offers a door to it while it is not). */
+  readonly setupDone: boolean;
 };
 
 /** The minutes per reply the owner may set (`businesses.report_minutes_per_reply`, 0231): a whole number, 1–60. */
@@ -100,9 +125,9 @@ export const FIXTURE_MONTH_REPORT: MonthReport = {
   running: false,
   customersAnswered: 42,
   replies: FIXTURE_REPLIES,
-  firstReply: { medianSeconds: 94, measured: 40 },
+  firstReply: { medianSeconds: 94, measured: 40, waiting: 3 },
   orders: { confirmed: 7, totals: [moneyOf('1840.00', 'USD')] },
-  invoicesPaid: { count: 5, totals: [moneyOf('1210.50', 'USD')] },
+  invoicesPaid: { count: 5, totals: [moneyOf('1210.50', 'USD')], booksStarted: true },
   handedToYou: [
     { reason: 'human_requested', n: 4 },
     { reason: 'price_to_owner', n: 2 },
