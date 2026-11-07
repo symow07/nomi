@@ -33,6 +33,30 @@ revoke delete, truncate on procedures from nomi_app;
 alter table conversation_state add column if not exists procedure_id uuid references procedures(id);
 alter table conversation_state add column if not exists procedure_step integer check (procedure_step >= 1);
 
+-- The accountant sees none of it (0177's policy, here on the new table): procedures are the sales side's.
+drop policy if exists not_for_accountants on procedures;
+create policy not_for_accountants on procedures as restrictive for all
+  using (not (select viewer_is_accountant())) with check (not (select viewer_is_accountant()));
+
+-- ── the audit's verbs ──────────────────────────────────────────────────────────────────────────────────────────────
+-- 0135's list, copied from the live constraint, with two added: a procedure saved, a procedure removed.
+alter table channel_audit drop constraint if exists channel_audit_action_check;
+alter table channel_audit add constraint channel_audit_action_check
+  check (action in ('connect','reconnect','disconnect','test','rotate_credential',
+                    'set_owner_phone','update_profile','activate','deactivate',
+                    'blocked_not_allowlisted','allowlist_add','allowlist_archive',
+                    'send_refused','activation_refused','product_edited',
+                    'price_rules_set','transcript_corrected',
+                    'assistant_added','assistant_changed','assistant_archived',
+                    'export_data','deletion_requested','deletion_withdrawn',
+                    'assistant_stop','assistant_start',
+                    'deletion_dismissed',
+                    'product_imported','import_confirmed','prices_to_owner_set','selling_set',
+                    'how_you_sell_saved','knowledge_imported','pilot_ended','pilot_resumed',
+                    'customer_erased',
+                    'opt_out_recorded','opt_out_lifted',
+                    'procedure_added','procedure_archived'));
+
 -- ── the signal and the reason ──────────────────────────────────────────────────────────────────────────────────────
 -- 0159's lists, with `procedure_handoff`: the step that hands to a person was reached.
 alter table conversation_signals drop constraint if exists conversation_signals_kind_check;

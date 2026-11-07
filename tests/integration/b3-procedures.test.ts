@@ -178,7 +178,9 @@ d('0229 · procedures: through the whole pipeline on the fake channel (requires 
     expect(s.proc).toBeNull();
     expect(s.step).toBeNull();
     expect(replyWriter.calls).toBe(writes);
-    const handoff = await q((tx) => sql<{ reason: string }>`select trigger_reason as reason from escalation_events where conversation_id = ${id}::uuid order by created_at desc limit 1`.execute(tx).then((r) => r.rows[0]));
-    expect(handoff?.reason).toBe('procedure_handoff');
+    // The hand-off is on the conversation's record, and the step that caused it says so.
+    const events = await q((tx) => sql<{ type: string; handoff: boolean | null }>`select type, (payload->>'handoff')::boolean as handoff from conversation_events where conversation_id = ${id}::uuid and type in ('handoff', 'procedure_step') order by id`.execute(tx).then((r) => r.rows));
+    expect(events.map((e) => e.type)).toContain('handoff');
+    expect(events.filter((e) => e.type === 'procedure_step').map((e) => e.handoff)).toEqual([false, false, true]);
   });
 });
