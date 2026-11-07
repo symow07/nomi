@@ -28,9 +28,14 @@ export type MonthReport = {
    *   alone      sent without anyone's approval (an `auto_sent` event whose message left);
    *   drafted    drafted, then sent by a person: asWritten + edited;
    *   asWritten  approved with the words unchanged;
-   *   edited     changed by a person before it went.
+   *   edited     changed by a person before it went;
+   *   notSent    drafted, and decided in the month without going out: no reply chosen (rejected), overtaken by the
+   *              owner's own reply in the channel's app (superseded), or the time to reply ran out (expired).
+   *              Never part of `drafted`.
    */
-  readonly replies: { readonly alone: number; readonly drafted: number; readonly asWritten: number; readonly edited: number };
+  readonly replies: {
+    readonly alone: number; readonly drafted: number; readonly asWritten: number; readonly edited: number; readonly notSent: number;
+  };
   /**
    * Time to the first reply, per conversation whose first customer message fell in the month: the median, in
    * seconds, over the `measured` conversations that were answered. Null when none was.
@@ -45,8 +50,13 @@ export type MonthReport = {
    * `takeover.reason.<reason>` names it), most first.
    */
   readonly handedToYou: readonly { readonly reason: string; readonly n: number }[];
-  /** Only when the owner set minutes per reply: that figure × the replies the assistant wrote. Null otherwise. */
+  /**
+   * Only when the owner set minutes per reply: that figure × the replies counted (sent alone + drafts sent as
+   * written; edited drafts are not counted). Null otherwise.
+   */
   readonly estimate: null | { readonly minutesPerReply: number; readonly replies: number; readonly minutes: number };
+  /** The owner stopped the monthly e-mail on the month page (`businesses.month_report_mail_off_at` is set). */
+  readonly mailOff: boolean;
 };
 
 /** The minutes per reply the owner may set (`businesses.report_minutes_per_reply`, 0231): a whole number, 1–60. */
@@ -61,8 +71,9 @@ export function isMonth(raw: unknown): raw is string {
 /**
  * The estimate, or null. It exists only when the owner typed a whole number of minutes from 1 to 60: anything else
  * (nothing set, a figure outside the range) is no estimate at all, never a default. The replies counted are the ones
- * the assistant wrote that left — sent alone, or drafted and sent by a person — because those are the replies the
- * owner did not have to write from nothing. Shown as its formula: minutesPerReply × replies = minutes.
+ * the owner did not have to write: sent alone, and drafts sent as written. A draft the owner edited is not counted —
+ * they wrote part of it (the design spec, docs/design/block4/month-report.md §2.2). Shown as its formula:
+ * minutesPerReply × replies = minutes; the page writes the minutes as hours.
  */
 export function estimateOf(
   minutesPerReply: number | null | undefined,
@@ -70,11 +81,11 @@ export function estimateOf(
 ): MonthReport['estimate'] {
   if (minutesPerReply === null || minutesPerReply === undefined) return null;
   if (!Number.isInteger(minutesPerReply) || minutesPerReply < MINUTES_PER_REPLY_MIN || minutesPerReply > MINUTES_PER_REPLY_MAX) return null;
-  const n = replies.alone + replies.drafted;
+  const n = replies.alone + replies.asWritten;
   return { minutesPerReply, replies: n, minutes: minutesPerReply * n };
 }
 
-const FIXTURE_REPLIES = { alone: 61, drafted: 37, asWritten: 29, edited: 8 } as const;
+const FIXTURE_REPLIES = { alone: 61, drafted: 37, asWritten: 29, edited: 8, notSent: 5 } as const;
 
 /**
  * A finished month, every field filled, for the page's and the e-mail's tests and for designing against. The zone
@@ -98,4 +109,5 @@ export const FIXTURE_MONTH_REPORT: MonthReport = {
     { reason: 'stock_asked', n: 1 },
   ],
   estimate: estimateOf(3, FIXTURE_REPLIES),
+  mailOff: false,
 };
