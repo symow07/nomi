@@ -6,6 +6,9 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { SETUP_STEPS, type NamesWanted, type SetupStep } from '../../db/setup.js';
 import { namesWantedLines } from './namesWanted.js';
 import { STEP_LINK } from './onboarding.js';
+import { SETUP_MILESTONE_KEYS, type SetupMilestones, type SetupMilestoneKey } from '../../core/onboard/setupMinutes.js';
+import * as show from './values.js';
+import { shape } from './marks.js';
 
 /**
  * The shared setup facts in `db/setup.ts` determine every row's state and next
@@ -44,6 +47,50 @@ export type GuideView = {
   readonly names?: readonly NamesWanted[];
 };
 
+export type SetupMilestonesOptions = { readonly now: Date; readonly canManage: boolean };
+/** Existing callers remain valid; the timed view requires both its facts and an injected clock. */
+export type GuideOptions = { readonly embedded?: boolean } & (
+  | { readonly milestones: SetupMilestones; readonly now: Date; readonly canManage: boolean }
+  | { readonly milestones?: undefined; readonly now?: undefined; readonly canManage?: undefined }
+);
+
+/** Node 22 has no DurationFormat. These are static elapsed units, never a running timer. */
+function setupElapsed(locale: Locale, milliseconds: number): string {
+  const minutes = Math.max(0, Math.floor(milliseconds / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const unit = (n: number, kind: 'minute' | 'hour' | 'day') => new Intl.NumberFormat('en', {
+    style: 'unit', unit: kind, unitDisplay: kind === 'day' ? 'long' : 'short',
+  }).formatToParts(n).map(part => part.type === 'unit' && kind === 'hour' ? 'h' : part.value).join('');
+  const parts = hours < 1 ? [unit(minutes, 'minute')] : hours < 48
+    ? [unit(hours, 'hour'), unit(minutes % 60, 'minute')]
+    : [unit(Math.floor(hours / 24), 'day'), unit(hours % 24, 'hour')];
+  return show.isolate(locale, new Intl.ListFormat('en', { type: 'unit', style: 'narrow' }).format(parts));
+}
+
+export function renderSetupMilestones(milestones: SetupMilestones, locale: Locale, options: SetupMilestonesOptions): string {
+  const words = (key: MessageKey, params?: Record<string, string | number>) =>
+    `<bdi lang="en" dir="ltr">${esc(show.isolateFigures(locale, t('en', key, params)))}</bdi>`;
+  const labels: Record<SetupMilestoneKey, 'products' | 'contacts' | 'channel' | 'reply'> = {
+    productsIn: 'products', contactsIn: 'contacts', channelConnected: 'channel', firstReply: 'reply',
+  };
+  const doors = { productsIn: '/app/products/add', contactsIn: '/app/customers/import', channelConnected: '/app/settings/channels' } as const;
+  const allDone = SETUP_MILESTONE_KEYS.every(key => milestones[key] !== null);
+  const last = allDone ? Math.max(...SETUP_MILESTONE_KEYS.map(key => milestones[key]!.getTime())) : options.now.getTime();
+  const clock = milestones.signedUpAt ? `<p class="sc-clock">${words(allDone ? 'setupClock.done' : 'setupClock.running', {
+    elapsed: setupElapsed(locale, last - milestones.signedUpAt.getTime()),
+  })}</p>` : '';
+  const rows = SETUP_MILESTONE_KEYS.map(key => {
+    const when = milestones[key];
+    const state = when ? `${shape('ok')} ${milestones.signedUpAt
+      ? words('setupClock.doneAt', { elapsed: setupElapsed(locale, when.getTime() - milestones.signedUpAt.getTime()) })
+      : words('setupClock.doneOn', { date: show.dateYear(locale, when) })}` : words('setupClock.notYet');
+    const next = when ? '' : key === 'firstReply' ? words('setupClock.reply.how') : !options.canManage ? words('setupClock.ownerDoes')
+      : deeper(doors[key], t('en', `setupClock.${labels[key]}.go` as MessageKey));
+    return `<li data-milestone="${key}"><h3>${words(`setupClock.${labels[key]}` as MessageKey)}</h3><p class="sc-state">${state}</p>${next ? `<p>${next}</p>` : ''}</li>`;
+  }).join('');
+  return `<section class="setup-clock" aria-labelledby="setup-clock-title"><h2 id="setup-clock-title">${words('setupClock.title')}</h2>${clock}<ol>${rows}</ol></section>`;
+}
+
 /**
  * THE ONE LINK DRAWN AS A FILLED BUTTON (the owner's decision at the Phase 3 stop-gate, 2026-10-13) — the only
  * exception to "buttons do things; doors go places" (tests/parity/buttons-and-doors.ts), and a HARD CAP:
@@ -60,7 +107,7 @@ export const firstStepButton = (locale: Locale, next: SetupStep): string =>
 export function renderGuide(
   v: GuideView, locale: Locale, name: string,
   _videos: (step: SetupStep, locale: Locale) => boolean = hasVideo,
-  options: { readonly embedded?: boolean } = {},
+  options: GuideOptions = {},
 ): string {
   const items = SETUP_STEPS.map((step) => {
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
@@ -83,6 +130,7 @@ export function renderGuide(
   }).join('');
   return `${options.embedded ? '' : `<header class="setup-intro"><h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
     <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p></header>`}
+    ${options.milestones ? renderSetupMilestones(options.milestones, locale, { now: options.now, canManage: options.canManage }) : ''}
     ${v.next === null ? `<p class="fok setup-complete">${esc(t(locale, 'area1.setup.complete'))}</p>` : ''}
     <ol class="guide setup-steps">${items}</ol>
     <div class="block"><h2>${esc(t(locale, 'guide.after.title'))}</h2><p>${esc(t(locale, 'guide.after.body', { name }))}</p></div>`;

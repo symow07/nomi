@@ -6,6 +6,7 @@ import {
 import { messages, t, countryName, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { formatQty, formatMoney, formatDate, formatTime } from '../../src/core/owner/i18n/format.js';
 import { HONEST_ABOUT_AI_KEYS } from '../../src/core/owner/vocabulary.js';
+import { withoutShopifyScreenLabels } from './shopify-screen-labels.js';
 
 describe('ADR-0008 · locale resolution', () => {
   it('default is English', () => expect(DEFAULT_LOCALE).toBe('en'));
@@ -104,7 +105,7 @@ describe('ADR-0008 · banned technical vocabulary in every locale', () => {
       // strings and cannot hide the word anywhere else.
       const blob = Object.entries(messages[l])
         .filter(([k]) => !HONEST_ABOUT_AI_KEYS.includes(k))
-        .map(([, v]) => v).join(' \n ').toLowerCase();
+        .map(([k, v]) => withoutShopifyScreenLabels(k, v)).join(' \n ').toLowerCase();
       for (const w of LATIN) {
         expect(new RegExp(`\\b${w}\\b`).test(blob), `${l}:${w}`).toBe(false);
       }

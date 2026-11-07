@@ -102,6 +102,7 @@ import type { Locale } from './core/owner/i18n/locale.js';
 import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { expireContactImports } from './db/contactImports.js';
 import type { PgBoss } from 'pg-boss';
 import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -1274,6 +1275,13 @@ export async function buildProduction(
     await boss.work(QUEUES.advisorExpiry, async () => {
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
+    });
+    // Block 4.4 (0232) — a file of customers waiting for Add or Discard is kept seven days at most: every hour, older
+    // ones are erased (`expire_contact_imports`). Counts only, never a row's words.
+    await boss.schedule(QUEUES.contactImportExpiry, '55 * * * *', {});
+    await boss.work(QUEUES.contactImportExpiry, async () => {
+      const n = await expireContactImports(db);
+      if (n > 0) console.log(`[contacts] ${n} file(s) of customers kept seven days erased`);
     });
     // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.

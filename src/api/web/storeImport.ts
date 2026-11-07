@@ -14,6 +14,8 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { esc, back, deeper } from './layout.js';
 import { shape } from './marks.js';
+import type { ShopifyForm, ShopifyRefusal } from '../../core/onboard/setupMinutes.js';
+import * as show from './values.js';
 
 /**
  * K8 — STORE IMPORT (the onboarding plan, decision 30).
@@ -218,7 +220,7 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
  * its box by any page, so its sentence says to choose it again.
  */
 export type StoreFormRefusal = {
-  readonly form: 'store' | 'file'; readonly reason: StoreRefusal; readonly stated?: string; readonly address?: string;
+  readonly form: 'store' | 'file'; readonly reason: StoreRefusal | 'password_protected'; readonly stated?: string; readonly address?: string;
   /** Phase 9 (new-07) — the currency tick as it was sent, kept with the address. */
   readonly currencyConfirmed?: boolean;
 };
@@ -247,9 +249,64 @@ export function filePick(locale: Locale, input: string, words: { readonly choose
       <span class="filepick-none muted">${esc(t(locale, words.none))}</span><span class="filepick-some">${shape('ok')} ${esc(t(locale, words.some))}</span></label>`;
 }
 
-export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null): string {
+/** Safe form state only; request credentials never enter these props. */
+export type ShopifyFormProps = {
+  readonly form: ShopifyForm;
+  readonly currencyConfirmed?: boolean;
+};
+
+// Never echo URL credentials, query strings or a provider response as an address.
+const safeShopifyAddress = (address: string): string =>
+  /^(?:https:\/\/)?[a-z0-9][a-z0-9-]*\.myshopify\.com\/?$/i.test(address) ? address : '';
+
+/** POST /app/products/add/shopify: address, token, client_id, client_secret, currency=on. */
+export function renderShopifyCredentials(locale: Locale, currency: string, props: ShopifyFormProps): string {
+  const words = (key: MessageKey, params?: Record<string, string | number>) =>
+    `<bdi lang="en" dir="ltr">${esc(show.isolateFigures(locale, t('en', key, params)))}</bdi>`;
+  const reasons: Record<ShopifyRefusal, MessageKey> = {
+    password_protected: 'import.store.refused.password_protected', shop_not_permitted: 'storeToken.refused.shop_not_permitted',
+    application_cannot_be_found: 'storeToken.refused.app_not_found', exchange_401: 'storeToken.refused.client_rejected',
+    token_401: 'storeToken.refused.rejected', scope_missing_read_products: 'storeToken.refused.no_scope',
+    not_found: 'storeToken.refused.no_store', rate_limited: 'storeToken.refused.slow_down', timeout: 'storeToken.refused.unreachable',
+    redirect: 'storeToken.refused.unreachable', currency_mismatch: 'storeToken.refused.currency_mismatch',
+    neither_way: 'storeToken.refused.choose_one', both_ways: 'storeToken.refused.choose_one', half_pair: 'storeToken.refused.choose_one',
+    not_myshopify: 'storeToken.refused.not_myshopify', spaces: 'storeToken.refused.spaces',
+    unavailable: 'storeToken.refused.unreachable', no_products: 'import.store.refused.no_products',
+  };
+  const address = safeShopifyAddress(props.form.address);
+  const code = props.form.refusal;
+  const localCredentials = code !== null && ['neither_way', 'both_ways', 'half_pair', 'spaces'].includes(code);
+  const errorId = code === 'not_myshopify' ? 'shopify-address-error' : localCredentials ? 'shopify-credentials-error' : 'shopify-result-error';
+  // Password protection is already explained under the public store address.
+  const refusal = code && code !== 'password_protected' ? `<p class="perr" role="alert" id="${errorId}">${words(reasons[code] ?? 'storeToken.refused.unreachable', { host: address.replace(/^https:\/\//, '').replace(/\/$/, '') })}</p>` : '';
+  const secret = (field: 'token' | 'client_id' | 'client_secret', key: MessageKey) => `<label for="shopify-${field}">${words(key)}</label>
+    <input id="shopify-${field}" name="${field}" type="password" value="" autocomplete="off" spellcheck="false" autocapitalize="off" dir="ltr"${localCredentials ? ` aria-invalid="true" aria-describedby="${errorId}"` : ''}>`;
+  return `<details class="store-token"${code ? ' open' : ''}><summary>${words('storeToken.open')}</summary>
+    <form method="post" action="/app/products/add/shopify" autocomplete="off">
+      <label for="shopify-address">${words('storeToken.shop')}</label><input id="shopify-address" name="address" type="text" inputmode="url" dir="ltr" placeholder="myshop.myshopify.com" value="${esc(address)}" aria-describedby="shopify-address-hint${code === 'not_myshopify' ? ` ${errorId}` : ''}"${code === 'not_myshopify' ? ' aria-invalid="true"' : ''}>
+      <p id="shopify-address-hint" class="caption muted">${words('storeToken.shop.hint')}</p>
+      <fieldset><legend>${words('storeToken.legacy.legend')}</legend>${secret('token', 'storeToken.token')}</fieldset>
+      <p class="st-or">${words('storeToken.or')}</p><fieldset><legend>${words('storeToken.dev.legend')}</legend>
+        ${secret('client_id', 'storeToken.clientId')}${secret('client_secret', 'storeToken.clientSecret')}
+        <ol>${(['step1', 'step2', 'step4'] as const).map(step => `<li>${words(`storeToken.dev.${step}`)}</li>`).join('')}</ol>
+        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-secrets', t('en', 'storeToken.dev.helpSecrets'), '', 'target="_blank" rel="noopener noreferrer"')}</p>
+        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant', t('en', 'storeToken.dev.helpGrant'), '', 'target="_blank" rel="noopener noreferrer"')}</p>
+      </fieldset>
+      <label class="st-check"><input type="checkbox" name="currency" value="on"${props.currencyConfirmed ? ' checked' : ''}>${words('import.store.currency', { currency: currencyWords('en', currency) })}</label>
+      <button class="btn" type="submit">${words('storeToken.read')}</button>${refusal}<p class="caption muted">${words('storeToken.kept')}</p>
+    </form></details>`;
+}
+
+export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null, shopify?: ShopifyFormProps): string {
+  if (!refused && shopify?.form.refusal === 'password_protected') {
+    refused = { form: 'store', reason: 'password_protected', address: safeShopifyAddress(shopify.form.address), currencyConfirmed: shopify.currencyConfirmed ?? false };
+  }
   const on = (f: 'store' | 'file') => refused?.form === f;
   const bad = (id: string) => ` aria-invalid="true" aria-describedby="${id}"`;
+  const credentials: ShopifyFormProps = shopify ?? {
+    form: { address: refused?.address ?? '', token: '', client_id: '', client_secret: '', refusal: on('store') && refused?.reason === 'password_protected' ? 'password_protected' : null },
+    currencyConfirmed: refused?.currencyConfirmed ?? false,
+  };
   return `<div class="block" id="store">
       <h2>${esc(t(locale, 'import.store.title'))}</h2>
       <p>${esc(t(locale, 'import.store.intro'))}</p>
@@ -261,6 +318,7 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
         <p class="caption muted">${esc(t(locale, 'import.store.currency.hint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'import.store.read'))}</button>
       </form>
+      ${renderShopifyCredentials(locale, currency, credentials)}
     </div>
     <div class="block" id="file">
       <h2>${esc(t(locale, 'import.file.title'))}</h2>
@@ -275,6 +333,7 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
 }
 
 /** A store or a file that came to nothing: why, under the field it concerns (phase 6). */
-export function renderStoreRefusal(locale: Locale, reason: StoreRefusal, stated?: string, id = 'store-err'): string {
-  return `<p class="perr" role="alert" id="${esc(id)}">${esc(t(locale, `import.store.refused.${reason}` as MessageKey, { stated: stated ?? '' }))}</p>`;
+export function renderStoreRefusal(locale: Locale, reason: StoreRefusal | 'password_protected', stated?: string, id = 'store-err'): string {
+  const text = esc(t(locale, `import.store.refused.${reason}` as MessageKey, { stated: stated ?? '' }));
+  return `<p class="perr" role="alert" id="${esc(id)}">${reason === 'password_protected' ? `<bdi lang="en" dir="ltr">${text}</bdi>` : text}</p>`;
 }

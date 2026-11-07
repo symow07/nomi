@@ -7,7 +7,9 @@ import {
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { esc } from '../../src/api/web/layout.js';
+import { SHOPIFY_SCREEN_LABELS, withoutShopifyScreenLabels } from './shopify-screen-labels.js';
 
 const items: ProductListItem[] = [
   { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd('0.92'), learned: true, status: 'learned', imageMatchable: true, isActive: true },
@@ -126,7 +128,15 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
 describe('M9.5 · owner language + mobile (every locale)', () => {
   it('no technical / AI vocabulary', () => {
     for (const l of LOCALES) {
-      const all = (renderProductList(items, l) + renderProductDetail(detail, l) + renderAddForm(l)).toLowerCase();
+      let html = renderProductList(items, l) + renderProductDetail(detail, l) + renderAddForm(l);
+      // Match the named message, removing only its approved visible quotation.
+      // Other words in that same message still reach the vocabulary scan.
+      for (const key of Object.keys(SHOPIFY_SCREEN_LABELS)) {
+        const copy = t(l, key as MessageKey);
+        html = html.replaceAll(esc(copy), esc(withoutShopifyScreenLabels(key, copy)));
+      }
+      // Input names and CSS classes are not words the owner reads.
+      const all = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ').toLowerCase();
       for (const banned of ['ai', 'llm', 'model', 'api', 'token', 'database', 'webhook', '模型', '人工智能', 'retrieval', 'embedding']) {
         const hit = /^[a-z ]+$/.test(banned) ? new RegExp(`\\b${banned}\\b`).test(all) : all.includes(banned);
         expect(hit, `${l}:"${banned}"`).toBe(false);

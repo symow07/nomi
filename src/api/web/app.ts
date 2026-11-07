@@ -136,7 +136,12 @@ import {
 } from './importFlow.js';
 import type { CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { looksLikeXlsx, xlsxRows, rowsAsCsv } from '../../net/xlsx.js';
-import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, type StoreFormRefusal } from './storeImport.js';
+import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, type StoreFormRefusal, type ShopifyFormProps } from './storeImport.js';
+import { readStoreAddress } from '../../core/onboard/storeAddress.js';
+import { shopifyTransport, storefrontLocked, type ShopifyTransport } from '../../net/shopifyAdmin.js';
+import { startShopifyImport } from '../../db/shopifyImport.js';
+import { loadSetupMilestones } from '../../db/setupMilestones.js';
+import { contactImportScope } from './contactImportRoutes.js';
 import type { Kept } from './rows.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
@@ -620,6 +625,12 @@ export type WebDeps = {
   readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
+  /**
+   * Block 4.4 — the requests to a Shopify store: the owner's own app reading its products, and the storefront's
+   * password check. The real one (src/net/shopifyAdmin.ts) unless a test gives one that records every request. A
+   * composition that fakes the store (`storeFetcher`) and not this asks no storefront anything.
+   */
+  readonly shopifyTransport?: ShopifyTransport;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
   readonly push?: PushOut | null;
   /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
@@ -5993,7 +6004,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * its own that lost what she typed (the audit's two separate refusal pages).
    */
   const addAgain = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession,
-    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal }) => {
+    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | { readonly shopify: ShopifyFormProps }) => {
     const locale = localeOf(req);
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.teach'), active: 'products',
@@ -6010,8 +6021,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
       { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
     if (!out.ok) {
-      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
+      // Block 4.4 — no public list may be a store closed by a password: asked with no credential and no redirect
+      // followed; then the page opens the Shopify way in, the address kept.
+      const probe = deps.shopifyTransport ?? (deps.storeFetcher ? null : shopifyTransport);
+      const at = out.reason === 'no_feed' && probe ? readStoreAddress(String(b['address'] ?? '')) : null;
+      const reason = at?.ok && probe && await storefrontLocked(at.origin, probe) ? 'password_protected' as const : out.reason;
+      return addAgain(req, reply, s, { store: { form: 'store', reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
     }
+    return reply.redirect(`/app/products/import/${out.id}`, 303);
+  });
+  /**
+   * Block 4.4 — a password-protected Shopify store, read with the owner's own app: the token, or the Client ID and
+   * secret (src/db/shopifyImport.ts), into the same kept review. The credentials are read from this request only:
+   * never kept, logged, put in an address or sent back — a refusal redraws the add page with the address alone.
+   */
+  app.post('/app/products/add/shopify', { logLevel: 'warn' }, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const out = await startShopifyImport(deps.db, s.businessId, personOf(s).id, b, deps.shopifyTransport ?? shopifyTransport);
+    if (!out.ok) return addAgain(req, reply, s, { shopify: { form: out.form, currencyConfirmed: b['currency'] === 'on' } });
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
   /** K8 — a file her store exported (or any table): its columns first, then the review. */
@@ -6961,7 +6990,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       await readCustomersPage(tx, {businessId:bid.value,viewerId:personOf(s).id,...query}), await listLabels(tx,bid.value),
     ] as const);
     reply.header('cache-control','private, no-store');
-    return {title:t(locale,'customers.all'),bodyHtml:customerArea(renderCustomers(data,locale,new Date(),{labels,returnHref:req.url}),locale,'all')};
+    // Block 4.4 — the notice a route left on its way here (staff sent away from the customer import, "the owner
+    // decides"): drawn above the list, as Labels and Feedback draw theirs, and cleared once read.
+    return {title:t(locale,'customers.all'),bodyHtml:customerArea(`${flashBanner(takeFlash(req, reply))}${renderCustomers(data,locale,new Date(),{labels,returnHref:req.url})}`,locale,'all')};
   }));
   app.get('/app/customers/orders', authed('customers', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
@@ -7168,6 +7199,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/calendar', back ? 'calendar.flash.restored' : 'calendar.flash.notFound');
   });
 
+  // ── Block 4.4 — customers from a file (src/api/web/contactImportRoutes.ts), owner only ───────────────────────────
+  contactImportScope(app, {
+    db: deps.db,
+    owner: async (req, reply) => {
+      const s = await ownerOnly(req, reply, 'data_rights', '/app/customers');
+      return s ? { businessId: s.businessId, actor: personOf(s).id } : null;
+    },
+    locale: localeOf,
+    takeFlash,
+    flashTo: (reply, path, key) => flashTo(reply, path, key),
+    page,
+    evict: (businessId) => facts.evict(businessId),
+  });
+
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
   app.get('/app/get-started', async (req, reply) => {
     const s = sessionOf(req);
@@ -7183,12 +7228,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     const progress = setupState() ?? (bid0.ok
       ? await withTenantTx(deps.db, bid0.value, (tx) => setupProgress(tx, bid0.value)) : null);
+    // Block 4.4 — the four milestones, each when it was first reached (src/db/setupMilestones.ts).
+    const milestones = bid0.ok ? await withTenantTx(deps.db, bid0.value, (tx) => loadSetupMilestones(tx, bid0.value)) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'area1.setup.title'), active: 'home',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
         <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p>`
         + renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale,
-          assistantName(locale), undefined, { embedded: true })
+          assistantName(locale), undefined, milestones
+            ? { embedded: true, milestones, now: new Date(), canManage: personOf(s).isOwner } : { embedded: true })
         + `<section class="readiness-section">${renderPilotRunbook(data, locale, flash, feedback, personOf(s), { embedded: true })}</section>`,
     }));
   });
