@@ -27893,6 +27893,12 @@ const FR: Record<MessageKey, string> = {
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };
 
+/** The sentence's language, including catalogues explicitly shared as English fallback. */
+export function messageLocale(locale: Locale, key: MessageKey): Locale {
+  const text = messages[locale]?.[key];
+  return text === undefined || (Object.hasOwn(REDESIGN_EN, key) && text === messages.en[key]) ? 'en' : locale;
+}
+
 /**
  * What `{name}` says when the owner has not confirmed a name yet.
  *
@@ -27944,6 +27950,7 @@ const HAN_END = new RegExp(`${HAN}$`, 'u');
 export function t(locale: Locale, key: MessageKey, params?: Record<string, string | number>): string {
   const table = messages[locale] ?? messages[DEFAULT_LOCALE];
   let s = table[key] ?? messages[DEFAULT_LOCALE][key] ?? key;
+  const sentenceLocale = messageLocale(locale, key);
   const { name, ...rest } = params ?? {};
   // Phase 9 (V1-103) — Chinese sets a Latin value off with spaces and runs a
   // Chinese one on: "告诉 Omar Haddad 价格之后", but "告诉陈莉价格之后". The
@@ -27957,7 +27964,7 @@ export function t(locale: Locale, key: MessageKey, params?: Record<string, strin
   }
   for (const [k, v] of Object.entries(rest)) s = s.split(`{${k}}`).join(String(v));
   // Any string may say {name} without every call site having to pass it.
-  if (s.includes('{name}')) s = fillName(locale, s, name === undefined ? ASSISTANT_FALLBACK[locale] : String(name));
+  if (s.includes('{name}')) s = fillName(sentenceLocale, s, name === undefined ? ASSISTANT_FALLBACK[sentenceLocale] : String(name));
   return s;
 }
 
@@ -27970,7 +27977,7 @@ export function t(locale: Locale, key: MessageKey, params?: Record<string, strin
  * `{n}` is the count as the language writes it.
  */
 export function tn(locale: Locale, base: string, n: number, params?: Record<string, string | number>): string {
-  const form = new Intl.PluralRules(locale).select(n);
+  const form = new Intl.PluralRules(messageLocale(locale, `${base}.other` as MessageKey)).select(n);
   return t(locale, `${base}.${form}` as MessageKey, { ...params, n: new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(n) });
 }
 

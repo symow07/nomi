@@ -58,6 +58,8 @@ export const PRACTICE_SKIP = [
   'capability_events', 'deletion_asks', 'deletion_requests', 'calendar_entries',
   // 0230 — the checks before a change goes live: the workspace's own, never Practice's.
   'case_checks',
+  // 0231 — that a month's report went to the owner: the workspace's own, never Practice's.
+  'month_report_sends',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
   // 0155 — a customer's address, now each workspace's own (it carries the business since then).

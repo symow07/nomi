@@ -118,6 +118,7 @@ import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
+import { monthMailOn, monthReportsDue } from './pipeline/monthMail.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
 import { retryStaleGrants } from './books/staleGrants.js';
 import type { QboCall } from './books/connectors/quickbooks.js';
@@ -1879,6 +1880,22 @@ export async function buildProduction(
       } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
     }
   });
+
+  /**
+   * Block 4.3 (0231) — WHAT NOMI DID FOR YOU, by e-mail, once a month: OFF unless the operator sets
+   * MONTH_REPORT_MAIL=on. Every fifteen minutes each workspace whose 1st has reached 08:00 (outside the owner's quiet
+   * hours) is claimed once for the month just ended, and its owner gets the month by the capped owner-mail sender.
+   * Off, the schedule is taken away, so a schedule left by an earlier deploy does not queue jobs nobody works.
+   */
+  if (monthMailOn(process.env)) {
+    await boss.schedule(QUEUES.monthReports, '*/15 * * * *', {});
+    await boss.work(QUEUES.monthReports, async () => {
+      const done = await monthReportsDue({ db, mail: alertMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, new Date());
+      if (done.length > 0) console.log(`[month-report] ${done.length} month(s): ${done.map((d) => d.outcome).join(', ')}`);
+    });
+  } else {
+    await boss.unschedule(QUEUES.monthReports).catch(() => undefined);
+  }
 
   /**
    * CEIL — every hour, Meta's error rate per workspace (0085): the operator is

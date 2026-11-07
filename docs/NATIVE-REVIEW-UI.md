@@ -16620,6 +16620,42 @@ told and by whom, the other figures, each thing that waits). The four `copilot.h
 `copilot.handoff.ask` are what the advisor's model is given, in the owner's language. To translate first:
 `copilot.suggest`, `copilot.flash.suggested` and `copilot.handoff.wait.*`.
 
+## What Nomi did for you (2026-11-08; block 4.3)
+
+Ninety-two English-only lines: 65 in `src/core/owner/i18n/monthReport.ts` (`MONTH_REPORT_EN`) and 27 in
+`src/core/owner/i18n/monthMail.ts` (`MONTH_MAIL_EN`). Every other language shows the English until a native reader
+translates them. The page and the e-mail describe the same month's figures; keep their terms consistent.
+
+- **The page:** `monthReport.*` — the title and introduction; the month picker and its previous / next doors; the
+  running, first-month and empty states; the Customers, Replies, Time to first reply, Orders, Invoices and Handed to
+  you sections, their row labels, definitions and empty lines; the median's sample and still-waiting captions;
+  `duration.underMinute`; the time estimate, its formula and minutes form; and the monthly e-mail switch. The
+  `section.*` and `n.*` keys are labels, not sentences that change with the count.
+- **The e-mail, tab and notices:** `monthMail.tab` (the Results tab's "Monthly report" label), `monthMail.subject`,
+  19 body lines (`monthMail.opening`, `.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`,
+  `.medianOne`, `.medianNone`, `.orders`, `.ordersBare`, `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`,
+  `.handedOther`, `.estimate`, `.open`, `.off`), and six flashes (`monthMail.flash.mailOff`, `.mailOn`, `.minutesSaved`,
+  `.minutesCleared`, `.minutesInvalid`, `.ownerOnly`). These cover the mail switch, saving or removing the minutes,
+  and refusals that leave the settings unchanged.
+- **The assistant's name:** ten page lines carry `{name}`: `monthReport.intro`, `.empty.past`, `.empty.running`,
+  `.def.answered`, `.n.alone`, `.def.asWritten`, `.def.edited`, `.def.handed`, `.handed.none`, `.estimate.label`.
+  `monthMail.alone` carries `{name}` too. Keep the chosen name as data; do not give the assistant a gender.
+- **Counts and quantities:** four page lines carry `{n}`: `monthReport.median.from.one`, `.from.other`,
+  `monthReport.median.waiting.one`, `.waiting.other`; keep the one / other meanings distinct. Twelve mail lines
+  carry `{n}`: `monthMail.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`, `.orders`, `.ordersBare`,
+  `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`. `monthMail.medianOne` says "1 customer" explicitly;
+  `.medianNone` has no count. `monthReport.estimate.formula` and `monthMail.estimate` carry `{replies}`, `{minutes}`
+  and `{hours}`; `monthMail.flash.minutesSaved` carries `{minutes}`. The page's `estimate.hint` and the mail catalogue's
+  `flash.minutesInvalid` say the allowed range, 1 to 60. Preserve the placeholders, the formula and the separate
+  currencies in `{totals}`; a count's wording must not change what is measured.
+- **Other values:** the page's previous / next names, running state and empty title carry `{month}`; its first-month
+  line carries `{date}`. The mail subject and opening carry `{business}` and `{month}`; `.median` and `.medianOne`
+  carry `{time}`, `.handedReason` carries `{reason}`, `.orders` and `.invoices` carry `{totals}`, and `.open` carries
+  `{url}`. Preserve the names, formatted values and the link when translating.
+- **To translate first:** `monthMail.tab`, then `monthMail.subject`, then all six `monthMail.flash.*` lines, especially
+  `.minutesInvalid` and `.ownerOnly` so the owner understands why nothing changed. Then the page and e-mail body,
+  checking the matching labels, `{name}` sentences and count forms together.
+
 ## Before it goes live (2026-11-07; 0230)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page

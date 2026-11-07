@@ -87,6 +87,11 @@ export const QUEUES = {
   deletionChase: 'ops.deletion_chase',
   morningSummary: 'ops.morning_summary',
   /**
+   * Block 4.3 (0231) — every fifteen minutes, while MONTH_REPORT_MAIL=on: each workspace whose 1st has reached 08:00 is
+   * claimed once for the month just ended and its owner e-mailed "what Nomi did for you" (src/pipeline/monthMail.ts).
+   */
+  monthReports: 'ops.month_reports',
+  /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
    * where they happen; this only makes sure a held one is not forgotten when
