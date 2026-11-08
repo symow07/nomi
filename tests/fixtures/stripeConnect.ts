@@ -4,7 +4,7 @@ import type { StripeFetch } from '../../src/billing/stripe.js';
 export function connectRecorder(answers: readonly { status?: number; body: unknown }[]) {
   const calls: { url: string; method: string; headers: Record<string, string>; body?: string }[] = [];
   const fetch: StripeFetch = async (url, init) => {
-    if (!url.startsWith('https://api.stripe.com/v1/') && url !== 'https://connect.stripe.com/oauth/token') throw new Error('Real HTTP forbidden');
+    if (!url.startsWith('https://api.stripe.com/v1/') && !['https://connect.stripe.com/oauth/token','https://connect.stripe.com/oauth/deauthorize'].includes(url)) throw new Error('Real HTTP forbidden');
     calls.push({ url, ...init });
     const answer = answers[calls.length - 1];
     if (!answer) throw new Error('Unexpected HTTP: no recorded answer');

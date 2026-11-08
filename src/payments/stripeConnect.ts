@@ -1,5 +1,5 @@
 import { stripeForm, verifyStripeEvent, STRIPE_TIMEOUT_MS, type StripeFetch } from '../billing/stripe.js';
-import { balanceTies, minorAmount, minorUnits, type BalanceFact, type ChargeFact, type Checkout, type ConnectedAccount, type ConnectEvent, type IntentFact, type PayoutFact, type RefundFact } from '../core/payments/paymentLink.js';
+import { balanceTies, minorAmount, minorUnits, type BalanceFact, type ChargeFact, type Checkout, type ConnectedAccount, type ConnectEvent, type IntentFact, type PayoutFact, type RefundFact, type ReturnedBalance } from '../core/payments/paymentLink.js';
 import { parseCurrency } from '../core/types/money.js';
 import { signOf, type Decimal } from '../core/types/decimal.js';
 
@@ -18,6 +18,8 @@ export type ConnectResult<T> = { readonly ok: true; readonly value: T } | { read
 type CheckoutInput = { readonly attemptId: string; readonly amount: Decimal; readonly currency: string; readonly successUrl: string; readonly cancelUrl: string; readonly expiresAt: number };
 export type ConnectClient = {
   exchange(code: string): Promise<ConnectResult<{ account: string; live: boolean }>>;
+  deauthorize(account: string): Promise<ConnectResult<true>>;
+  findCheckout(account: string, attemptId: string, from: number, to: number): Promise<ConnectResult<Checkout | null>>;
   account(account: string): Promise<ConnectResult<ConnectedAccount>>;
   createCheckout(account: string, input: CheckoutInput): Promise<ConnectResult<Checkout>>;
   checkout(account: string, id: string): Promise<ConnectResult<Checkout>>;
@@ -36,6 +38,10 @@ function balance(v: unknown): BalanceFact | null {
   // Keep it pending unless the provider actually describes the zero fee.
   if (fee !== null && signOf(fee) === 0 && (!Array.isArray(b['fee_details']) || b['fee_details'].length === 0)) return null;
   return id && gross !== null && fee !== null && net !== null && c && created && balanceTies(gross, fee, net) ? { id, gross, fee, net, currency: c, created } : null;
+}
+function returnedBalance(v: unknown): ReturnedBalance | null {
+  const b = obj(v), id = idOf(b['id'], 'txn'), amount = minorAmount(b['amount']), c = currency(b['currency']), created = stamp(b['created']);
+  return id && amount !== null && signOf(amount) > 0 && c && created ? { id, amount, currency: c, created } : null;
 }
 function charge(v: unknown): ChargeFact | null {
   const b = obj(v), id = idOf(b['id'], 'ch'), amount = minorAmount(b['amount']), c = currency(b['currency']), created = stamp(b['created']);
@@ -61,7 +67,7 @@ export function connectClient(config: ConnectConfig, fetchImpl: StripeFetch = fe
     if (params) headers['Content-Type'] = 'application/x-www-form-urlencoded';
     if (key) headers['Idempotency-Key'] = key;
     try {
-      const r = await fetchImpl(path === '/oauth/token' ? 'https://connect.stripe.com/oauth/token' : `https://api.stripe.com/v1${path}`, { method, headers, ...(params ? { body: stripeForm(params) } : {}), signal: AbortSignal.timeout(STRIPE_TIMEOUT_MS) });
+      const r = await fetchImpl(path.startsWith('/oauth/') ? `https://connect.stripe.com${path}` : `https://api.stripe.com/v1${path}`, { method, headers, ...(params ? { body: stripeForm(params) } : {}), signal: AbortSignal.timeout(STRIPE_TIMEOUT_MS) });
       if (!r.ok) return { ok: false, reason: r.status >= 500 || [409, 429].includes(r.status) ? 'unavailable' : 'refused', retryable: r.status >= 500 || [409, 429].includes(r.status) };
       const value = read(obj(JSON.parse(await r.text())));
       return value === null ? { ok: false, reason: 'invalid_answer', retryable: false } : { ok: true, value };
@@ -72,6 +78,34 @@ export function connectClient(config: ConnectConfig, fetchImpl: StripeFetch = fe
       const account = idOf(b['stripe_user_id'], 'acct');
       return account && b['livemode'] === config.live && b['scope'] === 'read_write' ? { account, live: config.live } : null;
     }),
+    deauthorize: account => idOf(account, 'acct')
+      ? call('POST', '/oauth/deauthorize', null, { client_id: config.clientId, stripe_user_id: account }, null, b => b['stripe_user_id'] === account ? true : null)
+      : Promise.resolve({ ok: false, reason: 'refused', retryable: false }),
+    findCheckout: async (account, attemptId, from, to) => {
+      if (!stamp(from) || !stamp(to) || from > to) return { ok: false, reason: 'refused', retryable: false };
+      let after: string | null = null, found: Checkout | null = null;
+      const seen = new Set<string>();
+      // A bounded, complete scan: an unavailable page can never prove absence.
+      for (let page = 0; page < 100; page++) {
+        const q = new URLSearchParams({ limit: '100', 'created[gte]': String(from), 'created[lte]': String(to) });
+        if (after) q.set('starting_after', after);
+        const r = await call('GET', `/checkout/sessions?${q}`, account, null, null, b =>
+          Array.isArray(b['data']) && typeof b['has_more'] === 'boolean' ? { rows: b['data'] as unknown[], more: b['has_more'] } : null);
+        if (!r.ok) return r;
+        for (const item of r.value.rows) {
+          const row = obj(item);
+          if (obj(row['metadata'])['nomi_attempt'] !== attemptId) continue;
+          const match = checkout(row);
+          if (!match || (found && found.id !== match.id)) return { ok: false, reason: 'invalid_answer', retryable: false };
+          found = match;
+        }
+        if (!r.value.more) return { ok: true, value: found };
+        const last = obj(r.value.rows.at(-1))['id'];
+        if (typeof last !== 'string' || !/^cs_(?:test_|live_)?[A-Za-z0-9]+$/.test(last) || seen.has(last)) return { ok: false, reason: 'invalid_answer', retryable: false };
+        seen.add(last); after = last;
+      }
+      return { ok: false, reason: 'unavailable', retryable: true };
+    },
     account: account => call('GET', `/accounts/${encodeURIComponent(account)}`, null, null, null, b => {
       const c = currency(b['default_currency']);
       return b['id'] === account && typeof b['country'] === 'string' && c ? { id: account, country: b['country'], currency: c,
@@ -87,15 +121,15 @@ export function connectClient(config: ConnectConfig, fetchImpl: StripeFetch = fe
     expireCheckout: (a, id) => call('POST', `/checkout/sessions/${encodeURIComponent(id)}/expire`, a, {}, `nomi-expire-${id}`, checkout),
     intent: (a, id) => call('GET', `/payment_intents/${encodeURIComponent(id)}?expand[]=latest_charge.balance_transaction`, a, null, null,
       b => b['id'] === id ? { id, attemptId: typeof obj(b['metadata'])['nomi_attempt'] === 'string' ? obj(b['metadata'])['nomi_attempt'] as string : null, succeeded: b['status'] === 'succeeded', charge: charge(b['latest_charge']) } : null),
-    refund: (a, id) => call('GET', `/refunds/${encodeURIComponent(id)}?expand[]=balance_transaction`, a, null, null, b => {
+    refund: (a, id) => call('GET', `/refunds/${encodeURIComponent(id)}?expand[]=balance_transaction&expand[]=failure_balance_transaction`, a, null, null, b => {
       const amount = minorAmount(b['amount']), c = currency(b['currency']), created = stamp(b['created']);
       return b['id'] === id && amount !== null && signOf(amount) > 0 && c && created && ['pending', 'succeeded', 'failed', 'canceled', 'requires_action'].includes(String(b['status']))
-        ? { id, intentId: idOf(b['payment_intent'], 'pi'), amount, currency: c, created, status: b['status'] as RefundFact['status'], balance: balance(b['balance_transaction']) } : null;
+        ? { id, intentId: idOf(b['payment_intent'], 'pi'), amount, currency: c, created, status: b['status'] as RefundFact['status'], balance: balance(b['balance_transaction']), failureBalance: returnedBalance(b['failure_balance_transaction']) } : null;
     }),
-    payout: (a, id) => call('GET', `/payouts/${encodeURIComponent(id)}?expand[]=balance_transaction`, a, null, null, b => {
+    payout: (a, id) => call('GET', `/payouts/${encodeURIComponent(id)}?expand[]=balance_transaction&expand[]=failure_balance_transaction`, a, null, null, b => {
       const amount = minorAmount(b['amount']), c = currency(b['currency']), created = stamp(b['created']), arrival = stamp(b['arrival_date']);
       return b['id'] === id && amount !== null && signOf(amount) > 0 && c && created && arrival && ['pending', 'in_transit', 'paid', 'failed', 'canceled'].includes(String(b['status']))
-        ? { id, amount, currency: c, created, arrival, status: b['status'] as PayoutFact['status'], balance: balance(b['balance_transaction']) } : null;
+        ? { id, amount, currency: c, created, arrival, status: b['status'] as PayoutFact['status'], balance: balance(b['balance_transaction']), failureBalance: returnedBalance(b['failure_balance_transaction']), destination: idOf(b['destination'], 'ba') ?? idOf(b['destination'], 'card') } : null;
     }),
   };
 }

@@ -143,3 +143,70 @@ revoke all on function erase_customer_rows(uuid,uuid,uuid,boolean) from public;
 revoke all on function erase_customer_rows_before_0233(uuid,uuid,uuid,boolean) from public;
 
 insert into _migrations(version,name) values(233,'invoice_payment_links') on conflict(version) do nothing;
+
+
+-- Before merge: failure lifecycle facts, without changing any existing payment kind's guards.
+alter table stripe_connections add column deauthorization_state text check (deauthorization_state in ('pending','done'));
+alter table stripe_connections add column deauthorization_reason text;
+alter table stripe_connections add column payout_destination text;
+alter table stripe_payouts add column destination text;
+alter table stripe_payouts add column failure_balance_id text;
+alter table stripe_payouts add column failure_date date;
+create unique index stripe_payout_failure_once on stripe_payouts(connection_id,failure_balance_id) where failure_balance_id is not null;
+alter table stripe_movements drop constraint stripe_movements_kind_check;
+alter table stripe_movements add constraint stripe_movements_kind_check check (kind in ('payment','fee','refund','refund_fee','refund_reversal'));
+alter table stripe_movements add column reverses_id uuid references stripe_movements(id);
+alter table stripe_movements add constraint stripe_refund_reversal_source check ((kind = 'refund_reversal') = (reverses_id is not null));
+alter table invoice_payments add column reverses_payment_id uuid;
+alter table invoice_payments add foreign key (business_id,reverses_payment_id) references invoice_payments(business_id,id);
+alter table invoice_payments drop constraint invoice_payments_kind_check;
+alter table invoice_payments add constraint invoice_payments_kind_check check (kind in ('in','refund','refund_reversal'));
+alter table invoice_payments add constraint invoice_refund_reversal_source check ((kind = 'refund_reversal') = (reverses_payment_id is not null));
+create or replace function invoice_payments_rules() returns trigger
+language plpgsql as $$
+declare
+  i record; owed numeric; e record; original record; returned numeric; relieved numeric; ceiling numeric; relief numeric;
+begin
+  if tg_op <> 'INSERT' then
+    if books_purge_allowed() then return coalesce(new, old); end if;
+    raise exception 'books: a payment never changes — a correction is a new entry' using errcode = 'NB019';
+  end if;
+  select state, currency into i from invoices where id = new.invoice_id for update;
+  if i.state <> 'issued' then
+    raise exception 'books: only an issued invoice is paid' using errcode = 'NB019';
+  end if;
+  if new.currency <> i.currency then
+    raise exception 'books: a payment is in its invoice''s currency (%)', i.currency using errcode = 'NB019';
+  end if;
+  owed := invoice_total(new.invoice_id) - invoice_credited(new.invoice_id) - invoice_paid(new.invoice_id);
+  if new.kind = 'in' and new.amount > owed then
+    raise exception 'books: % is more than is still owed (%)', new.amount, owed using errcode = 'NB019';
+  end if;
+  if new.kind = 'refund' and new.amount > -owed then
+    raise exception 'books: % is more than the customer is owed back (%)', new.amount, greatest(-owed, 0) using errcode = 'NB019';
+  end if;
+  if new.kind = 'refund_reversal' then
+    select * into original from invoice_payments
+     where business_id = new.business_id and id = new.reverses_payment_id
+       and invoice_id = new.invoice_id and kind = 'refund';
+    if not found or original.currency <> new.currency or original.account_id <> new.account_id then
+      raise exception 'books: a refund reversal names its original refund' using errcode = 'NB019';
+    end if;
+    select coalesce(sum(amount), 0), coalesce(sum(receivable_book), 0) into returned, relieved
+      from invoice_payments where business_id = new.business_id and reverses_payment_id = original.id;
+    ceiling := original.amount - returned;
+    if new.amount > ceiling then
+      raise exception 'books: % is more than the refund still reversible (%)', new.amount, ceiling using errcode = 'NB019';
+    end if;
+    relief := case when new.amount = ceiling then -original.receivable_book - relieved
+                   else round(-original.receivable_book * new.amount / original.amount, 2) end;
+    if new.receivable_book <> relief then
+      raise exception 'books: a refund reversal restores its exact receivable relief' using errcode = 'NB019';
+    end if;
+  end if;
+  select state into e from journal_entries where id = new.entry_id;
+  if e.state <> 'posted' then
+    raise exception 'books: a payment is recorded with its posted entry' using errcode = 'NB019';
+  end if;
+  return new;
+end $$;

@@ -90,4 +90,35 @@ describe('invoice payment links · exact rules and an offline Stripe port', () =
     expect(await c.payout('acct_example', 'po_example')).toMatchObject({ ok: true, value: { amount: '97', status: 'paid' } });
     expect(await c.intent('acct_example', 'pi_example')).toMatchObject({ ok: true, value: { attemptId: 'attempt-1', charge: { balance: null } } });
   });
+  it('reads the returned failure balance independently of fee data and retains the payout destination', async () => {
+    const returned = { id: 'txn_returned', amount: 2500, currency: 'gbp', created: 1800086400, fee: 0, fee_details: [] };
+    const f = connectRecorder([
+      { body: { id: 're_failed', payment_intent: 'pi_example', amount: 2500, currency: 'gbp', created: 1800000000, status: 'failed', failure_balance_transaction: returned } },
+      { body: { id: 'po_failed', amount: 2500, currency: 'gbp', created: 1800000000, arrival_date: 1800043200, status: 'failed', destination: 'ba_original', failure_balance_transaction: returned } },
+    ]);
+    const c = connectClient(CONNECT_CONFIG, f.fetch);
+    expect(await c.refund('acct_example','re_failed')).toMatchObject({ok:true,value:{failureBalance:{id:'txn_returned',amount:'25',currency:'GBP',created:1800086400}}});
+    expect(await c.payout('acct_example','po_failed')).toMatchObject({ok:true,value:{destination:'ba_original',failureBalance:{id:'txn_returned',amount:'25'}}});
+    expect(f.calls.every(x=>x.url.includes('failure_balance_transaction'))).toBe(true);
+  });
+  it('deauthorizes only the named account with the platform OAuth client and confirms the returned account', async () => {
+    const f = connectRecorder([{body:{stripe_user_id:'acct_example'}},{status:503,body:{error:'unavailable'}}]);
+    const c=connectClient(CONNECT_CONFIG,f.fetch);
+    expect(await c.deauthorize('acct_example')).toEqual({ok:true,value:true});
+    expect(f.calls[0]!.url).toBe('https://connect.stripe.com/oauth/deauthorize');
+    expect(new URLSearchParams(f.calls[0]!.body).get('client_id')).toBe(CONNECT_CONFIG.clientId);
+    expect(new URLSearchParams(f.calls[0]!.body).get('stripe_user_id')).toBe('acct_example');
+    expect(await c.deauthorize('acct_example')).toMatchObject({ok:false,reason:'unavailable'});
+  });
+  it('recovers a missing checkout by metadata across every page, never treating a partial list as absent', async () => {
+    const unrelated={...CHECKOUT_ANSWER,id:'cs_test_unrelated',metadata:{nomi_attempt:'other'}};
+    const f=connectRecorder([{body:{data:[unrelated],has_more:true}},{body:{data:[CHECKOUT_ANSWER],has_more:false}}]);
+    const c=connectClient(CONNECT_CONFIG,f.fetch);
+    expect(await c.findCheckout('acct_example','attempt-1',1799990000,1800086400)).toMatchObject({ok:true,value:{id:CHECKOUT_ANSWER.id}});
+    expect(f.calls).toHaveLength(2);expect(f.calls[1]!.url).toContain('starting_after=cs_test_unrelated');
+    expect(f.calls.every(x=>x.headers['Stripe-Account']==='acct_example')).toBe(true);
+    const no=connectRecorder([{body:{data:[],has_more:false}}]);
+    expect(await connectClient(CONNECT_CONFIG,no.fetch).findCheckout('acct_example','attempt-1',1799990000,1800086400)).toEqual({ok:true,value:null});
+  });
+
 });

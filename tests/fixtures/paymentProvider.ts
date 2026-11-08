@@ -9,6 +9,8 @@ export function paymentProvider(account: ConnectedAccount) {
   const missing={ok:false as const,reason:'refused' as const,retryable:false};
   const client:ConnectClient={
     exchange:async code=>{calls.push('exchange');return code==='one-use'?{ok:true,value:{account:account.id,live:false}}:missing;},
+    deauthorize:async a=>{checked(a);calls.push('deauthorize');return {ok:true,value:true};},
+    findCheckout:async(a,id)=>{checked(a);calls.push('find');return {ok:true,value:sessions.get(id)??null};},
     account:async a=>{checked(a);calls.push('account');return {ok:true,value:account};},
     createCheckout:async(a,i)=>{checked(a);calls.push('create');let v=sessions.get(i.attemptId);if(!v){creates++;v={id:`cs_test_${i.attemptId.replaceAll('-','')}`,attemptId:i.attemptId,status:'open',paid:false,amount:i.amount,currency:i.currency,url:`https://checkout.stripe.com/c/pay/${i.attemptId}`,intentId:null,expiresAt:i.expiresAt};sessions.set(i.attemptId,v);}
       if(failCreateAfterKeeping){failCreateAfterKeeping=false;return {ok:false,reason:'unavailable',retryable:true};}return {ok:true,value:v};},

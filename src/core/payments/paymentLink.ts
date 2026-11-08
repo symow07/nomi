@@ -27,8 +27,9 @@ export type Checkout = { readonly id: string; readonly url: string | null; reado
 export type BalanceFact = { readonly id: string; readonly gross: Decimal; readonly fee: Decimal; readonly net: Decimal; readonly currency: string; readonly created: number };
 export type ChargeFact = { readonly id: string; readonly paid: boolean; readonly captured: boolean; readonly amount: Decimal; readonly currency: string; readonly created: number; readonly balance: BalanceFact | null };
 export type IntentFact = { readonly id: string; readonly attemptId: string | null; readonly succeeded: boolean; readonly charge: ChargeFact | null };
-export type RefundFact = { readonly id: string; readonly intentId: string | null; readonly status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'requires_action'; readonly amount: Decimal; readonly currency: string; readonly created: number; readonly balance: BalanceFact | null };
-export type PayoutFact = { readonly id: string; readonly status: 'pending' | 'in_transit' | 'paid' | 'failed' | 'canceled'; readonly amount: Decimal; readonly currency: string; readonly created: number; readonly arrival: number; readonly balance: BalanceFact | null };
+export type ReturnedBalance = { readonly id: string; readonly amount: Decimal; readonly currency: string; readonly created: number };
+export type RefundFact = { readonly id: string; readonly intentId: string | null; readonly status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'requires_action'; readonly failureBalance?: ReturnedBalance | null; readonly amount: Decimal; readonly currency: string; readonly created: number; readonly balance: BalanceFact | null };
+export type PayoutFact = { readonly id: string; readonly status: 'pending' | 'in_transit' | 'paid' | 'failed' | 'canceled'; readonly amount: Decimal; readonly currency: string; readonly created: number; readonly arrival: number; readonly failureBalance?: ReturnedBalance | null; readonly destination?: string | null; readonly balance: BalanceFact | null };
 export type ConnectEvent = { readonly id: string; readonly type: string; readonly account: string; readonly live: boolean; readonly created: number; readonly objectId: string; readonly intentId: string | null };
 
 /** An invalid or unreadable fee remains unknown; no guessed zero reaches the books. */
