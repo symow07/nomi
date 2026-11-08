@@ -331,6 +331,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-priority .sp-reply { background:var(--color-assistant-wash); }
 .results-page, .setup-page { max-inline-size:960px; }
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
+.results-page .results-header > .tabs { flex-wrap:wrap; }
+.results-page .results-header > .tabs > .tab { white-space:nowrap; }
 .results-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-32); }
 .results-section { min-inline-size:0; }
 .results-section h2 { margin-block:0 var(--space-16); }
