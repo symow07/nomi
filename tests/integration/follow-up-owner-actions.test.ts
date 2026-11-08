@@ -165,6 +165,9 @@ suite('A null-turn follow-up uses the existing owner controls (requires DATABASE
     const invalid = await post('/app/settings/assistant/follow-ups', { enabled: '1', delayDays: '9', wording: words });
     expect(invalid.statusCode).toBe(400);
     expect(invalid.body).toContain('My exact &lt;words&gt;');
+    expect(invalid.body.match(/<h1\b/g)).toHaveLength(1);
+    expect(invalid.body).toContain('Preview');
+    expect(invalid.body).not.toContain('Saved words');
     await query(`update follow_up_rules set wording = $2, delay_days = 2 where business_id = $1`, [business, WORDS]);
   });
 

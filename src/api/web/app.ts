@@ -6592,7 +6592,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'followUp.title'), active: 'settings',
-        bodyHtml: back(ASSISTANT_HOME, t(locale, 'nav.employee')) + renderFollowUpRule(locale, {
+        bodyHtml: back(ASSISTANT_HOME, t(locale, 'nav.employee'))
+          + `<h1><bdi lang="en" dir="ltr">${esc(t(locale, 'followUp.title'))}</bdi></h1>` + renderFollowUpRule(locale, {
           enabled: input.enabled === '1', delayDays: /^[1-7]$/.test(String(input.delayDays)) ? Number(input.delayDays) : 2,
           wording: typeof input.wording === 'string' ? input.wording : '',
         }, true, true),

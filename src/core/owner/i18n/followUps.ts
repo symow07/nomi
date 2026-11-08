@@ -11,7 +11,7 @@ export const FOLLOW_UPS_EN = {
   'followUp.clock': 'Choose 1 to 7 whole days. Two days means 48 hours after the quote was sent.',
   'followUp.wording': 'Your follow-up',
   'followUp.wordsHelp': 'Up to 500 characters, kept exactly as you write them.',
-  'followUp.preview': 'Saved words',
+  'followUp.preview': 'Preview',
   'followUp.emptyWords': 'No words saved yet.',
   'followUp.future': 'Changes apply to future follow-ups. Follow-ups already planned keep their words and date.',
   'followUp.save': 'Save follow-up',
