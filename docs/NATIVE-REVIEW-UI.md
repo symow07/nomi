@@ -16676,3 +16676,88 @@ language. The PDF's own labels are English too, as the text proforma's are.
   that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
+
+
+## WhatsApp catalogue (2026-11-09; 0235)
+
+75 English-only owner lines in `src/core/owner/i18n/waCatalogue.ts` (`WA_CATALOGUE_EN`): 62 page, navigation and state lines, 13 flashes. Other languages keep the English until a native reader supplies a reviewed translation. No line carries a name or count placeholder. Product names, descriptions, brands, prices and provider replies remain their actual recorded content.
+
+Translate first: the catalogue navigation label, the tick/confirm and photo-publication notice, the availability choices, then refusals and pending/unknown results. Keep a submitted update distinct from an accepted item; keep the owner's explicit selection and the image-copy limitation clear.
+
+| Key | English line |
+|---|---|
+| `waCatalog.title` | WhatsApp catalogue |
+| `waCatalog.intro` | Choose the products to show in your linked WhatsApp catalogue. Review every change before anything is added or removed. |
+| `waCatalog.update` | Update the WhatsApp catalogue |
+| `waCatalog.review` | Review the changes |
+| `waCatalog.confirm` | Apply the ticked changes |
+| `waCatalog.tick` | Tick each change you want. Nothing is ticked for you. |
+| `waCatalog.empty` | There are no products here yet. |
+| `waCatalog.noChanges` | There are no changes ready to review. |
+| `waCatalog.details` | Details for WhatsApp |
+| `waCatalog.description` | Description |
+| `waCatalog.link` | Product link |
+| `waCatalog.availability` | Availability |
+| `waCatalog.choose` | Choose one |
+| `waCatalog.available` | Ready to ship |
+| `waCatalog.unavailable` | Not available |
+| `waCatalog.toOrder` | Available to order |
+| `waCatalog.discontinued` | No longer sold |
+| `waCatalog.brand` | Brand |
+| `waCatalog.condition` | Condition |
+| `waCatalog.new` | New |
+| `waCatalog.refurbished` | Refurbished |
+| `waCatalog.used` | Used |
+| `waCatalog.photo` | Use this product photo for WhatsApp |
+| `waCatalog.photoNeeded` | Choose a photo on the product page first. |
+| `waCatalog.save` | Save these details |
+| `waCatalog.product` | Open product |
+| `waCatalog.back` | Back to the WhatsApp catalogue |
+| `waCatalog.ready` | Ready to add |
+| `waCatalog.removal` | Needs removal from WhatsApp |
+| `waCatalog.changed` | Needs an update on WhatsApp |
+| `waCatalog.notPushed` | Not added |
+| `waCatalog.synced` | Accepted by Meta |
+| `waCatalog.pending` | Waiting for Meta to finish. This is not yet confirmed. |
+| `waCatalog.unknown` | The result is not known. No second attempt was made. |
+| `waCatalog.error` | Needs attention |
+| `waCatalog.removed` | Removed from WhatsApp |
+| `waCatalog.check` | Check the result |
+| `waCatalog.latest` | Open the latest review |
+| `waCatalog.create` | Add to WhatsApp |
+| `waCatalog.updateItem` | Update on WhatsApp |
+| `waCatalog.delete` | Remove from WhatsApp |
+| `waCatalog.metaSaid` | Meta reported |
+| `waCatalog.practice` | Practice does not add products to WhatsApp or publish their photos. |
+| `waCatalog.staff` | Only the owner can change the WhatsApp catalogue. |
+| `waCatalog.photoNotice` | Ticking a product allows Meta to read its chosen photo. Meta may keep a copy after you remove the product. |
+| `waCatalog.reason.inactive` | This product is not offered. |
+| `waCatalog.reason.not_findable` | Add a name customers use for this product. |
+| `waCatalog.reason.price` | Add a single price above zero. |
+| `waCatalog.reason.tiers` | Products with quantity prices are not added. |
+| `waCatalog.reason.currency` | The price must use the business currency. |
+| `waCatalog.reason.not_vetted` | The owner needs to approve a reply quoting this price first. |
+| `waCatalog.reason.prices_to_owner` | Prices are set to go to the owner. |
+| `waCatalog.reason.practice` | Practice products are not added. |
+| `waCatalog.reason.availability` | Choose the availability you know is correct. |
+| `waCatalog.reason.link` | Add the full secure link to this product. |
+| `waCatalog.reason.image` | Choose a saved product photo. |
+| `waCatalog.reason.name` | The product needs a name within the allowed length. |
+| `waCatalog.reason.description` | Add a description within the allowed length. |
+| `waCatalog.reason.brand` | Add the brand within the allowed length. |
+| `waCatalog.reason.condition` | Choose the condition. |
+| `waCatalog.flash.saved` | Details saved. Review the catalogue changes when you are ready. |
+| `waCatalog.flash.refused` | Those details could not be saved. Check the fields and try again. |
+| `waCatalog.flash.changed` | Something changed after this review. Open a new review before continuing. |
+| `waCatalog.flash.connection` | Connect your own WhatsApp account before updating its catalogue. |
+| `waCatalog.flash.noCatalogue` | Link a product catalogue to your WhatsApp account in Meta Commerce Manager, then try again. |
+| `waCatalog.flash.unknown` | Meta did not give a clear result. Nothing is marked accepted. |
+| `waCatalog.flash.pending` | The ticked changes were submitted. Check the result before relying on them. |
+| `waCatalog.flash.finished` | The result is ready. Read each item below for any change that was refused. |
+| `waCatalog.flash.empty` | Nothing was ticked, so nothing was submitted. |
+| `waCatalog.flash.imageAddress` | The public photo address is not ready. Nothing was submitted. |
+| `waCatalog.flash.tooLarge` | There are too many ticked changes for one update. Choose fewer and try again. |
+| `waCatalog.flash.failed` | Meta did not accept this update. Read the result before trying again. |
+| `waCatalog.flash.changedCatalogue` | The linked catalogue has changed. Restore the previous link before updating these products. |
+| `waCatalog.imageExpired` | The photo address expired before the result was checked. Review a new update to share the photo again. |
+| `waCatalog.itemRefused` | Meta did not accept this item. |

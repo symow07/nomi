@@ -1,4 +1,5 @@
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
+import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
 import { readAssistantActivity } from '../../db/assistantActivity.js';
@@ -389,6 +390,8 @@ const COOKIE = 'yf_session';
 const LOCALE_COOKIE = 'yf_locale';
 
 export type WebDeps = {
+  readonly catalogueClient?: NonNullable<CatalogueWebDeps['catalogueClient']>;
+  readonly catalogueNow?: NonNullable<CatalogueWebDeps['catalogueNow']>;
   readonly db: Db;
   readonly sessionSecret: string;      // derived from CREDENTIAL_KEY
   readonly accessCode: string;         // owner login (env or generated)
@@ -5942,6 +5945,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return productArea(renderProductList(catalogue.items, locale, flash, personOf(s),
       await businessKind(deps.db, s.businessId), {page:catalogue,returnHref}) + ask, locale, 'all', personOf(s));
   }));
+  registerCatalogueRoutes(app,deps,{authed:render=>authed('products',render),owner:(req,reply)=>ownerOnly(req,reply,'price_rules','/app/products/whatsapp'),
+    viewer:personOf,flash:flashTo,takeFlash,locale:localeOf,page:(req,draw)=>page(req,{active:'products',...draw})});
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
       await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
