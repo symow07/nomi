@@ -8,7 +8,7 @@ export function connectConfigFrom(env: Readonly<Record<string, string | undefine
   const secretKey = env['STRIPE_SECRET_KEY']?.trim() ?? '';
   const clientId = env['STRIPE_CONNECT_CLIENT_ID']?.trim() ?? '';
   const webhookSecret = env['STRIPE_CONNECT_WEBHOOK_SECRET']?.trim() ?? '';
-  if (!/^(?:sk|rk)_(test|live)_[A-Za-z0-9]{10,}$/.test(secretKey) || !/^ca_[A-Za-z0-9]{10,}$/.test(clientId) || !/^whsec_[A-Za-z0-9+/=]{10,}$/.test(webhookSecret)) return null;
+  if (!secretKey || !clientId || !webhookSecret) return null;
   return { secretKey, clientId, webhookSecret, live: /_live_/.test(secretKey) };
 }
 export function connectAuthorization(config: ConnectConfig, state: string, redirect: string): string {
