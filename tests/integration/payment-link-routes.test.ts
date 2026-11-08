@@ -22,6 +22,9 @@ import {buttonsAndDoors} from '../parity/buttons-and-doors.js';
 
 const d=process.env['DATABASE_URL']&&process.env['MIGRATE_DATABASE_URL']?describe:describe.skip;
 const bid=randomUUID() as BusinessId,ma=randomUUID() as BusinessId;
+const BILLING_SECRET='test-billing-webhook-secret-0000';
+const noBillingCall=async()=>{throw new Error('Unexpected billing provider call');};
+const billing={createCustomer:noBillingCall,setupCheckout:noBillingCall,setupIntentPaymentMethod:noBillingCall,setDefaultPaymentMethod:noBillingCall,createSubscription:noBillingCall,price:noBillingCall,portal:noBillingCall};
 const BASE='/app/payments/stripe',SECRET='test-owner-session-secret-000000000000';
 d('payment links · owner routes and signed receipt boundary',{timeout:120_000},()=>{
   let db:Db,admin:pg.Client,app:ReturnType<typeof Fastify>,owner='',invoice='',ids:Record<string,string>;
@@ -31,7 +34,7 @@ d('payment links · owner routes and signed receipt boundary',{timeout:120_000},
   beforeAll(async()=>{
     admin=new pg.Client({connectionString:process.env['MIGRATE_DATABASE_URL']});await admin.connect();db=createDb(process.env['DATABASE_URL']!);
     for(const [id,country,currency] of [[bid,'GB','GBP'],[ma,'MA','MAD']])await admin.query("insert into businesses(id,name,engine,country,currency,books_area,timezone) values($1,'Route fixture','service',$2,$3,true,'UTC')",[id,country,currency]);
-    app=Fastify({logger:false});registerWebApp(app,{db,businessId:bid,accessCode:'test-owner-access',sessionSecret:SECRET,employeeName:'Lily',provider:'disabled',messagingEnabled:true,secureCookie:false,factsTtlMs:0,kickOutbound:async()=>{},kickDrive:async()=>{},publicBaseUrl:'https://nomi.example',stripeConnect:{config:CONNECT_CONFIG,client:p.client}} as unknown as Parameters<typeof registerWebApp>[1]);await app.ready();
+    app=Fastify({logger:false});registerWebApp(app,{db,businessId:bid,accessCode:'test-owner-access',sessionSecret:SECRET,employeeName:'Lily',provider:'disabled',messagingEnabled:true,secureCookie:false,factsTtlMs:0,kickOutbound:async()=>{},kickDrive:async()=>{},publicBaseUrl:'https://nomi.example',stripeConnect:{config:CONNECT_CONFIG,client:p.client},stripe:{client:billing,webhookSecret:BILLING_SECRET}} as unknown as Parameters<typeof registerWebApp>[1]);await app.ready();
     const login=await form('/login',{code:'test-owner-access'},'');owner=String(login.headers['set-cookie']).split(';')[0]!;
     await withTenantTx(db,bid,async tx=>{
       await loadCountryPack(tx,bid,COUNTRY_PACKS.GB,'2026-01-01');
@@ -132,6 +135,39 @@ d('payment links · owner routes and signed receipt boundary',{timeout:120_000},
     const calls=p.calls.length;await form(`${BASE}/invoices/${f.invoice}/send`);expect(p.calls).toHaveLength(calls);
     expect((await rows()).rows).toHaveLength(1);expect((await rows()).rows[0]!.status).toBe('canceled');
     expect((await withTenantTx(db,bid,tx=>sql<{status:string}>`select status from orders where id=${f.order}::uuid`.execute(tx))).rows[0]!.status).toBe('confirmed');
+  });
+
+  it('answers non-2xx if the Connect inbox transaction fails at commit, allowing an exact retry',async()=>{
+    const at=Math.floor(Date.now()/1000),raw=JSON.stringify({id:'evt_commitfailure',type:'payment_intent.succeeded',account:`acct_${bid.replaceAll('-','')}`,livemode:false,created:at,data:{object:{id:'pi_commitfailure'}}});
+    const signature=`t=${at},v1=${createHmac('sha256',CONNECT_CONFIG.webhookSecret).update(`${at}.${raw}`).digest('hex')}`;
+    const hook=()=>app.inject({method:'POST',url:'/hooks/stripe/connect',headers:{'content-type':'application/json','stripe-signature':signature},payload:raw});
+    const fn='test_commit_'+bid.replaceAll('-','');
+    await admin.query(`create function ${fn}() returns trigger language plpgsql as $$ begin if new.event_id='evt_commitfailure' then raise exception 'Injected commit failure'; end if; return new; end $$; create constraint trigger ${fn} after insert on stripe_event_inbox deferrable initially deferred for each row execute function ${fn}()`);
+    try {expect((await hook()).statusCode).toBeGreaterThanOrEqual(500);expect((await admin.query("select 1 from stripe_event_inbox where event_id='evt_commitfailure'")).rows).toHaveLength(0);}
+    finally {await admin.query(`drop trigger ${fn} on stripe_event_inbox; drop function ${fn}()`);}
+    expect((await hook()).statusCode).toBe(200);expect((await admin.query("select 1 from stripe_event_inbox where event_id='evt_commitfailure'")).rows).toHaveLength(1);
+  });
+  it('applies nothing when billing and connected-account events reach the opposite endpoint',async()=>{
+    const at=Math.floor(Date.now()/1000);
+    const event={id:'evt_wrongendpoint',type:'checkout.session.completed',created:at,livemode:false,data:{object:{id:'cs_test_wrongendpoint',mode:'setup',setup_intent:'seti_wrongendpoint',customer:'cus_wrongendpoint',metadata:{business_id:bid}}}};
+    for(const [url,key,body] of [
+      ['/hooks/stripe/connect',CONNECT_CONFIG.webhookSecret,event],
+      ['/hooks/stripe',BILLING_SECRET,{...event,account:`acct_${bid.replaceAll('-','')}`}],
+    ] as const){const raw=JSON.stringify(body);const sig=`t=${at},v1=${createHmac('sha256',key).update(`${at}.${raw}`).digest('hex')}`;expect((await app.inject({method:'POST',url,headers:{'content-type':'application/json','stripe-signature':sig},payload:raw})).statusCode).toBe(400);}
+    expect((await admin.query("select 1 from stripe_event_inbox where event_id='evt_wrongendpoint'")).rows).toHaveLength(0);
+    expect((await admin.query("select 1 from stripe_events where id='evt_wrongendpoint'")).rows).toHaveLength(0);
+  });
+  it('keeps local disconnect after a failed Stripe deauthorization, shows it and retries without claiming success',async()=>{
+    for(const session of [...p.sessions.values()])if(session.status==='open')await form(`${BASE}/attempts/${session.attemptId}/expire`);
+    const original=p.client.deauthorize;
+    p.client.deauthorize=async()=>({ok:false,reason:'unavailable',retryable:true});
+    await form(`${BASE}/disconnect`);
+    const row=()=>withTenantTx(db,bid,tx=>sql<{active:boolean;state:string;reason:string}>`select active,deauthorization_state as state,deauthorization_reason as reason from stripe_connections`.execute(tx));
+    expect((await row()).rows[0]).toEqual({active:false,state:'pending',reason:'unavailable'});
+    const html=(await get(BASE)).body;expect(html).toContain('Nomi has stopped using this account');expect(html).toContain('Try disconnecting from Stripe again');expect(html).not.toContain('Connect your Stripe account</bdi></button>');
+    const calls=p.calls.length;await form(`${BASE}/invoices/${invoice}/create`);expect(p.calls).toHaveLength(calls);
+    p.client.deauthorize=original;await form(`${BASE}/disconnect`);
+    expect((await row()).rows[0]).toEqual({active:false,state:'done',reason:null});expect(p.calls).toContain('deauthorize');
   });
 
 });

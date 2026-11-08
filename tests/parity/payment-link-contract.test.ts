@@ -121,4 +121,17 @@ describe('invoice payment links · exact rules and an offline Stripe port', () =
     expect(await connectClient(CONNECT_CONFIG,no.fetch).findCheckout('acct_example','attempt-1',1799990000,1800086400)).toEqual({ok:true,value:null});
   });
 
+  it('never proves a missing session from unavailable, incomplete, cyclic or ambiguous pages',async()=>{
+    for(const answers of [
+      [{status:503,body:{}}],
+      [{body:{data:[],has_more:true}}],
+      [{body:{data:[CHECKOUT_ANSWER],has_more:true}},{body:{data:[CHECKOUT_ANSWER],has_more:true}}],
+      [{body:{data:[CHECKOUT_ANSWER,{...CHECKOUT_ANSWER,id:'cs_test_duplicate'}],has_more:false}}],
+      [{body:{data:[{...CHECKOUT_ANSWER,url:'https://elsewhere.example'}],has_more:false}}],
+    ]){
+      const f=connectRecorder(answers);expect(await connectClient(CONNECT_CONFIG,f.fetch).findCheckout('acct_example','attempt-1',1799990000,1800086400)).toMatchObject({ok:false});
+    }
+    const wrong=connectRecorder([{body:{stripe_user_id:'acct_different'}}]);expect(await connectClient(CONNECT_CONFIG,wrong.fetch).deauthorize('acct_example')).toMatchObject({ok:false,reason:'invalid_answer'});
+  });
+
 });

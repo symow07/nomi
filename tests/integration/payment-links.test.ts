@@ -174,4 +174,36 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     expect((await as(tx=>sql`select * from invoice_payments where invoice_id=${id}::uuid`.execute(tx))).rows).toHaveLength(1);
     expect((await as(tx=>sql<{state:string}>`select state from stripe_event_inbox where event_id='evt_delayed'`.execute(tx))).rows[0]!.state).toBe('done');
   });
+  it('recovers an elapsed ambiguous create by metadata, then expires exactly that session',async()=>{
+    const p=paymentProvider({id:`acct_${BIZ.replaceAll('-','')}`,country:'GB',currency:'GBP',ready:true});
+    let clock=now;const deps={db,client:p.client,live:false,now:()=>clock,publicBaseUrl:'https://nomi.example'};
+    const id=await invoice();p.ambiguousNextCreate();expect(await createPaymentLink(deps,BIZ,id)).toMatchObject({ok:false});
+    const a=(await as(tx=>sql<{id:string}>`select id::text from stripe_checkout_attempts where invoice_id=${id}::uuid`.execute(tx))).rows[0]!;
+    clock=new Date(now.getTime()+25*3600000);
+    expect(await expirePaymentLink(deps,BIZ,a.id)).toEqual({ok:true});expect(p.calls).toContain('find');expect(p.created()).toBe(1);
+    const fresh=await createPaymentLink(deps,BIZ,id);expect(fresh.ok).toBe(true);expect([...p.sessions.values()].filter(s=>s.status==='open')).toHaveLength(1);
+  });
+  it('proves absence after the maximum lifetime before releasing an elapsed reservation; concurrent replacements share one link',async()=>{
+    const p=paymentProvider({id:`acct_${BIZ.replaceAll('-','')}`,country:'GB',currency:'GBP',ready:true});
+    let clock=new Date(now.getTime()+23.5*3600000);const deps={db,client:p.client,live:false,now:()=>clock,publicBaseUrl:'https://nomi.example'};
+    const id=await invoice(),a=await reserve(id);
+    expect(await expirePaymentLink(deps,BIZ,a.id)).toMatchObject({ok:false,reason:'recovery_wait'});expect(p.created()).toBe(0);
+    clock=new Date(now.getTime()+25*3600000);
+    expect(await expirePaymentLink(deps,BIZ,a.id)).toEqual({ok:true});
+    const results=await Promise.all([createPaymentLink(deps,BIZ,id),createPaymentLink(deps,BIZ,id)]);
+    expect(results.every(r=>r.ok)).toBe(true);expect(p.created()).toBe(1);
+    const late={id:'cs_test_late',attemptId:a.id,status:'open' as const,paid:false,amount:a.amount,currency:a.currency,url:'https://checkout.stripe.com/c/pay/late',intentId:null,expiresAt:Math.floor(a.expiresAt.getTime()/1000)};
+    expect(await as(tx=>keepCheckout(tx,BIZ,a.id,late))).toBe(false);
+  });
+  it('keeps the reservation when recovery is unavailable or finds a completed payment',async()=>{
+    const p=paymentProvider({id:`acct_${BIZ.replaceAll('-','')}`,country:'GB',currency:'GBP',ready:true});
+    const id=await invoice(),a=await reserve(id),deps={db,client:p.client,live:false,now:()=>new Date(now.getTime()+25*3600000),publicBaseUrl:'https://nomi.example'};
+    p.client.findCheckout=async()=>({ok:false,reason:'unavailable',retryable:true});
+    expect(await expirePaymentLink(deps,BIZ,a.id)).toMatchObject({ok:false,reason:'unavailable'});
+    expect(await createPaymentLink(deps,BIZ,id)).toMatchObject({ok:false,reason:'expire_first'});
+    p.client.findCheckout=async()=>({ok:true,value:{id:'cs_test_complete',attemptId:a.id,status:'complete',paid:true,amount:a.amount,currency:a.currency,url:null,intentId:'pi_recovered',expiresAt:Math.floor(a.expiresAt.getTime()/1000)}});
+    expect(await expirePaymentLink(deps,BIZ,a.id)).toMatchObject({ok:false,reason:'processing'});
+    expect(await createPaymentLink(deps,BIZ,id)).toMatchObject({ok:false});expect(p.created()).toBe(0);
+  });
+
 });

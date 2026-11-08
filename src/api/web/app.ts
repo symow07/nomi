@@ -2525,7 +2525,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       scope.post('/hooks/stripe', async (req, reply) => {
         const raw = typeof req.body === 'string' ? req.body : '';
         const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
-        if (!e) return reply.code(400).send({ error: 'signature' });
+        if (!e || 'account' in JSON.parse(raw)) return reply.code(400).send({ error: 'signature' });
         const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
           req.log.warn({ reason: loggableMessage(err instanceof Error ? err.message : String(err)) }, 'stripe event failed');
           return 'retry' as const;

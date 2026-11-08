@@ -7,7 +7,12 @@ import type { BusinessId } from '../../src/core/types/ids.js';
 import { decimal } from '../../src/core/types/decimal.js';
 import { COUNTRY_PACKS } from '../../src/core/books/countryPacks.js';
 import { loadCountryPack } from '../../src/db/booksCountry.js';
-import { draftInvoice, issueInvoice, recordPayment } from '../../src/db/booksInvoices.js';
+import { draftInvoice, issueInvoice, recordPayment, loadInvoice } from '../../src/db/booksInvoices.js';
+import { renderInvoice } from '../../src/api/web/booksInvoices.js';
+import { renderStripePayments } from '../../src/api/web/stripePayments.js';
+import { readStripePage } from '../../src/db/stripePage.js';
+import { unpaidReport } from '../../src/db/booksOwnerReports.js';
+import { readBooksOverview } from '../../src/db/booksOverview.js';
 import { draftEntry } from '../../src/db/booksEntries.js';
 import { draftCreditNote, issueCreditNote } from '../../src/db/booksCreditNotes.js';
 import { lockTo, reopenTo } from '../../src/db/booksClose.js';
@@ -70,6 +75,15 @@ d('payment links · immutable failure reversals', () => {
     const b = await balance(f); expect(b.rows.find(r => r.code === '1030')!.closing).toEqual({ debit: '97', credit: '0' });
     expect(b.rows.find(r => r.code === '1100')!.closing).toEqual({ debit: '0', credit: amount });
     expect(b.rows.find(r => r.code === '5020')!.closing).toEqual({ debit: '3', credit: '0' });
+    const view=(await f.tx(t=>loadInvoice(t,f.bid,f.invoice,'2026-10-05')))!;
+    expect(view.status).toBe('refund_due');expect(view.payments.find(p=>p.paidOn==='2026-10-05')).toMatchObject({refund:false,refundReversal:true});
+    for(const locale of ['en','ar'] as const)expect(renderInvoice(locale,{id:'owner',isOwner:true},view,{accounts:[],journals:[]},'2026-10-05')).toContain('<bdi lang="en" dir="ltr">Refund returned to your Stripe balance</bdi>');
+    const report=await f.tx(t=>unpaidReport(t,f.bid,'2026-10-05'));
+    expect(report.rows).toEqual([]);expect(report.total).toBe('0');
+    const overview=await f.tx(t=>readBooksOverview(t,f.bid,{today:'2026-10-05'}));
+    expect(overview.customerOwed.byCurrency.find(r=>r.currency==='GBP')?.refundDue).toBe(amount);
+    const page=await f.tx(t=>readStripePage(t,f.bid,true,false));
+    expect(renderStripePayments(page,'ar',null)).toContain('Refund returned to your Stripe balance');
   });
   it('keeps a closed refund failure date outstanding, then posts only after an explicit owner reopening', async () => {
     const f = await fixture(), r = await refund(f);
@@ -98,6 +112,9 @@ d('payment links · immutable failure reversals', () => {
     expect(rows).toEqual([{ date: '2026-10-05' }]);
     const b = await balance(f); expect(b.totals.period).toEqual({ debit: '397', credit: '397' });
     expect(b.rows.find(r => r.code === '1040')!.closing).toEqual({ debit: '0', credit: '0' });
+    const page=await f.tx(t=>readStripePage(t,f.bid,true,false));
+    expect(page.payouts[0]).toMatchObject({reversalId:expect.any(String),failureDate:'2026-10-05'});
+    const html=renderStripePayments(page,'ar',null);expect(html).toContain('Payout returned to your Stripe balance');expect(html).toContain('/app/books/advanced/entries/'+page.payouts[0]!.reversalId);
   });
   it('holds a payout to a changed bank destination without remapping the owner bank', async () => {
     const f = await fixture();

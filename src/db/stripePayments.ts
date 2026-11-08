@@ -10,7 +10,7 @@ const uuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
 const digest = (s: string) => createHash('sha256').update(s).digest('hex');
 export type StripeBinding = { id: string; account: string; live: boolean; country: string; currency: string; ready: boolean; active: boolean };
 export type StripeMapping = { id: string; connectionId: string; clearingId: string; transitId: string; feeId: string; journalId: string; bankId: string };
-export type PaymentAttempt = { id: string; invoiceId: string; connectionId: string; mappingId: string; amount: Decimal; currency: string; state: string; sessionId: string | null; intentId: string | null; url: string | null; expiresAt: Date; reason: string | null };
+export type PaymentAttempt = { id: string; invoiceId: string; connectionId: string; mappingId: string; amount: Decimal; currency: string; state: string; sessionId: string | null; intentId: string | null; url: string | null; expiresAt: Date; createdAt: Date; reason: string | null };
 export async function stripeBinding(tx: Tx, businessId: string, live: boolean): Promise<StripeBinding | null> {
   return (await sql<StripeBinding>`select id::text,account,live,country,currency,ready,active from stripe_connections where business_id=${businessId}::uuid and live=${live} and active`.execute(tx)).rows[0] ?? null;
 }
@@ -21,13 +21,14 @@ export async function stripeMapping(tx: Tx, businessId: string, connectionId: st
 export async function bindStripe(tx: Tx, businessId: string, account: ConnectedAccount, live: boolean, actor: string): Promise<Result<string>> {
   const b = (await sql<{ country: string; practice: boolean }>`select country,practice_of is not null as practice from businesses where id=${businessId}::uuid for update`.execute(tx)).rows[0];
   if (!b || b.practice || !['GB','US'].includes(b.country) || b.country !== account.country) return { ok: false, reason: 'country' };
+  if ((await sql`select 1 from stripe_connections where business_id=${businessId}::uuid and live=${live} and deauthorization_state='pending'`.execute(tx)).rows.length) return {ok:false,reason:'deauthorization_pending'};
   const current = (await sql<StripeBinding>`select id::text,account,currency,active from stripe_connections where business_id=${businessId}::uuid and live=${live} and (active or account=${account.id}) for update`.execute(tx)).rows;
   if (current.some(c => c.active && c.account !== account.id)) return { ok: false, reason: 'already_connected' };
   const same = current.find(c => c.account === account.id);
   if (same && same.currency !== account.currency) return { ok: false, reason: 'currency' };
   try {
     await sql`savepoint stripe_bind`.execute(tx);
-    const row = same ? (await sql<{ id: string }>`update stripe_connections set active=true,ready=${account.ready},disconnected_at=null,connected_by=${actor}
+    const row = same ? (await sql<{ id: string }>`update stripe_connections set active=true,ready=${account.ready},disconnected_at=null,deauthorization_state=null,deauthorization_reason=null,connected_by=${actor}
       where id=${same.id}::uuid and business_id=${businessId}::uuid returning id::text`.execute(tx)).rows[0]!
       : (await sql<{ id: string }>`insert into stripe_connections(business_id,account,live,country,currency,ready,connected_by)
         values(${businessId}::uuid,${account.id},${live},${account.country},${account.currency},${account.ready},${actor}) returning id::text`.execute(tx)).rows[0]!;
@@ -69,7 +70,7 @@ export async function claimStripeState(tx: Tx, businessId: string, raw: string, 
 export async function paymentAttempt(tx: Tx, businessId: string, id: string): Promise<PaymentAttempt | null> {
   if (!uuid(id)) return null;
   const r = (await sql<PaymentAttempt>`select id::text,invoice_id::text as "invoiceId",connection_id::text as "connectionId",mapping_id::text as "mappingId",amount::text,currency,state,
-    session_id as "sessionId",intent_id as "intentId",url,expires_at as "expiresAt",reason from stripe_checkout_attempts where business_id=${businessId}::uuid and id=${id}::uuid`.execute(tx)).rows[0];
+    session_id as "sessionId",intent_id as "intentId",url,expires_at as "expiresAt",created_at as "createdAt",reason from stripe_checkout_attempts where business_id=${businessId}::uuid and id=${id}::uuid`.execute(tx)).rows[0];
   return r ? { ...r, amount: decimal(r.amount) } : null;
 }
 export async function reservePayment(tx: Tx, businessId: string, invoiceId: string, live: boolean, now: Date): Promise<Result<PaymentAttempt>> {
@@ -103,6 +104,7 @@ export async function keepCheckout(tx: Tx, businessId: string, attemptId: string
   await sql`select id from stripe_connections where business_id=${businessId}::uuid and id=${found.connectionId}::uuid for update`.execute(tx);
   const a = await paymentAttempt(tx,businessId,attemptId);
   if (!a || checkout.attemptId !== a.id || checkout.currency !== a.currency || compareDecimal(checkout.amount,a.amount) !== 0 || a.sessionId && a.sessionId !== checkout.id || a.intentId && checkout.intentId && a.intentId !== checkout.intentId) return false;
+  if (a.state==='expired' && checkout.status==='open') return false;
   // A delayed expiry must never erase a captured payment or an event already being reconciled.
   await sql`update stripe_checkout_attempts set session_id=${checkout.id},intent_id=coalesce(intent_id,${checkout.intentId}),url=${checkout.url},
     state=case when state in ('paid','processing') then state else ${checkout.status === 'complete' ? 'processing' : checkout.status} end

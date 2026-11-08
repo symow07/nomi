@@ -37,14 +37,49 @@ export async function createPaymentLink(deps:PaymentDeps,bid:BusinessId,invoiceI
 export async function expirePaymentLink(deps:PaymentDeps,bid:BusinessId,id:string):Promise<{ok:true}|{ok:false;reason:string}> {
   const c=await eligible(deps,bid),a=await withTenantTx(deps.db,bid,tx=>paymentAttempt(tx,bid,id));
   if(!c||!a||c.id!==a.connectionId)return {ok:false,reason:'unavailable'};
-  // An ambiguous creation is recovered with exactly the original reservation before it is expired.
-  if(!a.sessionId){const recovered=await createPaymentLink(deps,bid,a.invoiceId);if(!recovered.ok)return recovered;a.sessionId=recovered.value.sessionId;}
-  if(!a.sessionId)return {ok:false,reason:'unavailable'};
-  let s=await deps.client.checkout(c.account,a.sessionId);if(!s.ok)return {ok:false,reason:s.reason};
-  if(s.value.status==='open')s=await deps.client.expireCheckout(c.account,a.sessionId);
+  let s;
+  if(!a.sessionId){
+    const now=deps.now();
+    const found=await deps.client.findCheckout(c.account,a.id,Math.floor(a.createdAt.getTime()/1000)-300,Math.ceil(now.getTime()/1000));
+    if(!found.ok)return {ok:false,reason:found.reason};
+    if(!found.value){
+      // Requests carry the reservation's fixed expires_at. After the maximum session
+      // lifetime plus clock margin, a complete scan can safely retire an uncreated link.
+      if(now.getTime()<a.createdAt.getTime()+24*3600000+300000)return {ok:false,reason:'recovery_wait'};
+      const retired=await withTenantTx(deps.db,bid,async tx=>{
+        await sql`select id from stripe_connections where business_id=${bid}::uuid and id=${c.id}::uuid for update`.execute(tx);
+        const current=await paymentAttempt(tx,bid,a.id);
+        if(current?.state==='expired')return true;
+        if(!current||current.sessionId||current.state!=='creating')return false;
+        await sql`update stripe_checkout_attempts set state='expired',reason=null where business_id=${bid}::uuid and id=${a.id}::uuid`.execute(tx);return true;
+      });
+      return retired?{ok:true}:{ok:false,reason:'processing'};
+    }
+    s=found;
+  }else s=await deps.client.checkout(c.account,a.sessionId);
   if(!s.ok)return {ok:false,reason:s.reason};
-  await withTenantTx(deps.db,bid,tx=>keepCheckout(tx,bid,a.id,s.value));
+  if(!s.value)return {ok:false,reason:'unavailable'};
+  if(s.value.status==='open')s=await deps.client.expireCheckout(c.account,s.value.id);
+  if(!s.ok)return {ok:false,reason:s.reason};
+  if(!s.value||!await withTenantTx(deps.db,bid,tx=>keepCheckout(tx,bid,a.id,s.value!)))return {ok:false,reason:'payment_differs'};
   return s.value.status==='expired'?{ok:true}:{ok:false,reason:'processing'};
+}
+
+/** Local authority ends before the external request. A failed revoke remains durable work. */
+export async function disconnectStripe(deps:PaymentDeps,bid:BusinessId):Promise<{ok:true}|{ok:false;reason:string}> {
+  const pending=await withTenantTx(deps.db,bid,async tx=>{
+    await sql`select id from businesses where id=${bid}::uuid for update`.execute(tx);
+    const c=(await sql<{id:string;account:string}>`select id::text,account from stripe_connections where business_id=${bid}::uuid and live=${deps.live} and (active or deauthorization_state='pending') order by active desc for update`.execute(tx)).rows[0];
+    if(!c)return {ok:true as const,value:null};
+    if((await sql`select 1 from stripe_checkout_attempts where business_id=${bid}::uuid and connection_id=${c.id}::uuid and (state in ('creating','open','processing') or reason is not null) limit 1`.execute(tx)).rows.length)return {ok:false as const,reason:'expire_first'};
+    await sql`update stripe_connections set active=false,ready=false,disconnected_at=coalesce(disconnected_at,${deps.now()}),deauthorization_state='pending' where business_id=${bid}::uuid and id=${c.id}::uuid`.execute(tx);
+    return {ok:true as const,value:c};
+  });
+  if(!pending.ok)return pending;if(!pending.value)return {ok:true};
+  const c=pending.value,result=await deps.client.deauthorize(c.account);
+  await withTenantTx(deps.db,bid,tx=>sql`update stripe_connections set deauthorization_state=${result.ok?'done':'pending'},deauthorization_reason=${result.ok?null:result.reason}
+    where business_id=${bid}::uuid and id=${c.id}::uuid and not active and deauthorization_state='pending'`.execute(tx));
+  return result.ok?{ok:true}:{ok:false,reason:'deauthorization_pending'};
 }
 
 type Pending={connection:string;account:string;active:boolean;id:string;type:string;object:string;intent:string|null};

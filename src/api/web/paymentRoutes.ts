@@ -7,7 +7,7 @@ import type {MessageKey} from '../../core/owner/i18n/messages.js';
 import {parseDecimal} from '../../core/types/decimal.js';
 import {minorUnits} from '../../core/payments/paymentLink.js';
 import {connectAuthorization,verifyConnectEvent,type ConnectConfig,type ConnectClient} from '../../payments/stripeConnect.js';
-import {createPaymentLink,expirePaymentLink,reconcileStripePayments} from '../../payments/invoicePayments.js';
+import {createPaymentLink,expirePaymentLink,reconcileStripePayments,disconnectStripe} from '../../payments/invoicePayments.js';
 import {bindStripe,claimStripeState,newStripeState,saveStripeMapping,storeStripeEvent,stripeBinding} from '../../db/stripePayments.js';
 import {confirmStripePayout,receiveStripePayout} from '../../db/stripePosting.js';
 import {readStripePage} from '../../db/stripePage.js';
@@ -51,6 +51,7 @@ export function registerPaymentRoutes(app:FastifyInstance,c:Context):void{
   app.post(`${BASE}/connect`,async(req,reply)=>{
     const o=await allowed(req,reply);if(!o)return;
     if(!c.publicBaseUrl)return refuse(req,reply,'no_address');
+    if((await withTenantTx(c.db,o.businessId,tx=>sql`select 1 from stripe_connections where business_id=${o.businessId}::uuid and live=${deps!.live} and deauthorization_state='pending'`.execute(tx))).rows.length)return refuse(req,reply,'deauthorization_pending');
     const state=await withTenantTx(c.db,o.businessId,tx=>newStripeState(tx,o.businessId,o.actor,o.session,deps!.live,new Date()));
     return reply.redirect(connectAuthorization(c.provider!.config,state,new URL(`${BASE}/return`,c.publicBaseUrl).href));
   });
@@ -89,11 +90,8 @@ export function registerPaymentRoutes(app:FastifyInstance,c:Context):void{
   });
   app.post(`${BASE}/disconnect`,async(req,reply)=>{
     const o=await allowed(req,reply);if(!o)return;
-    const r=await withTenantTx(c.db,o.businessId,async tx=>{
-      const a=(await sql<{id:string}>`select id::text from stripe_connections where business_id=${o.businessId}::uuid and live=${deps!.live} and active for update`.execute(tx)).rows[0];if(!a)return true;
-      if((await sql`select 1 from stripe_checkout_attempts where business_id=${o.businessId}::uuid and connection_id=${a.id}::uuid and (state in ('creating','open','processing') or reason is not null) limit 1`.execute(tx)).rows.length)return false;
-      await sql`update stripe_connections set active=false,ready=false,disconnected_at=now() where business_id=${o.businessId}::uuid and id=${a.id}::uuid`.execute(tx);return true;
-    });return r?c.redirect(reply,'paymentLinks.flash.disconnected'):refuse(req,reply,'expire_first');
+    const r=await disconnectStripe(deps!,o.businessId);
+    return r.ok?c.redirect(reply,'paymentLinks.flash.disconnected'):refuse(req,reply,r.reason);
   });
   app.post(`${BASE}/retry`,async(req,reply)=>{
     const o=await allowed(req,reply);if(!o)return;

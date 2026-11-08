@@ -46,7 +46,7 @@ export type InvoiceView = InvoiceRow & {
   readonly entryId: string | null;
   readonly billedTo: BilledTo;
   readonly lines: readonly { lineNo: number; label: string; quantity: string; unitPrice: string; account: string; taxCode: string | null; net: Decimal; tax: Decimal }[];
-  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean; paid: { currency: string; amount: Decimal } | null }[];
+  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean; refundReversal?: boolean; paid: { currency: string; amount: Decimal } | null }[];
   readonly creditNotes: readonly { id: string; key: string | null; state: string; issueDate: string; total: Decimal }[];
 };
 
@@ -99,7 +99,7 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
       registry: r.b_registry, siret: r.b_siret, registro: r.b_registro },
     credited: d(r.credited), status: statusOf(r.state, d(r.total), d(r.credited), d(r.paid), r.due_date, today),
     lines: lines.map((l) => ({ lineNo: l.line_no, label: l.label, quantity: d(l.quantity), unitPrice: d(l.unit_price), account: l.account, taxCode: l.tax_code, net: d(l.net), tax: d(l.tax) })),
-    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund',
+    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund', refundReversal: p.kind === 'refund_reversal',
       paid: p.paid_currency === null ? null : { currency: p.paid_currency, amount: d(p.paid_amount!) } })),
     creditNotes: (await sql<{ id: string; year: number | null; number: number | null; state: string; issue_date: string; total: string }>`
       select id::text as id, year, number, state, issue_date::text as issue_date, credit_note_total(id)::text as total from credit_notes
