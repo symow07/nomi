@@ -383,8 +383,8 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     nav.side a.navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
     details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
-    details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
-    details:not([open])::details-content { opacity:0; }
+    /* Delay hiding only when closing: opening must expose its fields to the very next Tab. */
+    details:not([open])::details-content { opacity:0; transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
     .flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     #approve, .td { animation-delay:var(--motion-fast); }

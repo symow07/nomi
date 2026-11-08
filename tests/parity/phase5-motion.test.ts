@@ -285,6 +285,15 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     expect(ruleOf('details:not([open])::details-content')).toContain('opacity:0');
   });
 
+  it('only closing a disclosure delays content visibility, so opening is immediately keyboard reachable', () => {
+    const visibilityTransitions = MOVING.filter(r => r.sel.includes('::details-content') && r.body.includes('content-visibility'));
+    expect(visibilityTransitions.map(r => r.sel)).toEqual(['details:not([open])::details-content']);
+    const closing = ruleOf('details:not([open])::details-content');
+    expect(closing).toContain('opacity:0');
+    expect(closing).toContain('transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete');
+    expect(ruleOf('details[open] > :not(summary)')).toContain('animation:nomi-arrive var(--motion-normal) var(--motion-ease) both');
+  });
+
   it('dialogs come and go: they grow in from 0.96 and sink away, with their dimming; the card springs', () => {
     expect(ruleOf('dialog.ask:not([open])')).toContain('transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter))');
     expect(ruleOf('dialog.ask')).toMatch(/overlay var\(--motion-fast\) allow-discrete, display var\(--motion-fast\) allow-discrete/);
