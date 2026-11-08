@@ -33,8 +33,9 @@ export const MONTH_REPORT_CSS = String.raw`
 .month-report .mr-formula{font-variant-numeric:tabular-nums;text-align:match-parent;overflow-wrap:anywhere}
 .month-report .btn{min-block-size:44px;max-inline-size:100%;white-space:normal}
 .month-report .btn.send{background:var(--color-ink);border-color:var(--color-ink);color:var(--color-surface)}
-.tabs:has(+ .month-report){flex-wrap:wrap;overflow:visible}
-.tabs:has(+ .month-report) .tab{min-block-size:44px;white-space:normal;align-content:center}
+/* The same four doors appear on every Results view. */
+.tabs:has(> .tab[href="/app/results/month"]){flex-wrap:wrap;overflow:visible}
+.tabs:has(> .tab[href="/app/results/month"]) .tab{min-block-size:44px;white-space:normal;align-content:center}
 @media(max-width:600px){
  .month-report .mr-picker{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"previous next" "form form"}
  .month-report .result-row{column-gap:var(--space-12)}

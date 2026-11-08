@@ -11,7 +11,7 @@ import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../..
 import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { messageLocale, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
@@ -211,6 +211,12 @@ export { conversationUrl } from '../../core/owner/addresses.js';
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** A catalogue sentence in HTML: keep English fallback separate from the page's direction. */
+export const wordsHtml = (locale: Locale, key: MessageKey, params?: Record<string, string | number>): string => {
+  const text = esc(t(locale, key, params));
+  return locale !== 'en' && messageLocale(locale, key) === 'en' ? `<bdi lang="en" dir="ltr">${text}</bdi>` : text;
+};
 
 /** The EN·中文·العربية switcher — links to the public /locale route, returns to `path`. */
 export function switcher(locale: Locale, path: string): string {
@@ -2926,24 +2932,25 @@ export function shell(input: {
   const { locale } = input;
   const here = hubFor(input.path, input.active);
   const role = viewerRole();
-  const entry = (id: string, href: string, label: string, shape: RailIcon, extra = '') => {
+  const entry = (id: string, href: string, key: MessageKey, shape: RailIcon, extra = '') => {
+    const label = t(locale, key);
     const on = id === here || (id === 'account' && role === 'accountant' && !isBooksPath(input.path));
     const waiting = id === 'inbox' ? needsYouCount() : null;
     const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, waiting))}</span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}>${railIcon(shape)}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
+    return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}>${railIcon(shape)}<span class="nl-body"><span class="nl-text">${wordsHtml(locale, key)}</span>${badge}</span></a>`;
   };
   if (role === 'accountant') {
-    const books = entry('books', '/app/books', t(locale, 'nav.books'), 'notebook-minimalistic');
-    const account = entry('account', '/app/settings/personal/account', t(locale, 'account.title'), 'key');
+    const books = entry('books', '/app/books', 'nav.books', 'notebook-minimalistic');
+    const account = entry('account', '/app/settings/personal/account', 'account.title', 'key');
     const logout = `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout">${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
     return shellWith(input, `<div class="navgroup">${books}${account}</div><div class="navfoot">${logout}</div>`);
   }
   const visible = NAV.filter((n) => n.id !== 'books' || (role === 'owner' && booksShown()));
-  const labelFor = (id: string) => t(locale, id === 'home' ? 'split.title' : `nav.${id}` as MessageKey);
+  const labelFor = (id: string): MessageKey => id === 'home' ? 'split.title' : `nav.${id}` as MessageKey;
   const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', ['products', 'assistant', 'settings'].includes(n.id) ? ' nav-desktop' : '');
   const moreLinks = [...visible.filter((n) => ['products', 'assistant'].includes(n.id)), { href: '/app/calendar', id: 'calendar' }, ...visible.filter((n) => n.id === 'settings')];
-  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${esc(t(locale, 'nav.more'))}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${esc(labelFor(n.id))}</a>`).join('')}</div></details>`;
+  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${wordsHtml(locale, 'nav.more')}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${wordsHtml(locale, labelFor(n.id))}</a>`).join('')}</div></details>`;
   return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.split?.me ?? ''}</div>${more}`);
 
 }
@@ -2961,12 +2968,12 @@ function areaNavigation(locale: Locale, path: string, active: string): string {
   const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
     { href: '/app', label: 'split.title', aliases: ['/app'] },
     { href: '/app/calendar', label: 'nav.calendar', aliases: ['/app/calendar'] },
-    ...(viewerRole() === 'owner' ? [{ href: '/app/results', label: 'nav.results' as MessageKey, aliases: ['/app/results', '/app/analytics'] }] : []),
+    { href: '/app/results', label: 'nav.results', aliases: ['/app/results', '/app/analytics'] },
     { href: '/app/get-started', label: 'nav.getStarted', aliases: ['/app/get-started', '/app/guide', '/app/onboarding', '/app/ready'] },
   ];
   const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;
-  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${esc(t(locale, s.label))}</a>`).join('');
-  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${esc(t(locale, current.label))}${GO}</summary><div>${links}</div></details></nav>`;
+  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${wordsHtml(locale, s.label)}</a>`).join('');
+  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${wordsHtml(locale, current.label)}${GO}</summary><div>${links}</div></details></nav>`;
 }
 
 /** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
