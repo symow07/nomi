@@ -70,13 +70,16 @@ async function moveFollowUpAnchor(tx: Tx, r: FollowUpRun, quote: Pick<FollowUpOb
   });
 }
 
-/** Observations are an optimization, not the authority for the last accepted quote. */
+/** One predicate for observations and recovery: the client's latest accepted quote,
+ * across its tenant-checked conversations, may move only an unpresented run. */
 async function refreshFollowUpAnchor(tx: Tx, r: FollowUpRun, now: Date): Promise<boolean> {
+  if (r.state !== 'scheduled') return false;
   const latest = (await sql<Pick<FollowUpObservation, 'conversation_id' | 'quote_id' | 'outbound_id' | 'quoted_at'>>`
     select o.conversation_id, o.quote_id, o.id as outbound_id, o.sent_at as quoted_at
-    from outbound_messages o join quotes q on q.id = o.quote_id
+    from outbound_messages o join conversations c on c.id = o.conversation_id and c.business_id = o.business_id
+    join quotes q on q.id = o.quote_id
       and q.business_id = o.business_id and q.conversation_id = o.conversation_id
-    where o.business_id = ${r.business_id}::uuid and o.conversation_id = ${r.conversation_id}::uuid
+    where o.business_id = ${r.business_id}::uuid and c.client_id = ${r.client_id}::uuid
       and o.status in ('sent', 'delivered', 'read') and o.sent_at > ${r.quoted_at} and o.sent_at <= ${now}
     order by o.sent_at desc, o.seq desc limit 1`.execute(tx)).rows[0];
   if (!latest) return false;
@@ -101,8 +104,10 @@ export async function foldFollowUpQuote(tx: Tx, businessId: BusinessId, id: stri
         ${o.episode_message_id}::uuid, ${key}::uuid, c.channel, ${o.quoted_at},
         ${new Date(o.quoted_at.getTime() + o.delay_days * 86400000)}, ${o.delay_days}, ${o.wording}
       from conversations c where c.id = ${o.conversation_id}::uuid and c.business_id = ${businessId}::uuid`.execute(tx);
-  } else if (r.state === 'scheduled' && o.quoted_at > r.quoted_at && o.quoted_at < r.due_at) {
-    await moveFollowUpAnchor(tx, r, o);
+  } else {
+    // A late sweep must not present earlier than the client's latest quote plus
+    // the saved delay, even when that quote arrived after the previous due time.
+    await refreshFollowUpAnchor(tx, r, now);
   }
   await sql`update follow_up_observations set processed_at = ${now} where id = ${id}::uuid`.execute(tx);
 }

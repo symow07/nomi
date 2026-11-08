@@ -26,7 +26,7 @@ export function renderFollowUpRule(locale: Locale, rule: FollowUpRule, owner: bo
       <textarea id="follow-up-wording" name="wording" rows="4" dir="auto" aria-describedby="follow-up-words-help${invalid ? ' follow-up-error' : ''}"${invalid ? ' aria-invalid="true"' : ''}>${esc(rule.wording)}</textarea>
       <p id="follow-up-words-help" class="caption muted">${say(locale, 'followUp.wordsHelp')}</p>
       <p class="caption muted">${say(locale, 'followUp.future')}</p>
-      <button class="btn send" type="submit">${say(locale, 'followUp.save')}</button>
+      <button class="btn" type="submit">${say(locale, 'followUp.save')}</button>
     </form>` : `<p>${say(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${say(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}</p>`}
     <h3>${say(locale, 'followUp.preview')}</h3>${preview}</details>`;
 }

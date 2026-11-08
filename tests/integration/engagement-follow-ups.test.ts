@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { createDb, type Db } from '../../src/db/client.js';
+import { createDb, withTenantTx, type Db } from '../../src/db/client.js';
+import { foldFollowUpQuote } from '../../src/db/followUps.js';
 import type { BusinessId } from '../../src/core/types/ids.js';
 import { runDueFollowUps, sweepFollowUpWorkspaces } from '../../src/outbound/followUps.js';
 import { randomUUID } from 'node:crypto';
@@ -329,13 +330,70 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
 
   it('never rearms a presented episode until an answer AND a fresh sent quote', async () => {
     await rule(); await outbound(); expect(await sweep()).toBe(1);
+    const original = await one(`select source_outbound_id, quoted_at, due_at from follow_up_runs where business_id = $1`, [business]);
     await outbound('sent', quote, new Date(T0.getTime() + 3 * 86400000));
     expect(await sweep(6)).toBe(0);
+    expect(await one(`select source_outbound_id, quoted_at, due_at from follow_up_runs where business_id = $1`, [business])).toEqual(original);
     await inbound(new Date(T0.getTime() + 7 * 86400000));
     expect(await sweep(8)).toBe(0);
     await outbound('sent', quote, new Date(T0.getTime() + 8 * 86400000));
     expect(await sweep(10)).toBe(1);
     expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(2);
+  });
+
+  it('does not move an anchor to an accepted row dated beyond the injected clock', async () => {
+    await rule(); const original = await outbound(); await sweep(0);
+    await outbound('sent', quote, new Date(T0.getTime() + 3 * 86400000));
+    expect(await sweep(2)).toBe(1);
+    expect((await one(`select source_outbound_id from follow_up_runs where business_id = $1`, [business])).source_outbound_id).toBe(original.id);
+  });
+
+  it.each([
+    ['linked email', false, 24], ['linked email', true, 24],
+    ['after the old due time', false, 49], ['after the old due time', true, 49],
+    ['another customer', false, 24], ['another customer', true, 24],
+  ] as const)('%s, observation dropped=%s: both paths use the client’s latest accepted quote', async (scenario, dropped, hours) => {
+    await rule(); const first = await outbound(); await sweep(0);
+    const original = await one(`select * from follow_up_runs where business_id = $1`, [business]);
+    const nextConversation = randomUUID(), nextQuote = randomUUID();
+    const nextCustomer = scenario === 'another customer' ? randomUUID() : customer;
+    if (nextCustomer !== customer) await query(`insert into clients(id, business_id, display_name) values ($1, $2, 'Other customer')`, [nextCustomer, business]);
+    await query(`insert into conversations(id, business_id, client_id, channel) values ($1, $2, $3, 'email')`, [nextConversation, business, nextCustomer]);
+    await query(`insert into quotes(id, business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version)
+      values ($1, $2, $3, $4, 1, '{}', 12, 12, 'fixture')`, [nextQuote, business, nextConversation, product]);
+    const lock = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await lock.connect();
+    let newer: { id: string };
+    try {
+      await lock.query('begin');
+      if (dropped) await lock.query('select id from clients where id = $1 for update', [nextCustomer]);
+      newer = await one(`insert into outbound_messages(business_id, conversation_id, seq, body, status, quote_id, sent_at)
+        values ($1, $2, 1, 'A newer quote', 'sent', $3, $4) returning id`, [business, nextConversation, nextQuote, new Date(T0.getTime() + hours * 3600000)]);
+    } finally { await lock.query('rollback'); await lock.end(); }
+    const observations = (await query(`select id from follow_up_observations where outbound_id = $1`, [newer!.id])).rows;
+    expect(observations).toHaveLength(dropped ? 0 : 1);
+    const at = new Date(T0.getTime() + Math.max(48, hours + 1) * 3600000);
+    if (!dropped) {
+      // Hold the observation path itself, before the recovery sweep can repair it.
+      await withTenantTx(db, business as BusinessId, tx => foldFollowUpQuote(tx, business as BusinessId, observations[0].id, at));
+      expect((await one(`select source_outbound_id from follow_up_runs where id = $1`, [original.id])).source_outbound_id)
+        .toBe(scenario === 'another customer' ? first.id : newer!.id);
+    }
+    const made = await runDueFollowUps({ db, now: () => at }, business as BusinessId);
+    const current = await one(`select * from follow_up_runs where id = $1`, [original.id]);
+    if (scenario === 'another customer') {
+      expect(made).toBe(1);
+      expect(current).toMatchObject({ source_outbound_id: first.id, conversation_id: conversation, channel: 'telegram', due_at: original.due_at, state: 'draft' });
+    } else {
+      expect(made).toBe(0);
+      const due = new Date(T0.getTime() + (hours + 48) * 3600000);
+      expect(current).toMatchObject({ source_outbound_id: newer!.id, source_quote_id: nextQuote, conversation_id: nextConversation, channel: 'email', due_at: due, state: 'scheduled' });
+      expect(await runDueFollowUps({ db, now: () => new Date(due.getTime() - 1) }, business as BusinessId)).toBe(0);
+      expect(await runDueFollowUps({ db, now: () => due }, business as BusinessId)).toBe(1);
+      expect((await query(`select payload from conversation_events where business_id = $1 and type = 'follow_up_rescheduled' and payload->>'followUpRunId' = $2`, [business, original.id])).rows)
+        .toEqual([{ payload: { followUpRunId: original.id, previousOutboundId: first.id, outboundId: newer!.id,
+          previousQuoteId: quote, quoteId: nextQuote, previousDueAt: original.due_at.toISOString(), dueAt: due.toISOString() } }]);
+    }
   });
 
   it('recovers only the latest accepted exact quote in this conversation, never a queued or unlinked row', async () => {

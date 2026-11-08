@@ -28,6 +28,8 @@ describe('Follow-up owner states', () => {
       expect(html).toContain('You choose Send');
       expect(html).not.toContain('checked');
       expect(html).toContain('<bdi lang="en" dir="ltr">');
+      expect(html).not.toMatch(/class="btn send\b/);
+      expect(html).toContain('<button class="btn" type="submit">');
       expect(buttonsAndDoors(html)).toEqual([]);
     });
     it(`${locale}: staff can read the rule and run but cannot save or skip`, () => {
