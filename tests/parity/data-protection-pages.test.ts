@@ -315,7 +315,27 @@ describe('D19 · every business table is decided, so none escapes the erasure by
       .filter((f) => /create or replace function customer_erasure_contract\(/i.test(read(`migrations/${f}`))).at(-1)!;
     expect(newest >= '0147').toBe(true);
     const sql = read(`migrations/${newest}`);
-    const inSql = [...sql.matchAll(/\('([a-z_.]+)', 'unrelated'/g)].map((m) => m[1]).sort();
+    const inSql = [...sql.matchAll(/\('([a-z_.]+)', 'unrelated'/g)].map((m) => m[1]);
+    // A later migration may preserve the contract and append rows through a renamed predecessor.
+    // The live integration test also compares the resulting SQL function against RULES table for table.
+    for(const file of readdirSync(ROOT+'migrations').filter(f=>/^\d{4}_.*\.sql$/.test(f)&&f>newest).sort()){
+      const extension=read(`migrations/${file}`);
+      if(!/create function customer_erasure_contract\(/i.test(extension))continue;
+      const predecessor=extension.match(/alter function customer_erasure_contract\(\) rename to (\w+)/i)?.[1];
+      expect(predecessor,`${file}: extension must preserve its predecessor`).toBeTruthy();
+      expect(extension).toContain(`select * from ${predecessor}()`);
+      const appended=extension.match(/select t,\s*'unrelated'[\s\S]*?unnest\(array\[([^\]]+)\]\)/)?.[1];
+      expect(appended,`${file}: classify every appended table`).toBeTruthy();
+      inSql.push(...[...appended!.matchAll(/'([a-z_]+)'/g)].map(m=>m[1]!));
+      // Other appended actions are classified too, not silently mistaken for unrelated rows.
+      const body = extension.match(/create function customer_erasure_contract\(\)[\s\S]*?\$\$([\s\S]*?)\$\$/i)?.[1] ?? '';
+      const additions = [...body.matchAll(/union all select t,\s*'([^']+)'[\s\S]*?unnest\(array\[([^\]]+)\]\)/g)];
+      expect(additions.length, `${file}: every union addition is parsed`).toBe((body.match(/union all/gi) ?? []).length);
+      for (const row of additions) for (const table of row[2]!.matchAll(/'([a-z_]+)'/g)) {
+        expect((RULES as Record<string, { do: string }>)[table[1]!]?.do, `${file}: ${table[1]}`).toBe(row[1]);
+      }
+    }
+    inSql.sort();
     const inTool = Object.entries(RULES as Record<string, { do: string }>).filter(([, r]) => r.do === 'unrelated').map(([t]) => t).sort();
     expect(inSql).toEqual(inTool);
     expect(inSql.length).toBeGreaterThanOrEqual(57);

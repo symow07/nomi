@@ -724,7 +724,7 @@ export type ConversationDetail = {
       | { readonly reason: ReminderWithheld; readonly key: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
-      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -1279,11 +1279,11 @@ export const perPiece = (locale: Locale, m: Money): string => `${show.money(loca
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
-  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' }
   | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown' || reason === 'owner_follow_up') return { reason };
   // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
   if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
     && typeof key === 'string') return { reason, key: key.slice(0, 40) };
@@ -1928,8 +1928,8 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   const r = d.reading ?? null;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
-  const waits = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
-    esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
+  const waits = (sentence: string, english = false) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
+    esc(t(locale, 'card.waiting'))}</b> ${english ? `<bdi lang="en" dir="ltr">${esc(sentence)}</bdi>` : esc(sentence)}</p>`;
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     // 0229 — which step of the owner's procedure this reply does.
@@ -1939,7 +1939,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
       : 'key' in p.withheld
         ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, key: String(p.withheld.key) })
-        : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
+        : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name }), p.withheld.reason === 'owner_follow_up') : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');

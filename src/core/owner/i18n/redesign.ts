@@ -15,6 +15,7 @@ import { PROCEDURES_EN } from './procedures.js';
 import { CASES_EN } from './cases.js';
 import { MONTH_REPORT_EN } from './monthReport.js';
 import { MONTH_MAIL_EN } from './monthMail.js';
+import { FOLLOW_UPS_EN } from './followUps.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -39,6 +40,7 @@ export const REDESIGN_EN = {
   ...CASES_EN,
   ...MONTH_REPORT_EN,
   ...MONTH_MAIL_EN,
+  ...FOLLOW_UPS_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

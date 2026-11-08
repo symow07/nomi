@@ -9,6 +9,9 @@ import type { BusinessId } from '../../src/core/types/ids.js';
 import { registerWebApp } from '../../src/api/web/app.js';
 import { startBoss } from '../../src/queue/boss.js';
 import { runDueFollowUps } from '../../src/outbound/followUps.js';
+import { loadCalendar } from '../../src/db/calendar.js';
+import { loadMonthReport } from '../../src/db/monthReport.js';
+import { makeSessionCodec } from '../../src/api/web/session.js';
 
 const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
@@ -78,6 +81,91 @@ suite('A null-turn follow-up uses the existing owner controls (requires DATABASE
     const live = await get(`/app/live/conversation/${conversation}?since=0.0.00000000`);
     expect(live.statusCode).toBe(200);
     expect(live.headers['content-type']).toContain('application/json');
+  });
+
+  it('shows the held reason, source quote and owner skip; skipping only supersedes this draft', async () => {
+    const page = await get(`/app/inbox/${conversation}`);
+    expect(page.body).toContain('A follow-up you set. You choose Send.');
+    expect(page.body).toContain('The quote it follows');
+    const run = (await query(`select id from follow_up_runs where draft_id = $1`, [draft])).rows[0].id;
+    expect(page.body).toContain(`/follow-ups/${run}/skip`);
+    const before = sent.length;
+    await post(`/app/inbox/${conversation}/follow-ups/${run}/skip`, {});
+    expect((await row()).status).toBe('superseded');
+    expect(sent).toHaveLength(before);
+    expect((await get(`/app/inbox/${conversation}`)).body).toContain('Skipped');
+  });
+
+  it('puts a due follow-up on the conversation calendar while outreach is off', async () => {
+    const view = await loadCalendar(db, business, {
+      from: new Date(now.getTime() - 86400000).toISOString().slice(0, 10),
+      to: new Date(now.getTime() + 86400000).toISOString().slice(0, 10), category: 'followups', buyer: null, outreach: false,
+    }, now);
+    const own = view.entries.filter(e => e.source.table === 'follow_up_runs' && e.conversationId === conversation);
+    expect(own).toHaveLength(1);
+    expect(own[0]?.at).toEqual(now);
+  });
+
+  it('staff can read but cannot save the rule or skip a follow-up', async () => {
+    const id = randomUUID();
+    await query(`insert into people(id, business_id, name, code_hash, is_owner) values ($1, $2, 'Staff', $3, false)`, [id, business, randomUUID()]);
+    const staff = `yf_session=${makeSessionCodec('follow-up-fixture-session-secret').sign({ businessId: business,
+      exp: Date.now() + 60000, person: { id, name: 'Staff', isOwner: false } })}`;
+    const run = (await query(`select id from follow_up_runs where draft_id = $1`, [draft])).rows[0].id;
+    const before = (await query(`select * from follow_up_rules where business_id = $1`, [business])).rows;
+    for (const url of ['/app/settings/assistant', `/app/inbox/${conversation}`]) {
+      const page = await app.inject({ url, headers: { cookie: staff } });
+      expect(page.statusCode).toBe(200);
+      expect(page.body).toContain('Follow-ups after a quote');
+      expect(page.body).not.toContain('action="/app/settings/assistant/follow-ups"');
+      expect(page.body).not.toContain(`/follow-ups/${run}/skip`);
+    }
+    for (const url of ['/app/settings/assistant/follow-ups', `/app/inbox/${conversation}/follow-ups/${run}/skip`]) {
+      expect((await app.inject({ method: 'POST', url, headers: { cookie: staff, ...FORM },
+        payload: 'enabled=1&delayDays=1&wording=Changed' })).statusCode).toBe(302);
+    }
+    expect((await query(`select * from follow_up_rules where business_id = $1`, [business])).rows).toEqual(before);
+    expect((await row()).status).toBe('pending');
+  });
+
+  it('counts accepted follow-ups in the workspace month Send was chosen, as a subset only', async () => {
+    await query(`update businesses set timezone = 'America/Los_Angeles', report_minutes_per_reply = 4 where id = $1`, [business]);
+    await post(`/app/inbox/${conversation}/act`, { draftId: draft, command: 'send', edit: WORDS });
+    const decided = new Date('2031-06-01T06:59:00Z'), accepted = new Date('2031-06-01T07:01:00Z');
+    await query(`update drafts set decided_at = $2 where id = $1`, [draft, decided]);
+    const report = (month: string) => withTenantTx(db, business, tx => loadMonthReport(tx, business, month, accepted));
+    expect(await report('2031-05')).toMatchObject({ followUpsSent: 0 });
+    await query(`update outbound_messages set status = 'sent', sent_at = $2
+      where id = (select outbound_id from follow_up_approvals where draft_id = $1)`, [draft, accepted]);
+    await query(`insert into messages(conversation_id, direction, input_type, text_content, sent_at)
+      values ($1, 'outbound', 'text', $2, $3)`, [conversation, WORDS, accepted]);
+    expect(await report('2031-05')).toMatchObject({ followUpsSent: 1, replies: { drafted: 1, asWritten: 1 },
+      estimate: { replies: 1, minutes: 4 } });
+    expect(await report('2031-06')).toMatchObject({ followUpsSent: 0, replies: { drafted: 0 } });
+    for (const status of ['queued', 'failed', 'uncertain']) {
+      await query(`update outbound_messages set status = $2 where id = (select outbound_id from follow_up_approvals where draft_id = $1)`, [draft, status]);
+      expect(await report('2031-05')).toMatchObject({ followUpsSent: 0 });
+    }
+    await query(`update outbound_messages set status = 'delivered' where id = (select outbound_id from follow_up_approvals where draft_id = $1)`, [draft]);
+    expect(await report('2031-05')).toMatchObject({ followUpsSent: 1 });
+    await query(`update conversations set owner_testing = true where id = $1`, [conversation]);
+    expect(await report('2031-05')).toMatchObject({ followUpsSent: 0 });
+    await query(`update businesses set timezone = 'UTC', report_minutes_per_reply = null where id = $1`, [business]);
+  });
+
+  it('saves exact words for future runs without changing autonomy, and retains invalid wording', async () => {
+    const original = (await query(`select * from autonomy_policy where business_id = $1`, [business])).rows;
+    const words = '  My exact <words>\nfor later.  ';
+    const saved = await post('/app/settings/assistant/follow-ups', { enabled: '1', delayDays: '3', wording: words });
+    expect(saved.statusCode).toBe(302);
+    expect((await query(`select wording, delay_days from follow_up_rules where business_id = $1`, [business])).rows[0])
+      .toEqual({ wording: words, delay_days: 3 });
+    expect((await query(`select * from autonomy_policy where business_id = $1`, [business])).rows).toEqual(original);
+    expect((await query(`select wording from follow_up_runs where draft_id = $1`, [draft])).rows[0].wording).toBe(WORDS);
+    const invalid = await post('/app/settings/assistant/follow-ups', { enabled: '1', delayDays: '9', wording: words });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.body).toContain('My exact &lt;words&gt;');
+    await query(`update follow_up_rules set wording = $2, delay_days = 2 where business_id = $1`, [business, WORDS]);
   });
 
   it.each([['Send', WORDS, 'approved'], ['Edit', 'I can answer any questions about it.', 'edited']])('%s uses applyOwnerCommand and the exact outbound link', async (_action, edit, status) => {

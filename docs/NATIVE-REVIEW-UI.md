@@ -16712,3 +16712,66 @@ language. The PDF's own labels are English too, as the text proforma's are.
   that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
+
+
+## Owner-written follow-ups (2026-11-09; 0234)
+
+50 new lines, English only, in `src/core/owner/i18n/followUps.ts` (`FOLLOW_UPS_EN`, registered in `redesign.ts`). No translations are invented. The owner’s own follow-up is kept exactly as typed and is never translated.
+
+The settings and conversation page use 44 lines; the three notices use 3; the calendar, monthly subset and approval-card reason use 3. The rule starts off and only prepares a draft: translating it must never promise an automatic send.
+
+| Key | English pending native review |
+| --- | --- |
+| `followUp.title` | Follow-ups after a quote |
+| `followUp.intro` | When a customer has not answered a quote, prepare one follow-up in your words. You choose Send. Nothing goes on its own. |
+| `followUp.enabled` | Prepare a follow-up after a quote |
+| `followUp.off` | Off |
+| `followUp.on` | On |
+| `followUp.delay` | Days to wait |
+| `followUp.days` | {n} days |
+| `followUp.day` | 1 day |
+| `followUp.clock` | Choose 1 to 7 whole days. Two days means 48 hours after the quote was sent. |
+| `followUp.wording` | Your follow-up |
+| `followUp.wordsHelp` | Up to 500 characters, kept exactly as you write them. |
+| `followUp.preview` | Saved words |
+| `followUp.emptyWords` | No words saved yet. |
+| `followUp.future` | Changes apply to future follow-ups. Follow-ups already planned keep their words and date. |
+| `followUp.save` | Save follow-up |
+| `followUp.ruleError` | Choose 1 to 7 whole days and write up to 500 characters. Add your words before turning this on. |
+| `followUp.flash.saved` | Follow-up saved. You still choose Send. |
+| `followUp.flash.skipped` | Follow-up skipped. |
+| `followUp.flash.changed` | This follow-up has changed. Check the conversation before choosing again. |
+| `followUp.run` | Follow-up |
+| `followUp.due` | Due |
+| `followUp.source` | The quote it follows |
+| `followUp.planned` | Planned |
+| `followUp.dueNow` | Due for a draft |
+| `followUp.review` | Waiting for you to review |
+| `followUp.sending` | Send chosen; waiting for confirmation |
+| `followUp.sent` | Sent |
+| `followUp.failed` | Not confirmed as sent. Check the conversation. |
+| `followUp.closed` | Follow-up due; {channel} is closed until the customer writes. |
+| `followUp.canceled` | Canceled |
+| `followUp.skipped` | Skipped |
+| `followUp.skip` | Skip this follow-up |
+| `followUp.answered` | The customer answered. |
+| `followUp.optedOut` | The customer asked for no more messages. |
+| `followUp.unsubscribed` | Messages to this customer are stopped. |
+| `followUp.deletion` | The customer asked to have their information removed. |
+| `followUp.person` | A person is looking after this conversation. |
+| `followUp.conversationClosed` | The conversation is closed. |
+| `followUp.stopped` | The assistant is stopped. |
+| `followUp.silenced` | The assistant is paused. |
+| `followUp.allowance` | The daily allowance is used. |
+| `followUp.billing` | The workspace is waiting for payment. |
+| `followUp.workspaceClosed` | The workspace is closed. |
+| `followUp.practice` | This is a practice conversation. |
+| `followUp.expired` | The time to send this draft has passed. |
+| `followUp.dismissed` | No reply needed was chosen. |
+| `followUp.race` | The customer wrote as Send was being chosen. Check the conversation to see what went. |
+| `followUp.calendar` | A follow-up you set |
+| `followUp.month` | Follow-ups you sent: {n} |
+| `inbox.draft.held.owner_follow_up` | A follow-up you set. You choose Send. |
+
+- **Values:** `followUp.days` and `followUp.month` carry `{n}`; `followUp.closed` carries `{channel}`. None carries `{name}`. Keep the displayed count and channel intact.
+- **Translate first:** the rule’s introduction, Save and Skip buttons, validation sentence and three notices; then the closed-channel and cancellation reasons, the approval-card reason and the remaining labels. The monthly line is a subset, never another total.

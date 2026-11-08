@@ -14,6 +14,7 @@ export type FollowUpRun = {
   quoted_at: Date; due_at: Date; delay_days: number; wording: string; state: string; reason: string | null;
   draft_id: string | null; presented_at: Date | null; answered_after_approval: boolean;
   draft_status?: string | null; outbound_status?: string | null; accepted_at?: Date | null;
+  source_words?: string | null;
 };
 export type FollowUpObservation = {
   id: string; business_id: string; client_id: string; conversation_id: string; quote_id: string; outbound_id: string;
@@ -37,9 +38,11 @@ export async function saveFollowUpRule(tx: Tx, businessId: string, rule: FollowU
 }
 
 export async function followUpsOf(tx: Tx, businessId: string, conversationId: string): Promise<readonly FollowUpRun[]> {
-  return (await sql<FollowUpRun>`select r.*, d.status as draft_status, o.status as outbound_status, o.sent_at as accepted_at
+  return (await sql<FollowUpRun>`select r.*, d.status as draft_status, o.status as outbound_status, o.sent_at as accepted_at,
+    source.body as source_words
     from follow_up_runs r left join drafts d on d.id = r.draft_id
     left join follow_up_approvals a on a.run_id = r.id left join outbound_messages o on o.id = a.outbound_id
+    left join outbound_messages source on source.id = r.source_outbound_id
     where r.business_id = ${businessId}::uuid and r.conversation_id = ${conversationId}::uuid
     order by r.created_at desc, r.id limit 20`.execute(tx)).rows;
 }
