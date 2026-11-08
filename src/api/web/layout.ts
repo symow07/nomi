@@ -418,7 +418,6 @@ ${STAGGER}
     [dir="rtl"] .toast { animation-name:nomi-toast-in-rtl; }
     .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
     [dir="rtl"] .toast.out { animation-name:nomi-toast-out-rtl; }
-    @view-transition { navigation:auto; }
     main { view-transition-name:page; }
     nav.side a.navlink.active { view-transition-name:rail-on; }
     .si-order .si-fil.on { view-transition-name:lens-on; }
@@ -2646,6 +2645,9 @@ export function assetAt(file: string): { readonly body: string | Buffer; readonl
   return font ? { body: font, type: FONT_TYPE, current: true } : null;
 }
 
+// The incoming document must opt in before its external styles arrive.
+const navigationOptIn = (): string => '<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>';
+
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
 
 /** The public document's base rules: the same tokens, a reading page on paper. */
@@ -3014,6 +3016,7 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
+${navigationOptIn()}
 ${linkTo(APP_SHEET)}
 ${TYPE_SLOT}\n${linkTo(SPLIT_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
@@ -3161,6 +3164,7 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
+${navigationOptIn()}
 ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body><div class="login">
