@@ -253,7 +253,7 @@ This is one form with one button. The two ways in are two `<fieldset>`s, each wi
   in. Otherwise the field is empty with the hint `storeToken.shop.hint`.
 
 **Fieldset A · An app you already have** (legend `storeToken.legacy.legend`):
-- `storeToken.token`: "Admin API access token".
+- `storeToken.token`: the label Admin API access token, with no quotation marks in it.
 - No explanatory line yet. `storeToken.legacy.how` waits for the owner's confirmation (§2.5) and is not
   shown until then.
 
@@ -272,8 +272,11 @@ This is one form with one button. The two ways in are two `<fieldset>`s, each wi
 
 **The rest of the form:**
 - **Currency tick:** the same box the address form has. K8's currency rule applies unchanged.
-- **Button** `storeToken.read`, "Read the store". Primary, black.
-- **A Shopify answer's refusal** goes directly under the button, before the kept line.
+- **Button** `storeToken.read`, "Read the store". **Secondary** (outline), like the page's other alternative
+  forms ("Read my store", "Read the photos"). One main button per page is the app's rule, and the surface
+  walk tests it; on Add products the main button is the paste form's.
+- **Every refusal except the address's** ("choose one", "spaces" and every Shopify answer) goes directly
+  under the button, before the kept line.
 - **One line under the button, always visible:** `storeToken.kept`.
 
 **Which way is used:**
@@ -317,19 +320,20 @@ This is one form with one button. The two ways in are two `<fieldset>`s, each wi
 
 ### 2.4 Its refusals
 
-Each refusal is shown under the field it concerns (`role="alert"`, `aria-describedby`): the address's
-under the address, a "choose one" or "spaces" refusal under the two fieldsets. A Shopify answer goes
-directly under Read the store.
+Each refusal is `role="alert"`. The address's goes under the address, which carries `aria-invalid` and
+`aria-describedby`. **Every other refusal goes directly under Read the store**, above the kept line: "choose
+one" and "spaces" (the three credential fields then carry `aria-invalid` and `aria-describedby` pointing to
+it), and every Shopify answer (t1r's ruling D).
 
 | What happened | Key | English |
 |---|---|---|
 | The address is not `*.myshopify.com` | `storeToken.refused.not_myshopify` | That is not a .myshopify.com address. Type your store's address ending in .myshopify.com. |
-| Nothing filled, both ways filled, or only one of ID / secret | `storeToken.refused.choose_one` | Fill in one way: the access token, or both the Client ID and the Client secret. |
+| Nothing filled, both ways filled, or only one of ID / secret | `storeToken.refused.choose_one` | Fill in one way: the “Admin API access token”, or both the Client ID and the Client secret. |
 | A field has spaces inside | `storeToken.refused.spaces` | Paste it again without spaces. |
 | Way B: `shop_not_permitted` (the client-credentials page: "Client credentials cannot be performed on this shop") | `storeToken.refused.shop_not_permitted` | Shopify won't let this app read this store. The app must belong to the same Shopify organization as the store, and be installed on it. |
 | Way B: `application_cannot_be_found` (the app is not in the store's organization, or not installed; on t1r's list, not on the two pages) | `storeToken.refused.app_not_found` | Shopify can't find this app for this store. Check the Client ID, that the app belongs to the store's organization, and that it is installed on the store. |
 | Way B: the exchange answers 401 | `storeToken.refused.client_rejected` | Shopify did not accept this Client ID and Client secret. Copy both again from the app's Settings in the Dev Dashboard. |
-| Way A: 401 on reading | `storeToken.refused.rejected` | Shopify did not accept this access token. Check you copied all of it, then paste it again. |
+| Way A: 401 on reading | `storeToken.refused.rejected` | Shopify did not accept this “Admin API access token”. Check you copied all of it, then paste it again. |
 | 403, or way B's `scope` lacks `read_products` | `storeToken.refused.no_scope` | The app works, but it may not read products. Give it permission to read products, then try again. |
 | 404, or no store at that host | `storeToken.refused.no_store` | No Shopify store answers at {host}. Check the .myshopify.com address. |
 | 429 | `storeToken.refused.slow_down` | Shopify asked us to slow down. Wait a minute, then read it again. |
@@ -350,7 +354,7 @@ confirms it.
 | `storeToken.dev.step1` | In Shopify's Dev Dashboard, open Apps and choose your app. | client-secrets: "Click Apps and select your app" |
 | `storeToken.dev.step2` | Make sure the app is installed on this store, and belongs to the same Shopify organization as the store. | client-credentials: the grant "only works when the app and the store belong to the same Shopify organization"; "You've installed your app on your store" |
 | `storeToken.dev.step3` | Make sure the store lets the app read products. | client-credentials: the token "carries all scopes the store granted to the installation". **Where the owner grants `read_products` is on neither page: owner to confirm the wording.** |
-| `storeToken.dev.step4` | Open Settings, and copy the Client ID and Client secret under Credentials. | client-secrets: "Click Settings. View or copy your client ID and secret under Credentials" |
+| `storeToken.dev.step4` | Open Settings, and copy the Client ID and Client secret under “Credentials”. | client-secrets: "Click Settings. View or copy your client ID and secret under Credentials" |
 | `storeToken.legacy.how` | If your store already has a custom app made in its Shopify admin, paste that app's Admin API access token. New apps are made in the Dev Dashboard instead. | **Neither page says where an existing custom app's token is shown.** This sentence names no screen; owner to confirm. |
 
 ---
@@ -492,7 +496,7 @@ How each row is drawn:
 | `storeToken.shop.hint` | Shopify gives every store one, ending in .myshopify.com. |
 | `storeToken.or` | or |
 | `storeToken.legacy.legend` | An app you already have |
-| `storeToken.token` | Admin API access token |
+| `storeToken.token` | Admin API access token (the field's label: no quotation marks) |
 | `storeToken.legacy.how` | As in §2.5. Not shown until the owner confirms it. |
 | `storeToken.dev.legend` | An app from the Dev Dashboard |
 | `storeToken.clientId` | Client ID |
@@ -605,7 +609,8 @@ Use a fake Shopify at `{shop}.myshopify.com` that records every request: path, h
     the sentence. The upfront disclosure opens the same form.
 14. The form shows the shared address, then fieldset A (the token, with no explanatory line) and fieldset B
     (Client ID, Client secret, **three** steps, the two doors), with "or" between. Step 3 and the legacy line
-    are not on the page (§2.5).
+    are not on the page (§2.5). The token's label reads Admin API access token, with no quotation marks.
+    Read the store is a secondary button; the page's one main button is the paste form's.
     - Each fieldset has a legend.
     - Every credential field is `type="password"`.
     - The two doors are the only external links. They go to exactly the client-secrets and client-credentials
@@ -630,7 +635,9 @@ Use a fake Shopify at `{shop}.myshopify.com` that records every request: path, h
     - 404, 429, a timeout, a redirect;
     - a non-myshopify address;
     - a store in another currency (`currency_mismatch`).
-    - A Shopify answer's refusal sits directly under Read the store, above the kept line.
+    - Every refusal except the address's ("choose one", "spaces" and every Shopify answer) sits directly
+      under Read the store, above the kept line.
+    - `choose_one` and `rejected` name the field as “Admin API access token”, in quotation marks.
 20. **After every refusal:**
     - all three credential fields are empty;
     - the shop address is kept, except an address that was refused (`not_myshopify`), which is empty;
@@ -686,4 +693,15 @@ takes where t1r ruled for the spec.
 7. **Contacts in** is the earliest of the file stamp and the first customer who wrote in, testing
    conversations left out (§3.3, check 24).
 8. **Group counts are ink** (C, check 4); refusals put focus on their field (2, check 2).
+
+### Further rulings (t1r, 2026-11-08, the cleanup round)
+
+9. **"Choose one" and "spaces" go under Read the store**, like every Shopify answer (ruling D); only the
+   address's refusal stays under its field (§2.2, §2.4, check 19).
+10. **Read the store is secondary.** One main button per page is the app's rule, and the surface walk tests it
+    (§2.2, check 14).
+11. **Copy:** the field's label is Admin API access token, with no quotation marks. `choose_one` and
+    `rejected` name the field as “Admin API access token”, in quotation marks. Step 4 keeps under
+    “Credentials” (§2.4, §2.5, §4.2, checks 14 and 19). The polisher writes the catalogue; the tester checks
+    the label without quotes, the quoted field name in both refusals, and step 4's quotes.
 
