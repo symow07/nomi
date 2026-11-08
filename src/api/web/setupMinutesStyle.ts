@@ -23,6 +23,14 @@ export const SETUP_MINUTES_CSS = String.raw`
 .ci-table th,.ci-table td{text-align:start;vertical-align:top;padding:var(--space-8);overflow-wrap:anywhere;border-block-end:1px solid var(--color-border)}
 .ci-selectable th:first-child{inline-size:44px}
 .contact-import summary,.store-token>summary{cursor:pointer;min-block-size:44px;align-content:center}
+/* The words themselves are the isolate; alignment still follows the page. */
+.contact-import summary>bdi,.store-token>summary>bdi,.store-token form>p:last-child>bdi{display:block;min-inline-size:0;text-align:match-parent}
+.contact-import summary>bdi,.store-token>summary>bdi{flex:1}
+/* Chromium retains start for match-parent here, as it does for cut names. */
+[dir="rtl"] .contact-import summary>bdi:dir(ltr),[dir="ltr"] .contact-import summary>bdi:dir(rtl),[dir="rtl"] .store-token>summary>bdi,[dir="rtl"] .store-token form>p:last-child>bdi{text-align:end}
+/* Keep the list on the page's start edge, but read each decimal marker as 1. */
+.store-token ol>li::marker{direction:ltr;unicode-bidi:isolate}
+[dir="rtl"] .store-token ol>li{padding-inline-start:var(--space-8)}
 .ci-rows,.setup-clock ol{list-style:none;padding:0;margin:0}
 .ci-rows li{padding-block:var(--space-16);border-block-end:1px solid var(--color-border)}
 .ci-rows p{margin-block:0 var(--space-8)}

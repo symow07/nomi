@@ -42,7 +42,7 @@ const error = (locale: Locale, reason: ContactImportFileRefusal, id: string) =>
 const columnsHeader = (locale: Locale, selection = false) => `<thead><tr>${selection ? '<th></th>' : ''}${CONTACT_IMPORT_COLUMNS.map(key =>
   `<th scope="col">${words(locale, `contactImport.columns.${key}`)}</th>`).join('')}</tr></thead>`;
 const notes = (text: string | null) => text && text.length > 80
-  ? `<details class="ci-notes"><summary>${raw(text.slice(0, 80))}…</summary>${raw(text)}</details>` : raw(text);
+  ? `<details class="ci-notes"><summary>${raw(`${text.slice(0, 80)}…`)}</summary>${raw(text)}</details>` : raw(text);
 const contactCells = (locale: Locale, contact: ImportedContact) =>
   `<td class="ci-name">${contact.name ? raw(contact.name) : words(locale, 'contactImport.check.unnamed')}</td>
    <td class="ci-phone"><bdi dir="ltr">${esc(`+${contact.phone}`)}</bdi></td><td class="ci-language">${raw(contact.language)}</td><td class="ci-notes-cell">${notes(contact.notes)}</td>`;
