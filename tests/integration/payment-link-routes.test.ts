@@ -45,7 +45,7 @@ d('payment links · owner routes and signed receipt boundary',{timeout:120_000},
   afterAll(async()=>{await app?.close();await db?.destroy();await admin?.end();});
   it('opens the owner page in both languages; unsigned readers go to sign-in',async()=>{
     expect((await get(BASE,'')).statusCode).toBe(302);
-    for(const locale of ['en','ar']){const r=await get(`${BASE}?lang=${locale}`);expect(r.statusCode).toBe(200);expect(r.body).toContain('Connect your Stripe account');expect(unisolatedFigures(r.body)).toEqual([]);expect(buttonsAndDoors(r.body)).toEqual([]);}
+    for(const locale of ['en','ar']){const r=await get(BASE,owner+`; yf_locale=${locale}`);expect(r.statusCode).toBe(200);expect(r.body).toContain(`<html lang="${locale}"`);expect(r.body).toContain('Connect your Stripe account');expect(unisolatedFigures(r.body)).toEqual([]);expect(buttonsAndDoors(r.body)).toEqual([]);}
   });
   it('binds only a matching one-use owner state, never a replay',async()=>{
     const start=await form(`${BASE}/connect`);expect(start.statusCode).toBe(302);
@@ -68,7 +68,12 @@ d('payment links · owner routes and signed receipt boundary',{timeout:120_000},
     const raw=JSON.stringify({id:'evt_route',type:'checkout.session.completed',account:p.client?`acct_${bid.replaceAll('-','')}`:'',livemode:false,created:Math.floor(Date.now()/1000),data:{object:{id:object.id,payment_intent:null,customer_email:'must-not-be-kept@example.test'}}});
     const time=Math.floor(Date.now()/1000),sig=`t=${time},v1=${createHmac('sha256',CONNECT_CONFIG.webhookSecret).update(`${time}.${raw}`).digest('hex')}`;
     const hook=(body:string,signature:string)=>app.inject({method:'POST',url:'/hooks/stripe/connect',headers:{'content-type':'application/json','stripe-signature':signature},payload:body});
-    expect((await hook(raw+' ',sig)).statusCode).toBe(400);const calls=p.calls.length;
+    expect((await hook(raw+' ',sig)).statusCode).toBe(400);
+    const signed=(b:string,at=time,key:string=CONNECT_CONFIG.webhookSecret)=>`t=${at},v1=${createHmac('sha256',key).update(`${at}.${b}`).digest('hex')}`;
+    expect((await hook(raw,signed(raw,time-1000))).statusCode).toBe(400);
+    expect((await hook(raw,signed(raw,time,'different-test-secret'))).statusCode).toBe(400);
+    for(const change of [{livemode:true},{account:undefined}]){const b=JSON.stringify({...JSON.parse(raw),...change});expect((await hook(b,signed(b))).statusCode).toBe(400);}
+    const calls=p.calls.length;
     expect((await hook(raw,sig)).statusCode).toBe(200);expect((await hook(raw,sig)).statusCode).toBe(200);expect(p.calls).toHaveLength(calls);
     const rows=(await withTenantTx(db,bid,tx=>sql`select * from stripe_event_inbox where event_id='evt_route'`.execute(tx))).rows;
     expect(rows).toHaveLength(1);expect(JSON.stringify(rows)).not.toContain('must-not-be-kept');
@@ -96,7 +101,14 @@ d('payment links · owner routes and signed receipt boundary',{timeout:120_000},
     expect((await withTenantTx(db,bid,tx=>sql<{active:boolean}>`select active from stripe_connections`.execute(tx))).rows[0]!.active).toBe(true);
   });
 
-  it('queues only an explicit owner send on the existing path and keeps opt-out and expiry refusals',async()=>{
+  it('has no binding or provider access in a Practice copy',async()=>{
+    const copy=randomUUID();await admin.query("insert into businesses(id,name,engine,country,currency,books_area,practice_of) values($1,'Practice fixture','service','GB','GBP',true,$2)",[copy,bid]);
+    const cookie='yf_session='+makeSessionCodec(SECRET).sign({businessId:copy,exp:Date.now()+60000});
+    const calls=p.calls.length;expect((await get(BASE,cookie)).body).toContain('Practice has no payment connection');
+    for(const path of ['connect',`invoices/${invoice}/create`,`invoices/${invoice}/send`])await form(`${BASE}/${path}`,{},cookie);
+    expect(p.calls).toHaveLength(calls);
+  });
+  it('queues only an explicit owner send on the existing path and keeps the opt-out refusal',async()=>{
     const f=await withTenantTx(db,bid,async tx=>{
       const c=await ensureConversation(tx,bid,'payment-fixture@example.test','Payment fixture','email');
       await sql`update client_channels set last_inbound_at=now() where client_id=${c.clientId}::uuid`.execute(tx);
