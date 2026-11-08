@@ -94,6 +94,37 @@ jobs:
 
       - run: npm ci
 
+      - name: Enable B3 PostgreSQL telemetry
+        run: |
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -U postgres -d nomi -v ON_ERROR_STOP=1 <<'SQL'
+          LOAD 'auto_explain';
+          ALTER SYSTEM SET log_min_duration_statement = '500ms';
+          ALTER SYSTEM SET log_lock_waits = on;
+          ALTER SYSTEM SET deadlock_timeout = '1s';
+          ALTER SYSTEM SET session_preload_libraries = 'auto_explain';
+          ALTER SYSTEM SET auto_explain.log_min_duration = '1s';
+          ALTER SYSTEM SET auto_explain.log_analyze = on;
+          ALTER SYSTEM SET auto_explain.log_timing = on;
+          ALTER SYSTEM SET auto_explain.log_nested_statements = on;
+          ALTER SYSTEM SET log_line_prefix = '%m [%p] app=%a ';
+          SELECT pg_reload_conf();
+          SQL
+          # A fresh session proves the preload and reloaded settings before any migration.
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -U postgres -d nomi -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT version();
+          SHOW jit;
+          SELECT pg_jit_available();
+          SHOW log_min_duration_statement;
+          SHOW log_lock_waits;
+          SHOW deadlock_timeout;
+          SHOW session_preload_libraries;
+          SHOW auto_explain.log_min_duration;
+          SHOW auto_explain.log_analyze;
+          SHOW auto_explain.log_timing;
+          SHOW auto_explain.log_nested_statements;
+          SHOW log_line_prefix;
+          SQL
+
       - name: Apply migrations
         run: node tools/migrate.mjs
 
@@ -127,7 +158,7 @@ jobs:
       # demotion. run-integration.mjs asserts ZERO skipped — not a minimum
       # count, which would be a transcribed number that drifts.
       - name: Integration suite
-        run: node tools/run-integration.mjs
+        run: node tools/run-integration.mjs --reporter=verbose --slowTestThreshold=0
 
       # Proves the suite is repeatable (M22). It mutates the database it asserts
       # against, so a second pass is the only thing that catches an ordering
@@ -136,4 +167,16 @@ jobs:
       # at half the cost of every pull request's run.
       - name: Integration suite, again
         if: github.event_name != 'pull_request'
-        run: node tools/run-integration.mjs
+        run: node tools/run-integration.mjs --reporter=verbose --slowTestThreshold=0
+
+      - name: Collect B3 PostgreSQL log
+        if: always()
+        run: docker logs "${{ job.services.postgres.id }}" > "${{ runner.temp }}/b3-postgres.log" 2>&1
+
+      - name: Upload B3 PostgreSQL log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: b3-postgres-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/b3-postgres.log
+          if-no-files-found: error
