@@ -2959,7 +2959,7 @@ function areaNavigation(locale: Locale, path: string, active: string): string {
   const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
     { href: '/app', label: 'split.title', aliases: ['/app'] },
     { href: '/app/calendar', label: 'nav.calendar', aliases: ['/app/calendar'] },
-    ...(viewerRole() === 'owner' ? [{ href: '/app/results', label: 'nav.results' as MessageKey, aliases: ['/app/results', '/app/analytics'] }] : []),
+    { href: '/app/results', label: 'nav.results', aliases: ['/app/results', '/app/analytics'] },
     { href: '/app/get-started', label: 'nav.getStarted', aliases: ['/app/get-started', '/app/guide', '/app/onboarding', '/app/ready'] },
   ];
   const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;

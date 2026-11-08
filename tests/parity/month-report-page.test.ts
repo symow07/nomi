@@ -261,4 +261,14 @@ describe('Block 4.3 · the month report page', () => {
     expect(css).toMatch(/\.month-report[^}]*min-inline-size:0/);
     expect(css).toMatch(/\.month-report[^}]*\.btn\.send[^}]*background:var\(--color-ink\)/);
   });
+
+  it('wraps the shared four-view Results tabs on every view, not only beside the month report', () => {
+    const css = linkedCss(shell({ title: 'Results', active: 'analytics', path: '/app/results', locale: 'ar', bodyHtml: '' }));
+    const selector = '.tabs:has(> .tab[href="/app/results/month"])';
+    const declarations = (suffix = '') => css.split(`${selector}${suffix}{`)[1]?.split('}')[0] ?? '';
+    expect(declarations()).toContain('flex-wrap:wrap');
+    expect(declarations()).toContain('overflow:visible');
+    expect(declarations(' .tab')).toContain('white-space:normal');
+    expect(declarations(' .tab')).toContain('min-block-size:44px');
+  });
 });
