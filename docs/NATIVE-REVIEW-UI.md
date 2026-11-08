@@ -16658,8 +16658,8 @@ translates them. The page and the e-mail describe the same month's figures; keep
 
 ## Set up in minutes (2026-11-08; block 4.4, 0232)
 
-The 4.4 inventory from `946c25de`, with catalogue wording updated at `9a0b2816`, has 104 English-only lines in
-`src/core/owner/i18n/setupMinutes.ts` (`SETUP_MINUTES_EN`):
+The 4.4 inventory from `946c25de`, with catalogue wording updated during the cleanup of `165bf19d`, has 104
+English-only lines in `src/core/owner/i18n/setupMinutes.ts` (`SETUP_MINUTES_EN`):
 99 page lines (including inline refusals) and five flashes. `redesign.ts` registers this whole set; other languages
 show the English until a native reader translates it. There is no new mail copy. Three other fixed English lines
 outside the catalogue are listed below: two example CSV rows and one export label, making 107 fixed lines in all.
@@ -16679,14 +16679,18 @@ outside the catalogue are listed below: two example CSV rows and one export labe
   (`dev.step1`, `.step2`, `.step4`) and two help doors, Read the store, and the one-use credentials explanation
   (`storeToken.kept`). The twelve `storeToken.refused.*` lines are `.not_myshopify`, `.choose_one`, `.spaces`,
   `.shop_not_permitted`, `.app_not_found`, `.client_rejected`, `.rejected`, `.no_scope`, `.no_store`, `.slow_down`,
-  `.unreachable`, `.currency_mismatch`. Our sentences say "the code from Shopify" (`.choose_one`) and "the whole code"
-  (`.rejected`). Keep the distinction between that code and the Client ID / Client secret pair, and between a code
-  Shopify did not accept, missing product permission and a store the app cannot read. The refusals refer to "the
-  store's organization" (`.app_not_found`) and "the app's Settings" (`.client_rejected`); preserve who each belongs to.
-- **Shopify's screen labels:** `storeToken.token` quotes “Admin API access token”; `storeToken.dev.step4` quotes
-  “Credentials”. **Shopify's own words: translate to match Shopify's screen in that language.** These two quoted
-  spans are the named exceptions in `SHOPIFY_SCREEN_LABELS`; our surrounding sentences stay in plain words and
-  follow the owner vocabulary rules. The exception list refers to existing messages and adds no catalogue lines.
+  `.unreachable`, `.currency_mismatch`. Keep the distinction between the field named below and the Client ID / Client
+  secret pair, and between something Shopify did not accept, missing product permission and a store the app cannot
+  read. The refusals refer to "the store's organization" (`.app_not_found`) and "the app's Settings"
+  (`.client_rejected`); preserve who each belongs to.
+- **Shopify's screen labels:** `storeToken.token` is the field label `Admin API access token`, with no quotes.
+  `storeToken.refused.choose_one` says "Fill in one way: the “Admin API access token”, or both the Client ID and the
+  Client secret." `storeToken.refused.rejected` says "Shopify did not accept this “Admin API access token”. Check you
+  copied all of it, then paste it again." `storeToken.dev.step4` still quotes “Credentials”. **Shopify's own words:
+  translate to match Shopify's screen in that language.** These exact phrases are the named exceptions in
+  `SHOPIFY_SCREEN_LABELS` (`tests/parity/shopify-screen-labels.ts`); only the field label is unquoted. Our surrounding
+  sentences stay in plain words and follow the owner vocabulary rules. The exception list refers to existing
+  messages and adds no catalogue lines.
 - **Get started — 15 page lines:** `setupClock.title`, `.running`, `.done`; the four milestones `.products`,
   `.contacts`, `.channel`, `.reply`; the three doors `.products.go`, `.contacts.go`, `.channel.go`; `.reply.how`;
   and `.doneAt`, `.doneOn`, `.notYet`, `.ownerDoes`. The clock says time since sign-up, not time spent working.

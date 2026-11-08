@@ -83,16 +83,21 @@ describe('M1 · no owner-facing string is software talk (the whole catalogue)', 
     });
   }
 
-  it('excepts only exact Shopify quotations in their named keys, leaving other banned words visible', () => {
+  it('excepts only exact Shopify labels in their named keys, leaving other banned words visible', () => {
     for (const [key, phrases] of Object.entries(SHOPIFY_SCREEN_LABELS)) {
       const copy = messages.en[key as MessageKey];
       for (const phrase of phrases ?? []) {
-        expect(phrase).toMatch(/^“[^“”]+”$/);
+        if (key === 'storeToken.token') {
+          expect(phrase).toBe('Admin API access token');
+          expect(copy).toBe(phrase);
+        } else {
+          expect(phrase).toMatch(/^“[^“”]+”$/);
+        }
         expect(copy).toContain(phrase);
       }
       expect(bannedIn(withoutShopifyScreenLabels(key, `${copy} API`))).toContain('API');
     }
-    expect(bannedIn(withoutShopifyScreenLabels('storeToken.token', 'Admin API access token'))).toContain('API');
+    expect(bannedIn(withoutShopifyScreenLabels('storeToken.refused.choose_one', 'Admin API access token'))).toContain('API');
     expect(bannedIn(withoutShopifyScreenLabels('another.key', '“Admin API access token”'))).toContain('API');
   });
 

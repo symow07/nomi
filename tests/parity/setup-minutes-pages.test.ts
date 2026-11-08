@@ -162,7 +162,7 @@ describe('Block 4.4 · setup views', () => {
       expect(html).toContain('<details class="store-token" open>');
       const credentials = forms(html).find(form => form.includes('action="/app/products/add/shopify"')) ?? '';
       expect(credentials).toContain('role="alert" id="shopify-result-error"');
-      expect(plain(credentials)).toContain('Shopify did not accept it.');
+      expect(plain(credentials)).toContain('Shopify did not accept this “Admin API access token”.');
       expect(credentials).toContain(`value="${shopify.address}"`);
       expect(credentials).toContain('name="currency" value="on" checked');
       for (const name of ['token', 'client_id', 'client_secret']) {
