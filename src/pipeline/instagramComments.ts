@@ -41,6 +41,10 @@ export async function registerInstagramCommentWorkers(deps:{db:Db;boss:PgBoss;ke
   await deps.boss.work<{businessId:string;commentId:string}>(QUEUES.instagramComments,async jobs=>{
     for(const job of jobs)await processInstagramComment(deps,job.data);
   });
+}
+
+/** Privacy expiry runs even when the installation has no messaging channel configured. */
+export async function registerInstagramCommentSweep(deps:{db:Db;boss:PgBoss}):Promise<void> {
   await deps.boss.schedule(QUEUES.igCommentSweep,'23 3 * * *',{});
   await deps.boss.work(QUEUES.igCommentSweep,async()=>{await sql`select ig_comment_sweep()`.execute(deps.db);});
 }

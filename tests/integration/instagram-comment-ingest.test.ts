@@ -59,6 +59,8 @@ suite('Instagram comments · actual signed ingress, incremental login, owner rou
  afterAll(async()=>{if(prod)await dropQueuedWork(prod,[business]);await prod?.close();await admin?.end();});
  it('OFF ignores even a signed comment and the base login never asks the extra permission',async()=>{
   const id=addFact();expect((await hook(envelope(id))).statusCode).toBe(200);expect(await count('ig_comments')).toBe(0);
+  for(const table of ['ig_comment_replies','ig_comment_public_replies','ig_comment_alerts'])expect(await count(table)).toBe(0);
+  expect((await admin.query("select count(*)::int n from pgboss.job where data->>'businessId'=$1",[business])).rows[0].n).toBe(0);
   const html=(await get(ROOT)).body;expect(html).toContain('value="1"');expect(html).toContain('Nothing is sent');
   expect((await get('/app/settings/channels/meta')).body).toContain(ROOT);
   const base=await get('/app/connect/meta/start');expect(String(base.headers.location)).toContain('456789012');expect(String(base.headers.location)).not.toContain('567890123');
@@ -136,4 +138,16 @@ suite('Instagram comments · actual signed ingress, incremental login, owner rou
   const outcome=await deliverOwnerAlert({db:prod.db,adapter:{sendText:async()=>{throw new Error('must not send');}},mail:{send:async()=>{throw new Error('must not mail');}}},{businessId:business,kind:'comment_asking',conversationId:null,commentId:internal});
   expect(outcome).toBe('skipped_quiet');
  });
+ it.each(['instagram','messenger'] as const)('%s DM-only payload is stored byte-identically to main’s JSONB representation',async channel=>{
+  const mid='unchanged-'+randomUUID();const recipient=channel==='instagram'?ig:page;
+  const payload={object:channel==='instagram'?'instagram':'page',extra:{kept:'Spacing  and Unicode ✓'},entry:[{id:recipient,time:Math.floor(Date.now()/1000),
+   changes:[{field:'other',value:{kept:['one','two']}}],messaging:[{sender:{id:'plain-'+randomUUID()},recipient:{id:recipient},timestamp:Date.now(),message:{mid,text:'Ordinary direct message'}}]}]};
+  const raw=JSON.stringify(payload);
+  const response=await prod.app.inject({method:'POST',url:'/webhook/'+channel,payload:raw,headers:{'content-type':'application/json','x-hub-signature-256':'sha256='+createHmac('sha256',appSecret).update(raw).digest('hex')}});
+  expect(response.statusCode).toBe(200);
+  // Main writes JSON.stringify(rawPayload)::jsonb. Compare exact database text, including every field.
+  const stored=(await admin.query("select payload::text as actual,$3::jsonb::text as main from channel_events where business_id=$1 and channel=$2 and payload #>> '{entry,0,messaging,0,message,mid}'=$4",[business,channel,raw,mid])).rows;
+  expect(stored).toHaveLength(1);expect(stored[0].actual).toBe(stored[0].main);
+ });
+
 });

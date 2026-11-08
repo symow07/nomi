@@ -1,7 +1,7 @@
 import { commentsConfigId } from './channels/meta/commentConnect.js';
 import { withoutInstagramComments } from './channels/meta/comments.js';
 import { insertInstagramComment } from './db/instagramComments.js';
-import { registerInstagramCommentWorkers } from './pipeline/instagramComments.js';
+import { registerInstagramCommentWorkers, registerInstagramCommentSweep } from './pipeline/instagramComments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -1267,6 +1267,7 @@ export async function buildProduction(
    * both modes: Practice runs with no channel configured, too.
    */
   const erasePracticeDaily = async (): Promise<void> => {
+    await registerInstagramCommentSweep({db,boss});
     await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
       const n = await expirePractice(db);
