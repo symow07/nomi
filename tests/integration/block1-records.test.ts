@@ -29,7 +29,14 @@ const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
 /** A 1×1 PNG. */
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
-const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 60_000): Promise<T> => {
+/**
+ * How long a wait on the real worker may take. The worker is the production one: it takes the oldest inbound jobs
+ * first, and a file that ran before this one can leave some queued for its own workspaces (meta-messaging leaves
+ * eight), so this file's Practice turn may wait behind them. The two tests that wait on it get the same budget as
+ * their waits — at vitest's default 5 s they failed before `until` could (CI 42462911630, pass 2).
+ */
+const WAIT_MS = 60_000;
+const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = WAIT_MS): Promise<T> => {
   const end = Date.now() + ms;
   for (;;) {
     const v = await probe();
@@ -96,6 +103,14 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
       await sql`insert into onboarding_state (business_id, assistant_named_at) values (${PILOT}, now())`.execute(t);
     });
     await setup.destroy();
+    // Scripted BEFORE the worker starts: it may take a job another file left queued at once, and an unscripted
+    // analyser fails that turn, which pg-boss then retries ahead of this file's own.
+    analyzer.next = {
+      language: { detected: 'en', replyIn: 'en' },
+      intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
+      recommendedPhase: 'clarification',
+    } as never;
+    replyWriter.replies = ['Yes — the canvas tote is $2.50 each.'];
     process.env['PILOT_BUSINESS_ID'] = PILOT;
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
@@ -115,12 +130,6 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
     });
     const login = await prod.app.inject({ method: 'POST', url: '/login', headers: FORM, payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
-    analyzer.next = {
-      language: { detected: 'en', replyIn: 'en' },
-      intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
-      recommendedPhase: 'clarification',
-    } as never;
-    replyWriter.replies = ['Yes — the canvas tote is $2.50 each.'];
   }, 90_000);
   afterAll(async () => { await prod?.close(); await admin?.end(); delete process.env['PILOT_BUSINESS_ID']; });
 
@@ -244,7 +253,7 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
     // outright, the conversation went to a person — never nothing.
     await until(() => inBiz(copy, (tx) => sql<{ n: number }>`select (select count(*) from drafts where conversation_id = ${conv}::uuid)::int
       + (select count(*) from conversation_signals where conversation_id = ${conv}::uuid)::int as n`.execute(tx).then((x) => (x.rows[0]!.n > 0 ? x.rows[0]!.n : undefined))), 'the turn\'s outcome');
-  });
+  }, 2 * WAIT_MS);
 
   it('#11 · a voice note: heard by the transcriber, recorded as heard with its words; nothing reached a provider', async () => {
     const ogg = Buffer.from(`OggS-not-really-audio-${RUN}`);
@@ -258,7 +267,7 @@ d('0224 · the quote a reply carried, a price taken off, a practice photo and vo
     expect(message.media).toMatch(/^practice:[0-9a-f-]{36}$/);
     expect(heard).toEqual([{ mediaType: 'audio/ogg', bytes: ogg.length }]);
     expect(sim.requests.filter((x) => x.body.includes('canvas tote'))).toEqual([]);
-  });
+  }, WAIT_MS);
 
   it('#11 · a file that is neither is refused before anything is kept; nothing real may hold practice media', async () => {
     const r = await upload(Buffer.from('%PDF-1.4'), 'list.pdf', 'application/pdf');
