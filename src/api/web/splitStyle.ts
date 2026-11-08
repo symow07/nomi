@@ -15,6 +15,9 @@ const serif = {
 const GUT = `max(var(--space-24), calc((100% - 1240px) / 2))`;
 
 export const SPLIT_CSS = `${SPLIT_FACES_CSS}
+/* Rule 38 / 86: the English words isolate direction without changing page alignment. */
+.owner-shell bdi[lang="en"] { text-align:match-parent; }
+
 .split {
   --font-voice:${serif.en};
   --color-brand:var(--color-ink);
