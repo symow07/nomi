@@ -1,22 +1,27 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { createDb, type Db } from '../../src/db/client.js';
+import type { BusinessId } from '../../src/core/types/ids.js';
+import { runDueFollowUps } from '../../src/outbound/followUps.js';
 import { randomUUID } from 'node:crypto';
 
 const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
 
 suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => {
   let admin: pg.Client;
+  let db: Db;
   let business: string, customer: string, conversation: string, product: string, quote: string;
   const T0 = new Date('2031-05-01T09:00:00Z');
   let seq = 0;
   const query = (text: string, values: unknown[] = []) => admin.query(text, values);
   const one = async (text: string, values: unknown[] = []) => (await query(text, values)).rows[0];
+  const sweep = (days = 2) => runDueFollowUps({ db, now: () => new Date(T0.getTime() + days * 86400000) }, business as BusinessId);
   const rule = () => query(`insert into follow_up_rules (business_id, enabled, enabled_at, wording)
     values ($1, true, $2, 'Would you like to ask anything about the quote?')`, [business, new Date(T0.getTime() - 1)]);
-  const outbound = (status = 'sent', linked: string | null = quote) => one(`insert into outbound_messages
+  const outbound = (status = 'sent', linked: string | null = quote, when = T0) => one(`insert into outbound_messages
     (business_id, conversation_id, seq, body, status, origin, quote_id, sent_at)
     values ($1, $2, $3, 'The price is 12 dollars.', $4, 'employee', $5, $6) returning *`,
-    [business, conversation, ++seq, status, linked, status === 'sent' ? T0 : null]);
+    [business, conversation, ++seq, status, linked, status === 'sent' ? when : null]);
   const inbound = (when = new Date(T0.getTime() + 1000), type = 'text') => one(`insert into messages
     (conversation_id, external_id, direction, input_type, text_content, sent_at)
     values ($1, $2, 'inbound', $3, 'A customer answer', $4) returning *`, [conversation, randomUUID(), type, when]);
@@ -33,8 +38,9 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
     await admin.connect();
+    db = createDb(process.env['DATABASE_URL']!);
   });
-  afterAll(async () => { await admin?.end(); });
+  afterAll(async () => { await admin?.end(); await db?.destroy(); });
   beforeEach(async () => {
     business = randomUUID(); customer = randomUUID(); conversation = randomUUID(); product = randomUUID(); quote = randomUUID();
     await query(`insert into businesses (id, name, timezone) values ($1, 'Follow-up test shop', 'UTC')`, [business]);
@@ -161,10 +167,10 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
     const own = await run(true);
     await query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
     const result = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
-    expect(result.erased).toMatchObject({ follow_up_observations: 1, follow_up_runs: 1, follow_up_approvals: 1 });
+    expect(result.changed).toMatchObject({ follow_up_observations: 1, follow_up_runs: 1, follow_up_approvals: 1 });
     expect((await one(`select count(*)::int as n from follow_up_rules where business_id = $1`, [business])).n).toBe(1);
     const repeated = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
-    expect(repeated.erased).not.toHaveProperty('follow_up_runs');
+    expect(repeated.changed).not.toHaveProperty('follow_up_runs');
     expect((await one(`select count(*)::int as n from follow_up_runs where client_id = $1`, [customer])).n).toBe(0);
   });
 
@@ -182,6 +188,113 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
       await app.query(`select set_config('app.viewer_id', $1, true)`, [accountant.id]);
       expect((await app.query(`select id from follow_up_runs where id = $1`, [own.id])).rows).toHaveLength(0);
     } finally { await app.query('rollback'); await app.end(); }
+  });
+
+  it('uses an injected clock: none at 48h minus 1ms, one at 48h and still one days later', async () => {
+    await rule(); await outbound();
+    const sweep = (ms: number) => runDueFollowUps({ db, now: () => new Date(T0.getTime() + ms) }, business as BusinessId);
+    expect(await sweep(172800000 - 1)).toBe(0);
+    expect(await sweep(172800000)).toBe(1);
+    expect(await sweep(9 * 86400000)).toBe(0);
+    const drafts = (await query(`select * from drafts where business_id = $1`, [business])).rows;
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]).toMatchObject({ status: 'pending', capability: 'follow_up', turn_message_id: null,
+      draft_text: 'Would you like to ask anything about the quote?' });
+    expect((await one(`select count(*)::int as n from outbound_messages where business_id = $1`, [business])).n).toBe(1);
+    expect((await one(`select count(*)::int as n from usage_ledger where business_id = $1`, [business])).n).toBe(0);
+  });
+
+  it('still cancels from messages when the inbound observer was deliberately dropped', async () => {
+    await rule(); await outbound(); await sweep(1);
+    await query('alter table messages disable trigger follow_up_customer_answer');
+    try { await inbound(); } finally { await query('alter table messages enable trigger follow_up_customer_answer'); }
+    expect(await sweep()).toBe(0);
+    expect(await one(`select state, reason from follow_up_runs where business_id = $1`, [business]))
+      .toEqual({ state: 'canceled', reason: 'customer_answered' });
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(0);
+  });
+
+  it('also retires an existing pending draft after a dropped inbound observation', async () => {
+    await rule(); await outbound(); expect(await sweep()).toBe(1);
+    await query('alter table messages disable trigger follow_up_customer_answer');
+    try { await inbound(new Date(T0.getTime() + 3 * 86400000)); }
+    finally { await query('alter table messages enable trigger follow_up_customer_answer'); }
+    await sweep(3);
+    expect((await one(`select status from drafts where business_id = $1`, [business])).status).toBe('superseded');
+  });
+
+  it('concurrent sweeps and a retry create exactly one draft and no outbound', async () => {
+    await rule(); await outbound();
+    expect((await Promise.all([sweep(), sweep(), sweep()])).reduce((a, b) => a + b, 0)).toBe(1);
+    expect(await sweep(3)).toBe(0);
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(1);
+    expect((await one(`select count(*)::int as n from outbound_messages where business_id = $1`, [business])).n).toBe(1);
+  });
+
+  it('moves the due time for a newer quote before it is due, keeping the original words and delay', async () => {
+    await rule(); await outbound(); await sweep(0);
+    await query(`update follow_up_rules set wording = 'A future rule', delay_days = 7 where business_id = $1`, [business]);
+    await outbound('sent', quote, new Date(T0.getTime() + 86400000));
+    expect(await sweep(2)).toBe(0);
+    expect(await sweep(3)).toBe(1);
+    expect(await one(`select due_at, wording, delay_days from follow_up_runs where business_id = $1`, [business]))
+      .toMatchObject({ due_at: new Date(T0.getTime() + 3 * 86400000), delay_days: 2, wording: 'Would you like to ask anything about the quote?' });
+  });
+
+  it('never rearms a presented episode until an answer AND a fresh sent quote', async () => {
+    await rule(); await outbound(); expect(await sweep()).toBe(1);
+    await outbound('sent', quote, new Date(T0.getTime() + 3 * 86400000));
+    expect(await sweep(6)).toBe(0);
+    await inbound(new Date(T0.getTime() + 7 * 86400000));
+    expect(await sweep(8)).toBe(0);
+    await outbound('sent', quote, new Date(T0.getTime() + 8 * 86400000));
+    expect(await sweep(10)).toBe(1);
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(2);
+  });
+
+  it.each(['whatsapp', 'messenger', 'instagram'])('records a closed %s window without creating a stale draft', async (channel) => {
+    await query(`update conversations set channel = $2 where id = $1`, [conversation, channel]);
+    await rule(); await outbound();
+    expect(await sweep()).toBe(0);
+    expect(await one(`select state, reason from follow_up_runs where business_id = $1`, [business]))
+      .toEqual({ state: 'window_closed', reason: 'window_closed' });
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(0);
+  });
+
+  it.each(['telegram', 'web_chat', 'email'])('creates a draft on %s without any sender or model dependency', async (channel) => {
+    await query(`update conversations set channel = $2 where id = $1`, [conversation, channel]);
+    await rule(); await outbound(); expect(await sweep()).toBe(1);
+    expect((await one(`select count(*)::int as n from usage_ledger where business_id = $1`, [business])).n).toBe(0);
+  });
+
+  it.each(['stopped', 'silenced', 'held_by_person', 'conversation_closed', 'deletion', 'opted_out', 'unsubscribed'])('cancels %s once, without later backlog', async (reason) => {
+    await rule(); await outbound(); await sweep(0);
+    if (reason === 'stopped') await query(`update businesses set assistant_stopped_at = now() where id = $1`, [business]);
+    if (reason === 'silenced') await query(`insert into ops_flags(business_id, flag, set_by, reason) values ($1, 'global_silence', 'test', 'fixture')`, [business]);
+    if (reason === 'held_by_person') await query(`update conversations set assigned_to = 'owner' where id = $1`, [conversation]);
+    if (reason === 'conversation_closed') await query(`update conversations set is_active = false where id = $1`, [conversation]);
+    if (reason === 'deletion') await query(`insert into deletion_asks (business_id, client_id, conversation_id, asked_at) values ($1, $2, $3, $4)`, [business, customer, conversation, T0]);
+    if (reason === 'opted_out' || reason === 'unsubscribed') {
+      await query(`insert into client_channels(client_id, channel, channel_user_id) values ($1, 'email', $2)`, [customer, customer + '@example.test']);
+      if (reason === 'opted_out') await query(`insert into opt_outs(business_id, channel, identity, recorded_by) values ($1, 'email', $2, 'owner')`, [business, customer + '@example.test']);
+      else await query(`insert into suppressions(business_id, channel, identity, reason) values ($1, 'email', $2, 'unsubscribed')`, [business, customer + '@example.test']);
+    }
+    expect(await sweep()).toBe(0);
+    expect(await one(`select state, reason from follow_up_runs where business_id = $1`, [business]))
+      .toEqual({ state: 'canceled', reason });
+    await query(`update businesses set assistant_stopped_at = null where id = $1`, [business]);
+    expect(await sweep(8)).toBe(0);
+  });
+
+  it('never observes owner tests or Practice quotes', async () => {
+    await rule();
+    await query(`update conversations set owner_testing = true where id = $1`, [conversation]); await outbound();
+    await query(`update conversations set owner_testing = false where id = $1`, [conversation]);
+    const live = randomUUID();
+    await query(`insert into businesses(id, name) values ($1, 'Live fixture')`, [live]);
+    await query(`update businesses set practice_of = $2 where id = $1`, [business, live]); await outbound();
+    expect(await sweep()).toBe(0);
+    expect((await one(`select count(*)::int as n from follow_up_observations where business_id = $1`, [business])).n).toBe(0);
   });
 
   it('has no unclassified customer tables or relationships', async () => {
