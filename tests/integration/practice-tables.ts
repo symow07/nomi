@@ -60,6 +60,8 @@ export const PRACTICE_SKIP = [
   'case_checks',
   // 0231 — that a month's report went to the owner: the workspace's own, never Practice's.
   'month_report_sends',
+  // Follow-ups are live customer work; neither the rule nor its history is practised.
+  'follow_up_rules', 'follow_up_observations', 'follow_up_runs', 'follow_up_approvals',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
   // 0155 — a customer's address, now each workspace's own (it carries the business since then).

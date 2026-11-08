@@ -1,0 +1,190 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import { randomUUID } from 'node:crypto';
+
+const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
+
+suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => {
+  let admin: pg.Client;
+  let business: string, customer: string, conversation: string, product: string, quote: string;
+  const T0 = new Date('2031-05-01T09:00:00Z');
+  let seq = 0;
+  const query = (text: string, values: unknown[] = []) => admin.query(text, values);
+  const one = async (text: string, values: unknown[] = []) => (await query(text, values)).rows[0];
+  const rule = () => query(`insert into follow_up_rules (business_id, enabled, enabled_at, wording)
+    values ($1, true, $2, 'Would you like to ask anything about the quote?')`, [business, new Date(T0.getTime() - 1)]);
+  const outbound = (status = 'sent', linked: string | null = quote) => one(`insert into outbound_messages
+    (business_id, conversation_id, seq, body, status, origin, quote_id, sent_at)
+    values ($1, $2, $3, 'The price is 12 dollars.', $4, 'employee', $5, $6) returning *`,
+    [business, conversation, ++seq, status, linked, status === 'sent' ? T0 : null]);
+  const inbound = (when = new Date(T0.getTime() + 1000), type = 'text') => one(`insert into messages
+    (conversation_id, external_id, direction, input_type, text_content, sent_at)
+    values ($1, $2, 'inbound', $3, 'A customer answer', $4) returning *`, [conversation, randomUUID(), type, when]);
+  const run = async (draft = false) => {
+    const out = await outbound();
+    const draftId = draft ? randomUUID() : null;
+    if (draftId) await query(`insert into drafts (id, business_id, conversation_id, capability, draft_text)
+      values ($1, $2, $3, 'follow_up', 'The owner’s exact words')`, [draftId, business, conversation]);
+    return one(`insert into follow_up_runs (business_id, client_id, conversation_id, source_quote_id,
+      source_outbound_id, episode_key, channel, quoted_at, due_at, delay_days, wording, state, draft_id)
+      values ($1, $2, $3, $4, $5, $2, 'telegram', $6, $7, 2, 'The owner’s exact words', $8, $9) returning *`,
+      [business, customer, conversation, quote, out.id, T0, new Date(T0.getTime() + 172800000), draft ? 'draft' : 'scheduled', draftId]);
+  };
+  beforeAll(async () => {
+    admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await admin.connect();
+  });
+  afterAll(async () => { await admin?.end(); });
+  beforeEach(async () => {
+    business = randomUUID(); customer = randomUUID(); conversation = randomUUID(); product = randomUUID(); quote = randomUUID();
+    await query(`insert into businesses (id, name, timezone) values ($1, 'Follow-up test shop', 'UTC')`, [business]);
+    await query(`insert into clients (id, business_id, display_name) values ($1, $2, 'Customer')`, [customer, business]);
+    await query(`insert into conversations (id, business_id, client_id, channel) values ($1, $2, $3, 'telegram')`, [conversation, business, customer]);
+    await query(`insert into products (id, business_id, sku, name, unit) values ($1, $2, 'BALM', 'Lip balm', 'item')`, [product, business]);
+    await query(`insert into quotes (id, business_id, conversation_id, product_id, quantity, inputs, unit_price_usd,
+      discount_pct, total_usd, requires_human, applied_rules, engine_version)
+      values ($1, $2, $3, $4, 1, '{}', 12, 0, 12, false, '{}', 'fixture')`, [quote, business, conversation, product]);
+  });
+
+  it('stores workspace rules and customer runs separately, with tenant isolation', async () => {
+    const rows = (await admin.query(`select relname, relrowsecurity from pg_class
+      where relname in ('follow_up_rules', 'follow_up_runs', 'follow_up_observations', 'follow_up_approvals') order by relname`)).rows;
+    expect(rows).toEqual([
+      { relname: 'follow_up_approvals', relrowsecurity: true },
+      { relname: 'follow_up_observations', relrowsecurity: true },
+      { relname: 'follow_up_rules', relrowsecurity: true },
+      { relname: 'follow_up_runs', relrowsecurity: true },
+    ]);
+  });
+
+  it('keeps fresh rules off and never backfills an already accepted quote', async () => {
+    await outbound();
+    await query(`insert into follow_up_rules (business_id) values ($1)`, [business]);
+    expect((await one(`select * from follow_up_rules where business_id = $1`, [business])).enabled).toBe(false);
+    await query(`update follow_up_rules set enabled = true, enabled_at = $2, wording = 'Owner words' where business_id = $1`, [business, T0]);
+    expect((await one(`select count(*)::int as n from follow_up_observations where business_id = $1`, [business])).n).toBe(0);
+  });
+
+  it('observes only an exact quote whose outbound reaches sent, keeping the rule snapshot', async () => {
+    await rule();
+    for (const state of ['queued', 'sending', 'failed', 'uncertain']) await outbound(state);
+    await outbound('sent', null);
+    expect((await one(`select count(*)::int as n from follow_up_observations where business_id = $1`, [business])).n).toBe(0);
+    const queued = await outbound('queued');
+    await query(`update outbound_messages set status = 'sent', sent_at = $2 where id = $1`, [queued.id, T0]);
+    await query(`update follow_up_rules set wording = 'Changed words', delay_days = 7 where business_id = $1`, [business]);
+    const rows = (await query(`select * from follow_up_observations where business_id = $1 and kind = 'quote'`, [business])).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outbound_id: queued.id, quote_id: quote, delay_days: 2, wording: 'Would you like to ask anything about the quote?' });
+  });
+
+  it('lets the sent row commit and keeps a warning when its quote observer fails', async () => {
+    await rule();
+    await query(`alter table follow_up_observations add constraint follow_up_test_fault check (business_id <> '${business}' or kind <> 'quote')`);
+    try {
+      const sent = await outbound();
+      expect(sent.status).toBe('sent');
+      const warning = await one(`select * from follow_up_observations where business_id = $1`, [business]);
+      expect(warning).toMatchObject({ kind: 'warning', client_id: null, wording: null });
+      expect(warning.diagnostic_code).toContain('23514');
+    } finally { await query(`alter table follow_up_observations drop constraint follow_up_test_fault`); }
+  });
+
+  it('persists every inbound kind and supersedes only its own pending follow-up', async () => {
+    const own = await run(true);
+    const other = await one(`insert into drafts (business_id, conversation_id, capability, draft_text)
+      values ($1, $2, 'qualify', 'An unrelated draft') returning id`, [business, conversation]);
+    for (const type of ['text', 'voice', 'image', 'image_text', 'voice_transcribed', 'unknown']) await inbound(undefined, type);
+    expect((await one(`select status from drafts where id = $1`, [own.draft_id])).status).toBe('superseded');
+    expect((await one(`select status from drafts where id = $1`, [other.id])).status).toBe('pending');
+    expect((await one(`select * from follow_up_runs where id = $1`, [own.id]))).toMatchObject({ state: 'canceled', reason: 'customer_answered' });
+  });
+
+  it('lets an inbound persist when cancellation fails, and records the failure', async () => {
+    const own = await run(true);
+    await query(`alter table follow_up_runs add constraint follow_up_test_fault check (business_id <> '${business}' or state <> 'canceled')`);
+    try {
+      const message = await inbound();
+      expect((await one(`select id from messages where id = $1`, [message.id])).id).toBe(message.id);
+      expect((await one(`select status from drafts where id = $1`, [own.draft_id])).status).toBe('pending');
+      expect((await one(`select diagnostic_code from follow_up_observations where business_id = $1 and kind = 'warning'`, [business])).diagnostic_code).toContain('23514');
+    } finally { await query(`alter table follow_up_runs drop constraint follow_up_test_fault`); }
+  });
+
+  it('lets approval commit when its observer fails', async () => {
+    const own = await run(true);
+    await query(`alter table follow_up_approvals add constraint follow_up_test_fault check (business_id <> '${business}')`);
+    try {
+      await query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
+      expect((await one(`select status from drafts where id = $1`, [own.draft_id])).status).toBe('approved');
+      expect((await one(`select diagnostic_code from follow_up_observations where business_id = $1 and kind = 'warning'`, [business])).diagnostic_code).toContain('23514');
+    } finally { await query(`alter table follow_up_approvals drop constraint follow_up_test_fault`); }
+  });
+
+  it('links the outbound in the approval transaction, never another copy of the same words', async () => {
+    const own = await run(true);
+    await query('begin');
+    let linked: { id: string };
+    try {
+      await query(`update drafts set status = 'edited', sent_text = 'Edited by the owner', decided_at = $2 where id = $1`, [own.draft_id, T0]);
+      linked = await one(`insert into outbound_messages (business_id, conversation_id, seq, body, origin, approved)
+        values ($1, $2, $3, 'Edited by the owner', 'employee', true) returning id`, [business, conversation, ++seq]);
+      await query('commit');
+    } catch (error) { await query('rollback'); throw error; }
+    await query(`insert into outbound_messages (business_id, conversation_id, seq, body, origin, approved)
+      values ($1, $2, $3, 'Edited by the owner', 'employee', true)`, [business, conversation, ++seq]);
+    const accepted = new Date(T0.getTime() + 172800000);
+    await query(`update outbound_messages set status = 'sent', sent_at = $2 where id = $1`, [linked.id, accepted]);
+    expect(await one(`select outbound_id, accepted_at from follow_up_approvals where draft_id = $1`, [own.draft_id]))
+      .toEqual({ outbound_id: linked.id, accepted_at: accepted });
+  });
+
+  it('does not wait on a draft held by approval; the owner tap wins and the race is visible', async () => {
+    const own = await run(true);
+    const approving = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await approving.connect();
+    try {
+      await approving.query('begin');
+      await approving.query(`select id from drafts where id = $1 for update`, [own.draft_id]);
+      await query(`set statement_timeout = '2s'`);
+      await inbound();
+      await approving.query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
+      await approving.query('commit');
+      expect(await one(`select state, answered_after_approval, reason from follow_up_runs where id = $1`, [own.id]))
+        .toMatchObject({ state: 'draft', answered_after_approval: true, reason: 'answer_during_approval' });
+      expect((await one(`select status from drafts where id = $1`, [own.draft_id])).status).toBe('approved');
+    } finally { await approving.query('rollback'); await approving.end(); await query('set statement_timeout = default'); }
+  });
+
+  it('erases the customer observations, words, run and approval link, including restore replay', async () => {
+    await rule();
+    const own = await run(true);
+    await query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
+    const result = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
+    expect(result.erased).toMatchObject({ follow_up_observations: 1, follow_up_runs: 1, follow_up_approvals: 1 });
+    expect((await one(`select count(*)::int as n from follow_up_rules where business_id = $1`, [business])).n).toBe(1);
+    const repeated = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
+    expect(repeated.erased).not.toHaveProperty('follow_up_runs');
+    expect((await one(`select count(*)::int as n from follow_up_runs where client_id = $1`, [customer])).n).toBe(0);
+  });
+
+  it('keeps app-role reads inside the workspace and excludes accountants', async () => {
+    const own = await run(true);
+    const app = new pg.Client({ connectionString: process.env['DATABASE_URL'] });
+    await app.connect();
+    try {
+      await app.query('begin');
+      await app.query(`select set_config('app.business_id', $1, true)`, [randomUUID()]);
+      expect((await app.query(`select id from follow_up_runs where id = $1`, [own.id])).rows).toHaveLength(0);
+      await app.query(`select set_config('app.business_id', $1, true)`, [business]);
+      expect((await app.query(`select id from follow_up_runs where id = $1`, [own.id])).rows).toHaveLength(1);
+      const accountant = await one(`insert into people (business_id, name, is_owner, kind) values ($1, 'Bookkeeper', false, 'accountant') returning id`, [business]);
+      await app.query(`select set_config('app.viewer_id', $1, true)`, [accountant.id]);
+      expect((await app.query(`select id from follow_up_runs where id = $1`, [own.id])).rows).toHaveLength(0);
+    } finally { await app.query('rollback'); await app.end(); }
+  });
+
+  it('has no unclassified customer tables or relationships', async () => {
+    expect((await one('select customer_erasure_problems() as problems')).problems).toEqual([]);
+  });
+});
