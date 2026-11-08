@@ -6603,7 +6603,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.post('/app/inbox/:conversationId/follow-ups/:runId/skip', async (req, reply) => {
     const { conversationId, runId } = req.params as { conversationId: string; runId: string };
-    const here = UUID.test(conversationId) ? `/app/inbox/${conversationId}` : '/app/inbox';
+    const here = UUID.test(conversationId) ? conversationUrl(conversationId) : '/app/inbox';
     const s = await ownerOnly(req, reply, 'capability_grant', here); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !UUID.test(conversationId) || !UUID.test(runId)) return reply.redirect(here);

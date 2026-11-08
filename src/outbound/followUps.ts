@@ -19,7 +19,7 @@ export async function runDueFollowUps(deps: FollowUpDeps, businessId: BusinessId
   });
   const runs = await withTenantTx(deps.db, businessId, async (tx) => (await sql<{ id: string; conversation_id: string }>`
     select r.id, r.conversation_id from follow_up_runs r
-    where r.business_id = ${businessId}::uuid and (r.state = 'scheduled'
+    where r.business_id = ${businessId}::uuid and (r.state in ('scheduled', 'window_closed')
       or (r.state = 'draft' and exists(select 1 from drafts d where d.id = r.draft_id and d.status = 'pending')))
     order by r.checked_at nulls first, r.id limit ${FOLLOW_UP_BATCH}`.execute(tx)).rows);
   let made = 0;

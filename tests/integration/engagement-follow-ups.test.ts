@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { createDb, type Db } from '../../src/db/client.js';
 import type { BusinessId } from '../../src/core/types/ids.js';
-import { runDueFollowUps } from '../../src/outbound/followUps.js';
+import { runDueFollowUps, sweepFollowUpWorkspaces } from '../../src/outbound/followUps.js';
 import { randomUUID } from 'node:crypto';
 
 const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
@@ -221,6 +221,52 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
     finally { await query('alter table messages enable trigger follow_up_customer_answer'); }
     await sweep(3);
     expect((await one(`select status from drafts where business_id = $1`, [business])).status).toBe('superseded');
+  });
+
+  it('retires a closed-window notice too when the inbound observer was dropped', async () => {
+    await query(`update conversations set channel = 'whatsapp' where id = $1`, [conversation]);
+    await rule(); await outbound(); await sweep();
+    expect((await one(`select state from follow_up_runs where business_id = $1`, [business])).state).toBe('window_closed');
+    await query(`alter table messages disable trigger follow_up_customer_answer`);
+    try { await inbound(new Date(T0.getTime() + 3 * 86400000)); }
+    finally { await query(`alter table messages enable trigger follow_up_customer_answer`); }
+    await sweepFollowUpWorkspaces({ db, now: () => new Date(T0.getTime() + 4 * 86400000) });
+    expect(await one(`select state, reason from follow_up_runs where business_id = $1`, [business]))
+      .toEqual({ state: 'canceled', reason: 'customer_answered' });
+  });
+
+  it('bounds each sweep to 100 runs and reaches the remainder on the next sweep', async () => {
+    const first = await run();
+    await query(`insert into follow_up_runs(business_id, client_id, conversation_id, source_quote_id, source_outbound_id,
+      episode_key, channel, quoted_at, due_at, delay_days, wording)
+      select business_id, client_id, conversation_id, source_quote_id, source_outbound_id, gen_random_uuid(),
+        channel, quoted_at, due_at, delay_days, wording from follow_up_runs cross join generate_series(1, 101)
+      where id = $1`, [first.id]);
+    expect(await sweep()).toBe(100);
+    expect(await sweep()).toBe(2);
+    expect(await sweep(7)).toBe(0);
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(102);
+  });
+
+  it('cancels at the existing daily allowance and creates no usage of its own', async () => {
+    await rule(); await outbound();
+    await query(`insert into tenant_budgets(business_id, daily_llm_calls, daily_tokens, soft_warn_pct, on_exceeded)
+      values ($1, 1, 100, 80, 'pause')`, [business]);
+    await query(`insert into usage_ledger(business_id, day, llm_calls, input_tokens, output_tokens)
+      values ($1, (now() at time zone 'UTC')::date, 1, 0, 0)`, [business]);
+    const usage = (await query(`select * from usage_ledger where business_id = $1`, [business])).rows;
+    expect(await sweep()).toBe(0);
+    expect((await one(`select reason from follow_up_runs where business_id = $1`, [business])).reason).toBe('allowance');
+    expect((await query(`select * from usage_ledger where business_id = $1`, [business])).rows).toEqual(usage);
+  });
+
+  it('cancels at the existing billing hold without queuing a follow-up', async () => {
+    await rule(); await outbound();
+    await query(`update businesses set signed_up_at = now() where id = $1`, [business]);
+    await query(`insert into workspace_billing(business_id, status) values ($1, 'lapsed')`, [business]);
+    expect(await sweep()).toBe(0);
+    expect((await one(`select reason from follow_up_runs where business_id = $1`, [business])).reason).toBe('billing');
+    expect((await one(`select count(*)::int as n from outbound_messages where business_id = $1`, [business])).n).toBe(1);
   });
 
   it('concurrent sweeps and a retry create exactly one draft and no outbound', async () => {

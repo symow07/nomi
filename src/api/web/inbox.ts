@@ -1283,7 +1283,8 @@ function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language
   | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown' || reason === 'owner_follow_up') return { reason };
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  if (reason === 'owner_follow_up') return { reason };
   // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
   if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
     && typeof key === 'string') return { reason, key: key.slice(0, 40) };

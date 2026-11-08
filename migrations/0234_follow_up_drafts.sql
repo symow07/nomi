@@ -58,7 +58,7 @@ create table follow_up_runs (
 );
 create index follow_up_runs_due on follow_up_runs(business_id, due_at, id) where state = 'scheduled';
 create index follow_up_runs_sweep on follow_up_runs(business_id, checked_at nulls first, id)
-  where state in ('scheduled', 'draft');
+  where state in ('scheduled', 'draft', 'window_closed');
 create index follow_up_runs_customer on follow_up_runs(client_id, state);
 create index follow_up_runs_conversation on follow_up_runs(conversation_id, created_at desc);
 
@@ -235,7 +235,7 @@ language sql stable security definer set search_path = public as $$
   select x.business_id from (
     select business_id, null::timestamptz as checked_at from follow_up_observations
       where kind = 'quote' and processed_at is null and quoted_at <= p_now
-    union all select r.business_id, r.checked_at from follow_up_runs r where r.state = 'scheduled'
+    union all select r.business_id, r.checked_at from follow_up_runs r where r.state in ('scheduled', 'window_closed')
       or (r.state = 'draft' and exists(select 1 from drafts d where d.id = r.draft_id and d.status = 'pending'))
   ) x join businesses b on b.id = x.business_id where b.is_active and b.practice_of is null
   group by x.business_id order by min(coalesce(x.checked_at, '-infinity'::timestamptz)), x.business_id
