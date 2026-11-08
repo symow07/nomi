@@ -502,11 +502,12 @@ Check at **1440 × 900** and **390 × 844**, in **en** and in **ar**, as the own
     - Focus is visible on paper and surface.
     - The disclosure opens with Enter and Space.
     - After Save, focus lands on the flash or the page top, not lost.
-    - **Known, shared, pre-launch (N01):** pressing Tab at once after opening the disclosure can skip the
-      minutes field while the opening animation runs. It passes once the content is shown, and under
-      reduced motion. Not a 4.3 blocker. The fix is in the shared `<details>` animation: animate opacity /
-      transform only, so the content can take focus from the moment `open` is set. Re-run the immediate-Tab
-      replay on every page with a `<details>` when it lands, before launch.
+    - **An immediate Tab reaches the field (N01).** Open the disclosure with Enter or Space and press Tab at
+      once, with no wait: focus lands on the minutes field. This must hold in **default motion**, while the
+      opening animation runs, as well as once the content is shown and under reduced motion. The content
+      can take focus from the moment `open` is set: the shared `<details>` animation animates opacity or
+      transform only, never `visibility`, `display` or a zero height. Run the immediate-Tab replay at 1440
+      and 390, en and ar.
 27. 390 wide:
     - no horizontal scroll;
     - the tab row wraps, unclipped;
@@ -583,5 +584,14 @@ These were open questions in the first commit. The spec above now follows each o
 6. **The month doors and the active tab are magenta**, as already specified (§1.4). In the review, the doors
    used a class of their own and the shared active-tab rule computed black (F02). Fix the shared rule, not
    the page. No spec change; restated so the tester checks it (check 29).
-7. **N01 is a known shared defect, to fix before launch.** It is not a 4.3 blocker (check 26).
+7. **N01 is a defect, and check 26 requires it fixed:** an immediate Tab after opening the disclosure must
+   reach the minutes field in default motion, as well as settled and under reduced motion. It stays open
+   until that passes with evidence or the owner accepts it.
+
+### Open items (the owner's to decide)
+
+- **The save flash's look.** After Save, "Saved. The estimate now uses 5 minutes a reply." is drawn as
+  plain, lightly indented text above the month heading, without the weight of a notice, so it is easy to
+  miss. Evidence: cand/4.3-1, `owner-en-1440-estimate-on.png`. The page uses the shared `flashBanner`, so
+  its look is app-wide, not this page's. Open until the owner decides; it is not waived.
 
