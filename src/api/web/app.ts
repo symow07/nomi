@@ -676,6 +676,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/verify', why: 'A3 — redeems a code: five tries and ten minutes per code, counted in the database' },
   { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
+  { method: 'GET', url: '/payment/return', why: 'Invoice payment return information only: ignores query values, reveals no invoice or customer, and records no payment' },
+  { method: 'POST', url: '/hooks/stripe/connect', why: 'Connected-account event receipt: verifies the separate raw-body signature and mode before retaining minimal event identifiers' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
