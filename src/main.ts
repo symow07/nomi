@@ -1,3 +1,4 @@
+import { recordCommentPrivateReply } from './db/commentPrivateReplies.js';
 import { commentsConfigId } from './channels/meta/commentConnect.js';
 import { withoutInstagramComments } from './channels/meta/comments.js';
 import { insertInstagramComment } from './db/instagramComments.js';
@@ -1235,6 +1236,11 @@ export async function buildProduction(
           await lockConversation(tx, cid);
           const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
           const fx = await finishConversationOutbound({ store, now: () => new Date() }, send, result);
+          if (send.row.kind === 'comment_private_reply') {
+            const commentId = await recordCommentPrivateReply(tx, businessId.value, send.row.id, result, new Date());
+            if (commentId) await boss.send(QUEUES.instagramCommentPublic,
+              { businessId: businessId.value, commentId }, { db: txDatabase(tx) });
+          }
           // The practice customer's phone is the page: a reply accepted is a reply
           // delivered. Recorded through the receipt path a status webhook takes, so
           // the next reply is not held for a receipt that could never come (the
@@ -1466,6 +1472,13 @@ export async function buildProduction(
     if (!token) return {};
     const noted = (a: ChannelAdapter): ChannelAdapter => ({
       ...a,
+      ...(a.sendCommentPrivateReply ? { sendCommentPrivateReply: async (commentId: string, body: string) => {
+        const r = await a.sendCommentPrivateReply!(commentId, body);
+        if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
+          await withTenantTx(db, businessId, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
+        }
+        return r;
+      } } : {}),
       sendText: async (to, body) => {
         const r = await a.sendText(to, body);
         if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
@@ -1477,7 +1490,7 @@ export async function buildProduction(
     const common = { accessToken: token, appSecret: socialSecret ?? '', graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch };
     return {
       messenger: noted(messengerAdapter({ accountId: account.pageId, ...common })),
-      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, ...common })) } : {}),
+      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, igAccountId: account.igAccountId, ...common })) } : {}),
     };
   };
 

@@ -1,3 +1,4 @@
+import { lockedCommentReplyFacts, claimCommentPrivateReply } from './commentPrivateReplies.js';
 import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
@@ -57,6 +58,7 @@ export function channelStore(
   }
 
   return {
+    claimCommentPrivateReply: (id, now) => claimCommentPrivateReply(tx, businessId, id, now),
     async load(conversationId) {
       const res = await sql<{
         id: string; seq: number; status: OutboundStatus; requires_order: boolean;
@@ -247,7 +249,11 @@ export function channelStore(
            and identity = any(${identities}::text[]) and lifted_at is null`.execute(tx)).rows[0]?.at ?? null;
       // 0215 — a TikTok conversation's counts: TikTok limits how many messages the account sends (tiktokLimits.ts).
       const tiktok = channel === 'tiktok' ? await tiktokHistory(tx, conversationId) : null;
+      const commentPrivateReplies = rows.some(r => r.kind === 'comment_private_reply')
+        ? await lockedCommentReplyFacts(tx, businessId, conversationId, rows.filter(r => r.kind === 'comment_private_reply').map(r => r.id))
+        : undefined;
       const ctx: ConversationSendContext = {
+        ...(commentPrivateReplies ? { commentPrivateReplies } : {}),
         ...(tiktok ? { tiktok } : {}),
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
