@@ -61,4 +61,10 @@ export const SETUP_MINUTES_CSS = String.raw`
  .setup-clock li{grid-template-columns:minmax(0,1fr)}
  .setup-clock li>p:last-child:not(.sc-state){grid-column:1}
 }
+
+/* F3: the words, not a directional wrapper, own the fallback and alignment. */
+.gs-help>summary>bdi[lang="en"]{flex:1;min-inline-size:0;text-align:match-parent}
+[dir="rtl"] .gs-help>summary>bdi[lang="en"],
+[dir="rtl"] .store-token .deeper>bdi[lang="en"]{text-align:end}
+.contact-import option[lang="en"]{text-align:match-parent}
 `;

@@ -181,8 +181,8 @@ export const atWork = (text: string, assistant = false): string =>
 export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
   `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
 
-export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
+export const deeper = (href: string, label: string, extra = '', attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}${GO}</a>`;
 
 /** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
 export const unescapeHtml = (s: string): string =>
@@ -201,8 +201,8 @@ export const byAssistant = (name: string): string =>
   `<span class="as">${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
-export const back = (href: string, label: string, attrs = ''): string =>
-  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${esc(label)}</a>`;
+export const back = (href: string, label: string, attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';

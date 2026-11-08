@@ -276,7 +276,7 @@ import { conversationAdvisorRoutes } from './conversationAdvisor.js';
 import { renderCopilotPanel } from './copilotPanel.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
-  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, wordsHtml, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -7227,8 +7227,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const milestones = bid0.ok ? await withTenantTx(deps.db, bid0.value, (tx) => loadSetupMilestones(tx, bid0.value)) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'area1.setup.title'), active: 'home',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
-        <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p>`
+      bodyHtml: `<h1 class="page">${wordsHtml(locale, 'area1.setup.title')}</h1>
+        <p class="muted">${wordsHtml(locale, 'area1.setup.intro')}</p>`
         + renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale,
           assistantName(locale), undefined, milestones
             ? { embedded: true, milestones, now: new Date(), canManage: personOf(s).isOwner } : { embedded: true })
