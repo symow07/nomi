@@ -162,6 +162,7 @@ alter table invoice_payments add foreign key (business_id,reverses_payment_id) r
 alter table invoice_payments drop constraint invoice_payments_kind_check;
 alter table invoice_payments add constraint invoice_payments_kind_check check (kind in ('in','refund','refund_reversal'));
 alter table invoice_payments add constraint invoice_refund_reversal_source check ((kind = 'refund_reversal') = (reverses_payment_id is not null));
+-- Re-made from 0188_credit_notes.sql; existing payment/refund checks stay unchanged, with a separate refund-reversal branch.
 create or replace function invoice_payments_rules() returns trigger
 language plpgsql as $$
 declare
