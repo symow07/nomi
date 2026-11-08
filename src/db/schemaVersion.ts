@@ -480,7 +480,7 @@ import type { Db } from './client.js';
 // 229 = procedures: the owner's step-by-step for a situation, where a conversation stands in one, the hand-off step's own
 //       signal and reason (0229).
 // 230 = the checks before a change goes live: the staged change, the saved cases' references, each re-run's reply (0230).
-export const REQUIRED_SCHEMA_VERSION = 230;
+export const REQUIRED_SCHEMA_VERSION = 233;
 
 export type SchemaState = {
   readonly required: number;
