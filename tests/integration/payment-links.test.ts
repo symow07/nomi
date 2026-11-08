@@ -14,6 +14,8 @@ import { purgeBusinesses } from './books-db.js';
 import { bindStripe, saveStripeMapping, reservePayment, keepCheckout, newStripeState, claimStripeState, storeStripeEvent } from '../../src/db/stripePayments.js';
 import { postCapturedPayment, recordStripePayout, confirmStripePayout, receiveStripePayout, postStripeRefund } from '../../src/db/stripePosting.js';
 import type { IntentFact } from '../../src/core/payments/paymentLink.js';
+import { createPaymentLink, expirePaymentLink, reconcileStripePayments } from '../../src/payments/invoicePayments.js';
+import { paymentProvider } from '../fixtures/paymentProvider.js';
 
 const d = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
 const BIZ = randomUUID() as BusinessId, OTHER = randomUUID() as BusinessId;
@@ -92,6 +94,8 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     expect(await as(tx => postCapturedPayment(tx, BIZ, a.id, intent('late', '100', null)))).toMatchObject({ state: 'fee_pending' });
     expect(await as(tx => postCapturedPayment(tx, BIZ, a.id, intent('late')))).toMatchObject({ state: 'posted' });
     expect((await as(tx => sql`select * from stripe_movements where attempt_id=${a.id}::uuid`.execute(tx))).rows).toHaveLength(2);
+    expect(await as(tx=>postCapturedPayment(tx,BIZ,a.id,intent('late','100',null)))).toMatchObject({state:'posted'});
+    expect((await as(tx=>sql<{reason:string|null}>`select reason from stripe_checkout_attempts where id=${a.id}::uuid`.execute(tx))).rows[0]!.reason).toBeNull();
   });
   it('moves only the owner-confirmed Nomi portion to transit, and matches an exact bank receipt', async () => {
     const payout = { id: 'po_fixture', status: 'paid' as const, amount: decimal('97'), currency: 'GBP', created: Math.floor(now.getTime() / 1000), arrival: Math.floor(now.getTime() / 1000), balance: null };
@@ -135,6 +139,7 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     const results = await Promise.all(['conflictA','conflictB'].map(id => as(tx => postCapturedPayment(tx,BIZ,a.id,intent(id)))));
     expect(results.filter(r => r.state==='posted')).toHaveLength(1);
     expect(results.filter(r => r.reason==='payment_differs')).toHaveLength(1);
+    expect(await as(tx=>keepCheckout(tx,BIZ,a.id,{id:'cs_test_conflict',attemptId:a.id,status:'complete',paid:true,amount:a.amount,currency:a.currency,url:null,intentId:'pi_other',expiresAt:1800003600}))).toBe(false);
   });
   it('rolls back the payment and all its facts together if the process fails before commit', async () => {
     const id=await invoice(),a=await reserve(id);
@@ -142,5 +147,31 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     expect((await as(tx=>sql`select * from invoice_payments where invoice_id=${id}::uuid`.execute(tx))).rows).toHaveLength(0);
     expect((await as(tx=>sql`select * from stripe_movements where attempt_id=${a.id}::uuid`.execute(tx))).rows).toHaveLength(0);
     expect(await as(tx=>postCapturedPayment(tx,BIZ,a.id,intent('crash')))).toMatchObject({state:'posted'});
+  });
+  it('recovers an ambiguous creation with the same key and expires a previous open link before replacement',async()=>{
+    const p=paymentProvider({id:`acct_${BIZ.replaceAll('-','')}`,country:'GB',currency:'GBP',ready:true});
+    const deps={db,client:p.client,live:false,now:()=>now,publicBaseUrl:'https://nomi.example'};
+    const id=await invoice();p.ambiguousNextCreate();
+    expect(await createPaymentLink(deps,BIZ,id)).toMatchObject({ok:false,reason:'unavailable'});
+    const a=await createPaymentLink(deps,BIZ,id);expect(a.ok).toBe(true);expect(p.created()).toBe(1);
+    if(!a.ok)throw new Error(a.reason);
+    expect(await expirePaymentLink(deps,BIZ,a.value.id)).toEqual({ok:true});
+    const b=await createPaymentLink(deps,BIZ,id);expect(b.ok).toBe(true);expect(p.created()).toBe(2);
+    if(!b.ok)throw new Error(b.reason);expect(b.value.id).not.toBe(a.value.id);
+  });
+  it('durably receives an unpaid session, then later settles the saved event from current capture facts',async()=>{
+    const p=paymentProvider({id:`acct_${BIZ.replaceAll('-','')}`,country:'GB',currency:'GBP',ready:true});
+    const deps={db,client:p.client,live:false,now:()=>now,publicBaseUrl:'https://nomi.example'};
+    const id=await invoice(),made=await createPaymentLink(deps,BIZ,id);if(!made.ok)throw new Error(made.reason);
+    const a=made.value,s=p.sessions.get(a.id)!;
+    p.sessions.set(a.id,{...s,status:'complete',paid:false,intentId:'pi_delayed',url:null});
+    p.intents.set('pi_delayed',{id:'pi_delayed',attemptId:a.id,succeeded:false,charge:null});
+    await as(tx=>storeStripeEvent(tx,BIZ,connection,{id:'evt_delayed',type:'checkout.session.completed',account:`acct_${BIZ.replaceAll('-','')}`,live:false,created:Math.floor(now.getTime()/1000),objectId:s.id,intentId:'pi_delayed'}));
+    await reconcileStripePayments(deps,BIZ);
+    expect((await as(tx=>sql`select * from invoice_payments where invoice_id=${id}::uuid`.execute(tx))).rows).toHaveLength(0);
+    p.intents.set('pi_delayed',{...intent('delayed'),attemptId:a.id});
+    await reconcileStripePayments(deps,BIZ);await reconcileStripePayments(deps,BIZ);
+    expect((await as(tx=>sql`select * from invoice_payments where invoice_id=${id}::uuid`.execute(tx))).rows).toHaveLength(1);
+    expect((await as(tx=>sql<{state:string}>`select state from stripe_event_inbox where event_id='evt_delayed'`.execute(tx))).rows[0]!.state).toBe('done');
   });
 });

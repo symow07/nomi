@@ -66,7 +66,10 @@ export async function postCapturedPayment(tx: Tx, businessId: string, attemptId:
     await sql`update stripe_movements set entry_id=${posted.entryId}::uuid,reason=null where id=${pay.id}::uuid`.execute(tx);
   }
   const b=ch.balance;
-  if (!b || b.currency!==a.currency || compareDecimal(b.gross,a.amount)!==0) return result(tx,businessId,a,{state:'fee_pending'});
+  if (!b || b.currency!==a.currency || compareDecimal(b.gross,a.amount)!==0) {
+    const kept=(await sql`select 1 from stripe_movements where business_id=${businessId}::uuid and attempt_id=${a.id}::uuid and kind='fee' and reason is null and (entry_id is not null or amount=0)`.execute(tx)).rows.length>0;
+    return result(tx,businessId,a,{state:kept?'posted':'fee_pending'});
+  }
   const fee=await movement(tx,businessId,a,'fee',b.id,b.fee,b.currency,await dateOf(tx,businessId,b.created));
   if (!fee.same) return result(tx,businessId,a,{state:'exception',reason:'fee_differs'});
   if (!fee.entryId && signOf(b.fee)>0) {
@@ -112,7 +115,7 @@ export async function recordStripePayout(tx:Tx,bid:string,cid:string,fact:Payout
   const p=(await payoutRow(tx,bid,cid,fact.id))!;
   if (compareDecimal(decimal(p.amount),fact.amount)!==0||p.currency!==fact.currency) return {state:'exception',reason:'payout_differs'};
   // Failure after posting is outstanding work for the owner, not a silent reversal on a guessed day.
-  const changed=p.entryId && (fact.status==='failed'||fact.status==='canceled');
+  const changed=p.entryId && ([fact.status,p.status].some(s=>s==='failed'||s==='canceled'));
   await sql`update stripe_payouts set status=case when status in ('failed','canceled') then status else ${fact.status} end,reason=${changed?'payout_failed':null}
     where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${fact.id}`.execute(tx);
   return changed?{state:'exception',reason:'payout_failed'}:{state:'pending'};

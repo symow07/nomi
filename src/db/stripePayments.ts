@@ -75,9 +75,11 @@ export async function paymentAttempt(tx: Tx, businessId: string, id: string): Pr
 export async function reservePayment(tx: Tx, businessId: string, invoiceId: string, live: boolean, now: Date): Promise<Result<PaymentAttempt>> {
   if (!uuid(invoiceId)) return { ok: false, reason: 'not_issued' };
   const b = (await sql<{ country: string; practice: boolean }>`select country,practice_of is not null as practice from businesses where id=${businessId}::uuid`.execute(tx)).rows[0];
-  const c = await stripeBinding(tx,businessId,live);
+  let c = await stripeBinding(tx,businessId,live);
   if (!b || !c) return { ok: false, reason: 'disconnected' };
   await sql`select id from stripe_connections where id=${c.id}::uuid and business_id=${businessId}::uuid for update`.execute(tx);
+  c = await stripeBinding(tx,businessId,live);
+  if (!c) return {ok:false,reason:'disconnected'};
   const inv = (await sql<{ state: string; currency: string; owed: string }>`select state,currency,(invoice_total(id)-invoice_credited(id)-invoice_paid(id))::text as owed from invoices
     where business_id=${businessId}::uuid and id=${invoiceId}::uuid for update`.execute(tx)).rows[0];
   if (!inv) return { ok: false, reason: 'not_issued' };
@@ -96,8 +98,11 @@ export async function reservePayment(tx: Tx, businessId: string, invoiceId: stri
   return { ok: true, value: (await paymentAttempt(tx,businessId,id))! };
 }
 export async function keepCheckout(tx: Tx, businessId: string, attemptId: string, checkout: Checkout): Promise<boolean> {
+  const found = await paymentAttempt(tx,businessId,attemptId);
+  if (!found) return false;
+  await sql`select id from stripe_connections where business_id=${businessId}::uuid and id=${found.connectionId}::uuid for update`.execute(tx);
   const a = await paymentAttempt(tx,businessId,attemptId);
-  if (!a || checkout.attemptId !== a.id || checkout.currency !== a.currency || compareDecimal(checkout.amount,a.amount) !== 0 || a.sessionId && a.sessionId !== checkout.id) return false;
+  if (!a || checkout.attemptId !== a.id || checkout.currency !== a.currency || compareDecimal(checkout.amount,a.amount) !== 0 || a.sessionId && a.sessionId !== checkout.id || a.intentId && checkout.intentId && a.intentId !== checkout.intentId) return false;
   // A delayed expiry must never erase a captured payment or an event already being reconciled.
   await sql`update stripe_checkout_attempts set session_id=${checkout.id},intent_id=coalesce(intent_id,${checkout.intentId}),url=${checkout.url},
     state=case when state in ('paid','processing') then state else ${checkout.status === 'complete' ? 'processing' : checkout.status} end
