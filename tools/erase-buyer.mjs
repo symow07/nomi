@@ -333,6 +333,13 @@ export const RULES = Object.freeze({
   connection_approvals: { do: 'unrelated' },
   mail_accounts: { do: 'unrelated' },
   meta_accounts: { do: 'unrelated' },
+  ig_comment_settings: { do: 'unrelated' },
+  ig_comment_login_states: { do: 'unrelated' },
+  ig_comments: { do: 'erase', match: 'any-identity' },
+  ig_comment_replies: { do: 'erase' },
+  ig_comment_public_replies: { do: 'erase' },
+  ig_comment_alerts: { do: 'erase' },
+  ig_comment_tombstones: { do: 'unrelated' },
   tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
   undelivered_alerts: { do: 'unrelated' },   // 0217 — an operator alert or account letter that reached nobody; no customer in it
   whatsapp_accounts: { do: 'unrelated' },

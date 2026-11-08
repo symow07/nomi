@@ -50,6 +50,7 @@ export const PRACTICE_COPY_CHILDREN = ['price_tiers', 'product_aliases', 'produc
  * refresh never touches those. Nothing of the live workspace's is read.
  */
 export const PRACTICE_SKIP = [
+  'ig_comment_settings', 'ig_comment_login_states', 'ig_comments', 'ig_comment_replies', 'ig_comment_public_replies', 'ig_comment_alerts',
   // What happened: conversations and everything hanging off them.
   'conversations', 'conversation_events', 'conversation_notes', 'conversation_signals', 'handoffs',
   'escalation_events', 'message_fragments', 'drafts', 'turns', 'quotes', 'quote_proofs',

@@ -1,3 +1,4 @@
+import { INSTAGRAM_COMMENTS_EN } from './instagramComments.js';
 import { SETTINGS_AREA_EN } from './settingsArea.js';
 import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
@@ -20,6 +21,7 @@ import { CASES_EN } from './cases.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...INSTAGRAM_COMMENTS_EN,
   ...SETTINGS_AREA_EN,
   ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,

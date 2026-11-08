@@ -1,0 +1,60 @@
+import { readFileSync } from 'node:fs';
+import { describe, it, expect } from 'vitest';
+import { asksPriceOrAvailability } from '../../src/core/channel/commentQuestions.js';
+
+/** Labelled examples: asks seek a price or stock; praise, prices stated and unrelated questions do not. */
+const corpus = {
+  en: {
+    yes: ['How much?', 'Price please', 'What is the price of this bag?', 'How much does it cost?', 'Can you tell me the price?', 'Is this available?', 'Is the blue one in stock?', 'Do you have this in red?', 'Any stock left?', 'Can I buy this?'],
+    no: ['Beautiful bag!', 'The price is too high', 'I love this colour', 'How are you?', 'Where are you based?', 'Thanks for the price', 'Not asking about the price', 'It costs 20 dollars', 'We have this in stock', 'I do not want to buy this'],
+  },
+  zh: {
+    yes: ['多少钱？', '这个什么价格？', '请问价格', '这件怎么卖？', '能告诉我价钱吗？', '有货吗？', '红色还有吗？', '这个有现货吗？', '现在可以买到吗？', '请问还有库存吗？'],
+    no: ['很好看', '价格太贵了', '谢谢告诉我价格', '我不问价格', '今天多少钱都不买', '哪里发货？', '我已经买了', '我们有货', '这是我的包', '库存终于到了'],
+  },
+  ar: {
+    yes: ['بكم؟', 'كم السعر؟', 'ما سعر هذه الحقيبة؟', 'السعر من فضلك', 'كم ثمنه؟', 'هل متوفر؟', 'هل هذا متاح؟', 'هل يوجد اللون الأحمر؟', 'عندكم هذا؟', 'هل في مخزون؟'],
+    no: ['جميل جدا', 'السعر غالي', 'شكرا على السعر', 'لا أسأل عن السعر', 'لا أريد شراء هذا', 'أين المتجر؟', 'اشتريت هذا', 'عندنا مخزون', 'أحب هذا اللون', 'سعره عشرون'],
+  },
+  es: {
+    yes: ['¿Cuánto cuesta?', 'Precio por favor', '¿Cuál es el precio?', '¿Qué precio tiene?', '¿Cuánto vale?', '¿Está disponible?', '¿Tienen en rojo?', '¿Hay stock?', '¿Queda alguna?', '¿Puedo comprar este?'],
+    no: ['¡Qué bonito!', 'El precio es muy alto', 'Gracias por el precio', 'No pregunto el precio', 'No quiero comprar esto', '¿Dónde están?', 'Ya lo compré', 'Tenemos stock', 'Me encanta el color', 'Cuesta veinte euros'],
+  },
+  fr: {
+    yes: ['Combien coûte ce sac ?', 'Le prix svp', 'Quel est le prix ?', 'Ça coûte combien ?', 'À combien ?', 'Est-ce disponible ?', 'Vous avez en bleu ?', 'En stock ?', 'Il en reste ?', 'Puis-je acheter celui-ci ?'],
+    no: ['Magnifique !', 'Le prix est trop élevé', 'Merci pour le prix', 'Je ne demande pas le prix', 'Je ne veux pas acheter', 'Vous êtes où ?', 'Je l’ai déjà acheté', 'Nous avons du stock', 'J’aime la couleur', 'Il coûte vingt euros'],
+  },
+  pt: {
+    yes: ['Quanto custa?', 'Preço por favor', 'Qual é o preço?', 'Qual o valor?', 'Quanto fica?', 'Está disponível?', 'Tem em azul?', 'Tem estoque?', 'Ainda tem?', 'Posso comprar este?'],
+    no: ['Que lindo!', 'O preço é muito alto', 'Obrigado pelo preço', 'Não pergunto o preço', 'Não quero comprar', 'Onde fica a loja?', 'Já comprei', 'Temos estoque', 'Adoro a cor', 'Custa vinte reais'],
+  },
+} as const;
+
+describe('comments asking a price or availability · six languages, no model', () => {
+  for (const [language, cases] of Object.entries(corpus)) {
+    for (const text of cases.yes) it(`${language} asks: ${text}`, () => expect(asksPriceOrAvailability(text)).toBe(true));
+    for (const text of cases.no) it(`${language} leaves alone: ${text}`, () => expect(asksPriceOrAvailability(text)).toBe(false));
+  }
+  it('normalizes width, case, accents and spacing without inventing a question', () => {
+    expect(asksPriceOrAvailability('ＰＲＩＣＥ　please')).toBe(true);
+    expect(asksPriceOrAvailability('  QUANTO   CUSTA?? ')).toBe(true);
+    expect(asksPriceOrAvailability('')).toBe(false);
+    expect(asksPriceOrAvailability('x'.repeat(4001))).toBe(false);
+  });
+});
+
+/** Run the actual pure function with one production pattern disabled, not a second detector. */
+it('each production rule and the negation guard has a failing labelled witness when removed', () => {
+  const source = readFileSync(new URL('../../src/core/channel/commentQuestions.ts', import.meta.url), 'utf8');
+  const executable = (code: string): ((text: string) => boolean) => new Function(code
+    .replace(' as const;', ';').replace('export function', 'function')
+    .replace('text: string', 'text').replace('): boolean', ')') + '; return asksPriceOrAvailability;')() as (text: string) => boolean;
+  const lines = source.split('\n').filter(line => line.includes("{ id: '"));
+  expect(lines).toHaveLength(12);
+  for (const line of lines) {
+    const disabled = executable(source.replace(line, ''));
+    expect(Object.values(corpus).flatMap(c => c.yes).some(text => !disabled(text)), line).toBe(true);
+  }
+  const noNegation = executable(source.replace('if (NEGATED.test(folded)) return false;', ''));
+  expect(Object.values(corpus).flatMap(c => c.no).some(text => noNegation(text))).toBe(true);
+});

@@ -1,3 +1,4 @@
+import type { InstagramCommentEvent } from '../meta/comments.js';
 /**
  * WhatsApp Cloud API webhook parser (360dialog hosts Cloud API only since
  * Oct 2025 — one payload shape). Pure: payload in, canonical events out.
@@ -82,7 +83,7 @@ export type EchoEvent = {
   readonly appId: string | null;
 };
 
-export type ChannelEvent = InboundMessageEvent | StatusEvent | EchoEvent;
+export type ChannelEvent = InboundMessageEvent | StatusEvent | EchoEvent | InstagramCommentEvent;
 
 type J = Record<string, unknown>;
 const arr = (v: unknown): J[] => (Array.isArray(v) ? (v as J[]) : []);

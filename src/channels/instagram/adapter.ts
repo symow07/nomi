@@ -1,3 +1,4 @@
+import { parseInstagramComments } from '../meta/comments.js';
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
 import { parseMetaMessaging, metaMessagingSender, metaImageSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
@@ -41,7 +42,7 @@ export function instagramAdapter(cfg: {
     kind: 'instagram',
     provider: 'meta',
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
-    parseWebhook: (payload) => parseMetaMessaging('instagram', payload),
+    parseWebhook: (payload) => [...parseMetaMessaging('instagram', payload), ...parseInstagramComments(payload)],
     sendText: send,
     // Phase 2d — a product's photo, by the address Nomi serves it at (no caption: Meta's pictures carry none).
     sendMedia: metaImageSender(sendAs),

@@ -96,7 +96,7 @@ export const goesByMail = (kind: AlertKind): boolean =>
   // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
   || kind === 'connection_approved' || kind === 'connection_refused'
   // 0217 — the workspace's mailbox can no longer send: its letters, and its owner's e-mail, wait on it.
-  || kind === 'mailbox_disconnected'
+  || kind === 'mailbox_disconnected' || kind === 'comment_asking'
   // BILL — money: the trial ending, a failed payment, the hold, a plan's month used.
   || isBillingAlert(kind);
 
@@ -540,6 +540,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
   // those queues an alert: this one check refuses them all, whichever path
   // queued it. The owner is on the Practice page, watching it happen.
   if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
+  if (job.kind === 'comment_asking') return deliverCommentAlert(deps, bid.value, job);
   if (waitsInApp(job.kind)) return 'skipped_quiet';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
   // Phase 2a — the owner's morning summary: a daily letter, its own class.
@@ -550,10 +551,38 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
 type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
-  | 'connection_approved' | 'connection_refused' | 'mailbox_disconnected'
+  | 'connection_approved' | 'connection_refused' | 'mailbox_disconnected' | 'comment_asking'
   | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number] | typeof DAILY_KINDS[number]>;
 const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
 void everyKindClassified;
+
+/** A single logical alert, re-read under the same lock as erasure before any destination is called. */
+async function deliverCommentAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+  if (!job.commentId || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(job.commentId)) return 'skipped_quiet';
+  const result = await withTenantTx(deps.db, bid, async tx => {
+    const c = (await sql<{account_id:string;comment_id:string}>`select account_id,comment_id from ig_comments
+      where id=${job.commentId}::uuid and business_id=${bid}`.execute(tx)).rows[0];
+    if (!c) return { outcome: 'skipped_quiet' as const };
+    await sql`select pg_advisory_xact_lock(hashtextextended(${'ig-comment:'+bid+':'+c.account_id+':'+c.comment_id},0))`.execute(tx);
+    const alert = (await sql<{outcome:string|null}>`select a.outcome from ig_comment_alerts a
+      join ig_comments c on c.id=a.comment_id join ig_comment_settings s on s.meta_account_id=c.meta_account_id
+      join meta_accounts m on m.id=c.meta_account_id
+      where a.business_id=${bid} and a.comment_id=${job.commentId}::uuid and s.enabled
+        and m.archived_at is null and m.last_error is null for update of a`.execute(tx)).rows[0];
+    if (!alert || alert.outcome === 'sent') return { outcome: 'skipped_quiet' as const };
+    await sql`update ig_comment_alerts set claimed_at=now() where comment_id=${job.commentId}::uuid`.execute(tx);
+    try {
+      const outcome=await deliverOperatorAlert(deps,bid,job);
+      await sql`update ig_comment_alerts set finished_at=now(),outcome=${outcome} where comment_id=${job.commentId}::uuid`.execute(tx);
+      return {outcome};
+    } catch(error) {
+      await sql`update ig_comment_alerts set finished_at=now(),outcome='retry_pending' where comment_id=${job.commentId}::uuid`.execute(tx);
+      return {error};
+    }
+  });
+  if ('error' in result) throw result.error;
+  return result.outcome;
+}
 
 /**
  * An operator alert (the backup alert first), or one of the account's letters
@@ -596,6 +625,7 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE
     // 0217 — a dead mailbox opens the e-mail channel page, where it is connected again.
     : job.kind === 'mailbox_disconnected' ? '/app/channels/email'
+    : job.kind === 'comment_asking' ? '/app/channels/instagram/comments'
     : isBillingAlert(job.kind) ? BILLING_PAGE : null;
   const body = opens && deps.publicBaseUrl
     ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;

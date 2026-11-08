@@ -1,3 +1,7 @@
+import { commentsConfigId } from './channels/meta/commentConnect.js';
+import { withoutInstagramComments } from './channels/meta/comments.js';
+import { insertInstagramComment } from './db/instagramComments.js';
+import { registerInstagramCommentWorkers } from './pipeline/instagramComments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -1066,6 +1070,7 @@ export async function buildProduction(
     // C10 — the login a business connects its OWN Page with, and what it takes
     // to finish the connection when Meta sends her back.
     metaLogin,
+    metaCommentsConfigId: commentsConfigId(process.env),
     metaConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
@@ -2047,6 +2052,8 @@ export async function buildProduction(
    * transaction writes the row, the conversation, and queues the job through it (pg-boss in the same transaction);
    * a failure leaves nothing, and the retry is new.
    */
+  await registerInstagramCommentWorkers({db,boss,key:credentialKey,fetchImpl:metaFetch,graphVersion:cfg.META_GRAPH_API_VERSION});
+
   const persistEvent = async (e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
@@ -2054,6 +2061,15 @@ export async function buildProduction(
       // acknowledged and dropped, never stored, and no turn runs. The channel stays connected, so renewing
       // resumes at once.
       if (await withTenantTx(db, bid, (tx) => billingHeld(tx))) return 'duplicate';
+      if (e.kind === 'comment') {
+        if (channel !== 'instagram') return 'duplicate';
+        return withTenantTx(db,bid,async tx=>{
+          const id=await insertInstagramComment(tx,bid,e);
+          if(!id)return 'duplicate';
+          await boss.send(QUEUES.instagramComments,{businessId:bid,commentId:id},{db:txDatabase(tx)});
+          return 'new';
+        });
+      }
       // Seen already: answered before the name is looked up (a network call), which a duplicate never needed.
       const seen = await withTenantTx(db, bid, async (tx) => (await sql<{ id: string }>`
         select id from channel_events where id = ${e.dedupKey}`.execute(tx)).rows.length > 0);
@@ -2067,7 +2083,7 @@ export async function buildProduction(
             (${e.dedupKey}, ${bid}, ${channel}, ${providerOf[channel] ?? 'unknown'},
              ${e.kind === 'message' ? 'message.inbound' : e.kind === 'echo' ? 'message.echo' : 'status'},
              ${e.kind === 'message' || e.kind === 'echo' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
-             ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
+             ${JSON.stringify(channel==='instagram'?withoutInstagramComments(rawPayload):rawPayload)}::jsonb, ${e.occurredAt})
           on conflict (id) do nothing
           returning id
         `.execute(tx);
@@ -2079,6 +2095,7 @@ export async function buildProduction(
 
   /** What a new event sets going, in the transaction that stored it (A2): every job goes through `tx`. */
   const queueEvent = async (tx: Tx, bid: BusinessId, e: ChannelEvent, channel: string, profileName: string | null): Promise<void> => {
+      if(e.kind === 'comment')return; // comments never enter the DM/echo/status queue
       const inTx = txDatabase(tx);
       if (e.kind === 'message') {
         const conv = await ensureConversation(tx, bid, e.waId, profileName,
