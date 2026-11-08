@@ -154,6 +154,42 @@ describe('Block 4.4 · setup views', () => {
     expect(renderStoreForms('ar', 'USD', { form: 'store', reason: 'password_protected', address: shopify.address })).toMatch(/<details class="store-token" open>/);
   });
 
+  it('aligns disclosure words and the kept line with the page, on the text isolate itself', () => {
+    const html = renderShopifyCredentials('ar', 'USD', { form: shopify });
+    const css = linkedCss(shell({ title: 'Import', active: 'products', locale: 'ar', path: '/app/products/add', bodyHtml: html })).replace(/\s+/g, '');
+    const rule = css.match(/\.contact-importsummary>bdi,\.store-token>summary>bdi,\.store-tokenform>p:last-child>bdi\{([^}]+)\}/)?.[1] ?? '';
+    expect(rule).toContain('display:block');
+    expect(rule).toContain('text-align:match-parent');
+    // Chromium needs the same opposite-direction fallback as the shared cut names.
+    expect(css).toContain('[dir="rtl"].contact-importsummary>bdi:dir(ltr),[dir="ltr"].contact-importsummary>bdi:dir(rtl),[dir="rtl"].store-token>summary>bdi,[dir="rtl"].store-tokenform>p:last-child>bdi{text-align:end}');
+    expect(html).toMatch(/<summary><bdi lang="en" dir="ltr">/);
+    expect(html).toMatch(/<p class="caption muted"><bdi lang="en" dir="ltr">Used once/);
+    // The preview ellipsis belongs to the same isolate as the customer's words.
+    expect(renderContactImportCheck(preview, 'ar')).toMatch(/<summary><bdi dir="auto">[^<]+…<\/bdi><\/summary>/);
+  });
+
+  it('keeps Shopify steps in page order while their decimal markers read left to right', () => {
+    const html = renderShopifyCredentials('ar', 'USD', { form: shopify });
+    const list = html.match(/<ol>[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(list.match(/<li><bdi lang="en" dir="ltr">/g)).toHaveLength(3);
+    expect(list).not.toMatch(/<(?:ol|li)[^>]*dir=/);
+    const css = linkedCss(shell({ title: 'Import', active: 'products', locale: 'ar', path: '/app/products/add', bodyHtml: html })).replace(/\s+/g, '');
+    const marker = css.match(/\.store-tokenol>li::marker\{([^}]+)\}/)?.[1] ?? '';
+    expect(marker).toContain('direction:ltr');
+    expect(marker).toContain('unicode-bidi:isolate');
+    expect(css).toContain('[dir="rtl"].store-tokenol>li{padding-inline-start:var(--space-8)}');
+  });
+
+  it('aligns the Shopify currency tick words with the page on their own isolate', () => {
+    const html = renderShopifyCredentials('ar', 'USD', { form: shopify });
+    expect(html).toMatch(/<label class="st-check"><input[^>]+><bdi lang="en" dir="ltr">/);
+    const css = linkedCss(shell({ title: 'Import', active: 'products', locale: 'ar', path: '/app/products/add', bodyHtml: html })).replace(/\s+/g, '');
+    const rule = css.match(/\.store-token\.st-check>bdi\{([^}]+)\}/)?.[1] ?? '';
+    expect(rule).toContain('text-align:match-parent');
+    expect(rule).toContain('flex:1');
+    expect(css).toContain('[dir="rtl"].store-token.st-check>bdi{text-align:end}');
+  });
+
   it('shows a typed Shopify refusal on the add page with empty credentials and the currency choice kept', () => {
     for (const locale of ['en', 'ar'] as const) {
       const html = renderAddForm(locale, undefined, 'USD', null, null, false, false, {

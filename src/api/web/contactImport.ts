@@ -35,14 +35,14 @@ const words = (locale: Locale, key: MessageKey, params?: Record<string, string |
   `<bdi lang="en" dir="ltr">${esc(show.isolateFigures(locale, t('en', key, params)))}</bdi>`;
 const raw = (text: string | null) => `<bdi dir="auto">${esc(text ?? '')}</bdi>`;
 const frame = (locale: Locale, title: MessageKey, options: ContactImportPageOptions, body: string, step?: number) =>
-  `<section class="contact-import">${back('/app/customers', t('en', 'contactImport.customers'))}${flashBanner(options.flash ?? null)}
+  `<section class="contact-import">${back('/app/customers', t('en', 'contactImport.customers'), '', 'en')}${flashBanner(options.flash ?? null)}
     <header><h1 class="page">${words(locale, title)}</h1>${step ? `<p class="caption">${words(locale, 'contactImport.step', { n: show.count(locale, step) })}</p>` : ''}</header>${body}</section>`;
 const error = (locale: Locale, reason: ContactImportFileRefusal, id: string) =>
   `<p id="${id}" class="perr" role="alert">${words(locale, `contactImport.refused.${reason}`)}</p>`;
 const columnsHeader = (locale: Locale, selection = false) => `<thead><tr>${selection ? '<th></th>' : ''}${CONTACT_IMPORT_COLUMNS.map(key =>
   `<th scope="col">${words(locale, `contactImport.columns.${key}`)}</th>`).join('')}</tr></thead>`;
 const notes = (text: string | null) => text && text.length > 80
-  ? `<details class="ci-notes"><summary>${raw(text.slice(0, 80))}…</summary>${raw(text)}</details>` : raw(text);
+  ? `<details class="ci-notes"><summary>${raw(`${text.slice(0, 80)}…`)}</summary>${raw(text)}</details>` : raw(text);
 const contactCells = (locale: Locale, contact: ImportedContact) =>
   `<td class="ci-name">${contact.name ? raw(contact.name) : words(locale, 'contactImport.check.unnamed')}</td>
    <td class="ci-phone"><bdi dir="ltr">${esc(`+${contact.phone}`)}</bdi></td><td class="ci-language">${raw(contact.language)}</td><td class="ci-notes-cell">${notes(contact.notes)}</td>`;
@@ -50,7 +50,7 @@ const contactCells = (locale: Locale, contact: ImportedContact) =>
 export function renderContactImportUpload(locale: Locale, options: ContactImportUploadOptions = {}): string {
   const failed = (source: 'file' | 'paste') => options.problem?.source === source;
   return frame(locale, 'contactImport.title', options, `<p>${words(locale, 'contactImport.intro')}</p>
-    <p>${words(locale, 'contactImport.example')}</p><pre dir="ltr">name,phone,language,notes\nAvery Example,+12025550101,en,Ask about blue.</pre><p>${words(locale, 'contactImport.phoneHint')}</p>
+    <p>${words(locale, 'contactImport.example')}</p><pre lang="en" dir="ltr">name,phone,language,notes\nAvery Example,+12025550101,en,Ask about blue.</pre><p>${words(locale, 'contactImport.phoneHint')}</p>
     <form method="post" action="${HOME}" enctype="multipart/form-data" class="ci-form">
       <label for="contact-file">${words(locale, 'contactImport.file')}</label>
       <input id="contact-file" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx"${failed('file') ? ' aria-invalid="true" aria-describedby="contact-file-error" autofocus' : ''}>
@@ -66,9 +66,9 @@ export function renderContactImportColumns(view: ContactImportColumns, locale: L
   const width = view.rows.reduce((n, row) => Math.max(n, row.length), view.headers.length);
   const fields = CONTACT_IMPORT_COLUMNS.map(key => `<label for="contact-column-${key}">${words(locale, `contactImport.columns.${key}`)}</label>
     <select id="contact-column-${key}" name="${key}"${key === 'phone' && options.problem ? ' aria-invalid="true" aria-describedby="contact-columns-error"' : ''}${key === 'phone' && options.problem === 'no_phone_column' ? ' autofocus' : ''}>
-      <option value="">${esc(t('en', 'contactImport.columns.none'))}</option>${Array.from({ length: width }, (_, i) => {
+      <option value="" lang="en" dir="ltr">${esc(t('en', 'contactImport.columns.none'))}</option>${Array.from({ length: width }, (_, i) => {
         const label = view.hasHeader && view.headers[i] ? view.headers[i]! : t('en', 'contactImport.columns.numbered', { n: show.count(locale, i + 1) });
-        return `<option value="${i}"${view.mapping[key] === i ? ' selected' : ''}>${esc(show.isolate(locale, label))}</option>`;
+        return `<option value="${i}"${view.hasHeader && view.headers[i] ? '' : ' lang="en" dir="ltr"'}${view.mapping[key] === i ? ' selected' : ''}>${esc(show.isolate(locale, label))}</option>`;
       }).join('')}</select>`).join('');
   const sample = view.rows.slice(0, 3).map(row => `<tr>${CONTACT_IMPORT_COLUMNS.map(key => {
     const column = view.mapping[key];
@@ -79,7 +79,7 @@ export function renderContactImportColumns(view: ContactImportColumns, locale: L
     <label class="ci-check"><input type="checkbox" name="header" value="on"${view.hasHeader ? ' checked' : ''}>${words(locale, 'contactImport.columns.header')}</label>
     <h2 id="contact-preview-title">${words(locale, 'contactImport.columns.preview')}</h2>
     <table class="ci-table" aria-labelledby="contact-preview-title">${columnsHeader(locale)}<tbody>${sample}</tbody></table>
-    <div class="ci-actions"><button class="btn send" type="submit">${words(locale, 'contactImport.continue')}</button>${back(HOME, t('en', 'contactImport.back'))}</div></form>`, 2);
+    <div class="ci-actions"><button class="btn send" type="submit">${words(locale, 'contactImport.continue')}</button>${back(HOME, t('en', 'contactImport.back'), '', 'en')}</div></form>`, 2);
 }
 
 export function renderContactImportCheck(view: ContactImportPreview, locale: Locale, options: ContactImportPageOptions = {}): string {
@@ -106,7 +106,7 @@ export function renderContactImportCheck(view: ContactImportPreview, locale: Loc
     <section aria-labelledby="contact-existing">${heading('existing', counts.existing)}<p>${words(locale, 'contactImport.check.existingWhy')}</p>${existing ? `<ul class="ci-rows">${existing}</ul>` : empty}</section>
     <section aria-labelledby="contact-refused">${heading('refused', counts.refused + counts.duplicateInFile)}${refusals ? `<ul class="ci-rows">${refusals}</ul>` : empty}</section>
     <p>${words(locale, 'contactImport.check.deleted')}</p><button class="btn send" type="submit">${words(locale, 'contactImport.add')}</button>
-    </form><div class="ci-actions">${back(`${at(view.importId)}/columns`, t('en', 'contactImport.back'))}
+    </form><div class="ci-actions">${back(`${at(view.importId)}/columns`, t('en', 'contactImport.back'), '', 'en')}
       <form method="post" action="${at(view.importId)}/discard"><button class="btn" type="submit" data-confirm="${esc(t('en', 'contactImport.discard.confirm'))}">${words(locale, 'contactImport.discard')}</button></form></div>`, 3);
 }
 
@@ -114,5 +114,5 @@ export function renderContactImportCheck(view: ContactImportPreview, locale: Loc
 export function renderContactImportDone(result: ContactImportConfirmResult, locale: Locale, options: ContactImportPageOptions = {}): string {
   return frame(locale, 'contactImport.done.title', options, `<p>${words(locale, result.added === 1 ? 'contactImport.flash.added.one' : 'contactImport.flash.added.other', { n: show.count(locale, result.added) })}</p>
     <p>${words(locale, 'contactImport.done.counts', { existing: show.count(locale, result.existing), skipped: show.count(locale, result.notSelected), refused: show.count(locale, result.refused + result.duplicateInFile) })}</p>
-    ${result.newlyMatched ? `<p>${words(locale, 'contactImport.done.matched', { n: show.count(locale, result.newlyMatched) })}</p>` : ''}${deeper('/app/customers', t('en', 'contactImport.customers'))}`);
+    ${result.newlyMatched ? `<p>${words(locale, 'contactImport.done.matched', { n: show.count(locale, result.newlyMatched) })}</p>` : ''}${deeper('/app/customers', t('en', 'contactImport.customers'), '', '', 'en')}`);
 }

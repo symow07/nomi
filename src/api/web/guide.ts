@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { t } from './say.js';
-import { esc, deeper, todoMark } from './layout.js';
+import { esc, deeper, todoMark, wordsHtml } from './layout.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { SETUP_STEPS, type NamesWanted, type SetupStep } from '../../db/setup.js';
@@ -85,7 +85,7 @@ export function renderSetupMilestones(milestones: SetupMilestones, locale: Local
       ? words('setupClock.doneAt', { elapsed: setupElapsed(locale, when.getTime() - milestones.signedUpAt.getTime()) })
       : words('setupClock.doneOn', { date: show.dateYear(locale, when) })}` : words('setupClock.notYet');
     const next = when ? '' : key === 'firstReply' ? words('setupClock.reply.how') : !options.canManage ? words('setupClock.ownerDoes')
-      : deeper(doors[key], t('en', `setupClock.${labels[key]}.go` as MessageKey));
+      : deeper(doors[key], t('en', `setupClock.${labels[key]}.go` as MessageKey), '', '', 'en');
     return `<li data-milestone="${key}"><h3>${words(`setupClock.${labels[key]}` as MessageKey)}</h3><p class="sc-state">${state}</p>${next ? `<p>${next}</p>` : ''}</li>`;
   }).join('');
   return `<section class="setup-clock" aria-labelledby="setup-clock-title"><h2 id="setup-clock-title">${words('setupClock.title')}</h2>${clock}<ol>${rows}</ol></section>`;
@@ -112,7 +112,7 @@ export function renderGuide(
   const items = SETUP_STEPS.map((step) => {
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
     const words = captionKeys(step).map((k, i) => step === 'name' && i === 0
-      ? t(locale, 'area1.setup.name.location') : t(locale, k, { name }));
+      ? wordsHtml(locale, 'area1.setup.name.location') : wordsHtml(locale, k, { name }));
     // The canonical setup page keeps #name for the existing name confirmation control.
     const id = options.embedded && step === 'name' ? 'step-name' : step;
     return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${id}">
@@ -122,16 +122,16 @@ export function renderGuide(
         ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
       </div>
       <details class="gs-help"${v.next === step ? ' open' : ''}>
-        <summary>${esc(t(locale, 'area1.setup.help'))}</summary>
-        <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
+        <summary>${wordsHtml(locale, 'area1.setup.help')}</summary>
+        <ol class="gs-words">${words.map((w) => `<li>${w}</li>`).join('')}</ol>
       </details>
       ${step === 'products' && !done ? namesWantedLines(locale, v.names ?? []) : ''}
     </li>`;
   }).join('');
-  return `${options.embedded ? '' : `<header class="setup-intro"><h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p></header>`}
+  return `${options.embedded ? '' : `<header class="setup-intro"><h1 class="page">${wordsHtml(locale, 'area1.setup.title')}</h1>
+    <p class="muted">${wordsHtml(locale, 'area1.setup.intro')}</p></header>`}
     ${options.milestones ? renderSetupMilestones(options.milestones, locale, { now: options.now, canManage: options.canManage }) : ''}
-    ${v.next === null ? `<p class="fok setup-complete">${esc(t(locale, 'area1.setup.complete'))}</p>` : ''}
+    ${v.next === null ? `<p class="fok setup-complete">${wordsHtml(locale, 'area1.setup.complete')}</p>` : ''}
     <ol class="guide setup-steps">${items}</ol>
     <div class="block"><h2>${esc(t(locale, 'guide.after.title'))}</h2><p>${esc(t(locale, 'guide.after.body', { name }))}</p></div>`;
 }

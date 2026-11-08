@@ -289,8 +289,8 @@ export function renderShopifyCredentials(locale: Locale, currency: string, props
       <p class="st-or">${words('storeToken.or')}</p><fieldset><legend>${words('storeToken.dev.legend')}</legend>
         ${secret('client_id', 'storeToken.clientId')}${secret('client_secret', 'storeToken.clientSecret')}
         <ol>${(['step1', 'step2', 'step4'] as const).map(step => `<li>${words(`storeToken.dev.${step}`)}</li>`).join('')}</ol>
-        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-secrets', t('en', 'storeToken.dev.helpSecrets'), '', 'target="_blank" rel="noopener noreferrer"')}</p>
-        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant', t('en', 'storeToken.dev.helpGrant'), '', 'target="_blank" rel="noopener noreferrer"')}</p>
+        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-secrets', t('en', 'storeToken.dev.helpSecrets'), '', 'target="_blank" rel="noopener noreferrer"', 'en')}</p>
+        <p>${deeper('https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant', t('en', 'storeToken.dev.helpGrant'), '', 'target="_blank" rel="noopener noreferrer"', 'en')}</p>
       </fieldset>
       <label class="st-check"><input type="checkbox" name="currency" value="on"${props.currencyConfirmed ? ' checked' : ''}>${words('import.store.currency', { currency: currencyWords('en', currency) })}</label>
       <button class="btn" type="submit">${words('storeToken.read')}</button>${refusal}<p class="caption muted">${words('storeToken.kept')}</p>

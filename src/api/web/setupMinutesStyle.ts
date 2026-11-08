@@ -23,6 +23,14 @@ export const SETUP_MINUTES_CSS = String.raw`
 .ci-table th,.ci-table td{text-align:start;vertical-align:top;padding:var(--space-8);overflow-wrap:anywhere;border-block-end:1px solid var(--color-border)}
 .ci-selectable th:first-child{inline-size:44px}
 .contact-import summary,.store-token>summary{cursor:pointer;min-block-size:44px;align-content:center}
+/* The words themselves are the isolate; alignment still follows the page. */
+.contact-import summary>bdi,.store-token>summary>bdi,.store-token form>p:last-child>bdi{display:block;min-inline-size:0;text-align:match-parent}
+.contact-import summary>bdi,.store-token>summary>bdi{flex:1}
+/* Chromium retains start for match-parent here, as it does for cut names. */
+[dir="rtl"] .contact-import summary>bdi:dir(ltr),[dir="ltr"] .contact-import summary>bdi:dir(rtl),[dir="rtl"] .store-token>summary>bdi,[dir="rtl"] .store-token form>p:last-child>bdi{text-align:end}
+/* Keep the list on the page's start edge, but read each decimal marker as 1. */
+.store-token ol>li::marker{direction:ltr;unicode-bidi:isolate}
+[dir="rtl"] .store-token ol>li{padding-inline-start:var(--space-8)}
 .ci-rows,.setup-clock ol{list-style:none;padding:0;margin:0}
 .ci-rows li{padding-block:var(--space-16);border-block-end:1px solid var(--color-border)}
 .ci-rows p{margin-block:0 var(--space-8)}
@@ -32,6 +40,8 @@ export const SETUP_MINUTES_CSS = String.raw`
 .store-token legend{font-weight:600;font-size:var(--font-size-base);padding:0}
 .store-token .st-or{margin-block:var(--space-16)}
 .store-token .st-check{margin-block:var(--space-16)}
+.store-token .st-check>bdi{flex:1;min-inline-size:0;text-align:match-parent}
+[dir="rtl"] .store-token .st-check>bdi{text-align:end}
 .setup-clock li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-8) var(--space-24);padding-block:var(--space-16);border-block-end:1px solid var(--color-border)}
 .setup-clock h3{font-size:var(--font-size-base);margin:0}
 .setup-clock p{margin:0}
@@ -51,4 +61,10 @@ export const SETUP_MINUTES_CSS = String.raw`
  .setup-clock li{grid-template-columns:minmax(0,1fr)}
  .setup-clock li>p:last-child:not(.sc-state){grid-column:1}
 }
+
+/* F3: the words, not a directional wrapper, own the fallback and alignment. */
+.gs-help>summary>bdi[lang="en"]{flex:1;min-inline-size:0;text-align:match-parent}
+[dir="rtl"] .gs-help>summary>bdi[lang="en"],
+[dir="rtl"] .store-token .deeper>bdi[lang="en"]{text-align:end}
+.contact-import option[lang="en"]{text-align:match-parent}
 `;
