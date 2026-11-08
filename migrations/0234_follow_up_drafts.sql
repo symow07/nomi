@@ -77,6 +77,60 @@ create table follow_up_approvals (
 create index follow_up_approvals_transaction on follow_up_approvals(business_id, conversation_id, approval_xid)
   where outbound_id is null;
 
+-- A single-column FK proves existence, not workspace ownership. Check every customer
+-- reference on our own rows, using each parent's primary-key index. The message's
+-- workspace belongs to its conversation. Invoker rights retain the caller's RLS.
+-- These checks never run on the send-path tables; their AFTER observers still catch
+-- every error, so a rejected observation cannot reject the message or approval.
+create function check_follow_up_references() returns trigger
+language plpgsql set search_path = public as $$
+declare ref record; parent_id uuid; same_workspace boolean;
+begin
+  for ref in select * from (values
+    ('follow_up_observations', 'client_id', 'clients'),
+    ('follow_up_observations', 'conversation_id', 'conversations'),
+    ('follow_up_observations', 'quote_id', 'quotes'),
+    ('follow_up_observations', 'outbound_id', 'outbound_messages'),
+    ('follow_up_observations', 'episode_message_id', 'messages'),
+    ('follow_up_runs', 'client_id', 'clients'),
+    ('follow_up_runs', 'conversation_id', 'conversations'),
+    ('follow_up_runs', 'source_quote_id', 'quotes'),
+    ('follow_up_runs', 'source_outbound_id', 'outbound_messages'),
+    ('follow_up_runs', 'episode_message_id', 'messages'),
+    ('follow_up_runs', 'draft_id', 'drafts'),
+    ('follow_up_approvals', 'draft_id', 'drafts'),
+    ('follow_up_approvals', 'run_id', 'follow_up_runs'),
+    ('follow_up_approvals', 'conversation_id', 'conversations'),
+    ('follow_up_approvals', 'outbound_id', 'outbound_messages')
+  ) as refs(tbl, col, parent) where tbl = tg_table_name loop
+    parent_id := (to_jsonb(new) ->> ref.col)::uuid;
+    if parent_id is null then continue; end if;
+    if ref.parent = 'messages' then
+      select exists(select 1 from messages m join conversations c on c.id = m.conversation_id
+        where m.id = parent_id and c.business_id = new.business_id) into same_workspace;
+    else
+      execute format('select exists(select 1 from %I where id = $1 and business_id = $2)', ref.parent)
+        into same_workspace using parent_id, new.business_id;
+    end if;
+    if not same_workspace then
+      raise exception 'Follow-up reference %.% must belong to its workspace', tg_table_name, ref.col
+        using errcode = '23503';
+    end if;
+  end loop;
+  return new;
+end $$;
+revoke all on function check_follow_up_references() from public;
+grant execute on function check_follow_up_references() to nomi_app;
+create trigger check_follow_up_observation_references before insert or update of
+  business_id, client_id, conversation_id, quote_id, outbound_id, episode_message_id
+  on follow_up_observations for each row execute function check_follow_up_references();
+create trigger check_follow_up_run_references before insert or update of
+  business_id, client_id, conversation_id, source_quote_id, source_outbound_id, episode_message_id, draft_id
+  on follow_up_runs for each row execute function check_follow_up_references();
+create trigger check_follow_up_approval_references before insert or update of
+  business_id, draft_id, run_id, conversation_id, outbound_id
+  on follow_up_approvals for each row execute function check_follow_up_references();
+
 -- No accountant reads the sales side. The app never borrows a definer to read another workspace.
 do $$ declare t text; begin
   foreach t in array array['follow_up_rules', 'follow_up_observations', 'follow_up_runs', 'follow_up_approvals'] loop

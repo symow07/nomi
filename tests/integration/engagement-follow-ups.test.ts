@@ -287,6 +287,46 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
       .toMatchObject({ due_at: new Date(T0.getTime() + 3 * 86400000), delay_days: 2, wording: 'Would you like to ask anything about the quote?' });
   });
 
+  it.each(['sent', 'delivered', 'read', 'during_window_check'])('recovers a dropped newer quote (%s) before presenting, with a recorded anchor move', async (stage) => {
+    await rule(); const original = await outbound(); await sweep(0);
+    const initial = await one(`select * from follow_up_runs where business_id = $1`, [business]);
+    let newer: { id: string } | undefined;
+    const acceptWithoutObservation = async () => {
+      const lock = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+      await lock.connect();
+      try {
+        await lock.query('begin');
+        await lock.query('select id from clients where id = $1 for update', [customer]);
+        newer = await outbound('sent', quote, new Date(T0.getTime() + 86400000));
+        if (stage === 'delivered' || stage === 'read') await query('update outbound_messages set status = $2 where id = $1', [newer!.id, stage]);
+      } finally { await lock.query('rollback'); await lock.end(); }
+      expect((await one(`select count(*)::int as n from follow_up_observations where outbound_id = $1`, [newer!.id])).n).toBe(0);
+      expect((await one(`select count(*)::int as n from follow_up_observations where business_id = $1 and kind = 'warning' and diagnostic_code like '%55P03'`, [business])).n).toBe(1);
+    };
+    if (stage === 'during_window_check') {
+      // A real accepted row commits after the due-time read but before the final draft read.
+      // The plugin supplies a deterministic barrier; it does not change any query or result.
+      const barrierDb = db.withPlugin({
+        transformQuery: ({ node }) => node,
+        transformResult: async ({ result }) => {
+          if (!newer && result.rows.some(row => Object.hasOwn(row as object, 'last_inbound_at'))) await acceptWithoutObservation();
+          return result;
+        },
+      });
+      expect(await runDueFollowUps({ db: barrierDb, now: () => new Date(T0.getTime() + 172800000) }, business as BusinessId)).toBe(0);
+    } else { await acceptWithoutObservation(); expect(await sweep(2)).toBe(0); }
+    expect(await one(`select source_outbound_id, quoted_at, due_at, state from follow_up_runs where id = $1`, [initial.id]))
+      .toEqual({ source_outbound_id: newer!.id, quoted_at: new Date(T0.getTime() + 86400000), due_at: new Date(T0.getTime() + 259200000), state: 'scheduled' });
+    expect((await query(`select payload from conversation_events where business_id = $1 and type = 'follow_up_rescheduled'`, [business])).rows)
+      .toEqual([{ payload: { followUpRunId: initial.id, previousOutboundId: original.id, outboundId: newer!.id,
+        previousQuoteId: quote, quoteId: quote, previousDueAt: initial.due_at.toISOString(), dueAt: new Date(T0.getTime() + 259200000).toISOString() } }]);
+    expect(await sweep(3 - 1 / 86400000)).toBe(0);
+    expect(await sweep(3)).toBe(1);
+    expect(await sweep(5)).toBe(0);
+    expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(1);
+    expect((await one(`select count(*)::int as n from outbound_messages where business_id = $1`, [business])).n).toBe(2);
+  });
+
   it('never rearms a presented episode until an answer AND a fresh sent quote', async () => {
     await rule(); await outbound(); expect(await sweep()).toBe(1);
     await outbound('sent', quote, new Date(T0.getTime() + 3 * 86400000));
@@ -296,6 +336,29 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
     await outbound('sent', quote, new Date(T0.getTime() + 8 * 86400000));
     expect(await sweep(10)).toBe(1);
     expect((await one(`select count(*)::int as n from drafts where business_id = $1`, [business])).n).toBe(2);
+  });
+
+  it('recovers only the latest accepted exact quote in this conversation, never a queued or unlinked row', async () => {
+    await rule(); await outbound(); await sweep(0);
+    const lock = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await lock.connect();
+    let latest: { id: string };
+    try {
+      await lock.query('begin');
+      await lock.query('select id from clients where id = $1 for update', [customer]);
+      await outbound('sent', quote, new Date(T0.getTime() + 86400000));
+      latest = await outbound('sent', quote, new Date(T0.getTime() + 36 * 3600000));
+    } finally { await lock.query('rollback'); await lock.end(); }
+    for (const status of ['queued', 'failed', 'uncertain']) {
+      const row = await outbound(status);
+      await query('update outbound_messages set sent_at = $2 where id = $1', [row.id, new Date(T0.getTime() + 47 * 3600000)]);
+    }
+    await outbound('sent', null, new Date(T0.getTime() + 47 * 3600000));
+    expect(await sweep(2)).toBe(0);
+    expect(await one(`select source_outbound_id, due_at from follow_up_runs where business_id = $1`, [business]))
+      .toEqual({ source_outbound_id: latest!.id, due_at: new Date(T0.getTime() + 84 * 3600000) });
+    expect(await sweep(3)).toBe(0);
+    expect(await sweep(3.5)).toBe(1);
   });
 
   it.each(['whatsapp', 'messenger', 'instagram'])('records a closed %s window without creating a stale draft', async (channel) => {

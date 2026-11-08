@@ -57,6 +57,33 @@ export async function followUpAnswered(tx: Tx, r: Pick<FollowUpRun, 'client_id' 
   ) as answered`.execute(tx)).rows[0]?.answered === true;
 }
 
+/** The locked run keeps its original words and delay; its history keeps both anchors. */
+async function moveFollowUpAnchor(tx: Tx, r: FollowUpRun, quote: Pick<FollowUpObservation, 'conversation_id' | 'quote_id' | 'outbound_id' | 'quoted_at'>): Promise<void> {
+  const due = new Date(quote.quoted_at.getTime() + r.delay_days * 86400000);
+  await sql`update follow_up_runs set conversation_id = ${quote.conversation_id}::uuid,
+    channel = (select channel from conversations where id = ${quote.conversation_id}::uuid),
+    source_quote_id = ${quote.quote_id}::uuid, source_outbound_id = ${quote.outbound_id}::uuid,
+    quoted_at = ${quote.quoted_at}, due_at = ${due} where id = ${r.id}::uuid`.execute(tx);
+  await tenantRepos(tx, r.business_id as BusinessId).events.append(quote.conversation_id as ConversationId, 'follow_up_rescheduled', {
+    followUpRunId: r.id, previousOutboundId: r.source_outbound_id, outboundId: quote.outbound_id,
+    previousQuoteId: r.source_quote_id, quoteId: quote.quote_id, previousDueAt: r.due_at.toISOString(), dueAt: due.toISOString(),
+  });
+}
+
+/** Observations are an optimization, not the authority for the last accepted quote. */
+async function refreshFollowUpAnchor(tx: Tx, r: FollowUpRun, now: Date): Promise<boolean> {
+  const latest = (await sql<Pick<FollowUpObservation, 'conversation_id' | 'quote_id' | 'outbound_id' | 'quoted_at'>>`
+    select o.conversation_id, o.quote_id, o.id as outbound_id, o.sent_at as quoted_at
+    from outbound_messages o join quotes q on q.id = o.quote_id
+      and q.business_id = o.business_id and q.conversation_id = o.conversation_id
+    where o.business_id = ${r.business_id}::uuid and o.conversation_id = ${r.conversation_id}::uuid
+      and o.status in ('sent', 'delivered', 'read') and o.sent_at > ${r.quoted_at} and o.sent_at <= ${now}
+    order by o.sent_at desc, o.seq desc limit 1`.execute(tx)).rows[0];
+  if (!latest) return false;
+  await moveFollowUpAnchor(tx, r, latest);
+  return true;
+}
+
 /** A quote observation folds into a single quiet episode, not a second follow-up. */
 export async function foldFollowUpQuote(tx: Tx, businessId: BusinessId, id: string, now: Date): Promise<void> {
   const o = (await sql<FollowUpObservation>`select * from follow_up_observations where id = ${id}::uuid
@@ -75,12 +102,7 @@ export async function foldFollowUpQuote(tx: Tx, businessId: BusinessId, id: stri
         ${new Date(o.quoted_at.getTime() + o.delay_days * 86400000)}, ${o.delay_days}, ${o.wording}
       from conversations c where c.id = ${o.conversation_id}::uuid and c.business_id = ${businessId}::uuid`.execute(tx);
   } else if (r.state === 'scheduled' && o.quoted_at > r.quoted_at && o.quoted_at < r.due_at) {
-    // Edits apply to future episodes: this run keeps its original delay and words.
-    await sql`update follow_up_runs set conversation_id = ${o.conversation_id}::uuid,
-      channel = (select channel from conversations where id = ${o.conversation_id}::uuid),
-      source_quote_id = ${o.quote_id}::uuid, source_outbound_id = ${o.outbound_id}::uuid,
-      quoted_at = ${o.quoted_at}, due_at = ${new Date(o.quoted_at.getTime() + r.delay_days * 86400000)}
-      where id = ${r.id}::uuid`.execute(tx);
+    await moveFollowUpAnchor(tx, r, o);
   }
   await sql`update follow_up_observations set processed_at = ${now} where id = ${id}::uuid`.execute(tx);
 }
@@ -136,6 +158,7 @@ export async function presentFollowUp(tx: Tx, businessId: BusinessId, r: FollowU
   const refusal = await followUpRefusal(tx, businessId, r);
   if (refusal) { await cancelFollowUp(tx, r, refusal); return false; }
   if (r.state !== 'scheduled' || r.due_at > now) return false;
+  if (await refreshFollowUpAnchor(tx, r, now)) return false;
   const last = (await sql<{ last_inbound_at: Date | null }>`select max(last_inbound_at) as last_inbound_at from client_channels
     where business_id = ${businessId}::uuid and client_id = ${r.client_id}::uuid and channel = ${r.channel}`.execute(tx)).rows[0]?.last_inbound_at ?? null;
   if (channelSendPlan(r.channel, last, now, 'none').action !== 'send_free') {
@@ -145,6 +168,7 @@ export async function presentFollowUp(tx: Tx, businessId: BusinessId, r: FollowU
   }
   // Re-read the durable messages immediately before making the draft, even if its observer was dropped.
   if (await followUpAnswered(tx, r)) { await cancelFollowUp(tx, r, 'customer_answered'); return false; }
+  if (await refreshFollowUpAnchor(tx, r, now)) return false;
   const tenant = tenantRepos(tx, businessId);
   const draft = await tenant.drafts.create({ conversationId: r.conversation_id as ConversationId,
     capability: 'follow_up', draftText: r.wording, turnMessageId: null });
