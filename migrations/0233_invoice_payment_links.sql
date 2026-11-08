@@ -211,3 +211,52 @@ begin
   end if;
   return new;
 end $$;
+
+-- Keep single-column deletion edges for customer erasure, and check their tenant and subject here.
+create function check_stripe_send_references() returns trigger
+language plpgsql security definer set search_path=public set row_security=off as $$
+declare c record; o record;
+begin
+  -- A conversation's FK detach also detaches its outbound, regardless of FK action order.
+  if tg_op = 'UPDATE' and old.conversation_id is not null and new.conversation_id is null then
+    new.outbound_id := null;
+  end if;
+  if new.conversation_id is not null then
+    select business_id into c from conversations where id=new.conversation_id for share;
+    if not found or c.business_id is distinct from new.business_id then
+      raise exception 'payment link: conversation belongs to another workspace' using errcode='23503';
+    end if;
+  end if;
+  if new.outbound_id is not null then
+    select business_id,conversation_id into o from outbound_messages where id=new.outbound_id for share;
+    if not found or o.business_id is distinct from new.business_id then
+      raise exception 'payment link: outbound belongs to another workspace' using errcode='23503';
+    end if;
+    if o.conversation_id is distinct from new.conversation_id then
+      raise exception 'payment link: outbound belongs to another conversation' using errcode='23503';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke all on function check_stripe_send_references() from public;
+create trigger stripe_send_references before insert or update on stripe_link_sends
+for each row execute function check_stripe_send_references();
+
+create function check_stripe_reversal_reference() returns trigger
+language plpgsql security definer set search_path=public set row_security=off as $$
+declare original record;
+begin
+  if new.reverses_id is not null then
+    select business_id,connection_id into original from stripe_movements where id=new.reverses_id for share;
+    if not found or original.business_id is distinct from new.business_id then
+      raise exception 'payment link: reversed movement belongs to another workspace' using errcode='23503';
+    end if;
+    if original.connection_id is distinct from new.connection_id then
+      raise exception 'payment link: reversed movement belongs to another connection' using errcode='23503';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke all on function check_stripe_reversal_reference() from public;
+create trigger stripe_reversal_reference before insert or update on stripe_movements
+for each row execute function check_stripe_reversal_reference();
