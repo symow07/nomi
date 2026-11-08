@@ -1,3 +1,4 @@
+import { renderResultsTabs } from './resultsNavigation.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
@@ -7020,16 +7021,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
   /** The Results tabs, drawn once for the three views and (Block 4.3) the month page: the fourth, a door to it. */
-  const RESULTS_TABS = ['sales', 'assistant', 'setup', 'month'] as const;
-  const resultsTabs = (locale: Locale, current: (typeof RESULTS_TABS)[number]) =>
-    `<nav class="tabs" aria-label="${esc(t(locale, 'area1.results.views'))}">${
-      RESULTS_TABS.map((item) => `<a class="tab${item === current ? ' on' : ''}"${item === current ? ' aria-current="page"' : ''}
-        href="${item === 'month' ? '/app/results/month' : `/app/results${item === 'sales' ? '' : `?view=${item}`}`}">${
-        esc(item === 'month' ? t(locale, 'monthMail.tab') : t(locale, `area1.results.${item}`))}</a>`).join('')}</nav>`;
   app.get('/app/results', authed('analytics', async (s, req, locale, reply) => {
     const query = req.query as { range?: string; view?: string };
     const view = query.view === 'assistant' || query.view === 'setup' ? query.view : 'sales';
-    const views = resultsTabs(locale, view);
+    const views = renderResultsTabs(locale, view);
     let body: string;
     if (view === 'assistant') {
       const [employee, context] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
@@ -7085,7 +7080,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.header('cache-control', 'private, no-store');
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'monthMail.tab'), active: 'analytics',
-      bodyHtml: resultsTabs(locale, 'month') + renderMonthReport(report, locale, options),
+      bodyHtml: renderResultsTabs(locale, 'month') + renderMonthReport(report, locale, options),
     }));
   });
   /** The owner's minutes per reply (the design spec §2.1): 1–60, or empty to show no estimate. A refusal changes nothing. */

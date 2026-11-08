@@ -310,7 +310,9 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
 
   it('pages: the content fades out and rises in, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
     const vt = calm.join('\n');
-    expect(vt).toContain('@view-transition { navigation:auto; }');
+    expect(vt).not.toContain('@view-transition');
+    expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }))
+      .toContain('<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>');
     expect(ruleOf('main')).toContain('view-transition-name:page');
     expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
     expect(ruleOf('.si-order .si-fil.on')).toContain('view-transition-name:lens-on');

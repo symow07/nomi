@@ -3,6 +3,8 @@ import { usd } from '../../src/core/types/money.js';
 import { renderAnalytics, parseRange, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { shell } from '../../src/api/web/layout.js';
+import { linkedCss } from './linked-css.js';
 
 const active: AnalyticsData = {
   range: 'week', hasActivity: true,
@@ -93,6 +95,15 @@ describe('M9.8 · business review (localized)', () => {
     // CC-20 — the chosen range is said to a screen reader too, as on every tab row.
     expect(html).toContain('class="tab on" aria-current="page" href="/app/results?range=week"');
     expect(html).toContain('href="/app/results?range=today"');
+  });
+
+  it('keeps each period label on one line and lets the period row wrap', () => {
+    const html = shell({ title: 'Results', path: '/app/results', active: 'analytics', locale: 'en', bodyHtml: renderAnalytics(active, 'en') });
+    const css = linkedCss(html).replace(/\s+/g, '');
+    const row = css.match(/\.results-page\.results-header>\.tabs\{([^}]+)\}/)?.[1] ?? '';
+    const pill = css.match(/\.results-page\.results-header>\.tabs>\.tab\{([^}]+)\}/)?.[1] ?? '';
+    expect(row).toContain('flex-wrap:wrap');
+    expect(pill).toContain('white-space:nowrap');
   });
 
   it('no percentages, rates, scores, or technical vocabulary — every locale', () => {
