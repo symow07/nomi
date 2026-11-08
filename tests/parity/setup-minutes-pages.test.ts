@@ -180,6 +180,16 @@ describe('Block 4.4 · setup views', () => {
     expect(css).toContain('[dir="rtl"].store-tokenol>li{padding-inline-start:var(--space-8)}');
   });
 
+  it('aligns the Shopify currency tick words with the page on their own isolate', () => {
+    const html = renderShopifyCredentials('ar', 'USD', { form: shopify });
+    expect(html).toMatch(/<label class="st-check"><input[^>]+><bdi lang="en" dir="ltr">/);
+    const css = linkedCss(shell({ title: 'Import', active: 'products', locale: 'ar', path: '/app/products/add', bodyHtml: html })).replace(/\s+/g, '');
+    const rule = css.match(/\.store-token\.st-check>bdi\{([^}]+)\}/)?.[1] ?? '';
+    expect(rule).toContain('text-align:match-parent');
+    expect(rule).toContain('flex:1');
+    expect(css).toContain('[dir="rtl"].store-token.st-check>bdi{text-align:end}');
+  });
+
   it('shows a typed Shopify refusal on the add page with empty credentials and the currency choice kept', () => {
     for (const locale of ['en', 'ar'] as const) {
       const html = renderAddForm(locale, undefined, 'USD', null, null, false, false, {

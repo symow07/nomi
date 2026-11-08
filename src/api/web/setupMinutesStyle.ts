@@ -40,6 +40,8 @@ export const SETUP_MINUTES_CSS = String.raw`
 .store-token legend{font-weight:600;font-size:var(--font-size-base);padding:0}
 .store-token .st-or{margin-block:var(--space-16)}
 .store-token .st-check{margin-block:var(--space-16)}
+.store-token .st-check>bdi{flex:1;min-inline-size:0;text-align:match-parent}
+[dir="rtl"] .store-token .st-check>bdi{text-align:end}
 .setup-clock li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-8) var(--space-24);padding-block:var(--space-16);border-block-end:1px solid var(--color-border)}
 .setup-clock h3{font-size:var(--font-size-base);margin:0}
 .setup-clock p{margin:0}
