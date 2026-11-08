@@ -84,10 +84,12 @@ describe('Phase F · five destinations, and nothing else competing', () => {
 });
 
 describe('V1 close-out · the stylesheet is a file', () => {
-  it('the shell links one sheet and its language\'s type, by their content, and carries no rules of its own', () => {
+  it('the shell links one sheet and its language\'s type, by their content, and carries only the guarded navigation opt-in', () => {
     for (const l of LOCALES) {
       const html = page(l);
-      expect(html, l).not.toContain('<style');
+      expect([...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]), l).toEqual([
+        '@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }',
+      ]);
       expect(sheetLinks(html), l).toEqual([
         expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/),
         expect.stringMatching(l === 'zh' ? /^\/assets\/typezh\.[0-9a-f]{16}\.css$/ : /^\/assets\/type\.[0-9a-f]{16}\.css$/),
