@@ -2,7 +2,8 @@ import type { InstagramComment } from '../../db/instagramComments.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { esc, back } from './layout.js';
 import { t } from './say.js';
-import { t as catalogue, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t as catalogue, messages, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 import { suggestCommentReply } from '../../core/channel/commentSuggestion.js';
 import { COMMENT_REPLY_MAX } from '../../db/commentReplyQueue.js';
@@ -17,6 +18,23 @@ export function sayOnPage(locale:Locale,key:MessageKey,params?:Record<string,str
   const words=esc(t(locale,key,params));
   return locale!=='en'&&catalogue(locale,key)===catalogue('en',key)?`<bdi lang="en" dir="ltr">${words}</bdi>`:words;
 }
+/** The sentences each language still says in English, as `t` draws them: a notice is read already worded. */
+const englishSaid=new Map<Locale,ReadonlySet<string>>();
+function saidInEnglish(locale:Locale):ReadonlySet<string> {
+  let said=englishSaid.get(locale);
+  if(!said){
+    said=new Set((Object.keys(messages.en) as MessageKey[]).filter(k=>catalogue(locale,k)===catalogue('en',k)).map(k=>t(locale,k)));
+    englishSaid.set(locale,said);
+  }
+  return said;
+}
+/** This page's notice: an English fallback is set apart as English, as the page's own sentences are (`sayOnPage`). */
+export function commentFlashBanner(locale:Locale,f:Flash|null):string {
+  const banner=flashBanner(f);
+  if(!f||f.undo||locale==='en'||!saidInEnglish(locale).has(f.text))return banner;
+  const words=`>${esc(f.text)}</div>`;
+  return banner.endsWith(words)?`${banner.slice(0,-words.length)}><bdi lang="en" dir="ltr">${esc(f.text)}</bdi></div>`:banner;
+}
 export function renderInstagramComments(locale:Locale,data:CommentPage):string {
   const word=(key:MessageKey)=>sayOnPage(locale,key);
   const title=`${back('/app/settings/channels/meta',t(locale,'nav.channels'))}<h1>${word('igComments.title')}</h1>`;
@@ -28,13 +46,15 @@ export function renderInstagramComments(locale:Locale,data:CommentPage):string {
     `<form method="post" action="${ROOT}/switch"><button class="btn" type="submit" name="on" value="${data.enabled?'0':'1'}">${word(data.enabled?'igComments.disable':'igComments.enable')}</button></form>`;
   const rows=data.comments.map(c=>{
     const left=c.created_at?c.created_at.getTime()+7*86400000-data.now.getTime():null;
-    const age=left===null||c.created_at!.getTime()>data.now.getTime()?word('igComments.ageUnknown'):left<=0?word('igComments.expired'):
+    // Once the one private reply is used, the time left for it says nothing: the reply's own state says what happened.
+    const used=c.reply_outcome!==null&&!(c.reply_outcome==='reserved'&&c.reply_attempted_at===null&&c.reply_status==='canceled');
+    const age=used?'':left===null||c.created_at!.getTime()>data.now.getTime()?word('igComments.ageUnknown'):left<=0?word('igComments.expired'):
       sayOnPage(locale,'igComments.hours',{hours:show.count(locale,Math.ceil(left/3600000))});
     const href=c.post_url&&/^https:\/\/(www\.)?instagram\.com\//.test(c.post_url)?c.post_url:null;
     return `<article class="card" id="comment-${esc(c.id)}"><h2>${c.username?`<bdi dir="auto">${esc(`@${c.username}`)}</bdi>`:word('igComments.person')}</h2>
       <blockquote><bdi dir="auto">${esc(c.words)}</bdi></blockquote>
       <p>${c.match_state==='matched'&&c.product_name?`<bdi dir="auto">${esc(c.product_name)}</bdi>`:word('igComments.noProduct')}</p>
-      <p class="muted">${age}</p>${replyArea(locale,data,c,left!==null&&left>0&&c.created_at!.getTime()<=data.now.getTime())}<p>${href?`<a class="deeper" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${word('igComments.post')}</a>`:word('igComments.noPost')}</p>
+      ${age?`<p class="muted">${age}</p>`:''}${replyArea(locale,data,c,left!==null&&left>0&&c.created_at!.getTime()<=data.now.getTime())}<p>${href?`<a class="deeper" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${word('igComments.post')}</a>`:word('igComments.noPost')}</p>
       ${data.owner?`<p><a class="deeper" href="${ROOT}/${encodeURIComponent(c.id)}/delete">${word('igComments.delete')}</a></p>`:''}</article>`;
   }).join('');
   return `${title}<p>${word('igComments.intro')}</p><section class="card"><h2>${word('igComments.switch')}</h2><p>${word(data.enabled?'igComments.on':'igComments.off')}</p>${control}<p class="muted">${word('igComments.help')}</p></section>

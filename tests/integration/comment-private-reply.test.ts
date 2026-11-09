@@ -125,6 +125,20 @@ suite('5.4 · the owner\'s one private reply to a comment, end to end', { timeou
     expect(commentCalls(c.external)).toHaveLength(1);
   });
 
+  it('on an Arabic page the English notice is set apart, and an answered comment shows no hours left', async () => {
+    const c = await comment();
+    const res = await send(c.id, {}, `${cookie}; yf_locale=ar`);
+    const flash = String(res.headers['set-cookie'] ?? '').match(/yf_flash=[^;]+/)?.[0];
+    expect(flash).toBeTruthy();
+    await settled(c.id);
+    const body = (await get(ROOT, `${cookie}; yf_locale=ar; ${flash}`)).body;
+    expect(body).toMatch(/<div class="flash"[^>]*><bdi lang="en" dir="ltr">Your private reply is on its way\.<\/bdi><\/div>/);
+    const card = /<article class="card" id="comment-[^"]*"[\s\S]*?<\/article>/g;
+    const mine = [...body.matchAll(card)].map((m) => m[0]).find((a) => a.includes(`id="comment-${c.id}"`)) ?? '';
+    expect(mine).toContain('Your private reply was sent');
+    expect(mine).not.toContain('Hours left to reply');
+  });
+
   it('the public reply goes once, only after the private reply is accepted', async () => {
     const c = await comment();
     await send(c.id, { public: '1' }); await settled(c.id);

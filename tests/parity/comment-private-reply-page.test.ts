@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { renderInstagramComments, type CommentPage } from '../../src/api/web/instagramComments.js';
+import { renderInstagramComments, commentFlashBanner, type CommentPage } from '../../src/api/web/instagramComments.js';
+import { t } from '../../src/api/web/say.js';
+import { INSTAGRAM_COMMENTS_EN } from '../../src/core/owner/i18n/instagramComments.js';
+import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import type { InstagramComment } from '../../src/db/instagramComments.js';
 import { suggestCommentReply } from '../../src/core/channel/commentSuggestion.js';
 import { unisolatedFigures, unisolatedLatin } from './isolates.js';
@@ -116,5 +119,33 @@ describe('5.4 · on an Arabic page every English sentence and every figure is se
     expect(unisolatedLatin('<p>Hours left to reply: \u2068163\u2069</p>')).toHaveLength(1);
     expect(unisolatedLatin('<p>متصل بحساب Instagram</p>')).toEqual([]);
     expect(unisolatedFigures('<p>Hours left to reply: 163</p>')).toHaveLength(1);
+  });
+});
+
+describe('5.4 · the notice and the hours on the Comments page', () => {
+  it('an English notice is set apart as English on an Arabic page; an English page and a translated notice are unchanged', () => {
+    const queued = commentFlashBanner('ar', { text: 'Your private reply is on its way.', bad: false });
+    expect(queued).toContain('<bdi lang="en" dir="ltr">Your private reply is on its way.</bdi></div>');
+    expect(unisolatedLatin(queued)).toEqual([]);
+    // Every notice this page can show, worded as the page receives it (`t`, figures isolated: "(1,000 characters)").
+    for (const key of Object.keys(INSTAGRAM_COMMENTS_EN).filter((k) => k.startsWith('igComments.flash.')) as MessageKey[]) {
+      const banner = commentFlashBanner('ar', { text: t('ar', key), bad: false });
+      expect(unisolatedLatin(banner), key).toEqual([]);
+      expect(unisolatedFigures(banner), key).toEqual([]);
+    }
+    expect(commentFlashBanner('en', { text: 'Your private reply is on its way.', bad: false })).not.toContain('<bdi');
+    const translated = commentFlashBanner('ar', { text: 'تم الحفظ.', bad: false });
+    expect(translated).not.toContain('lang="en"');
+    expect(commentFlashBanner('ar', null)).toBe('');
+  });
+  it('the time left to reply is shown only while the one private reply is unused', () => {
+    expect(page({})).toContain('Hours left to reply');
+    expect(page({ reply_outcome: 'reserved', reply_attempted_at: null, reply_status: 'canceled' })).toContain('Hours left to reply');
+    for (const c of [{ reply_outcome: 'reserved', reply_status: 'queued' }, { reply_outcome: 'accepted', reply_attempted_at: now },
+      { reply_outcome: 'uncertain', reply_attempted_at: now }, { reply_outcome: 'refused', reply_attempted_at: now }] as Partial<InstagramComment>[]) {
+      const html = page(c);
+      expect(html).not.toContain('Hours left to reply');
+      expect(html).not.toContain('seven days have passed');
+    }
   });
 });
