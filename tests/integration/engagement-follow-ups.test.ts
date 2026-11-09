@@ -5,8 +5,11 @@ import { foldFollowUpQuote } from '../../src/db/followUps.js';
 import type { BusinessId } from '../../src/core/types/ids.js';
 import { runDueFollowUps, sweepFollowUpWorkspaces } from '../../src/outbound/followUps.js';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL'] ? describe : describe.skip;
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => {
   let admin: pg.Client;
@@ -168,11 +171,62 @@ suite('One owner-written follow-up, drafts only (requires DATABASE_URL)', () => 
     const own = await run(true);
     await query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
     const result = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
-    expect(result.changed).toMatchObject({ follow_up_observations: 1, follow_up_runs: 1, follow_up_approvals: 1 });
+    expect(result.erased).toMatchObject({ follow_up_observations: 1, follow_up_runs: 1, follow_up_approvals: 1 });
+    expect(result.changed ?? {}).not.toHaveProperty('follow_up_runs');
     expect((await one(`select count(*)::int as n from follow_up_rules where business_id = $1`, [business])).n).toBe(1);
     const repeated = (await one(`select erase_customer_rows($1, $2, null, true) as counts`, [business, customer])).counts;
-    expect(repeated.changed).not.toHaveProperty('follow_up_runs');
+    expect(repeated.erased ?? {}).not.toHaveProperty('follow_up_runs');
     expect((await one(`select count(*)::int as n from follow_up_runs where client_id = $1`, [customer])).n).toBe(0);
+  });
+
+  it('THE TOOL ERASES THEM: tools/erase-buyer.mjs, dry run then --yes, on a customer with rows in every follow-up table', async () => {
+    const count = async (client: string) => {
+      const row = await one(`select
+        (select count(*)::int from follow_up_observations where client_id = $1) as observations,
+        (select count(*)::int from follow_up_runs where client_id = $1) as runs,
+        (select count(*)::int from follow_up_approvals a join follow_up_runs r on r.id = a.run_id where r.client_id = $1) as approvals`, [client]);
+      return row as { observations: number; runs: number; approvals: number };
+    };
+    await rule();
+    // Another customer of the same workspace, with rows of their own in every table: kept.
+    const target = { customer, conversation, quote };
+    const other = { customer: randomUUID(), conversation: randomUUID(), quote: randomUUID() };
+    await query(`insert into clients (id, business_id, display_name) values ($1, $2, 'Other customer')`, [other.customer, business]);
+    await query(`insert into conversations (id, business_id, client_id, channel) values ($1, $2, $3, 'telegram')`, [other.conversation, business, other.customer]);
+    await query(`insert into quotes (id, business_id, conversation_id, product_id, quantity, inputs, unit_price_usd,
+      discount_pct, total_usd, requires_human, applied_rules, engine_version)
+      values ($1, $2, $3, $4, 1, '{}', 12, 0, 12, false, '{}', 'fixture')`, [other.quote, business, other.conversation, product]);
+    for (const who of [target, other]) {
+      ({ customer, conversation, quote } = who);
+      const own = await run(true);
+      await query(`update drafts set status = 'approved', sent_text = draft_text, decided_at = $2 where id = $1`, [own.draft_id, T0]);
+      await outbound();   // a second accepted quote: another observation
+    }
+    ({ customer, conversation, quote } = target);
+    const before = await count(target.customer);
+    expect(before).toEqual({ observations: 2, runs: 1, approvals: 1 });
+    expect(await count(other.customer)).toEqual(before);
+
+    const req = (await one(`insert into deletion_requests (business_id, scope, client_id, asked_by)
+      values ($1, 'buyer', $2, 'owner') returning id::text as id`, [business, target.customer])).id as string;
+    const tool = (...extra: string[]) => spawnSync(process.execPath, ['tools/erase-buyer.mjs', '--request', req, ...extra],
+      { cwd: ROOT, env: { ...process.env, MIGRATE_DATABASE_URL: process.env['MIGRATE_DATABASE_URL'] }, encoding: 'utf8', timeout: 120_000 });
+    const dry = tool();
+    expect(dry.stderr).toBe('');
+    expect(dry.status).toBe(0);
+    expect(dry.stdout).toMatch(/follow_up_runs/);
+    expect(await count(target.customer)).toEqual(before);   // a dry run changes nothing
+
+    const done = tool('--yes', '--confirm', req.slice(0, 8), '--by', 'Operator Test');
+    expect(done.stderr).toBe('');
+    expect(done.status).toBe(0);
+    expect(await count(target.customer)).toEqual({ observations: 0, runs: 0, approvals: 0 });
+    const ledger = (await one('select counts from erasure_ledger where request_id = $1', [req])).counts;
+    expect(ledger.erased).toMatchObject({ follow_up_observations: 2, follow_up_runs: 1, follow_up_approvals: 1 });
+    for (const t of ['follow_up_observations', 'follow_up_runs', 'follow_up_approvals']) expect(ledger.changed ?? {}).not.toHaveProperty(t);
+    expect((await one('select state from deletion_requests where id = $1', [req])).state).toBe('done');
+    expect(await count(other.customer)).toEqual({ observations: 2, runs: 1, approvals: 1 });
+    expect((await one(`select count(*)::int as n from follow_up_rules where business_id = $1`, [business])).n).toBe(1);
   });
 
   it('keeps app-role reads inside the workspace and excludes accountants', async () => {

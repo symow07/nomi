@@ -347,9 +347,10 @@ begin
   delete from follow_up_observations where business_id = p_business and client_id = p_client;
   get diagnostics observations = row_count;
   result := erase_customer_rows_before_0234(p_business, p_client, p_request, p_restored);
-  result := jsonb_set(result, '{changed}', erasure_add(coalesce(result->'changed', '{}'::jsonb), 'follow_up_approvals', approvals));
-  result := jsonb_set(result, '{changed}', erasure_add(coalesce(result->'changed', '{}'::jsonb), 'follow_up_runs', runs));
-  return jsonb_set(result, '{changed}', erasure_add(coalesce(result->'changed', '{}'::jsonb), 'follow_up_observations', observations));
+  -- Counted under 'erased', the key the contract's 'erase' action is read from (tools/erase-buyer.mjs).
+  result := jsonb_set(result, '{erased}', erasure_add(coalesce(result->'erased', '{}'::jsonb), 'follow_up_approvals', approvals));
+  result := jsonb_set(result, '{erased}', erasure_add(coalesce(result->'erased', '{}'::jsonb), 'follow_up_runs', runs));
+  return jsonb_set(result, '{erased}', erasure_add(coalesce(result->'erased', '{}'::jsonb), 'follow_up_observations', observations));
 end $$;
 revoke all on function erase_customer_rows(uuid, uuid, uuid, boolean) from public;
 revoke all on function erase_customer_rows_before_0234(uuid, uuid, uuid, boolean) from public;
