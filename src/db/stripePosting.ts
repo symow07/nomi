@@ -87,6 +87,27 @@ export async function postCapturedPayment(tx: Tx, businessId: string, attemptId:
   return result(tx,businessId,a,{state:'posted'});
 }
 
+/**
+ * A payment that has not succeeded. Only Stripe's documented asynchronous failure
+ * (`checkout.session.async_payment_failed`, read against the CURRENT session and intent)
+ * ends the attempt as failed; nothing is posted and a new link may then be made. A
+ * failed attempt's other events are done. A still-processing attempt with no failure
+ * stays as it is: money may still arrive. A later success is posted by
+ * `postCapturedPayment`, which replaces this state.
+ */
+export async function settleUnpaidPayment(tx: Tx, businessId: string, attemptId: string, fact: IntentFact, failed: boolean): Promise<StripePosting> {
+  const found = await paymentAttempt(tx,businessId,attemptId);
+  if (!found) return { state:'exception',reason:'unknown_payment' };
+  await lock(tx,businessId,found.connectionId);
+  const a = (await paymentAttempt(tx,businessId,attemptId))!;
+  if (fact.succeeded || a.intentId && a.intentId!==fact.id || fact.attemptId && fact.attemptId!==a.id) return { state:'pending' };
+  if (failed && ['open','processing'].includes(a.state)) {
+    await sql`update stripe_checkout_attempts set state='failed',reason=null where business_id=${businessId}::uuid and id=${a.id}::uuid`.execute(tx);
+    return { state:'posted' };
+  }
+  return a.state==='failed' ? { state:'posted' } : { state:'pending' };
+}
+
 export async function postStripeRefund(tx: Tx,businessId:string,connectionId:string,fact:RefundFact):Promise<StripePosting> {
   await lock(tx,businessId,connectionId);
   const id=(await sql<{id:string}>`select id::text from stripe_checkout_attempts where business_id=${businessId}::uuid and connection_id=${connectionId}::uuid and intent_id=${fact.intentId}`.execute(tx)).rows[0]?.id;

@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { paymentAttempt, reservePayment, keepCheckout, stripeBinding, type PaymentAttempt } from '../db/stripePayments.js';
-import { postCapturedPayment, postStripeRefund, recordStripePayout, type StripePosting } from '../db/stripePosting.js';
+import { postCapturedPayment, postStripeRefund, recordStripePayout, settleUnpaidPayment, type StripePosting } from '../db/stripePosting.js';
 import type { ConnectClient } from './stripeConnect.js';
 import type { BusinessId } from '../core/types/ids.js';
 
@@ -108,13 +108,15 @@ export async function reconcileStripePayments(deps:PaymentDeps,bid:BusinessId):P
       out={state:'exception',reason:e.type==='charge.refunded'?'refund_review':'dispute_review'};
     }else if(e.type.startsWith('checkout.session.')||e.type.startsWith('payment_intent.')||e.type.startsWith('charge.')){
       let intent=e.type.startsWith('payment_intent.')?e.object:e.intent;
-      let attempt:string|null=null;
+      let attempt:string|null=null,failed=false;
       if(e.type.startsWith('checkout.session.')){
         const s=await deps.client.checkout(e.account,e.object);
         if(!s.ok){out={state:s.retryable?'pending':'exception',reason:s.reason};await mark(deps,bid,e,out);continue;}
         attempt=s.value.attemptId;intent=s.value.intentId;
         if(attempt)await withTenantTx(deps.db,bid,tx=>keepCheckout(tx,bid,attempt!,s.value));
         if(s.value.status==='expired'&&!intent){await mark(deps,bid,e,{state:'posted'});continue;}
+        // Stripe's documented later outcome of a delayed payment (Checkout fulfillment), held to the current session.
+        failed=e.type==='checkout.session.async_payment_failed'&&s.value.status==='complete'&&!s.value.paid;
       }
       if(!intent){out={state:'pending',reason:'payment_pending'};}
       else{
@@ -123,7 +125,7 @@ export async function reconcileStripePayments(deps:PaymentDeps,bid:BusinessId):P
         else{
           attempt=attempt??p.value.attemptId??(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`select id::text from stripe_checkout_attempts where business_id=${bid}::uuid and connection_id=${e.connection}::uuid and intent_id=${intent}`.execute(tx))).rows[0]?.id??null;
           const known=attempt?await withTenantTx(deps.db,bid,tx=>paymentAttempt(tx,bid,attempt!)):null;
-          out=known?.connectionId===e.connection?await withTenantTx(deps.db,bid,tx=>postCapturedPayment(tx,bid,known.id,p.value)):{state:'posted'};
+          out=known?.connectionId===e.connection?await withTenantTx(deps.db,bid,tx=>p.value.succeeded?postCapturedPayment(tx,bid,known.id,p.value):settleUnpaidPayment(tx,bid,known.id,p.value,failed)):{state:'posted'};
         }
       }
     }else out={state:'posted'};

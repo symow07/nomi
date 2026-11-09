@@ -105,9 +105,9 @@ export async function keepCheckout(tx: Tx, businessId: string, attemptId: string
   const a = await paymentAttempt(tx,businessId,attemptId);
   if (!a || checkout.attemptId !== a.id || checkout.currency !== a.currency || compareDecimal(checkout.amount,a.amount) !== 0 || a.sessionId && a.sessionId !== checkout.id || a.intentId && checkout.intentId && a.intentId !== checkout.intentId) return false;
   if (a.state==='expired' && checkout.status==='open') return false;
-  // A delayed expiry must never erase a captured payment or an event already being reconciled.
+  // A delayed expiry must never erase a captured payment, an event already being reconciled, or a recorded failure.
   await sql`update stripe_checkout_attempts set session_id=${checkout.id},intent_id=coalesce(intent_id,${checkout.intentId}),url=${checkout.url},
-    state=case when state in ('paid','processing') then state else ${checkout.status === 'complete' ? 'processing' : checkout.status} end
+    state=case when state in ('paid','processing','failed') then state else ${checkout.status === 'complete' ? 'processing' : checkout.status} end
     where business_id=${businessId}::uuid and id=${attemptId}::uuid`.execute(tx);
   return true;
 }
