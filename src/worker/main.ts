@@ -273,6 +273,8 @@ export async function startWorker(
       const ports = {
         tenant, retriever, analyzer, replyWriter, now: () => new Date(),
         publicBaseUrl: env.PUBLIC_BASE_URL ?? null,
+        // 5.5 — asks Shopify nothing unless this workspace connected a store and switched answering on.
+        ...(media.orderLookups ? { orderLookup: media.orderLookups({ db, businessId: businessId.value }) } : {}),
       };
 
       if (input.heard) {
