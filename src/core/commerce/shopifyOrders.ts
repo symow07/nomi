@@ -8,8 +8,8 @@ import { parseEmail } from '../types/ids.js';
  *   · What the customer typed (`readOrderAsk`): ONE order number written as Shopify writes a name, `#` first, and at
  *     most one e-mail. Never a phone. Two numbers or two e-mails are no question at all: nothing is looked up.
  *   · What is asked (`SHOPIFY_ORDER_QUERY`): only the order's name, its dates, its two display statuses, the e-mail
- *     (to COMPARE, never kept, never shown), and each fulfilment's status, delivery dates and tracking. No order id,
- *     no address, no phone, no name, no line, no total.
+ *     (to COMPARE, never kept, never shown), and each fulfilment's status, delivery dates and tracking numbers. No
+ *     carrier, no tracking link, no order id, no address, no phone, no name, no line, no total.
  *   · What is believed (`readOrderAnswer`): exactly one order whose name equals the number typed (spaces trimmed, case
  *     ignored) on a complete page, whose e-mail equals the customer's the same way, inside the store's scopes. Anything
  *     else is an outcome the customer never learns: they all get `ORDER_LOOKUP_REFUSAL`.
@@ -59,7 +59,7 @@ export const SHOPIFY_ORDER_QUERY = `query NomiOrder($q: String!) {
       name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus email
       fulfillments(first: ${SHOPIFY_FULFILLMENTS_PER_ORDER}) {
         status displayStatus deliveredAt estimatedDeliveryAt
-        trackingInfo(first: ${SHOPIFY_TRACKING_PER_FULFILLMENT}) { company number url }
+        trackingInfo(first: ${SHOPIFY_TRACKING_PER_FULFILLMENT}) { number }
       }
     }
   }
@@ -80,7 +80,11 @@ export type OrderShipment = {
   readonly display_status?: string;
   readonly delivered_on?: string;
   readonly expected_on?: string;
-  readonly tracking?: readonly { readonly carrier?: string; readonly number?: string; readonly url?: string }[];
+  /**
+   * The tracking numbers only. Never the carrier or a tracking link (its host names the carrier): the claims guard reads
+   * a courier's name as a delivery promise the owner has not ticked, so the writer is never handed one.
+   */
+  readonly tracking?: readonly { readonly number: string }[];
 };
 /** What the writer is given: one verified order. No e-mail, no id, no address, no phone, no name. */
 export type OrderContext = {
@@ -116,14 +120,6 @@ function instant(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
-}
-function trackingUrl(v: unknown): string | null {
-  const t = line(v, 300);
-  if (!t) return null;
-  try {
-    const u = new URL(t);
-    return (u.protocol === 'https:' || u.protocol === 'http:') && u.username === '' && u.password === '' ? u.toString() : null;
-  } catch { return null; }
 }
 
 /** A day in the workspace's zone, `YYYY-MM-DD`. */
@@ -187,11 +183,9 @@ export function readOrderAnswer(json: unknown, ask: {
     const expected = instant(fo['estimatedDeliveryAt']);
     const tracking = list(fo['trackingInfo']).slice(0, SHOPIFY_TRACKING_PER_FULFILLMENT).map((t) => {
       const to = obj(t);
-      const carrier = line(to?.['company'], 80);
-      const number = line(to?.['number'], 80);
-      const url = trackingUrl(to?.['url']);
-      return { ...(carrier ? { carrier } : {}), ...(number ? { number } : {}), ...(url ? { url } : {}) };
-    }).filter((t) => Object.keys(t).length > 0);
+      const number = line(obj(t)?.['number'], 80);
+      return number ? { number } : null;
+    }).filter((t): t is { number: string } => t !== null);
     shipments.push({
       status,
       ...(display ? { display_status: display } : {}),
@@ -240,7 +234,7 @@ export function orderFactNumbers(o: OrderContext): number[] {
   for (const s of o.shipments) {
     words.push(s.delivered_on ?? '', s.expected_on ?? '');
     dates.push(s.delivered_on ?? '', s.expected_on ?? '');
-    for (const t of s.tracking ?? []) words.push(t.carrier ?? '', t.number ?? '', t.url ?? '');
+    for (const t of s.tracking ?? []) words.push(t.number);
   }
   const out = words.flatMap((w) => extractNumerals(w).map((n) => n.value));
   for (const d of dates) {

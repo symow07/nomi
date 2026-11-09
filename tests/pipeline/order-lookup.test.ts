@@ -4,7 +4,7 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { modesFor } from '../../src/core/conversation/autonomyLevel.js';
 import { SAFE_REPLIES } from '../../src/core/conversation/templates.js';
-import { ORDER_LOOKUP_REFUSAL, type OrderContext } from '../../src/core/commerce/shopifyOrders.js';
+import { ORDER_LOOKUP_REFUSAL, readOrderAnswer, type OrderContext } from '../../src/core/commerce/shopifyOrders.js';
 import type { OrderLookup, OrderLookupResult } from '../../src/pipeline/orderLookup.js';
 import { emptyState, CONVERSATION } from '../parity/fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fakes.js';
@@ -25,8 +25,15 @@ const NOW = new Date('2026-11-10T04:00:00Z');
 const ASK = 'Where is my order #1001? My email is ana@example.test';
 const ORDER: OrderContext = {
   name: '#1001', placed_on: '2026-11-01', fulfillment: 'Fulfilled', payment: 'Paid',
-  shipments: [{ status: 'SUCCESS', display_status: 'In transit', expected_on: '2026-11-14', tracking: [{ carrier: 'UPS', number: '1Z999AA10123456784' }] }],
+  shipments: [{ status: 'SUCCESS', display_status: 'In transit', expected_on: '2026-11-14', tracking: [{ number: '1Z999AA10123456784' }] }],
 };
+
+/** What Shopify answers for that order when it names the carrier and a link on the carrier's own site. */
+const SHOPIFY_SAYS_UPS = { data: { orders: { pageInfo: { hasNextPage: false }, nodes: [{
+  name: '#1001', createdAt: '2026-11-01T10:00:00Z', cancelledAt: null, displayFinancialStatus: 'PAID', displayFulfillmentStatus: 'FULFILLED',
+  email: 'ana@example.test', fulfillments: [{ status: 'SUCCESS', displayStatus: 'IN_TRANSIT', deliveredAt: null, estimatedDeliveryAt: '2026-11-14T12:00:00Z',
+    trackingInfo: [{ company: 'UPS', number: '1Z999AA10123456784', url: 'https://www.ups.com/track?tracknum=1Z999AA10123456784' }] }],
+}] } } };
 
 class FakeLookup implements OrderLookup {
   asked: Parameters<OrderLookup['look']>[0][] = [];
@@ -137,12 +144,29 @@ describe('5.5 · the turn and a Shopify order', () => {
     expect(pending).toMatchObject({ withheld: { reason: 'order_facts' } });
   });
 
-  it('OPEN — a carrier Shopify named is still a shipping claim: the claims guard is unchanged, so "UPS" falls to the held stand-in', async () => {
-    // The existing guard reads "UPS" as an express-courier promise the owner has not ticked. Not changed here: a send-path
-    // safeguard moves only with the supervisor's approval of the exact diff. Fail-safe meanwhile: the stand-in, held.
+  it('OPEN (the owner\'s) — a carrier named in a reply is still a shipping claim: the claims guard is unchanged, so "UPS" falls to the held stand-in', async () => {
+    // The existing guard reads "UPS" as an express-courier promise the owner has not ticked. Loosening it is the owner's
+    // call, not this block's; the writer is never given the carrier (above), and one it names anyway is held.
     const p = { ...ports(), orderLookup: new FakeLookup({ kind: 'verified', order: ORDER }) };
     p.replyWriter.replies = ['Your order #1001 is with UPS, tracking 1Z999AA10123456784.'];
     const { r, fx, pending } = await run(p);
+    expect(r.answerPath).toBe('stand_in');
+    expect(r.reply).not.toContain('UPS');
+    expect(r.hold).toBe('guards_failed_twice');
+    expect(fx.outbound).toBeNull();
+    expect(pending).toMatchObject({ withheld: { reason: 'order_facts' } });
+  });
+
+  it('a verified order whose carrier Shopify named: no carrier and no carrier link reach the writer; a reply naming one anyway is still held', async () => {
+    const read = readOrderAnswer(SHOPIFY_SAYS_UPS, { orderName: '#1001', email: 'ana@example.test', readsAllOrders: false, now: NOW, zone: 'UTC' });
+    expect(read.outcome).toBe('verified');
+    const order = (read as { order: OrderContext }).order;
+    const p = { ...ports(), orderLookup: new FakeLookup({ kind: 'verified', order }) };
+    p.replyWriter.replies = ['Your order #1001 is on its way with UPS, tracking 1Z999AA10123456784.'];
+    const { r, fx, pending } = await run(p);
+    const told = JSON.stringify(p.replyWriter.inputs);
+    expect(told).toContain('1Z999AA10123456784');
+    expect(told).not.toMatch(/UPS|ups\.com|carrier/);
     expect(r.answerPath).toBe('stand_in');
     expect(r.reply).not.toContain('UPS');
     expect(r.hold).toBe('guards_failed_twice');

@@ -29,7 +29,7 @@ const ZONE = 'Asia/Shanghai';
 
 const ORDER_LEAVES = ['name', 'createdAt', 'cancelledAt', 'displayFinancialStatus', 'displayFulfillmentStatus', 'email'];
 const FULFILMENT_LEAVES = ['status', 'displayStatus', 'deliveredAt', 'estimatedDeliveryAt'];
-const TRACKING_LEAVES = ['company', 'number', 'url'];
+const TRACKING_LEAVES = ['number'];   // never `company` or `url`: the writer is never told the carrier (see below)
 const STRUCTURE = ['query', 'NomiOrder', 'String', 'orders', 'first', 'pageInfo', 'hasNextPage', 'nodes', 'fulfillments', 'trackingInfo', 'q'];
 /** Every name in a query, outside its string literals and its `$` variables' sigils. */
 const namesIn = (q: string) => new Set(q.replace(/"[^"]*"/g, '').match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []);
@@ -104,7 +104,7 @@ describe('5.5 · the query sent is the minimum', () => {
     const names = namesIn(SHOPIFY_ORDER_QUERY);
     for (const n of names) expect([...ORDER_LEAVES, ...FULFILMENT_LEAVES, ...TRACKING_LEAVES, ...STRUCTURE]).toContain(n);
     for (const leaf of [...ORDER_LEAVES, ...FULFILMENT_LEAVES, ...TRACKING_LEAVES]) expect(names.has(leaf)).toBe(true);
-    for (const never of ['id', 'phone', 'shippingAddress', 'billingAddress', 'customer', 'lineItems', 'totalPriceSet', 'note', 'tags', 'metafields']) expect(names.has(never)).toBe(false);
+    for (const never of ['company', 'url', 'id', 'phone', 'shippingAddress', 'billingAddress', 'customer', 'lineItems', 'totalPriceSet', 'note', 'tags', 'metafields']) expect(names.has(never)).toBe(false);
     expect(/\b(mutation|subscription|fragment)\b|\.\.\./.test(SHOPIFY_ORDER_QUERY)).toBe(false);
   });
 });
@@ -114,9 +114,18 @@ describe('5.5 · readOrderAnswer — only one complete, exact, matching order is
     const r = readOrderAnswer(found(), ask);
     expect(r).toEqual({ outcome: 'verified', order: {
       name: '#NOMI-5501', placed_on: '2026-10-30', payment: 'PAID', fulfillment: 'FULFILLED',
-      shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-14', tracking: [{ carrier: 'Atlas Post', number: 'AP5505-001', url: 'https://track.example.test/AP5505-001' }] }],
+      shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-14', tracking: [{ number: 'AP5505-001' }] }],
     } });
     expect(JSON.stringify(r)).not.toContain('@');
+  });
+  it('a carrier or a tracking link Shopify sends anyway is dropped: the writer is never told who carries it', () => {
+    // The claims guard reads a courier's name as a delivery promise the owner has not ticked (rule 48), and a tracking
+    // link names the courier in its host. Neither is asked for; one that comes back regardless is not kept.
+    const r = readOrderAnswer(found(), ask);
+    const told = JSON.stringify(r);
+    for (const gone of ['Atlas Post', 'track.example.test', 'carrier', 'url', 'company']) expect(told).not.toContain(gone);
+    const ups = readOrderAnswer(found([node({ fulfillments: [fulfilment({ trackingInfo: [{ company: 'UPS', number: null, url: 'https://www.ups.com/track?tracknum=1Z' }] })] })]), ask);
+    expect(JSON.stringify(ups)).not.toMatch(/UPS|ups\.com/);
   });
   it('the name and e-mail compare with case and spaces aside, nothing more', () => {
     expect(readOrderAnswer(found([node({ name: ' #nomi-5501 ', email: 'ORDER5501@example.test' })]), ask).outcome).toBe('verified');
