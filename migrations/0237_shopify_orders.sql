@@ -15,8 +15,9 @@
 --     verified. No e-mail, no tracking, no order id. Written only by claim_order_lookup / finish_order_lookup, in a
 --     transaction of their own (so a turn that later fails still counted its lookup). At most five that asked Shopify
 --     per conversation in any 60 minutes; a lookup refused for that is recorded and does not count.
---   · Neither lookup function takes a lock the turn may hold: no foreign key to the conversation, and the rate limit is
---     serialised on its own advisory key (`shopify-order-lookup:<conversation>`), never the turn's.
+--   · Neither lookup function takes a lock the turn may hold: no foreign key to the conversation (a trigger checks, with
+--     a plain read, that it exists and is the same workspace's), and the rate limit is serialised on its own advisory
+--     key (`shopify-order-lookup:<conversation>`), never the turn's.
 --   · Erasure: a customer's lookups go with them (`erase`); the connection holds no customer (`unrelated`). The two
 --     shared erasure functions it changes are renamed `*_before_0237` and wrapped, whatever they are when this runs
 --     (the edges are unchanged: the table has no foreign key).
@@ -64,8 +65,9 @@ create policy not_for_accountants on shopify_connections as restrictive for all
 create table if not exists shopify_order_lookups (
   id               uuid primary key default gen_random_uuid(),
   business_id      uuid not null references businesses(id) on delete cascade,
-  -- No foreign key, on purpose: a key check would lock the conversation's row in the lookup's own transaction, and
-  -- the turn waiting on that lookup may hold it. claim_order_lookup checks the conversation is this workspace's.
+  -- No foreign key, on purpose: its check takes FOR KEY SHARE on the conversation's row from the lookup's own
+  -- transaction, which waits on any FOR UPDATE the turn waiting for that lookup holds. The reference is held instead
+  -- by `shopify_order_lookups_reference` below, with a plain read that locks nothing.
   conversation_id  uuid not null,
   asked_at         timestamptz not null default now(),
   outcome          text not null check (outcome in ('asking', 'verified', 'not_found', 'mismatch', 'redacted', 'ambiguous',
@@ -94,6 +96,25 @@ revoke insert, update, delete, truncate on shopify_order_lookups from nomi_app;
 drop policy if exists not_for_accountants on shopify_order_lookups;
 create policy not_for_accountants on shopify_order_lookups as restrictive for all
   using (not (select viewer_is_accountant())) with check (not (select viewer_is_accountant()));
+
+-- The reference a foreign key would have held, without its lock: the conversation exists and belongs to the row's own
+-- workspace. A PLAIN read (no FOR SHARE, no FOR KEY SHARE), so it never waits on the turn that holds that row.
+create or replace function shopify_order_lookups_reference() returns trigger
+language plpgsql security definer set search_path = public, pg_temp set row_security = off as $$
+begin
+  if not exists (select 1 from conversations where id = new.conversation_id and business_id = new.business_id) then
+    raise exception 'a lookup names a conversation of its own workspace' using errcode = '23503';
+  end if;
+  return new;
+end $$;
+revoke all on function shopify_order_lookups_reference() from public;
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'shopify_order_lookups_reference') then
+    create trigger shopify_order_lookups_reference before insert or update of conversation_id, business_id on shopify_order_lookups
+      for each row execute function shopify_order_lookups_reference();
+  end if;
+end $$;
 
 -- A practice copy can reach nobody (0086): its refusal, on both tables.
 do $$
