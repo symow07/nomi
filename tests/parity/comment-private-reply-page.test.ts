@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderInstagramComments, type CommentPage } from '../../src/api/web/instagramComments.js';
 import type { InstagramComment } from '../../src/db/instagramComments.js';
 import { suggestCommentReply } from '../../src/core/channel/commentSuggestion.js';
-import { unisolatedFigures } from './isolates.js';
+import { unisolatedFigures, unisolatedLatin } from './isolates.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
 
 const now = new Date('2027-01-15T12:00:00Z');
@@ -84,5 +84,37 @@ describe('5.4 Part B · the Comments page', () => {
     const html = page({ reply_outcome: 'reserved', reply_attempted_at: null, reply_status: 'canceled' });
     expect(html).toContain('You can send it again');
     expect(html).toContain('/reply"');
+  });
+});
+
+describe('5.4 · on an Arabic page every English sentence and every figure is set apart', () => {
+  const states: Partial<InstagramComment>[] = [{}, { username: null }, { created_at: null }, { created_at: new Date(now.getTime() - 8 * 86_400_000) },
+    { match_state: 'several', product_name: null }, { post_url: 'https://www.instagram.com/p/x/' }, { attribution_ambiguous: true },
+    { reply_outcome: 'reserved', reply_status: 'queued', public_requested: true },
+    { reply_outcome: 'reserved', reply_attempted_at: null, reply_status: 'canceled' },
+    { reply_outcome: 'accepted', reply_attempted_at: now, public_requested: true, public_outcome: 'accepted' },
+    { reply_outcome: 'accepted', reply_attempted_at: now, public_requested: true, public_outcome: 'failed' },
+    { reply_outcome: 'accepted', reply_attempted_at: now, public_requested: true, public_outcome: 'uncertain' },
+    { reply_outcome: 'refused', reply_attempted_at: now, reply_status: 'failed', public_requested: true },
+    { reply_outcome: 'uncertain', reply_attempted_at: now, reply_status: 'uncertain', public_requested: true }];
+  const draws = (o: Partial<CommentPage> = {}): string[] => [
+    ...states.map((c) => renderInstagramComments('ar', { comments: [{ ...base, ...c }], enabled: true, configured: true, connected: true, owner: true, now, ...o })),
+    renderInstagramComments('ar', { comments: [], enabled: false, configured: false, connected: false, owner: true, now }),
+    renderInstagramComments('ar', { comments: [], enabled: false, configured: false, connected: true, owner: true, now }),
+    renderInstagramComments('ar', { comments: [base], enabled: true, configured: true, connected: true, owner: true, now, deleting: base })];
+  it('owner and staff: no Latin run and no figure outside an isolate; the English is marked as English', () => {
+    for (const html of [...draws(), ...draws({ owner: false })]) {
+      expect(unisolatedLatin(html)).toEqual([]);
+      expect(unisolatedFigures(html)).toEqual([]);
+    }
+    const html = page({}, {});
+    expect(html).not.toContain('lang="en"');
+    const ar = renderInstagramComments('ar', { comments: [base], enabled: true, configured: true, connected: true, owner: true, now });
+    expect(ar).toMatch(/<bdi lang="en" dir="ltr">Hours left to reply: \u2068[0-9]+\u2069<\/bdi>/);
+  });
+  it('the reader catches the fault it exists for: an English sentence and its figure bare on an Arabic page', () => {
+    expect(unisolatedLatin('<p>Hours left to reply: \u2068163\u2069</p>')).toHaveLength(1);
+    expect(unisolatedLatin('<p>متصل بحساب Instagram</p>')).toEqual([]);
+    expect(unisolatedFigures('<p>Hours left to reply: 163</p>')).toHaveLength(1);
   });
 });

@@ -2,26 +2,36 @@ import type { InstagramComment } from '../../db/instagramComments.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { esc, back } from './layout.js';
 import { t } from './say.js';
+import { t as catalogue, type MessageKey } from '../../core/owner/i18n/messages.js';
 import * as show from './values.js';
 import { suggestCommentReply } from '../../core/channel/commentSuggestion.js';
 import { COMMENT_REPLY_MAX } from '../../db/commentReplyQueue.js';
 export type CommentPage = {comments:readonly InstagramComment[];enabled:boolean;configured:boolean;connected:boolean;owner:boolean;now:Date;deleting?:InstagramComment|null};
 const ROOT='/app/channels/instagram/comments';
+/**
+ * A sentence this page's language has no words for yet is the English one (the catalogue's fallback): it is set apart
+ * as English, left to right, so on an Arabic page its colon and full stop stay on its own side ("Hours left to reply: 163").
+ * Its figures are already isolated by `t` through values.ts. Text only: never inside an attribute.
+ */
+export function sayOnPage(locale:Locale,key:MessageKey,params?:Record<string,string|number>):string {
+  const words=esc(t(locale,key,params));
+  return locale!=='en'&&catalogue(locale,key)===catalogue('en',key)?`<bdi lang="en" dir="ltr">${words}</bdi>`:words;
+}
 export function renderInstagramComments(locale:Locale,data:CommentPage):string {
-  const word=(key:Parameters<typeof t>[1])=>esc(t(locale,key));
+  const word=(key:MessageKey)=>sayOnPage(locale,key);
   const title=`${back('/app/settings/channels/meta',t(locale,'nav.channels'))}<h1>${word('igComments.title')}</h1>`;
   if(data.deleting&&data.owner)return `${title}<h2>${word('igComments.delete')}</h2><p>${word('igComments.deleteHelp')}</p>
     <blockquote><bdi dir="auto">${esc(data.deleting.words)}</bdi></blockquote>
-    <form method="post" action="${ROOT}/${encodeURIComponent(data.deleting.id)}/delete"><button class="btn send" type="submit" name="confirm" value="delete" onclick="return confirm(this.dataset.confirm)" data-confirm="${word('igComments.deleteHelp')}">${word('igComments.delete')}</button></form>
+    <form method="post" action="${ROOT}/${encodeURIComponent(data.deleting.id)}/delete"><button class="btn send" type="submit" name="confirm" value="delete" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale,'igComments.deleteHelp'))}">${word('igComments.delete')}</button></form>
     <p><a class="deeper" href="${ROOT}">${word('igComments.cancel')}</a></p>`;
   const control=!data.owner?'':!data.connected?`<p>${word('igComments.connect')}</p>`:!data.configured&&!data.enabled?`<p>${word('igComments.unavailable')}</p>`:
     `<form method="post" action="${ROOT}/switch"><button class="btn" type="submit" name="on" value="${data.enabled?'0':'1'}">${word(data.enabled?'igComments.disable':'igComments.enable')}</button></form>`;
   const rows=data.comments.map(c=>{
     const left=c.created_at?c.created_at.getTime()+7*86400000-data.now.getTime():null;
     const age=left===null||c.created_at!.getTime()>data.now.getTime()?word('igComments.ageUnknown'):left<=0?word('igComments.expired'):
-      esc(t(locale,'igComments.hours',{hours:show.count(locale,Math.ceil(left/3600000))}));
+      sayOnPage(locale,'igComments.hours',{hours:show.count(locale,Math.ceil(left/3600000))});
     const href=c.post_url&&/^https:\/\/(www\.)?instagram\.com\//.test(c.post_url)?c.post_url:null;
-    return `<article class="card" id="comment-${esc(c.id)}"><h2><bdi dir="auto">${esc(c.username?`@${c.username}`:t(locale,'igComments.person'))}</bdi></h2>
+    return `<article class="card" id="comment-${esc(c.id)}"><h2>${c.username?`<bdi dir="auto">${esc(`@${c.username}`)}</bdi>`:word('igComments.person')}</h2>
       <blockquote><bdi dir="auto">${esc(c.words)}</bdi></blockquote>
       <p>${c.match_state==='matched'&&c.product_name?`<bdi dir="auto">${esc(c.product_name)}</bdi>`:word('igComments.noProduct')}</p>
       <p class="muted">${age}</p>${replyArea(locale,data,c,left!==null&&left>0&&c.created_at!.getTime()<=data.now.getTime())}<p>${href?`<a class="deeper" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${word('igComments.post')}</a>`:word('igComments.noPost')}</p>
@@ -33,8 +43,8 @@ export function renderInstagramComments(locale:Locale,data:CommentPage):string {
 
 /** 5.4 — the one private reply: its state as it stands, and the owner's form while one may still be sent. */
 function replyArea(locale:Locale,data:CommentPage,c:InstagramComment,inTime:boolean):string {
-  const word=(key:Parameters<typeof t>[1])=>esc(t(locale,key));
-  const line=(key:Parameters<typeof t>[1])=>`<p>${word(key)}</p>`;
+  const word=(key:MessageKey)=>sayOnPage(locale,key);
+  const line=(key:MessageKey)=>`<p>${word(key)}</p>`;
   const canceled=c.reply_outcome==='reserved'&&c.reply_attempted_at===null&&c.reply_status==='canceled';
   const states:string[]=[];
   if(canceled)states.push(line('igComments.state.canceled'));

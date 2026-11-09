@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ, RUN_NS } from './tenant.js';
 import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
-import { unisolatedFigures } from '../parity/isolates.js';
+import { unisolatedFigures, unisolatedLatin } from '../parity/isolates.js';
 import { thirdPartyIn, pageRequests, cssRequests, scriptRequests, offList } from '../parity/third-party.js';
 
 /**
@@ -407,7 +407,23 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       await sql`insert into calendar_entries (business_id, title, starts_at, created_by)
                 values (${RUN_BIZ}, 'Visit 2', now() + interval '1 day', 'owner')`.execute(tx);
     });
+    // I12 — a comment asking a price, so the Comments page draws its English sentences and a figure ("Hours left to
+    // reply"). The Page it came through is archived: nothing on any page reaches Meta.
+    const pg = (await import('pg')).default;
+    const admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await admin.connect();
+    const ig = `7${Date.now()}`;
+    try {
+      const account = (await admin.query(`insert into meta_accounts (business_id, page_id, page_name, ig_account_id, token_ciphertext, fingerprint,
+          scopes, connected_by, archived_at, archived_by) values ($1, $2, 'Page', $2, 'v1.fake-test-ciphertext', '000000000000',
+          'instagram_manage_comments', 'owner', now(), 'owner') returning id`, [RUN_BIZ, ig])).rows[0].id as string;
+      await admin.query(`insert into ig_comments (business_id, meta_account_id, account_id, comment_id, identity, words, media_id, asking, created_at)
+          values ($1, $2, $3, $4, 'rtl-person', 'How much is the blue one?', 'rtl-post', true, now() - interval '5 hours')`,
+        [RUN_BIZ, account, ig, `${ig}1`]);
+    } finally { await admin.end(); }
     const problems: string[] = [];
+    const english: string[] = [];
+    let commentsDrawn = false;
     let pages = 0;
     for (const url of [...new Set(routes)]) {
       if (!url.startsWith('/app') || url.startsWith('/app/live')) continue;
@@ -423,7 +439,16 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       if (!res.body.includes('<nav class="side">')) continue;
       pages++;
       for (const hit of unisolatedFigures(res.body)) problems.push(`${target}: «${hit}»`);
+      // I12 — the Comments pages' own words (the settings area's content, not its navigation or the shell's): no
+      // English sentence runs right to left. The other English-only areas and the navigation's labels are not held yet.
+      if (target.startsWith('/app/channels/instagram/comments')) {
+        const main = /<div class="sa-content">([\s\S]*)<\/main>/.exec(res.body)?.[1] ?? '';
+        commentsDrawn ||= main.includes('Hours left to reply');
+        for (const hit of unisolatedLatin(main)) english.push(`${target}: «${hit}»`);
+      }
     }
+    expect(commentsDrawn, 'the Comments page was drawn with its comment').toBe(true);
+    expect(english, `English outside an isolate:\n  ${english.join('\n  ')}`).toEqual([]);
     expect(pages, 'the walk drew too few owner pages').toBeGreaterThan(30);
     expect(problems, `figures outside an isolate:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 180_000);
