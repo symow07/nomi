@@ -151,3 +151,6 @@ language sql immutable set search_path=public as $$
  'ad_spend_connections','ad_spend_days','ad_spend_day_history','ad_spend_reads','ad_spend_recorded']) t
 $$;
 revoke all on function customer_erasure_contract() from public;
+
+insert into _migrations (version, name) values (238, 'ad_spend')
+  on conflict (version) do nothing;

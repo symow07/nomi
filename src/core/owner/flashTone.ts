@@ -127,6 +127,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
   'booksSpending.flash.billRefused', 'booksSpending.flash.categoryRefused', 'booksSpending.flash.recurringRefused', 'booksSpending.flash.proposalGone',
+  // 0238 — ad spend: what did not connect, and a month and placement already recorded as a cost.
+  'adSpend.flash.notConfigured', 'adSpend.flash.noAccounts', 'adSpend.flash.expired', 'adSpend.flash.denied', 'adSpend.flash.unavailable', 'adSpend.flash.recordRefused',
   'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'product.tier.notRemoved', 'practice.flash.media_refused', 'proof.owner.flash.failed',
   // Found 2026-10-13 by the walk of every key a route hands a notice (pr3-errors-countries-flash): named no `.flash.`.
   'staff.notAllowed', 'product.add.nothingRead', 'business.kind.invalid', 'pi.owner.flash.failed',
@@ -194,7 +196,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'calendar.flash.kept',
   'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
-  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted',
+  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'adSpend.flash.connected', 'adSpend.flash.disconnected', 'adSpend.flash.recorded',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
   'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',
