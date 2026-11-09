@@ -87,7 +87,7 @@ it('each production rule, the negation guard and the clause split has a failing 
   expect(lines).toHaveLength(30);
   const yes = [...Object.values(corpus).flatMap(c => c.yes), ...reviewed.filter(c => c.asks).map(c => c.text)];
   for (const line of lines) {
-    const id = /\{ id: '([^']+)'/.exec(line)![1];
+    const id = /\{ id: '([^']+)'/.exec(line)![1]!;
     const disabled = executable(source.replace(line, ''));
     expect(yes.some(text => !disabled(text)), line).toBe(true);
     const own = reviewed.filter(c => c.rule === id);
