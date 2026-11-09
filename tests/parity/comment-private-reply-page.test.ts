@@ -45,7 +45,7 @@ describe('5.4 Part B · the Comments page', () => {
     expect(html).toContain('name="public" value="1"');
     expect(html).not.toMatch(/name="public"[^>]*checked/);
     expect(html).not.toMatch(/igComments\.[a-z]/);
-    expect(textarea(html)).not.toMatch(/[⁦-⁩]/);
+    expect(textarea(html)).not.toMatch(/[\u2066-\u2069]/);
     if (locale === 'ar') expect(unisolatedFigures(html)).toEqual([]);
     expect(buttonsAndDoors(html)).toEqual([]);
   });

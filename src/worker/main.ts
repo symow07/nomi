@@ -811,14 +811,16 @@ export async function startWorker(
         // reply-to id, else exactly one such reply to this person), and the product it named on its own marked line.
         // Ambiguous or no single product: nothing guessed, and the Comments page says so.
         const commented = await attributeCommentReply(tx, businessId.value, conversationId.value, job.data.replyToMid ?? null);
-        await recordFragment(tx, businessId.value, conversationId.value, {
+        const fragment = {
           id: job.data.messageId,
           // CH7 — "price?" on a story of hers that names one product: the turn
           // reads which, on its own marked line. The timeline keeps his words alone.
-          text: [job.data.text, named ? postLine('story_reply', named.name) : null,
-            commented?.productName ? commentLine(commented.productName) : null].filter((l) => l !== null).join('\n'),
+          text: named ? `${job.data.text}\n${postLine('story_reply', named.name)}` : job.data.text,
           receivedAt: new Date(),
-        });
+        };
+        await recordFragment(tx, businessId.value, conversationId.value, commented?.productName
+          ? { ...fragment, text: `${fragment.text}\n${commentLine(commented.productName)}` }
+          : fragment);
         // G10a — and on the timeline, as he sent it, whatever batching does next.
         await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
         const pending = await pendingFragments(tx, conversationId.value);

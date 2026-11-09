@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { lockConversation, type Tx } from './client.js';
-import { ensureConversation } from './channels.js';
+import { enqueueOutboundRow, ensureConversation } from './channels.js';
 import type { BusinessId } from '../core/types/ids.js';
 
 // ── The owner's one private reply, queued ─────────────────────────────────
@@ -81,12 +81,11 @@ export async function queueCommentPrivateReply(tx: Tx, business: BusinessId, inp
   const s = await standing(tx, business, input.commentId, true);
   const late = refusal(s, input.now);
   if (late || !s) throw new Refused(late ?? 'not_found');
-  const outbound = (await sql<{ id: string }>`insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, approved, kind)
-    select ${business}, ${conversationId}::uuid, coalesce(max(seq), 0) + 1, ${body}, 'owner', ${s.identity},
-           'instagram', true, 'comment_private_reply'
-      from outbound_messages where conversation_id = ${conversationId}::uuid
-    returning id`.execute(tx)).rows[0]!.id;
+  // G20 — through the one writer: origin owner, approved by the owner's press, never deduplicated, to the
+  // commenter's own identity.
+  const outbound = await enqueueOutboundRow(tx, business, conversationId, body, 'owner', null, null, null,
+    true, null, false, null, { recipient: s.identity });
+  if (outbound === null) throw new Refused('not_found');
   if (s.reply_outcome === null) {
     await sql`insert into ig_comment_replies (business_id, comment_id, outbound_id, owner_id, public_requested)
       values (${business}, ${s.id}::uuid, ${outbound}::uuid, ${input.ownerId}, ${input.publicRequested})`.execute(tx);

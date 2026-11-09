@@ -12,7 +12,7 @@ export function renderInstagramComments(locale:Locale,data:CommentPage):string {
   const title=`${back('/app/settings/channels/meta',t(locale,'nav.channels'))}<h1>${word('igComments.title')}</h1>`;
   if(data.deleting&&data.owner)return `${title}<h2>${word('igComments.delete')}</h2><p>${word('igComments.deleteHelp')}</p>
     <blockquote><bdi dir="auto">${esc(data.deleting.words)}</bdi></blockquote>
-    <form method="post" action="${ROOT}/${encodeURIComponent(data.deleting.id)}/delete"><button class="btn send" type="submit" name="confirm" value="delete">${word('igComments.delete')}</button></form>
+    <form method="post" action="${ROOT}/${encodeURIComponent(data.deleting.id)}/delete"><button class="btn send" type="submit" name="confirm" value="delete" onclick="return confirm(this.dataset.confirm)" data-confirm="${word('igComments.deleteHelp')}">${word('igComments.delete')}</button></form>
     <p><a class="deeper" href="${ROOT}">${word('igComments.cancel')}</a></p>`;
   const control=!data.owner?'':!data.connected?`<p>${word('igComments.connect')}</p>`:!data.configured&&!data.enabled?`<p>${word('igComments.unavailable')}</p>`:
     `<form method="post" action="${ROOT}/switch"><button class="btn" type="submit" name="on" value="${data.enabled?'0':'1'}">${word(data.enabled?'igComments.disable':'igComments.enable')}</button></form>`;

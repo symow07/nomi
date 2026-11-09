@@ -23,7 +23,9 @@ const suite = process.env['DATABASE_URL'] && process.env['MIGRATE_DATABASE_URL']
 const ROOT = '/app/channels/instagram/comments';
 type Mode = 'ok' | 'fail' | 'uncertain' | 'unauthorized';
 
-suite('5.4 · the owner\'s one private reply to a comment, end to end', () => {
+// Each test drives the real outbound and comment workers and waits for them: the default five seconds is too short
+// under a full run.
+suite('5.4 · the owner\'s one private reply to a comment, end to end', { timeout: 60_000 }, () => {
   let prod: import('../../src/main.js').Production; let admin: pg.Client; let account: string;
   let cookie: string; let staffCookie: string; let otherCookie: string; let product: string;
   const business = randomUUID(); const other = randomUUID();
