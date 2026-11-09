@@ -50,7 +50,7 @@ function spy(o: { kind?: ChannelAdapter['kind']; account?: string | null; result
       commentPrivateReplyAccountId: o.account ?? '12345',
       sendCommentPrivateReply: async (id: string, body: string) => { calls.comment.push([id, body]); return o.result ?? { ok: true, providerMessageId: 'mid.1', recipientId: '67890' }; },
     }),
-  } as ChannelAdapter;
+  } as unknown as ChannelAdapter;
   return { a, calls };
 }
 const drive = (s: OutboundStore, a: ChannelAdapter) => driveConversationOutbound({ store: s, adapters: () => a, now: () => NOW }, 'c1');
@@ -125,7 +125,7 @@ describe('5.4 · the comment reply leaves only by the comment method', () => {
 });
 
 describe('5.4 · the seven days, ±1 ms, on the gate itself', () => {
-  const base = { origin: 'owner' as const, approved: true, windowPlan: sendPlan('closed', 'reply', 'none'), activated: true,
+  const base = { origin: 'owner' as const, approved: true, windowPlan: sendPlan('expired', 'reply', 'none'), activated: true,
     assignedTo: null, paused: false, silenced: false, stopped: false, frozen: false, pilotMode: false };
   const at = (age: number) => gateOutbound({ ...base, messageKind: 'comment_private_reply',
     commentPrivateReply: { channel: 'instagram', enabled: true, asking: true, accountBound: true, claim: 'ready',

@@ -138,8 +138,8 @@ Promise<{ readonly productName: string | null } | null> {
   const one = candidates[0]!;
   await sql`update ig_comment_replies set context_used_at = now()
     where business_id = ${business} and comment_id = ${one.comment}::uuid and context_used_at is null`.execute(tx);
-  await sql`update ig_comments set conversation_id = coalesce(conversation_id, ${conversationId}::uuid),
-      client_id = coalesce(client_id, ${who[0]!.client_id}::uuid)
+  // The new DM conversation is the comment's from now on. Its author's own id still reaches it for an erasure.
+  await sql`update ig_comments set conversation_id = ${conversationId}::uuid, client_id = ${who[0]!.client_id}::uuid
     where business_id = ${business} and id = ${one.comment}::uuid`.execute(tx);
   return { productName: one.matched ? one.name : null };
 }
