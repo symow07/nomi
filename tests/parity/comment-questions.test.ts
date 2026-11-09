@@ -30,11 +30,45 @@ const corpus = {
   },
 } as const;
 
+/**
+ * Asks the detector missed in review (2026-11-10), each with its reason. A missed ask is `not_asking`: no alert, no reply.
+ * A new phrasing goes here first, with its reason, never into the patterns alone. `rule` names the pattern it witnesses.
+ */
+const reviewed: readonly { language: string; text: string; asks: boolean; reason: string; rule?: string }[] = [
+  { language: 'zh', text: '价格是多少？', asks: true, rule: 'zh-price-is', reason: '"What is the price?": the price as subject, 是多少 after it.' },
+  { language: 'zh', text: '可以告诉我价格吗？', asks: true, rule: 'zh-price-tell', reason: '"Can you tell me the price?": a request ending in the question particle 吗.' },
+  { language: 'zh', text: '谢谢告诉我价格', asks: false, reason: 'Thanks for telling me the price: the same words with no 吗 are a statement.' },
+  { language: 'ar', text: 'كم سعر هذا المنتج؟', asks: true, rule: 'ar-price-kam', reason: '"How much is the price of this product?": كم before an indefinite سعر.' },
+  { language: 'ar', text: 'ممكن السعر؟', asks: true, rule: 'ar-price-mumkin', reason: '"The price, possible?": a polite request for the price.' },
+  { language: 'ar', text: 'هل هو موجود في المخزون؟', asks: true, rule: 'ar-stock-mawjud', reason: '"Is it in stock?": هل with a pronoun before موجود.' },
+  { language: 'ar', text: 'هل بقي منه شيء؟', asks: true, rule: 'ar-stock-baqi', reason: '"Is any of it left?": هل with بقي.' },
+  { language: 'es', text: '¿Me dices el precio?', asks: true, rule: 'es-price-tell', reason: '"Will you tell me the price?".' },
+  { language: 'es', text: '¿Quedan unidades?', asks: true, rule: 'es-stock-quedan', reason: '"Are there units left?".' },
+  { language: 'es', text: '¿Hay en azul?', asks: true, rule: 'es-stock-hay-en', reason: '"Is there one in blue?": hay en opening the clause.' },
+  { language: 'es', text: 'No hay en mi talla', asks: false, reason: 'A statement that there is none in my size: hay en does not open the clause.' },
+  { language: 'es', text: '¿Tienen talla M disponible?', asks: true, rule: 'es-stock-talla', reason: '"Do you have size M available?".' },
+  { language: 'fr', text: 'Combien ça coûte ?', asks: true, rule: 'fr-price-ca', reason: '"How much does it cost?" with ça between combien and coûte.' },
+  { language: 'fr', text: 'C’est combien ?', asks: true, rule: 'fr-price-cest', reason: '"How much is it?".' },
+  { language: 'fr', text: 'Vous pouvez me donner le prix ?', asks: true, rule: 'fr-price-give', reason: '"Can you give me the price?".' },
+  { language: 'fr', text: 'Il vous en reste ?', asks: true, rule: 'fr-stock-vous-reste', reason: '"Do you have any left?": vous between il and en reste.' },
+  { language: 'fr', text: 'Le bleu est-il disponible ?', asks: true, rule: 'fr-stock-inverted', reason: '"Is the blue one available?": the inverted question.' },
+  { language: 'pt', text: 'Pode me dizer o preço?', asks: true, rule: 'pt-price-tell', reason: '"Can you tell me the price?".' },
+  { language: 'pt', text: 'Tem na cor azul?', asks: true, rule: 'pt-stock-cor', reason: '"Do you have it in blue?": tem na cor opening the clause.' },
+  { language: 'pt', text: 'Tem tamanho M disponível?', asks: true, rule: 'pt-stock-tamanho', reason: '"Do you have size M available?".' },
+  // The negation reaches only its own clause: a later clause's ask still counts.
+  { language: 'en', text: 'I don\'t want the red one, do you have it in blue?', asks: true, rule: 'clauses', reason: 'The negation is about the red one; the next clause asks.' },
+  { language: 'es', text: 'No quiero el rojo, ¿tienen este en azul?', asks: true, rule: 'clauses', reason: 'Same shape in Spanish: a negated preference, then an availability question.' },
+  { language: 'en', text: 'I\'m not asking how much, just saying it\'s lovely', asks: false, reason: 'The negation and the price phrase share their clause: a statement.' },
+  { language: 'zh', text: '不问多少钱，就是喜欢', asks: false, reason: '"Not asking the price, just like it": the negation in the price clause.' },
+  { language: 'es', text: 'No pregunto cuánto cuesta, solo me encanta', asks: false, reason: '"I am not asking what it costs": the negation in the price clause.' },
+];
+
 describe('comments asking a price or availability · six languages, no model', () => {
   for (const [language, cases] of Object.entries(corpus)) {
     for (const text of cases.yes) it(`${language} asks: ${text}`, () => expect(asksPriceOrAvailability(text)).toBe(true));
     for (const text of cases.no) it(`${language} leaves alone: ${text}`, () => expect(asksPriceOrAvailability(text)).toBe(false));
   }
+  for (const c of reviewed) it(`${c.language} reviewed ${c.asks ? 'asks' : 'leaves alone'}: ${c.text}`, () => expect(asksPriceOrAvailability(c.text), c.reason).toBe(c.asks));
   it('normalizes width, case, accents and spacing without inventing a question', () => {
     expect(asksPriceOrAvailability('ＰＲＩＣＥ　please')).toBe(true);
     expect(asksPriceOrAvailability('  QUANTO   CUSTA?? ')).toBe(true);
