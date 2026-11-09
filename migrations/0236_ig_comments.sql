@@ -223,13 +223,13 @@ returns table(tbl text,action text,clear text[],blank text[],detach text[],match
 language sql immutable set search_path=public as $$
   select * from customer_erasure_contract_before_0236()
   union all select * from (values
-    ('ig_comment_settings','unrelated',null::text[],null::text[],null::text[],null::text),
-    ('ig_comment_login_states','unrelated',null,null,null,null),
-    ('ig_comments','erase',null,null,null,'any-identity'),
-    ('ig_comment_replies','erase',null,null,null,null),
-    ('ig_comment_public_replies','erase',null,null,null,null),
-    ('ig_comment_alerts','erase',null,null,null,null),
-    ('ig_comment_tombstones','unrelated',null,null,null,null)
+    ('ig_comment_settings', 'unrelated', null::text[], null::text[], null::text[], null::text),
+    ('ig_comment_login_states', 'unrelated', null, null, null, null),
+    ('ig_comments', 'erase', null, null, null, 'any-identity'),
+    ('ig_comment_replies', 'erase', null, null, null, null),
+    ('ig_comment_public_replies', 'erase', null, null, null, null),
+    ('ig_comment_alerts', 'erase', null, null, null, null),
+    ('ig_comment_tombstones', 'unrelated', null, null, null, null)
   ) x
 $$;
 revoke all on function customer_erasure_contract() from public;
@@ -309,4 +309,4 @@ $$;
 revoke all on function erasure_ledger_unkept() from public;
 revoke all on function erasure_ledger_unkept_before_0236() from public;
 
-insert into _migrations(version,name) values(236,'0236_ig_comments') on conflict(version) do nothing;
+insert into _migrations (version, name) values (236, '0236_ig_comments') on conflict (version) do nothing;
