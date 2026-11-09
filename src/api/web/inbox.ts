@@ -34,6 +34,7 @@ import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKin
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { productsWithPhotos, PHOTO_CHANNELS } from '../../db/productPhotos.js';
+import { sendableCatalogueProducts } from '../../db/waProductCard.js';
 import { detectClaims } from '../../core/safety/claims.js';
 import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
@@ -850,6 +851,8 @@ export type ConversationDetail = {
   readonly channel?: string;
   /** Phase 2d (0152) — the product photos the owner may send here; none on a channel that cannot carry a picture. */
   readonly photos?: readonly { readonly productId: string; readonly name: string; readonly nameZh: string | null; readonly token: string }[];
+  /** Part B (5.3) — the products of the linked WhatsApp catalogue a card may carry now; WhatsApp only. */
+  readonly productCards?: readonly { readonly productId: string; readonly name: string; readonly price: string; readonly currency: string }[];
   /**
    * G5b — the newest reply, when it waited past the day its channel allows and
    * was marked expired: shown for what it was, never offered to send.
@@ -1174,6 +1177,8 @@ export async function loadConversationDetail(
       channel: head.channel,
       // Phase 2d — the photos the owner can send here: only on a channel that carries a picture.
       photos: PHOTO_CHANNELS.includes(head.channel) ? await productsWithPhotos(tx) : [],
+      // Part B (5.3) — and the catalogue products a product card may carry, on WhatsApp only.
+      productCards: head.channel === 'whatsapp' ? await sendableCatalogueProducts(tx, bid.value) : [],
       // The quote's figures are read with or without a turn on record.
       reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
     };
@@ -1629,6 +1634,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         ${photoForm(d, locale)}
+        ${viewer.isOwner ? productCardForm(d, locale) : ''}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
@@ -1665,6 +1671,29 @@ function photoForm(d: ConversationDetail, locale: Locale): string {
       <select id="photo-pick" name="product" required>${ordered.map((p) =>
         `<option value="${esc(p.productId)}">${esc(productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.name)}</option>`).join('')}</select>
       <button class="btn" type="submit">${esc(t(locale, 'photo.send.button'))}</button>
+    </form>`;
+}
+
+/**
+ * Part B (5.3) — the OWNER sends one product of their linked WhatsApp catalogue as a product card. Only the products
+ * Meta holds as they are now; the conversation's own product first. Each option says what the transcript will say.
+ */
+function cardChoice(locale: Locale, p: { readonly name: string; readonly price: string; readonly currency: string }): string {
+  const m = moneyFromRow(p.price, p.currency);
+  // The owner's own product name and the price, each isolated (rule 38): an option cannot hold a <bdi>.
+  return `${show.isolate(locale, p.name)} \u00b7 ${m ? show.money(locale, m) : show.isolate(locale, `${p.price} ${p.currency}`)}`;
+}
+
+function productCardForm(d: ConversationDetail, locale: Locale): string {
+  const cards = d.productCards ?? [];
+  if (cards.length === 0) return '';
+  const own = d.product?.name ?? null;
+  const ordered = [...cards].sort((a, b) => Number(b.name === own) - Number(a.name === own));
+  return `<form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/product-card" class="photosend">
+      <label class="muted" for="card-pick">${esc(t(locale, 'card.send.label'))}</label>
+      <select id="card-pick" name="product" required>${ordered.map((p) =>
+        `<option value="${esc(p.productId)}">${esc(cardChoice(locale, p))}</option>`).join('')}</select>
+      <button class="btn" type="submit">${esc(t(locale, 'card.send.button'))}</button>
     </form>`;
 }
 

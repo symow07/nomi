@@ -258,7 +258,7 @@ import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
-import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
+import { ownerReply, ownerPhoto, ownerProductCard } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
@@ -5340,6 +5340,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome === 'no_photo' || r.outcome === 'no_address' || r.outcome === 'photo_unsupported') {
       return flashTo(reply, conversationUrl(cid), `photo.flash.${r.outcome}` as MessageKey);
     }
+    return takeoverFlash(reply, cid, r.outcome);
+  });
+
+  /**
+   * Part B (5.3) — the OWNER sends one product of their linked WhatsApp catalogue as a product card: the same checks
+   * as their words (`ownerSendWindow`), inside the customer's 24 hours only — the reopening template carries no card.
+   * Through the one writer; the worker checks the item again before anything leaves.
+   */
+  app.post('/app/inbox/:conversationId/product-card', async (req, reply) => {
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const s = await ownerOnly(req, reply, 'price_rules', UUID.test(cid) ? conversationUrl(cid) : '/app/inbox');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const productId = String((req.body as { product?: string } | undefined)?.product ?? '');
+    const { verdict, reopening } = await ownerSendWindow(bid.value, cid);
+    if (verdict !== 'ok') return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
+    if (reopening) return flashTo(reply, conversationUrl(cid), 'card.flash.window');
+    const r = await ownerProductCard(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
+      { businessId: bid.value, conversationId: cid, productId, actor: personOf(s).id },
+    );
+    if (r.outcome === 'sent') return flashTo(reply, conversationUrl(cid), messagingEnabled ? 'card.flash.sent' : 'inbox.flash.sentNotLive');
+    if (r.outcome === 'not_sendable' || r.outcome === 'card_unsupported') return flashTo(reply, conversationUrl(cid), `card.flash.${r.outcome}` as MessageKey);
     return takeoverFlash(reply, cid, r.outcome);
   });
 

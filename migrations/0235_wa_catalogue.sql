@@ -102,6 +102,9 @@ create trigger wa_catalogue_images_parents before insert or update of business_i
   for each row execute function wa_catalogue_check_parents();
 create trigger wa_catalogue_sends_parents before insert or update of business_id,outbound_id on wa_catalogue_sends
   for each row execute function wa_catalogue_check_parents();
+-- A practice copy reaches nobody (0086): it sends no product card.
+create trigger wa_catalogue_sends_practice_refuses before insert or update on wa_catalogue_sends
+  for each row execute function practice_refuses();
 
 do $$ declare t text; begin
   foreach t in array array['wa_catalogue_items','wa_catalogue_batches','wa_catalogue_batch_items','wa_catalogue_images','wa_catalogue_sends'] loop
@@ -157,7 +160,8 @@ begin
      where o.business_id=p_business and c.business_id=p_business and c.client_id=p_client);
   get diagnostics removed=row_count;
   result:=erase_customer_rows_before_0235(p_business,p_client,p_request,p_restored);
-  return jsonb_set(result,'{changed}',erasure_add(coalesce(result->'changed','{}'::jsonb),'wa_catalogue_sends',removed));
+  -- Counted with the rest of what was erased: the ledger, the closed request's note and erase-buyer's plan read `erased`.
+  return jsonb_set(result,'{erased}',erasure_add(coalesce(result->'erased','{}'::jsonb),'wa_catalogue_sends',removed));
 end $$;
 revoke all on function erase_customer_rows(uuid,uuid,uuid,boolean) from public;
 revoke all on function erase_customer_rows_before_0235(uuid,uuid,uuid,boolean) from public;

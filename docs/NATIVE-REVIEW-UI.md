@@ -16761,3 +16761,22 @@ Translate first: the catalogue navigation label, the tick/confirm and photo-publ
 | `waCatalog.flash.changedCatalogue` | The linked catalogue has changed. Restore the previous link before updating these products. |
 | `waCatalog.imageExpired` | The photo address expired before the result was checked. Review a new update to share the photo again. |
 | `waCatalog.itemRefused` | Meta did not accept this item. |
+
+
+## WhatsApp product card (2026-11-10; Part B of 0235)
+
+10 English-only owner lines, in the same `WA_CATALOGUE_EN`: 3 for the refusal `product_changed` (what, why, what to do), 3 for the conversation page's picker, 4 flashes. The picker's options are the owner's own product name and price, isolated, never translated. What the customer's transcript records (`Product card: {name}, {price}`) is a record of what was sent, not owner copy, and stays in English as written.
+
+Translate with the catalogue lines above: keep "added to WhatsApp's catalogue" (the item Meta holds) distinct from a message that was sent, and keep the 24-hour rule the same as the photo's.
+
+| Key | English line |
+|---|---|
+| `refused.what.product_changed` | A product card did not go out. |
+| `refused.why.product_changed` | This product changed since it was added to WhatsApp’s catalogue. |
+| `refused.do.product_changed` | Sync it again, then send the card. |
+| `card.send.label` | WhatsApp product card |
+| `card.send.button` | Send the product card |
+| `card.flash.sent` | Your product card is waiting to send. |
+| `card.flash.not_sendable` | That product is not ready in your WhatsApp catalogue. Sync it again, then send the card. |
+| `card.flash.card_unsupported` | A product card can only be sent on WhatsApp. |
+| `card.flash.window` | A product card can only go within 24 hours of the customer’s last message. Write to them in words first; when they reply, the card can go. |
