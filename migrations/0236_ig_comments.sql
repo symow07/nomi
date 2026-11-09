@@ -220,20 +220,16 @@ grant execute on function ig_comment_sweep() to nomi_app;
 
 -- Preserve the actual installed contracts, including other branches' additions.
 alter function customer_erasure_contract() rename to customer_erasure_contract_before_0236;
--- customer_erasure_contract, re-made from its latest definition (0230) by wrapping the installed function.
+-- customer_erasure_contract, re-made from its latest definition by wrapping the installed function (as 0233–0235).
 create function customer_erasure_contract()
 returns table(tbl text,action text,clear text[],blank text[],detach text[],match text)
 language sql immutable set search_path=public as $$
   select * from customer_erasure_contract_before_0236()
-  union all select * from (values
-    ('ig_comment_settings', 'unrelated', null::text[], null::text[], null::text[], null::text),
-    ('ig_comment_login_states', 'unrelated', null, null, null, null),
-    ('ig_comments', 'erase', null, null, null, 'any-identity'),
-    ('ig_comment_replies', 'erase', null, null, null, null),
-    ('ig_comment_public_replies', 'erase', null, null, null, null),
-    ('ig_comment_alerts', 'erase', null, null, null, null),
-    ('ig_comment_tombstones', 'unrelated', null, null, null, null)
-  ) x
+  union all select t,'unrelated',null::text[],null::text[],null::text[],null::text from unnest(array[
+    'ig_comment_settings','ig_comment_login_states','ig_comment_tombstones']) t
+  union all select t,'erase',null::text[],null::text[],null::text[],null::text from unnest(array[
+    'ig_comment_replies','ig_comment_public_replies','ig_comment_alerts']) t
+  union all select 'ig_comments','erase',null::text[],null::text[],null::text[],'any-identity'
 $$;
 revoke all on function customer_erasure_contract() from public;
 revoke all on function customer_erasure_contract_before_0236() from public;
@@ -253,7 +249,7 @@ alter function erase_customer_rows(uuid,uuid,uuid,boolean) rename to erase_custo
 -- erase_customer_rows, re-made from its latest definition (0226) by wrapping the installed function.
 create function erase_customer_rows(p_business uuid,p_client uuid,p_request uuid,p_restored boolean default false) returns jsonb
 language plpgsql volatile security definer set search_path=public set row_security=off as $$
-declare ids uuid[]; n integer; counts jsonb; stones jsonb;
+declare ids uuid[]; n integer; counts jsonb; stones jsonb; children jsonb;
 begin
   -- Same order as the existing erasure: conversation advisory locks, then customer row, then comment rows.
   perform pg_advisory_xact_lock(hashtextextended(id::text,0)) from conversations where client_id=p_client and business_id=p_business order by id;
@@ -264,10 +260,20 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('digest',ig_comment_digest(c.business_id,c.account_id,c.comment_id),
     'state',case when exists(select 1 from ig_comment_replies r where r.comment_id=c.id and r.attempted_at is not null) then 'used' else 'erased' end,
     'expires_at',to_char((c.received_at+interval '8 days') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))),'[]') into stones from ig_comments c where c.business_id=p_business and c.id=any(ids);
+  -- What goes with each comment, counted before it goes: the tool holds the function's counts to its own plan, table
+  -- by table, and the contract says 'erase' for each of these.
+  children:=jsonb_build_object(
+    'ig_comment_replies',(select count(*) from ig_comment_replies where comment_id=any(ids)),
+    'ig_comment_public_replies',(select count(*) from ig_comment_public_replies where comment_id=any(ids)),
+    'ig_comment_alerts',(select count(*) from ig_comment_alerts where comment_id=any(ids)),
+    'outbound_messages',(select count(*) from outbound_messages where business_id=p_business
+                           and id in(select outbound_id from ig_comment_replies where comment_id=any(ids))));
   n:=ig_comment_erase_rows(p_business,ids,'customer-erasure','operator',false);
   counts:=erase_customer_rows_before_0236(p_business,p_client,p_request,p_restored);
   perform set_config('app.erased_comment_ledger',jsonb_build_object('business',p_business,'customer',p_client,'ids',ids,'digests',stones)::text,true);
-  return jsonb_set(counts,'{erased}',coalesce(counts->'erased','{}'::jsonb)||jsonb_build_object('ig_comments',n));
+  return jsonb_set(counts,'{erased}',coalesce(counts->'erased','{}'::jsonb)||(
+    select jsonb_object_agg(k,coalesce((counts->'erased'->>k)::integer,0)+v::integer)
+      from jsonb_each_text(children||jsonb_build_object('ig_comments',n)) e(k,v)));
 end $$;
 revoke all on function erase_customer_rows(uuid,uuid,uuid,boolean) from public;
 revoke all on function erase_customer_rows_before_0236(uuid,uuid,uuid,boolean) from public;
