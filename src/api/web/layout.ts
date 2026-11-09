@@ -100,7 +100,7 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
-  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s) },
+  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data','shopify'].map(s=>'/app/settings/business/'+s) },
   { hub: '/app/settings/channels', routes: ['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s) },
   { hub: ASSISTANT_HOME, routes: ['alone','name','words','promises','ready','history-policy'].map(s=>ASSISTANT_HOME+'/'+s) },
   { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/practice','/app/assistant/review','/app/assistant/activity','/app/assistant/ask'] },

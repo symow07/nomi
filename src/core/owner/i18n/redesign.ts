@@ -16,6 +16,7 @@ import { CASES_EN } from './cases.js';
 import { MONTH_REPORT_EN } from './monthReport.js';
 import { MONTH_MAIL_EN } from './monthMail.js';
 import { SETUP_MINUTES_EN } from './setupMinutes.js';
+import { SHOPIFY_ORDERS_EN } from './shopifyOrders.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -41,6 +42,7 @@ export const REDESIGN_EN = {
   ...MONTH_REPORT_EN,
   ...MONTH_MAIL_EN,
   ...SETUP_MINUTES_EN,
+  ...SHOPIFY_ORDERS_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

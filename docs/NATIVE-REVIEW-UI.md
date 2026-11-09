@@ -16723,6 +16723,17 @@ outside the catalogue are listed below: two example CSV rows and one export labe
   Next translate `setupClock.*` and its elapsed units, then the remaining controls, hints and export label. Read
   the add / discard promises, name-bearing lines and singular / plural flash pair together.
 
+## Order questions from Shopify (2026-11-10; 0237)
+
+Forty-five lines, English only, in `src/core/owner/i18n/shopifyOrders.ts` (`SHOPIFY_ORDERS_EN`): the page under My
+business (`shopifyOrders.*`: the title, the lede, the rule a customer is held to, that each reply waits; connected, the
+scopes Shopify granted, the 60-day line, a write scope, the version Shopify answered with; the switch, Disconnect and its
+asking; the recent lookups and their nine outcomes; the three connect refusals and the flashes), the Practice line
+`shopifyOrders.practice`, and `inbox.draft.held.order_facts` (the approval card's line). The connect form reuses the store
+import's `storeToken.*` labels. The customer's fixed sentence "I couldn't find an order with those details" is English
+only and is not in the catalogue (`src/core/commerce/shopifyOrders.ts`). To translate first: `shopifyOrders.disconnectAsk`,
+`shopifyOrders.rule`, `inbox.draft.held.order_facts`.
+
 ## Before it goes live (2026-11-07; 0230)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page
