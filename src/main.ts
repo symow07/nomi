@@ -1322,6 +1322,16 @@ export async function buildProduction(
       if (!b.ok || !/^[0-9a-f-]{36}$/i.test(String(job.data.checkId ?? ''))) return;   // poison: drop
       await runCheck({ db, businessId: b.value, checkId: String(job.data.checkId), models: { analyzer: checkAnalyzer, replyWriter: checkWriter }, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null });
     });
+    // 0238 — every morning, each connected ad account's spend is read from Meta (the last 28 days), only where this
+    // installation has the ads login. A read is never retried the same day (its row is written before Meta is asked).
+    await boss.schedule(QUEUES.adSpend, '50 4 * * *', {});
+    await boss.work(QUEUES.adSpend, async () => {
+      const { readAllAdSpend } = await import('./pipeline/adSpendRead.js');
+      const tally = await readAllAdSpend({ db, fetchImpl: adsLogin ? adsFetch : null, credentialKey }, (raw) => {
+        const b = parseBusinessId(raw); return b.ok ? b.value : null;
+      });
+      if (Object.keys(tally).length > 0) console.log(`[ads] spend read: ${JSON.stringify(tally)}`);
+    });
     await boss.schedule(QUEUES.spendingProposals, '35 5 * * *', {});
     await boss.work(QUEUES.spendingProposals, async () => {
       const { proposeDue, spendingToday } = await import('./db/booksSpending.js');

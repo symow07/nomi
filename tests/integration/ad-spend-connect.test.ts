@@ -5,6 +5,8 @@ import Fastify from 'fastify';
 import pg from 'pg';
 import { flashSaid } from './tenant.js';
 import type { AdsFetch } from '../../src/channels/meta/adSpend.js';
+// @ts-expect-error — the operator tool, plain JS on purpose (tools/ is not type-checked).
+import * as op from '../../tools/lib/operator.mjs';
 
 /**
  * 0238 — turning ad spend on, through the real routes, against a Meta that exists only in this file.
@@ -108,6 +110,7 @@ d('0238 · turning ad spend on (requires DATABASE_URL)', { timeout: 120_000 }, (
     staff = await login(app, team.accessCode);
   }, 60_000);
   afterAll(async () => {
+    await admin?.query(`update ad_spend_connections set archived_at = now(), archived_by = 'test' where business_id = $1 and archived_at is null`, [BIZ]);
     await admin?.query(`update ops_flags set cleared_at = now() where business_id = $1 and cleared_at is null`, [BIZ]);
     await app?.close(); await bare?.close(); await db?.destroy(); await admin?.end();
   });
@@ -142,7 +145,7 @@ d('0238 · turning ad spend on (requires DATABASE_URL)', { timeout: 120_000 }, (
   });
 
   it('THE OPERATOR\'S STOP: connections_off refuses start, callback and choose before Meta is asked', async () => {
-    const { setOperatorFlag, clearOperatorFlag } = await import('../../tools/lib/operator.mjs');
+    const { setOperatorFlag, clearOperatorFlag } = op as { setOperatorFlag: (c: pg.Client, i: object) => Promise<number>; clearOperatorFlag: (c: pg.Client, i: object) => Promise<number> };
     const start = await get(app, owner, '/app/connect/meta-ads/start');
     const nonce = new URL(String(start.headers['location'])).searchParams.get('state')!;
     await setOperatorFlag(admin, { flag: 'connections_off', businessId: BIZ, reason: 'pause', by: 'operator' });
