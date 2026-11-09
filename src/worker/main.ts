@@ -26,7 +26,8 @@ import { recordSpendAlone } from '../db/usage.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
-import { matchCaption, postLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
+import { matchCaption, postLine, commentLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
+import { attributeCommentReply } from '../db/commentPrivateReplies.js';
 import { catalogueNames } from '../db/productAliases.js';
 import { enqueueOutboundRow, pilotFactsFor } from '../db/channels.js';
 import { turnHold, HOLD_REASON, type TurnHold } from '../db/assistantStop.js';
@@ -806,11 +807,16 @@ export async function startWorker(
      */
     if (heard === null && seen === null) {
       const decision = await withTenantTx(db, businessId.value, async (tx) => {
+        // 5.4 — the first answer to the owner's private reply to a comment: which comment, only when certain (the
+        // reply-to id, else exactly one such reply to this person), and the product it named on its own marked line.
+        // Ambiguous or no single product: nothing guessed, and the Comments page says so.
+        const commented = await attributeCommentReply(tx, businessId.value, conversationId.value, job.data.replyToMid ?? null);
         await recordFragment(tx, businessId.value, conversationId.value, {
           id: job.data.messageId,
           // CH7 — "price?" on a story of hers that names one product: the turn
           // reads which, on its own marked line. The timeline keeps his words alone.
-          text: named ? `${job.data.text}\n${postLine('story_reply', named.name)}` : job.data.text,
+          text: [job.data.text, named ? postLine('story_reply', named.name) : null,
+            commented?.productName ? commentLine(commented.productName) : null].filter((l) => l !== null).join('\n'),
           receivedAt: new Date(),
         });
         // G10a — and on the timeline, as he sent it, whatever batching does next.

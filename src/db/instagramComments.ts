@@ -11,6 +11,10 @@ export type InstagramComment = {
   created_at: Date | null; asking: boolean; match_state: 'none' | 'matched' | 'several';
   product_id: string | null; product_name: string | null; post_url: string | null;
   enriched_at: Date | null; read_failed: boolean; conversation_id: string | null; attribution_ambiguous: boolean;
+  /** 5.4 — the one private reply, as it stands: null before the owner sends one. */
+  reply_outcome: 'reserved' | 'accepted' | 'uncertain' | 'refused' | null; reply_attempted_at: Date | null;
+  reply_status: string | null; public_requested: boolean | null;
+  public_outcome: 'waiting' | 'accepted' | 'failed' | 'uncertain' | null;
 };
 
 /** OFF, Practice and archived accounts produce no row, job, customer or outbound. Called inside ingress's transaction. */
@@ -30,14 +34,22 @@ export async function insertInstagramComment(tx: Tx, business: BusinessId, e: In
 }
 
 export async function instagramComments(tx: Tx, business: BusinessId): Promise<InstagramComment[]> {
-  return (await sql<InstagramComment>`select c.*,p.name as product_name from ig_comments c
+  return (await sql<InstagramComment>`select c.*,p.name as product_name,r.outcome as reply_outcome,r.attempted_at as reply_attempted_at,o.status as reply_status,
+      r.public_requested,pr.outcome as public_outcome from ig_comments c
     left join products p on p.id=c.product_id and p.business_id=c.business_id
+    left join ig_comment_replies r on r.comment_id=c.id and r.business_id=c.business_id
+    left join outbound_messages o on o.id=r.outbound_id and o.business_id=c.business_id
+    left join ig_comment_public_replies pr on pr.comment_id=c.id and pr.business_id=c.business_id
     where c.business_id=${business} and c.asking order by c.received_at desc,c.id limit 200`.execute(tx)).rows;
 }
 
 export async function instagramComment(tx: Tx, business: BusinessId, id: string): Promise<InstagramComment | null> {
-  return (await sql<InstagramComment>`select c.*,p.name as product_name from ig_comments c
+  return (await sql<InstagramComment>`select c.*,p.name as product_name,r.outcome as reply_outcome,r.attempted_at as reply_attempted_at,o.status as reply_status,
+      r.public_requested,pr.outcome as public_outcome from ig_comments c
     left join products p on p.id=c.product_id and p.business_id=c.business_id
+    left join ig_comment_replies r on r.comment_id=c.id and r.business_id=c.business_id
+    left join outbound_messages o on o.id=r.outbound_id and o.business_id=c.business_id
+    left join ig_comment_public_replies pr on pr.comment_id=c.id and pr.business_id=c.business_id
     where c.business_id=${business} and c.id=${id}::uuid`.execute(tx)).rows[0] ?? null;
 }
 

@@ -3,7 +3,8 @@ import {renderInstagramComments,type CommentPage} from '../../src/api/web/instag
 import type {InstagramComment} from '../../src/db/instagramComments.js';
 import {unisolatedFigures} from './isolates.js';
 const now=new Date('2027-01-15T12:00:00Z');
-const comment:InstagramComment={id:'11111111-1111-4111-8111-111111111111',business_id:'b',meta_account_id:'a',account_id:'123456',comment_id:'234567',identity:'345678',username:'shopper42',words:'Price for <script> bag 12?',media_id:'456789',received_at:now,created_at:new Date('2027-01-14T12:00:00Z'),asking:true,match_state:'matched',product_id:'p',product_name:'Blue bag 24',post_url:'https://www.instagram.com/p/example/',enriched_at:now,read_failed:false,conversation_id:null,attribution_ambiguous:false};
+const comment:InstagramComment={id:'11111111-1111-4111-8111-111111111111',business_id:'b',meta_account_id:'a',account_id:'123456',comment_id:'234567',identity:'345678',username:'shopper42',words:'Price for <script> bag 12?',media_id:'456789',received_at:now,created_at:new Date('2027-01-14T12:00:00Z'),asking:true,match_state:'matched',product_id:'p',product_name:'Blue bag 24',post_url:'https://www.instagram.com/p/example/',enriched_at:now,read_failed:false,conversation_id:null,attribution_ambiguous:false,
+ reply_outcome:null,reply_attempted_at:null,reply_status:null,public_requested:null,public_outcome:null};
 const page:CommentPage={comments:[comment],enabled:false,configured:true,connected:true,owner:true,now};
 describe('Instagram comments · owner and staff pages without script',()=>{
  for(const locale of ['en','ar'] as const)it(`${locale}: safe comments, product and time; one heading and no sending in Part A`,()=>{

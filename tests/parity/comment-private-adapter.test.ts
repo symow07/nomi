@@ -10,7 +10,7 @@ describe('the private reply names a comment, never a DM recipient',()=>{
   expect(await send('9876','These are the owner’s words.')).toEqual({ok:true,providerMessageId:'mid.accepted',recipientId:'6789'});
   expect(calls).toHaveLength(1);expect(calls[0]!.url).toBe('https://graph.facebook.com/v23.0/12345/messages');
   expect(JSON.parse(calls[0]!.init.body!)).toEqual({recipient:{comment_id:'9876'},message:{text:'These are the owner’s words.'}});
-  expect(calls[0]!.init.headers.Authorization).toBe('Bearer fake-page-secret');expect(calls[0]!.init.signal).toBeInstanceOf(AbortSignal);
+  expect(calls[0]!.init.headers['Authorization']).toBe('Bearer fake-page-secret');expect(calls[0]!.init.signal).toBeInstanceOf(AbortSignal);
  });
  for(const body of [{message_id:'mid.only'},{recipient_id:'6789'},{message_id:'',recipient_id:'6789'},{}])it('an incomplete acceptance is uncertain '+JSON.stringify(body),async()=>{
   expect(await metaCommentPrivateReplySender({...cfg,fetchImpl:async()=>({status:200,text:async()=>JSON.stringify(body)})})('9876','Reply')).toMatchObject({ok:false,retryable:false,uncertain:true});

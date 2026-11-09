@@ -2,7 +2,10 @@ import type { PgBoss } from 'pg-boss';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
-import { liveMetaAccount } from '../db/metaAccounts.js';
+import { liveMetaAccount, markMetaAccountNeedsAttention } from '../db/metaAccounts.js';
+import { claimCommentPublicReply, finishCommentPublicReply } from '../db/commentPrivateReplies.js';
+import { metaCommentPublicReplySender } from '../channels/meta/commentReplies.js';
+import type { SendResult } from '../channels/contract.js';
 import { commentsEnabled, instagramComment, finishCommentRead } from '../db/instagramComments.js';
 import { metaAccountToken } from '../channels/meta/connect.js';
 import type { MetaFetch } from '../channels/meta/messaging.js';
@@ -37,9 +40,36 @@ export async function processInstagramComment(deps: {db:Db;boss:Pick<PgBoss,'sen
   });
 }
 
+/**
+ * The optional public "Sent you a message": queued only by the finish transaction that recorded the private reply as
+ * accepted (main.ts), claimed once here, called with no transaction open, and recorded whatever Instagram answers.
+ * Never tried again: a failure is shown on the Comments page.
+ */
+export async function postInstagramCommentPublicReply(deps:{db:Db;key:Buffer;fetchImpl:MetaFetch;graphVersion:string},job:{businessId:string;commentId:string}):Promise<SendResult|null> {
+  const bid=parseBusinessId(job.businessId);if(!bid.ok||typeof job.commentId!=='string'||!/^[0-9a-f-]{36}$/i.test(job.commentId))return null;
+  const claimed=await withTenantTx(deps.db,bid.value,async tx=>{
+    const claim=await claimCommentPublicReply(tx,bid.value,job.commentId);if(!claim)return null;
+    const account=await liveMetaAccount(tx,bid.value);
+    return account&&account.id===claim.metaAccountId&&account.igAccountId===claim.accountId?{claim,account}:{claim,account:null};
+  });
+  if(!claimed)return null;
+  const token=claimed.account?metaAccountToken(claimed.account,deps.key):null;
+  const result:SendResult=token
+    ?await metaCommentPublicReplySender({accessToken:token,graphVersion:deps.graphVersion,fetchImpl:deps.fetchImpl})(claimed.claim.commentId)
+    :{ok:false,retryable:false,error:'account unavailable'};
+  await withTenantTx(deps.db,bid.value,async tx=>{
+    await finishCommentPublicReply(tx,bid.value,job.commentId,result);
+    if(!result.ok&&result.error.startsWith('meta 401'))await markMetaAccountNeedsAttention(tx,claimed.claim.metaAccountId,'revoked');
+  });
+  return result;
+}
+
 export async function registerInstagramCommentWorkers(deps:{db:Db;boss:PgBoss;key:Buffer;fetchImpl:MetaFetch;graphVersion:string}):Promise<void> {
   await deps.boss.work<{businessId:string;commentId:string}>(QUEUES.instagramComments,async jobs=>{
     for(const job of jobs)await processInstagramComment(deps,job.data);
+  });
+  await deps.boss.work<{businessId:string;commentId:string}>(QUEUES.instagramCommentPublic,async jobs=>{
+    for(const job of jobs)await postInstagramCommentPublicReply(deps,job.data);
   });
 }
 

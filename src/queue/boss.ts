@@ -261,6 +261,8 @@ export type InboundJob = {
   ref?: string;
   /** CH7 — the shop's own post, reel or story it is about, by Meta's media id. */
   postId?: string;
+  /** 5.4 — the provider's id of the message this answers (Meta's `reply_to.mid`). */
+  replyToMid?: string;
   /** Provider media id for audio/image — short-lived, fetch promptly. */
   mediaId?: string | null;
   /**

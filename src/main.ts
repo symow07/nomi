@@ -1136,6 +1136,10 @@ export async function buildProduction(
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });
       },
+      // 5.4 — the owner's private reply to a comment: its row and the drive's job commit together.
+      queueOutboundDrive: async (tx, businessId, conversationId) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId, db: txDatabase(tx) });
+      },
       // P3 — a practice message joins the SAME inbound queue a customer's does.
       enqueueInbound: (job) => enqueueInbound(boss, job),
     });
@@ -2142,6 +2146,8 @@ export async function buildProduction(
           ...(e.ref ? { ref: e.ref } : {}),
           // CH7 — and the shop's own post it is about, so its caption can be read.
           ...(e.postId ? { postId: e.postId } : {}),
+          // 5.4 — and which of our messages it answers, so a private reply to a comment is matched for certain.
+          ...(e.replyToMid ? { replyToMid: e.replyToMid } : {}),
         }, inTx);
       } else if (e.kind === 'echo') {
         // CH3 — read a little later, so a send of ours has written its id first. 0215 — TikTok's echoes too: a message

@@ -41,6 +41,8 @@ export type InboundMessageEvent = {
    * Page's own token, and matched to a product.
    */
   readonly postId?: string | null;
+  /** 5.4 — the message this one answers, by the provider's id (Meta's `reply_to.mid`), when it says. */
+  readonly replyToMid?: string;
   /** S7 — the buyer's own language, where the platform says (Telegram's `language_code`): which signed greeting fits. */
   readonly language?: string | null;
 };

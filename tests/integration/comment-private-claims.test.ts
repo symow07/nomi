@@ -5,12 +5,12 @@ import {sql} from 'kysely';
 import {createDb,withTenantTx,type Db} from '../../src/db/client.js';
 import {parseBusinessId} from '../../src/core/types/ids.js';
 import {lockedCommentReplyFacts,claimCommentPrivateReply,recordCommentPrivateReply} from '../../src/db/commentPrivateReplies.js';
-const suite=process.env.DATABASE_URL&&process.env.MIGRATE_DATABASE_URL?describe:describe.skip;
+const suite=process.env['DATABASE_URL']&&process.env['MIGRATE_DATABASE_URL']?describe:describe.skip;
 suite('comment reply claims · locked, one attempt, and never resurrected',()=>{
  let admin:pg.Client,db:Db;const business=randomUUID(),account=randomUUID(),client=randomUUID(),conversation=randomUUID();
  const parsed=parseBusinessId(business);if(!parsed.ok)throw Error();const bid=parsed.value;
  const ig='123456789012345',now=new Date('2026-11-09T00:00:00Z');let seq=0;
- beforeAll(async()=>{admin=new pg.Client({connectionString:process.env.MIGRATE_DATABASE_URL});await admin.connect();db=createDb(process.env.DATABASE_URL!);
+ beforeAll(async()=>{admin=new pg.Client({connectionString:process.env['MIGRATE_DATABASE_URL']});await admin.connect();db=createDb(process.env['DATABASE_URL']!);
  await admin.query("insert into businesses(id,name) values($1,'Comment claim fixture')",[business]);
  await admin.query("insert into meta_accounts(id,business_id,page_id,page_name,ig_account_id,token_ciphertext,fingerprint,scopes,connected_by) values($1,$2,$3,'Page',$3,'v1.fake-test-ciphertext','000000000000','instagram_manage_comments','owner')",[account,business,ig]);
  await admin.query("insert into ig_comment_settings(business_id,meta_account_id,account_id,enabled,changed_by) values($1,$2,$3,true,'owner')",[business,account,ig]);

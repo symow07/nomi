@@ -1,6 +1,7 @@
 import type {FastifyInstance,FastifyRequest,FastifyReply} from 'fastify';
 import {sql} from 'kysely';
-import {withTenantTx,type Db} from '../../db/client.js';
+import {withTenantTx,type Db,type Tx} from '../../db/client.js';
+import {queueCommentPrivateReply,isCommentRefusal,type CommentReplyRefusal} from '../../db/commentReplyQueue.js';
 import {parseBusinessId} from '../../core/types/ids.js';
 import type {Locale} from '../../core/owner/i18n/locale.js';
 import type {MessageKey} from '../../core/owner/i18n/messages.js';
@@ -24,6 +25,10 @@ type Context={
  flash(req:FastifyRequest,reply:FastifyReply):Flash|null;
  redirect(reply:FastifyReply,path:string,key:MessageKey):FastifyReply;
  connectionRefusal(business:string):Promise<MessageKey|null>;
+ /** 5.4 — the outbound drive's job, queued in the reply's own transaction (main.ts). */
+ queueDrive?:(tx:Tx,businessId:string,conversationId:string)=>Promise<void>;
+ /** Tests' compositions without the queue: the drive kicked after the commit. */
+ kickDrive?:(businessId:string,conversationId:string)=>Promise<void>;
 };
 export function registerInstagramCommentRoutes(app:FastifyInstance,deps:Context):void {
  const person=(s:OwnerSession)=>s.person?.id??'owner';
@@ -55,6 +60,29 @@ export function registerInstagramCommentRoutes(app:FastifyInstance,deps:Context)
    await sql`select ig_comment_erase(${id}::uuid,${person(s)})`.execute(tx);return true;
   });
   return found?deps.redirect(reply,ROOT,'igComments.flash.deleted'):reply.callNotFound();
+ });
+ /**
+  * 5.4 — the owner's one private reply. Owner only (staff are refused by `owner`), never in Practice, and only what
+  * the owner typed: the form's suggestion is words in a box. The row is written with origin owner and approved, kind
+  * `comment_private_reply`; the send gate and the worker decide again at send time, under the comment's locks.
+  */
+ app.post(`${ROOT}/:id/reply`,async(req,reply)=>{
+  const s=await deps.owner(req,reply);if(!s)return reply;
+  const id=(req.params as {id:string}).id;const bid=parseBusinessId(s.businessId);
+  if(!bid.ok||!UUID.test(id))return reply.callNotFound();
+  const form=(req.body??{}) as {body?:unknown;public?:unknown};
+  if(typeof form.body!=='string'||form.body.length>8000)return reply.code(400).send();
+  let outcome:{ok:true;conversationId:string}|{ok:false;reason:CommentReplyRefusal};
+  try {
+   outcome=await withTenantTx(deps.db,bid.value,async tx=>{
+    const r=await queueCommentPrivateReply(tx,bid.value,{commentId:id,ownerId:person(s),body:form.body as string,publicRequested:form.public==='1',now:new Date()});
+    if(r.ok&&deps.queueDrive)await deps.queueDrive(tx,bid.value,r.conversationId);
+    return r;
+   });
+  } catch(e) { if(!isCommentRefusal(e))throw e; outcome={ok:false,reason:e.reason}; }
+  if(!outcome.ok)return outcome.reason==='not_found'?reply.callNotFound():deps.redirect(reply,`${ROOT}#comment-${id}`,`igComments.flash.reply.${outcome.reason}`);
+  if(!deps.queueDrive&&deps.kickDrive)await deps.kickDrive(bid.value,outcome.conversationId);
+  return deps.redirect(reply,`${ROOT}#comment-${id}`,'igComments.flash.replyQueued');
  });
  app.post(`${ROOT}/switch`,async(req,reply)=>{
   const s=await deps.owner(req,reply);if(!s)return reply;
