@@ -216,4 +216,27 @@ d('0238 · ad spend on Results, and recorded as a cost (requires DATABASE_URL)',
     expect(await bills()).toHaveLength(3);
     expect(await recorded()).toHaveLength(2);
   });
+
+  it('THE RACE: two presses of Record at once, both inside before either commits → one bill, one link, the other refused', async () => {
+    // The barrier: this session holds the bill writer's own lock for a bill with no number (`nextNoref`), so each
+    // request is inside its transaction and stopped before it can post — without the ads lock, both have already read
+    // the offer as open. Released only once both are seen waiting.
+    const barrier = new pg.Client({ connectionString: MIGRATE_URL }); await barrier.connect();
+    try {
+      await barrier.query(`select pg_advisory_lock(hashtext($1))`, [`${BIZ}:noref`]);
+      const press = () => post(owner, '/app/books/spending/bills', { ads: `${month}.facebook`, date: lastDay, label: `Meta ads, Facebook, ${month}`, noref: '1', gross: '3.33', newSupplier: 'Meta', account: expenseId });
+      const both = Promise.all([press(), press()]);
+      const waiting = async () => Number((await admin.query(`select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and wait_event = 'advisory'`)).rows[0].n);
+      for (let i = 0; i < 200 && (await waiting()) < 2; i++) await new Promise((r) => setTimeout(r, 50));
+      expect(await waiting()).toBe(2);
+      await barrier.query(`select pg_advisory_unlock(hashtext($1))`, [`${BIZ}:noref`]);
+      const answers = await both;
+      expect(answers.map((r) => r.statusCode)).toEqual([302, 302]);
+      expect(answers.map((r) => flashSaid(r, SECRET)).sort()).toEqual([t('en', 'adSpend.flash.recordRefused'), expect.stringMatching(/^Recorded as a cost: /)].sort());
+    } finally { await barrier.end(); }
+    const facebook = (await recorded()).filter((r) => r.platform === 'facebook');
+    expect(facebook).toHaveLength(1);
+    expect((await bills()).filter((b) => b.label === `Meta ads, Facebook, ${month}`)).toHaveLength(1);
+    expect((await bills()).filter((b) => b.id === facebook[0]!.bill_id)).toHaveLength(1);
+  });
 });
