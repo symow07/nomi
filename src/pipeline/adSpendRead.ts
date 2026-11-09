@@ -37,8 +37,10 @@ export async function readAdSpendFor(deps: AdSpendReadDeps, businessId: Business
     const listed = (await sql<{ ok: boolean }>`select exists (select 1 from ad_spend_workspaces() w where w.business_id = ${businessId}::uuid) as ok`
       .execute(tx)).rows[0]!.ok;
     if (!listed) return null;
+    // Being listed already means the connection is live, accepted and not waiting out a throttle: the definer is
+    // the one rule for that (a second copy here was proven dead by switching each off), so only its row is read.
     const c = await liveAdConnection(tx, businessId);
-    if (!c || c.state !== 'active' || (c.retryAfter && c.retryAfter > now)) return null;
+    if (!c) return null;
     const h = await readHistory(tx, businessId, c.id, now);
     if (h.today) return null;
     const span = readSpan(dayIn(now, c.timezone), !h.everOk);

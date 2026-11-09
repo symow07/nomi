@@ -110,7 +110,8 @@ describe('0238 · the Insights request', () => {
   });
 
   it('the page cap ends the read as incomplete, with no further call', async () => {
-    const m = fakeMeta([{ status: 200, body: { data: [], paging: next(9) } }]);
+    // Six pages that do end, so a read with no cap finishes `ok` and this test fails on its assertion, not a hang.
+    const m = fakeMeta([...Array.from({ length: 5 }, (_, i) => ({ status: 200, body: { data: [], paging: next(i + 2) } })), { status: 200, body: { data: [] } }]);
     const r = await readInsights(IN, m.fetch, { pageCap: 3 });
     expect(r.kind).toBe('incomplete');
     expect(m.urls).toHaveLength(3);

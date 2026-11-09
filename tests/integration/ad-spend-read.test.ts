@@ -154,8 +154,8 @@ d('0238 · the daily ad spend read (requires DATABASE_URL)', { timeout: 120_000 
 
   it('THE PAGE CAP: the read stops, keeps nothing, is recorded incomplete, and is tried again the next day', async () => {
     const before = await days();
-    script = (_u, n) => ({ status: 200, body: { data: [row('2026-11-11', `place_${n}`, String(n))], paging: { next: `https://graph.facebook.com/v27.0/act_${ACCOUNT}/insights?after=p${n + 1}` } } });
-    expect(await once(plusDays(2))).toBe('incomplete');
+    script = (_u, n) => ({ status: 200, body: { data: [row('2026-11-11', `place_${n}`, String(n))], ...(n < 30 ? { paging: { next: `https://graph.facebook.com/v27.0/act_${ACCOUNT}/insights?after=p${n + 1}` } } : {}) } });
+    expect(await once(plusDays(2))).toBe('incomplete');                       // 31 pages that end: only the cap stops it at 20
     expect(calls).toHaveLength(20);
     expect(await days()).toEqual(before);
     expect((await reads()).at(-1)).toMatchObject({ outcome: 'incomplete', pages: 20, rows_read: 0 });
