@@ -16676,3 +16676,12 @@ language. The PDF's own labels are English too, as the text proforma's are.
   that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
+
+## Help that answers (2026-11-10; no migration)
+
+About a hundred English-only lines in `src/core/owner/i18n/help.ts` (`HELP_EN`): the "?" door's name (`help.door`), the
+help page (`help.title`, `help.lede`, `help.video`, `help.back`), the question box and its answers (`help.ask.*`), "Still
+stuck? Write to us" (`help.write.*`, which promises an answer **within one working day** — the owner's promise, to
+review), the operator's mail (`help.mail.*`, `help.role.*`), and nineteen short guides (`help.g.<id>.title / .1–.3 /
+.door`). The guides are what a help question is answered from, so a translation must say exactly what the English
+says and nothing more. To translate first: `help.door`, `help.write.title`, `help.write.lede`, `help.ask.notYet`.
