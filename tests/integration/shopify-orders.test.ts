@@ -389,7 +389,7 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
     const look = await lookupFor(A);
     await look.look({ conversationId: C.erased.conv, orderName: ORDER, email: ORDER_EMAIL });
     await look.look({ conversationId: C.erased.conv, orderName: '#NOMI-9999', email: ORDER_EMAIL });
-    expect(await n('select count(*) as n from customer_erasure_problems()', [])).toBe(0);
+    expect((await admin.query('select customer_erasure_problems() as p')).rows[0].p).toEqual([]);
     const req = (await admin.query(`insert into deletion_requests (business_id, scope, client_id, asked_by) values ($1, 'buyer', $2, 'owner') returning id::text as id`,
       [A, C.erased.client])).rows[0].id as string;
     const plan = await planErasure(admin, { businessId: A, clientId: C.erased.client, requestId: req });

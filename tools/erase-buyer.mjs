@@ -396,6 +396,9 @@ export const RULES = Object.freeze({
 export const VIRTUAL_EDGES = Object.freeze([
   { child: 'conversation_events', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
   { child: 'shadow.turn_decisions', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
+  // 0237 — no foreign key on purpose: a key check would wait on the turn's own lock on the conversation. A trigger
+  // checks the conversation exists in the same business (a plain read), and the erasure deletes these by conversation.
+  { child: 'shopify_order_lookups', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
 ]);
 
 /**
