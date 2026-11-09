@@ -111,7 +111,7 @@ const list = (v: unknown): readonly unknown[] => (Array.isArray(v) ? v : []);
 function line(v: unknown, max = 120): string | null {
   if (typeof v !== 'string') return null;
   // eslint-disable-next-line no-control-regex
-  const t = v.replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = v.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
   return t === '' ? null : t.slice(0, max);
 }
 const LABEL = /^[A-Z][A-Z_]{0,40}$/;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
+import type Anthropic from '@anthropic-ai/sdk';
 import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import { anthropicReplyWriter } from '../../src/llm/anthropic.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
@@ -23,8 +24,8 @@ import { FakeAnalyzer, FakeRetriever, FakeTenant } from '../pipeline/fakes.js';
 const NOW = new Date('2026-11-10T04:00:00Z');
 
 type Captured = { system: string; user: string };
-function recordingClient(captured: Captured[]) {
-  return {
+function recordingClient(captured: Captured[]): Anthropic {
+  const client = {
     messages: {
       create: async (params: { system: string; messages: { content: string }[] }) => {
         captured.push({ system: params.system, user: params.messages[0]!.content });
@@ -32,7 +33,9 @@ function recordingClient(captured: Captured[]) {
           usage: { input_tokens: 10, output_tokens: 5 }, model: 'recorder' };
       },
     },
-  } as never;
+  };
+  // Only `messages.create` is ever called; the rest of the SDK client is not needed (as n6a-llm-provider fakes it).
+  return client as unknown as Anthropic;
 }
 
 function ports(captured: Captured[], primary: 'price_request' | 'other') {

@@ -196,6 +196,8 @@ $$;
 revoke all on function customer_erasure_contract() from public;
 revoke all on function customer_erasure_contract_before_0237() from public;
 
+-- erase_customer_rows, re-made from its latest definition (0232): renamed to erase_customer_rows_before_0237 above and
+-- wrapped, so a customer's lookups go first and are counted under 'erased'.
 create or replace function erase_customer_rows(p_business uuid, p_client uuid, p_request uuid, p_restored boolean default false)
 returns jsonb
 language plpgsql volatile security definer set search_path = public set row_security = off as $$
