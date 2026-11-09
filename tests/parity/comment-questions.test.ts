@@ -78,17 +78,25 @@ describe('comments asking a price or availability · six languages, no model', (
 });
 
 /** Run the actual pure function with one production pattern disabled, not a second detector. */
-it('each production rule and the negation guard has a failing labelled witness when removed', () => {
+it('each production rule, the negation guard and the clause split has a failing labelled witness when removed', () => {
   const source = readFileSync(new URL('../../src/core/channel/commentQuestions.ts', import.meta.url), 'utf8');
   const executable = (code: string): ((text: string) => boolean) => new Function(code
     .replace(' as const;', ';').replace('export function', 'function')
-    .replace('text: string', 'text').replace('): boolean', ')') + '; return asksPriceOrAvailability;')() as (text: string) => boolean;
+    .replaceAll(': string', '').replaceAll('): boolean', ')') + '; return asksPriceOrAvailability;')() as (text: string) => boolean;
   const lines = source.split('\n').filter(line => line.includes("{ id: '"));
-  expect(lines).toHaveLength(12);
+  expect(lines).toHaveLength(30);
+  const yes = [...Object.values(corpus).flatMap(c => c.yes), ...reviewed.filter(c => c.asks).map(c => c.text)];
   for (const line of lines) {
+    const id = /\{ id: '([^']+)'/.exec(line)![1];
     const disabled = executable(source.replace(line, ''));
-    expect(Object.values(corpus).flatMap(c => c.yes).some(text => !disabled(text)), line).toBe(true);
+    expect(yes.some(text => !disabled(text)), line).toBe(true);
+    const own = reviewed.filter(c => c.rule === id);
+    if (id.split('-').length > 2) expect(own.length, `${id} has a witness`).toBeGreaterThan(0);
+    for (const c of own) expect(disabled(c.text), `${id} switched off: ${c.text}`).toBe(false);
   }
-  const noNegation = executable(source.replace('if (NEGATED.test(folded)) return false;', ''));
-  expect(Object.values(corpus).flatMap(c => c.no).some(text => noNegation(text))).toBe(true);
+  const no = [...Object.values(corpus).flatMap(c => c.no), ...reviewed.filter(c => !c.asks).map(c => c.text)];
+  const noNegation = executable(source.replace('if (!folded || NEGATED.test(folded)) return false;', 'if (!folded) return false;'));
+  expect(no.some(text => noNegation(text))).toBe(true);
+  const wholeText = executable(source.replace('text.split(CLAUSE_END)', '[text]'));
+  for (const c of reviewed.filter(c => c.rule === 'clauses')) expect(wholeText(c.text), `no clause split: ${c.text}`).toBe(false);
 });
