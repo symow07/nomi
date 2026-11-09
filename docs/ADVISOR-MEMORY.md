@@ -378,7 +378,7 @@ The same keys in the other four languages:
 | `yf_dev` | Recognises a device you have confirmed. | 180 days |
 | `yf_setlink` | Holds a password-setting link. | 1 h |
 | `yf_issued` | Shows a staff access code once. | 5 min |
-| `yf_oauth`, `yf_meta`, `yf_wa` | Hold a connection in progress. | 10 min |
+| `yf_oauth`, `yf_meta`, `yf_wa`, `yf_ads` | Hold a connection in progress. | 10 min |
 
 Every one is first-party and needed for the app to work. Strictly necessary cookies need no consent under the ePrivacy rules. There is no analytics, no advertising and no tracker.
 

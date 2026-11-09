@@ -182,8 +182,24 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
       secureCookie: false, messagingEnabled: false,
       kickOutbound: async () => {}, kickDrive: async () => {},
+      // 0238 — ad spend is drawn only where the installation has its login: on here, so Results' card and the
+      // connect routes are walked on real rows. Meta is never asked (a GET draws; the read is the daily job's).
+      adsLogin: { appId: '4070500000000001', appSecret: 'walk-secret', configId: '9876543210' },
+      adsFetch: async () => { throw new Error('the walk never asks Meta'); },
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
+    // 0238 — a live ad account with this month's spend, an unknown placement among it, so Results draws every line.
+    await withTenantTx(db, bid.value, async (tx) => {
+      await sql`insert into ad_spend_connections (business_id, ad_account_id, ad_account_name, account_currency, timezone_name, token_ciphertext, token_fingerprint, connected_by)
+        select ${RUN_BIZ}::uuid, '123450000', 'Walk ads 2', 'USD', 'Asia/Shanghai', 'v1.walk', 'walk', 'owner'
+         where not exists (select 1 from ad_spend_connections where business_id = ${RUN_BIZ}::uuid and archived_at is null)`.execute(tx);
+      const acct = (await sql<{ a: string }>`select ad_account_id as a from ad_spend_connections where business_id = ${RUN_BIZ}::uuid and archived_at is null`.execute(tx)).rows[0]!.a;
+      for (const [platform, amount] of [['instagram', '1234.56'], ['facebook', '7.5'], ['messenger', '0.99'], ['zz_walk_place', '3']] as const) {
+        await sql`insert into ad_spend_days (business_id, ad_account_id, day, platform, amount, currency, timezone_name)
+          values (${RUN_BIZ}::uuid, ${acct}, (now() at time zone 'Asia/Shanghai')::date, ${platform}, ${amount}, 'USD', 'Asia/Shanghai')
+          on conflict do nothing`.execute(tx);
+      }
+    });
 
     const login = await app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`,

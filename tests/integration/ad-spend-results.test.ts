@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import pg from 'pg';
 import { flashSaid } from './tenant.js';
-import { withoutIsolates } from '../parity/isolates.js';
+import { withoutIsolates, unisolatedFigures } from '../parity/isolates.js';
 
 /**
  * 0238 — ad spend beside orders on Results, and "Record as a cost", through the real routes.
@@ -138,6 +138,18 @@ d('0238 · ad spend on Results, and recorded as a cost (requires DATABASE_URL)',
     // Each single-currency placement is offered; Messenger, in two currencies, is offered too but never prefilled (below).
     expect(r.body).toContain(`/app/books/spending?ads=${encodeURIComponent(`${month}.instagram`)}#bill`);
     expect(r.body).toContain(`/app/books/spending?ads=${encodeURIComponent(`${month}.zz_invented_place`)}#bill`);
+  });
+
+  it('RIGHT TO LEFT: on an Arabic page every figure on the card is isolated, and the zone line appears only when the zones differ', async () => {
+    const r = await app.inject({ method: 'GET', url: `/app/results?month=${month}`, headers: { cookie: `${owner}; yf_locale=ar` } });
+    const section = /<section class="results-section" id="ad-spend"[\s\S]*?<\/section>/.exec(r.body)?.[0] ?? '';
+    expect(section).not.toBe('');
+    expect(unisolatedFigures(section)).toEqual([]);
+    expect(card((await get(owner, `/app/results?month=${month}`)).body)).not.toContain(t('en', 'adSpend.zone', { zone: ZONE, workspace: ZONE }));
+    await admin.query(`update businesses set timezone = 'Europe/Paris' where id = $1`, [BIZ]);
+    try {
+      expect(card((await get(owner, `/app/results?month=${month}`)).body)).toContain(t('en', 'adSpend.zone', { zone: ZONE, workspace: 'Europe/Paris' }));
+    } finally { await admin.query(`update businesses set timezone = $2 where id = $1`, [BIZ, ZONE]); }
   });
 
   it('STAFF see one line and no figure; the bill form is not theirs and the prefill is never drawn for them', async () => {

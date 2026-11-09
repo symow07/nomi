@@ -94,8 +94,8 @@ export function renderAdSpendCard(locale: Locale, v: AdSpendView): string {
     });
     parts.push(rows.join(''));
   }
-  parts.push(`<form method="post" action="/app/connect/meta-ads/disconnect" data-confirm="${esc(t(locale, 'adSpend.disconnectAsk'))}">
-    <button type="submit" class="btn ghost">${esc(t(locale, 'adSpend.disconnect'))}</button></form>`);
+  parts.push(`<form method="post" action="/app/connect/meta-ads/disconnect">
+    <button type="submit" class="btn ghost" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'adSpend.disconnectAsk'))}">${esc(t(locale, 'adSpend.disconnect'))}</button></form>`);
   return wrap(parts.join(''));
 }
 
