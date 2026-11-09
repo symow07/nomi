@@ -22,6 +22,8 @@ export const INSTAGRAM_COMMENTS_EN = {
   'igComments.state.refused':'Instagram refused your private reply. It is not sent again: Instagram allows one.',
   'igComments.state.canceled':'Your private reply was not sent. You can send it again.',
   'igComments.state.publicWaiting':'The public reply will be posted once the private reply is accepted.',
+  'igComments.state.publicNotAfterRefused':'No public reply will be posted.',
+  'igComments.state.publicNotAfterUncertain':'Your private reply may have reached them. It is not sent again, and no public reply will be posted.',
   'igComments.state.publicPosting':'The public reply is being posted.',
   'igComments.state.publicAccepted':'The public reply was posted.',
   'igComments.state.publicFailed':'The public reply was not posted. It is not tried again.',

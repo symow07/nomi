@@ -71,6 +71,15 @@ describe('5.4 Part B · the Comments page', () => {
     expect(page({ reply_outcome: 'reserved', reply_status: 'queued', public_requested: true })).toContain('once the private reply is accepted');
     expect(page({ attribution_ambiguous: true })).toContain('did not guess');
   });
+  it('a refused or uncertain private reply with the public tick says no public reply will be posted, never that it waits', () => {
+    const refused = page({ reply_outcome: 'refused', reply_attempted_at: now, reply_status: 'failed', public_requested: true });
+    expect(refused).toContain('Instagram refused your private reply');
+    expect(refused).toContain('No public reply will be posted.');
+    expect(refused).not.toContain('once the private reply is accepted');
+    const uncertain = page({ reply_outcome: 'uncertain', reply_attempted_at: now, reply_status: 'uncertain', public_requested: true });
+    expect(uncertain).toContain('Your private reply may have reached them. It is not sent again, and no public reply will be posted.');
+    expect(uncertain).not.toContain('once the private reply is accepted');
+  });
   it('a reply refused before it reached Instagram may be sent again', () => {
     const html = page({ reply_outcome: 'reserved', reply_attempted_at: null, reply_status: 'canceled' });
     expect(html).toContain('You can send it again');

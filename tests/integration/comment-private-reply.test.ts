@@ -149,6 +149,11 @@ suite('5.4 · the owner\'s one private reply to a comment, end to end', { timeou
     expect((await state(c.id)).outcome).toBe(mode === 'fail' ? 'refused' : 'uncertain');
     expect((await q(`select count(*)::int n from pgboss.job where name = 'instagram.comment_public' and data->>'commentId' = $1`, [c.id]))[0].n).toBe(0);
     expect((await state(c.id)).public_outcome).toBeNull();
+    const shown = /<article class="card" id="comment-[^"]*"[\s\S]*?<\/article>/g;
+    const card = [...(await get(ROOT)).body.matchAll(shown)].map((m) => m[0]).find((a) => a.includes(`id="comment-${c.id}"`)) ?? '';
+    expect(card).toContain(mode === 'fail' ? 'No public reply will be posted.'
+      : 'Your private reply may have reached them. It is not sent again, and no public reply will be posted.');
+    expect(card).not.toContain('once the private reply is accepted');
     await new Promise((r) => setTimeout(r, 3_000));
     expect(commentCalls(c.external)).toHaveLength(1);
     privateMode.delete(c.external);

@@ -44,7 +44,10 @@ function replyArea(locale:Locale,data:CommentPage,c:InstagramComment,inTime:bool
   else if(c.reply_outcome==='refused')states.push(line('igComments.state.refused'));
   if(c.public_requested&&c.reply_outcome!==null&&!canceled){
     states.push(line(c.public_outcome==='accepted'?'igComments.state.publicAccepted':c.public_outcome==='failed'?'igComments.state.publicFailed'
-      :c.public_outcome==='uncertain'?'igComments.state.publicUncertain':c.reply_outcome==='accepted'?'igComments.state.publicPosting':'igComments.state.publicWaiting'));
+      :c.public_outcome==='uncertain'?'igComments.state.publicUncertain':c.reply_outcome==='accepted'?'igComments.state.publicPosting'
+      // Neither is ever tried again (the worker queues the public reply only on an accepted private one), so nothing waits.
+      :c.reply_outcome==='refused'?'igComments.state.publicNotAfterRefused':c.reply_outcome==='uncertain'?'igComments.state.publicNotAfterUncertain'
+      :'igComments.state.publicWaiting'));
   }
   if(c.attribution_ambiguous)states.push(`<p class="muted">${word('igComments.ambiguous')}</p>`);
   const open=(c.reply_outcome===null||canceled)&&c.asking&&inTime&&data.enabled;
