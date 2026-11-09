@@ -1345,9 +1345,9 @@ const STYLE_PAGES = `
   .content { position:relative; }
   .help-door { position:absolute; z-index:2; inset-block-start:var(--space-16); inset-inline-end:var(--space-16);
     display:inline-grid; place-items:center; inline-size:44px; block-size:44px; border-radius:var(--radius-chip);
-    border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-ink);
-    font-weight:600; font-size:var(--font-size-base); text-decoration:none; }
-  .help-door:hover { border-color:var(--color-ink-secondary); }
+    color:var(--color-ink-secondary); text-decoration:none; }
+  .help-door .hdi { inline-size:26px; block-size:26px; }
+  .help-door:hover { color:var(--color-ink); background:var(--color-sand); }
   .help-door:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .help { display:flex; flex-direction:column; gap:var(--space-16); }
   dialog.sheet .help { max-inline-size:var(--measure-column); max-block-size:85vh; overflow:auto; padding:var(--space-24);
@@ -3058,7 +3058,7 @@ export const helpDoor = (locale: Locale, path: string): string => {
   const from = pageFrom(path);
   if (from === '/app/help' || from?.startsWith('/app/help/')) return '';
   // `pageFrom` admits plain path characters only, so the address needs no escaping beyond the attribute's.
-  return `<a class="help-door" href="/app/help/page${from ? `?from=${esc(from)}` : ''}" data-card aria-label="${esc(t(locale, 'help.door'))}"><span aria-hidden="true">?</span></a>`;
+  return `<a class="help-door" href="/app/help/page${from ? `?from=${esc(from)}` : ''}" data-card aria-label="${esc(t(locale, 'help.door'))}">${icon('question', 'hdi')}</a>`;
 };
 
 /**

@@ -6,6 +6,7 @@ import type { AdvisorModel } from '../../src/llm/ports.js';
 import type { Db } from '../../src/db/client.js';
 import { t } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
+import { flashSaid } from './tenant.js';
 
 /**
  * Block 6.1 — HELP THAT ANSWERS, through the real app and the real database:
@@ -176,16 +177,15 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     expect(m.text).not.toContain(OTHER_MAIL);
     expect(m.text).not.toContain(CUSTOMER);
     expect(m.text).not.toContain(OP);
-    const page = await app.inject({ method: 'GET', url: r.headers.location as string, headers: { cookie: staff } });
-    expect(page.body).toContain(esc(t('en', 'help.write.sent')));
+    expect(flashSaid(r, SECRET)).toBe(t('en', 'help.write.sent'));
   });
 
   it('three an hour per workspace: the fourth is refused and nothing more is mailed', async () => {
     const sent = outbox.length;
-    for (let i = 0; i < 3; i++) await post(staff, '/app/help/write', { words: `again ${i}` });
+    let last: Awaited<ReturnType<typeof post>> | null = null;
+    for (let i = 0; i < 3; i++) last = await post(staff, '/app/help/write', { words: `again ${i}` });
     expect(outbox.length).toBe(sent + 2);
-    const page = await app.inject({ method: 'GET', url: '/app/help/page', headers: { cookie: staff } });
-    expect(page.body).toContain(esc(t('en', 'help.write.limit')));
+    expect(flashSaid(last!, SECRET)).toBe(t('en', 'help.write.limit'));
     // Another workspace's limit is its own: the operator's owner still writes.
     const r = await post(owner, '/app/help/write', { words: 'Owner here' });
     expect(r.statusCode).toBe(302);
