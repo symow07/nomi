@@ -69,6 +69,8 @@ export const PRACTICE_SKIP = [
   'connector_credentials', 'meta_accounts', 'mail_accounts', 'sending_domains',
   // 0215 — her own TikTok account and its grant: a person's, never practised.
   'tiktok_accounts',
+  // 0238 — her own ad account, its grant and Meta's spend: never practised (a copy is refused one).
+  'ad_spend_connections', 'ad_spend_days', 'ad_spend_day_history', 'ad_spend_reads', 'ad_spend_recorded',
   // WA (0120) — her own WhatsApp number and its token: a person's, never practised.
   'whatsapp_accounts', 'whatsapp_templates',
   'pilot_allowlist', 'pilot_log', 'agents',

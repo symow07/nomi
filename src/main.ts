@@ -55,6 +55,7 @@ import { instagramAdapter } from './channels/instagram/adapter.js';
 import { socialAppSecret, metaProfileLookup, metaProfilePhoto, type MetaFetch } from './channels/meta/messaging.js';
 import { fetchFaces } from './worker/faces.js';
 import { metaLoginFrom, metaAccountToken } from './channels/meta/connect.js';
+import { adsLoginFrom, type AdsFetch } from './channels/meta/adSpend.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, type MetaAccount } from './db/metaAccounts.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
@@ -591,6 +592,8 @@ export async function buildProduction(
     metaFetch?: MetaFetch;
     /** WA — Meta's WhatsApp API as a test sees it: a business's own number sends and fetches through this. */
     whatsappFetch?: FetchLike;
+    /** 0238 — Meta's Marketing API as a test sees it: the ads login and the Insights read go through this. */
+    adsFetch?: AdsFetch;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -831,6 +834,9 @@ export async function buildProduction(
   // WA — Embedded Signup, through the WhatsApp app (its secret signs /webhook/whatsapp).
   const waLogin = waLoginFrom(process.env, cfg.META_APP_SECRET);
   const metaFetch: MetaFetch = overrides?.metaFetch ?? (fetch as unknown as MetaFetch);
+  // 0238 — ad spend: its own login configuration (`ads_read` only), or nothing at all.
+  const adsLogin = adsLoginFrom(process.env, socialSecret);
+  const adsFetch: AdsFetch = overrides?.adsFetch ?? (fetch as unknown as AdsFetch);
   const socialIngress: Partial<Record<'instagram' | 'messenger', ChannelAdapter>> =
     socialSecret && (metaLogin !== null || Object.keys(metaMessaging).length > 0)
       ? {
@@ -1066,6 +1072,8 @@ export async function buildProduction(
     // C10 — the login a business connects its OWN Page with, and what it takes
     // to finish the connection when Meta sends her back.
     metaLogin,
+    adsLogin,
+    adsFetch,
     metaConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,

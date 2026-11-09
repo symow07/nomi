@@ -51,6 +51,8 @@ export const SEALED = [
   // WA (0120) — a business's own WhatsApp number: its token, and the two-step PIN it was registered with.
   { table: 'whatsapp_accounts', column: 'token_ciphertext' },
   { table: 'whatsapp_accounts', column: 'pin_ciphertext' },
+  // 0238 — the user token from the ads login (`ads_read` only): its own grant, sealed like the rest.
+  { table: 'ad_spend_connections', column: 'token_ciphertext' },
 ];
 
 /**

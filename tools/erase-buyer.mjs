@@ -334,6 +334,12 @@ export const RULES = Object.freeze({
   mail_accounts: { do: 'unrelated' },
   meta_accounts: { do: 'unrelated' },
   tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
+  // 0238 — the business's own ad account and Meta's spend by day and placement; no customer in any of it.
+  ad_spend_connections: { do: 'unrelated' },
+  ad_spend_days: { do: 'unrelated' },
+  ad_spend_day_history: { do: 'unrelated' },
+  ad_spend_reads: { do: 'unrelated' },
+  ad_spend_recorded: { do: 'unrelated' },
   undelivered_alerts: { do: 'unrelated' },   // 0217 — an operator alert or account letter that reached nobody; no customer in it
   whatsapp_accounts: { do: 'unrelated' },
   whatsapp_templates: { do: 'unrelated' },
