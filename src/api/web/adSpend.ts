@@ -26,6 +26,19 @@ const PLACE_KEY = { instagram: 'adSpend.place.instagram', facebook: 'adSpend.pla
 const ORDERS_KEY = { instagram: 'adSpend.orders.instagram', messenger: 'adSpend.orders.messenger' } as const satisfies Record<string, MessageKey>;
 const READ_KEY = { incomplete: 'adSpend.read.incomplete', throttled: 'adSpend.read.throttled', failed: 'adSpend.read.failed' } as const satisfies Record<string, MessageKey>;
 
+/** A placement by its name, or "Other placements: {value}" exactly as Meta sent it. */
+export function placeName(locale: Locale, platform: string): string {
+  return isNamedPlatform(platform) ? t(locale, PLACE_KEY[platform]) : t(locale, 'adSpend.place.other', { platform });
+}
+
+/** `?ads=YYYY-MM.<platform>` — the month and the placement a "Record as a cost" door names, or null. */
+export function adsAsked(raw: unknown): { readonly month: string; readonly platform: string } | null {
+  if (typeof raw !== 'string') return null;
+  const m = /^([0-9]{4}-[0-9]{2})\.(.{1,80})$/su.exec(raw);
+  if (!m || !monthDays(m[1]!) || /[\u0000-\u001f\u007f]/u.test(m[2]!)) return null;
+  return { month: m[1]!, platform: m[2]! };
+}
+
 const figure = (locale: Locale, amount: string, currency: string): string => show.isolate(locale, `${currency} ${amount}`);
 
 export function renderAdSpendCard(locale: Locale, v: AdSpendView): string {
@@ -63,7 +76,7 @@ export function renderAdSpendCard(locale: Locale, v: AdSpendView): string {
     const ordersOf = (ch: 'instagram' | 'messenger') => cmp.orders.find((o) => o.channel === ch)!;
     const rows = cmp.spend.map((s) => {
       const named = isNamedPlatform(s.platform);
-      const label = named ? t(locale, PLACE_KEY[s.platform]) : t(locale, 'adSpend.place.other', { platform: s.platform });
+      const label = placeName(locale, s.platform);
       const ch = named ? CHANNEL_OF[s.platform] : null;
       let orders: string;
       if (ch) {

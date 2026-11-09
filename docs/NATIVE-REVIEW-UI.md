@@ -16676,3 +16676,19 @@ language. The PDF's own labels are English too, as the text proforma's are.
   that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
+
+## Ad spend beside orders (2026-11-10; 0238)
+
+About fifty English-only lines in `src/core/owner/i18n/adSpend.ts` (`AD_SPEND_EN`, spread into the redesign's English
+set): the Results card (`adSpend.title`, `.off`, `.turnOn`, `.staff`, `.account`, `.zone`, `.month`, `.show`, `.label`,
+`.estimated`, `.none`, `.place.*`, `.spent`, `.orders.*`, `.facebookNote`, `.otherNote`, `.record`, `.recorded`,
+`.lastRead`, `.read.*`, `.state.*`, `.reconnect`, `.disconnect`, `.disconnectAsk`), the account chooser
+(`adSpend.choose.*`), the notices (`adSpend.flash.*`) and the bill form's prefill (`adSpend.prefill.*`). Other languages
+show the English until a native reader translates.
+
+- **To translate first:** `adSpend.label` — it is the sentence that says the comparison is NOT profit and NOT proof the
+  ads brought the orders; a translation that softens it into a claim is wrong. Then `adSpend.prefill.estimated` and
+  `.otherCurrency` (the owner must read them before recording a cost), then `adSpend.disconnectAsk`.
+- **Not translated by design:** the placement names Meta sends that Nomi does not know are shown exactly as sent, after
+  "Other placements:"; "Meta", "Instagram", "Facebook" and "Messenger" stay as names. The bill's own label written into
+  the books ("Meta ads, {platform}, {month}") is English in every language, like the rest of the spending book.

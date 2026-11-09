@@ -209,6 +209,11 @@ export async function recordOffer(tx: Tx, businessId: string, month: string, pla
   return { adAccountId: c.adAccountId, month, platform, amount: trimZeros(r.amount), currency: r.currency };
 }
 
+/** Held for the bill's transaction: two presses of "Record" for one month and placement never both post. */
+export async function lockAdRecord(tx: Tx, businessId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtext(${`${businessId}:ads-record`}))`.execute(tx);
+}
+
 /** Written in the bill's own transaction, after `recordBill` posted it: the offer is not made again. */
 export async function linkRecorded(tx: Tx, businessId: string, o: RecordOffer, billId: string, by: string): Promise<void> {
   await sql`insert into ad_spend_recorded (business_id, ad_account_id, month, platform, bill_id, spend_seen, currency, recorded_by)

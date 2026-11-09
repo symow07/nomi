@@ -9,7 +9,7 @@ import { renderBooksHistory } from './booksHistory.js';
 import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
 import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOverviewPaper, readOverviewHistoryPapers, readOverviewBankLines, readOverviewCashEntries, readOverviewSuppliers, readOverviewSupplierEntries, readOverviewProfitEntries, type BooksOverviewOptions } from '../../db/booksOverview.js';
-import { renderSpendingBook } from './booksSpending.js';
+import { renderSpendingBook, type BillPrefill } from './booksSpending.js';
 import { renderOwnerReport, ownerReportSheet, OWNER_REPORT_KINDS, type OwnerReport, type OwnerReportKind } from './booksOwnerReports.js';
 import { periodFor, isSpan, madeReport, moneyReport, taxReport, customersReport, unpaidReport, type Span } from '../../db/booksOwnerReports.js';
 import { listProcedures, addProcedure, archiveProcedure } from '../../db/procedures.js';
@@ -324,9 +324,10 @@ import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/books
 import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENAME_DEFAULT } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { adsDialogUrl, adsStateSecret, exchangeAdsCode, listAdAccounts, type AdsFetch, type AdsLogin } from '../../channels/meta/adSpend.js';
-import { archiveAdConnection, connectAdAccount, lastRead as lastAdRead, liveAdConnection, monthComparison, spendMonths } from '../../db/adSpend.js';
-import { renderAdSpendCard, renderAdAccountPicker, chosenMonth, type AdSpendView } from './adSpend.js';
-import { dayIn } from '../../core/ads/spend.js';
+import { archiveAdConnection, connectAdAccount, lastRead as lastAdRead, linkRecorded, liveAdConnection, lockAdRecord, monthComparison, recordOffer, spendMonths } from '../../db/adSpend.js';
+import { renderAdSpendCard, renderAdAccountPicker, chosenMonth, adsAsked, placeName, type AdSpendView } from './adSpend.js';
+import { parseDecimal } from '../../core/types/decimal.js';
+import { dayIn, monthDays } from '../../core/ads/spend.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
 import { addClosingJournal, addOpeningJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
@@ -3635,7 +3636,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const book = asked==='history' ? '' : await withTenantTx(deps.db, bid, async (tx) => {
       const today = await spendingToday(tx, bid);
       const monthFrom = `${today.slice(0, 7)}-01`;
-      return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today) }, await spendingChoices(tx, bid));
+      const choices = await spendingChoices(tx, bid);
+      // 0238 — "Record as a cost" from Results: the form filled from Meta's figure, marked estimated. The owner's only.
+      const ads = booksMay(personOf(s), 'post') ? adsAsked((req.query as { ads?: unknown }).ads) : null;
+      const offer = ads ? await recordOffer(tx, bid, ads.month, ads.platform) : null;
+      let prefill: BillPrefill | undefined;
+      if (ads && offer && offer !== 'recorded') {
+        const place = placeName('en', offer.platform);
+        const sameCurrency = offer.currency === choices.bookCurrency;
+        const typed = readTypedAmount(offer.amount);
+        const exact = sameCurrency && typed !== null && typed !== 'ambiguous' && typed === parseDecimal(offer.amount);
+        const last = monthDays(offer.month)!.last;
+        prefill = { ads: `${offer.month}.${offer.platform}`, label: t('en', 'adSpend.prefill.label', { platform: place, month: offer.month }),
+          date: last < today ? last : today, gross: exact ? offer.amount : null,
+          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: `${offer.currency} ${offer.amount}` }),
+            ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
+      }
+      return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today), ...(prefill ? { prefill } : {}) }, choices);
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+book+body}));
   });
@@ -3661,10 +3678,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const date = dayOf(str('date'));
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
     const noNumber = str('noref') === '1';
-    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
-      taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') }));
+    // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
+    // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
+    const ads = typeof f['ads'] === 'string' && str('ads') !== '' ? adsAsked(str('ads')) : undefined;
+    if (ads === null) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    const out = await withTenantTx(deps.db, got.bid, async (tx) => {
+      let offer: Awaited<ReturnType<typeof recordOffer>> = null;
+      if (ads) {
+        await lockAdRecord(tx, got.bid);
+        offer = await recordOffer(tx, got.bid, ads.month, ads.platform);
+        if (!offer || offer === 'recorded') return { kind: 'ads_refused' as const };
+      }
+      const r = await recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
+        taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') });
+      if (r.kind === 'posted' && offer) await linkRecorded(tx, got.bid, offer, r.billId, personOf(got.s).id);
+      return r;
+    });
+    if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
-      : flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
+      : flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
   });
   app.post('/app/books/spending/bills/:id/pay', async (req, reply) => {
     const got = await spendingOwner(req, reply); if (!got) return reply;
