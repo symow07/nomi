@@ -185,7 +185,7 @@ d('The owner-selected catalogue (requires DATABASE_URL)', () => {
       expect(practice.body).not.toContain('class="wc-form"');expect(practice.body).not.toContain('action="/app/products/whatsapp/preview"');
     }finally{await app.close();}
   });
-  it('the media capability ignores sessions and denies unselected, revoked, malformed and old photo/proof tokens',async()=>{
+  it('the media capability is public: the same answer to anyone, no cookie, noindex, no-referrer; 404 for mutated, malformed, old photo/proof, unticked, unpublished, revoked, practice-copy and switched-off',async()=>{
     const s=await scenario(),other=await fixture(),secret='catalogue-media-session-secret-long';
     const app=Fastify({logger:false});
     registerWebApp(app,{db,businessId:s.biz,accessCode:'media-test-owner',sessionSecret:secret,provider:'disabled',secureCookie:false,
@@ -210,11 +210,35 @@ d('The owner-selected catalogue (requires DATABASE_URL)', () => {
         const changed=grant.token.slice(0,i)+(grant.token[i]==='A'?'B':'A')+grant.token.slice(i+1);
         expect((await get(changed)).statusCode).toBe(404);
       }
+      // A refusal is the same answer to anyone, with the same headers: no cookie, noindex, no-referrer.
+      const refusal=async(token:string)=>{
+        const blank=await get(token);expect(blank.statusCode).toBe(404);
+        for(const cookie of ['',own,foreign]){
+          const a=await get(token,cookie);expect(a.statusCode).toBe(404);expect(a.body).toBe(blank.body);
+          expect(a.headers['set-cookie']).toBeUndefined();expect(a.headers['x-robots-tag']).toContain('noindex');
+          expect(a.headers['referrer-policy']).toBe('no-referrer');expect(a.headers['cache-control']).toBe('private, no-store');
+        }
+      };
+      await refusal('x'.repeat(43));await refusal('bad');
+      // Unpublished: still 'submitted', its 15-minute lease run out.
+      const kept=await one(`select state,pending_until,published_at from wa_catalogue_images where business_id=$1`,[s.biz]);
+      await admin.query(`update wa_catalogue_images set state='submitted',published_at=null,pending_until='2000-01-01T00:00:00Z' where business_id=$1`,[s.biz]);
+      await refusal(grant.token);
+      await admin.query(`update wa_catalogue_images set state=$2,pending_until=$3,published_at=$4 where business_id=$1`,[s.biz,kept.state,kept.pending_until,kept.published_at]);
+      expect((await get(grant.token)).statusCode).toBe(200);
+      // A switched-off workspace and a practice copy publish nothing.
+      await admin.query(`update businesses set is_active=false where id=$1`,[s.biz]);
+      await refusal(grant.token);
+      await admin.query(`update businesses set is_active=true where id=$1`,[s.biz]);
+      await admin.query(`update businesses set practice_of=$2 where id=$1`,[s.biz,other.biz]);
+      await refusal(grant.token);
+      await admin.query(`update businesses set practice_of=null where id=$1`,[s.biz]);
+      expect((await get(grant.token)).statusCode).toBe(200);
       await admin.query(`update wa_catalogue_batch_items set selected=false where id=$1`,[s.item.id]);
-      expect((await get(grant.token)).statusCode).toBe(404);
+      await refusal(grant.token);
       await admin.query(`update wa_catalogue_batch_items set selected=true where id=$1`,[s.item.id]);
       await admin.query(`update wa_catalogue_images set state='revoked' where business_id=$1`,[s.biz]);
-      expect((await get(grant.token)).statusCode).toBe(404);
+      await refusal(grant.token);
     }finally{await app.close();}
   });
 });

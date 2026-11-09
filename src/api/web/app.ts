@@ -676,6 +676,15 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
+  /*
+   * 0235 — a catalogue photo Meta fetches with no session; the token is the only key. Its guards
+   * (`wa_catalogue_image_business`, `catalogueImage`, `registerCatalogueRoutes`): a 256-bit random token, compared whole;
+   * only for a batch item the owner ticked, while it is published or inside its 15-minute lease (expired, revoked,
+   * unticked, replaced or since changed: 404); never for a practice copy or a switched-off workspace; the bytes re-read in the
+   * workspace's own tenant transaction; no session is read or set, so signed in, signed out and another workspace get
+   * the same answer; `private, no-store`, `noindex`, `no-referrer`, `nosniff`. Proven in `wa-catalogue.test.ts`.
+   */
+  { method: 'GET', url: '/catalogue-media/:token', why: '0235 — a photo of an owner-ticked catalogue item, fetched by Meta with no session. The unguessable token IS the credential and lapses with the publication; the bytes only, the same answer to anyone' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
