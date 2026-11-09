@@ -3,6 +3,8 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import pg from 'pg';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { flashSaid } from './tenant.js';
 import type { ShopifyAnswer, ShopifyRequest } from '../../src/net/shopifyAdmin.js';
 import { SHOPIFY_API_VERSION } from '../../src/core/onboard/shopifyGraphql.js';
@@ -54,6 +56,7 @@ const OWNER_NOTICE = t('en', 'staff.notAllowed');
 const DECIDES = t('en', 'staff.ownerDecides');
 
 type Conv = { client: string; conv: string };
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let app: import('fastify').FastifyInstance;
@@ -64,7 +67,7 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
   let owner = '';
   let staff = '';
   let B_OWNER = '';
-  const C: Record<'chat' | 'mail' | 'held' | 'pair' | 'erased' | 'theirs', Conv> = {} as never;
+  const C: Record<'chat' | 'mail' | 'held' | 'pair' | 'erased' | 'tool' | 'theirs', Conv> = {} as never;
 
   // ── the fake Shopify ──────────────────────────────────────────────────────────────────────────────────────────
   const seen: ShopifyRequest[] = [];
@@ -149,6 +152,7 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
     C.held = await customer(A, 'held', 'whatsapp', 3);
     C.pair = await customer(A, 'pair', 'whatsapp', 4);
     C.erased = await customer(A, 'erased', 'whatsapp', 5);
+    C.tool = await customer(A, 'tool', 'whatsapp', 7);
     C.theirs = await customer(B, 'theirs', 'whatsapp', 6);
     // The e-mail customer wrote from the address on the order.
     await admin.query(`update client_channels set channel_user_id = $2 where client_id = $1`, [C.mail.client, ORDER_EMAIL]);
@@ -400,6 +404,31 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
     expect(await n('select count(*) as n from shopify_order_lookups where conversation_id = $1', [C.erased.conv])).toBe(0);
     expect(await n('select count(*) as n from shopify_order_lookups where conversation_id = $1', [C.pair.conv])).toBeGreaterThan(0);
     expect((await connections(A))[0]).toMatchObject({ archived_at: null });   // the store is the business's, not the customer's
+  });
+
+  it('THE TOOL ERASES THEM: tools/erase-buyer.mjs plans the lookups under "erased", carries the request out, and the database agrees', async () => {
+    const look = await lookupFor(A);
+    await look.look({ conversationId: C.tool.conv, orderName: ORDER, email: ORDER_EMAIL });
+    await look.look({ conversationId: C.tool.conv, orderName: '#NOMI-9998', email: ORDER_EMAIL });
+    await look.look({ conversationId: C.tool.conv, orderName: '#NOMI-9997', email: ORDER_EMAIL });
+    expect(await n('select count(*) as n from shopify_order_lookups where conversation_id = $1', [C.tool.conv])).toBe(3);
+    const req = (await admin.query(`insert into deletion_requests (business_id, scope, client_id, asked_by) values ($1, 'buyer', $2, 'owner') returning id::text as id`,
+      [A, C.tool.client])).rows[0].id as string;
+    const tool = (...extra: string[]) => spawnSync(process.execPath, ['tools/erase-buyer.mjs', '--request', req, ...extra],
+      { cwd: ROOT, env: { ...process.env, MIGRATE_DATABASE_URL: MIGRATE_URL }, encoding: 'utf8', timeout: 120_000 });
+    const dry = tool();
+    expect(dry.stderr).toBe('');
+    expect(dry.status).toBe(0);
+    expect(dry.stdout).toMatch(/shopify_order_lookups/);
+    const done = tool('--yes', '--confirm', req.slice(0, 8), '--by', 'Operator Test');
+    expect(done.stderr).toBe('');
+    expect(done.status).toBe(0);
+    expect(await n('select count(*) as n from shopify_order_lookups where conversation_id = $1', [C.tool.conv])).toBe(0);
+    const ledger = (await admin.query('select counts from erasure_ledger where request_id = $1', [req])).rows[0].counts;
+    expect(ledger.erased.shopify_order_lookups).toBe(3);
+    expect(ledger.changed?.shopify_order_lookups).toBeUndefined();
+    expect((await admin.query('select state from deletion_requests where id = $1', [req])).rows[0].state).toBe('done');
+    expect(await n('select count(*) as n from shopify_order_lookups where conversation_id = $1', [C.pair.conv])).toBeGreaterThan(0);
   });
 
   it('STAFF DISCONNECTING: refused; the owner disconnects — the credential is gone and the switch is off', async () => {

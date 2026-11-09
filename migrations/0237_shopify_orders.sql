@@ -184,15 +184,14 @@ begin
   end if;
 end $$;
 
-create or replace function customer_erasure_contract()
+-- Extended, never replaced: the predecessor's rows, then 0237's own. The store's connection holds no customer; a lookup
+-- (that their order was looked up, its outcome, the verified order's name) is theirs.
+create function customer_erasure_contract()
 returns table (tbl text, action text, clear text[], blank text[], detach text[], match text)
 language sql immutable set search_path = public as $$
   select * from customer_erasure_contract_before_0237()
-  union all values
-    -- 0237 — the store's connection: no customer in it.
-    ('shopify_connections', 'unrelated', null::text[], null::text[], null::text[], null::text),
-    -- 0237 — that a customer's order was looked up, its outcome, and the verified order's name: theirs.
-    ('shopify_order_lookups', 'erase', null::text[], null::text[], null::text[], null::text)
+  union all select t, 'unrelated', null::text[], null::text[], null::text[], null::text from unnest(array['shopify_connections']) t
+  union all select 'shopify_order_lookups', 'erase', null::text[], null::text[], null::text[], null::text
 $$;
 revoke all on function customer_erasure_contract() from public;
 revoke all on function customer_erasure_contract_before_0237() from public;
