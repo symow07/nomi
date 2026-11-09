@@ -16773,10 +16773,10 @@ Translate with the catalogue lines above: keep "added to WhatsApp's catalogue" (
 |---|---|
 | `refused.what.product_changed` | A product card did not go out. |
 | `refused.why.product_changed` | This product changed since it was added to WhatsApp’s catalogue. |
-| `refused.do.product_changed` | Sync it again, then send the card. |
+| `refused.do.product_changed` | Update the WhatsApp catalogue, then send the card. |
 | `card.send.label` | WhatsApp product card |
 | `card.send.button` | Send the product card |
 | `card.flash.sent` | Your product card is waiting to send. |
-| `card.flash.not_sendable` | That product is not ready in your WhatsApp catalogue. Sync it again, then send the card. |
+| `card.flash.not_sendable` | That product is not ready in your WhatsApp catalogue. Update the catalogue, then send the card. |
 | `card.flash.card_unsupported` | A product card can only be sent on WhatsApp. |
 | `card.flash.window` | A product card can only go within 24 hours of the customer’s last message. Write to them in words first; when they reply, the card can go. |
