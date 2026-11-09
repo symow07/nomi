@@ -28,10 +28,10 @@ async function usableAccounts(tx: Tx, businessId: string, ids: readonly string[]
 }
 const line = (accountId: string, currency: string, amount: Decimal, debit: boolean): DraftLine => ({ accountId,currency,debit:debit?amount:null,credit:debit?null:amount,partyId:null,taxCodeId:null,label:null,isFx:false });
 /** Every transfer uses the same draft/post writer and its period, account, currency and balance checks. */
-async function transfer(tx: Tx, businessId: string, journalId: string, date: string, ref: string, currency: string, amount: Decimal, debit: string, credit: string, actor: string): Promise<{ id: string } | { reason: string }> {
+async function transfer(tx: Tx, businessId: string, journalId: string, date: string, ref: string, currency: string, amount: Decimal, debit: string, credit: string, actor: string, label: string = ref): Promise<{ id: string } | { reason: string }> {
   if (!await usableAccounts(tx,businessId,[debit,credit])) return { reason:'accounts' };
   await sql`savepoint stripe_transfer`.execute(tx);
-  const d = await draftEntry(tx,businessId,actor,{ journalId,date,label:ref,documentRef:ref,documentDate:date,lines:[line(debit,currency,amount,true),line(credit,currency,amount,false)] });
+  const d = await draftEntry(tx,businessId,actor,{ journalId,date,label,documentRef:ref,documentDate:date,lines:[line(debit,currency,amount,true),line(credit,currency,amount,false)] });
   if (d.kind==='refused') { await sql`rollback to savepoint stripe_transfer`.execute(tx); return { reason:d.reason }; }
   const p = await postEntry(tx,businessId,d.id,actor);
   if (p.kind==='refused') { await sql`rollback to savepoint stripe_transfer`.execute(tx); return { reason:p.reason }; }
@@ -152,6 +152,14 @@ async function payoutRow(tx:Tx,bid:string,cid:string,id:string):Promise<PayoutRo
   return (await sql<PayoutRow>`select provider_id as id,amount::text,currency,event_date::text as date,status,nomi_amount::text as nomi,mapping_id::text as "mappingId",entry_id::text as "entryId",receipt_id::text as "receiptId",reversal_id::text as "reversalId",destination,failure_balance_id as "failureId",failure_date::text as "failureDate"
     from stripe_payouts where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${id} for update`.execute(tx)).rows[0]??null;
 }
+/**
+ * A payout entry's label is words and its date, never Stripe's id: the label is the entry page's heading, and a
+ * 35-character id does not wrap on a phone. The id stays the entry's document reference.
+ */
+export function payoutLabel(kind:'sent'|'received'|'returned',date:string):string {
+  // The owner's own words from the payments page ('paymentLinks.received', 'paymentLinks.payoutReturned').
+  return `${kind==='sent'?'Stripe payout':kind==='received'?'Stripe payout · Bank receipt matched':'Payout returned to your Stripe balance'} · ${date}`;
+}
 export async function recordStripePayout(tx:Tx,bid:string,cid:string,fact:PayoutFact):Promise<StripePosting> {
   await lock(tx,bid,cid);
   await sql`insert into stripe_payouts(business_id,connection_id,provider_id,amount,currency,event_date,arrival_date,status)
@@ -174,7 +182,7 @@ export async function recordStripePayout(tx:Tx,bid:string,cid:string,fact:Payout
     await sql`update stripe_payouts set failure_balance_id=${b.id},failure_date=${date}::date where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${fact.id}`.execute(tx);
     const m=(await sql<StripeMapping>`select id::text,clearing_id::text as "clearingId",transit_id::text as "transitId",journal_id::text as "journalId" from stripe_mappings where business_id=${bid}::uuid and id=${p.mappingId}::uuid`.execute(tx)).rows[0];
     if (!m || p.nomi===null) return refuse('accounts');
-    const reversal=await transfer(tx,bid,m.journalId,date,b.id,p.currency,decimal(p.nomi),m.clearingId,m.transitId,'stripe');
+    const reversal=await transfer(tx,bid,m.journalId,date,b.id,p.currency,decimal(p.nomi),m.clearingId,m.transitId,'stripe',payoutLabel('returned',date));
     if ('reason' in reversal) return refuse(reversal.reason);
     await sql`update stripe_payouts set reversal_id=${reversal.id}::uuid,reason=${p.receiptId?'bank_receipt_review':null} where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${fact.id}`.execute(tx);
     return {state:'posted'};
@@ -199,7 +207,7 @@ export async function confirmStripePayout(tx:Tx,bid:string,cid:string,id:string,
     coalesce((select sum(case when kind in ('payment','refund_reversal') then amount else -amount end) from stripe_movements where business_id=${bid}::uuid and connection_id=${cid}::uuid and currency=${p.currency} and entry_id is not null),0)
     -coalesce((select sum(nomi_amount) from stripe_payouts where business_id=${bid}::uuid and connection_id=${cid}::uuid and currency=${p.currency} and entry_id is not null and reversal_id is null),0))::text as n`.execute(tx)).rows[0]!.n;
   if (compareDecimal(amount,decimal(available))>0) return {state:'exception',reason:'not_from_nomi'};
-  const entry=await transfer(tx,bid,m.journalId,p.date,id,p.currency,amount,m.transitId,m.clearingId,actor);
+  const entry=await transfer(tx,bid,m.journalId,p.date,id,p.currency,amount,m.transitId,m.clearingId,actor,payoutLabel('sent',p.date));
   if ('reason' in entry) { await sql`update stripe_payouts set reason=${entry.reason} where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${id}`.execute(tx); return {state:'exception',reason:entry.reason}; }
   await sql`update stripe_payouts set nomi_amount=${amount}::numeric,mapping_id=${m.id}::uuid,entry_id=${entry.id}::uuid,confirmed_by=${actor},confirmed_at=now(),reason=null
     where business_id=${bid}::uuid and connection_id=${cid}::uuid and provider_id=${id}`.execute(tx);
@@ -218,7 +226,7 @@ export async function receiveStripePayout(tx:Tx,bid:string,cid:string,id:string,
   const s=(await sql<{account:string;currency:string;amount:string;date:string}>`select account_id::text as account,currency,amount::text,booked_on::text as date from statement_lines where business_id=${bid}::uuid and id::text=${statementId}`.execute(tx)).rows[0];
   if (!s||s.account!==m.bank||s.currency!==p.currency||compareDecimal(decimal(s.amount),decimal(p.amount))!==0||!(await paymentAccounts(tx,bid)).some(a=>a.id===m.bank)) return {state:'exception',reason:'bank_receipt'};
   await sql`savepoint stripe_receipt`.execute(tx);
-  const entry=await transfer(tx,bid,m.journal,s.date,`${id} receipt`,p.currency,decimal(p.nomi),m.bank,m.transit,actor);
+  const entry=await transfer(tx,bid,m.journal,s.date,`${id} receipt`,p.currency,decimal(p.nomi),m.bank,m.transit,actor,payoutLabel('received',s.date));
   if ('reason' in entry) {await sql`rollback to savepoint stripe_receipt`.execute(tx);return {state:'exception',reason:entry.reason};}
   const jl=(await sql<{id:string}>`select id::text from journal_lines where business_id=${bid}::uuid and entry_id=${entry.id}::uuid and account_id=${m.bank}::uuid`.execute(tx)).rows[0]!.id;
   if (!await matchLine(tx,bid,actor,statementId,jl)) {await sql`rollback to savepoint stripe_receipt`.execute(tx);return {state:'exception',reason:'bank_receipt'};}

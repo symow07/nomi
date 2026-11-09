@@ -12,7 +12,7 @@ import { lockTo, reopenTo } from '../../src/db/booksClose.js';
 import { paymentAccounts, importStatement } from '../../src/db/bankStatements.js';
 import { purgeBusinesses } from './books-db.js';
 import { bindStripe, saveStripeMapping, reservePayment, keepCheckout, newStripeState, claimStripeState, storeStripeEvent } from '../../src/db/stripePayments.js';
-import { postCapturedPayment, recordStripePayout, confirmStripePayout, receiveStripePayout, postStripeRefund } from '../../src/db/stripePosting.js';
+import { postCapturedPayment, recordStripePayout, confirmStripePayout, receiveStripePayout, postStripeRefund, payoutLabel } from '../../src/db/stripePosting.js';
 import type { IntentFact } from '../../src/core/payments/paymentLink.js';
 import { createPaymentLink, expirePaymentLink, reconcileStripePayments } from '../../src/payments/invoicePayments.js';
 import { paymentProvider } from '../fixtures/paymentProvider.js';
@@ -107,6 +107,15 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     expect(await as(tx => receiveStripePayout(tx, BIZ, connection, payout.id, line, 'owner'))).toMatchObject({ state: 'posted' });
     expect(await as(tx => receiveStripePayout(tx, BIZ, connection, payout.id, line, 'owner'))).toMatchObject({ state: 'posted' });
     expect((await as(tx => sql`select * from statement_matches where statement_line_id=${line}::uuid and unmatched_at is null`.execute(tx))).rows).toHaveLength(1);
+    // The entries' labels are words and a date (the entry page's heading); the payout's id is their document reference.
+    const entries = (await as(tx => sql<{ label: string; ref: string; date: string }>`select e.label, e.document_ref as ref, e.entry_date::text as date from journal_entries e
+      join stripe_payouts p on e.id in (p.entry_id, p.receipt_id) where p.provider_id = 'po_fixture' order by e.created_at`.execute(tx))).rows;
+    for (const e of entries) expect(e.label).not.toContain('po_');
+    expect(entries[0]!.label).toBe(`Stripe payout · ${entries[0]!.date}`);
+    expect(entries).toEqual([
+      { label: payoutLabel('sent', entries[0]!.date), ref: 'po_fixture', date: entries[0]!.date },
+      { label: payoutLabel('received', '2026-10-11'), ref: 'po_fixture receipt', date: '2026-10-11' },
+    ]);
   });
   it('keeps a manual-payment race as an exception, never a second payment or invented credit', async () => {
     const id = await invoice(), a = await reserve(id);
