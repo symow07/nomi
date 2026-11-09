@@ -100,6 +100,9 @@ create table ig_comment_tombstones (
 );
 alter table ig_comment_tombstones enable row level security;
 revoke all on ig_comment_tombstones from public, nomi_app;
+-- No role reads it directly (definer-only), and the accountant never: the restrictive policy every table under row
+-- security carries, so it is not mistaken for a table of the books.
+create policy not_for_accountants on ig_comment_tombstones as restrictive for all using (not (select viewer_is_accountant())) with check (not (select viewer_is_accountant()));
 
 do $$ declare t text; begin
   foreach t in array array['ig_comment_settings','ig_comment_login_states','ig_comments','ig_comment_replies','ig_comment_public_replies','ig_comment_alerts'] loop
