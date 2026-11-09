@@ -285,9 +285,11 @@ export function speakerContext(speaker: Speaker | null | undefined): Record<stri
 
 export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): ReplyWriter {
   const prompt = loadPrompt('response.txt');
+  // 5.5 — read once, used only for a turn that carries CONTEXT.order.
+  const orderSection = loadPrompt('response-order.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, violation, knowledge, options, sampleNote, closureNote, speaker, priceFirst, procedure }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, violation, knowledge, options, sampleNote, closureNote, speaker, priceFirst, procedure, order }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -322,6 +324,8 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         ...(priceFirst ? { selling: { price_first: true } } : {}),
         // 0229 — the owner's step for this turn, when a procedure applies.
         ...(procedure ? { procedure } : {}),
+        // 5.5 — the verified order, last, and only when there is one.
+        ...(order ? { order } : {}),
       };
 
       const guard = violation === 'unkept_promise'
@@ -341,7 +345,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         max_tokens: 600,
         temperature: 0.3,
         output_config: { format: { type: 'json_schema', schema: WRITER_SCHEMA } },
-        system: prompt.text + guard,
+        system: prompt.text + (order ? `\n\n${orderSection.text}` : '') + guard,
         messages: [{
           role: 'user',
           content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nCLIENT MESSAGE:\n${text || '[media]'}`,
@@ -352,7 +356,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
       // Null when there are no words to send: a refusal, an empty answer, one cut
       // short. The turn hands it to a person; nothing stands in for an answer.
       const reply = readWriterOutput(block?.type === 'text' ? block.text : null, res.stop_reason);
-      return { reply, promptVersion: prompt.version, modelId: modelOf(res, model),
+      return { reply, promptVersion: order ? `${prompt.version}+${orderSection.version}` : prompt.version, modelId: modelOf(res, model),
         usage: usageOf(res.usage) };
     },
   };
