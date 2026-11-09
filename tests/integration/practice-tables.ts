@@ -73,6 +73,8 @@ export const PRACTICE_SKIP = [
   'connector_credentials', 'meta_accounts', 'mail_accounts', 'sending_domains',
   // 0215 — her own TikTok account and its grant: a person's, never practised.
   'tiktok_accounts',
+  // 0237 — her own Shopify store, its credential, and the lookups of real customers' orders: Practice never asks Shopify.
+  'shopify_connections', 'shopify_order_lookups',
   // WA (0120) — her own WhatsApp number and its token: a person's, never practised.
   'whatsapp_accounts', 'whatsapp_templates',
   'pilot_allowlist', 'pilot_log', 'agents',

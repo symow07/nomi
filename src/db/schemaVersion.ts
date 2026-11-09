@@ -482,7 +482,8 @@ import type { Db } from './client.js';
 // 230 = the checks before a change goes live: the staged change, the saved cases' references, each re-run's reply (0230).
 // 231 = what Nomi did for you: the owner's minutes per reply, and the month's e-mail sent once (0231).
 // 232 = setup in minutes: a file of customers kept while the owner checks it, and the first import's time (0232).
-export const REQUIRED_SCHEMA_VERSION = 232;
+// 237 = Shopify orders in the conversation: the store's read-only connection, its switch, and each lookup's audit (0237).
+export const REQUIRED_SCHEMA_VERSION = 237;
 
 export type SchemaState = {
   readonly required: number;
