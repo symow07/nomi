@@ -42,6 +42,7 @@ export async function unscheduleRetired(boss: { unschedule(name: string): Promis
 
 export const QUEUES = {
   instagramComments: 'instagram.comments',
+  instagramCommentPublic: 'instagram.comment_public',
   igCommentSweep: 'instagram.comment_sweep',
   /** one job per inbound message; serialized per conversation */
   inbound: 'message.inbound',
