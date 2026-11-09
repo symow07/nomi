@@ -12,7 +12,7 @@ import { lockTo, reopenTo } from '../../src/db/booksClose.js';
 import { paymentAccounts, importStatement } from '../../src/db/bankStatements.js';
 import { purgeBusinesses } from './books-db.js';
 import { bindStripe, saveStripeMapping, reservePayment, keepCheckout, newStripeState, claimStripeState, storeStripeEvent } from '../../src/db/stripePayments.js';
-import { postCapturedPayment, recordStripePayout, confirmStripePayout, receiveStripePayout, postStripeRefund, payoutLabel } from '../../src/db/stripePosting.js';
+import { postCapturedPayment, recordStripePayout, confirmStripePayout, receiveStripePayout, postStripeRefund, payoutLabel, feeLabel } from '../../src/db/stripePosting.js';
 import type { IntentFact } from '../../src/core/payments/paymentLink.js';
 import { createPaymentLink, expirePaymentLink, reconcileStripePayments } from '../../src/payments/invoicePayments.js';
 import { paymentProvider } from '../fixtures/paymentProvider.js';
@@ -88,6 +88,13 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
     const rows = await as(tx => sql<{ n: number; amount: string }>`select count(*)::int as n,sum(amount)::text as amount from invoice_payments where invoice_id=${id}::uuid`.execute(tx));
     expect(rows.rows[0]).toEqual({ n: 1, amount: '100.00' });
     expect((await as(tx => sql`select * from stripe_movements where attempt_id=${a.id}::uuid and entry_id is not null`.execute(tx))).rows).toHaveLength(2);
+    // The fee entry's label is words and a date (the entry page's heading); the balance transaction's id is its document reference.
+    const fee = (await as(tx => sql<{ label: string; ref: string; date: string }>`select e.label, e.document_ref as ref, e.entry_date::text as date from journal_entries e
+      join stripe_movements m on m.entry_id = e.id where m.attempt_id=${a.id}::uuid and m.kind='fee'`.execute(tx))).rows;
+    expect(fee).toHaveLength(1);
+    expect(fee[0]!.label).not.toContain('txn_');
+    expect(fee[0]!.label).toBe(`Stripe fee · ${fee[0]!.date}`);
+    expect(fee[0]).toEqual({ label: feeLabel(fee[0]!.date), ref: 'txn_paid', date: fee[0]!.date });
   });
   it('leaves a missing fee pending, then posts the real fee once when it arrives', async () => {
     const a = await reserve(await invoice());

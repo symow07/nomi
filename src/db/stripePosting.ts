@@ -80,7 +80,7 @@ export async function postCapturedPayment(tx: Tx, businessId: string, attemptId:
   const fee=await movement(tx,businessId,a,'fee',b.id,b.fee,b.currency,await dateOf(tx,businessId,b.created));
   if (!fee.same) return result(tx,businessId,a,{state:'exception',reason:'fee_differs'});
   if (!fee.entryId && signOf(b.fee)>0) {
-    const posted=await transfer(tx,businessId,m.journalId,fee.date,b.id,b.currency,b.fee,m.feeId,m.clearingId,'stripe');
+    const posted=await transfer(tx,businessId,m.journalId,fee.date,b.id,b.currency,b.fee,m.feeId,m.clearingId,'stripe',feeLabel(fee.date));
     if ('reason' in posted) { await sql`update stripe_movements set reason=${posted.reason} where id=${fee.id}::uuid`.execute(tx); return result(tx,businessId,a,{state:'exception',reason:posted.reason}); }
     await sql`update stripe_movements set entry_id=${posted.id}::uuid,reason=null where id=${fee.id}::uuid`.execute(tx);
   }
@@ -159,6 +159,10 @@ async function payoutRow(tx:Tx,bid:string,cid:string,id:string):Promise<PayoutRo
 export function payoutLabel(kind:'sent'|'received'|'returned',date:string):string {
   // The owner's own words from the payments page ('paymentLinks.received', 'paymentLinks.payoutReturned').
   return `${kind==='sent'?'Stripe payout':kind==='received'?'Stripe payout · Bank receipt matched':'Payout returned to your Stripe balance'} · ${date}`;
+}
+/** A fee entry's label, by the same rule: words and the date; the balance transaction's id stays the document reference. */
+export function feeLabel(date:string):string {
+  return `Stripe fee · ${date}`;
 }
 export async function recordStripePayout(tx:Tx,bid:string,cid:string,fact:PayoutFact):Promise<StripePosting> {
   await lock(tx,bid,cid);
