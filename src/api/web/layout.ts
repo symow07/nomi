@@ -1,5 +1,6 @@
 import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
 import { MONTH_REPORT_CSS } from './monthReportStyle.js';
+import { SETUP_MINUTES_CSS } from './setupMinutesStyle.js';
 import { FOLLOW_UP_CSS } from './followUpStyle.js';
 import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
@@ -181,8 +182,8 @@ export const atWork = (text: string, assistant = false): string =>
 export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
   `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
 
-export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
+export const deeper = (href: string, label: string, extra = '', attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}${GO}</a>`;
 
 /** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
 export const unescapeHtml = (s: string): string =>
@@ -201,8 +202,8 @@ export const byAssistant = (name: string): string =>
   `<span class="as">${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
-export const back = (href: string, label: string, attrs = ''): string =>
-  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${esc(label)}</a>`;
+export const back = (href: string, label: string, attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';
@@ -1196,6 +1197,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      inline; the column that names someone on People is .person. */
   .person { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .caption { font-size:var(--font-size-caption); }
+  .stripe-payments article h3, .stripe-payments article .caption { overflow-wrap:anywhere; }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */
@@ -2743,7 +2745,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + FOLLOW_UP_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,

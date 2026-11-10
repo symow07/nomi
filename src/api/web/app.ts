@@ -1,4 +1,8 @@
 import { renderResultsTabs } from './resultsNavigation.js';
+import {registerPaymentRoutes} from './paymentRoutes.js';
+import {renderInvoicePaymentDoor} from './stripePayments.js';
+import {invoiceLinkState} from '../../db/stripePayments.js';
+import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
 import { renderFollowUpRule, renderFollowUps } from './followUps.js';
 import { readFollowUpRule } from '../../core/conversation/followUps.js';
 import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
@@ -140,7 +144,12 @@ import {
 } from './importFlow.js';
 import type { CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { looksLikeXlsx, xlsxRows, rowsAsCsv } from '../../net/xlsx.js';
-import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, type StoreFormRefusal } from './storeImport.js';
+import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, type StoreFormRefusal, type ShopifyFormProps } from './storeImport.js';
+import { readStoreAddress } from '../../core/onboard/storeAddress.js';
+import { shopifyTransport, storefrontLocked, type ShopifyTransport } from '../../net/shopifyAdmin.js';
+import { startShopifyImport } from '../../db/shopifyImport.js';
+import { loadSetupMilestones } from '../../db/setupMilestones.js';
+import { contactImportScope } from './contactImportRoutes.js';
 import type { Kept } from './rows.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
@@ -274,7 +283,7 @@ import { conversationAdvisorRoutes } from './conversationAdvisor.js';
 import { renderCopilotPanel } from './copilotPanel.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
-  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, wordsHtml, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -509,6 +518,8 @@ export type WebDeps = {
    * no card can be saved, and /hooks/stripe does not exist.
    */
   readonly stripe?: { readonly client: StripeClient; readonly webhookSecret: string } | null;
+  readonly stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
+  readonly kickStripePayments?: (businessId:string)=>Promise<void>;
   /**
    * G3 — the WhatsApp number this installation is configured with (Meta's
    * phone number id), or null when there is none. It is what "Connect this
@@ -624,6 +635,12 @@ export type WebDeps = {
   readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
+  /**
+   * Block 4.4 — the requests to a Shopify store: the owner's own app reading its products, and the storefront's
+   * password check. The real one (src/net/shopifyAdmin.ts) unless a test gives one that records every request. A
+   * composition that fakes the store (`storeFetcher`) and not this asks no storefront anything.
+   */
+  readonly shopifyTransport?: ShopifyTransport;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
   readonly push?: PushOut | null;
   /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
@@ -678,6 +695,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/verify', why: 'A3 — redeems a code: five tries and ten minutes per code, counted in the database' },
   { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
+  { method: 'GET', url: '/payment/return', why: 'Invoice payment return information only: ignores query values, reveals no invoice or customer, and records no payment' },
+  { method: 'POST', url: '/hooks/stripe/connect', why: 'Connected-account event receipt: verifies the separate raw-body signature and mode before retaining minimal event identifiers' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
@@ -2525,7 +2544,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       scope.post('/hooks/stripe', async (req, reply) => {
         const raw = typeof req.body === 'string' ? req.body : '';
         const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
-        if (!e) return reply.code(400).send({ error: 'signature' });
+        if (!e || 'account' in JSON.parse(raw)) return reply.code(400).send({ error: 'signature' });
         const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
           req.log.warn({ reason: loggableMessage(err instanceof Error ? err.message : String(err)) }, 'stripe event failed');
           return 'retry' as const;
@@ -3131,7 +3150,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3299,11 +3318,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const sendable = v ? await sendableInvoice(tx, bid, id) : null;
       const sending = v ? { on: await invoiceSendingOn(tx, bid), conversationId: sendable?.conversationId ?? null, channel: sendable?.channel ?? null,
         history: await invoiceSendHistory(tx, bid, id) } : null;
-      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending };
+      const paymentLinks=Boolean(deps.stripeConnect)&&(await sql`select 1 from businesses where id=${bid}::uuid and country in ('GB','US') and practice_of is null`.execute(tx)).rows.length>0;
+      const links=paymentLinks&&v&&booksMay(personOf(s),'post')?await invoiceLinkState(tx,bid,id):undefined;
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending, paymentLinks, links };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}${renderInvoicePaymentDoor(id,locale,booksMay(personOf(s),'post'),!['draft','discarded'].includes(got.v.status),got.paymentLinks,got.links)}` }));
   });
   /**
    * 0226 — SEND THE INVOICE from its page (the owner's alone): the same one path as from the conversation
@@ -5999,7 +6020,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * its own that lost what she typed (the audit's two separate refusal pages).
    */
   const addAgain = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession,
-    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal }) => {
+    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | { readonly shopify: ShopifyFormProps }) => {
     const locale = localeOf(req);
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.teach'), active: 'products',
@@ -6016,8 +6037,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
       { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
     if (!out.ok) {
-      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
+      // Block 4.4 — no public list may be a store closed by a password: asked with no credential and no redirect
+      // followed; then the page opens the Shopify way in, the address kept.
+      const probe = deps.shopifyTransport ?? (deps.storeFetcher ? null : shopifyTransport);
+      const at = out.reason === 'no_feed' && probe ? readStoreAddress(String(b['address'] ?? '')) : null;
+      const reason = at?.ok && probe && await storefrontLocked(at.origin, probe) ? 'password_protected' as const : out.reason;
+      return addAgain(req, reply, s, { store: { form: 'store', reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
     }
+    return reply.redirect(`/app/products/import/${out.id}`, 303);
+  });
+  /**
+   * Block 4.4 — a password-protected Shopify store, read with the owner's own app: the token, or the Client ID and
+   * secret (src/db/shopifyImport.ts), into the same kept review. The credentials are read from this request only:
+   * never kept, logged, put in an address or sent back — a refusal redraws the add page with the address alone.
+   */
+  app.post('/app/products/add/shopify', { logLevel: 'warn' }, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const out = await startShopifyImport(deps.db, s.businessId, personOf(s).id, b, deps.shopifyTransport ?? shopifyTransport);
+    if (!out.ok) return addAgain(req, reply, s, { shopify: { form: out.form, currencyConfirmed: b['currency'] === 'on' } });
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
   /** K8 — a file her store exported (or any table): its columns first, then the review. */
@@ -7001,7 +7040,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       await readCustomersPage(tx, {businessId:bid.value,viewerId:personOf(s).id,...query}), await listLabels(tx,bid.value),
     ] as const);
     reply.header('cache-control','private, no-store');
-    return {title:t(locale,'customers.all'),bodyHtml:customerArea(renderCustomers(data,locale,new Date(),{labels,returnHref:req.url}),locale,'all')};
+    // Block 4.4 — the notice a route left on its way here (staff sent away from the customer import, "the owner
+    // decides"): drawn above the list, as Labels and Feedback draw theirs, and cleared once read.
+    return {title:t(locale,'customers.all'),bodyHtml:customerArea(`${flashBanner(takeFlash(req, reply))}${renderCustomers(data,locale,new Date(),{labels,returnHref:req.url})}`,locale,'all')};
   }));
   app.get('/app/customers/orders', authed('customers', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
@@ -7202,6 +7243,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/calendar', back ? 'calendar.flash.restored' : 'calendar.flash.notFound');
   });
 
+  // ── Block 4.4 — customers from a file (src/api/web/contactImportRoutes.ts), owner only ───────────────────────────
+  contactImportScope(app, {
+    db: deps.db,
+    owner: async (req, reply) => {
+      const s = await ownerOnly(req, reply, 'data_rights', '/app/customers');
+      return s ? { businessId: s.businessId, actor: personOf(s).id } : null;
+    },
+    locale: localeOf,
+    takeFlash,
+    flashTo: (reply, path, key) => flashTo(reply, path, key),
+    page,
+    evict: (businessId) => facts.evict(businessId),
+  });
+
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
   app.get('/app/get-started', async (req, reply) => {
     const s = sessionOf(req);
@@ -7217,12 +7272,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     const progress = setupState() ?? (bid0.ok
       ? await withTenantTx(deps.db, bid0.value, (tx) => setupProgress(tx, bid0.value)) : null);
+    // Block 4.4 — the four milestones, each when it was first reached (src/db/setupMilestones.ts).
+    const milestones = bid0.ok ? await withTenantTx(deps.db, bid0.value, (tx) => loadSetupMilestones(tx, bid0.value)) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'area1.setup.title'), active: 'home',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'area1.setup.title'))}</h1>
-        <p class="muted">${esc(t(locale, 'area1.setup.intro'))}</p>`
+      bodyHtml: `<h1 class="page">${wordsHtml(locale, 'area1.setup.title')}</h1>
+        <p class="muted">${wordsHtml(locale, 'area1.setup.intro')}</p>`
         + renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale,
-          assistantName(locale), undefined, { embedded: true })
+          assistantName(locale), undefined, milestones
+            ? { embedded: true, milestones, now: new Date(), canManage: personOf(s).isOwner } : { embedded: true })
         + `<section class="readiness-section">${renderPilotRunbook(data, locale, flash, feedback, personOf(s), { embedded: true })}</section>`,
     }));
   });
@@ -9250,4 +9308,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sbxAction('/app/sandbox/resume', (bid, cid, _req, actor) =>
       resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
   }
+  registerPaymentRoutes(app,{
+    db:deps.db,provider:deps.stripeConnect,publicBaseUrl:deps.publicBaseUrl,
+    owner:async(req,reply)=>{
+      const s=sessionOf(req);if(!s){await reply.redirect('/login');return null;}
+      if(!booksMay(personOf(s),'post')){await flashTo(reply,'/app','staff.notAllowed');return null;}
+      const businessId=bidOf(s);if(!businessId){await reply.callNotFound();return null;}
+      return {businessId,actor:personOf(s).id,session:parseCookies(req.headers.cookie)[COOKIE]??''};
+    },locale:localeOf,flash:takeFlash,
+    page:(req,bodyHtml)=>page(req,{title:t(localeOf(req),'paymentLinks.title'),active:'settings',bodyHtml}),
+    redirect:(reply,key,params)=>flashTo(reply,'/app/payments/stripe',key,params),
+    window:ownerSendWindow,kickDrive:deps.kickDrive??(async()=>{}),kick:deps.kickStripePayments,
+  });
+
 }

@@ -187,7 +187,7 @@ d('Block 3 PR 4 · the hand-off that carries context (requires DATABASE_URL)', {
     const body = res.json() as { wants: { text: string; phrased: boolean } };
     expect(body.wants.phrased).toBe(false);
     expect(body.wants.text).toContain('Could you send them soon?');
-    expect(res.body).not.toContain('999');
+    expect(res.body.replace(/\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi, '').replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\b/g, '')).not.toContain('999');
     advisor.say = WORDED;
   });
 

@@ -1,3 +1,5 @@
+import {connectClient,connectConfigFrom,type ConnectConfig,type ConnectClient} from './payments/stripeConnect.js';
+import {reconcileStripePayments} from './payments/invoicePayments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -103,6 +105,7 @@ import type { Locale } from './core/owner/i18n/locale.js';
 import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { expireContactImports } from './db/contactImports.js';
 import type { PgBoss } from 'pg-boss';
 import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -539,6 +542,7 @@ export async function buildProduction(
     signupGuard?: SignupGuard | null;
     /** BILL — tests only: Stripe's client with the network a recorder, and its webhook secret. */
     stripe?: { readonly client: StripeClient; readonly webhookSecret: string };
+    stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -775,6 +779,7 @@ export async function buildProduction(
     const c = stripeConfigFrom(process.env);
     return c ? { client: stripeClient(c), webhookSecret: c.webhookSecret } : null;
   })();
+  const stripeConnect = overrides?.stripeConnect === undefined ? (()=>{const config=connectConfigFrom(process.env);return config?{config,client:connectClient(config)}:null;})() : overrides.stripeConnect;
   if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
     console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
   }
@@ -1011,6 +1016,8 @@ export async function buildProduction(
       signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
       // BILL — the payment provider; null until the owner pastes its keys.
       stripe,
+      stripeConnect,
+      kickStripePayments:async(businessId)=>{await boss.send(QUEUES.stripePayments,{businessId},{singletonKey:businessId});},
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1281,6 +1288,13 @@ export async function buildProduction(
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
+    // Block 4.4 (0232) — a file of customers waiting for Add or Discard is kept seven days at most: every hour, older
+    // ones are erased (`expire_contact_imports`). Counts only, never a row's words.
+    await boss.schedule(QUEUES.contactImportExpiry, '55 * * * *', {});
+    await boss.work(QUEUES.contactImportExpiry, async () => {
+      const n = await expireContactImports(db);
+      if (n > 0) console.log(`[contacts] ${n} file(s) of customers kept seven days erased`);
+    });
     // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
     await boss.schedule(QUEUES.booksRead, '20 5 * * *', {});
@@ -1373,6 +1387,17 @@ export async function buildProduction(
       if (n > 0) console.log(`[erasure] ${n} ledger line(s) mailed to the operator`);
     });
   };
+
+  if(stripeConnect){
+    await boss.schedule(QUEUES.stripePayments,'*/5 * * * *',{});
+    await boss.work<{businessId?:string}>(QUEUES.stripePayments,async jobs=>{
+      for(const job of jobs){
+        const ids=job.data.businessId?[{business_id:job.data.businessId}]:(await sql<{business_id:string}>`select business_id::text from stripe_pending_workspaces()`.execute(db)).rows;
+        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL,
+          alert:async(b)=>{await sendAlert(boss,{businessId:b,kind:'payment_paid_over',conversationId:null});}},bid.value);}
+      }
+    });
+  }else await boss.unschedule(QUEUES.stripePayments).catch(()=>undefined);
 
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
   // webhook routes — for hosting before ANY channel is configured. An override
@@ -1635,6 +1660,8 @@ export async function buildProduction(
    * from), else drafted for the owner with the reason on the card (outbound/invoiceReminders.ts). Registered beside the
    * outbound worker it feeds, for the same reason the follow-ups are.
    */
+
+
   await boss.schedule(QUEUES.invoiceReminders, '20 * * * *', {});
   await boss.work(QUEUES.invoiceReminders, async () => {
     const r = await remindDueInvoices({
