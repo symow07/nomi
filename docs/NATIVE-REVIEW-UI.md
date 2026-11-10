@@ -16779,3 +16779,7 @@ language. The PDF's own labels are English too, as the text proforma's are.
   that the Spanish keeps *tú* with no agreeing adjective ("te espera", "quien dirige el negocio"); that "Nomi" stays as a
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
+
+## Invoice payment links
+
+`paymentLinks.*` is English only. New connection, account mapping, invoice payment, fee, payout, bank receipt and refusal text awaits native review in other locales.

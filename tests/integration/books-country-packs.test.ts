@@ -181,7 +181,7 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     expect(await business('GB')).toEqual({ country: 'FR', company_number: null, ein: null });
     expect((await as('GB', (q) => q(`select count(*)::int as n from accounts`))).rows[0].n).toBe(0);
     const saved = await post('GB', '/app/books/country', { country: 'GB', period: 'quarter', year_start: '2026-04-06', company_number: '1234567' });
-    expect(await notice('GB', saved)).toContain('Saved: United Kingdom. Added 43 accounts, 7 journals and 4 tax codes.');
+    expect(await notice('GB', saved)).toContain('Saved: United Kingdom. Added 45 accounts, 7 journals and 4 tax codes.');
     expect(await business('GB')).toEqual({ country: 'GB', company_number: '01234567', ein: null });
     expect((await as('GB', (q) => q(`select books_start::text as day, period_length from books_settings`))).rows[0]).toEqual({ day: '2026-04-06', period_length: 'quarter' });
     expect((await as('GB', (q) => q(`select starts_on::text as s, ends_on::text as e, lock_date::text as l from fiscal_years`))).rows).toEqual([{ s: '2026-04-06', e: '2027-04-05', l: null }]);   // a start on the year's first day moves no lock (0211)
@@ -191,7 +191,7 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     expect((await as('GB', (q) => q(`select j.code as journal, r.code as receivable, s.code as sales, l.code as loss, g.code as gain from books_settings b
       join journals j on j.id = b.sales_journal_id join accounts r on r.id = b.receivable_account_id join accounts s on s.id = b.sales_account_id
       join accounts l on l.id = b.fx_loss_account_id join accounts g on g.id = b.fx_gain_account_id`))).rows[0]).toEqual({ journal: 'SJ', receivable: '1100', sales: '4000', loss: '7900', gain: '4900' });
-    expect(await moneyMarks('GB', ['1000', '1010', '1020', '1100', '2100'])).toEqual({ '1000': true, '1010': true, '1020': true, '1100': false, '2100': false });
+    expect(await moneyMarks('GB', ['1000', '1010', '1020', '1030', '1040', '1100', '2100'])).toEqual({ '1000': true, '1010': true, '1020': true, '1030': false, '1040': false, '1100': false, '2100': false });
     const page = (await get('GB', '/app/settings/books/country')).body;
     expect(page).toContain('value="01234567"');
     expect(page).toContain('6 years after the end');
@@ -244,7 +244,7 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     expect(bad.body).toContain('An EIN is nine digits, written 00-0000000.');
     expect(await business('US')).toEqual({ country: null, company_number: null, ein: null });
     const saved = await post('US', '/app/books/country', { country: 'US', period: 'month', year_start: `${year()}-01-01`, ein: '12 3456789' });
-    expect(await notice('US', saved)).toContain('Saved: USA. Added 43 accounts, 7 journals and 0 tax codes.');
+    expect(await notice('US', saved)).toContain('Saved: USA. Added 45 accounts, 7 journals and 0 tax codes.');
     expect(await business('US')).toEqual({ country: 'US', company_number: null, ein: '12-3456789' });
     expect((await as('US', (q) => q(`select count(*)::int as n from tax_codes`))).rows[0].n).toBe(0);
     expect((await as('US', (q) => q(`select name from accounts where code = '2100'`))).rows[0].name).toBe('Sales tax payable');
