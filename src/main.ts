@@ -69,6 +69,9 @@ import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey, acceptRetiredKeys, decryptSecret, encryptSecret, credentialFingerprint } from './security/credentials.js';
+import { shopifyTransport, type ShopifyTransport } from './net/shopifyAdmin.js';
+import { ShopifyPacer } from './net/shopifyOrders.js';
+import { shopifyOrderLookup } from './pipeline/orderLookup.js';
 import { apolloSource } from './connectors/apollo.js';
 import { OPTIONAL_RECIPIENTS, recipientNamed, unnamedRecipientProblems, type OptionalRecipient } from './core/legal/recipients.js';
 import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/whatsapp/meta.js';
@@ -602,6 +605,8 @@ export async function buildProduction(
     metaFetch?: MetaFetch;
     /** WA — Meta's WhatsApp API as a test sees it: a business's own number sends and fetches through this. */
     whatsappFetch?: FetchLike;
+    /** 5.5 — Shopify as a test sees it: the order lookups and the connect page ask through this. */
+    shopifyTransport?: ShopifyTransport;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -626,6 +631,13 @@ export async function buildProduction(
       credentialKey: deriveKey(cfg.CREDENTIAL_KEY), appSecret: cfg.META_APP_SECRET ?? '',
       graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: overrides?.whatsappFetch,
     }),
+    // 5.5 — the Shopify order lookup, one pacer for the process (Shopify meters per app and store).
+    orderLookups: (() => {
+      const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+      const pacer = new ShopifyPacer();
+      const transport = overrides?.shopifyTransport ?? shopifyTransport;
+      return ({ db, businessId }) => shopifyOrderLookup({ db, businessId, credentialKey, transport, pacer });
+    })(),
     ...(overrides?.media ?? mediaPortsFor(cfg)),
   };
   // REKEY — a rotation in progress: tokens sealed with the key this one
@@ -1059,6 +1071,8 @@ export async function buildProduction(
     // C5 — her connector keys are encrypted with the same key as every other
     // credential; Apollo is built from her key per request, never held.
     credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
+    // 5.5 — a test's Shopify: the connect page and the product import ask through it.
+    ...(overrides?.shopifyTransport ? { shopifyTransport: overrides.shopifyTransport } : {}),
     // D18 — Apollo receives prospect searches: wired only once the privacy page names it.
     ...(recipientNamed('apollo') ? { prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }) } : {}),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.

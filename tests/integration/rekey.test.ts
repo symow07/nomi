@@ -43,7 +43,8 @@ const tool = (args: string[], env: Record<string, string | undefined>): Run => {
 d('REKEY · a CREDENTIAL_KEY rotation finished without a token lost (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let admin: pg.Client;
   const ids: Record<string, string> = {};
-  const secrets = { page: `page-token-${RUN}`, mail: `refresh-${RUN}`, apollo: `apollo-${RUN}`, channel: `channel-${RUN}` };
+  const secrets = { page: `page-token-${RUN}`, mail: `refresh-${RUN}`, apollo: `apollo-${RUN}`, channel: `channel-${RUN}`,
+    shopify: JSON.stringify({ way: 'token', token: `shpat-test-${RUN}` }) };
   const sealedOf = async (table: string, column: string, id: string) =>
     (await admin.query(`select ${column} as s from ${table} where id = $1`, [id])).rows[0].s as string;
 
@@ -69,6 +70,11 @@ d('REKEY · a CREDENTIAL_KEY rotation finished without a token lost (requires DA
       `insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine, secret_ciphertext, secret_key_version)
        values ($1, 'webhook_test', $2, 'rekey-test', 'service', $3, 1) returning id`,
       [BIZ, `rekey-${RUN}`, encryptSecret(secrets.channel, old)])).rows[0].id;
+    // 0237 — a workspace's Shopify credential, sealed like every other.
+    ids['shopify'] = (await admin.query(
+      `insert into shopify_connections (business_id, shop, way, credential_ciphertext, scopes, connected_by)
+       values ($1, $2, 'token', $3, '{read_orders}', 'test') returning id`,
+      [BIZ, `https://rekey-${RUN}.myshopify.com`, encryptSecret(secrets.shopify, old)])).rows[0].id;
   }, 60_000);
   afterAll(async () => { await admin?.end(); });
 
@@ -120,6 +126,9 @@ d('REKEY · a CREDENTIAL_KEY rotation finished without a token lost (requires DA
     expect(decryptSecret(await sealedOf('meta_accounts', 'token_ciphertext', ids['meta']!), now)).toEqual({ plain: secrets.page, keyVersion: 2 });
     expect(decryptSecret(await sealedOf('mail_accounts', 'refresh_token_ciphertext', ids['mail']!), now)).toEqual({ plain: secrets.mail, keyVersion: 3 });
     expect(decryptSecret(await sealedOf('channel_credentials', 'secret_ciphertext', ids['channel']!), now).plain).toBe(secrets.channel);
+    const shopify = await sealedOf('shopify_connections', 'credential_ciphertext', ids['shopify']!);
+    expect(decryptSecret(shopify, now).plain).toBe(secrets.shopify);
+    expect(() => decryptSecret(shopify, deriveKey(OLD)), 'the old key no longer opens the Shopify credential').toThrow();
     expect((await admin.query('select secret_key_version as v from channel_credentials where id = $1', [ids['channel']])).rows[0].v).toBe(2);
     const resealed = await sealedOf('meta_accounts', 'token_ciphertext', ids['meta']!);
     expect(() => decryptSecret(resealed, deriveKey(OLD)), 'the old key no longer opens it').toThrow();

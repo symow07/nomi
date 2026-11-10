@@ -55,6 +55,14 @@ export type MediaPorts = {
    * the token needs attention): the installation's fetchers serve, as before.
    */
   readonly ownMedia?: OwnMediaReader | undefined;
+  /**
+   * 5.5 — the Shopify order lookup for one workspace's turns (src/pipeline/orderLookup.ts). It asks Shopify nothing
+   * unless that workspace connected a store and switched answering on. Absent: no order is ever looked up.
+   */
+  readonly orderLookups?: ((input: {
+    readonly db: import('../db/client.js').Db;
+    readonly businessId: import('../core/types/ids.js').BusinessId;
+  }) => import('../pipeline/orderLookup.js').OrderLookup) | undefined;
 };
 
 export type OwnMediaReader = (input: {
