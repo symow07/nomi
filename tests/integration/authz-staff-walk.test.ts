@@ -52,6 +52,8 @@ const STAFF_JOB = new Set([
   'GET /app/inbox/:conversationId', 'POST /app/inbox/:conversationId/takeover', 'POST /app/inbox/:conversationId/reply',
   'POST /app/inbox/:conversationId/resume', 'POST /app/buyers/:clientId/labels', 'POST /app/conversations/:conversationId/opt-out/record',
   'POST /app/conversations/:conversationId/name', 'POST /app/settings',
+  // Outreach: staff draft a sequence; approving it (the exact words) is the owner's, and an approved one cannot be edited.
+  'POST /app/sequences', 'POST /app/sequences/:id/steps', 'POST /app/sequences/:id/steps/:position',
 ]);
 /** What the owner's walk must change, or the refusals above prove nothing: one route of each owner-only family it can reach. */
 const OWNER_REACHED = [
@@ -59,6 +61,153 @@ const OWNER_REACHED = [
   'POST /app/settings/rate', 'POST /app/settings/samples', 'POST /app/business/deactivate', 'POST /app/business/allowlist/add',
   'POST /app/channels/domain', 'POST /app/onboarding/assistant-name', 'POST /app/books/chart/cgnc', 'POST /app/settings/books/invoices-out',
   'GET /app/conversations/:conversationId/copy.csv', 'POST /app/settings/identifiers',
+];
+
+/**
+ * Every route whose handler opens with `ownerOnly(…)` (src/api, read 2026-11-11; by OWNER_ONLY action). The gate runs
+ * before the form is read, so staff get the owner's notice whatever they send. A route added with the gate is not
+ * listed here by itself: add it.
+ */
+const OWNER_ONLY_ROUTES = [
+  // data_rights, through contactImportScope's own gate (contactImportRoutes.ts)
+  'GET /app/customers/import', 'POST /app/customers/import', 'GET /app/customers/import/:id/columns', 'POST /app/customers/import/:id/columns',
+  'GET /app/customers/import/:id', 'POST /app/customers/import/:id/select', 'POST /app/customers/import/:id/confirm', 'POST /app/customers/import/:id/discard',
+  // price_rules, through the catalogue's gate (waCatalogueRoutes.ts)
+  'POST /app/products/:productId/whatsapp', 'POST /app/products/whatsapp/preview', 'POST /app/products/whatsapp/review/:batchId',
+  'POST /app/products/whatsapp/batches/:batchId/check',
+  // messaging_activation, through the comments' gate (instagramCommentRoutes.ts)
+  'GET /app/channels/instagram/comments/:id/delete', 'POST /app/channels/instagram/comments/:id/delete', 'POST /app/channels/instagram/comments/:id/reply',
+  'POST /app/channels/instagram/comments/switch', 'GET /app/channels/instagram/comments/callback',
+  // the books' money (booksMay 'post'), through the payments' gate (paymentRoutes.ts)
+  'GET /app/payments/stripe', 'POST /app/payments/stripe/connect', 'GET /app/payments/stripe/return', 'POST /app/payments/stripe/accounts',
+  'POST /app/payments/stripe/invoices/:id/create', 'POST /app/payments/stripe/invoices/:id/send', 'POST /app/payments/stripe/attempts/:id/expire',
+  'POST /app/payments/stripe/disconnect', 'POST /app/payments/stripe/retry', 'POST /app/payments/stripe/payouts/:id/confirm',
+  'POST /app/payments/stripe/payouts/:id/receive',
+  // answers_given
+  'POST /app/knowledge/answers/dismiss',
+  'POST /app/knowledge/answers/teach',
+  // billing
+  'POST /app/settings/billing/card',
+  'POST /app/settings/billing/portal',
+  // business_identifiers
+  'POST /app/books/fec/filename',
+  'POST /app/settings/identifiers',
+  // capability_grant
+  'POST /app/assistant/knowledge/checks/:id/keep',
+  'POST /app/assistant/knowledge/checks/:id/revert',
+  'POST /app/assistant/knowledge/procedures/:id/archive',
+  'POST /app/inbox/:conversationId/follow-ups/:runId/skip',
+  'POST /app/inbox/:conversationId/testing',
+  'POST /app/settings/assistant/autonomy',
+  'POST /app/settings/assistant/capability/:capability/promote',
+  'POST /app/settings/assistant/capability/:capability/revoke',
+  'POST /app/settings/assistant/follow-ups',
+  // capability_grant,messaging_activation
+  'POST /app/settings/business/shopify/disconnect',
+  // data_rights
+  'GET /app/conversations/:conversationId/copy.csv',
+  'GET /app/settings/data/:file',
+  'GET /app/settings/data/books.csv',
+  'GET /app/settings/data/papers.zip',
+  'POST /app/conversations/:conversationId/deletion',
+  'POST /app/conversations/:conversationId/deletion/dismiss',
+  'POST /app/conversations/:conversationId/deletion/erase',
+  'POST /app/settings/data/close',
+  'POST /app/settings/data/delete',
+  'POST /app/settings/data/withdraw',
+  // messaging_activation
+  'GET /app/connect/meta-ads/callback',
+  'GET /app/connect/meta-ads/start',
+  'GET /app/connect/meta/callback',
+  'GET /app/connect/meta/start',
+  'GET /app/connect/tiktok/callback',
+  'GET /app/connect/tiktok/start',
+  'GET /app/connect/whatsapp/callback',
+  'GET /app/connect/whatsapp/start',
+  'POST /app/business/activate',
+  'POST /app/business/allowlist/add',
+  'POST /app/business/allowlist/remove',
+  'POST /app/business/deactivate',
+  'POST /app/business/start-assistant',
+  'POST /app/business/stop-assistant',
+  'POST /app/channels/approval',
+  'POST /app/channels/chat',
+  'POST /app/channels/instagram/connect',
+  'POST /app/channels/messenger/connect',
+  'POST /app/channels/telegram',
+  'POST /app/channels/whatsapp/ask',
+  'POST /app/channels/whatsapp/connect',
+  'POST /app/channels/whatsapp/templates/check',
+  'POST /app/channels/whatsapp/templates/submit',
+  'POST /app/connect/meta-ads/choose',
+  'POST /app/connect/meta-ads/disconnect',
+  'POST /app/connect/meta/choose',
+  'POST /app/connect/meta/disconnect',
+  'POST /app/connect/tiktok/disconnect',
+  'POST /app/connect/whatsapp/choose',
+  'POST /app/connect/whatsapp/disconnect',
+  'POST /app/conversations/:conversationId/opt-out/lift',
+  'POST /app/onboarding/assistant-name',
+  'POST /app/onboarding/attest',
+  'POST /app/onboarding/validate',
+  'POST /app/settings/business/shopify/connect',
+  'POST /app/settings/business/shopify/switch',
+  'POST /app/settings/owner-phone',
+  'POST /app/surveys',
+  // outreach
+  'GET /app/connect/:provider/callback',
+  'GET /app/connect/:provider/start',
+  'POST /app/channels/domain',
+  'POST /app/channels/domain/check',
+  'POST /app/channels/outreach',
+  'POST /app/channels/outreach/cap',
+  'POST /app/connect/mail/disconnect',
+  'POST /app/prospects/key',
+  'POST /app/prospects/key/remove',
+  'POST /app/sequences/:id/approve',
+  'POST /app/sequences/:id/archive',
+  // people
+  'POST /app/inbox/:conversationId/assistant',
+  'POST /app/settings/people',
+  'POST /app/settings/people/:id/name',
+  'POST /app/settings/people/:id/remove',
+  'POST /app/settings/people/:id/turn',
+  'POST /app/settings/people/assistants',
+  'POST /app/settings/people/assistants/:id',
+  'POST /app/settings/people/assistants/:id/archive',
+  'POST /app/settings/people/turn',
+  // price_rules
+  'GET /app/products/import/:importId/photo/:n',
+  'GET /app/settings/business/selling/:q',
+  'GET /app/settings/business/selling/:q/confirm',
+  'POST /app/business/prices',
+  'POST /app/business/prices/volume',
+  'POST /app/business/prices/volume/:id/archive',
+  'POST /app/business/selling/:q',
+  'POST /app/business/selling/:q/confirm',
+  'POST /app/business/selling/:q/skip',
+  'POST /app/inbox/:conversationId/product-card',
+  'POST /app/products/:id/edit',
+  'POST /app/products/:id/names/remove',
+  'POST /app/products/:id/photo',
+  'POST /app/products/:id/photo/remove',
+  'POST /app/products/:id/tiers/remove',
+  'POST /app/products/add/confirm',
+  'POST /app/products/add/file',
+  'POST /app/products/add/photo',
+  'POST /app/products/add/review',
+  'POST /app/products/add/shopify',
+  'POST /app/products/add/store',
+  'POST /app/products/import/:importId/columns',
+  'POST /app/products/import/:importId/confirm',
+  'POST /app/products/import/:importId/drop',
+  'POST /app/products/import/:importId/extract',
+  'POST /app/products/import/:importId/reread',
+  'POST /app/products/import/:importId/save',
+  'POST /app/products/prices-to-me',
+  'POST /app/settings/rate',
+  'POST /app/settings/samples',
+  'POST /app/settings/terms',
 ];
 
 d('Authorization audit · staff and the accountant on every route (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 1_200_000 }, () => {
@@ -104,7 +253,8 @@ d('Authorization audit · staff and the accountant on every route (requires DATA
     admin = new pg.Client({ connectionString: ADMIN_URL }); await admin.connect();
     await ensureQueueSchema();
     await admin.query(demoSeedSql(NS));
-    await admin.query(`update businesses set books_area = true, country = 'MA' where id = $1`, [A]);
+    // The outreach area on (rule 8), so its owner-only routes are there to refuse.
+    await admin.query(`update businesses set books_area = true, country = 'MA', outreach_area = true where id = $1`, [A]);
     const { hashCode } = await import('../../src/api/web/people.js');
     for (const [kind, tag] of [['team', 'TM'], ['accountant', 'AC']] as const) {
       await admin.query(`insert into people (business_id, name, is_owner, kind, code_hash) values ($1, $2, false, $3, $4)`, [A, `Walk ${kind}`, kind, hashCode(SECRET, code(tag))]);
@@ -153,6 +303,24 @@ d('Authorization audit · staff and the accountant on every route (requires DATA
     const acct = await walk('accountant');
     const past = new Map([...acct].filter(([, t]) => t.some((x) => x !== 'books_exports')));
     expect(past.size, `the accountant changed rows through:\n${show(past)}`).toBe(0);
+  });
+
+  it('every owner-only route answers a member of the team with the owner\'s notice, before it reads anything', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const notice = t('en', 'staff.notAllowed');
+    const registered = new Set(routes.map((r) => `${r.method} ${r.url}`));
+    const missing = OWNER_ONLY_ROUTES.filter((r) => !registered.has(r));
+    expect(missing, `listed but not registered:\n${missing.join('\n')}`).toEqual([]);
+    const answered: string[] = [];
+    for (const r of OWNER_ONLY_ROUTES) {
+      const [method, path] = r.split(' ') as [string, string];
+      const url = path.replace(/:(\w+)/g, () => ids[0]!);
+      const res = await app.inject({ method: method as 'POST', url, ...(method === 'POST' ? { payload: 'confirm=yes', headers: { cookie: cookies.team, 'content-type': 'application/x-www-form-urlencoded' } } : { headers: { cookie: cookies.team } }) });
+      const said = flashSaid(res, SECRET);
+      if (res.statusCode !== 302 || said !== notice) answered.push(`${r}: ${res.statusCode} ${String(res.headers['location'] ?? '')} ${said}`);
+    }
+    expect(answered, `owner-only routes that did not refuse staff with the owner's notice:\n${answered.join('\n')}`).toEqual([]);
   });
 
   it('the owner, the control: the same walk reaches the owner\'s own writes, which staff did not make', async () => {
