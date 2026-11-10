@@ -207,9 +207,7 @@ export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
     <p class="site-prose">${k('site.who.body')}</p>
     <p class="site-prose">${k('site.who.languages')}</p>
   </section>
-
-  ${v.pricing && v.pricing.plans.length > 0 ? pricingSection(l, v.pricing, k) : ''}
-
+${v.pricing && v.pricing.plans.length > 0 ? `\n  ${pricingSection(l, v.pricing, k)}\n` : ''}
   <section class="site-sec" aria-labelledby="site-first">
     <h2 id="site-first">${k('site.first.title')}</h2>
     <p class="site-prose">${k(signUp ? 'site.first.open' : 'site.first.invite')}</p>

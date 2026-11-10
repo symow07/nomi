@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="fr" dir="ltr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomi — un assistant qui répond à vos clients</title>
+<meta name="description" content="Nomi donne à votre entreprise un assistant dont vous choisissez le nom, pour répondre à vos clients sur WhatsApp, Instagram, Messenger et par e-mail : des réponses préparées pour que vous les approuviez, et aucun envoi sans vous, sauf si vous l’autorisez.">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZmlsbD0iI0Y1RjFFQSIgZD0iTTAgOGE4IDggMCAxIDAgMTYgMGE4IDggMCAxIDAtMTYgMHoiLz48cGF0aCBmaWxsPSIjNUEwQTJFIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xIDhhNyA3IDAgMSAwIDE0IDBhNyA3IDAgMSAwLTE0IDB6TTIuMjUgOGE1Ljc1IDUuNzUgMCAxIDAgMTEuNSAwYTUuNzUgNS43NSAwIDEgMC0xMS41IDB6TTMuMjUgOGE0Ljc1IDQuNzUgMCAxIDAgOS41IDBhNC43NSA0Ljc1IDAgMSAwLTkuNSAwek01IDVoNnY2aC02eiIvPjwvc3ZnPg==">
+<style>
+:root {
+  color-scheme: light;
+  --font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif;
+  --font-voice: "Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif;
+  --font-size-caption: 13px;
+  --font-size-small: 15px;
+  --font-size-base: 17px;
+  --font-size-title: 20px;
+  --font-size-display: 26px;
+  --font-size-hero: 34px;
+  --font-size-overview-title: 44px;
+  --font-size-overview-phone: 36px;
+  --font-size-overview-money: 40px;
+  --line-height: 1.6;
+  --line-height-tight: 1.2;
+  --tracking-tight: -0.02em;
+  --color-ok: #3F6B5C;
+  --color-brand: #9A0F5E;
+  --color-needs: #9A0F5E;
+  --color-needs-wash: #F9EAF2;
+  --color-warn: #171717;
+  --color-assistant: #171717;
+  --color-assistant-wash: #F9EAF2;
+  --color-ink: #171717;
+  --color-ink-secondary: #625D57;
+  --color-surface: #FFFDFA;
+  --color-paper: #F7F3EE;
+  --color-sand: #EDE7DF;
+  --color-border: #DED7CF;
+  --color-ok-wash: #FFFDFA;
+  --color-ok-line: #DED7CF;
+  --color-warn-wash: #FFFDFA;
+  --color-warn-line: #DED7CF;
+  --color-orb-glow: #9A0F5E;
+  --color-coin: #5A0A2E;
+  --color-coin-ground: #F5F1EA;
+  --color-nav-active: var(--color-needs);
+  --color-accent: var(--color-needs);
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-panel: 20px;
+  --radius-chip: 999px;
+  --measure-column: 1040px;
+  --measure-prose: 62ch;
+  --measure-form: 40ch;
+  --shadow-lift1: none;
+  --shadow-lift2: none;
+  --motion-fast: 160ms;
+  --motion-normal: 220ms;
+  --motion-max: 250ms;
+  --motion-step: 40ms;
+  --motion-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --motion-ease-in: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --motion-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --travel-nudge: 2px;
+  --travel-fold: 8px;
+  --travel-page: 12px;
+  --travel-rise: 16px;
+  --travel-toast: 24px;
+  --travel-sheet: 48px;
+  --motion-scale-press: 0.97;
+  --motion-scale-enter: 0.96;
+  --face-1-bg: #3366A8;
+  --face-1-fg: #FFFFFF;
+  --face-2-bg: #187A70;
+  --face-2-fg: #FFFFFF;
+  --face-3-bg: #6B7320;
+  --face-3-fg: #FFFFFF;
+  --face-4-bg: #8C6B0A;
+  --face-4-fg: #FFFFFF;
+  --face-5-bg: #AD5C14;
+  --face-5-fg: #FFFFFF;
+  --face-6-bg: #6450B0;
+  --face-6-fg: #FFFFFF;
+  --face-7-bg: #0F7085;
+  --face-7-fg: #FFFFFF;
+  --face-8-bg: #8A5A3C;
+  --face-8-fg: #FFFFFF;
+}
+html[lang="zh"] { --line-height: 1.7; --font-family: "Noto Sans SC", "Noto Sans", "Noto Sans Arabic", system-ui, sans-serif; --font-voice: "Noto Serif SC", "Noto Serif", "Noto Naskh Arabic", serif; --line-height-tight: 1.35; --tracking-tight: 0; }
+html[lang="ar"] { --line-height: 1.75; --font-family: "Noto Sans Arabic", "Noto Sans", "Noto Sans SC", system-ui, sans-serif; --font-voice: "Noto Naskh Arabic", "Noto Serif", "Noto Serif SC", serif; --line-height-tight: 1.45; --tracking-tight: 0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--color-paper); color:var(--color-ink);
+         font: var(--font-size-base)/var(--line-height) var(--font-family);
+         -webkit-text-size-adjust:100%; }
+  main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
+  h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-24); font-weight:700; }
+  h2 { font-size:var(--font-size-title); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  @media (max-width: 560px) { h1 { font-size:var(--font-size-display); } }
+  p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  p, li { text-wrap:pretty; }
+  h1, h2 { text-wrap:balance; }
+  ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
+  a { color:var(--color-ink); text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
+  main { overflow-wrap:anywhere; }
+  .updated { margin-top:var(--space-48); }
+  button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
+           border-radius:var(--radius-control); background:var(--color-ink);
+           color:var(--color-surface); cursor:pointer; min-height:44px; }
+  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-sand);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
+  /* Phase 9 (public-missed-09) — the same pill on the site, the door and the shell:
+     names, not underlined links. */
+  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-8);
+    border-radius:var(--radius-chip); font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); white-space:nowrap; text-decoration:none; }
+  /* Five names fit a 360 px phone with the narrow padding; a wider screen gets the roomier one. */
+  @media (min-width: 25rem) { .langsw a { padding:0 var(--space-12); } }
+  /* The switcher is chrome. A solid jade fill made it the loudest object
+     on a page whose subject was somebody's business. */
+  .langsw a.on { background:var(--color-surface); color:var(--color-brand); font-weight:600; }
+  .face { position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden;
+    border-radius:var(--radius-chip); inline-size:40px; block-size:40px; font-size:var(--font-size-base);
+    font-weight:600; line-height:1; user-select:none; }
+  .face-xs { inline-size:24px; block-size:24px; font-size:var(--font-size-caption); }
+  .face-s { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
+  .face-l { inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
+  .face-xl { inline-size:96px; block-size:96px; font-size:var(--font-size-hero); }
+  .face-i { display:grid; place-items:center; inline-size:100%; block-size:100%; }
+  /* The Solar run — the person drawn for a customer with no name yet is Solar's, at 1.4em of the face's size; its
+     line is the one for the size it is drawn at (18 px on the smallest face, 24 on the usual one). */
+  .face-i svg { inline-size:1.4em; block-size:1.4em; }
+  .face-p { position:absolute; inset:0; inline-size:100%; block-size:100%; object-fit:cover; }
+  .face.t1 { background:var(--face-1-bg); color:var(--face-1-fg); }
+  .face.t2 { background:var(--face-2-bg); color:var(--face-2-fg); }
+  .face.t3 { background:var(--face-3-bg); color:var(--face-3-fg); }
+  .face.t4 { background:var(--face-4-bg); color:var(--face-4-fg); }
+  .face.t5 { background:var(--face-5-bg); color:var(--face-5-fg); }
+  .face.t6 { background:var(--face-6-bg); color:var(--face-6-fg); }
+  .face.t7 { background:var(--face-7-bg); color:var(--face-7-fg); }
+  .face.t8 { background:var(--face-8-bg); color:var(--face-8-fg); }
+  main.site { max-width:var(--measure-column); padding:var(--space-24) var(--space-16) var(--space-48); }
+  .site-root { display:flex; flex-direction:column; gap:var(--space-48); }
+  .site-root h2 { font-size:var(--font-size-display); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:700; color:var(--color-ink);
+    margin:0 0 var(--space-16); }
+  .site-root h3 { font-size:var(--font-size-title); line-height:var(--line-height-tight); font-weight:600; color:var(--color-ink);
+    margin:0 0 var(--space-8); }
+  .site-root p { max-width:var(--measure-prose); }
+  .site-root h3 { text-wrap:balance; }
+
+  /* V1-019 — on a phone the name and Sign in share the first row and the language
+     switch has the next one to itself; on a wide screen all three are one row. */
+  .site-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
+  .site-brand { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px;
+    font-weight:700; font-size:var(--font-size-title); text-decoration:none; color:var(--color-ink); }
+  .site-brand .mark { flex:none; }
+  .site-lang { flex:1 0 20rem; }
+  .site-signin { display:inline-flex; align-items:center; min-height:44px; font-weight:600;
+    font-size:var(--font-size-small); color:var(--color-ink); }
+
+  .site-hero { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-32); align-items:center;
+    padding-block:var(--space-24); }
+  .site-hero h1 { font-family:var(--font-voice); font-size:var(--font-size-hero); line-height:1.1; margin:0 0 var(--space-24); font-weight:400;
+    color:var(--color-ink); letter-spacing:var(--tracking-tight); }
+  /* The type pass (2026-10-04) — the lead is large and quiet: light, the one place a stranger meets the light weight first. */
+  .site-lead { font-size:var(--font-size-title); font-weight:300; color:var(--color-ink); }
+  .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
+    margin:var(--space-32) 0 0; }
+  .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
+    font-weight:600; text-decoration:none; text-align:center; text-wrap:balance; }
+  /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
+     that wraps is centred in its button, in even lines. */
+  .site-go:hover { box-shadow:none; }
+  .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
+  .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .site-member a { display:inline-block; padding-block:var(--space-12); font-weight:600; }
+
+  .site-example { margin:0; padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-card);
+    border:1px solid var(--color-border); box-shadow:none; display:flex; flex-direction:column; gap:var(--space-16); }
+  .site-example figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .site-said { display:flex; flex-direction:column; gap:var(--space-4); align-items:flex-start; }
+  .site-said.site-draft { align-items:flex-end; }
+  .site-who { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .site-draft .site-who { justify-content:flex-end; }
+  .site-as { color:var(--color-assistant); }
+  /* The identity system (2026-10-04) — as in the product: the assistant's label is its name tag (its wash, its
+     light words, a chip), and what waits for the reader carries the needs dot. */
+  .site-draft .site-who > span:not(.site-draft-tag) { display:inline-flex; align-items:center; gap:var(--space-4);
+    padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
+  .site-bubble { margin:0; padding:var(--space-12) var(--space-16); border-radius:var(--radius-card);
+    background:var(--color-paper); color:var(--color-ink);
+    font-size:var(--font-size-small); max-width:var(--measure-form); }
+  /* w4-public-03 — the assistant's words on the assistant's wash, as in a conversation. */
+  .site-draft .site-bubble { background:var(--color-assistant-wash); }
+  .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-needs-wash);
+    color:var(--color-needs); border:1px solid var(--color-border); font-weight:600; }
+  /* The product's waiting mark: a shape before the word, so the colour is not alone. */
+  .site-draft-tag::before { content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:currentColor; vertical-align:baseline; margin-inline-end:0.4em; }
+  .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
+    text-align:end; text-wrap:balance; }
+
+  .site-sec { border-top:1px solid var(--color-border); padding-top:var(--space-48); }
+  .site-steps { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-32);
+    grid-template-columns:minmax(0, 1fr); counter-reset:site-step; }
+  .site-steps li { counter-increment:site-step; margin:0; }
+  /* V1-022 — the number sits in a disc you can see, its edge on the heading's edge.
+     V1-028 — the same digits as every other page, Arabic included. */
+  .site-steps li::before { content:counter(site-step); display:inline-flex; align-items:center; justify-content:center;
+    inline-size:40px; block-size:40px; border-radius:var(--radius-chip); margin-bottom:var(--space-12);
+    background:var(--color-surface); border:1px solid var(--color-border);
+    color:var(--color-ink); font-weight:700; font-size:var(--font-size-title); }
+
+  /* w4-public-09 — one card to a row at every width, each as tall as its own words. */
+  .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24);
+    max-width:var(--measure-prose); }
+  .site-card { background:transparent; border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
+  .site-card p { margin:0; }
+  .site-card p + p, .site-when + p { margin-top:var(--space-12); }
+  .site-when { margin:var(--space-8) 0 0; padding-inline-start:var(--space-24); }
+  .site-when li { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
+  .site-honest { margin-top:var(--space-24); padding-top:var(--space-16);
+    border-top:1px solid var(--color-border); }
+
+  .site-channels { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-12);
+    grid-template-columns:minmax(0, 1fr); }
+  .site-channels li { display:flex; flex-direction:column; gap:var(--space-4); margin:0; padding:var(--space-16) var(--space-24);
+    background:transparent; border-top:1px solid var(--color-border); }
+  .site-channels strong { color:var(--color-ink); font-size:var(--font-size-title); }
+  .site-channels span { font-size:var(--font-size-small); }
+
+  /* V1-020 — the invitation's indent is a box you can see. */
+  .site-invite { padding:var(--space-32) 0; background:transparent; border-top:1px solid var(--color-border); }
+
+  .site-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--space-16); flex-wrap:wrap;
+    padding-top:var(--space-24); border-top:1px solid var(--color-border); }
+  /* V1-029 — on a phone one link to a line, so none is left alone on the last. */
+  .site-links { display:flex; flex-direction:column; gap:0 var(--space-24); font-size:var(--font-size-small); }
+  .site-links a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
+
+  @media (min-width: 48rem) {
+    main.site { padding-inline:var(--space-32); }
+    .site-lang { flex:0 0 auto; order:1; margin-inline-start:auto; }
+    .site-links { flex-direction:row; flex-wrap:wrap; }
+    .site-signin { order:2; }
+    .site-steps { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .site-channels { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 60rem) {
+    .site-hero { grid-template-columns:minmax(0, 7fr) minmax(0, 5fr); gap:var(--space-48); padding-block:var(--space-48); }
+  }
+
+@font-face { font-family:"Noto Sans"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-latin-wght-normal.51ca196f49a33e79.woff2) format("woff2"); unicode-range:U+0000,U+000D,U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2002,U+2009,U+200B-200F,U+2013-2014,U+2018-201A,U+201C-201E,U+2022,U+2026,U+202A-202E,U+2032-2033,U+2039-203A,U+2044,U+2060-206F,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD; }
+@font-face { font-family:"Noto Sans Arabic"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-arabic-arabic-wght-normal.ce85091f020920b6.woff2) format("woff2"); unicode-range:U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FBC2,U+FBD3-FD8F,U+FD92-FDC7,U+FDCF,U+FDF0-FDFF,U+FE70-FE74,U+FE76-FEFC,U+10EFD-10EFF; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-91-wght-normal.382f72b98d4bb9d7.woff2) format("woff2"); unicode-range:U+1EA0-1EA9,U+1EAB-1EAD,U+1EAF,U+1EB1,U+1EB3,U+1EB5,U+1EB7,U+1EB9,U+1EBB,U+1EBD-1EBE,U+1EC0-1EC3,U+1EC5-1EC6,U+1EC9-1ECD,U+1ECF-1ED3,U+1ED5,U+1ED7-1EDF,U+1EE1,U+1EE3,U+1EE5-1EEB,U+1EED,U+1EEF-1EF1,U+1EF3,U+1EF7,U+1EF9,U+2002,U+200C-2012,U+2015-2016,U+201A,U+201E,U+2020-2021,U+2025,U+202A-202D,U+2030,U+2032-2033,U+2035,U+203C,U+2049,U+2060-2061,U+2074; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-118-wght-normal.76c9ddb85ae4578c.woff2) format("woff2"); unicode-range:U+003E,U+005F,U+007C,U+00A0,U+00A9,U+4E09-4E0B,U+4E0D-4E0E,U+4E13,U+4E1A,U+4E2A,U+4E3A-4E3B,U+4E4B,U+4E86,U+4E8E,U+4EA7,U+4EBA,U+4EE4-4EE5,U+4EEC,U+4F1A,U+4F4D,U+4F53,U+4F5C,U+4F60,U+4FE1,U+5165,U+5168,U+516C,U+5173,U+5176,U+5185,U+51FA,U+5206,U+5230,U+5236,U+524D,U+529B,U+52A0-52A1,U+52A8,U+5316,U+533A,U+53CB,U+53D1,U+53EF,U+53F7-53F8,U+5408,U+540C-540E,U+544A,U+548C,U+54C1,U+56DE,U+56FD-56FE,U+5728,U+5730,U+5907,U+5916,U+591A,U+5927,U+5929,U+597D,U+5982,U+5B50,U+5B66,U+5B89,U+5B9A,U+5B9E,U+5BA2,U+5BB6,U+5BF9,U+5C0F,U+5DE5,U+5E02,U+5E73-5E74,U+5E7F,U+5EA6,U+5F00,U+5F0F,U+5F53,U+5F55,U+5FAE,U+5FC3,U+6027,U+606F,U+60A8,U+60C5,U+610F,U+6210-6211,U+6237,U+6240,U+624B,U+6280,U+62A5,U+63A5,U+63A8,U+63D0,U+6536,U+6570,U+6587,U+65B9,U+65E0,U+65F6,U+660E,U+662D,U+662F,U+66F4,U+6700,U+670D,U+672C,U+673A,U+6743,U+6765,U+679C,U+682A,U+6B21,U+6B63,U+6CBB,U+6CD5,U+6CE8,U+6D3B,U+70ED,U+7247-7248,U+7269,U+7279,U+73B0,U+7406,U+751F,U+7528,U+7535,U+767B,U+76F8,U+770B,U+77E5,U+793E,U+79D1,U+7AD9,U+7B49,U+7C7B,U+7CFB,U+7EBF,U+7ECF,U+7F8E,U+8005,U+8054,U+80FD,U+81EA,U+85CF,U+884C,U+8868,U+8981,U+89C6,U+8BBA,U+8BDD,U+8BF4,U+8BF7,U+8D44,U+8FC7,U+8FD8-8FD9,U+8FDB,U+901A,U+9053,U+90E8,U+91D1,U+957F,U+95E8,U+95EE,U+95F4,U+9762,U+9875,U+9898,U+9996,U+9AD8,U+FF01,U+FF08-FF09; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-119-wght-normal.b3b2374881f4cd93.woff2) format("woff2"); unicode-range:U+0020-0022,U+0027-002A,U+002C-003B,U+003F,U+0041-004D,U+004F-005D,U+0061-007B,U+007D,U+00AB,U+00AE,U+00B2,U+00B7,U+00BB,U+00DF-00E5,U+00E7-00EA,U+00EC-00ED,U+00F1-00F4,U+00F6,U+00F9-00FA,U+00FC,U+0101,U+0103,U+0113,U+012B,U+0148,U+014D,U+016B,U+01CE,U+01D0,U+0300-0301,U+1EBF,U+1EC7,U+2013-2014,U+2022,U+2027,U+2039-203A,U+2122,U+3001-3002,U+3042,U+3044,U+3046,U+3048,U+304A-3055,U+3057,U+3059-305B,U+305D,U+305F-3061,U+3063-306B,U+306D-3073,U+3075-3076,U+3078-3079,U+307B,U+307E-307F,U+3081-308D,U+308F,U+3092-3093,U+30A1-30A4,U+30A6-30BB,U+30BD,U+30BF-30C1,U+30C3-30C4,U+30C6-30CB,U+30CD-30D7,U+30D9-30E1,U+30E3-30E7,U+30E9-30ED,U+30EF,U+30F3,U+30FB-30FC,U+3127,U+4E00,U+4E2D,U+65B0,U+65E5,U+6708-6709,U+70B9,U+7684,U+7F51,U+FF0C,U+FF0E,U+FF1A; }
+@font-face { font-family:"Noto Serif"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-latin-400-normal.4c0cbe3eec50d260.woff2) format("woff2"); unicode-range:U+0000,U+000D,U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2002,U+2009,U+200B-200F,U+2013-2014,U+2018-201A,U+201C-201E,U+2022,U+2026,U+202A-202E,U+2032-2033,U+2039-203A,U+2044,U+2060-206F,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD; }
+@font-face { font-family:"Noto Naskh Arabic"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-naskh-arabic-arabic-400-normal.9cc2d2e90f7b5190.woff2) format("woff2"); unicode-range:U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010,U+204F,U+2E41,U+FB50-FBC2,U+FBD3-FD8F,U+FD92-FDC7,U+FDCF,U+FDF0-FDFF,U+FE70-FE74,U+FE76-FEFC,U+10EFD-10EFF; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-91-400-normal.b143c83177a86fd1.woff2) format("woff2"); unicode-range:U+1EA0-1EA9,U+1EAB-1EAD,U+1EAF,U+1EB1,U+1EB3,U+1EB5,U+1EB7,U+1EB9,U+1EBB,U+1EBD-1EBE,U+1EC0-1EC3,U+1EC5-1EC6,U+1EC9-1ECD,U+1ECF-1ED3,U+1ED5,U+1ED7-1EDF,U+1EE1,U+1EE3,U+1EE5-1EEB,U+1EED,U+1EEF-1EF1,U+1EF3,U+1EF7,U+1EF9,U+2002,U+200C-2012,U+2015-2016,U+201A,U+201E,U+2020-2021,U+2025,U+202A-202D,U+2030,U+2032-2033,U+2035,U+203C,U+2049,U+2060-2061,U+2074; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-118-400-normal.4c4cd6ef1dbb4d83.woff2) format("woff2"); unicode-range:U+003E,U+005F,U+007C,U+00A0,U+00A9,U+4E09-4E0B,U+4E0D-4E0E,U+4E13,U+4E1A,U+4E2A,U+4E3A-4E3B,U+4E4B,U+4E86,U+4E8E,U+4EA7,U+4EBA,U+4EE4-4EE5,U+4EEC,U+4F1A,U+4F4D,U+4F53,U+4F5C,U+4F60,U+4FE1,U+5165,U+5168,U+516C,U+5173,U+5176,U+5185,U+51FA,U+5206,U+5230,U+5236,U+524D,U+529B,U+52A0-52A1,U+52A8,U+5316,U+533A,U+53CB,U+53D1,U+53EF,U+53F7-53F8,U+5408,U+540C-540E,U+544A,U+548C,U+54C1,U+56DE,U+56FD-56FE,U+5728,U+5730,U+5907,U+5916,U+591A,U+5927,U+5929,U+597D,U+5982,U+5B50,U+5B66,U+5B89,U+5B9A,U+5B9E,U+5BA2,U+5BB6,U+5BF9,U+5C0F,U+5DE5,U+5E02,U+5E73-5E74,U+5E7F,U+5EA6,U+5F00,U+5F0F,U+5F53,U+5F55,U+5FAE,U+5FC3,U+6027,U+606F,U+60A8,U+60C5,U+610F,U+6210-6211,U+6237,U+6240,U+624B,U+6280,U+62A5,U+63A5,U+63A8,U+63D0,U+6536,U+6570,U+6587,U+65B9,U+65E0,U+65F6,U+660E,U+662D,U+662F,U+66F4,U+6700,U+670D,U+672C,U+673A,U+6743,U+6765,U+679C,U+682A,U+6B21,U+6B63,U+6CBB,U+6CD5,U+6CE8,U+6D3B,U+70ED,U+7247-7248,U+7269,U+7279,U+73B0,U+7406,U+751F,U+7528,U+7535,U+767B,U+76F8,U+770B,U+77E5,U+793E,U+79D1,U+7AD9,U+7B49,U+7C7B,U+7CFB,U+7EBF,U+7ECF,U+7F8E,U+8005,U+8054,U+80FD,U+81EA,U+85CF,U+884C,U+8868,U+8981,U+89C6,U+8BBA,U+8BDD,U+8BF4,U+8BF7,U+8D44,U+8FC7,U+8FD8-8FD9,U+8FDB,U+901A,U+9053,U+90E8,U+91D1,U+957F,U+95E8,U+95EE,U+95F4,U+9762,U+9875,U+9898,U+9996,U+9AD8,U+FF01,U+FF08-FF09; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-119-400-normal.7d438466bfc51d35.woff2) format("woff2"); unicode-range:U+0020-0022,U+0027-002A,U+002C-003B,U+003F,U+0041-004D,U+004F-005D,U+0061-007B,U+007D,U+00AB,U+00AE,U+00B2,U+00B7,U+00BB,U+00DF-00E5,U+00E7-00EA,U+00EC-00ED,U+00F1-00F4,U+00F6,U+00F9-00FA,U+00FC,U+0101,U+0103,U+0113,U+012B,U+0148,U+014D,U+016B,U+01CE,U+01D0,U+0300-0301,U+1EBF,U+1EC7,U+2013-2014,U+2022,U+2027,U+2039-203A,U+2122,U+3001-3002,U+3042,U+3044,U+3046,U+3048,U+304A-3055,U+3057,U+3059-305B,U+305D,U+305F-3061,U+3063-306B,U+306D-3073,U+3075-3076,U+3078-3079,U+307B,U+307E-307F,U+3081-308D,U+308F,U+3092-3093,U+30A1-30A4,U+30A6-30BB,U+30BD,U+30BF-30C1,U+30C3-30C4,U+30C6-30CB,U+30CD-30D7,U+30D9-30E1,U+30E3-30E7,U+30E9-30ED,U+30EF,U+30F3,U+30FB-30FC,U+3127,U+4E00,U+4E2D,U+65B0,U+65E5,U+6708-6709,U+70B9,U+7684,U+7F51,U+FF0C,U+FF0E,U+FF1A; }
+</style>
+</head><body><main class="site"><div class="site-root" data-surface="site">
+  <header class="site-top">
+    <a class="site-brand" href="/"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="var(--color-brand)" fill-rule="evenodd" d="M1 1h30v30H1zM3 3v26h26V3zM5 5h11v10h-3V8H8v7H5zM5 17h17v10h-3V20h-4v7h-3V20H8v7H5zM24 17h3v3h-3zM24 22h3v5h-3z"/><path fill="var(--color-coin)" fill-rule="evenodd" d="M17 10a5 5 0 1 0 10 0a5 5 0 1 0-10 0zM20 8h4v4h-4z"/></svg><span>Nomi</span></a>
+    <a class="site-signin" href="/login">Se connecter</a>
+    <div class="site-lang"><div class="langsw" role="group" aria-label="Langue">
+    <a class="" hreflang="en" lang="en" href="/locale?set=en&next=/">English</a><a class="" hreflang="zh" lang="zh" href="/locale?set=zh&next=/">中文</a><a class="" hreflang="ar" lang="ar" href="/locale?set=ar&next=/">العربية</a><a class="" hreflang="es" lang="es" href="/locale?set=es&next=/">Español</a><a class="on" hreflang="fr" lang="fr" href="/locale?set=fr&next=/">Français</a></div></div>
+  </header>
+
+  <section class="site-hero">
+    <div class="site-hero-text">
+      <h1>Chaque client reçoit une réponse. Le dernier mot vous revient.</h1>
+      <p class="site-lead">Nomi donne à votre entreprise un assistant dont vous choisissez le nom. Quand un client écrit sur WhatsApp, Instagram, Messenger ou par e‑mail, votre assistant prépare la réponse à partir de vos propres produits et prix, et vous l’approuvez.</p>
+      <p>Rien ne part sans vous tant que vous ne l’autorisez pas, et alors seulement ce que vous avez autorisé. Aucun prix ne descend jamais sous le prix plancher que vous avez fixé.</p>
+      <p class="site-cta"><a class="site-go" href="mailto:hello@example.com?subject=Une%20invitation%20%C3%A0%20Nomi&amp;body=Nom%20de%20l%E2%80%99entreprise%C2%A0%3A%0ACe%20que%20nous%20vendons%C2%A0%3A%0AO%C3%B9%20nos%20clients%20nous%20%C3%A9crivent%C2%A0%3A%0A">Écrivez-nous pour une invitation</a><span class="site-member">Vous avez déjà un espace de travail ? <a href="/login">Se connecter</a></span></p>
+    </div>
+    <figure class="site-example" aria-label="Un exemple">
+      <figcaption>Un exemple</figcaption>
+      <div class="site-said">
+        <span class="site-who"><span class="face face-s t8" aria-hidden="true"><span class="face-i">C</span></span><span>Camille, sur Instagram</span></span>
+        <p class="site-bubble" dir="auto">Bonjour, est-ce que la chemise en lin existe en bleu marine ?</p>
+      </div>
+      <div class="site-said site-draft">
+        <span class="site-who"><span><svg class="mark" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="var(--color-brand)" fill-rule="evenodd" d="M1 1h30v30H1zM3 3v26h26V3zM5 5h11v10h-3V8H8v7H5zM5 17h17v10h-3V20h-4v7h-3V20H8v7H5zM24 17h3v3h-3zM24 22h3v5h-3z"/><path fill="var(--color-coin)" fill-rule="evenodd" d="M17 10a5 5 0 1 0 10 0a5 5 0 1 0-10 0zM20 8h4v4h-4z"/></svg>Brouillon de votre assistant</span><span class="site-draft-tag">Vous attend</span></span>
+        <p class="site-bubble" dir="auto">Bonjour, et merci pour votre question. Oui, la chemise en lin existe en bleu marine. Quelles tailles souhaitez-vous ?</p>
+        <p class="site-acts">La réponse ne part que lorsque vous appuyez sur Envoyer. Vous pouvez d’abord la modifier, ou répondre vous-même.</p>
+      </div>
+    </figure>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-how">
+    <h2 id="site-how">Comment ça marche</h2>
+    <ol class="site-steps"><li><h3>Présentez votre activité à votre assistant</h3><p>Ajoutez ce que vous vendez, vos prix et votre prix plancher, ainsi que les informations que vos clients demandent. Choisissez ensuite le nom de votre assistant. Les réponses ne reposent que sur ce que vous enseignez : jamais un prix ni une affirmation que vous n’avez pas donnés.</p></li><li><h3>Un client écrit</h3><p>Sur WhatsApp, Instagram, Messenger ou par e‑mail. Votre assistant lit le message et vous propose une réponse.</p></li><li><h3>Vous l’envoyez</h3><p>Lisez la réponse, modifiez ce que vous voulez, puis appuyez sur Envoyer. Si une information était fausse, corrigez-la une fois : les réponses suivantes en tiennent compte.</p></li></ol>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-yours">
+    <h2 id="site-yours">Ce que vous gardez en main</h2>
+    <div class="site-cards"><div class="site-card"><h3>Vos prix</h3><p>Les prix viennent uniquement de ce que vous avez fixé et ne descendent jamais sous votre prix plancher. Une remise qui dépasse la limite fixée vous est d’abord soumise.</p></div><div class="site-card"><h3>Ce qui part sans vous</h3><p>Au début, chaque réponse vous attend. Vous pouvez laisser partir sans vous les salutations et les questions une fois que :</p><ul class="site-when"><li>le nom de votre assistant est choisi</li><li>les vérifications de l’Entraînement sont faites</li><li>la plupart des réponses récentes de votre assistant à vos propres clients sont parties sans modification, auprès de plusieurs clients et sur plusieurs jours</li></ul><p>Tout ce qui comporte un prix attend encore : les prix demandent un historique plus long qui leur est propre. Aucune commande n’est confirmée sans vous.</p></div><div class="site-card"><h3>Revenir en arrière</h3><p>Un seul choix vous remet toutes les réponses entre les mains, et après un arrêt, plus rien ne part. Vos clients, vos conversations et tout ce que vous avez enseigné restent là, et vous pouvez en récupérer une copie sous forme de fichiers tableur.</p></div></div>
+    <p class="site-honest">Quand votre assistant répond sans vous, le premier message indique clairement que ce n’est pas une personne qui répond, et propose de parler à quelqu’un de votre équipe.</p>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-channels">
+    <h2 id="site-channels">Là où vos clients écrivent déjà</h2>
+    <p>Chaque réponse repart par le canal d’arrivée du message.</p>
+    <ul class="site-channels"><li><strong>WhatsApp</strong><span>Configuré avec notre aide, sur le numéro que vous utilisez avec vos clients.</span></li><li><strong>Instagram</strong><span>Via le compte Instagram de votre entreprise, associé à sa Page Facebook.</span></li><li><strong>Messenger</strong><span>Via la Page Facebook de votre entreprise.</span></li><li><strong>E‑mail</strong><span>Depuis la boîte mail de votre entreprise.</span></li></ul>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-who">
+    <h2 id="site-who">Pour qui</h2>
+    <p class="site-prose">Toute entreprise qui vend ou échange avec ses clients sur les réseaux sociaux et par e‑mail — marques de mode et de beauté, boutiques en ligne, start-up, agences et sociétés de services, mais aussi entreprises de fabrication, d’export et de vente en gros.</p>
+    <p class="site-prose">Votre espace de travail peut être en français, en anglais, en chinois, en arabe ou en espagnol.</p>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-first">
+    <h2 id="site-first">Les premiers espaces de travail</h2>
+    <p class="site-prose">Nomi ouvre d’abord à un petit groupe, sur invitation, quelques entreprises à la fois.</p>
+    <p class="site-prose">Nous sommes prévenus de chaque nouvel espace de travail, et vous aidons à le configurer là où vous en avez besoin.</p>
+  </section>
+
+  <section class="site-sec site-invite" aria-labelledby="site-invite">
+    <h2 id="site-invite">Demander une invitation</h2>
+    <p class="site-prose">Écrivez-nous en indiquant le nom de votre entreprise, ce que vous vendez et où vos clients vous écrivent : nous vous répondrons.</p>
+    <p class="site-cta"><a class="site-go site-go-2" href="mailto:hello@example.com?subject=Une%20invitation%20%C3%A0%20Nomi&amp;body=Nom%20de%20l%E2%80%99entreprise%C2%A0%3A%0ACe%20que%20nous%20vendons%C2%A0%3A%0AO%C3%B9%20nos%20clients%20nous%20%C3%A9crivent%C2%A0%3A%0A">Écrivez-nous pour une invitation</a><span class="site-member">Notre adresse : <a href="mailto:hello@example.com?subject=Une%20invitation%20%C3%A0%20Nomi&amp;body=Nom%20de%20l%E2%80%99entreprise%C2%A0%3A%0ACe%20que%20nous%20vendons%C2%A0%3A%0AO%C3%B9%20nos%20clients%20nous%20%C3%A9crivent%C2%A0%3A%0A">hello@example.com</a></span></p>
+  </section>
+
+  <footer class="site-foot">
+    <nav class="site-links" aria-label="Nomi">
+      <a href="/privacy">Confidentialité</a>
+      <a href="/terms">Conditions d’utilisation</a>
+      <a href="/cookies">Cookies</a>
+      <a href="/refunds">Remboursements et résiliation</a>
+      <a href="/data-deletion">Pour les clients : supprimer vos données</a>
+    </nav>
+    <div class="langsw" role="group" aria-label="Langue">
+    <a class="" hreflang="en" lang="en" href="/locale?set=en&next=/">English</a><a class="" hreflang="zh" lang="zh" href="/locale?set=zh&next=/">中文</a><a class="" hreflang="ar" lang="ar" href="/locale?set=ar&next=/">العربية</a><a class="" hreflang="es" lang="es" href="/locale?set=es&next=/">Español</a><a class="on" hreflang="fr" lang="fr" href="/locale?set=fr&next=/">Français</a></div>
+  </footer>
+</div></main></body></html>
