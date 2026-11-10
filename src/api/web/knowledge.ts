@@ -163,7 +163,8 @@ const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function correctKnowledge(db: Db, businessIdRaw: string, id: string, content: string): Promise<{ code: KnowledgeFlash | 'invalid' }> {
   const bid = parseBusinessId(businessIdRaw);
   const text = content.trim();
-  if (!bid.ok || !text) return { code: 'invalid' };
+  // No id, or not an id: refused here — it reached the uuid cast and answered 500 (the authorization walk, fix round).
+  if (!bid.ok || !text || !PRODUCT_ID.test(id)) return { code: 'invalid' };
   await withTenantTx(db, bid.value, async (tx) => {
     const old = (await sql<{ product_id: string | null; kind: string; label: string }>`
       select product_id, kind, label from product_knowledge where id = ${id} and status='active' for update
@@ -180,7 +181,7 @@ export async function correctKnowledge(db: Db, businessIdRaw: string, id: string
 
 export async function archiveKnowledge(db: Db, businessIdRaw: string, id: string): Promise<{ code: KnowledgeFlash | 'invalid' }> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { code: 'invalid' };
+  if (!bid.ok || !PRODUCT_ID.test(id)) return { code: 'invalid' };
   await withTenantTx(db, bid.value, (tx) =>
     sql`update product_knowledge set status='archived', updated_at=now() where id = ${id} and status='active'`.execute(tx));
   return { code: 'archived' };
