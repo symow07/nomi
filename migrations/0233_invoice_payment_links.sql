@@ -39,6 +39,9 @@ create table stripe_checkout_attempts (
  state text not null default 'creating' check(state in ('creating','open','processing','paid','expired','failed')),
  session_id text, intent_id text, url text, expires_at timestamptz not null, created_at timestamptz not null default now(),
  reason text, unique(business_id,id), unique(connection_id,session_id), unique(connection_id,intent_id),
+ -- closed_for: the paid attempt of the same invoice whose payment made Nomi expire this link.
+ -- paid_twice: this attempt's payment came after another link of the invoice was paid, and was more than was owed.
+ closed_for uuid, paid_twice text check(paid_twice in ('untold','told')),
  foreign key(business_id,connection_id) references stripe_connections(business_id,id),
  foreign key(business_id,mapping_id) references stripe_mappings(business_id,id),
  foreign key(business_id,invoice_id) references invoices(business_id,id)
@@ -180,7 +183,10 @@ begin
     raise exception 'books: a payment is in its invoice''s currency (%)', i.currency using errcode = 'NB019';
   end if;
   owed := invoice_total(new.invoice_id) - invoice_credited(new.invoice_id) - invoice_paid(new.invoice_id);
-  if new.kind = 'in' and new.amount > owed then
+  -- A customer who paid a second payment link of an invoice already paid through another has paid twice: the
+  -- money arrived, so it is recorded whole and the excess is owed back to them (refund_due). Never refunded here.
+  if new.kind = 'in' and new.amount > owed and not (new.created_by = 'stripe' and exists(
+       select 1 from stripe_checkout_attempts a where a.business_id = new.business_id and a.invoice_id = new.invoice_id and a.state = 'paid')) then
     raise exception 'books: % is more than is still owed (%)', new.amount, owed using errcode = 'NB019';
   end if;
   if new.kind = 'refund' and new.amount > -owed then

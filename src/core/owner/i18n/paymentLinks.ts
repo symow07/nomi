@@ -99,4 +99,10 @@ export const PAYMENT_LINKS_EN={
  'paymentLinks.flash.posted':'The entry is recorded.',
  'paymentLinks.flash.checked':'The saved payment records have been checked again.',
  'paymentLinks.flash.refused':'This could not be completed. {why}',
+ 'paymentLinks.invoice.paidTwice':'This invoice was paid twice through payment links. Both payments are recorded.',
+ 'paymentLinks.invoice.refundYours':'Nothing has been refunded. A refund is yours to make in Stripe; Nomi records it when Stripe confirms it.',
+ 'paymentLinks.invoice.stillOpen':'Another payment link for this invoice is still open, so it could be paid again. Expire it on Payment links. A payment already pending on it cannot be stopped from Nomi.',
+ 'paymentLinks.closedForPaid':'Expired by Nomi because the invoice was paid through another link.',
+ 'notify.payment_paid_twice.subject':'An invoice was paid twice',
+ 'notify.payment_paid_twice':'A customer paid the same invoice twice through payment links. Both payments are recorded, and the invoice shows what is owed back. Nothing has been refunded: a refund is yours to make in Stripe.',
 } as const;

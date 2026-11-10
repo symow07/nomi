@@ -1,5 +1,6 @@
 import {registerPaymentRoutes} from './paymentRoutes.js';
 import {renderInvoicePaymentDoor} from './stripePayments.js';
+import {invoiceLinkState} from '../../db/stripePayments.js';
 import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
@@ -3300,11 +3301,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const sending = v ? { on: await invoiceSendingOn(tx, bid), conversationId: sendable?.conversationId ?? null, channel: sendable?.channel ?? null,
         history: await invoiceSendHistory(tx, bid, id) } : null;
       const paymentLinks=Boolean(deps.stripeConnect)&&(await sql`select 1 from businesses where id=${bid}::uuid and country in ('GB','US') and practice_of is null`.execute(tx)).rows.length>0;
-      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending, paymentLinks };
+      const links=paymentLinks&&v&&booksMay(personOf(s),'post')?await invoiceLinkState(tx,bid,id):undefined;
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending, paymentLinks, links };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}${renderInvoicePaymentDoor(id,locale,booksMay(personOf(s),'post'),!['draft','discarded'].includes(got.v.status),got.paymentLinks)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}${renderInvoicePaymentDoor(id,locale,booksMay(personOf(s),'post'),!['draft','discarded'].includes(got.v.status),got.paymentLinks,got.links)}` }));
   });
   /**
    * 0226 — SEND THE INVOICE from its page (the owner's alone): the same one path as from the conversation

@@ -28,6 +28,23 @@ describe('payment-link owner pages',()=>{
     for(const flags of [[false,true,true],[true,false,true],[true,true,false]])expect(renderInvoicePaymentDoor('invoice','ar',...flags as [boolean,boolean,boolean])).toBe('');
     expect(buttonsAndDoors(renderInvoicePaymentDoor('invoice','en',true,true,true))).toEqual([]);
   });
+  it.each(['en','ar'] as const)('%s: an invoice paid twice lists both payments and a link still open is said, never silent',locale=>{
+    const twice={paid:[{amount:'100',currency:'GBP',date:'2026-10-12'},{amount:'100',currency:'GBP',date:'2026-10-14'}],stillOpen:false};
+    const html=renderInvoicePaymentDoor('invoice',locale,true,true,true,twice);
+    expect(html).toContain('This invoice was paid twice through payment links.');expect(html).toContain('Nothing has been refunded.');
+    expect(html.match(/id="paid-twice"[\s\S]*?<\/ul>/)![0].match(/<li /g)).toHaveLength(2);
+    expect(html).not.toContain('still open');
+    const open=renderInvoicePaymentDoor('invoice',locale,true,true,true,{paid:[twice.paid[0]!],stillOpen:true});
+    expect(open).toContain('Another payment link for this invoice is still open');expect(open).not.toContain('paid twice');
+    for(const h of [html,open]){expect(buttonsAndDoors(h)).toEqual([]);expect(unisolatedFigures(h)).toEqual([]);expect(h).not.toMatch(/>paymentLinks\./);expect(h.match(/class="btn send"/g)).toBeNull();}
+    expect(renderInvoicePaymentDoor('invoice',locale,true,true,true,{paid:[twice.paid[0]!],stillOpen:false})).not.toMatch(/paid twice|still open/);
+  });
+  it('the payments page names a link Nomi expired because another was paid, and the one that paid twice',()=>{
+    const html=renderStripePayments({...page,attempts:[
+      {id:'b',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'expired',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:'a',paidTwice:null},
+      {id:'c',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'paid',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:null,paidTwice:'told'}]},'en',null);
+    expect(html).toContain('Expired by Nomi because the invoice was paid through another link.');expect(html).toContain('This invoice was paid twice through payment links.');
+  });
   it('keeps an unavailable fee, mixed payout and posting exception visible, escaping all external values',()=>{
     const html=renderStripePayments({...page,movements:[{id:'m',kind:'payment',amount:'100',currency:'GBP',date:'2026-10-10',entryId:null,reason:'period',providerId:'ch_<script>'}],
       attempts:[{id:'a',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'paid',reason:'fee_pending',expiresAt:new Date('2026-10-11'),url:null}],

@@ -65,12 +65,18 @@ export async function postCapturedPayment(tx: Tx, businessId: string, attemptId:
   if (!pay.same) return result(tx,businessId,a,{ state:'exception',reason:'payment_differs' });
   await sql`update stripe_checkout_attempts set intent_id=${fact.id} where business_id=${businessId}::uuid and id=${a.id}::uuid`.execute(tx);
   if (!pay.entryId) {
-    const posted=await recordPayment(tx,businessId,a.invoiceId,'stripe',{paidOn:date,amount:a.amount,journalId:m.journalId,accountId:m.clearingId});
+    // Paid twice: another link of this invoice is already paid and this payment is more than is still owed. Nothing is
+    // refunded or reversed: both are posted, the invoice shows the excess owed back, and the owner is told once.
+    const twice=(await sql<{twice:boolean}>`select ${a.amount}::numeric > invoice_total(i.id)-invoice_credited(i.id)-invoice_paid(i.id)
+      and exists(select 1 from stripe_checkout_attempts o where o.business_id=i.business_id and o.invoice_id=i.id and o.id<>${a.id}::uuid and o.state='paid') as twice
+      from invoices i where i.business_id=${businessId}::uuid and i.id=${a.invoiceId}::uuid`.execute(tx)).rows[0]?.twice===true;
+    const posted=await recordPayment(tx,businessId,a.invoiceId,'stripe',{paidOn:date,amount:a.amount,journalId:m.journalId,accountId:m.clearingId,paidTwice:twice});
     if (posted.kind==='refused') {
       await sql`update stripe_movements set reason=${posted.reason} where id=${pay.id}::uuid`.execute(tx);
       return result(tx,businessId,a,{state:'exception',reason:posted.reason});
     }
     await sql`update stripe_movements set entry_id=${posted.entryId}::uuid,reason=null where id=${pay.id}::uuid`.execute(tx);
+    if (twice) await sql`update stripe_checkout_attempts set paid_twice='untold' where business_id=${businessId}::uuid and id=${a.id}::uuid and paid_twice is null`.execute(tx);
   }
   const b=ch.balance;
   if (!b || b.currency!==a.currency || compareDecimal(b.gross,a.amount)!==0) {

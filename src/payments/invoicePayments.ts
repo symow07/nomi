@@ -5,7 +5,9 @@ import { postCapturedPayment, postStripeRefund, recordStripePayout, settleUnpaid
 import type { ConnectClient } from './stripeConnect.js';
 import type { BusinessId } from '../core/types/ids.js';
 
-export type PaymentDeps = { readonly db:Db; readonly client:ConnectClient; readonly live:boolean; readonly now:()=>Date; readonly publicBaseUrl:string|null|undefined };
+export type PaymentDeps = { readonly db:Db; readonly client:ConnectClient; readonly live:boolean; readonly now:()=>Date; readonly publicBaseUrl:string|null|undefined;
+  /** The owner's alert that an invoice was paid twice (`payment_paid_twice`, e-mail always). Absent, it waits for the worker that has it. */
+  readonly alert?:((bid:BusinessId)=>Promise<void>)|undefined };
 type LinkResult={readonly ok:true;readonly value:PaymentAttempt}|{readonly ok:false;readonly reason:string};
 /** No provider call before the workspace, country and Practice checks. */
 async function eligible(deps:PaymentDeps,bid:BusinessId) {
@@ -126,10 +128,46 @@ export async function reconcileStripePayments(deps:PaymentDeps,bid:BusinessId):P
           attempt=attempt??p.value.attemptId??(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`select id::text from stripe_checkout_attempts where business_id=${bid}::uuid and connection_id=${e.connection}::uuid and intent_id=${intent}`.execute(tx))).rows[0]?.id??null;
           const known=attempt?await withTenantTx(deps.db,bid,tx=>paymentAttempt(tx,bid,attempt!)):null;
           out=known?.connectionId===e.connection?await withTenantTx(deps.db,bid,tx=>p.value.succeeded?postCapturedPayment(tx,bid,known.id,p.value):settleUnpaidPayment(tx,bid,known.id,p.value,failed)):{state:'posted'};
+          // The invoice is paid through this link: no other link of it may stay payable. Before the mark, so a fault
+          // here leaves the event to be read again; a link that cannot be expired is shown on the invoice.
+          if(known?.connectionId===e.connection&&p.value.succeeded&&(out.state==='posted'||out.state==='fee_pending'))await closeOtherLinks(deps,bid,known.id);
         }
       }
     }else out={state:'posted'};
     await mark(deps,bid,e,out);
+  }
+  await tellPaidTwice(deps,bid);
+}
+
+/**
+ * When one attempt of an invoice is paid, every other link of that invoice still payable (making or open) is expired
+ * through the one expiry path, and the expiry is recorded on it (`closed_for`). A link the provider will not expire, or
+ * one already processing a payment, stays as it is and the invoice page says another link is still open
+ * (`invoiceLinkState`). Nothing is refunded or reversed here.
+ */
+export async function closeOtherLinks(deps:PaymentDeps,bid:BusinessId,paidId:string):Promise<void>{
+  const others=(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`select o.id::text from stripe_checkout_attempts a join stripe_checkout_attempts o
+    on o.business_id=a.business_id and o.invoice_id=a.invoice_id and o.id<>a.id
+    where a.business_id=${bid}::uuid and a.id=${paidId}::uuid and a.state='paid' and o.state in ('creating','open') order by o.created_at`.execute(tx))).rows;
+  for(const o of others){
+    const r=await expirePaymentLink(deps,bid,o.id);
+    if(r.ok)await withTenantTx(deps.db,bid,tx=>sql`update stripe_checkout_attempts set closed_for=${paidId}::uuid
+      where business_id=${bid}::uuid and id=${o.id}::uuid and state='expired' and closed_for is null`.execute(tx));
+  }
+}
+
+/** The owner is told once of each attempt that paid an invoice a second time: claimed first, handed back if the alert could not be queued. */
+async function tellPaidTwice(deps:PaymentDeps,bid:BusinessId):Promise<void>{
+  if(!deps.alert)return;
+  const claimed=(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`update stripe_checkout_attempts set paid_twice='told'
+    where business_id=${bid}::uuid and paid_twice='untold' returning id::text`.execute(tx))).rows;
+  for(let n=0;n<claimed.length;n++){
+    try{await deps.alert(bid);}
+    catch(err){
+      const back=claimed.slice(n).map(c=>c.id);
+      await withTenantTx(deps.db,bid,tx=>sql`update stripe_checkout_attempts set paid_twice='untold' where business_id=${bid}::uuid and id=any(${back}::uuid[])`.execute(tx));
+      throw err;
+    }
   }
 }
 async function mark(deps:PaymentDeps,bid:BusinessId,e:Pending,out:StripePosting):Promise<void>{

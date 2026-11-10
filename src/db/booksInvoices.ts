@@ -314,6 +314,8 @@ export async function receivableMove(tx: Tx, businessId: string, invoiceId: stri
  */
 export async function recordPayment(tx: Tx, businessId: string, invoiceId: string, by: string,
   p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean; readonly reversesRefundId?: string;
+       /** A second payment link the customer also paid (payments/invoicePayments.ts): the money arrived, so it is recorded whole and the excess is owed back to them. The database allows it only for Stripe when another link of the invoice is paid. */
+       readonly paidTwice?: boolean;
        readonly paid?: { readonly currency: string; readonly amount: Decimal | null } | null }):
   Promise<{ readonly kind: 'recorded'; readonly entryId: string; readonly fx: Decimal } | InvoiceRefusal> {
   const a = await booksAccountsOf(tx, businessId);
@@ -337,7 +339,7 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
     reversal = { amount: d(original.amount), relief: d(original.relief), remainingAmount: subDecimal(d(original.amount),d(original.returned)), remainingRelief: subDecimal(d(original.relief),d(original.restored)) };
   }
   const room = reversal?.remainingAmount ?? (refund ? subDecimal(d('0'), owed) : owed);
-  if (compareDecimal(p.amount, room) > 0) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
+  if (compareDecimal(p.amount, room) > 0 && !(p.paidTwice && !refund && !reversal)) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
   const named = p.paid && p.paid.currency !== inv.currency ? p.paid : null;
   if (named && !(CURRENCIES as readonly string[]).includes(named.currency)) return { kind: 'refused', reason: 'other', detail: null };
   if (named && (named.amount === null || signOf(named.amount) <= 0)) return { kind: 'refused', reason: 'arrived_missing', detail: named.currency };

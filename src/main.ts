@@ -1378,7 +1378,8 @@ export async function buildProduction(
     await boss.work<{businessId?:string}>(QUEUES.stripePayments,async jobs=>{
       for(const job of jobs){
         const ids=job.data.businessId?[{business_id:job.data.businessId}]:(await sql<{business_id:string}>`select business_id::text from stripe_pending_workspaces()`.execute(db)).rows;
-        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL},bid.value);}
+        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL,
+          alert:async(b)=>{await sendAlert(boss,{businessId:b,kind:'payment_paid_twice',conversationId:null});}},bid.value);}
       }
     });
   }else await boss.unschedule(QUEUES.stripePayments).catch(()=>undefined);

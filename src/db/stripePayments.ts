@@ -118,3 +118,14 @@ export async function storeStripeEvent(tx: Tx, businessId: string, connectionId:
     on conflict(connection_id,event_id) do nothing`.execute(tx);
   return Number(r.numAffectedRows) === 1;
 }
+
+/** What the invoice page says of its payment links: every link paid (two or more is paid twice), and whether another is still payable after one was paid. */
+export type InvoiceLinkState = { readonly paid: readonly { amount: string; currency: string; date: string | null }[]; readonly stillOpen: boolean };
+export async function invoiceLinkState(tx: Tx, businessId: string, invoiceId: string): Promise<InvoiceLinkState> {
+  if (!uuid(invoiceId)) return { paid: [], stillOpen: false };
+  const paid = (await sql<{ amount: string; currency: string; date: string | null }>`select a.amount::text,a.currency,
+    (select min(m.event_date)::text from stripe_movements m where m.business_id=a.business_id and m.attempt_id=a.id and m.kind='payment' and m.entry_id is not null) as date
+    from stripe_checkout_attempts a where a.business_id=${businessId}::uuid and a.invoice_id=${invoiceId}::uuid and a.state='paid' order by date nulls last,a.created_at`.execute(tx)).rows;
+  const stillOpen = paid.length > 0 && (await sql`select 1 from stripe_checkout_attempts where business_id=${businessId}::uuid and invoice_id=${invoiceId}::uuid and state in ('creating','open','processing') limit 1`.execute(tx)).rows.length > 0;
+  return { paid, stillOpen };
+}
