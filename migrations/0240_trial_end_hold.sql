@@ -35,6 +35,26 @@
 
 alter table workspace_billing add column if not exists told_trial_over_at timestamptz;
 
+-- ── the first channel, whatever it is (fix round O1) ─────────────────────────────────────────────────────────────
+-- 0117's counted WhatsApp's `channels` row, Pages and mailboxes only: a workspace on Telegram, TikTok or the web chat
+-- alone had no first channel, so its trial never started or ended and no subscription was ever made for it. Re-made
+-- from 0117's (its only definition) over every place a connection is written: any `channels` row (every kind), the
+-- accounts tables (Meta, mail, WhatsApp's own number, TikTok), and the channels' audit trail — a `channels` row is one
+-- per kind and Reconnect writes its `connected_at` again, while the trail keeps the first `connect`. The earliest wins.
+-- Read by `billing_state()` (Billing), `billing_to_subscribe()` (the sweep: a workspace with a plan and a card on
+-- such a channel is now subscribed, its trial from that channel) and `billing_trial_over()` below.
+create or replace function first_channel_at(p_business uuid) returns timestamptz
+language sql stable security definer set search_path = public as $$
+  select least(
+    (select min(connected_at) from channels where business_id = p_business),
+    (select min(at) from channel_audit where business_id = p_business and action in ('connect', 'reconnect')),
+    (select min(connected_at) from meta_accounts where business_id = p_business),
+    (select min(connected_at) from mail_accounts where business_id = p_business),
+    (select min(connected_at) from whatsapp_accounts where business_id = p_business),
+    (select min(connected_at) from tiktok_accounts where business_id = p_business))
+$$;
+revoke all on function first_channel_at(uuid) from public;
+
 -- The trial is over and no card is saved, while `billing_required` is on. For the
 -- workspace that pays (never a pilot, never an exempt one; a practice copy is
 -- asked about its workspace by the callers below).
