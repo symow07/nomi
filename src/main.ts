@@ -29,6 +29,7 @@ import { httpsMailConfigFrom, httpsSystemMailer, cappedMail, MAIL_PROVIDER_NAMES
 import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
 import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/stripe.js';
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
+import { readAllAdSpend } from './pipeline/adSpendRead.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
@@ -1326,7 +1327,6 @@ export async function buildProduction(
     // installation has the ads login. A read is never retried the same day (its row is written before Meta is asked).
     await boss.schedule(QUEUES.adSpend, '50 4 * * *', {});
     await boss.work(QUEUES.adSpend, async () => {
-      const { readAllAdSpend } = await import('./pipeline/adSpendRead.js');
       const tally = await readAllAdSpend({ db, fetchImpl: adsLogin ? adsFetch : null, credentialKey }, (raw) => {
         const b = parseBusinessId(raw); return b.ok ? b.value : null;
       });

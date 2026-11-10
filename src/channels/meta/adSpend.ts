@@ -21,7 +21,6 @@ import { isMetaAmount, readUsage, type Usage } from '../../core/ads/spend.js';
  */
 
 export const MARKETING_API_VERSION = 'v27.0';
-export const ADS_SCOPE = 'ads_read';
 /** Exactly these, always named: Meta's default fields are not ours to rely on. */
 export const INSIGHTS_FIELDS = 'account_id,account_currency,date_start,date_stop,spend' as const;
 /** A read stops after this many pages, recorded as incomplete: never a loop. */

@@ -5,7 +5,7 @@ import {
   verdictOf, listAdAccounts, type AdsFetch,
 } from '../../src/channels/meta/adSpend.js';
 import { META_LOGIN_SCOPES, metaDialogUrl, metaLoginFrom, mintMetaState, readMetaState } from '../../src/channels/meta/connect.js';
-import { addAmounts, isMetaAmount, readUsage, readSpan, monthDays, CHANNEL_OF, isNamedPlatform } from '../../src/core/ads/spend.js';
+import { isMetaAmount, readUsage, readSpan, monthDays, CHANNEL_OF, isNamedPlatform } from '../../src/core/ads/spend.js';
 
 /**
  * 0238 — ad spend, without a database: the login stays apart from the Page connect; the Insights request is
@@ -172,12 +172,10 @@ describe('0238 · the Insights request', () => {
 });
 
 describe('0238 · amounts, months and the ad accounts', () => {
-  it('amounts are decimal strings, added exactly', () => {
+  // Sums are the database's (`amount_num`, numeric, generated from Meta's text): ad-spend-results holds them exact.
+  it('amounts are decimal strings', () => {
     expect(['12.34', '0.10', '1000000.01', '3'].every(isMetaAmount)).toBe(true);
     expect(['1e3', '-1', '1,5', '.5', '1.', ' 1', ''].some(isMetaAmount)).toBe(false);
-    expect(addAmounts('0.10', '0.20')).toBe('0.3');
-    expect(addAmounts('999999999999999.999999', '0.000001')).toBe('1000000000000000');
-    expect(addAmounts('12.34', '1000000.01')).toBe('1000012.35');
   });
 
   it('months and spans are the account\'s days', () => {

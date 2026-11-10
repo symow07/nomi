@@ -6,21 +6,6 @@
 /** Meta's `spend`: a numeric string. Digits, at most one point, nothing else: no sign, no exponent, no comma. */
 export const isMetaAmount = (s: string): boolean => /^[0-9]{1,15}(\.[0-9]{1,6})?$/.test(s);
 
-/**
- * Two of Meta's decimal strings added exactly, as strings (never a float). Used where a sum is shown before
- * the database has it; the database sums `amount_num`, an exact numeric.
- */
-export function addAmounts(a: string, b: string): string {
-  if (!isMetaAmount(a) || !isMetaAmount(b)) throw new Error('not a decimal string');
-  const [ai, af = ''] = a.split('.'); const [bi, bf = ''] = b.split('.');
-  const places = Math.max(af.length, bf.length);
-  const big = (i: string, f: string) => BigInt(i + f.padEnd(places, '0'));
-  const sum = (big(ai!, af) + big(bi!, bf)).toString().padStart(places + 1, '0');
-  if (places === 0) return sum;
-  const whole = sum.slice(0, sum.length - places); const frac = sum.slice(sum.length - places).replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole;
-}
-
 // ── The usage headers (Graph rate limiting; Insights best practices) ─────────────────────────────────────────
 
 export type Usage = {
