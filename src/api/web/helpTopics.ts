@@ -21,48 +21,39 @@ export type Guide = {
   readonly video?: SetupStep;
   /** How many lines it has (`help.g.<id>.<n>`). */
   readonly lines: 2 | 3;
+  /**
+   * Where it came from: the docs/kb article it was rewritten from (a draft, owner review), or `page` — written from
+   * the page it describes. Each was checked against the code and the positioning and says only what is built.
+   */
+  readonly source: string;
 };
 
 export const GUIDES: Readonly<Record<GuideId, Guide>> = {
-  setup: { id: 'setup', door: '/app/get-started', lines: 3 },
-  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 2 },
-  channels: { id: 'channels', door: '/app/settings/channels', video: 'channels', lines: 3 },
-  whatsapp: { id: 'whatsapp', door: '/app/settings/channels/whatsapp', lines: 3 },
-  approve: { id: 'approve', door: '/app/inbox', video: 'first_success', lines: 3 },
-  inbox: { id: 'inbox', door: '/app/inbox', lines: 3 },
-  products: { id: 'products', door: '/app/products/add', video: 'products', lines: 3 },
-  away: { id: 'away', door: '/app', lines: 3 },
-  alone: { id: 'alone', door: '/app/settings/assistant/alone', lines: 3 },
-  name: { id: 'name', door: '/app/settings/assistant/name', video: 'name', lines: 2 },
-  disclosure: { id: 'disclosure', door: '/app/settings/assistant/name', lines: 3 },
-  data: { id: 'data', door: '/app/settings/business/data', lines: 3 },
-  practice: { id: 'practice', door: '/app/assistant/practice', video: 'first_success', lines: 3 },
-  knowledge: { id: 'knowledge', door: '/app/assistant/knowledge', lines: 3 },
-  customers: { id: 'customers', door: '/app/customers', lines: 2 },
-  calendar: { id: 'calendar', door: '/app/calendar', lines: 2 },
-  books: { id: 'books', door: '/app/books', lines: 2 },
-  team: { id: 'team', door: '/app/settings/team', lines: 2 },
-  billing: { id: 'billing', door: '/app/settings/billing', lines: 2 },
+  setup: { id: 'setup', door: '/app/get-started', lines: 3, source: 'docs/kb/01-first-ten-minutes.md' },
+  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 2, source: 'page' },
+  channels: { id: 'channels', door: '/app/settings/channels', video: 'channels', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
+  whatsapp: { id: 'whatsapp', door: '/app/settings/channels/whatsapp', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
+  approve: { id: 'approve', door: '/app/inbox', video: 'first_success', lines: 3, source: 'docs/kb/03-approve-edit-skip.md' },
+  inbox: { id: 'inbox', door: '/app/inbox', lines: 3, source: 'page' },
+  products: { id: 'products', door: '/app/products/add', video: 'products', lines: 3, source: 'docs/kb/04-catalog-import.md' },
+  away: { id: 'away', door: '/app', lines: 3, source: 'docs/kb/05-night-shift.md' },
+  alone: { id: 'alone', door: '/app/settings/assistant/alone', lines: 3, source: 'docs/kb/06-promotion-revoke.md' },
+  name: { id: 'name', door: '/app/settings/assistant/name', video: 'name', lines: 2, source: 'page' },
+  disclosure: { id: 'disclosure', door: '/app/settings/assistant/name', lines: 3, source: 'docs/kb/10-buyer-privacy.md' },
+  data: { id: 'data', door: '/app/settings/business/data', lines: 3, source: 'docs/kb/09-data-export.md' },
+  practice: { id: 'practice', door: '/app/assistant/practice', video: 'first_success', lines: 3, source: 'docs/kb/01-first-ten-minutes.md' },
+  knowledge: { id: 'knowledge', door: '/app/assistant/knowledge', lines: 3, source: 'page' },
+  customers: { id: 'customers', door: '/app/customers', lines: 2, source: 'page' },
+  calendar: { id: 'calendar', door: '/app/calendar', lines: 2, source: 'page' },
+  books: { id: 'books', door: '/app/books', lines: 2, source: 'page' },
+  team: { id: 'team', door: '/app/settings/team', lines: 2, source: 'page' },
+  billing: { id: 'billing', door: '/app/settings/billing', lines: 2, source: 'page' },
 };
 
 export const guideTitle = (id: GuideId): MessageKey => `help.g.${id}.title` as MessageKey;
 export const guideDoor = (id: GuideId): MessageKey => `help.g.${id}.door` as MessageKey;
 export const guideLines = (id: GuideId): MessageKey[] =>
   Array.from({ length: GUIDES[id].lines }, (_, i) => `help.g.${id}.${i + 1}` as MessageKey);
-
-/**
- * Where each guide came from. A kb article is a draft (owner review); each guide was checked against the code and
- * the positioning (customers, not buyers; no quote, minimum or factory frame) and says only what is built.
- */
-export const GUIDE_SOURCE: Readonly<Record<GuideId, string>> = {
-  setup: 'docs/kb/01-first-ten-minutes.md', practice: 'docs/kb/01-first-ten-minutes.md',
-  channels: 'docs/kb/02-connect-whatsapp.md', whatsapp: 'docs/kb/02-connect-whatsapp.md',
-  approve: 'docs/kb/03-approve-edit-skip.md', products: 'docs/kb/04-catalog-import.md',
-  away: 'docs/kb/05-night-shift.md', alone: 'docs/kb/06-promotion-revoke.md',
-  data: 'docs/kb/09-data-export.md', disclosure: 'docs/kb/10-buyer-privacy.md',
-  profile: 'page', inbox: 'page', name: 'page', knowledge: 'page', customers: 'page', calendar: 'page',
-  books: 'page', team: 'page', billing: 'page',
-};
 
 /** Every docs/kb article: the guides it became, or why it was left out (listed for the owner). */
 export const KB_SOURCES: Readonly<Record<string, readonly GuideId[] | { readonly dropped: string }>> = {
@@ -115,7 +106,6 @@ const BY_PREFIX: readonly (readonly [string, readonly GuideId[]])[] = [
   ['/app/connect', ['channels', 'whatsapp']],
   ['/app/settings/assistant', ['alone', 'name', 'disclosure']],
   ['/app/settings/assistant/name', ['name', 'disclosure']],
-  ['/app/employee', ['alone', 'name']],
   ['/app/settings/team', ['team', 'approve']],
   ['/app/settings/people', ['team', 'approve']],
   ['/app/settings/billing', ['billing', 'data']],

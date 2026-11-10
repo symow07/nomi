@@ -82,6 +82,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'procedures.flash.refused.step_long', 'procedures.flash.refused.money', 'procedures.flash.refused.price', 'procedures.flash.refused.promise',
   'procedures.flash.refused.injection', 'procedures.flash.refused.after_handoff',
   'cases.flash.notDone', 'cases.flash.gone', 'cases.flash.failed',
+  // Block 6.1 — Write to us: nothing typed, not set up here, too many in a while, the mail did not leave.
+  'help.write.empty', 'help.write.cannot', 'help.write.limit', 'help.write.failed',
   'copilot.flash.notSuggested.nothing_to_answer', 'copilot.flash.notSuggested.deletion', 'copilot.flash.notSuggested.allowance',
   'copilot.flash.notSuggested.no_reply', 'copilot.flash.notSuggested.unavailable',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
@@ -194,7 +196,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'calendar.flash.kept',
   'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
-  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted',
+  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'help.write.sent',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
   'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',

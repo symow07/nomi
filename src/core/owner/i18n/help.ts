@@ -104,7 +104,7 @@ export const HELP_EN = {
   'help.g.name.door': 'Open the name',
 
   'help.g.disclosure.title': 'What customers are told',
-  'help.g.disclosure.1': 'A reply you approved is your own words. The first message sent without you in a conversation tells the customer it comes from an automated assistant.',
+  'help.g.disclosure.1': 'A reply you approved is your own words. The first message sent without you in a conversation tells the customer they are talking to an assistant, not a person.',
   'help.g.disclosure.2': 'If a customer asks what they are talking to, they get an honest answer.',
   'help.g.disclosure.3': 'When a customer asks for a person, the conversation is handed to you; when unsure, the assistant stops and waits for you.',
   'help.g.disclosure.door': 'Open the name',

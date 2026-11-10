@@ -5,7 +5,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { registerWebApp } from '../../src/api/web/app.js';
 import { shell, helpDoor } from '../../src/api/web/layout.js';
 import { guideFileAt, hasVideo } from '../../src/api/web/guide.js';
-import { GUIDES, GUIDE_SOURCE, KB_SOURCES, helpFor, pageFrom, guideLines, guideTitle, guideDoor, FROM_MAX, type GuideId } from '../../src/api/web/helpTopics.js';
+import { GUIDES, KB_SOURCES, helpFor, pageFrom, guideLines, guideTitle, guideDoor, FROM_MAX, type GuideId } from '../../src/api/web/helpTopics.js';
 import { renderHelp, helpRoutes, topicsFor, type HelpIO, type HelpViewer } from '../../src/api/web/helpPanel.js';
 import { answerHelp, namesAFeature, notYetIn, NOT_YET } from '../../src/advisor/help.js';
 import { t } from '../../src/api/web/say.js';
@@ -103,9 +103,9 @@ describe('Block 6.1 · every owner page has a help panel', () => {
     expect(Object.keys(KB_SOURCES).sort()).toEqual(files);
     for (const [file, became] of Object.entries(KB_SOURCES)) {
       if (!Array.isArray(became)) { expect((became as { dropped: string }).dropped.length, file).toBeGreaterThan(20); continue; }
-      for (const id of became as GuideId[]) expect(GUIDE_SOURCE[id], `${file} → ${id}`).toBe(`docs/kb/${file}`);
+      for (const id of became as GuideId[]) expect(GUIDES[id].source, `${file} → ${id}`).toBe(`docs/kb/${file}`);
     }
-    for (const [id, src] of Object.entries(GUIDE_SOURCE)) if (src !== 'page') expect(existsSync(`${ROOT}${src}`), id).toBe(true);
+    for (const { id, source: src } of Object.values(GUIDES)) if (src !== 'page') expect(existsSync(`${ROOT}${src}`), id).toBe(true);
   });
 });
 

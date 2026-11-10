@@ -1360,7 +1360,7 @@ const STYLE_PAGES = `
   .help-guide ul { margin:0 0 var(--space-8); padding-inline-start:var(--space-24); }
   .help-video video { inline-size:100%; max-inline-size:100%; block-size:auto; border-radius:var(--radius-card); margin-block:var(--space-8); }
   .help-ask textarea, .help-write textarea { inline-size:100%; max-inline-size:100%; box-sizing:border-box; }
-  .help-answer { padding:var(--space-12) var(--space-16); border-inline-start:3px solid var(--color-brand); background:var(--color-paper); margin-block-end:var(--space-12); }
+  .help-answer { padding:var(--space-12) var(--space-16); border-inline-start:3px solid var(--color-border); background:var(--color-paper); margin-block-end:var(--space-12); }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:0; border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
