@@ -155,6 +155,7 @@ export const QUEUES = {
   draftExpiry: 'ops.draft_expiry',
   /** 0226 — every hour: an invoice still open three or ten days after it went is reminded once, or drafted for the owner. */
   invoiceReminders: 'books.invoice_reminders',
+  stripePayments: 'books.stripe_payments',
   /** G1 — once a day: the operator's list of the last day's sign-ups. */
   signupDigest: 'ops.signup_digest',
   // G3 — every five minutes: who crossed 80% or 100% of today's allowance.
@@ -295,7 +296,8 @@ export type NotifyJob = {
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
     | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
-    | 'backup_failed' | 'mailbox_disconnected';   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
+    | 'backup_failed' | 'mailbox_disconnected'
+    | 'payment_paid_twice';   // payment links — a customer paid one invoice through two links; the owner refunds, if anyone does   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;

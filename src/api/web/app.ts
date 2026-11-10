@@ -1,4 +1,8 @@
 import { renderResultsTabs } from './resultsNavigation.js';
+import {registerPaymentRoutes} from './paymentRoutes.js';
+import {renderInvoicePaymentDoor} from './stripePayments.js';
+import {invoiceLinkState} from '../../db/stripePayments.js';
+import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
@@ -511,6 +515,8 @@ export type WebDeps = {
    * no card can be saved, and /hooks/stripe does not exist.
    */
   readonly stripe?: { readonly client: StripeClient; readonly webhookSecret: string } | null;
+  readonly stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
+  readonly kickStripePayments?: (businessId:string)=>Promise<void>;
   /**
    * G3 — the WhatsApp number this installation is configured with (Meta's
    * phone number id), or null when there is none. It is what "Connect this
@@ -686,6 +692,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/verify', why: 'A3 — redeems a code: five tries and ten minutes per code, counted in the database' },
   { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
+  { method: 'GET', url: '/payment/return', why: 'Invoice payment return information only: ignores query values, reveals no invoice or customer, and records no payment' },
+  { method: 'POST', url: '/hooks/stripe/connect', why: 'Connected-account event receipt: verifies the separate raw-body signature and mode before retaining minimal event identifiers' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
@@ -2533,7 +2541,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       scope.post('/hooks/stripe', async (req, reply) => {
         const raw = typeof req.body === 'string' ? req.body : '';
         const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
-        if (!e) return reply.code(400).send({ error: 'signature' });
+        if (!e || 'account' in JSON.parse(raw)) return reply.code(400).send({ error: 'signature' });
         const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
           req.log.warn({ reason: loggableMessage(err instanceof Error ? err.message : String(err)) }, 'stripe event failed');
           return 'retry' as const;
@@ -3139,7 +3147,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3307,11 +3315,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const sendable = v ? await sendableInvoice(tx, bid, id) : null;
       const sending = v ? { on: await invoiceSendingOn(tx, bid), conversationId: sendable?.conversationId ?? null, channel: sendable?.channel ?? null,
         history: await invoiceSendHistory(tx, bid, id) } : null;
-      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending };
+      const paymentLinks=Boolean(deps.stripeConnect)&&(await sql`select 1 from businesses where id=${bid}::uuid and country in ('GB','US') and practice_of is null`.execute(tx)).rows.length>0;
+      const links=paymentLinks&&v&&booksMay(personOf(s),'post')?await invoiceLinkState(tx,bid,id):undefined;
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending, paymentLinks, links };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}${renderInvoicePaymentDoor(id,locale,booksMay(personOf(s),'post'),!['draft','discarded'].includes(got.v.status),got.paymentLinks,got.links)}` }));
   });
   /**
    * 0226 — SEND THE INVOICE from its page (the owner's alone): the same one path as from the conversation
@@ -9259,4 +9269,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sbxAction('/app/sandbox/resume', (bid, cid, _req, actor) =>
       resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
   }
+  registerPaymentRoutes(app,{
+    db:deps.db,provider:deps.stripeConnect,publicBaseUrl:deps.publicBaseUrl,
+    owner:async(req,reply)=>{
+      const s=sessionOf(req);if(!s){await reply.redirect('/login');return null;}
+      if(!booksMay(personOf(s),'post')){await flashTo(reply,'/app','staff.notAllowed');return null;}
+      const businessId=bidOf(s);if(!businessId){await reply.callNotFound();return null;}
+      return {businessId,actor:personOf(s).id,session:parseCookies(req.headers.cookie)[COOKIE]??''};
+    },locale:localeOf,flash:takeFlash,
+    page:(req,bodyHtml)=>page(req,{title:t(localeOf(req),'paymentLinks.title'),active:'settings',bodyHtml}),
+    redirect:(reply,key,params)=>flashTo(reply,'/app/payments/stripe',key,params),
+    window:ownerSendWindow,kickDrive:deps.kickDrive??(async()=>{}),kick:deps.kickStripePayments,
+  });
+
 }

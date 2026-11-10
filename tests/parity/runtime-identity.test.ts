@@ -144,7 +144,7 @@ describe('Release hardening · a stale database refuses to serve', () => {
       const sql = await readFile(new URL(f, dir), 'utf8');
       const n = Number(f.slice(0, 4));
       // The values clause may sit on the next line — 0001 writes it that way.
-      const m = new RegExp(`insert into _migrations \\(version, name\\)\\s*values \\(${n},`).test(sql);
+      const m = new RegExp(`insert\\s+into\\s+_migrations\\s*\\(\\s*version\\s*,\\s*name\\s*\\)\\s*values\\s*\\(\\s*${n}\\s*,`, 'i').test(sql);
       if (!m) missing.push(f);
     }
     expect(missing, `these do not record themselves at their own version:\n  ${missing.join('\n  ')}`)

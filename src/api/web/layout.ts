@@ -1196,6 +1196,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      inline; the column that names someone on People is .person. */
   .person { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .caption { font-size:var(--font-size-caption); }
+  .stripe-payments article h3, .stripe-payments article .caption { overflow-wrap:anywhere; }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */

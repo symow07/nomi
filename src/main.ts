@@ -1,3 +1,5 @@
+import {connectClient,connectConfigFrom,type ConnectConfig,type ConnectClient} from './payments/stripeConnect.js';
+import {reconcileStripePayments} from './payments/invoicePayments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -539,6 +541,7 @@ export async function buildProduction(
     signupGuard?: SignupGuard | null;
     /** BILL — tests only: Stripe's client with the network a recorder, and its webhook secret. */
     stripe?: { readonly client: StripeClient; readonly webhookSecret: string };
+    stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -775,6 +778,7 @@ export async function buildProduction(
     const c = stripeConfigFrom(process.env);
     return c ? { client: stripeClient(c), webhookSecret: c.webhookSecret } : null;
   })();
+  const stripeConnect = overrides?.stripeConnect === undefined ? (()=>{const config=connectConfigFrom(process.env);return config?{config,client:connectClient(config)}:null;})() : overrides.stripeConnect;
   if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
     console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
   }
@@ -1011,6 +1015,8 @@ export async function buildProduction(
       signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
       // BILL — the payment provider; null until the owner pastes its keys.
       stripe,
+      stripeConnect,
+      kickStripePayments:async(businessId)=>{await boss.send(QUEUES.stripePayments,{businessId},{singletonKey:businessId});},
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1376,6 +1382,17 @@ export async function buildProduction(
     });
   };
 
+  if(stripeConnect){
+    await boss.schedule(QUEUES.stripePayments,'*/5 * * * *',{});
+    await boss.work<{businessId?:string}>(QUEUES.stripePayments,async jobs=>{
+      for(const job of jobs){
+        const ids=job.data.businessId?[{business_id:job.data.businessId}]:(await sql<{business_id:string}>`select business_id::text from stripe_pending_workspaces()`.execute(db)).rows;
+        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL,
+          alert:async(b)=>{await sendAlert(boss,{businessId:b,kind:'payment_paid_twice',conversationId:null});}},bid.value);}
+      }
+    });
+  }else await boss.unschedule(QUEUES.stripePayments).catch(()=>undefined);
+
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
   // webhook routes — for hosting before ANY channel is configured. An override
   // adapter (tests) always takes the messaging path so composition stays
@@ -1637,6 +1654,8 @@ export async function buildProduction(
    * from), else drafted for the owner with the reason on the card (outbound/invoiceReminders.ts). Registered beside the
    * outbound worker it feeds, for the same reason the follow-ups are.
    */
+
+
   await boss.schedule(QUEUES.invoiceReminders, '20 * * * *', {});
   await boss.work(QUEUES.invoiceReminders, async () => {
     const r = await remindDueInvoices({

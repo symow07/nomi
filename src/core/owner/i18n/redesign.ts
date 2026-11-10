@@ -1,3 +1,4 @@
+import { PAYMENT_LINKS_EN } from './paymentLinks.js';
 import { SETTINGS_AREA_EN } from './settingsArea.js';
 import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
@@ -23,6 +24,7 @@ import { SETUP_MINUTES_EN } from './setupMinutes.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...PAYMENT_LINKS_EN,
   ...SETTINGS_AREA_EN,
   ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,
