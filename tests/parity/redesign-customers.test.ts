@@ -5,6 +5,8 @@ import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
 import { moneyFromRow } from '../../src/core/types/money.js';
 import type { CustomerSelection, CustomersPage } from '../../src/db/customers.js';
 import type { CustomerFile } from '../../src/api/web/conversations.js';
+import { withWorkspace } from '../../src/api/web/say.js';
+import { buttonsAndDoors } from './buttons-and-doors.js';
 const id='00000000-0000-0000-0000-000000000001', cid='00000000-0000-0000-0000-000000000002';
 const now=new Date('2026-11-06T09:00:00Z');
 const value={clientId:id,spent:moneyFromRow('50','EUR')!,orders:3,lastOrderAt:now,regular:true,quietSince:null,omittedCurrencyOrders:1,unknownAmountOrders:1};
@@ -12,6 +14,20 @@ const page:CustomersPage={rows:[{clientId:id,name:'A <shop>',phone:null,email:nu
 const selection:CustomerSelection={card:{clientId:id,name:'A <shop>',photo:null,channels:['email'],lastWrote:null,bought:[],askedAbout:[],value,waiting:true,conversationId:cid},conversationId:cid,conversations:{rows:[{id:cid,channel:'email',active:true,lastContactAt:now,waiting:true}],total:1,from:1,to:1,next:null,prev:null}};
 const file:CustomerFile={conversationId:cid,buyer:'A <shop>',country:null,channel:'email',status:{t:'talking'},statusTone:'muted',needsOwner:false,profile:{firstContact:null,products:[],quoteCount:0,orderCount:0},timeline:[],context:{products:[],latestQuote:null,order:null,corrections:[]},customer:{clientId:id,photo:null,value}};
 describe('Customers area presents the stored records without changing commands',()=>{
+ for (const locale of ['en','ar'] as const) {
+  it(`${locale}: offers the import door beside search to owners only, including an empty directory`,()=>{
+   const empty:CustomersPage={...page,rows:[],total:0,from:0,to:0,next:null,prev:null,q:'',label:null};
+   for (const data of [page,empty]) {
+    const draw=(viewerRole:'owner'|'team'|'accountant')=>withWorkspace({name:null,several:false,outreach:false,setup:null,viewerRole},()=>renderCustomers(data,locale,now));
+    const owner=draw('owner');
+    const search=owner.match(/<form\b[^>]*action="\/app\/customers"[^>]*>[\s\S]*?<\/form>/)?.[0]??'';
+    expect(search).toContain('<a class="deeper" href="/app/customers/import"><bdi lang="en" dir="ltr">Add customers from a file</bdi></a>');
+    expect(owner.match(/href="\/app\/customers\/import"/g)).toHaveLength(1);
+    expect(buttonsAndDoors(owner)).toEqual([]);
+    for (const role of ['team','accountant'] as const) expect(draw(role)).not.toContain('/app/customers/import');
+   }
+  });
+ }
  it('keeps directory search, filter, pagination and row return anchor, and qualifies monetary totals',()=>{
   const html=renderCustomers(page,'en',now,{returnHref:'/app/customers?q=A%20%26%20B&label=label-id&after=previous'});
   expect(html).toContain('A &lt;shop&gt;');expect(html).toContain('VIP &lt;local&gt;');expect(html).toContain(`id="customer-${id}"`);

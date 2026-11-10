@@ -118,7 +118,8 @@ export const RULES = Object.freeze({
   // ── The buyer ─────────────────────────────────────────────────────────────
   clients: {
     do: 'anonymise',
-    clear: ['display_name', 'email', 'phone', 'country', 'preferred_language', 'notes'],
+    // 0232 — stated_language: the language a file of customers stated, the owner's word (never the send path's).
+    clear: ['display_name', 'email', 'phone', 'country', 'preferred_language', 'notes', 'stated_language'],
     says: 'stays so their orders and this request point at someone who is nobody; every personal field cleared',
   },
   client_channels: { do: 'erase' },
@@ -248,6 +249,12 @@ export const RULES = Object.freeze({
   procedures: { do: 'unrelated' },
   // 0230 — the checks before a change goes live: a staged change and case references, no customer's words.
   case_checks: { do: 'unrelated' },
+  // 0231 — that a month's report went to the owner, and when: no customer in it.
+  month_report_sends: { do: 'unrelated' },
+  // 0232 — a file of customers kept while the owner checks it: keyed to no customer, seven days at most — but one staged
+  // before the erasure may hold this customer's number, and adding it afterwards would bring them back. Nothing says
+  // which row was whose, so every staged file of the workspace goes (`match: 'workspace'`); the owner uploads again.
+  contact_imports: { do: 'erase', match: 'workspace' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the
@@ -566,6 +573,7 @@ export function coverage(schema, rules = RULES, virtual = VIRTUAL_EDGES) {
     if ((r.match === 'identity' || r.match === 'any-identity') && !(has(t, 'channel') && has(t, 'identity') && has(t, 'business_id'))) problems.push(`${t} is matched by (channel, identity) and lacks one of them`);
     if (r.do === 'keep-standing' && !has(t, 'lifted_at')) problems.push(`${t} is kept while standing and has no lifted_at`);
     if (r.match === 'phone' && !(has(t, 'phone') && has(t, 'business_id'))) problems.push(`${t} is matched by phone and lacks it`);
+    if (r.match === 'workspace' && !has(t, 'business_id')) problems.push(`${t} is matched by workspace and has no business_id`);
   }
 
   // A key column that no constraint and no rule accounts for: its rows would
@@ -767,6 +775,8 @@ export async function planErasure(client, subject, options = {}) {
       return (await client.query(`select ${sel(t)} from ${qt(t)} where business_id = $1 and phone = any($2::text[])`,
         [businessId, phones])).rows;
     }
+    // Every row of the business: a table whose rows cannot be told apart by customer (0232's staged files).
+    if (r.match === 'workspace') return (await client.query(`select ${sel(t)} from ${qt(t)} where business_id = $1`, [businessId])).rows;
     return [];
   };
 

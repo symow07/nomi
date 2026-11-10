@@ -16620,6 +16620,109 @@ told and by whom, the other figures, each thing that waits). The four `copilot.h
 `copilot.handoff.ask` are what the advisor's model is given, in the owner's language. To translate first:
 `copilot.suggest`, `copilot.flash.suggested` and `copilot.handoff.wait.*`.
 
+## What Nomi did for you (2026-11-08; block 4.3)
+
+Ninety-two English-only lines: 65 in `src/core/owner/i18n/monthReport.ts` (`MONTH_REPORT_EN`) and 27 in
+`src/core/owner/i18n/monthMail.ts` (`MONTH_MAIL_EN`). Every other language shows the English until a native reader
+translates them. The page and the e-mail describe the same month's figures; keep their terms consistent.
+
+- **The page:** `monthReport.*` — the title and introduction; the month picker and its previous / next doors; the
+  running, first-month and empty states; the Customers, Replies, Time to first reply, Orders, Invoices and Handed to
+  you sections, their row labels, definitions and empty lines; the median's sample and still-waiting captions;
+  `duration.underMinute`; the time estimate, its formula and minutes form; and the monthly e-mail switch. The
+  `section.*` and `n.*` keys are labels, not sentences that change with the count.
+- **The e-mail, tab and notices:** `monthMail.tab` (the Results tab's "Monthly report" label), `monthMail.subject`,
+  19 body lines (`monthMail.opening`, `.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`,
+  `.medianOne`, `.medianNone`, `.orders`, `.ordersBare`, `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`,
+  `.handedOther`, `.estimate`, `.open`, `.off`), and six flashes (`monthMail.flash.mailOff`, `.mailOn`, `.minutesSaved`,
+  `.minutesCleared`, `.minutesInvalid`, `.ownerOnly`). These cover the mail switch, saving or removing the minutes,
+  and refusals that leave the settings unchanged.
+- **The assistant's name:** ten page lines carry `{name}`: `monthReport.intro`, `.empty.past`, `.empty.running`,
+  `.def.answered`, `.n.alone`, `.def.asWritten`, `.def.edited`, `.def.handed`, `.handed.none`, `.estimate.label`.
+  `monthMail.alone` carries `{name}` too. Keep the chosen name as data; do not give the assistant a gender.
+- **Counts and quantities:** four page lines carry `{n}`: `monthReport.median.from.one`, `.from.other`,
+  `monthReport.median.waiting.one`, `.waiting.other`; keep the one / other meanings distinct. Twelve mail lines
+  carry `{n}`: `monthMail.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`, `.orders`, `.ordersBare`,
+  `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`. `monthMail.medianOne` says "1 customer" explicitly;
+  `.medianNone` has no count. `monthReport.estimate.formula` and `monthMail.estimate` carry `{replies}`, `{minutes}`
+  and `{hours}`; `monthMail.flash.minutesSaved` carries `{minutes}`. The page's `estimate.hint` and the mail catalogue's
+  `flash.minutesInvalid` say the allowed range, 1 to 60. Preserve the placeholders, the formula and the separate
+  currencies in `{totals}`; a count's wording must not change what is measured.
+- **Other values:** the page's previous / next names, running state and empty title carry `{month}`; its first-month
+  line carries `{date}`. The mail subject and opening carry `{business}` and `{month}`; `.median` and `.medianOne`
+  carry `{time}`, `.handedReason` carries `{reason}`, `.orders` and `.invoices` carry `{totals}`, and `.open` carries
+  `{url}`. Preserve the names, formatted values and the link when translating.
+- **To translate first:** `monthMail.tab`, then `monthMail.subject`, then all six `monthMail.flash.*` lines, especially
+  `.minutesInvalid` and `.ownerOnly` so the owner understands why nothing changed. Then the page and e-mail body,
+  checking the matching labels, `{name}` sentences and count forms together.
+
+## Set up in minutes (2026-11-08; block 4.4, 0232)
+
+The 4.4 inventory from `946c25de`, with catalogue wording updated during the cleanup of `165bf19d`, has 104
+English-only lines in `src/core/owner/i18n/setupMinutes.ts` (`SETUP_MINUTES_EN`):
+99 page lines (including inline refusals) and five flashes. `redesign.ts` registers this whole set; other languages
+show the English until a native reader translates it. There is no new mail copy. Three other fixed English lines
+outside the catalogue are listed below: two example CSV rows and one export label, making 107 fixed lines in all.
+
+- **Customers from a file — 55 page lines:** `contactImport.*`, apart from `.flash.*`: the upload, column-mapping,
+  checking and completion titles; the introduction and customer-list door; the CSV example hint, international-phone
+  hint, file and paste fields, Read it and step counter; `columns.*` (name, phone, language, notes, no column, numbered
+  column, header-row choice and preview); Continue, Back and All customers; `check.*` (the totals, the three groups,
+  matching explanation, row number and existing name, tick / untick, deletion reminder, missing name, accessible
+  row-selection label and empty group); `contactImport.add` ("Add the ticked customers", with no count in the button);
+  Discard and its asking; and the two `done.*` counts.
+  The six file refusals are `contactImport.refused.not_a_table`, `.empty`, `.too_large`, `.too_many`, `.encoding`,
+  `.no_phone_column`. The eight row refusals are `contactImport.refused.row.no_phone`, `.not_international`,
+  `.bad_phone`, `.language_not_recognised`, `.duplicate_in_file`, `.long_name`, `.long_notes`, `.ambiguous_existing`.
+- **Shopify — 29 page lines:** all 28 `storeToken.*` lines and `import.store.refused.password_protected`. These cover
+  the disclosure, store address and hint, the two credential methods and their labels, the Dev Dashboard steps
+  (`dev.step1`, `.step2`, `.step4`) and two help doors, Read the store, and the one-use credentials explanation
+  (`storeToken.kept`). The twelve `storeToken.refused.*` lines are `.not_myshopify`, `.choose_one`, `.spaces`,
+  `.shop_not_permitted`, `.app_not_found`, `.client_rejected`, `.rejected`, `.no_scope`, `.no_store`, `.slow_down`,
+  `.unreachable`, `.currency_mismatch`. Keep the distinction between the field named below and the Client ID / Client
+  secret pair, and between something Shopify did not accept, missing product permission and a store the app cannot
+  read. The refusals refer to "the store's organization" (`.app_not_found`) and "the app's Settings"
+  (`.client_rejected`); preserve who each belongs to.
+- **Shopify's screen labels:** `storeToken.token` is the field label `Admin API access token`, with no quotes.
+  `storeToken.refused.choose_one` says "Fill in one way: the “Admin API access token”, or both the Client ID and the
+  Client secret." `storeToken.refused.rejected` says "Shopify did not accept this “Admin API access token”. Check you
+  copied all of it, then paste it again." `storeToken.dev.step4` still quotes “Credentials”. **Shopify's own words:
+  translate to match Shopify's screen in that language.** These exact phrases are the named exceptions in
+  `SHOPIFY_SCREEN_LABELS` (`tests/parity/shopify-screen-labels.ts`); only the field label is unquoted. Our surrounding
+  sentences stay in plain words and follow the owner vocabulary rules. The exception list refers to existing
+  messages and adds no catalogue lines.
+- **Get started — 15 page lines:** `setupClock.title`, `.running`, `.done`; the four milestones `.products`,
+  `.contacts`, `.channel`, `.reply`; the three doors `.products.go`, `.contacts.go`, `.channel.go`; `.reply.how`;
+  and `.doneAt`, `.doneOn`, `.notYet`, `.ownerDoes`. The clock says time since sign-up, not time spent working.
+- **Five flashes:** `contactImport.flash.added.one`, `.added.other`, `.none`, `.discarded`, `.gone`. The backend uses
+  this same catalogue; it adds no separate flash or mail set. Keep "Nobody was sent a message" distinct from adding
+  records, and "no longer kept" distinct from an empty file.
+- **Names and counts:** `{name}` is the assistant in `contactImport.intro` and `setupClock.reply.how`, but the existing
+  customer in `contactImport.check.onRecord`. Eight lines carry `{n}`: `contactImport.step`, `.columns.numbered`,
+  `.check.row`, `.check.select`, `.done.matched`, `.flash.added.one`, `.flash.added.other`, `.refused.row.duplicate_in_file`.
+  Keep the flash's singular / plural pair and the distinction between a row number and a customer count. The add
+  button's wording stays the same as ticks change; the completion flash states the count actually added.
+  `contactImport.check.summary` carries `{rows}`, `{add}`, `{existing}`, `{refused}`;
+  `.done.counts` carries `{existing}`, `{skipped}`, `{refused}`. Preserve the stated limits (three steps, 5 MB,
+  5,000 rows, 120 name characters, 1,000 note characters) and the `+` / `00` international-number markers.
+- **Other values:** `storeToken.refused.no_store` carries `{host}`. `setupClock.running`, `.done` and `.doneAt` carry
+  `{elapsed}`; `.doneOn` carries `{date}`. Preserve formatted values and direction isolation. `setupElapsed` in
+  `src/api/web/guide.ts` currently formats English units with `Intl.NumberFormat('en')` and `Intl.ListFormat('en')`,
+  including the explicit `h` unit; review its minute / hour / day wording with the clock's translations. These
+  generated unit forms are not additional fixed catalogue lines.
+- **Three other fixed lines:** `src/api/web/contactImport.ts` shows the literal CSV header `name,phone,language,notes`
+  and example record `Avery Example,+12025550101,en,Ask about blue.`; `src/api/web/buyerCopy.ts` adds the export label
+  `language, from a file of customers`. The CSV is example data: keep its header identifiers, international phone and
+  language code valid if its name or note is localized. Keep the export's stated language distinct from language
+  learned from the customer's own messages. The Shopify address example and credential field identifiers are data,
+  not prose to translate.
+- **To translate first:** `contactImport.door`, `.title`, `.phoneHint`, `.check.deleted`, `.add`, `.discard.confirm`, the
+  `contactImport.refused.*` lines and all five flashes; then `storeToken.open`, `.kept`, `.token`, `.dev.step4` and its
+  refusal lines plus `import.store.refused.password_protected`, so the owner can act on a refusal, find Shopify's
+  matching screen labels and understand credential handling.
+  Next translate `setupClock.*` and its elapsed units, then the remaining controls, hints and export label. Read
+  the add / discard promises, name-bearing lines and singular / plural flash pair together.
+
 ## Before it goes live (2026-11-07; 0230)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page

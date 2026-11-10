@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { messages, t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { REDESIGN_EN } from '../../src/core/owner/i18n/redesign.js';
+import { withoutShopifyScreenLabels } from './shopify-screen-labels.js';
 
 /**
  * Phase F — the final owner-language pass, enforced over the WHOLE catalog
@@ -47,7 +48,8 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
         // Exempt: the operator's own panels, the zh trade term for a spec sheet,
         // and certification names (ISO 9001 *is* a quality management system).
         if (isOperator(key) || key === 'knowledge.kind.specification' || key.startsWith('claim.')) continue;
-        for (const [label, re] of INTERNAL) if (re.test(s)) hits.push(`${l}/${key}: "${s}" (${label})`);
+        const ownWords = withoutShopifyScreenLabels(key, s);
+        for (const [label, re] of INTERNAL) if (re.test(ownWords)) hits.push(`${l}/${key}: "${s}" (${label})`);
       }
     expect(hits, hits.join('\n')).toEqual([]);
   });

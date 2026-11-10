@@ -87,6 +87,11 @@ export const QUEUES = {
   deletionChase: 'ops.deletion_chase',
   morningSummary: 'ops.morning_summary',
   /**
+   * Block 4.3 (0231) — every fifteen minutes, while MONTH_REPORT_MAIL=on: each workspace whose 1st has reached 08:00 is
+   * claimed once for the month just ended and its owner e-mailed "what Nomi did for you" (src/pipeline/monthMail.ts).
+   */
+  monthReports: 'ops.month_reports',
+  /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
    * where they happen; this only makes sure a held one is not forgotten when
@@ -120,6 +125,11 @@ export const QUEUES = {
    * deleted (`advisor_expire`), with its ledger line.
    */
   advisorExpiry: 'ops.advisor_expiry',
+  /**
+   * Block 4.4 (0232) — every hour: a file of customers still waiting for Add or Discard is erased once it is seven
+   * days old (`expire_contact_imports`). Reads stop at seven days; this takes the rows themselves within the hour.
+   */
+  contactImportExpiry: 'ops.contact_import_expiry',
   /**
    * D1 (0137) — once a day: a sign-up never finished keeps neither its form nor
    * its address past an hour after its code expired (`login_codes_forget`);

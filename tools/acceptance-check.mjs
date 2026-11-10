@@ -12,6 +12,16 @@
  * address, no token. Needs `npm run build` first.
  *
  * NEVER RUN AGAINST LIVE META YET: it needs App Review's approval (M4).
+ *
+ * BLOCK 4.4 — SETUP IN MINUTES (`--setup`): the four milestones of one
+ * workspace, each when it was first reached and how many whole minutes after
+ * sign-up, or Pending — read by `loadSetupMilestones` (src/db/setupMilestones.ts),
+ * the reader the get-started page uses. A workspace the operator made has no
+ * sign-up: its times are printed with no minutes. Any workspace but a practice
+ * copy; nothing of Meta is asked. Exit 0 when all four are on record, 1 when one
+ * is pending, 2 for a wrong call.
+ *
+ *   node tools/acceptance-check.mjs --setup --business <uuid>
  */
 import { toolClient } from './lib/db.mjs';
 
@@ -22,6 +32,56 @@ if (!url || !business || !/^[0-9a-f-]{36}$/i.test(business)) {
   console.error('Usage: MIGRATE_DATABASE_URL in the environment; --business <uuid>. Nothing was read.');
   process.exit(2);
 }
+
+if (process.argv.includes('--setup')) {
+  // Awaited at top level and never resolved, so the launch check below never runs; both streams are drained first,
+  // since process.exit() drops what a pipe has not taken yet (tools/check-reachable.mjs, #85).
+  const code = await setupMinutes(url, business);
+  await new Promise(() => {
+    let open = 2;
+    const done = () => { if (--open === 0) process.exit(code); };
+    process.stdout.write('', done);
+    process.stderr.write('', done);
+  });
+}
+
+/** `--setup`: the four milestones, each with its time and the minutes after sign-up, or Pending. */
+async function setupMinutes(url, business) {
+  const { createDb, withTenantTx } = await import('../dist/db/client.js');
+  const { loadSetupMilestones } = await import('../dist/db/setupMilestones.js');
+  const { SETUP_MILESTONE_KEYS } = await import('../dist/core/onboard/setupMinutes.js');
+  const LABELS = {
+    productsIn: 'Products in',
+    contactsIn: 'Customers in',
+    channelConnected: 'A channel connected',
+    firstReply: 'The first reply sent',
+  };
+  const db = createDb(url);
+  const client = toolClient(url, { replyTimeoutMs: 30_000 });
+  await client.connect();
+  try {
+    const row = (await client.query('select name, practice_of from businesses where id = $1', [business])).rows[0];
+    if (!row || row.practice_of) { console.error(`✗  ${business} is not a workspace. Nothing to check.`); return 2; }
+    const m = await withTenantTx(db, business, (tx) => loadSetupMilestones(tx, business));
+    const iso = (x) => new Date(x).toISOString();
+    // Whole minutes, never below zero: the get-started page's own arithmetic (src/api/web/guide.ts).
+    const after = (x) => Math.max(0, Math.floor((new Date(x).getTime() - new Date(m.signedUpAt).getTime()) / 60_000));
+    console.log(`Setup in minutes — ${row.name} (${business})`);
+    console.log(m.signedUpAt ? `  Signed up — ${iso(m.signedUpAt)}` : '  Signed up — not by sign-up (the operator made it): times only, no minutes');
+    for (const key of SETUP_MILESTONE_KEYS) {
+      const at = m[key];
+      const minutes = at && m.signedUpAt ? ` · ${after(at)} min from sign-up` : '';
+      console.log(`  ${at ? '✓' : '○'} ${LABELS[key]} — ${at ? `${iso(at)}${minutes}` : 'Pending'}`);
+    }
+    const done = SETUP_MILESTONE_KEYS.every((key) => m[key] !== null);
+    console.log(done ? '\n✓ All four are on record.' : '\n○ Not all four are on record yet.');
+    return done ? 0 : 1;
+  } finally {
+    await client.end().catch(() => undefined);
+    await db.destroy();
+  }
+}
+
 const { createDb } = await import('../dist/db/client.js');
 const { loadFunnel } = await import('../dist/pipeline/funnel.js');
 const db = createDb(url);

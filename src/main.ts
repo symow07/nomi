@@ -104,6 +104,7 @@ import type { Locale } from './core/owner/i18n/locale.js';
 import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { expireContactImports } from './db/contactImports.js';
 import type { PgBoss } from 'pg-boss';
 import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -120,6 +121,7 @@ import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
+import { monthMailOn, monthReportsDue } from './pipeline/monthMail.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
 import { retryStaleGrants } from './books/staleGrants.js';
 import type { QboCall } from './books/connectors/quickbooks.js';
@@ -1280,6 +1282,13 @@ export async function buildProduction(
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
+    // Block 4.4 (0232) — a file of customers waiting for Add or Discard is kept seven days at most: every hour, older
+    // ones are erased (`expire_contact_imports`). Counts only, never a row's words.
+    await boss.schedule(QUEUES.contactImportExpiry, '55 * * * *', {});
+    await boss.work(QUEUES.contactImportExpiry, async () => {
+      const n = await expireContactImports(db);
+      if (n > 0) console.log(`[contacts] ${n} file(s) of customers kept seven days erased`);
+    });
     // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
     await boss.schedule(QUEUES.booksRead, '20 5 * * *', {});
@@ -1898,6 +1907,22 @@ export async function buildProduction(
       } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
     }
   });
+
+  /**
+   * Block 4.3 (0231) — WHAT NOMI DID FOR YOU, by e-mail, once a month: OFF unless the operator sets
+   * MONTH_REPORT_MAIL=on. Every fifteen minutes each workspace whose 1st has reached 08:00 (outside the owner's quiet
+   * hours) is claimed once for the month just ended, and its owner gets the month by the capped owner-mail sender.
+   * Off, the schedule is taken away, so a schedule left by an earlier deploy does not queue jobs nobody works.
+   */
+  if (monthMailOn(process.env)) {
+    await boss.schedule(QUEUES.monthReports, '*/15 * * * *', {});
+    await boss.work(QUEUES.monthReports, async () => {
+      const done = await monthReportsDue({ db, mail: alertMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, new Date());
+      if (done.length > 0) console.log(`[month-report] ${done.length} month(s): ${done.map((d) => d.outcome).join(', ')}`);
+    });
+  } else {
+    await boss.unschedule(QUEUES.monthReports).catch(() => undefined);
+  }
 
   /**
    * CEIL — every hour, Meta's error rate per workspace (0085): the operator is

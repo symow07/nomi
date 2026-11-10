@@ -29,6 +29,8 @@ const ALLOWED: readonly { readonly file: string; readonly text: string; readonly
     why: 'A PostgreSQL numeric comparison of an immutable imported bank receipt; no JavaScript money arithmetic' },
   { file: 'src/db/booksOverview.ts', text: "sum(case when ip.kind='refund' then -ip.amount else ip.amount end)",
     why: 'PostgreSQL numeric arithmetic inside the dated invoice-balance SQL template; no JavaScript arithmetic or floating-point conversion' },
+  { file: 'src/db/monthReport.ts', text: "sum(case when x.kind = 'refund' then -x.amount else x.amount end)",
+    why: 'PostgreSQL numeric arithmetic inside the month report\'s invoices-paid-in-full SQL (the unpaid report\'s own reading); no JavaScript arithmetic or floating-point conversion' },
   { file: 'src/db/providerState.ts', text: 'total: Number(r.total)',
     why: "the operator's own model-provider balance (the DeepSeek account), read for the days-left estimate of an alert: not a shop's money, never shown to a buyer, never in the books" },
   { file: 'src/core/ops/providerWatch.ts', text: 'Math.max(0, line.total / perDay)',

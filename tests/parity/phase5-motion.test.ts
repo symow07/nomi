@@ -285,6 +285,15 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     expect(ruleOf('details:not([open])::details-content')).toContain('opacity:0');
   });
 
+  it('only closing a disclosure delays content visibility, so opening is immediately keyboard reachable', () => {
+    const visibilityTransitions = MOVING.filter(r => r.sel.includes('::details-content') && r.body.includes('content-visibility'));
+    expect(visibilityTransitions.map(r => r.sel)).toEqual(['details:not([open])::details-content']);
+    const closing = ruleOf('details:not([open])::details-content');
+    expect(closing).toContain('opacity:0');
+    expect(closing).toContain('transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete');
+    expect(ruleOf('details[open] > :not(summary)')).toContain('animation:nomi-arrive var(--motion-normal) var(--motion-ease) both');
+  });
+
   it('dialogs come and go: they grow in from 0.96 and sink away, with their dimming; the card springs', () => {
     expect(ruleOf('dialog.ask:not([open])')).toContain('transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter))');
     expect(ruleOf('dialog.ask')).toMatch(/overlay var\(--motion-fast\) allow-discrete, display var\(--motion-fast\) allow-discrete/);
@@ -301,7 +310,9 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
 
   it('pages: the content fades out and rises in, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
     const vt = calm.join('\n');
-    expect(vt).toContain('@view-transition { navigation:auto; }');
+    expect(vt).not.toContain('@view-transition');
+    expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }))
+      .toContain('<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>');
     expect(ruleOf('main')).toContain('view-transition-name:page');
     expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
     expect(ruleOf('.si-order .si-fil.on')).toContain('view-transition-name:lens-on');

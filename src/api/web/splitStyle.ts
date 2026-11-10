@@ -15,6 +15,9 @@ const serif = {
 const GUT = `max(var(--space-24), calc((100% - 1240px) / 2))`;
 
 export const SPLIT_CSS = `${SPLIT_FACES_CSS}
+/* Rule 38 / 86: the English words isolate direction without changing page alignment. */
+.owner-shell bdi[lang="en"] { text-align:match-parent; }
+
 .split {
   --font-voice:${serif.en};
   --color-brand:var(--color-ink);
@@ -310,9 +313,9 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .owner-shell .face { background:var(--color-sand); color:var(--color-ink-secondary); }
 .owner-shell .btn.send.needs, .owner-shell .sp-send { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }
 .owner-shell .deeper, .owner-shell .back, .owner-shell .fmore, .owner-shell p a, .owner-shell .reading a { color:var(--color-accent); text-underline-offset:3px; }
-.owner-shell .held-all, .owner-shell .notlive, .owner-shell .setup-strip, .owner-shell .flash { background:transparent; border:0; border-radius:0; box-shadow:none; color:var(--color-ink); }
+.owner-shell .held-all, .owner-shell .notlive, .owner-shell .setup-strip { background:transparent; border:0; border-radius:0; box-shadow:none; color:var(--color-ink); }
 .owner-shell .held-all { padding:var(--space-16) 0; border-block-end:1px solid var(--color-border); }
-.owner-shell .flash.bad, .owner-shell .fwarn, .owner-shell .perr, .owner-shell .fielderr { color:var(--color-ink); }
+.owner-shell .fwarn, .owner-shell .perr, .owner-shell .fielderr { color:var(--color-ink); }
 .owner-shell .sp-profit, .owner-shell .sp-late-d, .owner-shell .notlive { color:var(--color-ink); }
 .owner-shell .sp-tline { stroke:var(--color-ink); }
 .owner-shell .sp-tarea, .owner-shell .sp-tdot { fill:var(--color-ink); }
@@ -331,6 +334,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-priority .sp-reply { background:var(--color-assistant-wash); }
 .results-page, .setup-page { max-inline-size:960px; }
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
+.results-page .results-header > .tabs { flex-wrap:wrap; }
+.results-page .results-header > .tabs > .tab { white-space:nowrap; }
 .results-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-32); }
 .results-section { min-inline-size:0; }
 .results-section h2 { margin-block:0 var(--space-16); }

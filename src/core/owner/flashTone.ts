@@ -25,6 +25,7 @@ import type { MessageKey } from './i18n/messages.js';
 
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
+  'contactImport.flash.none', 'contactImport.flash.gone',
   'paymentLinks.flash.refused',
   // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
   // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
@@ -85,6 +86,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'cases.flash.notDone', 'cases.flash.gone', 'cases.flash.failed',
   'copilot.flash.notSuggested.nothing_to_answer', 'copilot.flash.notSuggested.deletion', 'copilot.flash.notSuggested.allowance',
   'copilot.flash.notSuggested.no_reply', 'copilot.flash.notSuggested.unavailable',
+  // Block 4.3 — the month page's two owner-only forms: minutes refused, a colleague's post.
+  'monthMail.flash.minutesInvalid', 'monthMail.flash.ownerOnly',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
   'channel.flash.number_taken', 'channel.flash.test_not_connected', 'closures.flash.ends_before_starts',
@@ -161,6 +164,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  'contactImport.flash.added.one', 'contactImport.flash.added.other', 'contactImport.flash.discarded',
   'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
   'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
@@ -196,6 +200,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // B13 — a promise marked kept.
   'calendar.flash.kept',
   'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
+  // Block 4.3 — the month page: the minutes saved or removed, the monthly e-mail stopped or started.
+  'monthMail.flash.minutesSaved', 'monthMail.flash.minutesCleared', 'monthMail.flash.mailOff', 'monthMail.flash.mailOn',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',

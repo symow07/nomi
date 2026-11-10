@@ -87,6 +87,40 @@ const columnOf = (ref: string): number => {
 
 /** The first sheet of a workbook, as rows of trimmed text; null when it is not one this can read. */
 export function xlsxRows(b: Buffer): string[][] | null {
+  const sheet = firstSheet(b);
+  if (!sheet) return null;
+  const rows: string[][] = [];
+  for (const r of sheet.xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+    if (rows.length >= XLSX_MAX_ROWS) return null;
+    rows.push(cellsOf(r[1]!, sheet.shared));
+  }
+  const body = rows.filter((r) => r.some((x) => x !== ''));
+  return body.length >= 2 ? body : null;
+}
+
+/**
+ * Block 4.4 — the first sheet's records where the sheet puts them: record n is the sheet's row n (its `r`), a row the
+ * sheet leaves out an empty record, so a row number said back to the owner is the one their spreadsheet shows. A row
+ * past `maxRow` is `too_many`; an unreadable workbook is null. Cells trimmed, as `xlsxRows`.
+ */
+export function xlsxRecords(b: Buffer, maxRow: number): { readonly records: readonly (readonly string[])[] } | 'too_many' | null {
+  const sheet = firstSheet(b);
+  if (!sheet) return null;
+  const records: string[][] = [];
+  // A self-closing row first: the other form would read on into the next row's cells.
+  for (const r of sheet.xml.matchAll(/<row\b([^>]*?)\/>|<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+    const at = Number(/\br="(\d+)"/.exec(r[1] ?? r[2] ?? '')?.[1] ?? records.length + 1);
+    if (!Number.isSafeInteger(at) || at < records.length + 1) return null;
+    if (at > maxRow) return 'too_many';
+    while (records.length < at - 1) records.push([]);
+    records.push(r[3] === undefined ? [] : cellsOf(r[3], sheet.shared));
+  }
+  while (records.length > 0 && records[records.length - 1]!.every((x) => x === '')) records.pop();
+  return { records };
+}
+
+/** The first sheet's XML as the workbook orders it, and its shared strings; null when it cannot be read. */
+function firstSheet(b: Buffer): { readonly xml: string; readonly shared: readonly string[] } | null {
   if (!looksLikeXlsx(b)) return null;
   const list = entries(b);
   if (!list) return null;
@@ -114,29 +148,28 @@ export function xlsxRows(b: Buffer): string[][] | null {
   }
   const xml = read(b, sheet, budget);
   if (xml === null) return null;
-  const rows: string[][] = [];
-  for (const r of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
-    if (rows.length >= XLSX_MAX_ROWS) return null;
-    const row: string[] = [];
-    for (const c of r[1]!.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const attrs = c[1]!;
-      const ref = /\br="([A-Z]+)\d+"/.exec(attrs)?.[1];
-      const col = ref ? columnOf(ref) : row.length;
-      if (col >= XLSX_MAX_COLS) continue;
-      const type = /\bt="([a-zA-Z]+)"/.exec(attrs)?.[1] ?? 'n';
-      const body = c[2] ?? '';
-      const v = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1];
-      const value = type === 's' ? (shared[Number(v)] ?? '')
-        : type === 'inlineStr' ? textOf(body)
-        : type === 'b' ? (v === '1' ? 'TRUE' : 'FALSE')
-        : unescapeXml(v ?? '');
-      while (row.length < col) row.push('');
-      row[col] = value.trim();
-    }
-    rows.push(row);
+  return { xml, shared };
+}
+
+/** One row's cells, each at its own column (its `r`), trimmed; past XLSX_MAX_COLS left out. */
+function cellsOf(rowXml: string, shared: readonly string[]): string[] {
+  const row: string[] = [];
+  for (const c of rowXml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    const attrs = c[1]!;
+    const ref = /\br="([A-Z]+)\d+"/.exec(attrs)?.[1];
+    const col = ref ? columnOf(ref) : row.length;
+    if (col >= XLSX_MAX_COLS) continue;
+    const type = /\bt="([a-zA-Z]+)"/.exec(attrs)?.[1] ?? 'n';
+    const body = c[2] ?? '';
+    const v = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1];
+    const value = type === 's' ? (shared[Number(v)] ?? '')
+      : type === 'inlineStr' ? textOf(body)
+      : type === 'b' ? (v === '1' ? 'TRUE' : 'FALSE')
+      : unescapeXml(v ?? '');
+    while (row.length < col) row.push('');
+    row[col] = value.trim();
   }
-  const body = rows.filter((r) => r.some((x) => x !== ''));
-  return body.length >= 2 ? body : null;
+  return row;
 }
 
 /** The rows as CSV, every cell quoted: the table import reads it as it reads any export. */
