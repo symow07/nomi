@@ -29,6 +29,8 @@ begin
   end if;
 end $$;
 
+-- Re-made from 0185_reconciliation.sql (its latest definition): the same rule, with both lines read in the match's own
+-- workspace and every comparison null-safe.
 create or replace function statement_matches_rules() returns trigger
 language plpgsql as $$
 declare
@@ -69,3 +71,6 @@ begin
   end if;
   return new;
 end $$;
+
+insert into _migrations (version, name) values (241, 'bank_match_own_lines')
+  on conflict (version) do nothing;
