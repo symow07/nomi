@@ -8,6 +8,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc } from './layout.js';
 import { icon } from './icons.js';
 import * as show from './values.js';
+import { OWNER_REPORT_KINDS } from './booksOwnerReports.js';
 
 /**
  * A5 (Phase 5; decision 12) — EVERY ROUTE OF THE BOOKS, AND WHAT IT TAKES. One list, read by the guard in app.ts:
@@ -24,9 +25,13 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   {method:'GET',url:'/app/books/advanced/trial-balance',action:'see'},
   {method:'GET',url:'/app/books/year-end',action:'see'},
   {method:'GET',url:'/app/books/reports/fec',action:'see'},
-  // Block 2 PR 5 — the reports in the owner's words, and their spreadsheets.
-  {method:'GET',url:'/app/books/reports/:kind',action:'see'},
-  {method:'GET',url:'/app/books/reports/:kind.xlsx',action:'see'},
+  // Block 2 PR 5 — the reports in the owner's words, and their spreadsheets. Listed by the addresses they are registered
+  // at (one per kind): the guard matches the route's own url, so a `:kind` pattern here matched none of them, and staff
+  // got an empty page while the accountant was sent away (the authorization audit's L1).
+  ...OWNER_REPORT_KINDS.flatMap((kind) => [
+    {method:'GET' as const,url:`/app/books/reports/${kind}`,action:'see' as const},
+    {method:'GET' as const,url:`/app/books/reports/${kind}.xlsx`,action:'see' as const},
+  ]),
   {method:'GET',url:'/app/books/spending',action:'see'},
   // 0227 (Block 2 PR 3) — the spending book's writes: the owner's.
   {method:'POST',url:'/app/books/spending/bills',action:'post'},
