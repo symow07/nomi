@@ -20,6 +20,7 @@ import { businessesReadingInbox, liveMailAccount } from './db/mailAccounts.js';
 import { invoiceLinkToken, resolveInvoiceLink } from './db/invoiceLinks.js';
 import { invoicePdfViewOf } from './db/invoiceSending.js';
 import { invoicePdf, invoicePdfFilename } from './core/books/invoicePdf.js';
+import { sweepFollowUpWorkspaces } from './outbound/followUps.js';
 import { remindDueInvoices } from './outbound/invoiceReminders.js';
 import { zoneOf } from './db/zone.js';
 import { dayKey } from './core/owner/i18n/format.js';
@@ -1270,6 +1271,11 @@ export async function buildProduction(
    * both modes: Practice runs with no channel configured, too.
    */
   const erasePracticeDaily = async (): Promise<void> => {
+    // Fixed owner words become drafts, in either mode. No sender or model is passed to this job.
+    await boss.schedule(QUEUES.followUpDrafts, '* * * * *', {});
+    await boss.work(QUEUES.followUpDrafts, async () => {
+      await sweepFollowUpWorkspaces({ db, now: () => new Date() });
+    });
     await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
       const n = await expirePractice(db);
