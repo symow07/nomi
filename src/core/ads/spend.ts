@@ -3,6 +3,27 @@
  * and a month's days. No I/O.
  */
 
+// ── The daily read's schedule ─────────────────────────────────────────────────────────────────────────────────
+
+/** The daily read, in UTC (main.ts schedules it; the queue's clock is UTC). */
+export const AD_SPEND_READ_UTC = { hour: 4, minute: 50 } as const;
+export const AD_SPEND_CRON = `${AD_SPEND_READ_UTC.minute} ${AD_SPEND_READ_UTC.hour} * * *`;
+
+/**
+ * When the next read is due after a read that started at `started` and has not finished: a connection is read once a
+ * UTC day (its row is written before Meta is asked), so the first scheduled run after `now` on a later UTC day.
+ */
+export function nextReadDue(started: Date, now: Date): Date {
+  const runOn = (t: number) => {
+    const d = new Date(t);
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), AD_SPEND_READ_UTC.hour, AD_SPEND_READ_UTC.minute));
+  };
+  const DAY = 86_400_000;
+  let at = runOn(started.getTime() + DAY);
+  while (at.getTime() <= now.getTime()) at = new Date(at.getTime() + DAY);
+  return at;
+}
+
 /** Meta's `spend`: a numeric string. Digits, at most one point, nothing else: no sign, no exponent, no comma. */
 export const isMetaAmount = (s: string): boolean => /^[0-9]{1,15}(\.[0-9]{1,6})?$/.test(s);
 

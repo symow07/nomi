@@ -25,6 +25,8 @@ export const AD_SPEND_EN = {
   'adSpend.record': 'Record as a cost',
   'adSpend.recorded': 'Recorded as a cost',
   'adSpend.lastRead': 'Last read {when}.',
+  'adSpend.read.open': 'A read started {when} and has not finished; nothing from it is shown.',
+  'adSpend.read.next': 'The next read is due {when}.',
   'adSpend.read.incomplete': 'The last read stopped before the end and kept nothing; it is tried again tomorrow.',
   'adSpend.read.throttled': 'Meta asked Nomi to slow down; the next read waits.',
   'adSpend.read.failed': 'The last read failed and kept nothing; it is tried again tomorrow.',

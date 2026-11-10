@@ -5,7 +5,9 @@ import {
   verdictOf, listAdAccounts, type AdsFetch,
 } from '../../src/channels/meta/adSpend.js';
 import { META_LOGIN_SCOPES, metaDialogUrl, metaLoginFrom, mintMetaState, readMetaState } from '../../src/channels/meta/connect.js';
-import { isMetaAmount, readUsage, readSpan, monthDays, CHANNEL_OF, isNamedPlatform } from '../../src/core/ads/spend.js';
+import { isMetaAmount, readUsage, readSpan, monthDays, CHANNEL_OF, isNamedPlatform, nextReadDue, AD_SPEND_CRON } from '../../src/core/ads/spend.js';
+import { renderAdSpendCard } from '../../src/api/web/adSpend.js';
+import { withoutIsolates, unisolatedFigures } from './isolates.js';
 
 /**
  * 0238 — ad spend, without a database: the login stays apart from the Page connect; the Insights request is
@@ -201,5 +203,59 @@ describe('0238 · amounts, months and the ad accounts', () => {
     const r = await listAdAccounts('t', m.fetch);
     expect(r.ok && r.accounts.map((a) => a.accountId)).toEqual(['1']);
     expect(m.urls[0]).toContain('/v27.0/me/adaccounts');
+  });
+});
+
+describe('5.6 · a read with no end is not a read: what the Results card says', () => {
+  const NOW = new Date('2026-11-10T05:30:00Z');
+  const conn = (state: 'active' | 'refused' = 'active') => ({ id: 'c', adAccountId: '1', name: 'Shop ads', currency: 'EUR', timezone: 'UTC',
+    ciphertext: '', state, stateNote: null, retryAfter: null, connectedAt: NOW });
+  const view = (o: { lastRead?: { at: Date; outcome: string | null; message: null } | null; openRead?: Date | null; state?: 'active' | 'refused' }) => ({
+    kind: 'on' as const, connection: conn(o.state), workspaceZone: 'UTC', months: [], month: '2026-11', comparison: null,
+    lastRead: o.lastRead ?? null, openRead: o.openRead ?? null, now: NOW,
+  });
+  const cut = new Date('2026-11-10T05:08:00Z');
+
+  it('the next read is due on the first run of a later UTC day, never the day the read started', () => {
+    expect(AD_SPEND_CRON).toBe('50 4 * * *');
+    expect(nextReadDue(cut, new Date('2026-11-10T05:09:00Z')).toISOString()).toBe('2026-11-11T04:50:00.000Z');
+    expect(nextReadDue(new Date('2026-11-10T23:59:59Z'), new Date('2026-11-10T23:59:59Z')).toISOString()).toBe('2026-11-11T04:50:00.000Z');
+    expect(nextReadDue(new Date('2026-11-10T00:00:01Z'), new Date('2026-11-10T00:00:02Z')).toISOString()).toBe('2026-11-11T04:50:00.000Z');
+    // Cut off yesterday, and today's run has not come: today's run.
+    expect(nextReadDue(new Date('2026-11-09T05:08:00Z'), new Date('2026-11-10T03:00:00Z')).toISOString()).toBe('2026-11-10T04:50:00.000Z');
+    expect(nextReadDue(new Date('2026-11-09T05:08:00Z'), new Date('2026-11-10T06:00:00Z')).toISOString()).toBe('2026-11-11T04:50:00.000Z');
+  });
+
+  for (const locale of ['en', 'ar'] as const) {
+    it(`${locale}: cut off, with nothing finished — no "Last read"; the read started and did not finish; the next is due tomorrow`, () => {
+      const html = renderAdSpendCard(locale, view({ openRead: cut }));
+      const words = withoutIsolates(html);
+      expect(words).not.toContain('Last read');
+      if (locale === 'en') expect(words).toContain('A read started Today 05:08 and has not finished; nothing from it is shown. The next read is due 04:50 tomorrow.');
+      else expect(words).toMatch(/A read started \S.* and has not finished; nothing from it is shown\. The next read is due \S.*\./);
+      if (locale === 'ar') expect(unisolatedFigures(html)).toEqual([]);
+    });
+    it(`${locale}: cut off after a finished read — "Last read" names the finished one, the open one is said apart`, () => {
+      const html = renderAdSpendCard(locale, view({ lastRead: { at: new Date('2026-11-09T04:52:00Z'), outcome: 'ok', message: null }, openRead: cut }));
+      const words = withoutIsolates(html);
+      expect(words).toContain('Last read ');
+      if (locale === 'en') {
+        expect(words).toContain('Last read Yesterday 04:52.');
+        expect(words).toContain('A read started Today 05:08 and has not finished');
+      } else expect(words).toContain('and has not finished');
+      if (locale === 'ar') expect(unisolatedFigures(html)).toEqual([]);
+    });
+    it(`${locale}: a finished read is drawn as before, and nothing is said of an open one`, () => {
+      const html = renderAdSpendCard(locale, view({ lastRead: { at: new Date('2026-11-10T05:09:00Z'), outcome: 'ok', message: null } }));
+      const words = withoutIsolates(html);
+      expect(words).toContain(locale === 'en' ? 'Last read Today 05:09.' : 'Last read ');
+      expect(words).not.toContain('has not finished');
+      expect(words).not.toContain('next read is due');
+    });
+  }
+  it('a connection Meta no longer accepts is not read, so no next read is promised', () => {
+    const words = withoutIsolates(renderAdSpendCard('en', view({ openRead: cut, state: 'refused' })));
+    expect(words).toContain('A read started Today 05:08 and has not finished');
+    expect(words).not.toContain('next read is due');
   });
 });

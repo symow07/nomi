@@ -324,7 +324,7 @@ import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/books
 import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENAME_DEFAULT } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { adsDialogUrl, adsStateSecret, exchangeAdsCode, listAdAccounts, type AdsFetch, type AdsLogin } from '../../channels/meta/adSpend.js';
-import { archiveAdConnection, connectAdAccount, lastRead as lastAdRead, linkRecorded, liveAdConnection, lockAdRecord, monthComparison, recordOffer, spendMonths } from '../../db/adSpend.js';
+import { archiveAdConnection, connectAdAccount, lastRead as lastAdRead, openRead as openAdRead, linkRecorded, liveAdConnection, lockAdRecord, monthComparison, recordOffer, spendMonths } from '../../db/adSpend.js';
 import { renderAdSpendCard, renderAdAccountPicker, chosenMonth, adsAsked, placeName, type AdSpendView } from './adSpend.js';
 import { parseDecimal } from '../../core/types/decimal.js';
 import { dayIn, monthDays } from '../../core/ads/spend.js';
@@ -7996,6 +7996,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         kind: 'on' as const, connection: c, workspaceZone: await zoneOf(tx, bid.value), now,
         months: await spendMonths(tx, bid.value, c.adAccountId), month,
         comparison: await monthComparison(tx, bid.value, c, month), lastRead: await lastAdRead(tx, bid.value, c.id),
+        openRead: await openAdRead(tx, bid.value, c.id),
       };
     });
     return renderAdSpendCard(locale, view);

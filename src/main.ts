@@ -79,6 +79,7 @@ import { prepareConversationOutbound, finishConversationOutbound, callProvider, 
 import { runCheck } from './pipeline/caseChecks.js';
 import { suggestReply } from './pipeline/suggestReply.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
+import { AD_SPEND_CRON } from './core/ads/spend.js';
 import { stopClock, type StopClock, runningJobs } from './queue/stopClock.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
@@ -1325,7 +1326,7 @@ export async function buildProduction(
     });
     // 0238 — every morning, each connected ad account's spend is read from Meta (the last 28 days), only where this
     // installation has the ads login. A read is never retried the same day (its row is written before Meta is asked).
-    await boss.schedule(QUEUES.adSpend, '50 4 * * *', {});
+    await boss.schedule(QUEUES.adSpend, AD_SPEND_CRON, {});
     await boss.work(QUEUES.adSpend, async () => {
       const tally = await readAllAdSpend({ db, fetchImpl: adsLogin ? adsFetch : null, credentialKey }, (raw) => {
         const b = parseBusinessId(raw); return b.ok ? b.value : null;

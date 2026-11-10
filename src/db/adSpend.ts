@@ -136,10 +136,19 @@ export async function storeSpend(tx: Tx, businessId: string, c: { readonly adAcc
 }
 
 export type LastRead = { readonly at: Date; readonly outcome: string | null; readonly message: string | null };
+/** The newest read that FINISHED (whatever its outcome), at the time it finished. A read with no end is not one. */
 export async function lastRead(tx: Tx, businessId: string, connectionId: string): Promise<LastRead | null> {
-  const r = (await sql<{ at: Date; outcome: string | null; error_message: string | null }>`select coalesce(finished_at, started_at) as at, outcome, error_message
-    from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid order by started_at desc limit 1`.execute(tx)).rows[0];
+  const r = (await sql<{ at: Date; outcome: string | null; error_message: string | null }>`select finished_at as at, outcome, error_message
+    from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid and finished_at is not null
+    order by started_at desc limit 1`.execute(tx)).rows[0];
   return r ? { at: r.at, outcome: r.outcome, message: r.error_message } : null;
+}
+
+/** When the newest read started, if it has not finished (cut off mid-call, or still asking Meta); else null. */
+export async function openRead(tx: Tx, businessId: string, connectionId: string): Promise<Date | null> {
+  const r = (await sql<{ started_at: Date; finished_at: Date | null }>`select started_at, finished_at
+    from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid order by started_at desc limit 1`.execute(tx)).rows[0];
+  return r && r.finished_at === null ? r.started_at : null;
 }
 
 // ── The comparison ────────────────────────────────────────────────────────────────────────────────────────────

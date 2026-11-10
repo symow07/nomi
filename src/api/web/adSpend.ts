@@ -3,7 +3,7 @@ import { t } from './say.js';
 import { esc, deeper } from './layout.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import * as show from './values.js';
-import { CHANNEL_OF, isNamedPlatform, monthDays } from '../../core/ads/spend.js';
+import { CHANNEL_OF, isNamedPlatform, monthDays, nextReadDue } from '../../core/ads/spend.js';
 import type { AdConnection, LastRead, MonthComparison } from '../../db/adSpend.js';
 import type { AdAccount } from '../../channels/meta/adSpend.js';
 
@@ -19,7 +19,8 @@ export type AdSpendView =
   | {
     readonly kind: 'on'; readonly connection: AdConnection; readonly workspaceZone: string;
     readonly months: readonly string[]; readonly month: string; readonly comparison: MonthComparison | null;
-    readonly lastRead: LastRead | null; readonly now: Date;
+    /** The newest read that finished; `openRead`, when the newest read started and has not finished. */
+    readonly lastRead: LastRead | null; readonly openRead?: Date | null; readonly now: Date;
   };
 
 const PLACE_KEY = { instagram: 'adSpend.place.instagram', facebook: 'adSpend.place.facebook', messenger: 'adSpend.place.messenger' } as const satisfies Record<string, MessageKey>;
@@ -60,6 +61,13 @@ export function renderAdSpendCard(locale: Locale, v: AdSpendView): string {
     parts.push(`<p class="caption muted">${esc(t(locale, 'adSpend.lastRead', { when: show.when(locale, v.lastRead.at, v.now) }))}</p>`);
     const o = v.lastRead.outcome;
     if (o === 'incomplete' || o === 'throttled' || o === 'failed') parts.push(`<p class="caption muted">${esc(t(locale, READ_KEY[o]))}</p>`);
+  }
+  if (v.openRead) {
+    // A read with no end is not a read: it is said as started and not finished, and when the next one is due (a
+    // connection is read once a UTC day, so not before the next day's run). Only an active connection is read.
+    const open = esc(t(locale, 'adSpend.read.open', { when: show.when(locale, v.openRead, v.now) }));
+    const next = c.state === 'active' ? ` ${esc(t(locale, 'adSpend.read.next', { when: show.until(locale, nextReadDue(v.openRead, v.now), v.now) }))}` : '';
+    parts.push(`<p class="caption muted">${open}${next}</p>`);
   }
   if (c.timezone !== v.workspaceZone) {
     parts.push(`<p class="caption">${esc(t(locale, 'adSpend.zone', { zone: c.timezone, workspace: v.workspaceZone }))}</p>`);

@@ -152,6 +152,30 @@ d('0238 · ad spend on Results, and recorded as a cost (requires DATABASE_URL)',
     } finally { await admin.query(`update businesses set timezone = $2 where id = $1`, [BIZ, ZONE]); }
   });
 
+  it('A READ CUT OFF: "Last read" names only a read that finished; the open one is said as started and not finished, en and ar', async () => {
+    const lastLine = (c: string) => /Last read ([^.]*)\./.exec(c)?.[1] ?? '';
+    // The finished read three days back, so the two times cannot be mistaken for each other.
+    await admin.query(`update ad_spend_reads set started_at = now() - interval '3 days', finished_at = now() - interval '3 days' where business_id = $1`, [BIZ]);
+    const open = (await admin.query(`insert into ad_spend_reads (business_id, connection_id, ad_account_id, since, until, started_at)
+      select business_id, connection_id, ad_account_id, since, until, now() from ad_spend_reads where business_id = $1 limit 1 returning id::text as id`, [BIZ])).rows[0].id;
+    try {
+      const c = card((await get(owner, `/app/results?month=${month}`)).body);
+      expect(lastLine(c)).not.toBe(''); expect(lastLine(c)).not.toContain('Today');
+      expect(c).toMatch(/A read started Today [0-9]{2}:[0-9]{2} and has not finished; nothing from it is shown\. The next read is due [^.]+\./);
+      const ar = /<section class="results-section" id="ad-spend"[\s\S]*?<\/section>/.exec((await app.inject({ method: 'GET', url: `/app/results?month=${month}`, headers: { cookie: `${owner}; yf_locale=ar` } })).body)?.[0] ?? '';
+      expect(withoutIsolates(ar)).toMatch(/A read started \S.* and has not finished; nothing from it is shown\. The next read is due /);
+      expect(unisolatedFigures(ar)).toEqual([]);
+      // Once it finishes, it is the last read, and nothing is said of an open one.
+      await admin.query(`update ad_spend_reads set finished_at = now(), outcome = 'ok' where id = $1`, [open]);
+      const done = card((await get(owner, `/app/results?month=${month}`)).body);
+      expect(lastLine(done)).toContain('Today');
+      expect(done).not.toContain('has not finished'); expect(done).not.toContain('next read is due');
+    } finally {
+      await admin.query(`delete from ad_spend_reads where id = $1`, [open]);
+      await admin.query(`update ad_spend_reads set started_at = now(), finished_at = now() where business_id = $1`, [BIZ]);
+    }
+  });
+
   it('STAFF see one line and no figure; the bill form is not theirs and the prefill is never drawn for them', async () => {
     const c = card((await get(staff, `/app/results?month=${month}`)).body);
     expect(c).toContain(t('en', 'adSpend.staff'));
