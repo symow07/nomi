@@ -11,6 +11,7 @@ import {makeSessionCodec} from '../../src/api/web/session.js';
 import {deliverOwnerAlert} from '../../src/pipeline/notify.js';
 import {offlineModels} from '../pipeline/fakes.js';
 import {dropQueuedWork} from './tenant.js';
+import {unisolatedLatin} from '../parity/isolates.js';
 const suite=process.env['DATABASE_URL']&&process.env['MIGRATE_DATABASE_URL']?describe:describe.skip;
 const ROOT='/app/channels/instagram/comments';
 suite('Instagram comments · actual signed ingress, incremental login, owner routes and zero customer sends',()=>{
@@ -63,6 +64,13 @@ suite('Instagram comments · actual signed ingress, incremental login, owner rou
   expect((await admin.query("select count(*)::int n from pgboss.job where data->>'businessId'=$1",[business])).rows[0].n).toBe(0);
   const html=(await get(ROOT)).body;expect(html).toContain('value="1"');expect(html).toContain('Nothing is sent');
   expect((await get('/app/settings/channels/meta')).body).toContain(ROOT);
+  // I12 — the door to Comments on the Arabic Meta page is the English fallback set apart as English, as the Comments
+  // page's own words are (sayOnPage); the English page's door is unchanged.
+  const door=(html:string)=>new RegExp(`<a class="deeper" href="${ROOT}">[\\s\\S]*?</a>`).exec(html)?.[0]??'';
+  const enDoor=door((await get('/app/settings/channels/meta')).body);
+  expect(enDoor).toBe(`<a class="deeper" href="${ROOT}">Instagram comments</a>`);
+  const arDoor=door((await get('/app/settings/channels/meta',`${cookie}; yf_locale=ar`)).body);
+  expect(arDoor).toContain('<bdi lang="en" dir="ltr">Instagram comments</bdi>');expect(unisolatedLatin(arDoor)).toEqual([]);
   const base=await get('/app/connect/meta/start');expect(String(base.headers.location)).toContain('456789012');expect(String(base.headers.location)).not.toContain('567890123');
  });
  it('staff and invalid switch values are refused with zero provider calls',async()=>{
