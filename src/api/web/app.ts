@@ -6799,14 +6799,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
+      // A name that is not a capability is an address that does not exist (it was a 500: the write below threw).
+      if (!(CAPABILITIES as readonly string[]).includes(cap)) return reply.callNotFound();
       // The single-capability grant is the same decision as a level, so it is
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
         return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notReleased');
       }
       // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
-      // (An unknown capability, or confirm_order, is refused by the grant itself.)
-      const need = (CAPABILITIES as readonly string[]).includes(cap) ? rungOf(cap as Capability) : 3;
+      // (confirm_order is refused by the grant itself.)
+      const need = rungOf(cap as Capability);
       if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
         return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notEarned');
       }
