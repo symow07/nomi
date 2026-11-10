@@ -33,7 +33,11 @@ export type ShopifyRequest = {
   readonly body?: string;
 };
 export type ShopifyAnswer =
-  | { readonly status: number; readonly location: string | null; readonly body: string }
+  /**
+   * `version` (5.5): the `X-Shopify-API-Version` header Shopify answered with — the version it really served. Absent
+   * or null when it named none, which is never read as the version asked for.
+   */
+  | { readonly status: number; readonly location: string | null; readonly body: string; readonly version?: string | null }
   | { readonly failed: 'timeout' | 'not_found' | 'unavailable' };
 export type ShopifyTransport = (req: ShopifyRequest) => Promise<ShopifyAnswer>;
 
@@ -66,7 +70,9 @@ export const shopifyTransport: ShopifyTransport = (req) => new Promise((resolve)
   }, (res) => {
     const status = res.statusCode ?? 0;
     const location = typeof res.headers.location === 'string' ? res.headers.location : null;
-    if (status >= 300 && status < 400) { res.resume(); return done({ status, location, body: '' }); }
+    const served = res.headers['x-shopify-api-version'];
+    const version = typeof served === 'string' && served.trim() !== '' ? served.trim() : null;
+    if (status >= 300 && status < 400) { res.resume(); return done({ status, location, body: '', version }); }
     let size = 0;
     const chunks: Buffer[] = [];
     res.on('data', (c: Buffer) => {
@@ -74,7 +80,7 @@ export const shopifyTransport: ShopifyTransport = (req) => new Promise((resolve)
       if (size > MAX_BYTES) { r.destroy(); done({ failed: 'unavailable' }); return; }
       chunks.push(c);
     });
-    res.on('end', () => done({ status, location, body: Buffer.concat(chunks).toString('utf8') }));
+    res.on('end', () => done({ status, location, body: Buffer.concat(chunks).toString('utf8'), version }));
     res.on('error', () => done({ failed: 'unavailable' }));
   });
   // The socket's own limit is idle time; this one is the whole request.

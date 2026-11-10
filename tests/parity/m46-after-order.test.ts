@@ -139,14 +139,16 @@ describe('M46 · nothing is inferred', () => {
 
   it('THE PRODUCTION CALLER answers from the row, before any model is asked', async () => {
     const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    expect(turn).toContain('if (asksOrderStatus(req.text)) {');
+    // Changed by the approved 5.5 order-facts patch: a Shopify order already verified this turn answers instead.
+    expect(turn).toContain('if (orderCtx === null && asksOrderStatus(req.text)) {');
     // G4 — by BUYER: the question arrives in a new conversation, because
     // confirming closed the one the order was confirmed in.
     expect(turn).toContain('await tenant.orders.latestForClient(state.clientId)');
     expect(turn).toContain('orderStatusReply({');
     // It sits BEFORE the taught-answer path and the generative path.
     expect(turn.indexOf('asksOrderStatus(req.text)'))
-      .toBeLessThan(turn.indexOf('const faq = knowledge.find'));
+      // Changed by the approved 5.5 order-facts patch: no taught answer stands in for a verified order.
+      .toBeLessThan(turn.indexOf('const faq = orderCtx ? undefined : knowledge.find'));
   });
 });
 
