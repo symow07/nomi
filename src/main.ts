@@ -37,6 +37,7 @@ import { httpsMailConfigFrom, httpsSystemMailer, cappedMail, MAIL_PROVIDER_NAMES
 import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
 import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/stripe.js';
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
+import { readAllAdSpend } from './pipeline/adSpendRead.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
@@ -63,6 +64,7 @@ import { instagramAdapter } from './channels/instagram/adapter.js';
 import { socialAppSecret, metaProfileLookup, metaProfilePhoto, type MetaFetch } from './channels/meta/messaging.js';
 import { fetchFaces } from './worker/faces.js';
 import { metaLoginFrom, metaAccountToken } from './channels/meta/connect.js';
+import { adsLoginFrom, type AdsFetch } from './channels/meta/adSpend.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, type MetaAccount } from './db/metaAccounts.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
@@ -607,6 +609,8 @@ export async function buildProduction(
     whatsappFetch?: FetchLike;
     /** 5.5 — Shopify as a test sees it: the order lookups and the connect page ask through this. */
     shopifyTransport?: ShopifyTransport;
+    /** 0238 — Meta's Marketing API as a test sees it: the ads login and the Insights read go through this. */
+    adsFetch?: AdsFetch;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -855,6 +859,9 @@ export async function buildProduction(
   // WA — Embedded Signup, through the WhatsApp app (its secret signs /webhook/whatsapp).
   const waLogin = waLoginFrom(process.env, cfg.META_APP_SECRET);
   const metaFetch: MetaFetch = overrides?.metaFetch ?? (fetch as unknown as MetaFetch);
+  // 0238 — ad spend: its own login configuration (`ads_read` only), or nothing at all.
+  const adsLogin = adsLoginFrom(process.env, socialSecret);
+  const adsFetch: AdsFetch = overrides?.adsFetch ?? (fetch as unknown as AdsFetch);
   const socialIngress: Partial<Record<'instagram' | 'messenger', ChannelAdapter>> =
     socialSecret && (metaLogin !== null || Object.keys(metaMessaging).length > 0)
       ? {
@@ -1095,6 +1102,8 @@ export async function buildProduction(
     // to finish the connection when Meta sends her back.
     metaLogin,
     metaCommentsConfigId: commentsConfigId(process.env),
+    adsLogin,
+    adsFetch,
     metaConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
@@ -1364,6 +1373,15 @@ export async function buildProduction(
       const b = parseBusinessId(String(job.data.businessId ?? ''));
       if (!b.ok || !/^[0-9a-f-]{36}$/i.test(String(job.data.checkId ?? ''))) return;   // poison: drop
       await runCheck({ db, businessId: b.value, checkId: String(job.data.checkId), models: { analyzer: checkAnalyzer, replyWriter: checkWriter }, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null });
+    });
+    // 0238 — every morning, each connected ad account's spend is read from Meta (the last 28 days), only where this
+    // installation has the ads login. A read is never retried the same day (its row is written before Meta is asked).
+    await boss.schedule(QUEUES.adSpend, '50 4 * * *', {});
+    await boss.work(QUEUES.adSpend, async () => {
+      const tally = await readAllAdSpend({ db, fetchImpl: adsLogin ? adsFetch : null, credentialKey }, (raw) => {
+        const b = parseBusinessId(raw); return b.ok ? b.value : null;
+      });
+      if (Object.keys(tally).length > 0) console.log(`[ads] spend read: ${JSON.stringify(tally)}`);
     });
     await boss.schedule(QUEUES.spendingProposals, '35 5 * * *', {});
     await boss.work(QUEUES.spendingProposals, async () => {
