@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import { createHash } from 'node:crypto';
 import { renderComponents } from '../../src/api/web/components.js';
-import { shell, loginPage, errorPage, publicDocument, CONTEXTUAL_ROUTES_BY_HUB, hubFor, stylesheetAt } from '../../src/api/web/layout.js';
+import { shell, loginPage, signupPage, setPasswordPage, forgotPasswordPage, verifyPage, errorPage, publicDocument, CONTEXTUAL_ROUTES_BY_HUB, hubFor, stylesheetAt } from '../../src/api/web/layout.js';
 import { registerWebApp, PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { sheetLinks, linkedCss } from './linked-css.js';
@@ -23,7 +23,8 @@ import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
  *      declaration anywhere fails here.
  *   2. The number of `<style>` blocks may only FALL. The baseline is a
  *      committed file, like the symbol ceiling: lower it on purpose when a
- *      page's block is retired; a new block anywhere fails the build.
+ *      page's block is retired; a new block above the approved ceiling fails.
+ *      F3 explicitly allows the shared navigation opt-in as the second block.
  *
  * And the components page, which is how every state gets looked at, must show
  * every family and carry no stylesheet of its own.
@@ -32,6 +33,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const WEB = 'src/api/web';
 const files = readdirSync(join(ROOT, WEB)).filter((f) => f.endsWith('.ts')).sort();
 const read = (f: string) => readFileSync(join(ROOT, WEB, f), 'utf8');
+const NAVIGATION_OPT_IN = '@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }';
 
 /** Bare single-class selectors (`.foo`) declared in a file's CSS, comments stripped. */
 function bareClassesDefined(f: string): Set<string> {
@@ -86,7 +88,7 @@ describe('V1 · one stylesheet — decision 4', () => {
  * still carries its rules inside itself, on purpose: a stranger's page arrives
  * complete, with nothing more to fetch (legal-pages.test.ts,
  * m40-unsubscribe.test.ts). So the one surviving block is in layout.ts, and it
- * is that one.
+ * was that one. F3 adds only the shared navigation opt-in before the links.
  */
 describe('V1 close-out · the shell and the door link their stylesheets', () => {
   const app = () => {
@@ -99,23 +101,26 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     return a;
   };
 
-  it('the one surviving block is the public document\'s, in layout.ts', () => {
+  it('the two source blocks are the public document and the shared navigation opt-in', () => {
     const where = files.filter((f) => read(f).includes('<style'));
     expect(where).toEqual(['layout.ts']);
-    expect(read('layout.ts').match(/<style/g)?.length).toBe(1);
+    expect(read('layout.ts').match(/<style/g)?.length).toBe(2);
+    const base = JSON.parse(readFileSync(join(ROOT, 'tools/style-baseline.json'), 'utf8')) as { styleBlocks: number };
+    expect(base.styleBlocks).toBe(2);
     const doc = publicDocument({ locale: 'en', title: 'T', body: '<p>x</p>' });
     expect(doc.match(/<style>/g)?.length).toBe(1);
     expect(doc).not.toContain('<link rel="stylesheet"');
+    expect(doc).not.toContain('@view-transition');
   });
 
-  it('the shell and every door page link exactly one sheet (and their type), and carry no rules', () => {
+  it('the shell and every door page keep their stylesheets and carry only the navigation opt-in', () => {
     const pages = [
       ['shell', shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '<p>x</p>' }), 'app'],
       ['login', loginPage({ locale: 'ar', path: '/login' }), 'door'],
       ['error', errorPage({ locale: 'zh', path: '/nope', kind: 'notfound' }), 'door'],
     ] as const;
     for (const [name, html, sheet] of pages) {
-      expect(html, name).not.toContain('<style');
+      expect([...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]), name).toEqual([NAVIGATION_OPT_IN]);
       const links = sheetLinks(html);
       expect(links, name).toHaveLength(name === 'shell' ? 3 : 2);
       expect(links[0], name).toMatch(new RegExp(`^/assets/${sheet}\\.[0-9a-f]{16}\\.css$`));
@@ -129,6 +134,27 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     expect(door).not.toContain('.cr-name');
     expect(shellCss).toContain('.cr-name');
     expect(shellCss).not.toContain('.login .card');
+  });
+
+  it('every opted-in head declares only the guarded opt-in before its first stylesheet', () => {
+    for (const locale of LOCALES) {
+      const pages = [
+        shell({ title: 'T', active: 'home', locale, path: '/app', bodyHtml: '' }),
+        loginPage({ locale, path: '/login' }),
+        signupPage({ locale, path: '/signup', mode: 'open', passwordMin: 12 }),
+        setPasswordPage({ locale, path: '/set-password', passwordMin: 12, passwordMax: 128, link: null }),
+        forgotPasswordPage({ locale, path: '/login/forgot', minutes: 15 }),
+        verifyPage({ locale, path: '/verify', maskedEmail: 'a***@example.com', purpose: 'signup' }),
+        errorPage({ locale, path: '/missing', kind: 'notfound' }),
+      ];
+      for (const html of pages) {
+        const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] ?? '';
+        expect([...head.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]), locale).toEqual([NAVIGATION_OPT_IN]);
+        expect(head.indexOf('<style>'), locale).toBeLessThan(head.indexOf('<link rel="stylesheet"'));
+        expect(html.match(/@view-transition/g), locale).toHaveLength(1);
+        expect(linkedCss(html), locale).not.toContain('@view-transition');
+      }
+    }
   });
 
   it('the route serves them to anyone: kept for good at the exact address, not at an old one, nothing else', async () => {

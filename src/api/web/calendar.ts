@@ -201,7 +201,7 @@ export function line(locale: Locale, e: CalendarEntry): string {
         price: d.price ? show.money(locale, d.price) : '', qty: show.quantity(locale, d.quantity ?? 0),
       });
     case 'reply_due': return t(locale, d.overdue ? 'calendar.line.replyOverdue' : 'calendar.line.replyDue');
-    case 'followup_due': return t(locale, 'calendar.line.followup', { sequence: d.sequenceName ?? '' });
+    case 'followup_due': return d.followUpRule ? t(locale, 'capability.follow_up') : t(locale, 'calendar.line.followup', { sequence: d.sequenceName ?? '' });
     case 'closure':
       return t(locale, 'calendar.line.closure', {
         label: d.closureLabel ?? '',
@@ -233,7 +233,7 @@ export function detailOf(locale: Locale, e: CalendarEntry): string {
     case 'price_worked_out':
       return t(locale, 'calendar.detail.price', { price: d.price ? show.money(locale, d.price) : '', qty: show.quantity(locale, d.quantity ?? 0) });
     case 'reply_due': return d.overdue ? t(locale, 'calendar.detail.late') : '';
-    case 'followup_due': return d.sequenceName ?? '';
+    case 'followup_due': return d.followUpRule ? t(locale, 'followUp.calendar') : d.sequenceName ?? '';
     case 'closure':
       return t(locale, 'calendar.range', {
         from: show.date(locale, dayStart(d.closureFrom ?? e.day, workspaceZone())),
@@ -320,6 +320,7 @@ const keptForm = (locale: Locale, e: CalendarEntry): string =>
 function isOwed(e: CalendarEntry, now: Date): boolean {
   if (isDone(e, now)) return false;
   return e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open === true)
+    || (e.detail.followUpRule === true && e.at <= now)
     || (e.kind === 'price_worked_out' && e.detail.priceState === 'review')
     // B13 — a price's end is said, never owed: there is nothing to do on its day.
     || (e.kind.startsWith('promise_') && e.kind !== 'promise_price_end' && e.day <= dayKey(now, workspaceZone()));
@@ -363,6 +364,7 @@ export const kindIcon = (e: CalendarEntry): string => icon(DATE_ICON[e.kind], 'k
  * has to do. Done dates are greyed, never hidden.
  */
 export function isDone(e: CalendarEntry, now: Date): boolean {
+  if (e.detail.followUpRule) return false;
   if (e.kind === 'reply_due') return false;
   // Phase 9 (w4-customers-13) — a price is done once it was given: one waiting for review is owed, one never sent is neither.
   if (e.kind === 'price_worked_out' && (e.detail.priceState === 'review' || e.detail.priceState === 'unsent')) return false;
@@ -405,7 +407,7 @@ function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | nu
     : e.day === today ? `<span class="dl-on">${todayWord(locale)}</span>` : `<span class="dl-on">${esc(show.dayMonth(locale, e.day))}</span>`;
   const more = detailOf(locale, e);
   const body = `<span class="dl-body"><span class="dl-say">${marks}${sentence(locale, e)}</span>${
-    more ? `<span class="small"><bdi>${esc(more)}</bdi></span>` : ''}</span>`;
+    more ? `<span class="small"><bdi${e.detail.followUpRule ? ' lang="en" dir="ltr"' : ''}>${esc(more)}</bdi></span>` : ''}</span>`;
   // Home (the home run) opens; it never removes: a date with no conversation or order behind it opens its day here.
   const to = doorOf(e) ?? (onHome ? href({ month: e.day, day: e.day }) : null);
   return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" data-cat="${esc(e.category)}">

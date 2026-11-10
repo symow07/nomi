@@ -1,4 +1,7 @@
 import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
+import { MONTH_REPORT_CSS } from './monthReportStyle.js';
+import { SETUP_MINUTES_CSS } from './setupMinutesStyle.js';
+import { FOLLOW_UP_CSS } from './followUpStyle.js';
 import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
 import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
@@ -11,7 +14,7 @@ import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../..
 import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { messageLocale, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
@@ -180,8 +183,8 @@ export const atWork = (text: string, assistant = false): string =>
 export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
   `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
 
-export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
+export const deeper = (href: string, label: string, extra = '', attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}${GO}</a>`;
 
 /** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
 export const unescapeHtml = (s: string): string =>
@@ -200,8 +203,8 @@ export const byAssistant = (name: string): string =>
   `<span class="as">${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
-export const back = (href: string, label: string): string =>
-  `<a class="back" href="${settingsHref(href)}">${BACK}${esc(label)}</a>`;
+export const back = (href: string, label: string, attrs = '', labelLanguage?: 'en'): string =>
+  `<a class="back" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${BACK}${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';
@@ -211,6 +214,12 @@ export { conversationUrl } from '../../core/owner/addresses.js';
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** A catalogue sentence in HTML: keep English fallback separate from the page's direction. */
+export const wordsHtml = (locale: Locale, key: MessageKey, params?: Record<string, string | number>): string => {
+  const text = esc(t(locale, key, params));
+  return locale !== 'en' && messageLocale(locale, key) === 'en' ? `<bdi lang="en" dir="ltr">${text}</bdi>` : text;
+};
 
 /** The EN·中文·العربية switcher — links to the public /locale route, returns to `path`. */
 export function switcher(locale: Locale, path: string): string {
@@ -383,8 +392,8 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     nav.side a.navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
     details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
-    details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
-    details:not([open])::details-content { opacity:0; }
+    /* Delay hiding only when closing: opening must expose its fields to the very next Tab. */
+    details:not([open])::details-content { opacity:0; transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
     .flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     #approve, .td { animation-delay:var(--motion-fast); }
@@ -418,7 +427,6 @@ ${STAGGER}
     [dir="rtl"] .toast { animation-name:nomi-toast-in-rtl; }
     .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
     [dir="rtl"] .toast.out { animation-name:nomi-toast-out-rtl; }
-    @view-transition { navigation:auto; }
     main { view-transition-name:page; }
     nav.side a.navlink.active { view-transition-name:rail-on; }
     .si-order .si-fil.on { view-transition-name:lens-on; }
@@ -811,7 +819,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an edge twice as heavy and weight, not a paler grey than its
      neighbours. The identity system — the edge and the words in the brand: the edge of what you are on is one of the three edges
      the brand may draw (a focus ring and an underline are the others). */
-  .tab.on { background:var(--color-surface); border-color:var(--color-brand); box-shadow:inset 0 0 0 1px var(--color-brand); color:var(--color-brand); font-weight:600; }
+  .tab.on { background:var(--color-surface); border-color:var(--color-accent); box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
@@ -1190,6 +1198,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      inline; the column that names someone on People is .person. */
   .person { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .caption { font-size:var(--font-size-caption); }
+  .stripe-payments article h3, .stripe-payments article .caption { overflow-wrap:anywhere; }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */
@@ -2174,7 +2183,7 @@ const STYLE_PAGES = `
   .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-sand);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); }
   .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
-  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-brand); }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-accent); }
   @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
   .tabs.filters { flex-wrap:wrap; align-items:center; }
   .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);
@@ -2646,6 +2655,9 @@ export function assetAt(file: string): { readonly body: string | Buffer; readonl
   return font ? { body: font, type: FONT_TYPE, current: true } : null;
 }
 
+// The incoming document must opt in before its external styles arrive.
+const navigationOptIn = (): string => '<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>';
+
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
 
 /** The public document's base rules: the same tokens, a reading page on paper. */
@@ -2734,7 +2746,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -2924,24 +2936,25 @@ export function shell(input: {
   const { locale } = input;
   const here = hubFor(input.path, input.active);
   const role = viewerRole();
-  const entry = (id: string, href: string, label: string, shape: RailIcon, extra = '') => {
+  const entry = (id: string, href: string, key: MessageKey, shape: RailIcon, extra = '') => {
+    const label = t(locale, key);
     const on = id === here || (id === 'account' && role === 'accountant' && !isBooksPath(input.path));
     const waiting = id === 'inbox' ? needsYouCount() : null;
     const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(railFigure(locale, waiting))}</span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}>${railIcon(shape)}<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span></a>`;
+    return `<a href="${href}" class="navlink${extra}${on ? ' active' : ''}" data-nav="${id}"${on ? ' aria-current="page"' : ''}${aria}>${railIcon(shape)}<span class="nl-body"><span class="nl-text">${wordsHtml(locale, key)}</span>${badge}</span></a>`;
   };
   if (role === 'accountant') {
-    const books = entry('books', '/app/books', t(locale, 'nav.books'), 'notebook-minimalistic');
-    const account = entry('account', '/app/settings/personal/account', t(locale, 'account.title'), 'key');
+    const books = entry('books', '/app/books', 'nav.books', 'notebook-minimalistic');
+    const account = entry('account', '/app/settings/personal/account', 'account.title', 'key');
     const logout = `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout">${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
     return shellWith(input, `<div class="navgroup">${books}${account}</div><div class="navfoot">${logout}</div>`);
   }
   const visible = NAV.filter((n) => n.id !== 'books' || (role === 'owner' && booksShown()));
-  const labelFor = (id: string) => t(locale, id === 'home' ? 'split.title' : `nav.${id}` as MessageKey);
+  const labelFor = (id: string): MessageKey => id === 'home' ? 'split.title' : `nav.${id}` as MessageKey;
   const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', ['products', 'assistant', 'settings'].includes(n.id) ? ' nav-desktop' : '');
   const moreLinks = [...visible.filter((n) => ['products', 'assistant'].includes(n.id)), { href: '/app/calendar', id: 'calendar' }, ...visible.filter((n) => n.id === 'settings')];
-  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${esc(t(locale, 'nav.more'))}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${esc(labelFor(n.id))}</a>`).join('')}</div></details>`;
+  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${wordsHtml(locale, 'nav.more')}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${wordsHtml(locale, labelFor(n.id))}</a>`).join('')}</div></details>`;
   return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.split?.me ?? ''}</div>${more}`);
 
 }
@@ -2959,12 +2972,12 @@ function areaNavigation(locale: Locale, path: string, active: string): string {
   const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
     { href: '/app', label: 'split.title', aliases: ['/app'] },
     { href: '/app/calendar', label: 'nav.calendar', aliases: ['/app/calendar'] },
-    ...(viewerRole() === 'owner' ? [{ href: '/app/results', label: 'nav.results' as MessageKey, aliases: ['/app/results', '/app/analytics'] }] : []),
+    { href: '/app/results', label: 'nav.results', aliases: ['/app/results', '/app/analytics'] },
     { href: '/app/get-started', label: 'nav.getStarted', aliases: ['/app/get-started', '/app/guide', '/app/onboarding', '/app/ready'] },
   ];
   const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;
-  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${esc(t(locale, s.label))}</a>`).join('');
-  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${esc(t(locale, current.label))}${GO}</summary><div>${links}</div></details></nav>`;
+  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${wordsHtml(locale, s.label)}</a>`).join('');
+  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${wordsHtml(locale, current.label)}${GO}</summary><div>${links}</div></details></nav>`;
 }
 
 /** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
@@ -3014,6 +3027,7 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
+${navigationOptIn()}
 ${linkTo(APP_SHEET)}
 ${TYPE_SLOT}\n${linkTo(SPLIT_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
@@ -3161,6 +3175,7 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
+${navigationOptIn()}
 ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body><div class="login">

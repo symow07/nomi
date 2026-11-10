@@ -1,3 +1,4 @@
+import { PAYMENT_LINKS_EN } from './paymentLinks.js';
 import { SETTINGS_AREA_EN } from './settingsArea.js';
 import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
@@ -13,6 +14,10 @@ import { INBOX_CONVERSATION_EN } from './inboxConversation.js';
 import { INBOX_LISTS_EN } from './inboxLists.js';
 import { PROCEDURES_EN } from './procedures.js';
 import { CASES_EN } from './cases.js';
+import { MONTH_REPORT_EN } from './monthReport.js';
+import { MONTH_MAIL_EN } from './monthMail.js';
+import { SETUP_MINUTES_EN } from './setupMinutes.js';
+import { FOLLOW_UPS_EN } from './followUps.js';
 import { WA_CATALOGUE_EN } from './waCatalogue.js';
 
 /**
@@ -21,6 +26,7 @@ import { WA_CATALOGUE_EN } from './waCatalogue.js';
  * Existing translated keys remain in their original catalogues.
  */
 export const REDESIGN_EN = {
+  ...PAYMENT_LINKS_EN,
   ...SETTINGS_AREA_EN,
   ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,
@@ -36,6 +42,10 @@ export const REDESIGN_EN = {
   ...INBOX_LISTS_EN,
   ...PROCEDURES_EN,
   ...CASES_EN,
+  ...MONTH_REPORT_EN,
+  ...MONTH_MAIL_EN,
+  ...SETUP_MINUTES_EN,
+  ...FOLLOW_UPS_EN,
   ...WA_CATALOGUE_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',

@@ -480,6 +480,9 @@ import type { Db } from './client.js';
 // 229 = procedures: the owner's step-by-step for a situation, where a conversation stands in one, the hand-off step's own
 //       signal and reason (0229).
 // 230 = the checks before a change goes live: the staged change, the saved cases' references, each re-run's reply (0230).
+// 231 = what Nomi did for you: the owner's minutes per reply, and the month's e-mail sent once (0231).
+// 232 = setup in minutes: a file of customers kept while the owner checks it, and the first import's time (0232).
+// 234 = owner-written follow-up drafts and their accepted-quote evidence.
 // 235 = the owner's selected WhatsApp catalogue, batch outcomes and revocable image grants.
 export const REQUIRED_SCHEMA_VERSION = 235;
 

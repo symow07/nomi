@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shell } from '../../src/api/web/layout.js';
+import { shell, esc } from '../../src/api/web/layout.js';
 import { withAssistantName } from '../../src/api/web/say.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -34,18 +34,29 @@ describe('phase 7 · the phone nav is one line', () => {
   // phone each: Inbox has a phone form where its word does not fit a fifth
   // (ar, es, fr); the assistant's fallback keeps its phone form; nothing else has one.
   // The warmth run's re-audit (cross-new-02, w4-whole-02): ONE name per entry at every width, in every
-  // language — the list is Inbox / 收件箱 / الرسائل / Mensajes / Messages, and an assistant not yet named
-  // is Assistant / 助手 / المساعد / Asistente in the rail; only the waiting count has a phone form (its figure).
-  it('one name per entry at every width, in every language; the advisor is its word, and the assistant is not in the rail', () => {
-    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+  // language. Each entry keeps its catalogue label; English fallback is isolated even on a non-English LTR
+  // page. Only the waiting count has a phone form (its figure).
+  it('one name per entry in every language, with an English isolate exactly when the label is a fallback', () => {
+    for (const l of LOCALES) {
       const html = nav(page(l));
       expect(html.match(/nl-short">(?!\d)/g) ?? [], l).toEqual([]);
       expect(html.match(/nl-long">/g) ?? [], l).toEqual([]);
-      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.inbox')}</span>`);
-      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.assistant')}</span>`);
+      for (const id of ['inbox', 'assistant'] as const) {
+        const key = `nav.${id}` as const;
+        const label = t(l, key);
+        const fallback = l !== 'en' && label === t('en', key);
+        const words = fallback ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label);
+        const entries = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
+          .filter((m) => m[1]!.includes(`data-nav="${id}"`));
+        expect(entries, `${l}/${id}: one entry`).toHaveLength(1);
+        const entry = entries[0]![2]!;
+        const labels = [...entry.matchAll(/<span class="nl-text">[\s\S]*?<\/span>/g)].map((m) => m[0]);
+        expect(labels, `${l}/${id}: exact label markup`).toEqual([`<span class="nl-text">${words}</span>`]);
+        expect(entry.replace(/<[^>]*>/g, '').trim(), `${l}/${id}: no second name`).toBe(esc(label));
+      }
       expect(t(l, 'nav.short.inbox'), l).toBe(t(l, 'nav.inbox'));
     }
-    // The advisor run — the assistant is Settings' first row, never an entry of the rail.
+    // Naming the assistant does not replace the navigation's catalogue label.
     const named = withAssistantName('Lily', () => nav(page('fr')));
     expect(named).not.toContain('<span class="nl-text">Lily</span>');
     expect(named).toContain('>Assistant<');
