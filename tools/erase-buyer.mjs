@@ -259,6 +259,11 @@ export const RULES = Object.freeze({
   follow_up_observations: { do: 'erase' },
   follow_up_runs: { do: 'erase' },
   follow_up_approvals: { do: 'erase' },
+  wa_catalogue_items: { do: 'unrelated' },
+  wa_catalogue_batches: { do: 'unrelated' },
+  wa_catalogue_batch_items: { do: 'unrelated' },
+  wa_catalogue_images: { do: 'unrelated' },
+  wa_catalogue_sends: { do: 'erase' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the

@@ -96,7 +96,9 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
       // facts could not be resolved so the gate could not be asked at all.
       // 0133 — and a fifth: a first e-mail or follow-up from a business with no postal address to carry.
       .toEqual(['window_needs_owner', 'media_unsupported',
-                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked', 'no_postal_address']);
+                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked', 'no_postal_address',
+                // Part B (5.3) — and a product card whose item changed since Meta accepted it.
+                'product_changed']);
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {

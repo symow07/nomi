@@ -145,6 +145,8 @@ export const PRACTICE_SKIP = [
   // Payment bindings and financial records never enter Practice.
   'stripe_connections', 'stripe_mappings', 'stripe_oauth_states', 'stripe_checkout_attempts',
   'stripe_event_inbox', 'stripe_movements', 'stripe_payouts', 'stripe_link_sends',
+  // The live catalogue, its publication grants and customer cards never enter Practice.
+  'wa_catalogue_items', 'wa_catalogue_batches', 'wa_catalogue_batch_items', 'wa_catalogue_images', 'wa_catalogue_sends',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];
