@@ -392,6 +392,18 @@ describe('Block 6.1 · the routes: metered, limited, and writing only what was t
     expect(helpMailFields('en', { words: 'x', page: null, workspaceId: BIZ, role: 'owner' }).page).toBe(t('en', 'help.mail.page', { page: '—' }));
   });
 
+  it('Write to us: the notice keeps each line\'s own direction and its bullet inside the list on either side (F1)', () => {
+    // Each line is English in every language, left to right by its own dir="auto"; on an Arabic page its bullet sits on
+    // the left. The list keeps room on both sides, so the bullet never hangs past the page (7 px of sideways scroll at
+    // 390 before). tools/check-help-fits.mjs measures it in a browser at 360–1440 px in en, ar, zh and es.
+    const html = renderHelp('ar', { from: '/app/inbox', role: 'staff', canAsk: true, canWrite: true });
+    const items = [...html.match(/<ul class="help-sends">([\s\S]*?)<\/ul>/)![1]!.matchAll(/<li([^>]*)>/g)].map((m) => m[1]);
+    expect(items).toHaveLength(HELP_MAIL_FIELDS.length);
+    for (const attrs of items) expect(attrs).toBe(' dir="auto"');
+    const layout = readFileSync(`${ROOT}src/api/web/layout.ts`, 'utf8');
+    expect(layout).toMatch(/\.help-sends \{ padding-inline:var\(--space-24\); \}/);
+  });
+
   it('Write to us: the words, the page and who asked — three an hour', async () => {
     const sent: unknown[] = [];
     const { app, flashes, tick } = mk({ viewer: { businessId: BIZ, personId: 'p-9', role: 'staff' }, write: async (b, w) => { sent.push({ b, ...w }); return 'sent'; } });
