@@ -3,7 +3,8 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { AdvisorModel } from '../../llm/ports.js';
 import { t } from './say.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper } from './layout.js';
+import { BACK } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { hasVideo } from './guide.js';
 import { makeThrottle } from './throttle.js';
@@ -60,21 +61,21 @@ const helpHref = (from: string | null): string => `/app/help/page${from ? `?from
 function guideHtml(locale: Locale, id: GuideId): string {
   const g = GUIDES[id];
   const video = g.video && hasVideo(g.video, locale)
-    ? `<details class="help-video"><summary>${esc(t(locale, 'help.video'))}</summary><video controls preload="none" playsinline poster="/assets/guide/${g.video}.${locale}.jpg" src="/assets/guide/${g.video}.${locale}.webm"><track kind="captions" default srclang="${locale}" src="/assets/guide/${g.video}.${locale}.vtt"></video></details>`
+    ? `<details class="help-video"><summary dir="auto">${esc(t(locale, 'help.video'))}</summary><video controls preload="none" playsinline poster="/assets/guide/${g.video}.${locale}.jpg" src="/assets/guide/${g.video}.${locale}.webm"><track kind="captions" default srclang="${locale}" src="/assets/guide/${g.video}.${locale}.vtt"></video></details>`
     : '';
-  return `<li class="help-guide" id="guide-${id}"><h2>${esc(t(locale, guideTitle(id)))}</h2>
-    <ul>${guideLines(id).map((k) => `<li>${esc(t(locale, k))}</li>`).join('')}</ul>${video}
+  return `<li class="help-guide" id="guide-${id}"><h2 dir="auto">${esc(t(locale, guideTitle(id)))}</h2>
+    <ul>${guideLines(id).map((k) => `<li dir="auto">${esc(t(locale, k))}</li>`).join('')}</ul>${video}
     ${deeper(g.door, t(locale, guideDoor(id)))}</li>`;
 }
 
 function answerHtml(locale: Locale, a: HelpAnswer): string {
   switch (a.kind) {
     case 'answer': return `<p><bdi>${esc(a.text)}</bdi></p>`;
-    case 'guide': return `<p>${esc(t(locale, 'help.ask.fromGuide', { guide: t(locale, guideTitle(a.topic.id as GuideId)) }))}</p>
-      <ul>${guideLines(a.topic.id as GuideId).map((k) => `<li>${esc(t(locale, k))}</li>`).join('')}</ul>`;
-    case 'notYet': return `<p>${esc(t(locale, 'help.ask.notYet'))}</p>`;
-    case 'unknown': return `<p>${esc(t(locale, 'help.ask.unknown'))}</p>`;
-    case 'failed': return `<p>${esc(t(locale, 'help.ask.failed'))}</p>`;
+    case 'guide': return `<p dir="auto">${esc(t(locale, 'help.ask.fromGuide', { guide: t(locale, guideTitle(a.topic.id as GuideId)) }))}</p>
+      <ul>${guideLines(a.topic.id as GuideId).map((k) => `<li dir="auto">${esc(t(locale, k))}</li>`).join('')}</ul>`;
+    case 'notYet': return `<p dir="auto">${esc(t(locale, 'help.ask.notYet'))}</p>`;
+    case 'unknown': return `<p dir="auto">${esc(t(locale, 'help.ask.unknown'))}</p>`;
+    case 'failed': return `<p dir="auto">${esc(t(locale, 'help.ask.failed'))}</p>`;
   }
 }
 
@@ -93,29 +94,29 @@ export function renderHelp(locale: Locale, v: HelpView): string {
   const asks = v.role !== 'accountant';
   const hidden = v.from ? `<input type="hidden" name="from" value="${esc(v.from)}">` : '';
   const ask = !asks ? '' : `<section class="help-ask" id="ask" aria-labelledby="help-ask-h">
-      <h2 id="help-ask-h">${esc(t(locale, 'help.ask.title'))}</h2>
+      <h2 id="help-ask-h" dir="auto">${esc(t(locale, 'help.ask.title'))}</h2>
       ${v.asked ? `<div class="help-answer" role="status"><p class="help-you"><span class="muted">${esc(t(locale, 'help.ask.you'))}</span> <bdi>${esc(v.asked.question)}</bdi></p>${v.asked.answer}</div>` : ''}
-      ${v.refused ? `<p class="fwarn" role="alert">${esc(t(locale, v.refused))}</p>` : ''}
+      ${v.refused ? `<p class="fwarn" role="alert" dir="auto">${esc(t(locale, v.refused))}</p>` : ''}
       ${v.canAsk ? `<form method="post" action="/app/help/ask">${hidden}
-        <label for="help-q">${esc(t(locale, 'help.ask.label'))}</label>
+        <label for="help-q" dir="auto">${esc(t(locale, 'help.ask.label'))}</label>
         <textarea id="help-q" name="q" rows="2" maxlength="${HELP_MAX}" dir="auto" required></textarea>
-        <p class="hint">${esc(t(locale, 'help.ask.hint'))}</p>
+        <p class="hint" dir="auto">${esc(t(locale, 'help.ask.hint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'help.ask.go'))}</button></form>`
         : `<p class="muted">${esc(t(locale, 'help.ask.unavailable'))}</p>`}
     </section>`;
   const write = !asks ? '' : `<section class="help-write" id="write" aria-labelledby="help-write-h">
-      <h2 id="help-write-h">${esc(t(locale, 'help.write.title'))}</h2>
-      <p>${esc(t(locale, 'help.write.lede'))}</p>
+      <h2 id="help-write-h" dir="auto">${esc(t(locale, 'help.write.title'))}</h2>
+      <p dir="auto">${esc(t(locale, 'help.write.lede'))}</p>
       ${v.canWrite ? `<form method="post" action="/app/help/write">${hidden}
-        <label for="help-w">${esc(t(locale, 'help.write.label'))}</label>
+        <label for="help-w" dir="auto">${esc(t(locale, 'help.write.label'))}</label>
         <textarea id="help-w" name="words" rows="3" maxlength="${HELP_MAX}" dir="auto" required>${esc(v.asked?.question ?? '')}</textarea>
         <button class="btn" type="submit">${esc(t(locale, 'help.write.go'))}</button></form>`
         : `<p class="muted">${esc(t(locale, 'help.write.cannot'))}</p>`}
     </section>`;
   return `<article class="help" data-card-body aria-labelledby="pc-name">
-    ${v.from ? back(v.from, t(locale, 'help.back')) : ''}
-    <h1 class="page" id="pc-name">${esc(t(locale, 'help.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'help.lede'))}</p>
+    ${v.from ? `<a class="back pc-open" href="${esc(v.from)}">${BACK}${esc(t(locale, 'help.back'))}</a>` : ''}
+    <h1 class="page" id="pc-name" dir="auto">${esc(t(locale, 'help.title'))}</h1>
+    <p class="muted" dir="auto">${esc(t(locale, 'help.lede'))}</p>
     ${v.flash ? flashBanner(v.flash) : ''}
     <ol class="help-guides">${helpFor(v.from ?? '/app').map((id) => guideHtml(locale, id)).join('')}</ol>
     ${ask}${write}

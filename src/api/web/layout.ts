@@ -1347,6 +1347,8 @@ const STYLE_PAGES = `
     display:inline-grid; place-items:center; inline-size:44px; block-size:44px; border-radius:var(--radius-chip);
     color:var(--color-ink-secondary); text-decoration:none; }
   .help-door .hdi { inline-size:26px; block-size:26px; }
+  /* On a phone the workspace's name heads the page: it keeps clear of the "?". */
+  main > .business-name { padding-inline-end:var(--space-48); }
   .help-door:hover { color:var(--color-ink); background:var(--color-sand); }
   .help-door:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .help { display:flex; flex-direction:column; gap:var(--space-16); }
