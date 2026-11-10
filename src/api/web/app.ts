@@ -7,6 +7,7 @@ import { renderFollowUpRule, renderFollowUps } from './followUps.js';
 import { readFollowUpRule } from '../../core/conversation/followUps.js';
 import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
+import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
 import { readAssistantActivity } from '../../db/assistantActivity.js';
@@ -273,7 +274,7 @@ import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
-import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
+import { ownerReply, ownerPhoto, ownerProductCard } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
@@ -405,6 +406,8 @@ const COOKIE = 'yf_session';
 const LOCALE_COOKIE = 'yf_locale';
 
 export type WebDeps = {
+  readonly catalogueClient?: NonNullable<CatalogueWebDeps['catalogueClient']>;
+  readonly catalogueNow?: NonNullable<CatalogueWebDeps['catalogueNow']>;
   readonly db: Db;
   readonly sessionSecret: string;      // derived from CREDENTIAL_KEY
   readonly accessCode: string;         // owner login (env or generated)
@@ -699,6 +702,15 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/hooks/stripe/connect', why: 'Connected-account event receipt: verifies the separate raw-body signature and mode before retaining minimal event identifiers' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
+  /*
+   * 0235 — a catalogue photo Meta fetches with no session; the token is the only key. Its guards
+   * (`wa_catalogue_image_business`, `catalogueImage`, `registerCatalogueRoutes`): a 256-bit random token, compared whole;
+   * only for a batch item the owner ticked, while it is published or inside its 15-minute lease (expired, revoked,
+   * unticked, replaced or since changed: 404); never for a practice copy or a switched-off workspace; the bytes re-read in the
+   * workspace's own tenant transaction; no session is read or set, so signed in, signed out and another workspace get
+   * the same answer; `private, no-store`, `noindex`, `no-referrer`, `nosniff`. Proven in `wa-catalogue.test.ts`.
+   */
+  { method: 'GET', url: '/catalogue-media/:token', why: '0235 — a photo of an owner-ticked catalogue item, fetched by Meta with no session. The unguessable token IS the credential and lapses with the publication; the bytes only, the same answer to anyone' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
@@ -5371,6 +5383,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * Part B (5.3) — the OWNER sends one product of their linked WhatsApp catalogue as a product card: the same checks
+   * as their words (`ownerSendWindow`), inside the customer's 24 hours only — the reopening template carries no card.
+   * Through the one writer; the worker checks the item again before anything leaves.
+   */
+  app.post('/app/inbox/:conversationId/product-card', async (req, reply) => {
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const s = await ownerOnly(req, reply, 'price_rules', UUID.test(cid) ? conversationUrl(cid) : '/app/inbox');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const productId = String((req.body as { product?: string } | undefined)?.product ?? '');
+    const { verdict, reopening } = await ownerSendWindow(bid.value, cid);
+    if (verdict !== 'ok') return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
+    if (reopening) return flashTo(reply, conversationUrl(cid), 'card.flash.window');
+    const r = await ownerProductCard(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
+      { businessId: bid.value, conversationId: cid, productId, actor: personOf(s).id },
+    );
+    if (r.outcome === 'sent') return flashTo(reply, conversationUrl(cid), messagingEnabled ? 'card.flash.sent' : 'inbox.flash.sentNotLive');
+    if (r.outcome === 'not_sendable' || r.outcome === 'card_unsupported') return flashTo(reply, conversationUrl(cid), `card.flash.${r.outcome}` as MessageKey);
+    return takeoverFlash(reply, cid, r.outcome);
+  });
+
+  /**
    * M34 — the owner corrects what was heard.
    *
    * ARCHIVE, NEVER ERASE. `transcription` keeps the machine's original reading
@@ -5972,6 +6008,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return productArea(renderProductList(catalogue.items, locale, flash, personOf(s),
       await businessKind(deps.db, s.businessId), {page:catalogue,returnHref}) + ask, locale, 'all', personOf(s));
   }));
+  registerCatalogueRoutes(app,deps,{authed:render=>authed('products',render),owner:(req,reply)=>ownerOnly(req,reply,'price_rules','/app/products/whatsapp'),
+    viewer:personOf,flash:flashTo,takeFlash,locale:localeOf,page:(req,draw)=>page(req,{active:'products',...draw})});
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
       await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
