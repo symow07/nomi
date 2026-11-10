@@ -1,5 +1,6 @@
 import { registerInstagramCommentRoutes } from './instagramCommentRoutes.js';
 import { sayOnPage } from './instagramComments.js';
+import { GO } from './icons.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
@@ -5768,7 +5769,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
           telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
           tiktok: { served: tiktokReady() !== null, account: tt ? { username: tt.username, needsAttention: tt.needsAttention !== null, euMessages: tt.euMessages, euLastAt: tt.euLastAt } : null },
-        }) + (screen==='meta'?`<p><a class="deeper" href="/app/channels/instagram/comments">${sayOnPage(locale,'igComments.title')}</a></p>`:''),
+        }) + (screen==='meta'?`<p><a class="deeper" href="${settingsHref('/app/channels/instagram/comments')}">${sayOnPage(locale,'igComments.title')}${GO}</a></p>`:''),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
       }));
