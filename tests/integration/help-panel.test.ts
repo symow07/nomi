@@ -7,6 +7,7 @@ import type { Db } from '../../src/db/client.js';
 import { t } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
 import { flashSaid } from './tenant.js';
+import { withoutIsolates } from '../parity/isolates.js';
 
 /**
  * Block 6.1 — HELP THAT ANSWERS, through the real app and the real database:
@@ -58,10 +59,10 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     const r = await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
     return String(r.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   };
-  /** The answer box alone: the page around it lists the guides' lines too. */
+  /** The answer box alone (the page around it lists the guides' lines too), its words read without isolates (rule 38). */
   const answerOf = (body: string): string => {
     const at = body.indexOf('class="help-answer"');
-    return at < 0 ? '' : body.slice(at, body.indexOf('</div>', at));
+    return at < 0 ? '' : withoutIsolates(body.slice(at, body.indexOf('</div>', at)));
   };
   const post = (cookie: string, url: string, body: Record<string, string>, lang = 'en') =>
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM, 'accept-language': lang }, payload: new URLSearchParams(body).toString() });
@@ -162,7 +163,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
         said = text;
         const r = await post(owner, '/app/help/ask', { q: 'What else can practice do?', from: '/app/assistant/practice' }, lang);
         expect(r.statusCode).toBe(200);
-        if (r.body.includes(esc(text))) reached.push(text);
+        if (withoutIsolates(r.body).includes(esc(text))) reached.push(text);
         expect(answerOf(r.body), text).toContain(esc(t('en', 'help.g.practice.2')));
       }
       expect(reached).toEqual([]);
@@ -176,7 +177,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
         expect(answer, lang).not.toContain(esc(t('en', 'help.g.practice.1')));
         said = line.replace('50', '60');
         const changed = await post(owner, '/app/help/ask', { q: 'How many practice messages?', from: '/app/assistant/practice' }, lang);
-        expect(changed.body, lang).not.toContain('60 messages');
+        expect(withoutIsolates(changed.body), lang).not.toContain('60 messages');
         expect(answerOf(changed.body), lang).toContain(esc(t('en', 'help.g.practice.1')));
       }
     } finally { said = null; }
