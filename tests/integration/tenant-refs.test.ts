@@ -217,6 +217,48 @@ d('S1 · a row may point only at its own workspace\'s rows (0239; requires DATAB
       `select business_id::text as b from conversations where id = $1`, [S.A.conv])).toEqual({ b: A });
   });
 
+  it('NO NEW WAIT · while another transaction holds the targets FOR UPDATE, an UPDATE naming the columns unchanged finishes (1.5 s limit); a real change waits, as the key itself made it', async () => {
+    const holder = new pg.Client({ connectionString: ADMIN });
+    await holder.connect();
+    const timed = (role: Role, text: string, params: unknown[]) => within(role, async (q) => {
+      await q(`set local statement_timeout = '1500ms'`);
+      return (await q(text, params)).rowCount;
+    });
+    /** Holds the TARGET rows (never the row being updated) FOR UPDATE in another transaction while `fn` runs. */
+    const holding = async (locks: [string, string][], fn: () => Promise<void>) => {
+      await holder.query('begin');
+      try {
+        for (const [table, id] of locks) await holder.query(`select 1 from ${table} where id = $1 for update`, [id]);
+        await fn();
+      } finally {
+        await holder.query('rollback');
+      }
+    };
+    try {
+      for (const role of ['app', 'admin'] as const) {
+        // outbound_messages → its conversation and its quote, held.
+        await holding([['conversations', S.A.conv], ['quotes', S.A.quote]], async () => {
+          expect(await timed(role, `update outbound_messages set conversation_id = conversation_id, quote_id = $2, business_id = business_id where id = $1`, [S.A.out, S.A.quote])).toBe(1);
+        });
+        // quotes → its conversation, held.
+        await holding([['conversations', S.A.conv2]], async () => {
+          expect(await timed(role, `update quotes set conversation_id = conversation_id where id = $1`, [S.A.quote2])).toBe(1);
+        });
+        // conversations → its client, held.
+        await holding([['clients', S.A.client2]], async () => {
+          expect(await timed(role, `update conversations set client_id = client_id where id = $1`, [S.A.conv2])).toBe(1);
+        });
+      }
+      // A change of the reference waits on the held row (the foreign key's own lock) and times out: unchanged behaviour.
+      await holding([['conversations', S.A.conv2]], async () => {
+        await expect(timed('admin', `update outbound_messages set conversation_id = $2, seq = $3 where id = $1`, [S.A.out, S.A.conv2, ++seq]))
+          .rejects.toMatchObject({ code: '57014' });
+      });
+    } finally {
+      await holder.end();
+    }
+  });
+
   it('NEGATIVE CONTROL · with 0239\'s triggers dropped (rolled back), every forged row is accepted, as admin and as nomi_app', async () => {
     const forged = async (q: Q, asAdmin: boolean) => {
       await q(`insert into outbound_messages (business_id, conversation_id, seq, body) values ($1, $2, $3, 'x')`, [A, S.B.conv, ++seq]);

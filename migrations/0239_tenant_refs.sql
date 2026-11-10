@@ -19,7 +19,8 @@
 --     fires after the foreign key's own check (`RI_ConstraintTrigger_…` sorts first): the target is known to exist and
 --     is already held FOR KEY SHARE by that check. It reads the target's workspace FOR KEY SHARE again (no new wait:
 --     the lock is the one the foreign key took) and refuses a different one with SQLSTATE 23503 and a constraint name
---     of its own. A null reference (`quote_id`, and `on delete set null` writing one) passes.
+--     of its own. A null reference (`quote_id`, and `on delete set null` writing one) passes; an UPDATE that changes
+--     neither the column nor `business_id` is skipped, as the key's own check skips it.
 --   · `workspace_fixed()` — the three targets' `business_id` never changes (nothing in the product changes it), so
 --     a row checked once cannot be moved under its references afterwards.
 --
@@ -57,6 +58,12 @@ declare
   v_owner  uuid;
 begin
   if v_ref is null then
+    return null;
+  end if;
+  -- An UPDATE that names the column without changing it (nor the workspace) is no new reference: the key's own check
+  -- skips it too, and taking a lock here would add a wait the database never had.
+  if tg_op = 'UPDATE' and (to_jsonb(old) ->> tg_argv[0]) is not distinct from (to_jsonb(new) ->> tg_argv[0])
+     and old.business_id is not distinct from new.business_id then
     return null;
   end if;
   execute format('select business_id from %I where id = $1 for key share', tg_argv[1]) into v_owner using v_ref;
