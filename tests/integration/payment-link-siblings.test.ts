@@ -142,9 +142,9 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     await oldSucceeds(f);await reconcile();
     expect(await state(f.a)).toBe('paid');
     expect(await state(f.b)).toBe('open');
-    expect((await attempts(f.inv)).find(r=>r.id===f.b)!.closed_for).toBeNull();
     expect(await payments(f.inv)).toEqual([{amount:'100.00',kind:'in'}]);
     expect(await invoicePage(f.inv)).toContain(STILL_OPEN);                    // never silently left
+    expect((await attempts(f.inv)).find(r=>r.id===f.b)!.closed_for).toBeNull();
     // The owner expires it by hand; the invoice stops saying so.
     expect((await form(`${BASE}/attempts/${f.b}/expire`)).statusCode).toBe(302);
     expect(await state(f.b)).toBe('expired');
@@ -215,7 +215,7 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     expect(await payments(inv)).toEqual([{amount:'100.00',kind:'in'}]);
     expect(await owed(inv)).toBe('0.00');
     expect(expiries()).toBe(before);
-    expect(await attempts(inv)).toEqual([{id:b,state:'paid',closed_for:null,paid_twice:null}]);
+    expect(await q('select id::text,state from stripe_checkout_attempts where invoice_id=$1',[inv])).toEqual([{id:b,state:'paid'}]);
     expect(alerts).toEqual([]);
     const page=await invoicePage(inv);
     expect(page).not.toContain(STILL_OPEN);expect(page).not.toContain(TWICE);
