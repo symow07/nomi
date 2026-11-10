@@ -15,7 +15,7 @@ export type ChannelKind =
   | 'telegram' | 'line' | 'email' | 'web_chat' | 'tiktok';
 
 export type SendResult =
-  | { readonly ok: true; readonly providerMessageId: string }
+  | { readonly ok: true; readonly providerMessageId: string; readonly recipientId?: string }
   | {
       readonly ok: false; readonly retryable: boolean; readonly error: string;
       /**
@@ -112,6 +112,10 @@ export interface ChannelAdapter {
   /** Raw provider payload → canonical events. Never throws. */
   parseWebhook(payload: unknown): ChannelEvent[];
   sendText(to: string, body: string): Promise<SendResult>;
+  /** The connected account this optional private-comment endpoint belongs to. */
+  readonly commentPrivateReplyAccountId?: string;
+  /** Instagram's one private reply, addressed by comment_id, never by a DM recipient. */
+  sendCommentPrivateReply?(commentId: string, body: string): Promise<SendResult>;
   /**
    * M26 — optional so an adapter that cannot carry pictures says so by omission
    * rather than by throwing. The worker refuses an image row when this is

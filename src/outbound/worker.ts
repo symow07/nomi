@@ -3,7 +3,7 @@ import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
   onSendFailure, isUncertainSend, SENDING_RECLAIM_MS,
 } from '../core/channel/delivery.js';
-import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice } from '../core/channel/sendGate.js';
+import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice, type CommentPrivateReplyGate } from '../core/channel/sendGate.js';
 import { channelSendPlan, sendPlan, type TemplateState } from '../core/channel/window.js';
 import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.js';
 import type { OutreachInput } from '../core/outreach/gate.js';
@@ -65,6 +65,8 @@ export type OutboundWorkRow = OutboundRow & {
 };
 
 export type ConversationSendContext = {
+  /** New-kind facts keyed by the persisted outbound id; never a conversation-wide permission. */
+  readonly commentPrivateReplies?: Readonly<Record<string, Omit<CommentPrivateReplyGate, 'now' | 'channel'> & { readonly accountId: string }>>;
   readonly assignedTo: string | null;
   readonly paused: boolean;
   readonly lastInboundAt: Date | null;
@@ -152,6 +154,8 @@ export type OutboundStore = {
   }>;
   transition(id: string, to: OutboundRow['status'], detail: string | null): Promise<void>;
   recordProviderId(id: string, providerMessageId: string): Promise<void>;
+  /** Only the new kind: claim in this transaction, returning the stored provider comment id. */
+  claimCommentPrivateReply?(id: string, now: Date): Promise<string | null>;
   scheduleRetry(id: string, delayMs: number, error: string): Promise<void>;
   deadLetter(id: string, error: string): Promise<void>;
   /** M22 — record a refused send so the owner can see it, with the reason it
@@ -456,7 +460,10 @@ export async function prepareConversationOutbound(
   const onTikTok = candidate.channel === 'tiktok';
   const plan = onTikTok ? sendPlan('open', 'reply', 'none') : channelSendPlan(candidate.channel ?? 'whatsapp', ctx.lastInboundAt, now, ctx.template);
   const tiktokRefused = onTikTok && (!ctx.tiktok || !tiktokMaySend(ctx.tiktok, now).send);
+  const comment = candidate.kind === 'comment_private_reply' ? ctx.commentPrivateReplies?.[candidate.id] : undefined;
   const gate = gateOutbound({
+    ...(candidate.kind !== undefined ? { messageKind: candidate.kind } : {}),
+    ...(comment ? { commentPrivateReply: { ...comment, channel: candidate.channel ?? '', now } } : {}),
     origin: candidate.origin,
     ...(carriesOurJson(candidate.body) ? { garbled: true } : {}),
     ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
@@ -578,6 +585,26 @@ export async function prepareConversationOutbound(
   if (!adapter) {
     await refuse(deps, candidate, 'channel_unavailable');
     return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }]);
+  }
+  // This kind has no DM fallback. The adapter and locked facts must name the same account.
+  if (candidate.kind === 'comment_private_reply') {
+    if (adapter.kind !== 'instagram' || !adapter.sendCommentPrivateReply
+      || adapter.commentPrivateReplyAccountId !== comment?.accountId) {
+      await refuse(deps, candidate, 'channel_unavailable');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }]);
+    }
+    if (!deps.store.claimCommentPrivateReply) {
+      await refuse(deps, candidate, 'comment_unchecked');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'comment_unchecked' }]);
+    }
+    const commentId = await deps.store.claimCommentPrivateReply(candidate.id, now);
+    if (!commentId) {
+      await refuse(deps, candidate, 'comment_used');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'comment_used' }]);
+    }
+    await deps.store.transition(candidate.id, 'sending', null);
+    const sendComment = adapter.sendCommentPrivateReply.bind(adapter);
+    return { effects, send: { row: candidate, conversationId, call: () => sendComment(commentId, candidate.body) } };
   }
   const asMail = adapter.sendMail !== undefined;
   if (asMail && !candidate.subject) {
@@ -720,7 +747,7 @@ async function failedSend(
   result: { readonly retryable: boolean; readonly error: string; readonly uncertain?: true },
 ): Promise<DriveEffect> {
   const attempts = candidate.attempts + 1;
-  const failure = onSendFailure({ retryable: result.retryable, error: result.error }, attempts);
+  const failure = onSendFailure({ retryable: candidate.kind === 'comment_private_reply' ? false : result.retryable, error: result.error }, attempts);
   // Provider error text passes through redaction BEFORE any sink — persistence
   // (last_error) and logs must never carry secret-shaped content (audit M3).
   const safeError = redactSecrets(result.error);

@@ -84,6 +84,14 @@ export function postLine(kind: PostKind, productName: string): string {
     : `[shared your post about: ${productName}]`;
 }
 
+/**
+ * 5.4 — the first DM after the owner's private reply to a comment, when which comment is certain and it named one
+ * product: what the customer did, marked like CH7's line, never words in their mouth. Not owner-facing copy.
+ */
+export function commentLine(productName: string): string {
+  return `[commented on your post about: ${productName}]`;
+}
+
 /** The caption as kept on a hand-off, for the card: trimmed, at most 600 characters. */
 export function captionShown(caption: string | null | undefined): string | null {
   const c = (caption ?? '').replace(/\s+/g, ' ').trim();
