@@ -1,4 +1,5 @@
 import { PAYMENT_LINKS_EN } from './paymentLinks.js';
+import { INSTAGRAM_COMMENTS_EN } from './instagramComments.js';
 import { SETTINGS_AREA_EN } from './settingsArea.js';
 import { ASSISTANT_AREA_EN } from './assistantArea.js';
 import { BOOKS_SPENDING_EN } from './booksSpending.js';
@@ -27,6 +28,7 @@ import { WA_CATALOGUE_EN } from './waCatalogue.js';
  */
 export const REDESIGN_EN = {
   ...PAYMENT_LINKS_EN,
+  ...INSTAGRAM_COMMENTS_EN,
   ...SETTINGS_AREA_EN,
   ...ASSISTANT_AREA_EN,
   ...BOOKS_OVERVIEW_REPORTS_EN,

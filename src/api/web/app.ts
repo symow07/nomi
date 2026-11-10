@@ -5,6 +5,7 @@ import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js'
 import { renderFollowUpRule, renderFollowUps } from './followUps.js';
 import { readFollowUpRule } from '../../core/conversation/followUps.js';
 import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
+import { registerInstagramCommentRoutes } from './instagramCommentRoutes.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
@@ -543,6 +544,8 @@ export type WebDeps = {
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
+  /** 5.4 — the drive's job in the caller's own transaction: a row queued and its job commit together, or neither. */
+  readonly queueOutboundDrive?: (tx: Tx, businessId: string, conversationId: string) => Promise<void>;
   /** 0230 — a check's job: the saved cases run against the staged change `checkId`. Absent: no check, changes go live at once. */
   readonly kickCaseCheck?: (businessId: string, checkId: string) => Promise<void>;
   /** Block 3 PR 4 — the words the assistant would write now, for a person to send themselves (src/pipeline/suggestReply.ts). */
@@ -570,6 +573,7 @@ export type WebDeps = {
    * Absent, the Connect button posts the host's account (C9) or is absent.
    */
   readonly metaLogin?: MetaLogin | null;
+  readonly metaCommentsConfigId?: string | null;
   readonly metaConnect?: MetaConnectDeps;
   /** 0215 — a business connects its own TikTok account (docs/TIKTOK-CHANNEL.md, surface A), where this host has the app. */
   readonly tiktokConnect?: TikTokConnectDeps;
@@ -5827,7 +5831,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
           telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
           tiktok: { served: tiktokReady() !== null, account: tt ? { username: tt.username, needsAttention: tt.needsAttention !== null, euMessages: tt.euMessages, euLastAt: tt.euLastAt } : null },
-        }),
+        }) + (screen==='meta'?`<p><a class="deeper" href="/app/channels/instagram/comments">${esc(t(locale,'igComments.title'))}</a></p>`:''),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
       }));
@@ -8042,6 +8046,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * when she manages several Pages, the user token she granted rides in that
    * state — encrypted — for the one round trip her choice takes.
    */
+  registerInstagramCommentRoutes(app,{
+    db:deps.db,meta:deps.metaConnect??null,configId:deps.metaCommentsConfigId??null,baseUrl:deps.publicBaseUrl??null,
+    session:sessionOf,owner:(req,reply)=>ownerOnly(req,reply,'messaging_activation','/app/channels/instagram/comments'),
+    sessionToken:req=>parseCookies(req.headers.cookie)[COOKIE]??'',locale:localeOf,page,flash:takeFlash,redirect:flashTo,connectionRefusal,
+    ...(deps.queueOutboundDrive?{queueDrive:deps.queueOutboundDrive}:{}),...(deps.kickDrive?{kickDrive:deps.kickDrive}:{}),
+  });
   const META_COOKIE = 'yf_meta';
   const metaRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/meta/callback`;
   const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;

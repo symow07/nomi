@@ -83,8 +83,10 @@ export function ledgerLine(row) {
     request_id: row.request_id ? String(row.request_id) : null,
     person_id: row.person_id ? String(row.person_id) : null,
     thread_ids: Array.isArray(row.thread_ids) ? row.thread_ids.map(String) : null,
+    ...(Array.isArray(row.comment_ids) ? { comment_ids: row.comment_ids.map(String) } : {}),
     via: String(row.via), by_who: String(row.by_who),
     at: new Date(row.at).toISOString(), counts: row.counts ?? {},
+    ...(Array.isArray(row.comment_digests) && row.comment_digests.length ? { comment_digests: row.comment_digests } : {}),
   };
 }
 
@@ -94,13 +96,21 @@ export function parseLedgerLine(text) {
   try { x = JSON.parse(text); } catch { return { ok: false, why: 'not JSON' }; }
   if (!x || typeof x !== 'object') return { ok: false, why: 'not an object' };
   if (!UUID.test(String(x.id ?? ''))) return { ok: false, why: 'no id' };
-  if (x.kind !== 'customer' && x.kind !== 'workspace' && x.kind !== 'advisor') return { ok: false, why: `kind '${x.kind}'` };
+  if (x.kind !== 'customer' && x.kind !== 'workspace' && x.kind !== 'advisor' && x.kind !== 'comment') return { ok: false, why: `kind '${x.kind}'` };
   if (!UUID.test(String(x.business_id ?? ''))) return { ok: false, why: 'no business_id' };
   if (x.kind === 'customer' && !UUID.test(String(x.customer_id ?? ''))) return { ok: false, why: 'a customer line with no customer_id' };
   if (x.kind === 'workspace' && x.customer_id) return { ok: false, why: 'a workspace line naming a customer' };
   if (x.kind === 'advisor' && (x.customer_id || !Array.isArray(x.thread_ids) || !x.thread_ids.length || !x.thread_ids.every((t) => UUID.test(String(t))))) {
     return { ok: false, why: 'an advisor line without its conversations' };
   }
+  if (x.comment_digests !== undefined && (!Array.isArray(x.comment_digests) || !x.comment_digests.every(d =>
+    d && typeof d === 'object' && Object.keys(d).sort().join(',') === 'digest,expires_at,state'
+    && /^[0-9a-f]{64}$/.test(d.digest) && ['used','erased'].includes(d.state)
+    && typeof d.expires_at === 'string' && Number.isFinite(new Date(d.expires_at).getTime())))) {
+    return { ok: false, why: 'invalid comment erasure digests' };
+  }
+  if (x.comment_ids != null && (!Array.isArray(x.comment_ids) || !x.comment_ids.every(id => UUID.test(String(id))))) return { ok: false, why: 'invalid internal comment ids' };
+  if (x.kind === 'comment' && (!x.comment_ids?.length || x.customer_id || x.thread_ids)) return { ok: false, why: 'comment erasure with another subject' };
   if (x.person_id && !UUID.test(String(x.person_id))) return { ok: false, why: 'a person_id that is not an id' };
   if (x.request_id && !UUID.test(String(x.request_id))) return { ok: false, why: 'a request_id that is not an id' };
   if (Number.isNaN(new Date(x.at).getTime())) return { ok: false, why: 'no time' };
@@ -110,7 +120,7 @@ export function parseLedgerLine(text) {
 
 const SELECT_LEDGER = `select id::text as id, kind, business_id::text as business_id, customer_id::text as customer_id,
                               request_id::text as request_id, person_id::text as person_id, thread_ids::text[] as thread_ids,
-                              via, by_who, at, counts
+                              via, by_who, at, counts, comment_digests, comment_ids::text[] as comment_ids
                          from erasure_ledger order by at, id`;
 
 async function readLedger(c) {
@@ -189,7 +199,7 @@ async function main() {
         if (go) await client.query('commit'); else await client.query('rollback');
         const what = l.kind === 'workspace' ? `workspace ${l.business_id}`
           : l.kind === 'advisor' ? `${l.thread_ids.length} advisor conversation(s) of ${l.business_id}`
-          : `customer ${l.customer_id} of ${l.business_id}`;
+          : l.kind === 'comment' ? `comment data of ${l.business_id}` : `customer ${l.customer_id} of ${l.business_id}`;
         if (r.rows > 0) {
           applied++;
           console.log(`  ${go ? 'erased' : 'would erase'} ${String(r.rows).padStart(6)} rows · ${what} · ledger ${l.id} (${l.at.slice(0, 10)})`);
@@ -217,7 +227,12 @@ async function main() {
 async function replayOne(c, l, by) {
   let rows = 0;
   const biz = (await c.query('select 1 from businesses where id = $1::uuid', [l.business_id])).rowCount > 0;
-  if (l.kind === 'advisor') {
+  if (l.comment_ids?.length || l.comment_digests?.length) {
+    rows += Number((await c.query('select ig_comment_replay($1::uuid,$2::uuid[],$3::jsonb) as n', [l.business_id, l.comment_ids ?? [], JSON.stringify(l.comment_digests ?? [])])).rows[0]?.n ?? 0);
+  }
+  if (l.kind === 'comment') {
+    // Internal ids above are enough even after every expiring digest is gone.
+  } else if (l.kind === 'advisor') {
     if (biz) {
       rows = Number((await c.query('select advisor_replay_erasure($1::uuid, $2::uuid[])::text as n', [l.business_id, l.thread_ids])).rows[0]?.n ?? 0);
     }
@@ -248,11 +263,11 @@ async function replayOne(c, l, by) {
     }
   }
   // The copy's ledger made whole: the line as it was written, by its own id.
-  await c.query(`insert into erasure_ledger (id, kind, business_id, customer_id, request_id, person_id, thread_ids, via, by_who, at, counts)
-                 values ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid[], $8, $9, $10::timestamptz, $11::jsonb)
+  await c.query(`insert into erasure_ledger (id, kind, business_id, customer_id, request_id, person_id, thread_ids, via, by_who, at, counts, comment_digests, comment_ids)
+                 values ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid[], $8, $9, $10::timestamptz, $11::jsonb, $12::jsonb, $13::uuid[])
                  on conflict (id) do nothing`,
     [l.id, l.kind, l.business_id, l.customer_id, l.request_id, l.person_id ?? null, l.thread_ids ?? null, l.via, l.by_who, l.at,
-     JSON.stringify(l.counts ?? {})]);
+     JSON.stringify(l.counts ?? {}), JSON.stringify(l.comment_digests ?? []), l.comment_ids ?? null]);
   return { rows };
 }
 

@@ -1,5 +1,10 @@
 import {connectClient,connectConfigFrom,type ConnectConfig,type ConnectClient} from './payments/stripeConnect.js';
 import {reconcileStripePayments} from './payments/invoicePayments.js';
+import { recordCommentPrivateReply } from './db/commentPrivateReplies.js';
+import { commentsConfigId } from './channels/meta/commentConnect.js';
+import { withoutInstagramComments } from './channels/meta/comments.js';
+import { insertInstagramComment } from './db/instagramComments.js';
+import { registerInstagramCommentWorkers, registerInstagramCommentSweep } from './pipeline/instagramComments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -1075,6 +1080,7 @@ export async function buildProduction(
     // C10 — the login a business connects its OWN Page with, and what it takes
     // to finish the connection when Meta sends her back.
     metaLogin,
+    metaCommentsConfigId: commentsConfigId(process.env),
     metaConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
@@ -1138,6 +1144,10 @@ export async function buildProduction(
       kickDrive: async (businessId, conversationId) => {
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });
+      },
+      // 5.4 — the owner's private reply to a comment: its row and the drive's job commit together.
+      queueOutboundDrive: async (tx, businessId, conversationId) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId, db: txDatabase(tx) });
       },
       // P3 — a practice message joins the SAME inbound queue a customer's does.
       enqueueInbound: (job) => enqueueInbound(boss, job),
@@ -1239,6 +1249,11 @@ export async function buildProduction(
           await lockConversation(tx, cid);
           const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
           const fx = await finishConversationOutbound({ store, now: () => new Date() }, send, result);
+          if (send.row.kind === 'comment_private_reply') {
+            const commentId = await recordCommentPrivateReply(tx, businessId.value, send.row.id, result, new Date());
+            if (commentId) await boss.send(QUEUES.instagramCommentPublic,
+              { businessId: businessId.value, commentId }, { db: txDatabase(tx) });
+          }
           // The practice customer's phone is the page: a reply accepted is a reply
           // delivered. Recorded through the receipt path a status webhook takes, so
           // the next reply is not held for a receipt that could never come (the
@@ -1276,6 +1291,7 @@ export async function buildProduction(
     await boss.work(QUEUES.followUpDrafts, async () => {
       await sweepFollowUpWorkspaces({ db, now: () => new Date() });
     });
+    await registerInstagramCommentSweep({db,boss});
     await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
       const n = await expirePractice(db);
@@ -1491,6 +1507,13 @@ export async function buildProduction(
     if (!token) return {};
     const noted = (a: ChannelAdapter): ChannelAdapter => ({
       ...a,
+      ...(a.sendCommentPrivateReply ? { sendCommentPrivateReply: async (commentId: string, body: string) => {
+        const r = await a.sendCommentPrivateReply!(commentId, body);
+        if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
+          await withTenantTx(db, businessId, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
+        }
+        return r;
+      } } : {}),
       sendText: async (to, body) => {
         const r = await a.sendText(to, body);
         if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
@@ -1502,7 +1525,7 @@ export async function buildProduction(
     const common = { accessToken: token, appSecret: socialSecret ?? '', graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch };
     return {
       messenger: noted(messengerAdapter({ accountId: account.pageId, ...common })),
-      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, ...common })) } : {}),
+      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, igAccountId: account.igAccountId, ...common })) } : {}),
     };
   };
 
@@ -2097,6 +2120,8 @@ export async function buildProduction(
    * transaction writes the row, the conversation, and queues the job through it (pg-boss in the same transaction);
    * a failure leaves nothing, and the retry is new.
    */
+  await registerInstagramCommentWorkers({db,boss,key:credentialKey,fetchImpl:metaFetch,graphVersion:cfg.META_GRAPH_API_VERSION});
+
   const persistEvent = async (e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
@@ -2104,6 +2129,15 @@ export async function buildProduction(
       // acknowledged and dropped, never stored, and no turn runs. The channel stays connected, so renewing
       // resumes at once.
       if (await withTenantTx(db, bid, (tx) => billingHeld(tx))) return 'duplicate';
+      if (e.kind === 'comment') {
+        if (channel !== 'instagram') return 'duplicate';
+        return withTenantTx(db,bid,async tx=>{
+          const id=await insertInstagramComment(tx,bid,e);
+          if(!id)return 'duplicate';
+          await boss.send(QUEUES.instagramComments,{businessId:bid,commentId:id},{db:txDatabase(tx)});
+          return 'new';
+        });
+      }
       // Seen already: answered before the name is looked up (a network call), which a duplicate never needed.
       const seen = await withTenantTx(db, bid, async (tx) => (await sql<{ id: string }>`
         select id from channel_events where id = ${e.dedupKey}`.execute(tx)).rows.length > 0);
@@ -2117,7 +2151,7 @@ export async function buildProduction(
             (${e.dedupKey}, ${bid}, ${channel}, ${providerOf[channel] ?? 'unknown'},
              ${e.kind === 'message' ? 'message.inbound' : e.kind === 'echo' ? 'message.echo' : 'status'},
              ${e.kind === 'message' || e.kind === 'echo' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
-             ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
+             ${JSON.stringify(channel==='instagram'?withoutInstagramComments(rawPayload):rawPayload)}::jsonb, ${e.occurredAt})
           on conflict (id) do nothing
           returning id
         `.execute(tx);
@@ -2129,6 +2163,7 @@ export async function buildProduction(
 
   /** What a new event sets going, in the transaction that stored it (A2): every job goes through `tx`. */
   const queueEvent = async (tx: Tx, bid: BusinessId, e: ChannelEvent, channel: string, profileName: string | null): Promise<void> => {
+      if(e.kind === 'comment')return; // comments never enter the DM/echo/status queue
       const inTx = txDatabase(tx);
       if (e.kind === 'message') {
         const conv = await ensureConversation(tx, bid, e.waId, profileName,
@@ -2161,6 +2196,8 @@ export async function buildProduction(
           ...(e.ref ? { ref: e.ref } : {}),
           // CH7 — and the shop's own post it is about, so its caption can be read.
           ...(e.postId ? { postId: e.postId } : {}),
+          // 5.4 — and which of our messages it answers, so a private reply to a comment is matched for certain.
+          ...(e.replyToMid ? { replyToMid: e.replyToMid } : {}),
         }, inTx);
       } else if (e.kind === 'echo') {
         // CH3 — read a little later, so a send of ours has written its id first. 0215 — TikTok's echoes too: a message

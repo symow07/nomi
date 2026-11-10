@@ -39,6 +39,10 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.staleNotYet', 'books.flash.staleEndedConnectAgain',
   // 0226 — an invoice that did not go, and a switch only the owner may touch.
   'invoice.flash.ownerOnly', 'invoice.flash.window', 'invoice.flash.not_found', 'invoice.flash.not_issued', 'invoice.flash.no_conversation',
+  'igComments.flash.refused',
+  'igComments.flash.reply.not_found', 'igComments.flash.reply.account', 'igComments.flash.reply.off', 'igComments.flash.reply.not_asking',
+  'igComments.flash.reply.used', 'igComments.flash.reply.age_unknown', 'igComments.flash.reply.expired', 'igComments.flash.reply.empty',
+  'igComments.flash.reply.too_long',
   'invoice.flash.no_address', 'invoice.flash.no_proforma', 'invoice.flash.no_channel', 'invoice.flash.off',
   // 0215 — TikTok's connect refusals
   'connect.tiktok.flash.scopes_missing', 'connect.tiktok.flash.account_taken', 'connect.tiktok.flash.unavailable', 'connect.tiktok.flash.not_configured',
@@ -202,6 +206,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // KS6 — asked; asked before; or nothing to ask.
   'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed', 'channel.connect.flash.sent',
   // R2 — a conversation marked as the owner testing, or as a real customer again.
+  'igComments.flash.on', 'igComments.flash.off', 'igComments.flash.deleted', 'igComments.flash.replyQueued',
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
   'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',

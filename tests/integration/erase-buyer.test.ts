@@ -153,6 +153,8 @@ const GLOBAL = new Set(['_migrations', 'backup_runs', 'backup_failures', 'signup
   'erasure_ledger',
   // 0141 (D12) — which ledger lines the operator was mailed: ids only, the operator's, no business's.
   'erasure_ledger_mailed',
+  // 0236 — opaque, expiring global digests; tenant isolation and expiry are asserted in instagram-comments.test.ts.
+  'ig_comment_tombstones',
   // 0128 — the model provider's account: the installation's, no business's (one health row, the balance's readings and steps).
   'provider_health', 'provider_balance_checks', 'provider_balance_alerts',
   // 0165 — what the last real call to each model provider said: the installation's, no business's.

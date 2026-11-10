@@ -24,24 +24,19 @@ const outsideMarks = (s: string): string => {
   return cur;
 };
 
-export function unisolatedFigures(html: string): string[] {
+/** Each run of page text outside every isolate, with the element it sits in. */
+function outsideIsolates(html: string): { text: string; inside: string }[] {
   const body = html
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<head\b[\s\S]*?<\/head>/i, ' ')
     .replace(/<(script|style|template|textarea)\b[\s\S]*?<\/\1>/gi, ' ');
-  const found: string[] = [];
+  const runs: { text: string; inside: string }[] = [];
   const open: { tag: string; isolates: boolean; opened: string }[] = [];
   let depth = 0;   // how many open elements isolate
   for (const m of body.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>|([^<]+)/g)) {
     const [, close, rawTag, attrs, text] = m;
     if (text !== undefined) {
-      if (depth > 0) continue;
-      const plain = outsideMarks(decode(text));
-      const inside = open.at(-1)?.opened ?? '';
-      for (const hit of plain.matchAll(FIGURE)) {
-        const around = plain.slice(Math.max(0, hit.index! - 30), hit.index! + hit[0].length + 30).replace(/\s+/g, ' ').trim();
-        found.push(`${around} — in ${inside.slice(0, 80)}`);
-      }
+      if (depth === 0) runs.push({ text: outsideMarks(decode(text)), inside: open.at(-1)?.opened ?? '' });
       continue;
     }
     const tag = rawTag!.toLowerCase();
@@ -58,7 +53,29 @@ export function unisolatedFigures(html: string): string[] {
     open.push({ tag, isolates, opened: m[0] });
     if (isolates) depth++;
   }
+  return runs;
+}
+
+export function unisolatedFigures(html: string): string[] {
+  const found: string[] = [];
+  for (const { text: plain, inside } of outsideIsolates(html)) {
+    for (const hit of plain.matchAll(FIGURE)) {
+      const around = plain.slice(Math.max(0, hit.index! - 30), hit.index! + hit[0].length + 30).replace(/\s+/g, ' ').trim();
+      found.push(`${around} — in ${inside.slice(0, 80)}`);
+    }
+  }
   return found;
+}
+
+/**
+ * I12 (2026-11-10) — a sentence in a left-to-right language left to run right to left: a run of Latin text with no
+ * Arabic letter in it, outside every isolate. On an Arabic page that is an English fallback, and its punctuation lands on
+ * the wrong side ("163 :Hours left to reply"). A Latin name inside an Arabic sentence has Arabic around it and passes.
+ */
+export function unisolatedLatin(html: string): string[] {
+  return outsideIsolates(html)
+    .filter(({ text }) => /\p{Script=Latin}/u.test(text) && !/\p{Script=Arabic}/u.test(text))
+    .map(({ text, inside }) => `${text.replace(/\s+/g, ' ').trim().slice(0, 60)} — in ${inside.slice(0, 80)}`);
 }
 
 /**
