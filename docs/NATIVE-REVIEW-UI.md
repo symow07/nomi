@@ -16992,3 +16992,19 @@ show the English until a native reader translates.
 - **Not translated by design:** the placement names Meta sends that Nomi does not know are shown exactly as sent, after
   "Other placements:"; "Meta", "Instagram", "Facebook" and "Messenger" stay as names. The bill's own label written into
   the books ("Meta ads, {platform}, {month}") is English in every language, like the rest of the spending book.
+## Help that answers (2026-11-10; no migration)
+
+About a hundred English-only lines in `src/core/owner/i18n/help.ts` (`HELP_EN`): the "?" door's name (`help.door`), the
+help page (`help.title`, `help.lede`, `help.video`, `help.back`), the question box and its answers (`help.ask.*`), "Still
+stuck? Write to us" (`help.write.*`, which promises an answer **within one working day** — the owner's promise, to
+review), the operator's mail (`help.mail.*`, `help.role.*`), and nineteen short guides (`help.g.<id>.title / .1–.3 /
+.door`). The guides are what a help question is answered from, so a translation must say exactly what the English
+says and nothing more. To translate first: `help.door`, `help.write.title`, `help.write.lede`, `help.ask.notYet`.
+
+**6.1's fixes (2026-11-10):** "Write to us" now lists what is sent, one line per field of the operator's mail
+(`help.write.sends.words / .page / .workspace / .role`, under `help.write.lede`, then `help.write.promise`); a translation
+must list the same four things and nothing more (src/core/owner/helpMail.ts holds the list). The mail no longer carries
+the business's name or the person's id (`help.mail.subject`, `help.mail.workspace`, `help.mail.role`). `help.g.channels.2`
+names what completes the channels step — WhatsApp, Instagram, Messenger or e-mail, not Telegram or TikTok alone — and a
+translation must name the same channels (tests/parity/help-panel.test.ts ties the English to the code's list). A help
+answer now shows only guide lines, as the page shows them: a translated guide is what an owner in that language reads.

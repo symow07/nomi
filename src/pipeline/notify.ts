@@ -14,6 +14,7 @@ import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
+import { helpMail } from '../core/owner/helpMail.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
 import { archivePhone, livePhones, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
 import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
@@ -1056,6 +1057,30 @@ export async function notifyOperatorOfWhatsAppNumber(
     to: to.email, subject: t(locale, 'notify.whatsapp_asked.subject', { business: b.name }),
     text: t(locale, 'notify.whatsapp_asked', { business: b.name, number, email: b.email ?? '—' }),
   });
+  return r.ok ? 'sent' : 'failed';
+}
+
+/**
+ * Block 6.1 — "Still stuck? Write to us" from the help panel. The operator hears by the installation's own mail
+ * (never the capped stranger sender: rule 70's caps are for codes and owner alerts), with exactly what the owner's
+ * notice lists (`helpMail`, src/core/owner/helpMail.ts): the words as typed, the page, the workspace's id and who
+ * asked (owner or team member). Not the business's name — the operator looks it up by the id — no address of theirs
+ * and nothing about a customer. The route rate-limits it per workspace (helpPanel.ts).
+ */
+export async function notifyOperatorOfHelpRequest(
+  deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, askingBusinessIdRaw: string,
+  req: { readonly words: string; readonly page: string | null; readonly role: 'owner' | 'staff' },
+): Promise<'sent' | 'skipped' | 'failed'> {
+  const op = parseBusinessId(operatorBusinessIdRaw);
+  const asking = parseBusinessId(askingBusinessIdRaw);
+  if (!op.ok || !asking.ok) return 'skipped';
+  const to = await withTenantTx(deps.db, op.value, async (tx) => ({
+    locale: (await sql<{ owner_locale: string }>`select owner_locale from businesses where id = ${op.value}`.execute(tx)).rows[0]?.owner_locale ?? 'en',
+    email: await ownerLoginEmail(tx, op.value),
+  }));
+  if (!to.email) return 'skipped';
+  const locale: Locale = parseLocale(to.locale) ?? 'en';
+  const r = await deps.mail.send({ to: to.email, ...helpMail(locale, { words: req.words, page: req.page, workspaceId: asking.value, role: req.role }) });
   return r.ok ? 'sent' : 'failed';
 }
 
