@@ -326,6 +326,26 @@ d('The owner-selected catalogue (requires DATABASE_URL)', () => {
         expect((await one(`select count(*)::int as n from wa_catalogue_batch_items where id=$1 and selected`,[elsewhere.item.id])).n).toBe(0);
       }finally{await c.app.close();}
     });
+    for(const [what,value] of [['an empty value',['']],['a field sent on then off',['on','off']],['a value that is not the box\'s',['off']]] as const)
+      it(`only the box's own value is a tick: ${what} submits nothing`,async()=>{
+        const c=await routeCase(2);
+        try{
+          const [name]=c.boxes[0]!;
+          expect(c.boxes[0]![1]).toBe('on');
+          const {body}=await c.submit(value.map(v=>[name,v] as [string,string]));
+          expect(body).toContain('Nothing was ticked, so nothing was submitted.');
+          expect(body).not.toMatch(/changes? (?:was|were) submitted/);
+          expect(c.sent).toHaveLength(0);expect(await c.chosen()).toEqual([]);
+        }finally{await c.app.close();}
+      });
+    it('a field sent off then on is read by its last value, the box\'s own: that line is submitted',async()=>{
+      const c=await routeCase(2);
+      try{
+        const [name]=c.boxes[1]!;
+        const {body}=await c.submit([[name,'off'],[name,'on']]);
+        expect(c.sent).toEqual([[await c.retailer(c.boxes[1]!)]]);expect(body).toContain('1 change was submitted.');
+      }finally{await c.app.close();}
+    });
     it('the old shared field, from a page drawn before this one, is refused, never cut to its last value',async()=>{
       const c=await routeCase(2);
       try{

@@ -42,6 +42,8 @@ describe('WhatsApp catalogue owner pages',()=>{
       const names=[...html.matchAll(/<input type="checkbox" name="([^"]+)"/g)].map(m=>m[1]);
       expect(names).toEqual(ids.map(id=>'line:'+id));
       expect(new Set(names).size).toBe(ids.length);
+      const values=[...html.matchAll(/<input type="checkbox" name="[^"]+" value="([^"]*)"/g)].map(m=>m[1]);
+      expect(values).toEqual(ids.map(()=>'on'));
     });
     it(`${locale}: the count submitted is said in English, isolated, never "the ticked changes"`,()=>{
       for(const [key,n,words] of [['waCatalog.flash.submitted.one',1,'change was submitted'],['waCatalog.flash.submitted.other',3,'changes were submitted']] as const){
@@ -67,7 +69,21 @@ describe('WhatsApp catalogue owner pages',()=>{
       expect(tickedLines({})).toEqual([]);
       expect(tickedLines({other:'x'})).toEqual([]);
     });
-    it('a malformed line, a doubled value, or the old shared field refuses the whole form',()=>{
+    /** The body exactly as the app's form reader makes it: one value per field, the last. */
+    const posted=(body:string)=>Object.fromEntries(new URLSearchParams(body));
+    it('a line counts as ticked only when its value is exactly the box\'s value',()=>{
+      expect(tickedLines(posted(`line:${a}=on`))).toEqual([a]);
+      expect(tickedLines(posted(`line:${a}=`))).toEqual([]);
+      expect(tickedLines(posted(`line:${a}=off`))).toEqual([]);
+      expect(tickedLines(posted(`line:${a}=ON`))).toEqual([]);
+      expect(tickedLines(posted(`line:${a}=on&line:${b}=`))).toEqual([a]);
+    });
+    it('a field sent twice reaches tickedLines as its last value, and is read by that value',()=>{
+      expect(tickedLines(posted(`line:${a}=on&line:${a}=off`))).toEqual([]);
+      expect(tickedLines(posted(`line:${a}=off&line:${a}=on`))).toEqual([a]);
+      expect(tickedLines(posted(`line:${a}=on&line:${a}=on`))).toEqual([a]);
+    });
+    it('a malformed line, a value that is not one string, or the old shared field refuses the whole form',()=>{
       expect(tickedLines({'line:not-an-id':'on'})).toBeNull();
       expect(tickedLines({['line:'+a]:['on','on']})).toBeNull();
       expect(tickedLines({selected:a})).toBeNull();

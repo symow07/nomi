@@ -12,7 +12,7 @@ import { liveWhatsAppAccount, type WhatsAppAccount } from '../../db/whatsappAcco
 import { whatsAppAccountToken } from '../../channels/whatsapp/connect.js';
 import { catalogueClient as makeClient, type CatalogueClient } from '../../net/waCatalogue.js';
 import { catalogueProducts, catalogueReview, saveCatalogueProduct, previewCatalogue, submitCatalogue, checkCatalogue, catalogueImage, type CatalogueDeps } from '../../db/waCatalogue.js';
-import { renderCatalogue, renderCatalogueReview, LINE } from './waCatalogue.js';
+import { renderCatalogue, renderCatalogueReview, LINE, TICKED } from './waCatalogue.js';
 import { productArea } from './productArea.js';
 import { t } from './say.js';
 
@@ -38,10 +38,13 @@ const notice=(reason:string):MessageKey=>({
 }[reason]??'waCatalog.flash.failed') as MessageKey;
 
 /**
- * The lines the owner ticked: one `line:<id>` field each, present only when ticked. Null refuses the whole form —
- * a malformed line, a value sent twice, or the old shared `selected` field (a review page drawn before each line had
- * its own field, whose ticks the form reader would have cut to one). Whether each id is on this review, in this
- * workspace, is submitCatalogue's to refuse.
+ * The lines the owner ticked: one `line:<id>` field each, present only when ticked, and a line counts as ticked only
+ * when its value is exactly the box's own (`TICKED`) — an empty or any other value is not a tick. The app's form
+ * reader keeps a field's LAST value, so a field sent twice arrives here as its last value and is read by that rule
+ * (`=on&=off` is not ticked); it is not refused. Null refuses the whole form — a malformed line id, a value that is
+ * not one string (a body this form never sends), or the old shared `selected` field (a review page drawn before each
+ * line had its own field, whose ticks the form reader would have cut to one). Whether each id is on this review, in
+ * this workspace, is submitCatalogue's to refuse.
  */
 export function tickedLines(body:Record<string,unknown>):string[]|null {
   if('selected' in body)return null;
@@ -50,7 +53,7 @@ export function tickedLines(body:Record<string,unknown>):string[]|null {
     if(!key.startsWith(LINE))continue;
     const id=key.slice(LINE.length);
     if(!UUID.test(id)||typeof value!=='string')return null;
-    ids.push(id);
+    if(value===TICKED)ids.push(id);
   }
   return ids;
 }
