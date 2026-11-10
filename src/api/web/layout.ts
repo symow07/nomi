@@ -1378,6 +1378,10 @@ const STYLE_PAGES = `
   .help-guide { padding:var(--space-16); border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .help-guide h2, .help-ask h2, .help-write h2 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
   .help-guide ul { margin:0 0 var(--space-8); padding-inline-start:var(--space-24); }
+  /* The notice's lines are English in every language, each left to right by its own dir="auto": on a right-to-left page
+     a line's bullet sits on its left, outside the list. Room on both sides keeps it inside whichever way a line runs
+     (F1: 7 px of sideways scroll on the Arabic help page at 390). tools/check-help-fits.mjs measures it. */
+  .help-sends { padding-inline:var(--space-24); }
   .help-video video { inline-size:100%; max-inline-size:100%; block-size:auto; border-radius:var(--radius-card); margin-block:var(--space-8); }
   .help-ask textarea, .help-write textarea { inline-size:100%; max-inline-size:100%; box-sizing:border-box; }
   .help-answer { padding:var(--space-12) var(--space-16); border-inline-start:3px solid var(--color-border); background:var(--color-paper); margin-block-end:var(--space-12); }
