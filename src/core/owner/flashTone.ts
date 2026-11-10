@@ -28,6 +28,10 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'contactImport.flash.none', 'contactImport.flash.gone',
   'paymentLinks.flash.refused',
   'followUp.flash.changed',
+  'waCatalog.flash.refused', 'waCatalog.flash.changed', 'waCatalog.flash.connection', 'waCatalog.flash.noCatalogue',
+  'waCatalog.flash.unknown', 'waCatalog.flash.imageAddress', 'waCatalog.flash.tooLarge', 'waCatalog.flash.failed', 'waCatalog.flash.changedCatalogue',
+  // Part B (5.3) — a product card that could not be queued.
+  'card.flash.not_sendable', 'card.flash.card_unsupported', 'card.flash.window',
   // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
   // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
   'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
@@ -169,6 +173,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
   'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
   'followUp.flash.saved', 'followUp.flash.skipped',
+  'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.submitted.one', 'waCatalog.flash.submitted.other', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
+  'card.flash.sent',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
   'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',
   // B2 — a workbook read in.

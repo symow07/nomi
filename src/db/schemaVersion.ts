@@ -483,7 +483,8 @@ import type { Db } from './client.js';
 // 231 = what Nomi did for you: the owner's minutes per reply, and the month's e-mail sent once (0231).
 // 232 = setup in minutes: a file of customers kept while the owner checks it, and the first import's time (0232).
 // 234 = owner-written follow-up drafts and their accepted-quote evidence.
-export const REQUIRED_SCHEMA_VERSION = 234;
+// 235 = the owner's selected WhatsApp catalogue, batch outcomes and revocable image grants.
+export const REQUIRED_SCHEMA_VERSION = 235;
 
 export type SchemaState = {
   readonly required: number;
