@@ -1,12 +1,14 @@
 import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
 import { MONTH_REPORT_CSS } from './monthReportStyle.js';
 import { SETUP_MINUTES_CSS } from './setupMinutesStyle.js';
+import { FOLLOW_UP_CSS } from './followUpStyle.js';
 import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
 import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
 import { BOOKS_AREA_CSS } from './booksAreaStyle.js';
 import { BOOKS_INVOICE_CSS } from './booksInvoiceStyle.js';
 import { PRODUCTS_CSS } from './productsStyle.js';
+import { WA_CATALOGUE_CSS } from './waCatalogueStyle.js';
 import { PRODUCT_IMPORT_CSS } from './productImportStyle.js';
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
@@ -1196,6 +1198,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      inline; the column that names someone on People is .person. */
   .person { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .caption { font-size:var(--font-size-caption); }
+  .stripe-payments article h3, .stripe-payments article .caption { overflow-wrap:anywhere; }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */
@@ -2743,7 +2746,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,

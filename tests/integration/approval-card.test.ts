@@ -31,6 +31,7 @@ type Tx = import('../../src/db/client.js').Tx;
 
 d('the approval card (requires DATABASE_URL)', () => {
   let db: Db;
+  let boss: Awaited<ReturnType<typeof import('../../src/queue/boss.js')['startBoss']>>;
   let app: import('fastify').FastifyInstance;
   let cookie = '';
   let conv = '';
@@ -57,6 +58,10 @@ d('the approval card (requires DATABASE_URL)', () => {
     const { ensureConversation } = await import('../../src/db/channels.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
+    // The conversation page reads the queue even when no worker is running.
+    // Establish that schema here instead of depending on another test file.
+    const { startBoss } = await import('../../src/queue/boss.js');
+    boss = await startBoss(DATABASE_URL!);
     db = createDb(DATABASE_URL!);
     await tx((x) => sql`insert into businesses (id, name, owner_locale) values (${BIZ}, 'Card Shop', 'en')
                         on conflict (id) do nothing`.execute(x));
@@ -94,7 +99,7 @@ d('the approval card (requires DATABASE_URL)', () => {
       .headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
   }, 60_000);
-  afterAll(async () => { await app?.close(); await db?.destroy(); });
+  afterAll(async () => { await app?.close(); await boss?.stop(); await db?.destroy(); });
 
   it('draws one card from the stored turn: understood, read twice, the reply once, one Send', async () => {
     await newDraft(conv, 'Hi Maya! Yes, it comes in 50 ml. Shall I send the link?');

@@ -23,6 +23,8 @@ export type MonthReport = {
   readonly running: boolean;
   /** Customers to whom a reply the assistant wrote went out in the month (Home's "handled", by customer). */
   readonly customersAnswered: number;
+  /** Subset of drafts sent: decided in this month, with the exact linked outbound accepted. */
+  readonly followUpsSent: number;
   /**
    * Replies the assistant wrote that left in the month.
    *   alone      sent without anyone's approval (an `auto_sent` event whose message left);
@@ -124,6 +126,7 @@ export const FIXTURE_MONTH_REPORT: MonthReport = {
   to: new Date('2026-11-01T00:00:00.000Z'),
   running: false,
   customersAnswered: 42,
+  followUpsSent: 0,
   replies: FIXTURE_REPLIES,
   firstReply: { medianSeconds: 94, measured: 40, waiting: 3 },
   orders: { confirmed: 7, totals: [moneyOf('1840.00', 'USD')] },

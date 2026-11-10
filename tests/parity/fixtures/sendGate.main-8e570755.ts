@@ -1,0 +1,323 @@
+import { aiMaySpeak, ownershipOf, type ConversationOwnership } from '../../../src/core/conversation/ownership.js';
+import { OUTREACH_REFUSALS, gateOutreach, type OutreachInput } from '../../../src/core/outreach/gate.js';
+import type { SendPlan } from '../../../src/core/channel/window.js';
+import type { OutboundRow } from '../../../src/outbound/sequencer.js';
+
+/**
+ * M3 — The last gate before a message leaves the building. Enqueue-time checks
+ * are not enough: a takeover, a pause, or a window expiry can happen AFTER a
+ * message was queued. This gate runs at send time, so a buyer can never
+ * receive a follow-up after the owner took over, a reply after the
+ * conversation was paused, or a free-form message into a closed window.
+ */
+
+export type GateInput = {
+  /** The message still carries our own JSON (`carriesOurJson`, read by the worker from the body). */
+  readonly garbled?: boolean;
+  /**
+   * Who authored the queued message. Owner-authored text is the owner
+   * speaking — the takeover/pause gates are FOR him, not against him.
+   *
+   * C4.a — 'outreach' is the third: a message that starts a conversation
+   * rather than continuing one. It is the only origin the outreach gate below
+   * applies to, and the only one counted against her daily outreach cap.
+   */
+  readonly origin: 'employee' | 'owner' | 'outreach';
+  /** Handoff state: non-null (incl. 'unclaimed') = a human owns the thread. */
+  readonly assignedTo: string | null;
+  /** 收回 / budget pause / owner-set pause. */
+  readonly paused: boolean;
+  /** Current 24h-window plan for this conversation (window.ts). */
+  readonly windowPlan: SendPlan;
+  /** M18.2 — the channel is in pilot mode, so the allowlist is enforced.
+   *  Absent is treated as TRUE (fail-closed): a caller that forgets to pass
+   *  pilot state gets the safe behaviour, not the permissive one. */
+  readonly pilotMode?: boolean;
+  /** M18.2 — whether THIS recipient is on the tenant's active allowlist.
+   *  Resolved by the caller against pilot_allowlist. Absent = not allowed. */
+  readonly recipientAllowed?: boolean;
+  /** M18.5 — the tenant has already sent its daily maximum. */
+  readonly dailyCeilingReached?: boolean;
+  /**
+   * 0215 — the CHANNEL's own count is used up (TikTok's messages per window: tiktokLimits.ts). It binds everyone, as
+   * the window does: TikTok refuses the account's message whoever typed it.
+   */
+  readonly channelLimitReached?: boolean;
+  /**
+   * M20.1 — the owner has explicitly turned messaging on for this channel
+   * (`channels.activated_at`). CONNECTED is not ACTIVATED: working credentials
+   * mean the provider is reachable, not that the owner decided to go live.
+   *
+   * Absent is treated as NOT activated, like every other optional here: a
+   * caller that forgets to resolve activation gets silence, not a live send.
+   */
+  readonly activated?: boolean;
+  /**
+   * M34.6 — an ops `global_silence` flag is live for this tenant (ops_flags,
+   * migration 0014), resolved by the caller via `switchesFrom`.
+   *
+   * REQUIRED, not optional like the rest. Every optional above defaults to its
+   * fail-closed value, which works because forgetting them only ever refuses.
+   * A kill switch is the opposite shape: the dangerous default is the permissive
+   * one, and this gate exists because that switch spent six months connected to
+   * nothing. A required field makes the compiler name every caller that has to
+   * resolve it — including the next one, written by someone who never read this.
+   */
+  readonly silenced: boolean;
+  /**
+   * 2026-09-27 — the OWNER stopped the assistant on every channel
+   * (`businesses.assistant_stopped_at`, 0070), resolved by the caller inside
+   * the send's own transaction.
+   *
+   * REQUIRED, for the reason `silenced` is: it is a stop switch, so the
+   * dangerous default is the permissive one, and the compiler names every
+   * caller that has to resolve it.
+   */
+  readonly stopped: boolean;
+  /**
+   * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE: the workspace's
+   * subscription lapsed (`billing_held`, 0117). A lapsed workspace messages no
+   * customer at all — the assistant, the owner, outreach, not even the line
+   * that answers a stop: that is the paid product. Resubscribing lifts it.
+   *
+   * REQUIRED, like the two stops above: the permissive default is the
+   * dangerous one, and the compiler names every caller that must resolve it.
+   */
+  readonly frozen: boolean;
+  /**
+   * M42 — present when this message INITIATES rather than replies.
+   *
+   * Absent means a reply, and that default is safe by construction rather than
+   * by trust: an outreach row that forgot to declare itself has no inbound
+   * message behind it, so `windowPlan` is `wait_for_buyer` and the window check
+   * below refuses it anyway. It refuses for the wrong reason, which is a
+   * legible bug rather than a silent send — and a test holds that line.
+   */
+  readonly outreach?: OutreachInput;
+  /**
+   * C4.b — nobody pressed send on this message at this moment: a follow-up the
+   * schedule released. It answers to the ops kill switch the way the
+   * employee's messages do, because it IS the machine sending. A first mail
+   * she typed herself is not, and the switch leaves it alone for the reason it
+   * leaves the owner's reply alone.
+   *
+   * Absent means a person sent it — the permissive reading, so it is resolved
+   * by the store from `sequence_sends` rather than trusted to a caller, and a
+   * test holds the store to it.
+   */
+  readonly automated?: boolean;
+  /**
+   * 0135 — one of the two fixed sentences that must reach a buyer a person
+   * now holds: the line that answers a stop (`opt_out`) or "someone from our
+   * team will reply" (`handoff`). Marked on the row, never guessed from words.
+   * Absent is an ordinary message.
+   */
+  readonly notice?: Notice | null;
+  /**
+   * 0135 — this buyer asked, on this channel, to stop being messaged
+   * (`opt_outs`). `repliedSince`: they wrote after they last said it.
+   * Absent or null: they have not.
+   */
+  readonly optOut?: { readonly repliedSince: boolean } | null;
+  /**
+   * 0136 — the owner pressed send on this row (their own words, or the assistant's draft they approved). Read here
+   * only by the language rule below: what the owner sends is the owner speaking.
+   */
+  readonly approved?: boolean;
+  /**
+   * 0153 — Phase 4 gate, blocker 1: the language on record for this buyer (`clients.preferred_language`), and
+   * whether a native reader signed its disclosure. Absent: none on record — the turn decides those (a language nobody
+   * can tell drafts; one known and unsigned hands over before anything is written), so this layer refuses only what
+   * it KNOWS: an unsigned language.
+   */
+  readonly buyerLanguage?: 'reviewed' | 'unreviewed';
+};
+
+export type Notice = 'handoff' | 'opt_out';
+
+/**
+ * 0135 — may this notice reach a buyer the assistant no longer speaks to?
+ *   · The line that answers a stop: whoever holds the conversation — it is the
+ *     answer to the stop itself, and nothing else will be said.
+ *   · "Someone from our team will reply" (fix 1, 2026-10-10): while the buyer
+ *     WAITS for a person, which is exactly when it is true and still news.
+ *     Once a person has taken the conversation, they answer; the sentence
+ *     would only stand in front of them. The hand-off sets 'unclaimed' in the
+ *     same turn, so the gate refused every one of these as `handed_off` until
+ *     this mark existed — a buyer who asked for a person heard nothing.
+ * Never through Stop or the ops switch, which bind everything the machine
+ * writes (checked before this is asked).
+ */
+export function noticeSpeaks(notice: Notice | null | undefined, holder: ConversationOwnership): boolean {
+  return notice === 'opt_out' || (notice === 'handoff' && holder === 'WAITING_HUMAN');
+}
+
+/**
+ * Every way this gate can refuse, as data. The type DERIVES from the list, so a
+ * reason cannot exist in one and not the other.
+ *
+ * It was a hand-written union with a hand-written copy in refusals.test.ts
+ * ("adding a reason breaks this on purpose"). It did break on purpose — twice —
+ * and a list that must be edited in two places to stay true is the transcription
+ * bug this repo keeps paying for. Now there is one list, and the owner-copy
+ * coverage test reads it instead of restating it.
+ */
+export const GATE_REFUSALS = [
+  'handed_off', 'paused', 'window_closed',
+  'not_activated',        // M20.1
+  'not_allowlisted',      // M18.2
+  'daily_ceiling',        // M18.5
+  'silenced',             // M34.6
+  'stopped',              // 2026-09-27 — the owner's Stop, on every channel (0070)
+  'frozen',               // D4 (2026-10-12) — the subscription lapsed: nothing goes, from anyone
+  'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
+  'language_not_reviewed', // 0153 — the buyer's language has no signed disclosure: nothing automated reaches them
+  'tiktok_limit',         // 0215 — TikTok's messages per window are used: nothing more until the customer writes
+  'garbled',              // 2026-11-04 — the assistant's message still carries our own JSON: it never reaches a customer
+  // M42 — the outreach refusals, SPREAD from the outreach gate's own list
+  // rather than restated. Same reason this list exists at all: a vocabulary
+  // that must be edited in two places to stay true is the transcription bug
+  // this repo keeps paying for.
+  ...OUTREACH_REFUSALS,
+] as const;
+
+export type GateRefusal = (typeof GATE_REFUSALS)[number];
+
+export type GateDecision =
+  | { readonly allow: true; readonly viaTemplate: boolean }
+  | { readonly allow: false; readonly reason: GateRefusal };
+
+export function gateOutbound(g: GateInput): GateDecision {
+  // 2026-11-04 — the last net (core/safety/rawOutput.ts), whatever path queued it. Never the owner's own words.
+  if (g.garbled === true && g.origin !== 'owner') return { allow: false, reason: 'garbled' };
+
+  // D4 (2026-10-12) — frozen on lapse, first: a lapsed workspace sends nothing, whoever writes it and
+  // whatever it is, so nothing else about this message matters.
+  if (g.frozen) return { allow: false, reason: 'frozen' };
+
+  // M20.1 — activation is a property of the CHANNEL, not of who is speaking,
+  // so it binds the owner exactly as it binds the employee. It is checked
+  // first: before the pilot is live, nothing else about this message matters.
+  if (g.activated !== true) return { allow: false, reason: 'not_activated' };
+
+  /**
+   * 0135 — A NOTICE IS NEVER A TEMPLATE. The line that answers a stop, and the
+   * hand-off sentence, are said inside the buyer's own 24 hours or not at all:
+   * as the reopening template they would become "we have a reply for you".
+   */
+  if (g.notice && g.windowPlan.action === 'send_template') return { allow: false, reason: 'window_closed' };
+
+  /**
+   * 0135 — THE BUYER SAID STOP. It binds everyone, the owner included (the
+   * owner's decision, 2026-10-10), and it is checked before anything about who
+   * is speaking:
+   *   · nothing at all until they write again — except the one line that
+   *     answers the stop;
+   *   · once they have, a reply inside their 24 hours — and still never a
+   *     follow-up, a first message, or the reopening template.
+   */
+  if (g.optOut && g.notice !== 'opt_out') {
+    if (g.origin === 'outreach' || g.automated === true) return { allow: false, reason: 'opted_out' };
+    if (!g.optOut.repliedSince) return { allow: false, reason: 'opted_out' };
+    if (g.windowPlan.action === 'send_template') return { allow: false, reason: 'opted_out' };
+  }
+
+  /**
+   * M42 — a message nobody asked for answers to everything below AND to this.
+   *
+   * It runs before the rest, not instead of it: an outreach message that clears
+   * the outreach gate still faces the allowlist, the ceiling, the kill switch
+   * and the window, because every one of those is about whether ANY message may
+   * leave right now. This adds a question, it does not replace any.
+   *
+   * The decision itself lives in `outreach/gate.ts` and is called, not copied —
+   * the owner's contact list renders the same call, so what she is shown and
+   * what the send path does cannot disagree.
+   */
+  if (g.outreach) {
+    const reach = gateOutreach(g.outreach);
+    if (!reach.ok) return { allow: false, reason: reach.error };
+  }
+
+  // M34.6 — the ops kill switch. Checked at SEND time like everything else
+  // here, which is the point: a reply queued a minute before the switch was
+  // thrown must not still leave the building. It binds THE MACHINE — the
+  // employee's messages, and (C4.b) a follow-up released by a schedule —
+  // and not the owner, who may well be silencing it in order to answer the
+  // buyer himself.
+  if (g.silenced && (g.origin === 'employee' || g.automated === true)) {
+    return { allow: false, reason: 'silenced' };
+  }
+  // 2026-09-27 — the OWNER's Stop, on every channel. The same shape as the ops
+  // switch above, for the same reason: it binds the machine — the assistant's
+  // messages, and a follow-up a schedule released — and never the owner, who
+  // stops the assistant precisely to answer buyers in person. Checked here, at
+  // SEND time, so a reply queued before Stop was pressed is refused, not sent
+  // late. Ops is checked first: when both are set, the reason recorded is the
+  // one the owner did not choose.
+  if (g.stopped && (g.origin === 'employee' || g.automated === true)) {
+    return { allow: false, reason: 'stopped' };
+  }
+  /**
+   * 0153 — Phase 4 gate, blocker 1 (the owner, 2026-10-14): A BUYER WHOSE LANGUAGE HAS NO SIGNED DISCLOSURE RECEIVES
+   * NO AUTOMATED MESSAGE AT ALL. The turn already hands such a buyer to a person and writes nothing; this is the last
+   * door, for anything that would still reach them alone — a reply queued before, the hand-off sentence or the stop
+   * line, a follow-up a schedule released. What the owner sends goes: their own words, or a draft they approved.
+   */
+  if (g.buyerLanguage === 'unreviewed'
+    && ((g.origin === 'employee' && g.approved !== true) || g.automated === true)) {
+    return { allow: false, reason: 'language_not_reviewed' };
+  }
+  if (g.origin === 'employee') {
+    // 0135 — except a notice that may still reach them (`noticeSpeaks`).
+    // Audit batch 1 (B6) — and except a reply a PERSON approved: pressing Send on a draft after "Hand to me" is the
+    // person who holds the conversation choosing those words. It was cancelled as handed off after the page said sent.
+    if (!aiMaySpeak(ownershipOf(g.assignedTo)) && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo)) && g.approved !== true) {
+      return { allow: false, reason: 'handed_off' };
+    }
+    // Through a pause only the line that answers a stop: nothing else the assistant writes.
+    if (g.paused && g.notice !== 'opt_out') return { allow: false, reason: 'paused' };
+  }
+
+  // M18.2 — the pilot allowlist binds EVERYONE, including the owner. During a
+  // controlled pilot the question is not "who is speaking?" but "is this buyer
+  // one we agreed to reach?". Fail-closed: pilot mode is assumed on unless the
+  // caller says otherwise, and an unresolved recipient is not allowed.
+  const pilotMode = g.pilotMode ?? true;
+  if (pilotMode && g.recipientAllowed !== true) {
+    return { allow: false, reason: 'not_allowlisted' };
+  }
+
+  // M18.5 — a runaway loop must not spend the day messaging a real buyer.
+  // Blocks rather than warns; owner-authored text is exempt, because a human
+  // deliberately typing is not the failure mode this protects against.
+  if (g.origin === 'employee' && g.dailyCeilingReached === true) {
+    return { allow: false, reason: 'daily_ceiling' };
+  }
+
+  // 0215 — the channel's own count, like the window below: it binds everyone.
+  if (g.channelLimitReached === true) return { allow: false, reason: 'tiktok_limit' };
+
+  // The window binds everyone — the provider rejects violations regardless of
+  // who typed the message.
+  if (g.windowPlan.action === 'wait_for_buyer') {
+    return { allow: false, reason: 'window_closed' };
+  }
+  return { allow: true, viaTemplate: g.windowPlan.action === 'send_template' };
+}
+
+/**
+ * On takeover/pause/revoke: employee-authored queued messages are canceled —
+ * not delayed, canceled. In-flight ('sending') rows finish their attempt; the
+ * gate blocks their retries.
+ */
+export function cancelableOnTakeover(
+  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach'; readonly notice?: Notice | null; readonly approved?: boolean })[],
+  holder: ConversationOwnership = 'OWNER_CONTROLLED',
+): readonly string[] {
+  return rows
+    // 0135 — a notice that may still reach them is not the employee speaking.
+    // B6 — nor is a reply a person approved: it answers to the gate, which names the real reason if it may not go.
+    .filter((r) => r.status === 'queued' && r.origin === 'employee' && r.approved !== true && !noticeSpeaks(r.notice, holder))
+    .map((r) => r.id);
+}

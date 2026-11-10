@@ -113,8 +113,10 @@ media setting to keep in step with it.
 | `BOT_CHECK_PROVIDER` | `turnstile` or `hcaptcha` | BOT (0114) — the bot check the sign-up page draws and the route asks before any code is sent. All three `BOT_CHECK_*` or none; without one, open sign-up reads as invite. |
 | `BOT_CHECK_SITE_KEY` | public key | BOT — printed into the sign-up page (letters, digits, `-` and `_` only). |
 | `BOT_CHECK_SECRET` | secret | BOT — the provider's secret, sent only in the verification request's body. A provider that does not answer within five seconds is a refusal. |
-| `STRIPE_SECRET_KEY` | secret (`sk_…` or a restricted `rk_…`) | BILL (0117) — Stripe, the payment provider. Both `STRIPE_*` or none; unset, Billing says payments are not set up, no card is taken, nobody is charged or held. |
+| `STRIPE_SECRET_KEY` | secret (`sk_…` or a restricted `rk_…`) | BILL (0117) — Stripe, the payment provider. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` together; unset, Billing says payments are not set up, no card is taken, nobody is charged or held. |
 | `STRIPE_WEBHOOK_SECRET` | secret (`whsec_…`) | BILL — the signing secret of the webhook endpoint `https://app.nomidoes.com/hooks/stripe` (events: `checkout.session.completed`, `customer.subscription.created`, `.updated`, `.deleted`, `invoice.payment_failed`). |
+| `STRIPE_CONNECT_CLIENT_ID` | installation identifier | Optional invoice payment links: the OAuth client for the owner’s existing Stripe account. Requires `STRIPE_SECRET_KEY` and the separate Connect signing secret below. Missing any of these leaves payment links unavailable. |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | secret | Signing secret for `/hooks/stripe/connect`, configured for connected-account events. It is separate from billing’s `/hooks/stripe` endpoint. The endpoint retains event identifiers for the reconciliation worker, not full customer payloads. |
 | `META_LOGIN_CONFIG_ID` | digits | The *Facebook Login for Business* configuration (app dashboard → Facebook Login for Business → Configurations) carrying the seven scopes in `docs/META-SOCIAL-SETUP.md` § 6, token type *User access token*. Unset (or `META_SOCIAL_APP_ID` unset), the channels page offers no login and the C9 host-account button is what remains. |
 | `META_WHATSAPP_APP_ID` | digits | WA (0120) — the id of the Meta app whose secret is `META_APP_SECRET` (the WhatsApp app, `nomi`). With `META_WHATSAPP_ES_CONFIG_ID` it turns on **Connect your WhatsApp number** (Embedded Signup, the Tech Provider path): a business connects its OWN number and answers from it; the installation's number is no longer offered to anyone. Needs `PUBLIC_BASE_URL` and `CREDENTIAL_KEY`: the redirect is `<PUBLIC_BASE_URL>/app/connect/whatsapp/callback`, listed under the app's *Facebook Login for Business → Settings → Valid OAuth Redirect URIs*. Unset, WhatsApp is as before: the one number in `META_WHATSAPP_*`. Never run against Meta (PROGRESS, the never-run list). |
 | `META_WHATSAPP_ES_CONFIG_ID` | digits | WA — the *Facebook Login for Business* configuration made for **WhatsApp Embedded Signup** (app dashboard → Facebook Login for Business → Configurations → *WhatsApp Embedded Signup*), with `whatsapp_business_management` and `whatsapp_business_messaging`. Both or neither with `META_WHATSAPP_APP_ID`. |
@@ -164,3 +166,11 @@ curl -s http://localhost:8787/health
 
 `/health` reports `{ok, db, worker, provider}` and deliberately leaks nothing
 about the build, the schema version or the tenant.
+
+### Invoice payment links
+
+The owner connects an existing account at `/app/payments/stripe`, chooses the clearing, transit, fee, general journal and bank accounts, then makes and sends a link from an issued invoice. GB and US are supported; Morocco is off. Invoice and connected-account currencies must match. Clearing and transit are not offered as bank or cash accounts in manual payment forms.
+
+Payment confirmation is read from Stripe; the customer’s return page never records money. Fees that cannot be read remain pending. Payout posting covers only the owner-confirmed portion from Nomi payments. Mixed payout receipts and failed refunds or payouts require review in Books; the feature does not silently reverse their entries or record unrelated funds.
+
+Local tests use an injected provider and do not contact Stripe. Real connection, webhook delivery, payment and payout proofs require separate owner authorization before release. Keep the two Connect settings unset until that review is complete.

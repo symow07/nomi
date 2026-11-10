@@ -255,6 +255,15 @@ export const RULES = Object.freeze({
   // before the erasure may hold this customer's number, and adding it afterwards would bring them back. Nothing says
   // which row was whose, so every staged file of the workspace goes (`match: 'workspace'`); the owner uploads again.
   contact_imports: { do: 'erase', match: 'workspace' },
+  follow_up_rules: { do: 'unrelated' },
+  follow_up_observations: { do: 'erase' },
+  follow_up_runs: { do: 'erase' },
+  follow_up_approvals: { do: 'erase' },
+  wa_catalogue_items: { do: 'unrelated' },
+  wa_catalogue_batches: { do: 'unrelated' },
+  wa_catalogue_batch_items: { do: 'unrelated' },
+  wa_catalogue_images: { do: 'unrelated' },
+  wa_catalogue_sends: { do: 'erase' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the
@@ -286,6 +295,10 @@ export const RULES = Object.freeze({
   survey_asks: { do: 'erase' },
   // 0226 — an invoice's public link (a token and its expiry on the business's own invoice): no customer in it.
   invoice_links: { do: 'unrelated' },
+  stripe_connections: { do: 'unrelated' }, stripe_mappings: { do: 'unrelated' },
+  stripe_oauth_states: { do: 'unrelated' }, stripe_checkout_attempts: { do: 'unrelated' },
+  stripe_event_inbox: { do: 'unrelated' }, stripe_movements: { do: 'unrelated' }, stripe_payouts: { do: 'unrelated' },
+  stripe_link_sends: { do: 'detach', detach: ['conversation_id', 'outbound_id'], says: 'the payment send record stays; customer references go' },
   // 0226 — that an invoice went, and the reminders about it: the business's record of its invoice stays (when, which
   // channel, how many reminders); the keys to the customer's conversation, message and draft go.
   invoice_sends: {
@@ -340,6 +353,13 @@ export const RULES = Object.freeze({
   connection_approvals: { do: 'unrelated' },
   mail_accounts: { do: 'unrelated' },
   meta_accounts: { do: 'unrelated' },
+  ig_comment_settings: { do: 'unrelated' },
+  ig_comment_login_states: { do: 'unrelated' },
+  ig_comments: { do: 'erase', match: 'any-identity' },
+  ig_comment_replies: { do: 'erase' },
+  ig_comment_public_replies: { do: 'erase' },
+  ig_comment_alerts: { do: 'erase' },
+  ig_comment_tombstones: { do: 'unrelated' },
   tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
   shopify_connections: { do: 'unrelated' },   // 0237 — a business's own Shopify store and its sealed credential; no customer in it
   // 0237 — that a customer's Shopify order was looked up: when, the outcome, the verified order's name. Theirs.

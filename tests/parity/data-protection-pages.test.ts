@@ -327,6 +327,19 @@ describe('D19 · every business table is decided, so none escapes the erasure by
       const appended=extension.match(/select t,\s*'unrelated'[\s\S]*?unnest\(array\[([^\]]+)\]\)/)?.[1];
       expect(appended,`${file}: classify every appended table`).toBeTruthy();
       inSql.push(...[...appended!.matchAll(/'([a-z_]+)'/g)].map(m=>m[1]!));
+      // Other appended actions are classified too, not silently mistaken for unrelated rows.
+      const body = extension.match(/create function customer_erasure_contract\(\)[\s\S]*?\$\$([\s\S]*?)\$\$/i)?.[1] ?? '';
+      // Two shapes: many tables through `select t, '<action>' … unnest(array[…]) t`, or one row `select '<table>', '<action>'`.
+      const additions = body.split(/union all/i).slice(1).map((part) => {
+        const many = part.match(/^\s*select t,\s*'([^']+)'[\s\S]*?unnest\(array\[([^\]]+)\]\)/i);
+        if (many) return { action: many[1]!, tables: [...many[2]!.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]!) };
+        const one = part.match(/^\s*select\s+'([a-z_]+)',\s*'([^']+)'/i);
+        return one ? { action: one[2]!, tables: [one[1]!] } : null;
+      });
+      expect(additions.filter(Boolean).length, `${file}: every union addition is parsed`).toBe((body.match(/union all/gi) ?? []).length);
+      for (const row of additions) for (const table of row!.tables) {
+        expect((RULES as Record<string, { do: string }>)[table]?.do, `${file}: ${table}`).toBe(row!.action);
+      }
     }
     inSql.sort();
     const inTool = Object.entries(RULES as Record<string, { do: string }>).filter(([, r]) => r.do === 'unrelated').map(([t]) => t).sort();

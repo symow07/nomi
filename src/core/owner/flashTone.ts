@@ -26,6 +26,12 @@ import type { MessageKey } from './i18n/messages.js';
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'contactImport.flash.none', 'contactImport.flash.gone',
+  'paymentLinks.flash.refused',
+  'followUp.flash.changed',
+  'waCatalog.flash.refused', 'waCatalog.flash.changed', 'waCatalog.flash.connection', 'waCatalog.flash.noCatalogue',
+  'waCatalog.flash.unknown', 'waCatalog.flash.imageAddress', 'waCatalog.flash.tooLarge', 'waCatalog.flash.failed', 'waCatalog.flash.changedCatalogue',
+  // Part B (5.3) — a product card that could not be queued.
+  'card.flash.not_sendable', 'card.flash.card_unsupported', 'card.flash.window',
   // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
   // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
   'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
@@ -33,6 +39,10 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.staleNotYet', 'books.flash.staleEndedConnectAgain',
   // 0226 — an invoice that did not go, and a switch only the owner may touch.
   'invoice.flash.ownerOnly', 'invoice.flash.window', 'invoice.flash.not_found', 'invoice.flash.not_issued', 'invoice.flash.no_conversation',
+  'igComments.flash.refused',
+  'igComments.flash.reply.not_found', 'igComments.flash.reply.account', 'igComments.flash.reply.off', 'igComments.flash.reply.not_asking',
+  'igComments.flash.reply.used', 'igComments.flash.reply.age_unknown', 'igComments.flash.reply.expired', 'igComments.flash.reply.empty',
+  'igComments.flash.reply.too_long',
   'invoice.flash.no_address', 'invoice.flash.no_proforma', 'invoice.flash.no_channel', 'invoice.flash.off',
   // 0215 — TikTok's connect refusals
   'connect.tiktok.flash.scopes_missing', 'connect.tiktok.flash.account_taken', 'connect.tiktok.flash.unavailable', 'connect.tiktok.flash.not_configured',
@@ -166,6 +176,11 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'contactImport.flash.added.one', 'contactImport.flash.added.other', 'contactImport.flash.discarded',
+  'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
+  'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
+  'followUp.flash.saved', 'followUp.flash.skipped',
+  'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.submitted.one', 'waCatalog.flash.submitted.other', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
+  'card.flash.sent',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
   'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',
   // B2 — a workbook read in.
@@ -193,6 +208,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // KS6 — asked; asked before; or nothing to ask.
   'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed', 'channel.connect.flash.sent',
   // R2 — a conversation marked as the owner testing, or as a real customer again.
+  'igComments.flash.on', 'igComments.flash.off', 'igComments.flash.deleted', 'igComments.flash.replyQueued',
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
   'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',

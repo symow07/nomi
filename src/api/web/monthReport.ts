@@ -93,7 +93,8 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
   if (!hasActivity) {
     figures = `<section class="empty results-empty" aria-labelledby="month-empty"><h2 id="month-empty">${words(say('monthReport.empty.title', { month: selectedMonth }))}</h2>
       <p class="muted">${words(say(report.running ? 'monthReport.empty.running' : 'monthReport.empty.past'))}</p>${
-      report.running && !options.setupDone ? `<p>${deeper('/app/get-started', say('monthReport.empty.setup'))}</p>` : ''}</section>`;
+      report.running && !options.setupDone ? `<p>${deeper('/app/get-started', say('monthReport.empty.setup'))}</p>` : ''}</section>`
+      + paragraph('followUp.month', { n: show.count(locale, report.followUpsSent) });
   } else {
     figures = section('customers', say('monthReport.section.customers'), list(
       countRow('monthReport.n.answered', report.customersAnswered, 'monthReport.def.answered')));
@@ -101,7 +102,8 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
       countRow('monthReport.n.alone', report.replies.alone, 'monthReport.def.alone')
       + countRow('monthReport.n.asWritten', report.replies.asWritten, 'monthReport.def.asWritten')
       + countRow('monthReport.n.edited', report.replies.edited, 'monthReport.def.edited')
-      + countRow('monthReport.replies.notSent', report.replies.notSent, 'monthReport.def.notSent')));
+      + countRow('monthReport.replies.notSent', report.replies.notSent, 'monthReport.def.notSent'))
+      + paragraph('followUp.month', { n: show.count(locale, report.followUpsSent) }));
     const waiting = report.firstReply.waiting > 0 ? counted(locale, 'monthReport.median.waiting', report.firstReply.waiting) : null;
     figures += section('speed', say('monthReport.section.speed'),
       report.firstReply.medianSeconds === null ? paragraph('monthReport.median.none')

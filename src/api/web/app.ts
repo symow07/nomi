@@ -1,5 +1,16 @@
 import { renderResultsTabs } from './resultsNavigation.js';
+import {registerPaymentRoutes} from './paymentRoutes.js';
+import {renderInvoicePaymentDoor} from './stripePayments.js';
+import {invoiceLinkState} from '../../db/stripePayments.js';
+import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
+import { renderFollowUpRule, renderFollowUps } from './followUps.js';
+import { readFollowUpRule } from '../../core/conversation/followUps.js';
+import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
+import { registerInstagramCommentRoutes } from './instagramCommentRoutes.js';
+import { sayOnPage } from './instagramComments.js';
+import { GO } from './icons.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
+import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
 import { readAssistantActivity } from '../../db/assistantActivity.js';
@@ -272,7 +283,7 @@ import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
-import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
+import { ownerReply, ownerPhoto, ownerProductCard } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
@@ -404,6 +415,8 @@ const COOKIE = 'yf_session';
 const LOCALE_COOKIE = 'yf_locale';
 
 export type WebDeps = {
+  readonly catalogueClient?: NonNullable<CatalogueWebDeps['catalogueClient']>;
+  readonly catalogueNow?: NonNullable<CatalogueWebDeps['catalogueNow']>;
   readonly db: Db;
   readonly sessionSecret: string;      // derived from CREDENTIAL_KEY
   readonly accessCode: string;         // owner login (env or generated)
@@ -517,6 +530,8 @@ export type WebDeps = {
    * no card can be saved, and /hooks/stripe does not exist.
    */
   readonly stripe?: { readonly client: StripeClient; readonly webhookSecret: string } | null;
+  readonly stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
+  readonly kickStripePayments?: (businessId:string)=>Promise<void>;
   /**
    * G3 — the WhatsApp number this installation is configured with (Meta's
    * phone number id), or null when there is none. It is what "Connect this
@@ -538,6 +553,8 @@ export type WebDeps = {
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
+  /** 5.4 — the drive's job in the caller's own transaction: a row queued and its job commit together, or neither. */
+  readonly queueOutboundDrive?: (tx: Tx, businessId: string, conversationId: string) => Promise<void>;
   /** 0230 — a check's job: the saved cases run against the staged change `checkId`. Absent: no check, changes go live at once. */
   readonly kickCaseCheck?: (businessId: string, checkId: string) => Promise<void>;
   /** Block 3 PR 4 — the words the assistant would write now, for a person to send themselves (src/pipeline/suggestReply.ts). */
@@ -565,6 +582,7 @@ export type WebDeps = {
    * Absent, the Connect button posts the host's account (C9) or is absent.
    */
   readonly metaLogin?: MetaLogin | null;
+  readonly metaCommentsConfigId?: string | null;
   readonly metaConnect?: MetaConnectDeps;
   /** 0215 — a business connects its own TikTok account (docs/TIKTOK-CHANNEL.md, surface A), where this host has the app. */
   readonly tiktokConnect?: TikTokConnectDeps;
@@ -692,8 +710,19 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/verify', why: 'A3 — redeems a code: five tries and ten minutes per code, counted in the database' },
   { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
+  { method: 'GET', url: '/payment/return', why: 'Invoice payment return information only: ignores query values, reveals no invoice or customer, and records no payment' },
+  { method: 'POST', url: '/hooks/stripe/connect', why: 'Connected-account event receipt: verifies the separate raw-body signature and mode before retaining minimal event identifiers' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
+  /*
+   * 0235 — a catalogue photo Meta fetches with no session; the token is the only key. Its guards
+   * (`wa_catalogue_image_business`, `catalogueImage`, `registerCatalogueRoutes`): a 256-bit random token, compared whole;
+   * only for a batch item the owner ticked, while it is published or inside its 15-minute lease (expired, revoked,
+   * unticked, replaced or since changed: 404); never for a practice copy or a switched-off workspace; the bytes re-read in the
+   * workspace's own tenant transaction; no session is read or set, so signed in, signed out and another workspace get
+   * the same answer; `private, no-store`, `noindex`, `no-referrer`, `nosniff`. Proven in `wa-catalogue.test.ts`.
+   */
+  { method: 'GET', url: '/catalogue-media/:token', why: '0235 — a photo of an owner-ticked catalogue item, fetched by Meta with no session. The unguessable token IS the credential and lapses with the publication; the bytes only, the same answer to anyone' },
   { method: 'GET', url: '/inv/:token/:name', why: '0226 — an invoice as a PDF, rendered on demand for the channel that fetches it (WhatsApp, Messenger, Telegram). The unguessable token IS the credential and expires; the bytes only — no business id, no customer beyond what the invoice names' },
   { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/chat/:key', why: 'S7 — a business\'s chat page. The unguessable key IS the address the owner shares; it shows only this browser\'s own conversation (its cookie), and nothing while the page is off' },
@@ -2539,7 +2568,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       scope.post('/hooks/stripe', async (req, reply) => {
         const raw = typeof req.body === 'string' ? req.body : '';
         const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
-        if (!e) return reply.code(400).send({ error: 'signature' });
+        if (!e || 'account' in JSON.parse(raw)) return reply.code(400).send({ error: 'signature' });
         const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
           req.log.warn({ reason: loggableMessage(err instanceof Error ? err.message : String(err)) }, 'stripe event failed');
           return 'retry' as const;
@@ -3145,7 +3174,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3313,11 +3342,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const sendable = v ? await sendableInvoice(tx, bid, id) : null;
       const sending = v ? { on: await invoiceSendingOn(tx, bid), conversationId: sendable?.conversationId ?? null, channel: sendable?.channel ?? null,
         history: await invoiceSendHistory(tx, bid, id) } : null;
-      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending };
+      const paymentLinks=Boolean(deps.stripeConnect)&&(await sql`select 1 from businesses where id=${bid}::uuid and country in ('GB','US') and practice_of is null`.execute(tx)).rows.length>0;
+      const links=paymentLinks&&v&&booksMay(personOf(s),'post')?await invoiceLinkState(tx,bid,id):undefined;
+      return { v, pay: { journals, accounts: await paymentAccounts(tx, bid) }, sending, paymentLinks, links };
     });
     if (!got.v) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: got.v.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderInvoice(locale, personOf(s), got.v, got.pay, booksToday(), {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.sending ? { sending: got.sending } : {})})}${renderInvoicePaymentDoor(id,locale,booksMay(personOf(s),'post'),!['draft','discarded'].includes(got.v.status),got.paymentLinks,got.links)}` }));
   });
   /**
    * 0226 — SEND THE INVOICE from its page (the owner's alone): the same one path as from the conversation
@@ -4768,6 +4799,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : [];
     // 0128 — whether the model provider refuses for billing, said on the page while it lasts.
     const refusing = await providerRefusing(deps.db);
+    const followUps = bid.ok ? await withTenantTx(deps.db, bid.value, tx => followUpsOf(tx, bid.value, conversationId)) : [];
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
@@ -4776,7 +4808,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderListPane(list, locale, now, conversationId, people,
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
-        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s), { returnHref }),
+        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s), { returnHref })
+          + renderFollowUps(locale, followUps, personOf(s).isOwner, now),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '', { conversationId, locale })),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live:
@@ -5362,6 +5395,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * Part B (5.3) — the OWNER sends one product of their linked WhatsApp catalogue as a product card: the same checks
+   * as their words (`ownerSendWindow`), inside the customer's 24 hours only — the reopening template carries no card.
+   * Through the one writer; the worker checks the item again before anything leaves.
+   */
+  app.post('/app/inbox/:conversationId/product-card', async (req, reply) => {
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const s = await ownerOnly(req, reply, 'price_rules', UUID.test(cid) ? conversationUrl(cid) : '/app/inbox');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const productId = String((req.body as { product?: string } | undefined)?.product ?? '');
+    const { verdict, reopening } = await ownerSendWindow(bid.value, cid);
+    if (verdict !== 'ok') return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
+    if (reopening) return flashTo(reply, conversationUrl(cid), 'card.flash.window');
+    const r = await ownerProductCard(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
+      { businessId: bid.value, conversationId: cid, productId, actor: personOf(s).id },
+    );
+    if (r.outcome === 'sent') return flashTo(reply, conversationUrl(cid), messagingEnabled ? 'card.flash.sent' : 'inbox.flash.sentNotLive');
+    if (r.outcome === 'not_sendable' || r.outcome === 'card_unsupported') return flashTo(reply, conversationUrl(cid), `card.flash.${r.outcome}` as MessageKey);
+    return takeoverFlash(reply, cid, r.outcome);
+  });
+
+  /**
    * M34 — the owner corrects what was heard.
    *
    * ARCHIVE, NEVER ERASE. `transcription` keeps the machine's original reading
@@ -5784,7 +5841,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
           telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
           tiktok: { served: tiktokReady() !== null, account: tt ? { username: tt.username, needsAttention: tt.needsAttention !== null, euMessages: tt.euMessages, euLastAt: tt.euLastAt } : null },
-        }),
+        }) + (screen==='meta'?`<p><a class="deeper" href="${settingsHref('/app/channels/instagram/comments')}">${sayOnPage(locale,'igComments.title')}${GO}</a></p>`:''),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
       }));
@@ -5963,6 +6020,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return productArea(renderProductList(catalogue.items, locale, flash, personOf(s),
       await businessKind(deps.db, s.businessId), {page:catalogue,returnHref}) + ask, locale, 'all', personOf(s));
   }));
+  registerCatalogueRoutes(app,deps,{authed:render=>authed('products',render),owner:(req,reply)=>ownerOnly(req,reply,'price_rules','/app/products/whatsapp'),
+    viewer:personOf,flash:flashTo,takeFlash,locale:localeOf,page:(req,draw)=>page(req,{active:'products',...draw})});
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
       await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
@@ -6610,8 +6669,42 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true)
+        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner),
     }));
+  });
+  app.post('/app/settings/assistant/follow-ups', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME); if (!s) return reply;
+    const input = (req.body ?? {}) as { enabled?: unknown; delayDays?: unknown; wording?: unknown };
+    const parsed = readFollowUpRule(input);
+    if (!parsed.ok) {
+      const locale = localeOf(req);
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'followUp.title'), active: 'settings',
+        bodyHtml: back(ASSISTANT_HOME, t(locale, 'nav.employee'))
+          + `<h1><bdi lang="en" dir="ltr">${esc(t(locale, 'followUp.title'))}</bdi></h1>` + renderFollowUpRule(locale, {
+          enabled: input.enabled === '1', delayDays: /^[1-7]$/.test(String(input.delayDays)) ? Number(input.delayDays) : 2,
+          wording: typeof input.wording === 'string' ? input.wording : '',
+        }, true, true),
+      }));
+    }
+    await withTenantTx(deps.db, s.businessId as BusinessId, tx => saveFollowUpRule(tx, s.businessId, parsed.rule, new Date()));
+    return flashTo(reply, `${ASSISTANT_HOME}#follow-ups`, 'followUp.flash.saved');
+  });
+  app.post('/app/inbox/:conversationId/follow-ups/:runId/skip', async (req, reply) => {
+    const { conversationId, runId } = req.params as { conversationId: string; runId: string };
+    const here = UUID.test(conversationId) ? conversationUrl(conversationId) : '/app/inbox';
+    const s = await ownerOnly(req, reply, 'capability_grant', here); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(conversationId) || !UUID.test(runId)) return reply.redirect(here);
+    const skipped = await withTenantTx(deps.db, bid.value, async tx => {
+      await lockConversation(tx, conversationId);
+      const run = (await sql<FollowUpRun>`select * from follow_up_runs where business_id = ${bid.value}::uuid
+        and conversation_id = ${conversationId}::uuid and id = ${runId}::uuid
+        and state in ('scheduled', 'draft', 'window_closed') for no key update skip locked`.execute(tx)).rows[0];
+      return run ? cancelFollowUp(tx, run, 'owner_skipped', true) : false;
+    });
+    return flashTo(reply, here, skipped ? 'followUp.flash.skipped' : 'followUp.flash.changed');
   });
   // …and each row's screen: one former section, under its way back. Each is
   // its own route, so every walk of the GET routes opens every one of them.
@@ -7963,6 +8056,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * when she manages several Pages, the user token she granted rides in that
    * state — encrypted — for the one round trip her choice takes.
    */
+  registerInstagramCommentRoutes(app,{
+    db:deps.db,meta:deps.metaConnect??null,configId:deps.metaCommentsConfigId??null,baseUrl:deps.publicBaseUrl??null,
+    session:sessionOf,owner:(req,reply)=>ownerOnly(req,reply,'messaging_activation','/app/channels/instagram/comments'),
+    sessionToken:req=>parseCookies(req.headers.cookie)[COOKIE]??'',locale:localeOf,page,flash:takeFlash,redirect:flashTo,connectionRefusal,
+    ...(deps.queueOutboundDrive?{queueDrive:deps.queueOutboundDrive}:{}),...(deps.kickDrive?{kickDrive:deps.kickDrive}:{}),
+  });
   const META_COOKIE = 'yf_meta';
   const metaRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/meta/callback`;
   const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;
@@ -9314,4 +9413,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sbxAction('/app/sandbox/resume', (bid, cid, _req, actor) =>
       resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
   }
+  registerPaymentRoutes(app,{
+    db:deps.db,provider:deps.stripeConnect,publicBaseUrl:deps.publicBaseUrl,
+    owner:async(req,reply)=>{
+      const s=sessionOf(req);if(!s){await reply.redirect('/login');return null;}
+      if(!booksMay(personOf(s),'post')){await flashTo(reply,'/app','staff.notAllowed');return null;}
+      const businessId=bidOf(s);if(!businessId){await reply.callNotFound();return null;}
+      return {businessId,actor:personOf(s).id,session:parseCookies(req.headers.cookie)[COOKIE]??''};
+    },locale:localeOf,flash:takeFlash,
+    page:(req,bodyHtml)=>page(req,{title:t(localeOf(req),'paymentLinks.title'),active:'settings',bodyHtml}),
+    redirect:(reply,key,params)=>flashTo(reply,'/app/payments/stripe',key,params),
+    window:ownerSendWindow,kickDrive:deps.kickDrive??(async()=>{}),kick:deps.kickStripePayments,
+  });
+
 }

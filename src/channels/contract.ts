@@ -15,7 +15,7 @@ export type ChannelKind =
   | 'telegram' | 'line' | 'email' | 'web_chat' | 'tiktok';
 
 export type SendResult =
-  | { readonly ok: true; readonly providerMessageId: string }
+  | { readonly ok: true; readonly providerMessageId: string; readonly recipientId?: string }
   | {
       readonly ok: false; readonly retryable: boolean; readonly error: string;
       /**
@@ -49,6 +49,16 @@ export type OutboundDocument = {
   readonly url: string;
   readonly filename: string;
   readonly caption: string;
+};
+
+/**
+ * Part B (5.3) — ONE item of the business's own WhatsApp catalogue, as a single-product message (interactive
+ * `product`, no header, no body). Both ids are what Meta accepted for that item; the worker hands an adapter this
+ * only after the send gate allowed the row and the item still matches what Meta holds.
+ */
+export type OutboundProduct = {
+  readonly catalogId: string;
+  readonly retailerId: string;
 };
 
 /** 0226 — a file attached to a mail: the bytes themselves, since a mail carries no link a provider fetches. */
@@ -102,6 +112,10 @@ export interface ChannelAdapter {
   /** Raw provider payload → canonical events. Never throws. */
   parseWebhook(payload: unknown): ChannelEvent[];
   sendText(to: string, body: string): Promise<SendResult>;
+  /** The connected account this optional private-comment endpoint belongs to. */
+  readonly commentPrivateReplyAccountId?: string;
+  /** Instagram's one private reply, addressed by comment_id, never by a DM recipient. */
+  sendCommentPrivateReply?(commentId: string, body: string): Promise<SendResult>;
   /**
    * M26 — optional so an adapter that cannot carry pictures says so by omission
    * rather than by throwing. The worker refuses an image row when this is
@@ -115,6 +129,12 @@ export interface ChannelAdapter {
    * and the web chat carry none; e-mail attaches the bytes through `sendMail` instead.
    */
   sendDocument?(to: string, document: OutboundDocument): Promise<SendResult>;
+  /**
+   * Part B (5.3) — a product card. Optional like `sendMedia`: an adapter that cannot carry one says so by omission,
+   * and the worker refuses the row (`media_unsupported`). It is never sent as its transcript words instead: a line of
+   * text is not the card the owner chose.
+   */
+  sendProduct?(to: string, product: OutboundProduct): Promise<SendResult>;
   /**
    * WA-S — an approved WhatsApp message template (the only way to write after
    * the 24-hour window closed). Optional: only WhatsApp has templates.
