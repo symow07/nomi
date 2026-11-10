@@ -124,10 +124,17 @@ d('invoice payment links · tenant records and real ledger', { timeout: 120_000 
       { label: payoutLabel('received', '2026-10-11'), ref: 'po_fixture receipt', date: '2026-10-11' },
     ]);
   });
-  it('keeps a manual-payment race as an exception, never a second payment or invented credit', async () => {
+  // t1r's ruling (2026-11-10) replaces "a manual-payment race is an exception": the link's money arrived, so it is
+  // recorded whole, the excess is owed back (refund_due) and the owner is told — never a refund, never a lost payment.
+  it('records a link paid after a manual payment in full: the excess owed back, the owner to be told, posted once', async () => {
     const id = await invoice(), a = await reserve(id);
     expect((await as(tx => recordPayment(tx, BIZ, id, 'owner', { paidOn: '2026-10-10', amount: decimal('100'), journalId: journals['BK']!, accountId: accounts['1000']! }))).kind).toBe('recorded');
-    expect(await as(tx => postCapturedPayment(tx, BIZ, a.id, intent('race')))).toMatchObject({ state: 'exception', reason: 'too_much' });
+    expect(await as(tx => postCapturedPayment(tx, BIZ, a.id, intent('race')))).toEqual({ state: 'posted' });
+    expect(await as(tx => postCapturedPayment(tx, BIZ, a.id, intent('race')))).toEqual({ state: 'posted' });
+    expect((await admin.query("select amount::text,created_by='stripe' as link,stripe_attempt_id::text as attempt from invoice_payments where invoice_id=$1 order by created_at", [id])).rows)
+      .toEqual([{ amount: '100.00', link: false, attempt: null }, { amount: '100.00', link: true, attempt: a.id }]);
+    expect((await admin.query('select (invoice_total(id)-invoice_credited(id)-invoice_paid(id))::text as owed from invoices where id=$1', [id])).rows[0].owed).toBe('-100.00');
+    expect((await admin.query('select state,paid_over from stripe_checkout_attempts where id=$1', [a.id])).rows[0]).toEqual({ state: 'paid', paid_over: 'untold' });
   });
   it('keeps closed-period work visible and posts it on the original event date after reopening', async () => {
     const id = await invoice(), a = await reserve(id);
