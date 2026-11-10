@@ -60,7 +60,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   // G3 — the day's allowance is used: the order still waits.
-  'order.flash.allowance_used', 'order.flash.billing_lapsed',
+  'order.flash.allowance_used', 'order.flash.billing_lapsed', 'order.flash.billing_trial_over',
   // On PR 345 — nothing was prepared from "may be saying yes".
   'order.flash.prepare.no_maybe', 'order.flash.prepare.already_waiting', 'order.flash.prepare.bad_email',
   'order.flash.prepare.bad_quantity', 'order.flash.prepare.no_product', 'order.flash.prepare.not_priceable',
@@ -170,7 +170,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // G3 — the day's allowance is used: refused the same way.
   'takeover.flash.allowance_used', 'inbox.flash.allowance_used',
   // BILL — the payment lapsed: the same refusals, under their own name.
-  'takeover.flash.billing_lapsed', 'inbox.flash.billing_lapsed',
+  'takeover.flash.billing_lapsed', 'inbox.flash.billing_lapsed', 'takeover.flash.billing_trial_over', 'inbox.flash.billing_trial_over',
   // G10 — a translation that did not happen.
   'inbox.flash.translate.gone', 'inbox.flash.translate.unavailable', 'inbox.flash.translate.allowance', 'inbox.flash.translate.failed',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',

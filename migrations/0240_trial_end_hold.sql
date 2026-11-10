@@ -106,6 +106,33 @@ end $$;
 revoke all on function claim_billing_alerts() from public;
 grant execute on function claim_billing_alerts() to nomi_app;
 
+-- ── the hold's own name (fix round D4) ───────────────────────────────────────────────────────────────────────────
+-- A customer handed to a person because the trial ended with no card is `billing_trial_over`, never `billing_lapsed`:
+-- every page that names the hand-off's reason then says what happened, not that a subscription ended that never
+-- began. 0229's two lists, with the one kind.
+alter table conversation_signals drop constraint if exists conversation_signals_kind_check;
+alter table conversation_signals add constraint conversation_signals_kind_check
+  check (kind in (
+    'human_requested','complaint','repeated_ambiguity',
+    'low_confidence_image','high_value','customization_requested',
+    'logistics_discussed','moq_accepted','price_acknowledged',
+    'audio_unheard','media_unreadable','unlisted_number','email_reply','email_unconfirmed',
+    'assistant_stopped','ops_silenced','deletion_requested','not_answered','price_to_owner',
+    'allowance_used','stock_asked','billing_lapsed','plan_limit','provider_billing','opted_out',
+    'language_not_reviewed','maybe_confirmation','address_unwritten','language_held','procedure_handoff',
+    'billing_trial_over'));
+
+alter table escalation_events drop constraint if exists escalation_events_trigger_reason_check;
+alter table escalation_events add constraint escalation_events_trigger_reason_check
+  check (trigger_reason in (
+    'high_value','unclear_product','customization','complex_negotiation',
+    'repeated_ambiguity','client_request','logistics_payment','manual',
+    'low_confidence_image','audio_unheard','media_unreadable','unlisted_number','email_reply','email_unconfirmed',
+    'assistant_stopped','ops_silenced','deletion_requested','not_answered','price_to_owner',
+    'allowance_used','stock_asked','billing_lapsed','plan_limit','provider_billing','opted_out',
+    'language_not_reviewed','maybe_confirmation','address_unwritten','language_held','procedure_handoff',
+    'billing_trial_over'));
+
 -- The installation's switch, for the public site's pricing section (no workspace to ask about): "card up front"
 -- is said there only while it is true.
 create or replace function billing_required_on() returns boolean

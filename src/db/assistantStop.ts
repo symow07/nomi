@@ -3,7 +3,7 @@ import { withTenantTx, type Db, type Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { allowanceOf, allowanceUsed } from './allowance.js';
-import { billingHeld, planLimitReached } from './billing.js';
+import { billingHoldReason, planLimitReached } from './billing.js';
 
 /**
  * The owner's Stop, on every channel (0070, 2026-09-27).
@@ -68,14 +68,16 @@ export async function assistantStopped(tx: Tx, businessId: BusinessId | string):
  * until the allowance renews at midnight UTC. Asked in a transaction bound to
  * the business, as every caller's is: the allowance answers for that one.
  */
-export type AssistantHold = 'silenced' | 'stopped' | 'allowance' | 'billing' | null;
+export type AssistantHold = 'silenced' | 'stopped' | 'allowance' | 'billing' | 'trial_over' | null;
 
 export async function assistantHold(tx: Tx, businessId: BusinessId | string): Promise<AssistantHold> {
   if ((await loadKillSwitches(tx, String(businessId))).globalSilence) return 'silenced';
   if (await assistantStopped(tx, businessId)) return 'stopped';
   if (allowanceUsed(await allowanceOf(tx))) return 'allowance';
   // BILL (0117) — and a fourth, last: the payment lapsed. The same hold, under its own name.
-  return (await billingHeld(tx)) ? 'billing' : null;
+  // 4.1 (0240) — or the trial ended with no card while `billing_required` is on: the same hold, under its own name.
+  const why = await billingHoldReason(tx);
+  return why === 'lapsed' ? 'billing' : why === 'trial_over' ? 'trial_over' : null;
 }
 
 /**
@@ -91,12 +93,12 @@ export async function turnHold(tx: Tx, businessId: BusinessId | string, conversa
 
 /** The hand-off reason each hold gives a waiting customer. */
 export const HOLD_REASON = {
-  silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', plan_limit: 'plan_limit',
+  silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', trial_over: 'billing_trial_over', plan_limit: 'plan_limit',
 } as const satisfies Record<TurnHold, string>;
 
 /** What a refused approve, hand-back or order says, per hold: the flash keys are named after these. */
 export const HOLD_OUTCOME = {
-  silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed',
+  silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', trial_over: 'billing_trial_over',
 } as const satisfies Record<Exclude<AssistantHold, null>, string>;
 
 export async function loadAssistantStop(db: Db, businessId: BusinessId): Promise<AssistantStop> {

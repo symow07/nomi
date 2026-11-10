@@ -202,7 +202,7 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
     expect(await hold(shop.id)).toEqual({ hold: null, why: null });
     expect(await mine(shop.id)).toEqual([]);
     expect(await flagOn()).toBe(1);
-    expect(await hold(shop.id)).toEqual({ hold: 'billing', why: 'trial_over' });
+    expect(await hold(shop.id)).toEqual({ hold: 'trial_over', why: 'trial_over' });
     const { billingHeld } = await import('../../src/db/billing.js');
     expect(await inTenant(shop.id, (tx) => billingHeld(tx)), 'the one question D4 freezes on').toBe(true);
     // Told once, by its own alert, opening Billing.
@@ -248,7 +248,7 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
     // No trial granted and none by default (on request): none to wait for — held from the first channel.
     await connect(shops.none.id, new Date(Date.now() - 60_000));
     expect(await hold(shops.running.id)).toEqual({ hold: null, why: null });
-    expect(await hold(shops.none.id)).toEqual({ hold: 'billing', why: 'trial_over' });
+    expect(await hold(shops.none.id)).toEqual({ hold: 'trial_over', why: 'trial_over' });
     expect(await claimFor(shops.running.id, shops.none.id)).toEqual([[], ['billing_trial_over']]);
     // The pilot never.
     expect(await hold(PILOT)).toEqual({ hold: null, why: null });
@@ -277,7 +277,7 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
     expect(billing, 'no freeze is promised while the switch is off').not.toContain(t('en', 'billing.trialEnd.noCard'));
     // The switch on: the same rule as everyone's.
     expect(await flagOn()).toBe(1);
-    expect(await hold(shop.id)).toEqual({ hold: 'billing', why: 'trial_over' });
+    expect(await hold(shop.id)).toEqual({ hold: 'trial_over', why: 'trial_over' });
     expect(await mine(shop.id)).toEqual(['billing_trial_over']);
     expect(await flagOff()).toBe(1);
     expect(await hold(shop.id)).toEqual({ hold: null, why: null });
