@@ -486,7 +486,9 @@ import type { Db } from './client.js';
 // 235 = the owner's selected WhatsApp catalogue, batch outcomes and revocable image grants.
 // 236 = comments, owner-controlled permissions, one-reply reservations and expiring erasure digests.
 // 237 = Shopify orders in the conversation: the store's read-only connection, its switch, and each lookup's audit (0237).
-export const REQUIRED_SCHEMA_VERSION = 237;
+// 238 = ad spend beside orders: the ads connection (its own sealed token), each day's spend per placement as Meta wrote
+//       it, a re-read's history, every read's outcome, and a month and placement recorded as a cost (0238).
+export const REQUIRED_SCHEMA_VERSION = 238;
 
 export type SchemaState = {
   readonly required: number;

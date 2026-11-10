@@ -20,7 +20,7 @@ import { renderBooksHistory } from './booksHistory.js';
 import { safeBooksReturn } from './booksNavigation.js';
 import { renderBooksCashReport, renderBooksProfitReport, renderBooksSupplierReport, renderBooksSupplierEntries, renderBooksUnmatched } from './booksOverviewReports.js';
 import { readBooksOverview, readOverviewInvoices, readOverviewPapers, readOverviewPaper, readOverviewHistoryPapers, readOverviewBankLines, readOverviewCashEntries, readOverviewSuppliers, readOverviewSupplierEntries, readOverviewProfitEntries, type BooksOverviewOptions } from '../../db/booksOverview.js';
-import { renderSpendingBook } from './booksSpending.js';
+import { renderSpendingBook, type BillPrefill } from './booksSpending.js';
 import { renderOwnerReport, ownerReportSheet, OWNER_REPORT_KINDS, type OwnerReport, type OwnerReportKind } from './booksOwnerReports.js';
 import { periodFor, isSpan, madeReport, moneyReport, taxReport, customersReport, unpaidReport, type Span } from '../../db/booksOwnerReports.js';
 import { listProcedures, addProcedure, archiveProcedure } from '../../db/procedures.js';
@@ -136,7 +136,7 @@ import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
 import { practiceMediaKind } from '../../db/practiceMedia.js';
-import { decryptSecret } from '../../security/credentials.js';
+import { decryptSecret, encryptSecret, credentialFingerprint } from '../../security/credentials.js';
 import {
   loadChannels, renderChannelScreen, renderNotificationNumber, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
   channelScreenHref, channelScreenTitle, screenOfChannel,
@@ -348,6 +348,11 @@ import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, 
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
 import { fecFile, fecFileName, fecFileNameProblem, numberingProblems, FEC_FILENAME_DEFAULT } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
+import { adsDialogUrl, adsStateSecret, exchangeAdsCode, listAdAccounts, type AdsFetch, type AdsLogin } from '../../channels/meta/adSpend.js';
+import { archiveAdConnection, connectAdAccount, lastRead as lastAdRead, linkRecorded, liveAdConnection, lockAdRecord, monthComparison, recordOffer, spendMonths } from '../../db/adSpend.js';
+import { renderAdSpendCard, renderAdAccountPicker, chosenMonth, adsAsked, placeName, type AdSpendView } from './adSpend.js';
+import { parseDecimal } from '../../core/types/decimal.js';
+import { dayIn, monthDays } from '../../core/ads/spend.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
 import { addClosingJournal, addOpeningJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, startBooks, type CloseRefusal } from '../../db/booksClose.js';
@@ -583,6 +588,12 @@ export type WebDeps = {
   readonly metaLogin?: MetaLogin | null;
   readonly metaCommentsConfigId?: string | null;
   readonly metaConnect?: MetaConnectDeps;
+  /**
+   * 0238 — the ads login (a second configuration, `ads_read` only) and the fetch it reads Meta with. Absent:
+   * ad spend is not offered, and every one of its routes refuses.
+   */
+  readonly adsLogin?: AdsLogin | null;
+  readonly adsFetch?: AdsFetch;
   /** 0215 — a business connects its own TikTok account (docs/TIKTOK-CHANNEL.md, surface A), where this host has the app. */
   readonly tiktokConnect?: TikTokConnectDeps;
   /** WA — Embedded Signup: a business connects its own WhatsApp number. Absent: not offered. */
@@ -3676,7 +3687,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const book = asked==='history' ? '' : await withTenantTx(deps.db, bid, async (tx) => {
       const today = await spendingToday(tx, bid);
       const monthFrom = `${today.slice(0, 7)}-01`;
-      return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today) }, await spendingChoices(tx, bid));
+      const choices = await spendingChoices(tx, bid);
+      // 0238 — "Record as a cost" from Results: the form filled from Meta's figure, marked estimated. The owner's only.
+      const ads = booksMay(personOf(s), 'post') ? adsAsked((req.query as { ads?: unknown }).ads) : null;
+      const offer = ads ? await recordOffer(tx, bid, ads.month, ads.platform) : null;
+      let prefill: BillPrefill | undefined;
+      if (ads && offer && offer !== 'recorded') {
+        const place = placeName('en', offer.platform);
+        const sameCurrency = offer.currency === choices.bookCurrency;
+        const typed = readTypedAmount(offer.amount);
+        const exact = sameCurrency && typed !== null && typed !== 'ambiguous' && typed === parseDecimal(offer.amount);
+        const last = monthDays(offer.month)!.last;
+        prefill = { ads: `${offer.month}.${offer.platform}`, label: t('en', 'adSpend.prefill.label', { platform: place, month: offer.month }),
+          date: last < today ? last : today, gross: exact ? offer.amount : null,
+          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: `${offer.currency} ${offer.amount}` }),
+            ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
+      }
+      return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today), ...(prefill ? { prefill } : {}) }, choices);
     });
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+book+body}));
   });
@@ -3702,10 +3729,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const date = dayOf(str('date'));
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
     const noNumber = str('noref') === '1';
-    const out = await withTenantTx(deps.db, got.bid, (tx) => recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
-      taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') }));
+    // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
+    // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
+    const ads = typeof f['ads'] === 'string' && str('ads') !== '' ? adsAsked(str('ads')) : undefined;
+    if (ads === null) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    const out = await withTenantTx(deps.db, got.bid, async (tx) => {
+      let offer: Awaited<ReturnType<typeof recordOffer>> = null;
+      if (ads) {
+        await lockAdRecord(tx, got.bid);
+        offer = await recordOffer(tx, got.bid, ads.month, ads.platform);
+        if (!offer || offer === 'recorded') return { kind: 'ads_refused' as const };
+      }
+      const r = await recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
+        taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') });
+      if (r.kind === 'posted' && offer) await linkRecorded(tx, got.bid, offer, r.billId, personOf(got.s).id);
+      return r;
+    });
+    if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
-      : flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
+      : flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
   });
   app.post('/app/books/spending/bills/:id/pay', async (req, reply) => {
     const got = await spendingOwner(req, reply); if (!got) return reply;
@@ -7137,7 +7180,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ]);
       body = renderPilotScreen('activity', runbook, locale, feedback);
     } else {
-      body = renderAnalytics(await loadAnalytics(deps.db, s.businessId, parseRange(query.range)), locale);
+      body = renderAnalytics(await loadAnalytics(deps.db, s.businessId, parseRange(query.range)), locale)
+        + await adSpendCard(s, locale, (req.query as { month?: unknown }).month);
     }
     return { title: t(locale, 'area1.results.title'), bodyHtml: views + body };
   }));
@@ -8144,6 +8188,120 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       userTokenCiphertext: state.tokenCiphertext, pageId,
     });
     return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('meta')) : metaFlash(reply, r);
+  });
+
+  /**
+   * 0238 — AD SPEND. The owner turns it on from Results: a SECOND Meta login (its own configuration, `ads_read`
+   * only — the Page connect above never asks for it), then one ad account chosen from those the token sees.
+   * Owner only on the same decision as the Page connect (`messaging_activation`: connecting one of her Meta
+   * accounts to Nomi), and the operator's stops (`connectionRefusal`) refuse start, callback and choose as they
+   * refuse the Page's. The state is signed with a key of its own, so a Page connect's state never finishes this.
+   * Without the ads login, every route here refuses and nothing is asked of Meta.
+   */
+  const ADS_COOKIE = 'yf_ads';
+  const ADS_HOME = '/app/results#ad-spend';
+  const adsRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/meta-ads/callback`;
+  const adsReady = (): { login: AdsLogin; fetchImpl: AdsFetch; key: Buffer } | null =>
+    deps.adsLogin && deps.adsFetch && deps.publicBaseUrl && deps.credentialKey
+      ? { login: deps.adsLogin, fetchImpl: deps.adsFetch, key: deps.credentialKey } : null;
+  const adsFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string>) => flashTo(reply, ADS_HOME, key, params);
+
+  /** The Results card: nothing without the ads login; staff told it is the owner's; the owner sees the month. */
+  const adSpendCard = async (s: OwnerSession, locale: Locale, askedMonth: unknown): Promise<string> => {
+    if (!adsReady()) return '';
+    if (!mayDo(personOf(s), 'messaging_activation')) return renderAdSpendCard(locale, { kind: 'staff' });
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return '';
+    const now = new Date();
+    const view: AdSpendView = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const c = await liveAdConnection(tx, bid.value);
+      if (!c) return { kind: 'off' as const };
+      const month = chosenMonth(askedMonth, dayIn(now, c.timezone));
+      return {
+        kind: 'on' as const, connection: c, workspaceZone: await zoneOf(tx, bid.value), now,
+        months: await spendMonths(tx, bid.value, c.adAccountId), month,
+        comparison: await monthComparison(tx, bid.value, c, month), lastRead: await lastAdRead(tx, bid.value, c.id),
+      };
+    });
+    return renderAdSpendCard(locale, view);
+  };
+
+  app.get('/app/connect/meta-ads/start', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', ADS_HOME); if (!s) return reply;
+    const ads = adsReady();
+    if (!ads) return adsFlash(reply, 'adSpend.flash.notConfigured');
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return adsFlash(reply, refused);
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, ADS_COOKIE,
+      mintMetaState(adsStateSecret(deps.sessionSecret), { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
+      { path: '/app/connect', maxAgeSec: 600 });
+    return reply.redirect(adsDialogUrl(ads.login, { redirectUri: adsRedirectUri(), state: nonce }));
+  });
+
+  app.get('/app/connect/meta-ads/callback', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', ADS_HOME); if (!s) return reply;
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[ADS_COOKIE];
+    writeCookie(reply, ADS_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    const ads = adsReady();
+    if (!ads) return adsFlash(reply, 'adSpend.flash.notConfigured');
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return adsFlash(reply, refused);
+    const state = readMetaState(adsStateSecret(deps.sessionSecret), cookie, Date.now());
+    if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
+      return adsFlash(reply, 'adSpend.flash.expired');
+    }
+    if (q.error || typeof q.code !== 'string' || !q.code) return adsFlash(reply, 'adSpend.flash.denied');
+    const ex = await exchangeAdsCode(ads.login, { code: q.code.slice(0, 2048), redirectUri: adsRedirectUri() }, ads.fetchImpl);
+    if (!ex.ok) return adsFlash(reply, ex.reason === 'unavailable' ? 'adSpend.flash.unavailable' : 'adSpend.flash.denied');
+    const listed = await listAdAccounts(ex.userToken, ads.fetchImpl);
+    if (!listed.ok) return adsFlash(reply, listed.reason === 'unavailable' ? 'adSpend.flash.unavailable' : 'adSpend.flash.denied');
+    if (listed.accounts.length === 0) return adsFlash(reply, 'adSpend.flash.noAccounts');
+    const carried = mintMetaState(adsStateSecret(deps.sessionSecret),
+      { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: encryptSecret(ex.userToken, ads.key) }, Date.now());
+    // The address still holds Meta's (spent) code: it never leaves in a Referer.
+    return reply.type('text/html; charset=utf-8').header('referrer-policy', 'no-referrer').send(page(req, {
+      title: t(locale, 'adSpend.choose.title'), active: 'analytics',
+      bodyHtml: renderAdAccountPicker(listed.accounts, carried, locale),
+    }));
+  });
+
+  app.post('/app/connect/meta-ads/choose', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', ADS_HOME); if (!s) return reply;
+    const ads = adsReady();
+    if (!ads) return adsFlash(reply, 'adSpend.flash.notConfigured');
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return adsFlash(reply, refused);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const state = readMetaState(adsStateSecret(deps.sessionSecret), typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
+    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) return adsFlash(reply, 'adSpend.flash.expired');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return adsFlash(reply, 'adSpend.flash.expired');
+    let token: string;
+    try { token = decryptSecret(state.tokenCiphertext, ads.key).plain; } catch { return adsFlash(reply, 'adSpend.flash.expired'); }
+    // Read again, so the account is one the token really sees — never what the form claims of it.
+    const listed = await listAdAccounts(token, ads.fetchImpl);
+    if (!listed.ok) return adsFlash(reply, listed.reason === 'unavailable' ? 'adSpend.flash.unavailable' : 'adSpend.flash.denied');
+    const wanted = typeof b['account_id'] === 'string' ? b['account_id'] : '';
+    const account = listed.accounts.find((a) => a.accountId === wanted);
+    if (!account) return adsFlash(reply, 'adSpend.flash.noAccounts');
+    await withTenantTx(deps.db, bid.value, (tx) => connectAdAccount(tx, bid.value, {
+      adAccountId: account.accountId, name: account.name, currency: account.currency, timezone: account.timezone,
+      ciphertext: encryptSecret(token, ads.key), fingerprint: credentialFingerprint(token), by: personOf(s).name,
+    }));
+    return adsFlash(reply, 'adSpend.flash.connected');
+  });
+
+  /** Archives the connection here; nothing is asked of Meta (the owner removes the app's access on Meta's side). */
+  app.post('/app/connect/meta-ads/disconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', ADS_HOME); if (!s) return reply;
+    if (!adsReady()) return adsFlash(reply, 'adSpend.flash.notConfigured');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return adsFlash(reply, 'adSpend.flash.notConfigured');
+    await withTenantTx(deps.db, bid.value, (tx) => archiveAdConnection(tx, bid.value, personOf(s).name));
+    return adsFlash(reply, 'adSpend.flash.disconnected');
   });
 
   /**

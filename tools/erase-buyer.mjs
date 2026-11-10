@@ -364,6 +364,12 @@ export const RULES = Object.freeze({
   shopify_connections: { do: 'unrelated' },   // 0237 — a business's own Shopify store and its sealed credential; no customer in it
   // 0237 — that a customer's Shopify order was looked up: when, the outcome, the verified order's name. Theirs.
   shopify_order_lookups: { do: 'erase' },
+  // 0238 — the business's own ad account and Meta's spend by day and placement; no customer in any of it.
+  ad_spend_connections: { do: 'unrelated' },
+  ad_spend_days: { do: 'unrelated' },
+  ad_spend_day_history: { do: 'unrelated' },
+  ad_spend_reads: { do: 'unrelated' },
+  ad_spend_recorded: { do: 'unrelated' },
   undelivered_alerts: { do: 'unrelated' },   // 0217 — an operator alert or account letter that reached nobody; no customer in it
   whatsapp_accounts: { do: 'unrelated' },
   whatsapp_templates: { do: 'unrelated' },
