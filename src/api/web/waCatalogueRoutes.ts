@@ -12,7 +12,7 @@ import { liveWhatsAppAccount, type WhatsAppAccount } from '../../db/whatsappAcco
 import { whatsAppAccountToken } from '../../channels/whatsapp/connect.js';
 import { catalogueClient as makeClient, type CatalogueClient } from '../../net/waCatalogue.js';
 import { catalogueProducts, catalogueReview, saveCatalogueProduct, previewCatalogue, submitCatalogue, checkCatalogue, catalogueImage, type CatalogueDeps } from '../../db/waCatalogue.js';
-import { renderCatalogue, renderCatalogueReview } from './waCatalogue.js';
+import { renderCatalogue, renderCatalogueReview, LINE } from './waCatalogue.js';
 import { productArea } from './productArea.js';
 import { t } from './say.js';
 
@@ -22,7 +22,7 @@ type Helpers={
   authed:(render:Render)=>(req:FastifyRequest,reply:FastifyReply)=>Promise<FastifyReply>;
   owner:(req:FastifyRequest,reply:FastifyReply)=>Promise<OwnerSession|null>;
   viewer:(s:OwnerSession)=>Viewer & {id:string};
-  flash:(reply:FastifyReply,to:string,key:MessageKey)=>FastifyReply;
+  flash:(reply:FastifyReply,to:string,key:MessageKey,params?:Record<string,string|number>)=>FastifyReply;
   takeFlash:(req:FastifyRequest,reply:FastifyReply)=>Flash|null;
   locale:(req:FastifyRequest)=>Locale;
   page:(req:FastifyRequest,draw:Draw)=>string;
@@ -36,6 +36,24 @@ const notice=(reason:string):MessageKey=>({
   unknown:'waCatalog.flash.unknown',pending:'waCatalog.flash.pending',finished:'waCatalog.flash.finished',empty:'waCatalog.flash.empty',
   image_address:'waCatalog.flash.imageAddress',too_large:'waCatalog.flash.tooLarge',changed_catalogue:'waCatalog.flash.changedCatalogue',
 }[reason]??'waCatalog.flash.failed') as MessageKey;
+
+/**
+ * The lines the owner ticked: one `line:<id>` field each, present only when ticked. Null refuses the whole form —
+ * a malformed line, a value sent twice, or the old shared `selected` field (a review page drawn before each line had
+ * its own field, whose ticks the form reader would have cut to one). Whether each id is on this review, in this
+ * workspace, is submitCatalogue's to refuse.
+ */
+export function tickedLines(body:Record<string,unknown>):string[]|null {
+  if('selected' in body)return null;
+  const ids:string[]=[];
+  for(const [key,value] of Object.entries(body)){
+    if(!key.startsWith(LINE))continue;
+    const id=key.slice(LINE.length);
+    if(!UUID.test(id)||typeof value!=='string')return null;
+    ids.push(id);
+  }
+  return ids;
+}
 
 /** All mutations reuse price_rules authorization; no send path is reachable from these routes. */
 export function registerCatalogueRoutes(app:FastifyInstance,deps:CatalogueWebDeps,h:Helpers):void {
@@ -96,10 +114,12 @@ export function registerCatalogueRoutes(app:FastifyInstance,deps:CatalogueWebDep
     const bid=parseBusinessId(s.businessId),id=(req.params as {batchId:string}).batchId;
     if(!bid.ok||!UUID.test(id))return h.flash(reply,HOME,'waCatalog.flash.changed');
     const c=await context(bid.value);if(!c)return h.flash(reply,HOME,'waCatalog.flash.connection');
-    const raw=((req.body??{}) as {selected?:unknown}).selected;
-    const checked=raw===undefined?[]:Array.isArray(raw)?raw:[raw];
-    if(checked.some(v=>typeof v!=='string'||!UUID.test(v)))return h.flash(reply,HOME,'waCatalog.flash.changed');
-    const outcome=await submitCatalogue(c,bid.value,id,checked as string[]);
+    const checked=tickedLines((req.body??{}) as Record<string,unknown>);
+    if(!checked)return h.flash(reply,HOME,'waCatalog.flash.changed');
+    const outcome=await submitCatalogue(c,bid.value,id,checked);
+    // The count is what went: submitCatalogue sends every line it was given or none of them.
+    if(outcome.ok&&outcome.state==='pending')
+      return h.flash(reply,HOME+'/review/'+id,checked.length===1?'waCatalog.flash.submitted.one':'waCatalog.flash.submitted.other',{n:checked.length});
     return h.flash(reply,HOME+'/review/'+id,notice(outcome.ok?outcome.state:outcome.reason));
   });
   app.post(HOME+'/batches/:batchId/check',async(req,reply)=>{

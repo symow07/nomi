@@ -9,7 +9,11 @@ import { moneyFromRow } from '../../core/types/money.js';
 import * as show from './values.js';
 import { WA_CATALOGUE_EN } from '../../core/owner/i18n/waCatalogue.js';
 const words=(locale:Locale,key:MessageKey)=>`<bdi lang="en" dir="ltr" class="wc-words">${esc(t(locale,key))}</bdi>`;
-const banner=(f:Flash|null)=>f?flashBanner(f).replace(esc(f.text),Object.values(WA_CATALOGUE_EN).some(v=>v===f.text)
+/** Each line its own field: the app's form reader keeps one value per name, so one shared name lost every tick but the last. */
+export const LINE='line:';
+/** An English sentence of this area, its {n} a whole number (isolated, as every figure is, on a right-to-left page). */
+const ENGLISH=Object.values(WA_CATALOGUE_EN).map(v=>new RegExp('^'+v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace('\\{n\\}','\\u2068?[0-9]+\\u2069?')+'$'));
+const banner=(f:Flash|null)=>f?flashBanner(f).replace(esc(f.text),ENGLISH.some(v=>v.test(f.text))
   ?`<bdi lang="en" dir="ltr" class="wc-words">${esc(f.text)}</bdi>`:`<bdi dir="auto">${esc(f.text)}</bdi>`):'';
 const errorWords=(locale:Locale,error:string):string=>{
   const key=({image_expired:'waCatalog.imageExpired',changed:'waCatalog.flash.changed',unknown:'waCatalog.unknown',
@@ -45,7 +49,7 @@ export function renderCatalogue(locale:Locale,rows:CatalogueRow[],owner:boolean,
 }
 export function renderCatalogueReview(locale:Locale,review:CatalogueReview,owner:boolean,flash:Flash|null=null):string {
   const preview=review.state==='preview',lines=review.items.filter(i=>preview||i.selected);
-  const rows=lines.map(row=>`<div class="wc-review-row">${preview&&owner?`<label class="wc-check"><input type="checkbox" name="selected" value="${esc(row.id)}"><bdi>${esc(row.snapshot.name)}</bdi></label>`:`<h2><bdi>${esc(row.snapshot.name)}</bdi></h2>`}
+  const rows=lines.map(row=>`<div class="wc-review-row">${preview&&owner?`<label class="wc-check"><input type="checkbox" name="${LINE}${esc(row.id)}"><bdi>${esc(row.snapshot.name)}</bdi></label>`:`<h2><bdi>${esc(row.snapshot.name)}</bdi></h2>`}
     <p>${words(locale,row.operation==='CREATE'?'waCatalog.create':row.operation==='UPDATE'?'waCatalog.updateItem':'waCatalog.delete')} · ${price(locale,row.snapshot)}</p>
     ${row.snapshot.reasons.length?`<ul>${reasons(locale,row.snapshot)}</ul>`:''}
     ${row.result==='synced'?`<p>${words(locale,'waCatalog.synced')}</p>`:row.error?`<p>${errorWords(locale,row.error)}</p>`:''}

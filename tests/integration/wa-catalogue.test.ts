@@ -241,4 +241,97 @@ d('The owner-selected catalogue (requires DATABASE_URL)', () => {
       await refusal(grant.token);
     }finally{await app.close();}
   });
+
+  /**
+   * C04 — the review form as a BROWSER posts it: the boxes the rendered page draws, the ticked ones sent once each,
+   * through the real route and the app's own form reader. Before each line had its own field, every box was named
+   * `selected` and the reader kept only the last, so two ticks submitted one and the page still said they had gone.
+   */
+  describe('the review form, posted as a browser posts it (C04)',()=>{
+    const routeCase=async(products:number)=>{
+      const f=await fixture();for(let i=1;i<products;i++) await fixture(f.biz);
+      const secret='catalogue-c04-session-secret-long-enough',code='c04-owner-'+randomUUID();
+      const sent:string[][]=[];
+      const app=Fastify({logger:false});
+      registerWebApp(app,{db,businessId:f.biz,accessCode:code,sessionSecret:secret,provider:'disabled',secureCookie:false,
+        publicBaseUrl:'https://nomi.example',catalogueClient:()=>({linked:async()=>({ok:true,catalogId:'456'}),
+          submit:async(_c:string,items:{data:Record<string,unknown>}[])=>{sent.push(items.map(r=>String(r.data['id'])));return {ok:true,handle:'c04-handle',invalid:{},warnings:{}};},
+          status:async()=>({ok:true,finished:false,invalid:{},warnings:{}})}),
+      } as unknown as Parameters<typeof registerWebApp>[1]);
+      await app.ready();
+      const form=(cookie:string,url:string,body:string)=>app.inject({method:'POST',url,headers:{cookie,'content-type':'application/x-www-form-urlencoded'},payload:body});
+      const owner=String((await form('','/login',new URLSearchParams({code}).toString())).headers['set-cookie']).split(';')[0]!;
+      const preview=await form(owner,'/app/products/whatsapp/preview','');
+      const at=preview.headers.location!;const batch=at.split('/').pop()!;
+      const page=(await app.inject({url:at,headers:{cookie:owner}})).body;
+      // Each box as the browser holds it: a ticked box posts name=value, its value "on" when it has none.
+      const boxes=[...page.matchAll(/<input type="checkbox" name="([^"]+)"(?: value="([^"]+)")?/g)].map(m=>[m[1]!,m[2]??'on'] as [string,string]);
+      /** The review line a box stands for: its own name now; its value when every box shared one name. */
+      const lineOf=([name,value]:[string,string])=>name.startsWith('line:')?name.slice('line:'.length):value;
+      const retailer=async(box:[string,string])=>(await one(`select snapshot->>'retailerId' as r from wa_catalogue_batch_items where id=$1`,[lineOf(box)])).r as string;
+      /** Post these fields; follow the redirect with the notice cookie, as the browser does. */
+      const submit=async(pairs:[string,string][])=>{
+        const r=await form(owner,at,new URLSearchParams(pairs).toString());
+        expect(r.statusCode).toBe(302);
+        const notice=String(r.headers['set-cookie']??'').split(';')[0]!;
+        const next=await app.inject({url:r.headers.location!,headers:{cookie:owner+(notice?'; '+notice:'')}});
+        return {to:r.headers.location!,body:next.body};
+      };
+      const chosen=async()=>(await admin.query(`select id from wa_catalogue_batch_items where batch_id=$1 and selected order by id`,[batch])).rows.map(r=>r.id as string);
+      const lines=async()=>(await admin.query(`select id from wa_catalogue_batch_items where batch_id=$1 order by id`,[batch])).rows.map(r=>r.id as string);
+      return {f,app,boxes,submit,sent,batch,retailer,chosen,lines,lineOf};
+    };
+    for(const [ticks,of] of [[2,4],[3,4],[4,4]] as const)
+      it(`${ticks} of ${of} lines ticked: exactly those ${ticks} are submitted, and the page says ${ticks}`,async()=>{
+        const c=await routeCase(of);
+        try{
+          expect(c.boxes).toHaveLength(of);
+          const ticked=c.boxes.slice(0,ticks);
+          const {body}=await c.submit(ticked);
+          expect(c.sent).toHaveLength(1);
+          expect([...c.sent[0]!].sort()).toEqual((await Promise.all(ticked.map(c.retailer))).sort());
+          expect(await c.chosen()).toEqual(ticked.map(c.lineOf).sort());
+          expect(body).toContain(`${ticks} changes were submitted.`);
+          expect(body).not.toContain('The ticked changes were submitted');
+        }finally{await c.app.close();}
+      });
+    it('one line ticked says one change',async()=>{
+      const c=await routeCase(2);
+      try{
+        const {body}=await c.submit([c.boxes[1]!]);
+        expect(c.sent).toEqual([[await c.retailer(c.boxes[1]!)]]);
+        expect(body).toContain('1 change was submitted.');
+      }finally{await c.app.close();}
+    });
+    it('none ticked: nothing is submitted, and the page says so',async()=>{
+      const c=await routeCase(3);
+      try{
+        const {body}=await c.submit([]);
+        expect(c.sent).toHaveLength(0);expect(await c.chosen()).toEqual([]);
+        expect(body).toContain('Nothing was ticked, so nothing was submitted.');
+        expect(body).not.toMatch(/changes? (?:was|were) submitted/);
+      }finally{await c.app.close();}
+    });
+    it('a forged line — not an id, not on this review, or another workspace\'s — refuses the whole form; nothing goes',async()=>{
+      const c=await routeCase(2),elsewhere=await scenario();
+      try{
+        for(const forged of [[['line:not-an-id','on']],[['line:'+randomUUID(),'on']],[['line:'+elsewhere.item.id,'on']],
+          [c.boxes[0]!,['line:'+elsewhere.item.id,'on']],[c.boxes[0]!,['line:'+randomUUID(),'on']]] as [string,string][][]){
+          const {body}=await c.submit(forged);
+          expect(body).toContain('Something changed after this review.');
+          expect(body).not.toMatch(/changes? (?:was|were) submitted/);
+        }
+        expect(c.sent).toHaveLength(0);expect(elsewhere.calls).toHaveLength(0);expect(await c.chosen()).toEqual([]);
+        expect((await one(`select state from wa_catalogue_batches where id=$1`,[c.batch])).state).toBe('preview');
+        expect((await one(`select count(*)::int as n from wa_catalogue_batch_items where id=$1 and selected`,[elsewhere.item.id])).n).toBe(0);
+      }finally{await c.app.close();}
+    });
+    it('the old shared field, from a page drawn before this one, is refused, never cut to its last value',async()=>{
+      const c=await routeCase(2);
+      try{
+        const {body}=await c.submit((await c.lines()).map(id=>['selected',id]));
+        expect(c.sent).toHaveLength(0);expect(body).toContain('Something changed after this review.');
+      }finally{await c.app.close();}
+    });
+  });
 });

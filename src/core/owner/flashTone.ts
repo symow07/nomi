@@ -164,7 +164,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
-  'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
+  'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.submitted.one', 'waCatalog.flash.submitted.other', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
   'card.flash.sent',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
   'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',

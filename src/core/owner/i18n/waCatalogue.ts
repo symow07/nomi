@@ -68,6 +68,8 @@ export const WA_CATALOGUE_EN = {
   'waCatalog.flash.noCatalogue': 'Link a product catalogue to your WhatsApp account in Meta Commerce Manager, then try again.',
   'waCatalog.flash.unknown': 'Meta did not give a clear result. Nothing is marked accepted.',
   'waCatalog.flash.pending': 'The ticked changes were submitted. Check the result before relying on them.',
+  'waCatalog.flash.submitted.one': '{n} change was submitted. Check the result before relying on it.',
+  'waCatalog.flash.submitted.other': '{n} changes were submitted. Check the result before relying on them.',
   'waCatalog.flash.finished': 'The result is ready. Read each item below for any change that was refused.',
   'waCatalog.flash.empty': 'Nothing was ticked, so nothing was submitted.',
   'waCatalog.flash.imageAddress': 'The public photo address is not ready. Nothing was submitted.',
