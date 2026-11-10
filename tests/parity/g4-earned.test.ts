@@ -59,8 +59,10 @@ describe('G4 · the rule, where it is decided', () => {
     // LG — and the language's first five, beside it.
     // 0163 — and not withdrawn in this language.
     // S4 (2026-10-22) — strict mode joined the conditions: where a language is strict, only signed sentences.
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);');
-    expect(turn).toContain("...(!earned ? { reason: 'not_earned' } :");
+    // Changed by the approved 5.5 order-facts patch: a reply using a Shopify order never goes alone (`!orderHeld`).
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (!orderHeld && earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);');
+    // Changed by the approved 5.5 order-facts patch: `order_facts` is named before every other reason.
+    expect(turn).toContain("...(orderHeld ? { reason: 'order_facts' } : !earned ? { reason: 'not_earned' } :");
   });
   it('the one function answers for the caller only, from the workspace that pays, and no outside a tenant', () => {
     const m = src('migrations/0102_sending_alone_earned.sql');

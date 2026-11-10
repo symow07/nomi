@@ -92,6 +92,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'procedures.flash.refused.title_missing', 'procedures.flash.refused.title_long', 'procedures.flash.refused.steps_missing', 'procedures.flash.refused.steps_many',
   'procedures.flash.refused.step_long', 'procedures.flash.refused.money', 'procedures.flash.refused.price', 'procedures.flash.refused.promise',
   'procedures.flash.refused.injection', 'procedures.flash.refused.after_handoff',
+  // 5.5 — a switch or disconnect asked of a workspace with no store connected.
+  'shopifyOrders.flash.nothing',
   'cases.flash.notDone', 'cases.flash.gone', 'cases.flash.failed',
   'copilot.flash.notSuggested.nothing_to_answer', 'copilot.flash.notSuggested.deletion', 'copilot.flash.notSuggested.allowance',
   'copilot.flash.notSuggested.no_reply', 'copilot.flash.notSuggested.unavailable',
@@ -217,6 +219,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'monthMail.flash.minutesSaved', 'monthMail.flash.minutesCleared', 'monthMail.flash.mailOff', 'monthMail.flash.mailOn',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted',
+  // 5.5 — Shopify order questions: connected, switched on or off, disconnected.
+  'shopifyOrders.flash.connected', 'shopifyOrders.flash.on', 'shopifyOrders.flash.off', 'shopifyOrders.flash.disconnected',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
   'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',

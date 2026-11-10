@@ -16,6 +16,8 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { sellsByQuantity, tradesForExport } from '../../core/owner/sellingStyle.js';
 import { stageFacts, stageOf, type Stage } from '../../db/customerStage.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { orderSourcedOf, type OrderSourced } from '../../pipeline/orderSourced.js';
+import { sayOnPage } from './shopifyOrders.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
@@ -725,7 +727,7 @@ export type ConversationDetail = {
       | { readonly reason: ReminderWithheld; readonly key: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
-      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' } | null;
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -734,6 +736,12 @@ export type ConversationDetail = {
     procedure?: { readonly title: string; readonly step: number; readonly of: number; readonly do?: string } | null;
     /** G10 — the owner's translation of it, kept on the draft; never sent. */
     translation?: { readonly text: string; readonly locale: string } | null;
+    /**
+     * 5.5 — an `order_facts` draft's record of which of its own figures the verified Shopify order holds, and the
+     * order's name (src/pipeline/orderSourced.ts). The reading names the order as their source; nothing else of the
+     * order is kept. Absent or null: those figures read as having no source.
+     */
+    orderSourced?: OrderSourced | null;
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
@@ -1022,13 +1030,17 @@ export async function loadConversationDetail(
     // `draft_pending` event the turn wrote beside THIS draft.
     const draft = (await sql<{
       id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null;
-      translation: string | null; translation_locale: string | null;
+      translation: string | null; translation_locale: string | null; sourced: unknown;
     }>`
       select d.id, d.draft_text, d.capability, d.owner_edit, d.translation, d.translation_locale,
              (select e.payload from conversation_events e
                where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
                  and e.payload->>'draftId' = d.id::text
-               order by e.id desc limit 1) as pending
+               order by e.id desc limit 1) as pending,
+             (select e.payload from conversation_events e
+               where e.conversation_id = d.conversation_id and e.type = 'order_sourced'
+                 and e.payload->>'draftId' = d.id::text
+               order by e.id desc limit 1) as sourced
         from drafts d where d.conversation_id = ${conversationId} and d.status = 'pending'
        order by d.created_at desc, d.id desc limit 1
     `.execute(tx)).rows[0];
@@ -1134,7 +1146,9 @@ export async function loadConversationDetail(
             ownerEdit: draft.owner_edit,
             language: typeof draft.pending?.['language'] === 'string' ? String(draft.pending['language']).slice(0, 8) : null,
             procedure: procedureOf(draft.pending?.['procedure']),
-            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
+            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null,
+            // 5.5 — only beside a draft that waits because it uses an order.
+            orderSourced: withheldOf(draft.pending?.['withheld'])?.reason === 'order_facts' ? orderSourcedOf(draft.sourced) : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
       ownerTesting: head.owner_testing === true,
@@ -1284,11 +1298,12 @@ export const perPiece = (locale: Locale, m: Money): string => `${show.money(loca
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
-  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' }
   | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  // 0237 — a reply built on a verified Shopify order (or its fixed refusal) always waits for the owner.
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown' || reason === 'order_facts') return { reason };
   if (reason === 'owner_follow_up') return { reason };
   // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
   if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
@@ -1958,14 +1973,17 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   const r = d.reading ?? null;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
-  const waits = (sentence: string, english = false) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
-    esc(t(locale, 'card.waiting'))}</b> ${english ? `<bdi lang="en" dir="ltr">${esc(sentence)}</bdi>` : esc(sentence)}</p>`;
+  const waitsHtml = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
+    esc(t(locale, 'card.waiting'))}</b> ${sentence}</p>`;
+  const waits = (sentence: string, english = false) => waitsHtml(english ? `<bdi lang="en" dir="ltr">${esc(sentence)}</bdi>` : esc(sentence));
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     // 0229 — which step of the owner's procedure this reply does.
     p.procedure ? `<p class="stateline" role="note">${esc(t(locale, 'inbox.draft.procedure', { title: p.procedure.title, step: p.procedure.step, of: p.procedure.of, do: p.procedure.do ?? '' }))}</p>` : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
-    p.withheld ? waits('language' in p.withheld
+    // 5.5 — its sentence is English only: on an Arabic page it is set apart as English, its full stop on its own side.
+    p.withheld?.reason === 'order_facts' ? waitsHtml(sayOnPage(locale, 'inbox.draft.held.order_facts', { name }))
+    : p.withheld ? waits('language' in p.withheld
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
       : 'key' in p.withheld
         ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, key: String(p.withheld.key) })
@@ -2017,6 +2035,8 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),
     heldQuantity: d.quantity,
     productCodes: [ownSku(d.product.sku)].filter((x): x is string => x !== null),
+    // 5.5 — the figures of this reply its verified Shopify order holds, as recorded beside the draft.
+    orderFigures: p.orderSourced?.figures ?? [],
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
     l.words !== undefined ? l.words
@@ -2047,7 +2067,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
   };
   const inspectFigure = (l: Extract<ReadingLine, { kind: 'figure' }>): string => {
-    if (l.source === 'unsourced') return '';
+    if (l.source === 'unsourced' || l.source === 'order') return '';
     const inspect = (body: string) => `<details class="reading-proof"><summary>${esc(t(locale, 'inbox.tools.source', { value: figure(l) }))}</summary>${body}</details>`;
     if (l.source === 'their_words') {
       const index = d.messages.findIndex((m) => m.direction === 'inbound' && (l.words !== undefined ? m.text === l.customerText : extractNumerals(m.text).some((n) => near(n.value, l.value))));
@@ -2076,6 +2096,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
       : line(l.source !== 'unsourced', figure(l), (l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
+        : l.source === 'order' ? sayOnPage(locale, 'card.source.order', { order: p.orderSourced?.order ?? '' })
         : esc(t(locale, `card.source.${l.source}` as MessageKey))), l.source === 'unsourced' ? whereIn(l.value) : '', inspectFigure(l))),
     ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
