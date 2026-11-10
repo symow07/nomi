@@ -76,6 +76,11 @@ export async function billingHeld(tx: Tx): Promise<boolean> {
   return (await sql<{ h: boolean }>`select billing_held() as h`.execute(tx)).rows[0]?.h === true;
 }
 
+/** The installation's switch `billing_required` (0240's `billing_required_on()`): the trial's end holds only while it is on. */
+export async function billingRequiredOn(tx: Tx | Db): Promise<boolean> {
+  return (await sql<{ on: boolean }>`select billing_required_on() as on`.execute(tx)).rows[0]?.on === true;
+}
+
 /** Which hold (0240): the subscription lapsed, or the trial ended with no card. Null: none. */
 export type BillingHold = 'lapsed' | 'trial_over';
 export async function billingHoldReason(tx: Tx): Promise<BillingHold | null> {
@@ -175,7 +180,7 @@ export async function sitePricing(db: Db): Promise<SitePricing | null> {
     const plans = await plansOnOffer(db);
     if (plans.length === 0) return null;
     const trialDays = await selfServeTrialDays(db);
-    const cardFirst = (await sql<{ on: boolean }>`select billing_required_on() as on`.execute(db)).rows[0]?.on === true;
+    const cardFirst = await billingRequiredOn(db);
     return { plans, trialDays, cardFirst };
   } catch {
     return null;

@@ -63,7 +63,8 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
       headers: { 'content-type': 'application/json', 'stripe-signature': `t=${at},v1=${createHmac('sha256', WHSEC).update(`${at}.${body}`).digest('hex')}` } });
   };
   type Shop = { id: string; cookie: string };
-  const shops: Record<'card' | 'nocard' | 'running' | 'none', Shop> = {} as Record<'card' | 'nocard' | 'running' | 'none', Shop>;
+  type Kind = 'card' | 'nocard' | 'running' | 'none' | 'medium';
+  const shops: Record<Kind, Shop> = {} as Record<Kind, Shop>;
   let pilotCookie = '';
   let defaultDays: number | null = null;
   const row = async (id: string) => (await admin.query(`select * from workspace_billing where business_id = $1`, [id])).rows[0];
@@ -118,7 +119,7 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
     registerWebApp(bare, base as unknown as Parameters<typeof registerWebApp>[1]);
     await bare.ready();
     pilotCookie = cookieOf(await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`, headers: FORM }));
-    for (const k of ['card', 'nocard', 'running', 'none'] as const) {
+    for (const k of ['card', 'nocard', 'running', 'none', 'medium'] as const) {
       const email = `p41-${k}-${RUN}@shop.example`;
       const made = await provisionAccount(db, {
         factory: `4.1 ${k} ${RUN}`, language: 'en', ownerName: 'Maya', email, passwordHash: await hashPassword(`p41-password-${RUN}`),
@@ -256,6 +257,30 @@ d('4.1 · the price and the trial\'s end (requires DATABASE_URL + MIGRATE_DATABA
     expect(await flagOff()).toBe(1);
     expect(await hold(shops.none.id)).toEqual({ hold: null, why: null });
     expect((await get(app, shops.none.cookie, '/app')).body).not.toContain(t('en', 'frozen.trialOver.title'));
+  });
+
+  it('D2 · THE SWITCH OFF CHANGES NOTHING FOR ANYONE: a medium-risk sign-up keeps its card gate at connect, and is never held or told', async () => {
+    const shop = shops.medium;
+    await flagOff();
+    await admin.query(`insert into signup_risk (business_id, tier, points) values ($1, 'medium', 5)
+                       on conflict (business_id) do update set tier = 'medium'`, [shop.id]);
+    // A mailbox an hour ago, no card, no trial (a medium sign-up gets none).
+    await admin.query(`insert into mail_accounts (business_id, provider, address, refresh_token_ciphertext, fingerprint, scopes, connected_by, connected_at)
+                       values ($1, 'google', $2, 'v1.not-a-real-token', '0123456789ab', 'x', 'test', now() - interval '1 hour')`, [shop.id, `p41-medium-${RUN}@shop.example`]);
+    const { cardNeeded } = await import('../../src/db/billing.js');
+    expect(await inTenant(shop.id, (tx) => cardNeeded(tx)), '0148: a medium sign-up still needs a card to connect').toBe(true);
+    expect(await hold(shop.id), 'switch off: not held').toEqual({ hold: null, why: null });
+    expect(await mine(shop.id), 'switch off: never told').toEqual([]);
+    expect((await get(app, shop.cookie, '/app')).body).not.toContain('id="frozen"');
+    const billing = (await get(app, shop.cookie, '/app/settings/billing')).body;
+    expect(billing).toContain(t('en', 'billing.cardFirst'));
+    expect(billing, 'no freeze is promised while the switch is off').not.toContain(t('en', 'billing.trialEnd.noCard'));
+    // The switch on: the same rule as everyone's.
+    expect(await flagOn()).toBe(1);
+    expect(await hold(shop.id)).toEqual({ hold: 'billing', why: 'trial_over' });
+    expect(await mine(shop.id)).toEqual(['billing_trial_over']);
+    expect(await flagOff()).toBe(1);
+    expect(await hold(shop.id)).toEqual({ hold: null, why: null });
   });
 
   it('THE SITE: the plan row, only — none on offer, or payments not set up, and there is no section', async () => {

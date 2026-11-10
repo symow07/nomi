@@ -27,6 +27,8 @@ export type BillingView = {
   readonly hold?: BillingHold | null;
   /** 4.1 — a card is needed before the first channel (`billing_card_needed()`: the switch or the sign-up's risk), none saved. */
   readonly cardFirst?: boolean;
+  /** 4.1 fix D2 — `billing_required` is on: only then does a trial that ends with no card freeze the workspace. */
+  readonly trialEndHolds?: boolean;
 };
 
 export function renderBilling(v: BillingView, locale: Locale, flash: Flash | null, backLabel: string): string {
@@ -68,7 +70,7 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
     : `<p class="muted">${esc(t(locale, 'billing.trial.onRequest'))}</p>`;
   const cardFirst = v.cardFirst && !trialOver && s.status === 'none' ? `<p>${esc(t(locale, 'billing.cardFirst'))}</p>` : '';
   const trialEnd = trialOver || (s.status !== 'none' && s.status !== 'trial') || v.plans.length === 0 ? ''
-    : `<p class="muted">${esc(t(locale, 'billing.trialEnd.charged'))}${v.cardFirst ? ` ${esc(t(locale, 'billing.trialEnd.noCard'))}` : ''}</p>`;
+    : `<p class="muted">${esc(t(locale, 'billing.trialEnd.charged'))}${v.cardFirst && v.trialEndHolds ? ` ${esc(t(locale, 'billing.trialEnd.noCard'))}` : ''}</p>`;
 
   // Plans are chosen before a subscription exists; after, Stripe's page is for the card, the invoices and cancelling.
   // Beside the button, in plain text and not greyed: the plan renews every month, at its price, until cancelled,

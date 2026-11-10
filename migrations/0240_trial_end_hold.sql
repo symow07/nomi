@@ -13,9 +13,10 @@
 -- channel and no card, so no subscription is ever made and its trial never
 -- ends: it was answered for nothing, for ever.
 --
--- Now: while a card is needed (the same two conditions as
--- `billing_card_needed()`), a billed workspace with no card saved whose trial
--- is over — the first channel connected plus the trial it would start with
+-- Now: while the installation's switch `billing_required` is on — the switch
+-- alone: off, nothing here changes for anyone, a medium-risk sign-up included
+-- (it keeps 0148's card gate at connect and nothing more) — a billed
+-- workspace with no card saved whose trial is over — the first channel connected plus the trial it would start with
 -- (`trial_days_for`; none on request means none) — is held exactly as a lapse
 -- is: `billing_held()` answers true, so everything D4 freezes, freezes. Saving
 -- a card lifts it at once; the sweep then makes the subscription, charged now
@@ -34,14 +35,13 @@
 
 alter table workspace_billing add column if not exists told_trial_over_at timestamptz;
 
--- The trial is over and no card is saved, while one is needed. For the
+-- The trial is over and no card is saved, while `billing_required` is on. For the
 -- workspace that pays (never a pilot, never an exempt one; a practice copy is
 -- asked about its workspace by the callers below).
 create or replace function billing_trial_over(p_business uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select billed_workspace(p_business) = p_business
-     and (exists (select 1 from ops_flags where flag = 'billing_required' and cleared_at is null)
-          or exists (select 1 from signup_risk r where r.business_id = p_business and r.tier = 'medium'))
+     and exists (select 1 from ops_flags where flag = 'billing_required' and cleared_at is null)
      and not exists (select 1 from workspace_billing w where w.business_id = p_business and w.card_saved_at is not null)
      and coalesce(first_channel_at(p_business) + make_interval(days => coalesce(trial_days_for(p_business), 0)) <= now(), false)
 $$;

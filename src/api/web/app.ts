@@ -53,7 +53,7 @@ import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.
 import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
-import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHoldReason, cardNeeded, sitePricing } from '../../db/billing.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHoldReason, cardNeeded, sitePricing, billingRequiredOn } from '../../db/billing.js';
 import { renderBilling } from './billing.js';
 import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
@@ -2510,7 +2510,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
       state: await billingState(tx), plans: await plansOnOffer(tx),
-      hold: await billingHoldReason(tx), cardFirst: await cardNeeded(tx),
+      hold: await billingHoldReason(tx), cardFirst: await cardNeeded(tx), trialEndHolds: await billingRequiredOn(tx),
       counts: (await sql<{ people: number; assistants: number }>`
         select (select count(*)::int from people where business_id = ${bid.value}::uuid and archived_at is null) as people,
                (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
@@ -2522,7 +2522,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
-      hold: facts.hold, cardFirst: facts.cardFirst,
+      hold: facts.hold, cardFirst: facts.cardFirst, trialEndHolds: facts.trialEndHolds,
     }, locale, takeFlash(req, reply), t(locale, 'nav.setup'))
       + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
