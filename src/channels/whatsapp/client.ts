@@ -106,6 +106,19 @@ export function whatsappClient(cfg: {
       });
     },
     /**
+     * Part B (5.3) — a single-product message from the business's linked catalogue: interactive `product`, no
+     * header, no body or footer (both optional in Meta's reference). Same `post`, same rules.
+     */
+    sendProduct(to: string, p: { readonly catalogId: string; readonly retailerId: string }): Promise<WhatsAppSendResult> {
+      return post({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'interactive',
+        interactive: { type: 'product', action: { catalog_id: p.catalogId, product_retailer_id: p.retailerId } },
+      });
+    },
+    /**
      * WA-S — an approved message template, the one way to write after the
      * customer's 24 hours have passed. Its body's parameters fill {{1}}, {{2}}…
      * in order; same `post`, same retry rules.
