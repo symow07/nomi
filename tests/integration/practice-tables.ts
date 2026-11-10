@@ -62,6 +62,8 @@ export const PRACTICE_SKIP = [
   'month_report_sends',
   // 0232 — a file of customers kept while the owner checks it: a practice copy keeps none (its trigger refuses).
   'contact_imports',
+  // Follow-ups are live customer work; neither the rule nor its history is practised.
+  'follow_up_rules', 'follow_up_observations', 'follow_up_runs', 'follow_up_approvals',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
   // 0155 — a customer's address, now each workspace's own (it carries the business since then).

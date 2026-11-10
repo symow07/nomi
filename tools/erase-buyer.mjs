@@ -255,6 +255,10 @@ export const RULES = Object.freeze({
   // before the erasure may hold this customer's number, and adding it afterwards would bring them back. Nothing says
   // which row was whose, so every staged file of the workspace goes (`match: 'workspace'`); the owner uploads again.
   contact_imports: { do: 'erase', match: 'workspace' },
+  follow_up_rules: { do: 'unrelated' },
+  follow_up_observations: { do: 'erase' },
+  follow_up_runs: { do: 'erase' },
+  follow_up_approvals: { do: 'erase' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
   // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the

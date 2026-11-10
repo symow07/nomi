@@ -125,6 +125,19 @@ export async function loadMonthReport(tx: Tx, businessId: BusinessId, month: str
   const replies = {
     alone, drafted: drafts.as_written + drafts.edited, asWritten: drafts.as_written, edited: drafts.edited, notSent: drafts.not_sent,
   };
+  // One clock: the existing decided-at month. Acceptance may come after its boundary.
+  // Keep the timeline predicate too: this is always a subset of the existing draft totals.
+  const followUpsSent = (await sql<{ n: number }>`select count(*)::int as n
+    from follow_up_approvals a join drafts d on d.id = a.draft_id
+    join outbound_messages o on o.id = a.outbound_id
+    join businesses b on b.id = a.business_id
+    where a.business_id = ${B}::uuid and b.practice_of is null
+      and d.status in ('approved', 'edited') and d.decided_at >= ${from} and d.decided_at < ${to}
+      and o.status in ('sent', 'delivered', 'read') and o.body = coalesce(d.sent_text, d.draft_text)
+      and ${notOwnerTesting('d.conversation_id')}
+      and exists (select 1 from messages m where m.conversation_id = d.conversation_id
+        and m.direction = 'outbound' and m.text_content = coalesce(d.sent_text, d.draft_text)
+        and m.sent_at >= d.created_at)`.execute(tx)).rows[0]!.n;
 
   // Time to the first reply — per customer who wrote in the month: from their first message of the month to the
   // first message that reached them after it, whoever wrote it (`messages` holds a reply only once it was sent).
@@ -212,6 +225,7 @@ export async function loadMonthReport(tx: Tx, businessId: BusinessId, month: str
     month, zone, from, to,
     running: now.getTime() < to.getTime(),
     customersAnswered: answered,
+    followUpsSent,
     replies,
     firstReply: {
       medianSeconds: first.median === null ? null : Math.round(first.median),
