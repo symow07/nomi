@@ -1,6 +1,6 @@
 import { markSmall } from '../../core/owner/brand.js';
 import { extractNumerals, near } from '../../core/safety/numerals.js';
-import { figuresIn } from '../../core/conversation/figures.js';
+import { figuresIn, westernDigits } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
 import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
@@ -1992,11 +1992,23 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
 
+  // 5.5 (t1r's ruling, 2026-11-10) — a code the order record names ("1Z999AA10123456784") is listed whole, as written,
+  // never as its digit runs; every other figure as G10 lists it, all in the order the reply writes them.
+  const figuresListed = (text: string, sourced: OrderSourced | null): string[] => {
+    const codes = [...new Set((sourced?.figures ?? []).flatMap((f) =>
+      typeof f !== 'number' && f.kind === 'identifier' && f.written && text.includes(f.written) ? [f.written] : []))];
+    if (codes.length === 0) return figuresIn(text);
+    let masked = text;
+    for (const c of codes) masked = masked.split(c).join(' '.repeat(c.length));
+    const western = westernDigits(masked);
+    return [...figuresIn(masked).map((n) => ({ n, at: western.indexOf(n) })), ...codes.map((n) => ({ n, at: text.indexOf(n) }))]
+      .sort((a, b) => a.at - b.at).map((x) => x.n);
+  };
   // G10 (decision 38) — a reply in a language the owner may not read: said so,
   // its figures listed in Western digits from the reply itself, and a
   // translation into the owner's own language on request — never sent.
   const foreign = p.language && p.language !== locale ? (() => {
-    const nums = figuresIn(p.draftText);
+    const nums = figuresListed(p.draftText, p.orderSourced ?? null);
     const tr = p.translation && p.translation.locale === locale ? p.translation.text : null;
     return `<div class="foreign">
       ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
