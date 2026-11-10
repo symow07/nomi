@@ -5714,7 +5714,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
-  channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
+  // 4.1 fix D3 — reconnecting writes the channel's `connected_at` again, so it asks the one connection question too.
+  app.post('/app/channels/whatsapp/reconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
+    if (!s) return reply;
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
+    const r = await reconnectChannel(deps.db, s.businessId, personOf(s).id);
+    return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
+  });
   channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, whatsappConfigured));
 
   /**
@@ -5837,6 +5845,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('chat')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.chatIngest) return reply.redirect(channelScreenHref('chat'));
     const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    // 4.1 fix D3 — switching the page on connects a channel: the one connection question first. Off is never refused.
+    const refused = on ? await connectionRefusal(s.businessId) : null;
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     await withTenantTx(deps.db, bid.value, (tx) => setChatPage(tx, bid.value, on, personOf(s).id));
     facts.evict(s.businessId);
     return flashTo(reply, channelScreenHref('chat'), on ? 'channels.chat.flash.on' : 'channels.chat.flash.off');
@@ -5846,6 +5857,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('telegram')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.telegramBot) return reply.redirect(channelScreenHref('telegram'));
     const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    // 4.1 fix D3 — Telegram on connects a channel: the one connection question first. Off is never refused.
+    const refused = on ? await connectionRefusal(s.businessId) : null;
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     await withTenantTx(deps.db, bid.value, (tx) => setTelegram(tx, bid.value, on, personOf(s).id));
     facts.evict(s.businessId);
     return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
@@ -8066,6 +8080,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/connect/:provider/start', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
+    // 4.1 fix D3 — a mailbox is a channel customers write to (`first_channel_at` counts it): the one connection
+    // question every other connect asks (the operator's stop, the first connection's approval, the card), before
+    // anything is asked of the provider.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const locale = localeOf(req);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const client = provider ? deps.oauthClients?.[provider] : undefined;
@@ -8088,6 +8107,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
     // Used once, whatever happens next.
     writeCookie(reply, OAUTH_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    // 4.1 fix D3 — asked again on the way back, before the code is spent at the provider.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
     if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
