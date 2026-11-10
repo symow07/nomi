@@ -144,6 +144,8 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
         mediaId: null,
         ...(ref ? { ref } : {}),
         ...(postId ? { postId } : {}),
+        // 5.4 — which of our messages this answers, when Meta says: a private reply to a comment is matched by it.
+        ...(typeof obj(message['reply_to'])['mid'] === 'string' ? { replyToMid: str(obj(message['reply_to'])['mid'])! } : {}),
       };
       events.push(event);
     }

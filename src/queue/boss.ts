@@ -41,6 +41,9 @@ export async function unscheduleRetired(boss: { unschedule(name: string): Promis
 }
 
 export const QUEUES = {
+  instagramComments: 'instagram.comments',
+  instagramCommentPublic: 'instagram.comment_public',
+  igCommentSweep: 'instagram.comment_sweep',
   /** one job per inbound message; serialized per conversation */
   inbound: 'message.inbound',
   /** delivery of a reply back to the channel */
@@ -271,6 +274,8 @@ export type InboundJob = {
   ref?: string;
   /** CH7 — the shop's own post, reel or story it is about, by Meta's media id. */
   postId?: string;
+  /** 5.4 — the provider's id of the message this answers (Meta's `reply_to.mid`). */
+  replyToMid?: string;
   /** Provider media id for audio/image — short-lived, fetch promptly. */
   mediaId?: string | null;
   /**
@@ -298,9 +303,10 @@ export type NotifyJob = {
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
     | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
-    | 'backup_failed' | 'mailbox_disconnected'
+    | 'backup_failed' | 'mailbox_disconnected' | 'comment_asking'
     | 'payment_paid_twice';   // payment links — a customer paid one invoice through two links; the owner refunds, if anyone does   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
+  commentId?: string;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
   /**

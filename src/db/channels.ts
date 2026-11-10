@@ -1,3 +1,4 @@
+import { lockedCommentReplyFacts, claimCommentPrivateReply } from './commentPrivateReplies.js';
 import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
@@ -58,6 +59,7 @@ export function channelStore(
   }
 
   return {
+    claimCommentPrivateReply: (id, now) => claimCommentPrivateReply(tx, businessId, id, now),
     async load(conversationId) {
       const res = await sql<{
         id: string; seq: number; status: OutboundStatus; requires_order: boolean;
@@ -253,7 +255,11 @@ export function channelStore(
            and identity = any(${identities}::text[]) and lifted_at is null`.execute(tx)).rows[0]?.at ?? null;
       // 0215 — a TikTok conversation's counts: TikTok limits how many messages the account sends (tiktokLimits.ts).
       const tiktok = channel === 'tiktok' ? await tiktokHistory(tx, conversationId) : null;
+      const commentPrivateReplies = rows.some(r => r.kind === 'comment_private_reply')
+        ? await lockedCommentReplyFacts(tx, businessId, conversationId, rows.filter(r => r.kind === 'comment_private_reply').map(r => r.id))
+        : undefined;
       const ctx: ConversationSendContext = {
+        ...(commentPrivateReplies ? { commentPrivateReplies } : {}),
         ...(tiktok ? { tiktok } : {}),
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
@@ -670,7 +676,14 @@ export async function enqueueOutboundRow(
   dedupe = true,
   /** 0224 — the quote whose figure this message carries; copied onto the sent `messages` row by the 'sent' transition. */
   quoteId: string | null = null,
+  /**
+   * 5.4 — the owner's one private reply to an Instagram comment (`kind = 'comment_private_reply'`): addressed to the
+   * commenter's own identity on the comment, never to whichever identity the conversation heard from last.
+   */
+  comment: { readonly recipient: string } | null = null,
 ): Promise<string | null> {
+  // 5.4 — a private reply to a comment is words only: Meta's one private reply carries no picture or document here.
+  if (comment && media) throw new Error('enqueueOutboundRow: a comment reply carries no media');
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
   // anything else, which is why an e-mail could be composed and never queued.
@@ -681,8 +694,8 @@ export async function enqueueOutboundRow(
      where c.id = ${conversationId}
      limit 1
   `.execute(tx);
-  const recipient = to.rows[0]?.channel_user_id;
-  const channel = to.rows[0]?.channel ?? 'whatsapp';
+  const recipient = comment ? comment.recipient : to.rows[0]?.channel_user_id;
+  const channel = comment ? 'instagram' : to.rows[0]?.channel ?? 'whatsapp';
   if (!recipient) return null;   // no channel identity — nothing to send to
 
   /**
@@ -718,7 +731,7 @@ export async function enqueueOutboundRow(
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
            ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
-           ${media ? media.kind ?? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
+           ${comment ? 'comment_private_reply' : media ? media.kind ?? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not ${dedupe} or not exists (
       select 1 from outbound_messages
