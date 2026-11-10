@@ -53,6 +53,8 @@ export const SEALED = [
   { table: 'whatsapp_accounts', column: 'pin_ciphertext' },
   // 0237 — a business's own Shopify store: the Admin API token, or its own app's client ID and secret, as one value.
   { table: 'shopify_connections', column: 'credential_ciphertext' },
+  // 0238 — the user token from the ads login (`ads_read` only): its own grant, sealed like the rest.
+  { table: 'ad_spend_connections', column: 'token_ciphertext' },
 ];
 
 /**
