@@ -126,6 +126,11 @@ export const QUEUES = {
    */
   advisorExpiry: 'ops.advisor_expiry',
   /**
+   * Block 4.4 (0232) — every hour: a file of customers still waiting for Add or Discard is erased once it is seven
+   * days old (`expire_contact_imports`). Reads stop at seven days; this takes the rows themselves within the hour.
+   */
+  contactImportExpiry: 'ops.contact_import_expiry',
+  /**
    * D1 (0137) — once a day: a sign-up never finished keeps neither its form nor
    * its address past an hour after its code expired (`login_codes_forget`);
    * D2 (0138) — and the sign-up guard's hashed callers go after two days
