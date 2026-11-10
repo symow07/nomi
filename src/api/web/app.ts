@@ -56,7 +56,7 @@ import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
 import { whereSeenFrom } from '../../core/owner/whereSeen.js';
 import { renderApprovalCard } from './connectionApproval.js';
-import { notifyOperatorOfConnectionAsk, notifyOperatorOfWhatsAppNumber } from '../../pipeline/notify.js';
+import { notifyOperatorOfConnectionAsk, notifyOperatorOfWhatsAppNumber, notifyOperatorOfHelpRequest } from '../../pipeline/notify.js';
 import { normalizePhone } from '../../core/channel/phone.js';
 import { loadReady, renderReady } from './ready.js';
 import { earnedRung } from '../../db/ramp.js';
@@ -286,6 +286,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DocumentReader, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderReread, rereadCharge, rereadPageFacts, sourceLabel, isPasted, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes, ownName, type AdvisorIO } from './advisor.js';
+import { helpRoutes } from './helpPanel.js';
 import { conversationAdvisorRoutes } from './conversationAdvisor.js';
 import { renderCopilotPanel } from './copilotPanel.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
@@ -1157,6 +1158,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     /^\/app\/settings\/people\/[^/]+\/remove$/,
     /^\/app\/settings\/alerts\/phone\/[^/]+\/remove$/,
     /^\/app\/connect\/(mail|meta|whatsapp)\/disconnect$/,
+    // Block 6.1 — writing to Nomi for help changes nothing in the workspace; a frozen one may need it most.
+    /^\/app\/help\/write$/,
   ];
   app.addHook('preHandler', async (req, reply) => {
     if (req.method === 'GET' || req.method === 'HEAD' || !req.url.startsWith('/app')) return;
@@ -7503,6 +7506,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     takeFlash: (req, reply) => takeFlash(req, reply),
   };
   advisorRoutes(app, advisorIO);
+  // Block 6.1 — the "?" on every page: its guides, a question the advisor's model answers from them (metered by the
+  // advisor's own two ports), and "Write to us" by the operator's mail (helpPanel.ts).
+  helpRoutes(app, {
+    viewer: (req) => {
+      const s = sessionOf(req); if (!s) return null;
+      const p = personOf(s);
+      return { businessId: s.businessId, personId: p.id, role: p.isOwner ? 'owner' : p.kind === 'accountant' ? 'accountant' : 'staff' };
+    },
+    locale: (req) => localeOf(req),
+    page: (req, o) => page(req, o),
+    model: deps.advisorModel ?? null,
+    allowanceUsed: advisorIO.allowanceUsed,
+    spent: advisorIO.spent,
+    write: deps.systemMail
+      ? (businessId, r) => notifyOperatorOfHelpRequest({ db: deps.db, mail: deps.systemMail! }, deps.businessId, businessId, r)
+      : null,
+    flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
+    takeFlash: (req, reply) => takeFlash(req, reply),
+  });
   conversationAdvisorRoutes(app, {
     ...advisorIO, renderCopilotPanel,
     viewer: (req) => { const s = sessionOf(req); return s && personOf(s).kind !== 'accountant' ? advisorIO.viewer(req) : null; },
