@@ -55,10 +55,10 @@ describe('D4 · the dashboard is read-only, with the doors that must stay open',
     const app = read('src/api/web/app.ts');
     const list = app.slice(app.indexOf('const FROZEN_STILL_OPEN'), app.indexOf('];', app.indexOf('const FROZEN_STILL_OPEN')));
     for (const door of ['billing', 'data\\/(close|delete|withdraw)', 'deletion(\\/(erase|dismiss))?', 'account\\/password',
-      'people\\/[^/]+\\/remove', 'phone\\/[^/]+\\/remove', '(mail|meta|whatsapp)\\/disconnect']) {
+      'people\\/[^/]+\\/remove', 'phone\\/[^/]+\\/remove', '(mail|meta|whatsapp)\\/disconnect', 'help\\/write']) {
       expect(list, door).toContain(door);
     }
-    expect(list.match(/\/\^/g)?.length).toBe(7);
+    expect(list.match(/\/\^/g)?.length).toBe(8);
     expect(app).toMatch(/if \(!\(await withTenantTx\(deps\.db, bid\.value, \(tx\) => billingHeld\(tx\)\)\)\) return;\s*const back/);
   });
   it('every language says what frozen means and the way back, and the refusal names Billing', () => {

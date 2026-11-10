@@ -95,6 +95,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // 5.5 — a switch or disconnect asked of a workspace with no store connected.
   'shopifyOrders.flash.nothing',
   'cases.flash.notDone', 'cases.flash.gone', 'cases.flash.failed',
+  // Block 6.1 — Write to us: nothing typed, not set up here, too many in a while, the mail did not leave.
+  'help.write.empty', 'help.write.cannot', 'help.write.limit', 'help.write.failed',
   'copilot.flash.notSuggested.nothing_to_answer', 'copilot.flash.notSuggested.deletion', 'copilot.flash.notSuggested.allowance',
   'copilot.flash.notSuggested.no_reply', 'copilot.flash.notSuggested.unavailable',
   // Block 4.3 — the month page's two owner-only forms: minutes refused, a colleague's post.
@@ -220,7 +222,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // Block 4.3 — the month page: the minutes saved or removed, the monthly e-mail stopped or started.
   'monthMail.flash.minutesSaved', 'monthMail.flash.minutesCleared', 'monthMail.flash.mailOff', 'monthMail.flash.mailOn',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
-  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'adSpend.flash.connected', 'adSpend.flash.disconnected', 'adSpend.flash.recorded',
+  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'adSpend.flash.connected', 'adSpend.flash.disconnected', 'adSpend.flash.recorded', 'help.write.sent',
   // 5.5 — Shopify order questions: connected, switched on or off, disconnected.
   'shopifyOrders.flash.connected', 'shopifyOrders.flash.on', 'shopifyOrders.flash.off', 'shopifyOrders.flash.disconnected',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',

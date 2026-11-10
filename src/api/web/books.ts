@@ -172,7 +172,7 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
 // B18 — and their own sign-in: the password and the language are theirs to change, like anyone's.
 export const ACCOUNTANT_ALSO: ReadonlySet<string> = new Set([
   'GET /app/settings/personal/account', 'GET /app/settings/personal/language',
-  'POST /logout', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
+  'POST /logout', 'GET /app/help/page', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
 ]);
 
 export const booksRouteOf = (method: string, url: string | undefined): (typeof BOOKS_ROUTES)[number] | null =>

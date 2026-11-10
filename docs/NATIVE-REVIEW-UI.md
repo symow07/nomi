@@ -16992,3 +16992,11 @@ show the English until a native reader translates.
 - **Not translated by design:** the placement names Meta sends that Nomi does not know are shown exactly as sent, after
   "Other placements:"; "Meta", "Instagram", "Facebook" and "Messenger" stay as names. The bill's own label written into
   the books ("Meta ads, {platform}, {month}") is English in every language, like the rest of the spending book.
+## Help that answers (2026-11-10; no migration)
+
+About a hundred English-only lines in `src/core/owner/i18n/help.ts` (`HELP_EN`): the "?" door's name (`help.door`), the
+help page (`help.title`, `help.lede`, `help.video`, `help.back`), the question box and its answers (`help.ask.*`), "Still
+stuck? Write to us" (`help.write.*`, which promises an answer **within one working day** — the owner's promise, to
+review), the operator's mail (`help.mail.*`, `help.role.*`), and nineteen short guides (`help.g.<id>.title / .1–.3 /
+.door`). The guides are what a help question is answered from, so a translation must say exactly what the English
+says and nothing more. To translate first: `help.door`, `help.write.title`, `help.write.lede`, `help.ask.notYet`.
