@@ -11,7 +11,7 @@ import { handledCount, notOwnerTesting } from '../../db/handled.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { esc, back } from './layout.js';
+import { esc, back, wordsHtml } from './layout.js';
 import * as show from './values.js';
 
 /**
@@ -180,8 +180,8 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
     `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/results?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
   const since = d.since ? `<p class="caption muted an-since">${esc(t(locale, 'analytics.since', { date: show.date(locale, d.since) }))}</p>` : '';
   const header = `<header class="results-header">${back('/app', t(locale, 'split.title'))}
-    <h1 class="page">${esc(t(locale, 'area1.results.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'area1.results.intro'))}</p>
+    <h1 class="page">${wordsHtml(locale, 'area1.results.title')}</h1>
+    <p class="muted">${wordsHtml(locale, 'area1.results.intro')}</p>
     <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}</header>`;
   if (!d.hasActivity) {
     return `<div class="results-page">${header}<section class="empty results-empty">

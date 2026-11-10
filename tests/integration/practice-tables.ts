@@ -59,6 +59,12 @@ export const PRACTICE_SKIP = [
   'capability_events', 'deletion_asks', 'deletion_requests', 'calendar_entries',
   // 0230 — the checks before a change goes live: the workspace's own, never Practice's.
   'case_checks',
+  // 0231 — that a month's report went to the owner: the workspace's own, never Practice's.
+  'month_report_sends',
+  // 0232 — a file of customers kept while the owner checks it: a practice copy keeps none (its trigger refuses).
+  'contact_imports',
+  // Follow-ups are live customer work; neither the rule nor its history is practised.
+  'follow_up_rules', 'follow_up_observations', 'follow_up_runs', 'follow_up_approvals',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
   // 0155 — a customer's address, now each workspace's own (it carries the business since then).
@@ -137,6 +143,11 @@ export const PRACTICE_SKIP = [
   'credit_note_counters', 'credit_notes', 'credit_note_lines', 'period_locks', 'document_readings',
   // 0226 — an invoice's public link, each send and each reminder: the workspace's record, never copied into Practice.
   'invoice_links', 'invoice_sends', 'invoice_reminders',
+  // Payment bindings and financial records never enter Practice.
+  'stripe_connections', 'stripe_mappings', 'stripe_oauth_states', 'stripe_checkout_attempts',
+  'stripe_event_inbox', 'stripe_movements', 'stripe_payouts', 'stripe_link_sends',
+  // The live catalogue, its publication grants and customer cards never enter Practice.
+  'wa_catalogue_items', 'wa_catalogue_batches', 'wa_catalogue_batch_items', 'wa_catalogue_images', 'wa_catalogue_sends',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

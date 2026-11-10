@@ -9,7 +9,7 @@ import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../core/owner/i18n/messages.js';
-import type { MailAttachment, ChannelAdapter, SendResult } from '../channels/contract.js';
+import type { MailAttachment, ChannelAdapter, OutboundProduct, SendResult } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { carriesOurJson } from '../core/safety/rawOutput.js';
@@ -60,6 +60,8 @@ export type OutboundWorkRow = OutboundRow & {
   readonly notice?: Notice | null;
   /** 0136 — a person decided this row should go: it may reopen a closed window with the template. */
   readonly approved?: boolean;
+  /** Part B (5.3) — for kind='product': the catalogue item, or null when it no longer matches what Meta accepted. */
+  readonly product?: OutboundProduct | null;
 };
 
 export type ConversationSendContext = {
@@ -204,7 +206,9 @@ export type RefusalReason =
   // C4.a — a first message whose permission could not be established at all.
   // Not a refusal BY the outreach gate: a refusal because the gate could not be
   // asked, which is the one honest answer when the facts are missing.
-  | 'outreach_unchecked';
+  | 'outreach_unchecked'
+  // Part B (5.3) — a product card whose item no longer matches what Meta accepted.
+  | 'product_changed';
 
 /**
  * The same union as a list, DERIVED not restated.
@@ -227,6 +231,8 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
   'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked',
   // 0133 — and a marketing e-mail with no postal address to carry.
   'no_postal_address',
+  // Part B (5.3) — and a product card whose item changed since Meta accepted it.
+  'product_changed',
 ];
 
 /**
@@ -510,6 +516,7 @@ export async function prepareConversationOutbound(
     // went as the template too, and nobody had approved it.
     if (ctx.reopen && tAdapter?.sendTemplate && candidate.automated !== true
         && candidate.origin !== 'outreach' && candidate.kind !== 'image' && candidate.kind !== 'document'
+        && candidate.kind !== 'product'
         && (candidate.origin === 'owner' || candidate.approved === true)) {
       await deps.store.transition(candidate.id, 'sending', null);
       const reopen = ctx.reopen;
@@ -553,6 +560,20 @@ export async function prepareConversationOutbound(
     const a = adapterFor(deps, candidate.channel);
     const carried = a?.sendDocument !== undefined || (a?.sendMail !== undefined && deps.documentBytes !== undefined);
     if (!candidate.mediaUrl || !servedByNomi(candidate.mediaUrl, deps.mediaOrigin ?? null) || !carried) {
+      await refuse(deps, candidate, 'media_unsupported');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
+    }
+  }
+  // Part B (5.3) — a PRODUCT CARD the same way: only with its item still matching what Meta accepted, and only
+  // through an adapter that carries one. Never sent as its transcript words.
+  if (candidate.kind === 'product') {
+    if (!candidate.product) {
+      await refuse(deps, candidate, 'product_changed');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'product_changed' }]);
+    }
+    const pAdapter = adapterFor(deps, candidate.channel);
+    // No adapter at all falls through to C4.a's refusal below, as a text row's would.
+    if (pAdapter && !pAdapter.sendProduct) {
       await refuse(deps, candidate, 'media_unsupported');
       return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
     }
@@ -640,10 +661,14 @@ export async function prepareConversationOutbound(
   await deps.store.transition(candidate.id, 'sending', null);
   const mediaUrl = candidate.kind === 'image' ? candidate.mediaUrl ?? null : null;
   const documentUrl = candidate.kind === 'document' ? candidate.mediaUrl ?? null : null;
+  const product = candidate.kind === 'product' ? candidate.product ?? null : null;
   const sendMail = adapter.sendMail?.bind(adapter);
   const mail = (attachments: readonly MailAttachment[] | undefined): Promise<SendResult> =>
     sendMail!({ to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag, ...(attachments ? { attachments } : {}) });
   const call = async (): Promise<SendResult> => {
+    if (candidate.kind === 'product') {
+      return product && adapter.sendProduct ? adapter.sendProduct(candidate.to, product) : { ok: false, retryable: false, error: 'product card unavailable' };
+    }
     if (asMail && sendMail) {
       if (!documentUrl) return mail(undefined);
       // The bytes are made here, in the call itself, so no provider is contacted while they are missing.

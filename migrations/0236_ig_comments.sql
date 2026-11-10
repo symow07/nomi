@@ -234,7 +234,7 @@ $$;
 revoke all on function customer_erasure_contract() from public;
 revoke all on function customer_erasure_contract_before_0236() from public;
 alter function customer_erasure_edges() rename to customer_erasure_edges_before_0236;
--- customer_erasure_edges, re-made from its latest definition (0226) by wrapping the installed function.
+-- customer_erasure_edges, re-made from its latest definition (0235) by wrapping the installed function.
 create function customer_erasure_edges() returns table(child text,col text,parent text,pcol text)
 language sql immutable set search_path=public as $$
  select * from customer_erasure_edges_before_0236()
@@ -246,7 +246,7 @@ $$;
 revoke all on function customer_erasure_edges() from public;
 revoke all on function customer_erasure_edges_before_0236() from public;
 alter function erase_customer_rows(uuid,uuid,uuid,boolean) rename to erase_customer_rows_before_0236;
--- erase_customer_rows, re-made from its latest definition (0226) by wrapping the installed function.
+-- erase_customer_rows, re-made from its latest definition (0235) by wrapping the installed function.
 create function erase_customer_rows(p_business uuid,p_client uuid,p_request uuid,p_restored boolean default false) returns jsonb
 language plpgsql volatile security definer set search_path=public set row_security=off as $$
 declare ids uuid[]; n integer; counts jsonb; stones jsonb; children jsonb;

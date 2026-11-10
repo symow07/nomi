@@ -235,6 +235,11 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       select token as t from product_images where product_id = ${real['productId']}::uuid and token is not null`
       .execute(tx).then((r) => r.rows[0]?.t ?? null));
     if (photo) ownToken['/media/:token'] = photo;
+    // The catalogue has a separate, explicitly selected publication grant; another token must remain 404.
+    const { seedCatalogueForWalk } = await import('./catalogue-fixture.js');
+    const catalogue = await seedCatalogueForWalk(db, bid.value);
+    ownToken['/catalogue-media/:token'] = catalogue.token;
+    real['batchId'] = catalogue.batchId;
   }, 90_000);
 
   afterAll(async () => { await app?.close(); await advisorDb?.destroy(); await db?.destroy(); });
@@ -600,6 +605,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   it('and every surface returns 200, not merely "not 500"', async () => {
     expect(ownToken['/pi/:token'], 'no proforma link was made, so /pi/:token would be walked with another link').toBeTruthy();
     expect(ownToken['/media/:token'], 'no product photo was kept, so /media/:token would be walked with another address').toBeTruthy();
+    expect(ownToken['/catalogue-media/:token'], 'no selected catalogue photo was published').toBeTruthy();
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {
       // Skipped because this walk cannot mint the credential they carry in the

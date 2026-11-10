@@ -1,3 +1,5 @@
+import {connectClient,connectConfigFrom,type ConnectConfig,type ConnectClient} from './payments/stripeConnect.js';
+import {reconcileStripePayments} from './payments/invoicePayments.js';
 import { recordCommentPrivateReply } from './db/commentPrivateReplies.js';
 import { commentsConfigId } from './channels/meta/commentConnect.js';
 import { withoutInstagramComments } from './channels/meta/comments.js';
@@ -23,6 +25,7 @@ import { businessesReadingInbox, liveMailAccount } from './db/mailAccounts.js';
 import { invoiceLinkToken, resolveInvoiceLink } from './db/invoiceLinks.js';
 import { invoicePdfViewOf } from './db/invoiceSending.js';
 import { invoicePdf, invoicePdfFilename } from './core/books/invoicePdf.js';
+import { sweepFollowUpWorkspaces } from './outbound/followUps.js';
 import { remindDueInvoices } from './outbound/invoiceReminders.js';
 import { zoneOf } from './db/zone.js';
 import { dayKey } from './core/owner/i18n/format.js';
@@ -107,6 +110,7 @@ import type { Locale } from './core/owner/i18n/locale.js';
 import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { expireContactImports } from './db/contactImports.js';
 import type { PgBoss } from 'pg-boss';
 import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -123,6 +127,7 @@ import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
+import { monthMailOn, monthReportsDue } from './pipeline/monthMail.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
 import { retryStaleGrants } from './books/staleGrants.js';
 import type { QboCall } from './books/connectors/quickbooks.js';
@@ -542,6 +547,7 @@ export async function buildProduction(
     signupGuard?: SignupGuard | null;
     /** BILL — tests only: Stripe's client with the network a recorder, and its webhook secret. */
     stripe?: { readonly client: StripeClient; readonly webhookSecret: string };
+    stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -778,6 +784,7 @@ export async function buildProduction(
     const c = stripeConfigFrom(process.env);
     return c ? { client: stripeClient(c), webhookSecret: c.webhookSecret } : null;
   })();
+  const stripeConnect = overrides?.stripeConnect === undefined ? (()=>{const config=connectConfigFrom(process.env);return config?{config,client:connectClient(config)}:null;})() : overrides.stripeConnect;
   if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
     console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
   }
@@ -1014,6 +1021,8 @@ export async function buildProduction(
       signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
       // BILL — the payment provider; null until the owner pastes its keys.
       stripe,
+      stripeConnect,
+      kickStripePayments:async(businessId)=>{await boss.send(QUEUES.stripePayments,{businessId},{singletonKey:businessId});},
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1277,6 +1286,11 @@ export async function buildProduction(
    * both modes: Practice runs with no channel configured, too.
    */
   const erasePracticeDaily = async (): Promise<void> => {
+    // Fixed owner words become drafts, in either mode. No sender or model is passed to this job.
+    await boss.schedule(QUEUES.followUpDrafts, '* * * * *', {});
+    await boss.work(QUEUES.followUpDrafts, async () => {
+      await sweepFollowUpWorkspaces({ db, now: () => new Date() });
+    });
     await registerInstagramCommentSweep({db,boss});
     await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
@@ -1289,6 +1303,13 @@ export async function buildProduction(
     await boss.work(QUEUES.advisorExpiry, async () => {
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
+    });
+    // Block 4.4 (0232) — a file of customers waiting for Add or Discard is kept seven days at most: every hour, older
+    // ones are erased (`expire_contact_imports`). Counts only, never a row's words.
+    await boss.schedule(QUEUES.contactImportExpiry, '55 * * * *', {});
+    await boss.work(QUEUES.contactImportExpiry, async () => {
+      const n = await expireContactImports(db);
+      if (n > 0) console.log(`[contacts] ${n} file(s) of customers kept seven days erased`);
     });
     // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
@@ -1382,6 +1403,17 @@ export async function buildProduction(
       if (n > 0) console.log(`[erasure] ${n} ledger line(s) mailed to the operator`);
     });
   };
+
+  if(stripeConnect){
+    await boss.schedule(QUEUES.stripePayments,'*/5 * * * *',{});
+    await boss.work<{businessId?:string}>(QUEUES.stripePayments,async jobs=>{
+      for(const job of jobs){
+        const ids=job.data.businessId?[{business_id:job.data.businessId}]:(await sql<{business_id:string}>`select business_id::text from stripe_pending_workspaces()`.execute(db)).rows;
+        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL,
+          alert:async(b)=>{await sendAlert(boss,{businessId:b,kind:'payment_paid_over',conversationId:null});}},bid.value);}
+      }
+    });
+  }else await boss.unschedule(QUEUES.stripePayments).catch(()=>undefined);
 
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
   // webhook routes — for hosting before ANY channel is configured. An override
@@ -1526,6 +1558,7 @@ export async function buildProduction(
         sendText: async (to, body) => noted(await base.sendText(to, body)),
         ...(base.sendMedia ? { sendMedia: async (to: string, m: Parameters<NonNullable<ChannelAdapter['sendMedia']>>[1]) => noted(await base.sendMedia!(to, m)) } : {}),
         ...(base.sendTemplate ? { sendTemplate: async (to: string, tpl: Parameters<NonNullable<ChannelAdapter['sendTemplate']>>[1]) => noted(await base.sendTemplate!(to, tpl)) } : {}),
+        ...(base.sendProduct ? { sendProduct: async (to: string, p: Parameters<NonNullable<ChannelAdapter['sendProduct']>>[1]) => noted(await base.sendProduct!(to, p)) } : {}),
       },
     };
   };
@@ -1651,6 +1684,8 @@ export async function buildProduction(
    * from), else drafted for the owner with the reason on the card (outbound/invoiceReminders.ts). Registered beside the
    * outbound worker it feeds, for the same reason the follow-ups are.
    */
+
+
   await boss.schedule(QUEUES.invoiceReminders, '20 * * * *', {});
   await boss.work(QUEUES.invoiceReminders, async () => {
     const r = await remindDueInvoices({
@@ -1902,6 +1937,22 @@ export async function buildProduction(
       } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
     }
   });
+
+  /**
+   * Block 4.3 (0231) — WHAT NOMI DID FOR YOU, by e-mail, once a month: OFF unless the operator sets
+   * MONTH_REPORT_MAIL=on. Every fifteen minutes each workspace whose 1st has reached 08:00 (outside the owner's quiet
+   * hours) is claimed once for the month just ended, and its owner gets the month by the capped owner-mail sender.
+   * Off, the schedule is taken away, so a schedule left by an earlier deploy does not queue jobs nobody works.
+   */
+  if (monthMailOn(process.env)) {
+    await boss.schedule(QUEUES.monthReports, '*/15 * * * *', {});
+    await boss.work(QUEUES.monthReports, async () => {
+      const done = await monthReportsDue({ db, mail: alertMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, new Date());
+      if (done.length > 0) console.log(`[month-report] ${done.length} month(s): ${done.map((d) => d.outcome).join(', ')}`);
+    });
+  } else {
+    await boss.unschedule(QUEUES.monthReports).catch(() => undefined);
+  }
 
   /**
    * CEIL — every hour, Meta's error rate per workspace (0085): the operator is

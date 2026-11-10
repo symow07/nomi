@@ -82,6 +82,7 @@ export type CalendarEntry = {
     readonly price?: Money;
     readonly quantity?: number;
     readonly sequenceName?: string;
+    readonly followUpRule?: boolean;
     readonly closureLabel?: string;
     readonly closureFrom?: string;
     readonly closureTo?: string;
@@ -115,7 +116,7 @@ export type CalendarQuery = {
   readonly category: CalendarCategory | null;
   /** A client id. Unknown here (or another tenant's) reads as no filter. */
   readonly buyer: string | null;
-  /** Follow-ups exist only where the outreach area is on (rule 8). */
+  /** Outreach sequence dates require the outreach area (rule 8); conversation follow-ups do not. */
   readonly outreach: boolean;
 };
 
@@ -271,6 +272,19 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
       buyer: buyerOf(r), identity: null, detail: { overdue: r.sla_deadline_at.getTime() < now.getTime() },
       source: { table: 'handoffs', id: r.id, column: 'sla_deadline_at' } });
   }
+
+  // Owner-written drafts belong to a conversation, even with outreach off.
+  const followUps = (await sql<BuyerCols & { id: string; conv: string; due_at: Date }>`
+    select r.id, r.conversation_id as conv, r.due_at, cl.id::text as client_id, cl.display_name as buyer, cl.country
+      from follow_up_runs r join clients cl on cl.id = r.client_id
+      join conversations c on c.id = r.conversation_id join businesses b on b.id = r.business_id
+      left join drafts d on d.id = r.draft_id
+     where r.business_id = ${bid}::uuid and not c.owner_testing and b.practice_of is null
+       and r.state in ('scheduled', 'draft', 'window_closed') and (r.draft_id is null or d.status = 'pending')
+       and r.due_at >= ${start} and r.due_at < ${end} limit ${PER_SOURCE}`.execute(tx)).rows;
+  for (const r of followUps) timed({ category: 'followups', kind: 'followup_due', at: r.due_at,
+    conversationId: r.conv, orderId: null, buyer: buyerOf(r), identity: null, detail: { followUpRule: true },
+    source: { table: 'follow_up_runs', id: r.id, column: 'due_at' } });
 
   // ── Follow-ups: the next step of a live sequence. The outreach area only.
   if (q.outreach) {

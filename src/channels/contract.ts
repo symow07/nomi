@@ -51,6 +51,16 @@ export type OutboundDocument = {
   readonly caption: string;
 };
 
+/**
+ * Part B (5.3) — ONE item of the business's own WhatsApp catalogue, as a single-product message (interactive
+ * `product`, no header, no body). Both ids are what Meta accepted for that item; the worker hands an adapter this
+ * only after the send gate allowed the row and the item still matches what Meta holds.
+ */
+export type OutboundProduct = {
+  readonly catalogId: string;
+  readonly retailerId: string;
+};
+
 /** 0226 — a file attached to a mail: the bytes themselves, since a mail carries no link a provider fetches. */
 export type MailAttachment = {
   readonly filename: string;
@@ -119,6 +129,12 @@ export interface ChannelAdapter {
    * and the web chat carry none; e-mail attaches the bytes through `sendMail` instead.
    */
   sendDocument?(to: string, document: OutboundDocument): Promise<SendResult>;
+  /**
+   * Part B (5.3) — a product card. Optional like `sendMedia`: an adapter that cannot carry one says so by omission,
+   * and the worker refuses the row (`media_unsupported`). It is never sent as its transcript words instead: a line of
+   * text is not the card the owner chose.
+   */
+  sendProduct?(to: string, product: OutboundProduct): Promise<SendResult>;
   /**
    * WA-S — an approved WhatsApp message template (the only way to write after
    * the 24-hour window closed). Optional: only WhatsApp has templates.

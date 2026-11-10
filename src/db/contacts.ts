@@ -68,11 +68,15 @@ export type ContactRow = {
  * It is WhatsApp-only, and that is the legally correct answer rather than a
  * limitation: he messaged her on WhatsApp, so he consented to WhatsApp. Whatever
  * e-mail address she has for him is untouched by it and needs its own evidence.
+ *
+ * Only a message that came ON WhatsApp counts (Block 4.4): since customers can be brought in from a file with a phone
+ * number, a customer who wrote on Instagram and whose number the owner imported has a `clients.phone` and an inbound
+ * message — and neither is consent to WhatsApp.
  */
 const DERIVED_INBOUND = sql`
   select min(dm.sent_at) as obtained_at
     from clients dcl
-    join conversations dcv on dcv.client_id = dcl.id
+    join conversations dcv on dcv.client_id = dcl.id and dcv.channel = 'whatsapp'
     join messages dm       on dm.conversation_id = dcv.id and dm.direction = 'inbound'
    where dcl.phone is not null`;
 
@@ -160,7 +164,7 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
              max(c.display_name) as display_name, null::text as company, null::text as title, 'inbound' as source,
              min(m.sent_at) as first_seen, null::timestamptz as archived_at, min(c.id::text) as client_id
         from clients c
-        join conversations v on v.client_id = c.id
+        join conversations v on v.client_id = c.id and v.channel = 'whatsapp'
         join messages m      on m.conversation_id = v.id and m.direction = 'inbound'
        where c.business_id = ${businessId}::uuid and c.phone is not null
        group by c.phone

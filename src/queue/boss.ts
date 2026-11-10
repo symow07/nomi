@@ -90,6 +90,11 @@ export const QUEUES = {
   deletionChase: 'ops.deletion_chase',
   morningSummary: 'ops.morning_summary',
   /**
+   * Block 4.3 (0231) — every fifteen minutes, while MONTH_REPORT_MAIL=on: each workspace whose 1st has reached 08:00 is
+   * claimed once for the month just ended and its owner e-mailed "what Nomi did for you" (src/pipeline/monthMail.ts).
+   */
+  monthReports: 'ops.month_reports',
+  /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
    * where they happen; this only makes sure a held one is not forgotten when
@@ -124,6 +129,11 @@ export const QUEUES = {
    */
   advisorExpiry: 'ops.advisor_expiry',
   /**
+   * Block 4.4 (0232) — every hour: a file of customers still waiting for Add or Discard is erased once it is seven
+   * days old (`expire_contact_imports`). Reads stop at seven days; this takes the rows themselves within the hour.
+   */
+  contactImportExpiry: 'ops.contact_import_expiry',
+  /**
    * D1 (0137) — once a day: a sign-up never finished keeps neither its form nor
    * its address past an hour after its code expired (`login_codes_forget`);
    * D2 (0138) — and the sign-up guard's hashed callers go after two days
@@ -148,6 +158,9 @@ export const QUEUES = {
   draftExpiry: 'ops.draft_expiry',
   /** 0226 — every hour: an invoice still open three or ten days after it went is reminded once, or drafted for the owner. */
   invoiceReminders: 'books.invoice_reminders',
+  stripePayments: 'books.stripe_payments',
+  /** Owner-written follow-ups become drafts only; independent of outreach. */
+  followUpDrafts: 'conversation.follow_up_drafts',
   /** G1 — once a day: the operator's list of the last day's sign-ups. */
   signupDigest: 'ops.signup_digest',
   // G3 — every five minutes: who crossed 80% or 100% of today's allowance.
@@ -290,7 +303,8 @@ export type NotifyJob = {
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
     | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
-    | 'backup_failed' | 'mailbox_disconnected' | 'comment_asking';   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
+    | 'backup_failed' | 'mailbox_disconnected' | 'comment_asking'
+    | 'payment_paid_over';   // payment links — a link paid more than the invoice still owed; the owner refunds, if anyone does   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
   commentId?: string;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */

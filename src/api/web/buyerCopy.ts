@@ -48,8 +48,8 @@ export async function loadBuyerCopy(db: Db, businessIdRaw: string, conversationI
     // ── Who they are, on every row of theirs ────────────────────────────────
     const people = (await sql<{
       id: string; display_name: string | null; phone: string | null; email: string | null; country: string | null;
-      preferred_language: string | null; notes: string | null; is_vip: boolean | null; created_at: Date; last_seen_at: Date | null;
-    }>`select id::text as id, display_name, phone, email, country, preferred_language, notes, is_vip, created_at, last_seen_at
+      preferred_language: string | null; stated_language: string | null; notes: string | null; is_vip: boolean | null; created_at: Date; last_seen_at: Date | null;
+    }>`select id::text as id, display_name, phone, email, country, preferred_language, stated_language, notes, is_vip, created_at, last_seen_at
          from clients where id = any(${ids}::uuid[]) order by array_position(${ids}::uuid[], id)`.execute(tx)).rows;
     for (const p of people) {
       add('who they are', p.created_at, null, p.id, 'first seen', p.created_at);
@@ -58,6 +58,8 @@ export async function loadBuyerCopy(db: Db, businessIdRaw: string, conversationI
       if (p.email) add('who they are', null, null, p.id, 'e-mail', p.email);
       if (p.country) add('who they are', null, null, p.id, 'country', p.country);
       if (p.preferred_language) add('who they are', null, null, p.id, 'language', p.preferred_language);
+      // 0232 — the language a file of customers gave for them (the owner's word, kept apart from their own).
+      if (p.stated_language) add('who they are', null, null, p.id, 'language, from a file of customers', p.stated_language);
       if (p.is_vip) add('who they are', null, null, p.id, 'marked as a regular', 'yes');
       if (p.notes) add('who they are', null, null, p.id, 'notes', p.notes);
       if (p.last_seen_at) add('who they are', p.last_seen_at, null, p.id, 'last seen', p.last_seen_at);
