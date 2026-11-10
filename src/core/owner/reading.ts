@@ -117,6 +117,16 @@ export function readReply(input: {
     || recorded.some((o) => typeof o !== 'number' && o.kind !== 'identifier' && near(o.value, v));
   const identifiers = new Set(recorded.flatMap((o) => (typeof o !== 'number' && o.kind === 'identifier' && o.written ? [o.written] : [])));
   const identifierSpans: (readonly [number, number])[] = [];
+  // A figure the record names as a date and as nothing else: its digits as the reply wrote them.
+  const isOrderDate = (v: number): boolean =>
+    recorded.some((o) => typeof o !== 'number' && o.kind === 'date' && near(o.value, v))
+    && !recorded.some((o) => typeof o !== 'number' && (o.kind === 'amount' || o.kind === 'quantity') && near(o.value, v));
+  const dateAsWritten = (n: ReturnType<typeof extractNumerals>[number]): string | undefined => {
+    if (!n.at) return undefined;
+    let [from, to] = n.at;
+    while (to > from && /[,.]/.test(text[to - 1]!)) to--;
+    return from < to ? input.reply.slice(from, to) : undefined;
+  };
   // A record from before the kinds (bare numbers) — on an order-source line, a figure that is part of a code (Latin letters and
   // digits together: "TRK4455667788", "T55-4401") or a long run of digits alone (seven or more: a tracking number,
   // which no date or quantity of an order reaches) is an identifier: it is shown as the reply wrote it, never as
@@ -192,8 +202,11 @@ export function readReply(input: {
     if (seen.some((s) => near(s, n.value))) continue;
     seen.push(n.value);
     const source = sourceOf(n.value);
-    // The old record's guess applies only to a figure the old record holds; a kinded one keeps its format.
-    const written = source === 'order' && fromOldRecord(n.value) ? asWritten(n) : undefined;
+    // The old record's guess applies only to a figure the old record holds. A date of the order (a year, a day) is
+    // shown as the reply wrote it — "2026", never "2,026" (t1r, 2026-11-10); an amount or a quantity keeps its format.
+    const written = source !== 'order' ? undefined
+      : fromOldRecord(n.value) ? asWritten(n)
+      : isOrderDate(n.value) ? dateAsWritten(n) : undefined;
     // Two figures of one code ("T55-4401") are one line: the code as written.
     if (written !== undefined && lines.some((l) => l.kind === 'figure' && l.words === written)) continue;
     lines.push({ kind: 'figure', value: n.value, source, ...(written !== undefined ? { words: written } : {}) });

@@ -422,13 +422,14 @@ describe('5.5 · a code from the order is shown as written; the English lines ar
     expect(lineOf(bare, orderSourcedFigures(BARE, bare), 4455667788)).toMatchObject({ source: 'order', words: '4455667788' });
   });
 
-  it('dates and amounts keep their formats: no "as written" override on them', () => {
+  it('dates and amounts keep their own formats: a date as the reply wrote it, an amount as money', () => {
     const figures = orderSourcedFigures(ORDER, REPLY);
-    expect(lineOf(REPLY, figures, 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order' });
+    // A year is a date, written as a date is written: "2026", never "2,026" (t1r, 2026-11-10).
+    expect(lineOf(REPLY, figures, 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order', words: '2026' });
     expect(lineOf(REPLY, figures, 9)).toMatchObject({ source: 'order', words: '9' });
     // An ordinal is a date, not a code; an amount is the quote's, not the order's.
     const ordinal = 'It should reach you on the 15th, and the parcel is 1250.00 in total.';
-    expect(lineOf(ordinal, orderSourcedFigures(ORDER, ordinal), 15)).toEqual({ kind: 'figure', value: 15, source: 'order' });
+    expect(lineOf(ordinal, orderSourcedFigures(ORDER, ordinal), 15)).toEqual({ kind: 'figure', value: 15, source: 'order', words: '15' });
     const quote = { unitPrice: 1250, total: 1250, quantity: 1, discountPct: 0, leadTimeDays: null, moq: null };
     expect(lineOf(ordinal, [], 1250, quote)).toEqual({ kind: 'figure', value: 1250, source: 'price' });
   });
@@ -513,6 +514,17 @@ describe('5.5 · each order figure knows what it is', async () => {
   const UPS = '1Z999AA10123456784';
   const UPS_REPLY = `Your order #T55-4401 is on its way: tracking number ${UPS}.`;
 
+  it('a date of the order is shown as the reply wrote it — 2026, 15 — never with a thousands separator; amounts and quantities unchanged', () => {
+    const reply = 'Placed on 9 November 2026, expected on 15 November: 2 parcels, 1250.00 in all, Rp 889900 duty.';
+    const figures: readonly OrderFigure[] = [...orderSourcedFigures(orderWith(), reply),
+      { value: 2, kind: 'quantity' }, { value: 1250, kind: 'amount' }, { value: 889900, kind: 'amount' }];
+    const lines = figuresOf(reply, figures);
+    expect(lines.map((l) => [l.value, l.source, l.words])).toEqual([
+      [9, 'order', '9'], [2026, 'order', '2026'], [15, 'order', '15'], [2, 'order', '2'], [1250, 'order', undefined], [889900, 'order', undefined]]);
+    // A figure the record names both as a date and as an amount keeps the amount's format.
+    expect(figuresOf('It was 2026 in all.', [{ value: 2026, kind: 'date' }, { value: 2026, kind: 'amount' }])).toEqual([{ kind: 'figure', value: 2026, source: 'order' }]);
+  });
+
   it(`UPS ${UPS}: one identifier in the record, the whole code as written; the card's reading has one line for it and no "1"`, () => {
     const figures = orderSourcedFigures(orderWith(UPS), UPS_REPLY);
     expect(figures).toEqual([{ value: 55, kind: 'identifier', written: 'T55-4401' }, { value: 1, kind: 'identifier', written: UPS }]);
@@ -545,8 +557,8 @@ describe('5.5 · each order figure knows what it is', async () => {
     expect(figures.filter((f) => f.kind === 'date').map((f) => f.value)).toEqual([9, 2026, 15]);
     const lines = figuresOf(reply, figures);
     expect(fromOrder(lines).filter((l) => l.words && /[A-Z]|\d{6,}/.test(l.words)).map((l) => l.words)).toEqual(['T55-4401', 'TRK4455667788', LONG]);
-    expect(lines.find((l) => l.value === 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order' });
-    expect(lines.find((l) => l.value === 15)).toEqual({ kind: 'figure', value: 15, source: 'order' });
+    expect(lines.find((l) => l.value === 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order', words: '2026' });
+    expect(lines.find((l) => l.value === 15)).toMatchObject({ value: 15, source: 'order', words: '15' });
     // An amount and a quantity the record names keep their formats.
     const more = 'It comes in 2 parcels; the total was 1250.00.';
     const kinded = [{ value: 2, kind: 'quantity' }, { value: 1250, kind: 'amount' }] as const;
@@ -596,13 +608,24 @@ describe('5.5 · each order figure knows what it is', async () => {
       expect(six).not.toContain('889,900');
     });
 
+    it(`${locale} · the card: the year 2026 and the day 15 as written; the quantity 2 and 1,250 unchanged`, () => {
+      const reply = 'Your order #T55-4401 was placed on 9 November 2026 and should reach you on 15 November, in 2 parcels; 1250.00 in all.';
+      const c = cardOf(detailFor(reply, [...orderSourcedFigures(orderWith(), reply), { value: 2, kind: 'quantity' }]), locale);
+      const reasons = c.slice(c.indexOf('<ul class="reasons">'), c.indexOf('</ul>', c.indexOf('<ul class="reasons">')));
+      for (const shown of ['<bdi>2026</bdi>', '<bdi>15</bdi>', '<bdi>9</bdi>', '<bdi>2</bdi>', '<bdi>T55-4401</bdi>']) expect(reasons, shown).toContain(shown);
+      expect(reasons).not.toContain('2,026');
+      // The amount is the quote's: money, as before.
+      expect(reasons).toMatch(/1,250\.00/);
+    });
+
     it(`${locale} · the card: 889900 as an amount is formatted; a date keeps its format; an old record reads as before`, () => {
       const amount = cardOf(detailFor('Your order #T55-4401 came to Rp 889900.', [{ value: 889900, kind: 'amount' }]), locale);
       expect(amount).toContain('<bdi>889,900</bdi>');
       expect(amount).not.toContain('<bdi>889900</bdi>');
       const dated = 'Your order #T55-4401 was placed on 9 November 2026.';
       const kinded = cardOf(detailFor(dated, orderSourcedFigures(orderWith(UPS), dated)), locale);
-      expect(kinded).toContain('<bdi>2,026</bdi>');
+      expect(kinded).toContain('<bdi>2026</bdi>');
+      expect(kinded).not.toContain('2,026');
       expect(kinded).toContain('<bdi>T55-4401</bdi>');
       const old = cardOf(detailFor('Tracking number 889900.', [889900]), locale);
       expect(old).toContain('<bdi>889,900</bdi>');
