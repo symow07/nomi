@@ -34,7 +34,7 @@ d('Phase 9 · a customer\'s name taken off a product (requires DATABASE_URL)', (
     return withTenantTx(db, bid.value, fn);
   };
   const names = (biz: string, pid: string) => as(biz, (x) => sql<{ alias: string }>`
-    select alias from product_aliases where product_id = ${pid}::uuid order by alias`.execute(x).then((r) => r.rows.map((y) => y.alias)));
+    select alias from product_aliases where product_id = ${pid}::uuid order by alias collate "C"`.execute(x).then((r) => r.rows.map((y) => y.alias)));
   const remove = (pid: string, alias: string) => app.inject({ method: 'POST', url: `/app/products/${pid}/names/remove`,
     payload: new URLSearchParams({ alias }).toString(), headers: { cookie, ...FORM } });
 

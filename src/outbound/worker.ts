@@ -3,13 +3,13 @@ import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
   onSendFailure, isUncertainSend, SENDING_RECLAIM_MS,
 } from '../core/channel/delivery.js';
-import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice } from '../core/channel/sendGate.js';
+import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice, type CommentPrivateReplyGate } from '../core/channel/sendGate.js';
 import { channelSendPlan, sendPlan, type TemplateState } from '../core/channel/window.js';
 import { tiktokMaySend, type TikTokHistory } from '../core/channel/tiktokLimits.js';
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../core/owner/i18n/messages.js';
-import type { MailAttachment, ChannelAdapter, SendResult } from '../channels/contract.js';
+import type { MailAttachment, ChannelAdapter, OutboundProduct, SendResult } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { carriesOurJson } from '../core/safety/rawOutput.js';
@@ -60,9 +60,13 @@ export type OutboundWorkRow = OutboundRow & {
   readonly notice?: Notice | null;
   /** 0136 — a person decided this row should go: it may reopen a closed window with the template. */
   readonly approved?: boolean;
+  /** Part B (5.3) — for kind='product': the catalogue item, or null when it no longer matches what Meta accepted. */
+  readonly product?: OutboundProduct | null;
 };
 
 export type ConversationSendContext = {
+  /** New-kind facts keyed by the persisted outbound id; never a conversation-wide permission. */
+  readonly commentPrivateReplies?: Readonly<Record<string, Omit<CommentPrivateReplyGate, 'now' | 'channel'> & { readonly accountId: string }>>;
   readonly assignedTo: string | null;
   readonly paused: boolean;
   readonly lastInboundAt: Date | null;
@@ -150,6 +154,8 @@ export type OutboundStore = {
   }>;
   transition(id: string, to: OutboundRow['status'], detail: string | null): Promise<void>;
   recordProviderId(id: string, providerMessageId: string): Promise<void>;
+  /** Only the new kind: claim in this transaction, returning the stored provider comment id. */
+  claimCommentPrivateReply?(id: string, now: Date): Promise<string | null>;
   scheduleRetry(id: string, delayMs: number, error: string): Promise<void>;
   deadLetter(id: string, error: string): Promise<void>;
   /** M22 — record a refused send so the owner can see it, with the reason it
@@ -200,7 +206,9 @@ export type RefusalReason =
   // C4.a — a first message whose permission could not be established at all.
   // Not a refusal BY the outreach gate: a refusal because the gate could not be
   // asked, which is the one honest answer when the facts are missing.
-  | 'outreach_unchecked';
+  | 'outreach_unchecked'
+  // Part B (5.3) — a product card whose item no longer matches what Meta accepted.
+  | 'product_changed';
 
 /**
  * The same union as a list, DERIVED not restated.
@@ -223,6 +231,8 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
   'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked',
   // 0133 — and a marketing e-mail with no postal address to carry.
   'no_postal_address',
+  // Part B (5.3) — and a product card whose item changed since Meta accepted it.
+  'product_changed',
 ];
 
 /**
@@ -450,7 +460,10 @@ export async function prepareConversationOutbound(
   const onTikTok = candidate.channel === 'tiktok';
   const plan = onTikTok ? sendPlan('open', 'reply', 'none') : channelSendPlan(candidate.channel ?? 'whatsapp', ctx.lastInboundAt, now, ctx.template);
   const tiktokRefused = onTikTok && (!ctx.tiktok || !tiktokMaySend(ctx.tiktok, now).send);
+  const comment = candidate.kind === 'comment_private_reply' ? ctx.commentPrivateReplies?.[candidate.id] : undefined;
   const gate = gateOutbound({
+    ...(candidate.kind !== undefined ? { messageKind: candidate.kind } : {}),
+    ...(comment ? { commentPrivateReply: { ...comment, channel: candidate.channel ?? '', now } } : {}),
     origin: candidate.origin,
     ...(carriesOurJson(candidate.body) ? { garbled: true } : {}),
     ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
@@ -503,6 +516,7 @@ export async function prepareConversationOutbound(
     // went as the template too, and nobody had approved it.
     if (ctx.reopen && tAdapter?.sendTemplate && candidate.automated !== true
         && candidate.origin !== 'outreach' && candidate.kind !== 'image' && candidate.kind !== 'document'
+        && candidate.kind !== 'product'
         && (candidate.origin === 'owner' || candidate.approved === true)) {
       await deps.store.transition(candidate.id, 'sending', null);
       const reopen = ctx.reopen;
@@ -550,6 +564,20 @@ export async function prepareConversationOutbound(
       return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
     }
   }
+  // Part B (5.3) — a PRODUCT CARD the same way: only with its item still matching what Meta accepted, and only
+  // through an adapter that carries one. Never sent as its transcript words.
+  if (candidate.kind === 'product') {
+    if (!candidate.product) {
+      await refuse(deps, candidate, 'product_changed');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'product_changed' }]);
+    }
+    const pAdapter = adapterFor(deps, candidate.channel);
+    // No adapter at all falls through to C4.a's refusal below, as a text row's would.
+    if (pAdapter && !pAdapter.sendProduct) {
+      await refuse(deps, candidate, 'media_unsupported');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }]);
+    }
+  }
   // C4.a — the adapter this row's channel needs, and the refusals that follow
   // from not having one. Both are refusals rather than throws: a queued row
   // that cannot be carried is something the owner must be able to see.
@@ -557,6 +585,26 @@ export async function prepareConversationOutbound(
   if (!adapter) {
     await refuse(deps, candidate, 'channel_unavailable');
     return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }]);
+  }
+  // This kind has no DM fallback. The adapter and locked facts must name the same account.
+  if (candidate.kind === 'comment_private_reply') {
+    if (adapter.kind !== 'instagram' || !adapter.sendCommentPrivateReply
+      || adapter.commentPrivateReplyAccountId !== comment?.accountId) {
+      await refuse(deps, candidate, 'channel_unavailable');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }]);
+    }
+    if (!deps.store.claimCommentPrivateReply) {
+      await refuse(deps, candidate, 'comment_unchecked');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'comment_unchecked' }]);
+    }
+    const commentId = await deps.store.claimCommentPrivateReply(candidate.id, now);
+    if (!commentId) {
+      await refuse(deps, candidate, 'comment_used');
+      return done([...effects, { kind: 'canceled', id: candidate.id, reason: 'comment_used' }]);
+    }
+    await deps.store.transition(candidate.id, 'sending', null);
+    const sendComment = adapter.sendCommentPrivateReply.bind(adapter);
+    return { effects, send: { row: candidate, conversationId, call: () => sendComment(commentId, candidate.body) } };
   }
   const asMail = adapter.sendMail !== undefined;
   if (asMail && !candidate.subject) {
@@ -613,10 +661,14 @@ export async function prepareConversationOutbound(
   await deps.store.transition(candidate.id, 'sending', null);
   const mediaUrl = candidate.kind === 'image' ? candidate.mediaUrl ?? null : null;
   const documentUrl = candidate.kind === 'document' ? candidate.mediaUrl ?? null : null;
+  const product = candidate.kind === 'product' ? candidate.product ?? null : null;
   const sendMail = adapter.sendMail?.bind(adapter);
   const mail = (attachments: readonly MailAttachment[] | undefined): Promise<SendResult> =>
     sendMail!({ to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag, ...(attachments ? { attachments } : {}) });
   const call = async (): Promise<SendResult> => {
+    if (candidate.kind === 'product') {
+      return product && adapter.sendProduct ? adapter.sendProduct(candidate.to, product) : { ok: false, retryable: false, error: 'product card unavailable' };
+    }
     if (asMail && sendMail) {
       if (!documentUrl) return mail(undefined);
       // The bytes are made here, in the call itself, so no provider is contacted while they are missing.
@@ -695,7 +747,7 @@ async function failedSend(
   result: { readonly retryable: boolean; readonly error: string; readonly uncertain?: true },
 ): Promise<DriveEffect> {
   const attempts = candidate.attempts + 1;
-  const failure = onSendFailure({ retryable: result.retryable, error: result.error }, attempts);
+  const failure = onSendFailure({ retryable: candidate.kind === 'comment_private_reply' ? false : result.retryable, error: result.error }, attempts);
   // Provider error text passes through redaction BEFORE any sink — persistence
   // (last_error) and logs must never carry secret-shaped content (audit M3).
   const safeError = redactSecrets(result.error);

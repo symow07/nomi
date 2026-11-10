@@ -57,7 +57,8 @@ describe('D · five entries', () => {
 
   it('the map gives Products its own area and keeps business, assistant and setup contexts', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s));
+    // Changed by the approved 5.5 order-facts patch: the Shopify order questions page joins the business area.
+    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data','shopify'].map(s=>'/app/settings/business/'+s));
     expect(under('/app/settings')).toEqual(['business','channels','assistant','books','team','billing','personal'].map(s=>'/app/settings/'+s));
     expect(under('/app/settings/personal')).toEqual(['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s));
     expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s));

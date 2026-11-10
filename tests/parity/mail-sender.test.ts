@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { httpsMailConfigFrom, providerRequest, httpsSystemMailer, cappedMail, refusedByCap, type MailFetch } from '../../src/channels/email/httpsMail.js';
+import { httpsMailConfigFrom, providerRequest, httpsSystemMailer, cappedMail, type MailFetch } from '../../src/channels/email/httpsMail.js';
+import { refusedByCap } from '../../src/core/ops/mailCap.js';
 import { mailCapsFrom, DEFAULT_MAIL_CAPS } from '../../src/db/mailCaps.js';
 import { renderOwnerAlert } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';

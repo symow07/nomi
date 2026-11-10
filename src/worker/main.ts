@@ -26,7 +26,8 @@ import { recordSpendAlone } from '../db/usage.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
-import { matchCaption, postLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
+import { matchCaption, postLine, commentLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
+import { attributeCommentReply } from '../db/commentPrivateReplies.js';
 import { catalogueNames } from '../db/productAliases.js';
 import { enqueueOutboundRow, pilotFactsFor } from '../db/channels.js';
 import { turnHold, HOLD_REASON, type TurnHold } from '../db/assistantStop.js';
@@ -39,6 +40,7 @@ import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor, interrupts, sendAlert } from '../pipeline/notify.js';
 import { loggableLine, loggableMessage } from '../security/loggable.js';
+import { rememberingOrderLookup, recordOrderSourced } from '../pipeline/orderSourced.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
 } from './appErrors.js';
@@ -253,6 +255,8 @@ export async function startWorker(
     let heldAfterPaying = false;
     // P5 — who pays: the workspace itself, or, for a practice copy, the workspace it practises for.
     let payer: BusinessId = businessId.value;
+    /** 5.5 — the order this turn's lookup verified, if any: read after the turn commits, for the card's record. */
+    const orderSeen: { current: ReturnType<typeof rememberingOrderLookup> | null } = { current: null };
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
       // B24 (audit batch 5) — asked under the lock, so two processes holding the same job, or a job retried after its
@@ -270,9 +274,12 @@ export async function startWorker(
         ? { ...base, autonomy: { ...base.autonomy, released: rehearsal.autonomyReleased } }
         : base;
       const retriever = hybridRetriever(tx, businessId.value);
+      orderSeen.current = media.orderLookups ? rememberingOrderLookup(media.orderLookups({ db, businessId: businessId.value })) : null;
       const ports = {
         tenant, retriever, analyzer, replyWriter, now: () => new Date(),
         publicBaseUrl: env.PUBLIC_BASE_URL ?? null,
+        // 5.5 — asks Shopify nothing unless this workspace connected a store and switched answering on.
+        ...(orderSeen.current ? { orderLookup: orderSeen.current.port } : {}),
       };
 
       if (input.heard) {
@@ -374,6 +381,13 @@ export async function startWorker(
     // send is retried after it succeeded; that is tolerated.
     // B24 — nothing ran: another turn had already answered this.
     if (effects === null) return;
+    // 5.5 — which figures of an order reply the verified order holds, for the owner's card (t1r's ruling A): written
+    // after the turn committed, in its own transaction, beside an `order_facts` draft only. Failing changes nothing.
+    const sourcedOrder = orderSeen.current?.verified() ?? null;
+    if (sourcedOrder && 'draftCreated' in effects && effects.draftCreated) {
+      await recordOrderSourced(db, businessId.value, { conversationId: effects.draftCreated.conversationId, draftId: effects.draftCreated.draftId, order: sourcedOrder })
+        .catch(() => console.error('[shopify-orders] the order reply\'s sources were not recorded'));
+    }
     if (effects.outbound) {
       await boss.send(QUEUES.outbound, {
         businessId: input.businessId,
@@ -806,13 +820,20 @@ export async function startWorker(
      */
     if (heard === null && seen === null) {
       const decision = await withTenantTx(db, businessId.value, async (tx) => {
-        await recordFragment(tx, businessId.value, conversationId.value, {
+        // 5.4 — the first answer to the owner's private reply to a comment: which comment, only when certain (the
+        // reply-to id, else exactly one such reply to this person), and the product it named on its own marked line.
+        // Ambiguous or no single product: nothing guessed, and the Comments page says so.
+        const commented = await attributeCommentReply(tx, businessId.value, conversationId.value, job.data.replyToMid ?? null);
+        const fragment = {
           id: job.data.messageId,
           // CH7 — "price?" on a story of hers that names one product: the turn
           // reads which, on its own marked line. The timeline keeps his words alone.
           text: named ? `${job.data.text}\n${postLine('story_reply', named.name)}` : job.data.text,
           receivedAt: new Date(),
-        });
+        };
+        await recordFragment(tx, businessId.value, conversationId.value, commented?.productName
+          ? { ...fragment, text: `${fragment.text}\n${commentLine(commented.productName)}` }
+          : fragment);
         // G10a — and on the timeline, as he sent it, whatever batching does next.
         await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
         const pending = await pendingFragments(tx, conversationId.value);

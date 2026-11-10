@@ -13,6 +13,7 @@ import { renderOperationsHome } from '../../src/api/web/operations.js';
 import type { TodayData } from '../../src/api/web/today.js';
 import { renderAnalytics } from '../../src/api/web/analytics.js';
 import { product, tiers, policy } from './fixtures.js';
+import { SHOPIFY_SCREEN_LABELS, withoutShopifyScreenLabels } from './shopify-screen-labels.js';
 
 /**
  * M1's oldest rule: nothing we say to the owner is software talk.
@@ -76,11 +77,29 @@ describe('M1 · no owner-facing string is software talk (the whole catalogue)', 
         // that a machine wrote the reply. The rule is about owner-facing
         // software talk; see HONEST_ABOUT_AI_KEYS for why these are not that.
         if (HONEST_ABOUT_AI_KEYS.includes(key)) continue;
-        for (const banned of bannedIn(value)) found.push(`"${banned}" in ${locale} ${key}: "${value}"`);
+        for (const banned of bannedIn(withoutShopifyScreenLabels(key, value))) found.push(`"${banned}" in ${locale} ${key}: "${value}"`);
       }
       expect(found).toEqual([]);
     });
   }
+
+  it('excepts only exact Shopify labels in their named keys, leaving other banned words visible', () => {
+    for (const [key, phrases] of Object.entries(SHOPIFY_SCREEN_LABELS)) {
+      const copy = messages.en[key as MessageKey];
+      for (const phrase of phrases ?? []) {
+        if (key === 'storeToken.token') {
+          expect(phrase).toBe('Admin API access token');
+          expect(copy).toBe(phrase);
+        } else {
+          expect(phrase).toMatch(/^“[^“”]+”$/);
+        }
+        expect(copy).toContain(phrase);
+      }
+      expect(bannedIn(withoutShopifyScreenLabels(key, `${copy} API`))).toContain('API');
+    }
+    expect(bannedIn(withoutShopifyScreenLabels('storeToken.refused.choose_one', 'Admin API access token'))).toContain('API');
+    expect(bannedIn(withoutShopifyScreenLabels('another.key', '“Admin API access token”'))).toContain('API');
+  });
 
   it('the scan itself finds a banned term: as a whole word in Latin, as a substring in Chinese', () => {
     const latin = BANNED_OWNER_TERMS.find((b) => /^[a-z ]+$/.test(b.toLowerCase()))!;

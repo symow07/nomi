@@ -150,7 +150,9 @@ d('E1 · the owner\'s copy of their papers (requires DATABASE_URL + MIGRATE_DATA
   it('A COPY THAT FAILS LEAVES NO RECEIPT: a paper that cannot be opened stops the archive, and closure still waits', async () => {
     const good = await put(BROKEN, 'ok.pdf', Buffer.from(`%PDF-1.7 fine ${RUN}`));
     const bad = await put(BROKEN, 'bad.pdf', Buffer.from(`%PDF-1.7 will be damaged ${RUN}`));
-    await admin.query(`update document_blobs set sealed = overlay(sealed placing '\\x00'::bytea from 40 for 1) where document_id = $1`, [bad.id]);
+    // FLIP byte 40, never set it: the ciphertext is random, so about one seal in 256 already has a 0 there, and zeroing
+    // it changed nothing — the copy succeeded and this test failed (seen once in a full run). A flip always changes it.
+    await admin.query(`update document_blobs set sealed = set_byte(sealed, 39, get_byte(sealed, 39) # 255) where document_id = $1`, [bad.id]);
     const { makePapersArchive } = await import('../../src/db/papersCopy.js');
     await expect(makePapersArchive(db, BROKEN, 'owner', store, { sep: ',', decimal: '.' })).rejects.toThrow();
     expect((await admin.query(`select count(*)::int as n from books_exports where business_id = $1 and kind = 'papers_zip'`, [BROKEN])).rows[0].n).toBe(0);

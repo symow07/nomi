@@ -1,3 +1,5 @@
+import {paymentProvider} from '../fixtures/paymentProvider.js';
+import {CONNECT_CONFIG} from '../fixtures/stripeConnect.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { seedRunTenant, RUN_BIZ } from './tenant.js';
@@ -80,6 +82,7 @@ d('M35 · every route that is not deliberately public refuses a stranger', () =>
       // from the app under test is dead documentation: the check below would
       // pass while nothing ever probed the real thing.
       emailWebhookSecret: 'an-email-webhook-shared-secret',
+      stripeConnect: {config:CONNECT_CONFIG,client:paymentProvider({id:'acct_publicfixture',country:'GB',currency:'GBP',ready:true}).client},
       // S7 — the chat page, mounted on purpose for the same reason; this one takes nothing.
       chatIngest: async () => 'refused' as const,
       resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }),
@@ -115,6 +118,13 @@ d('M35 · every route that is not deliberately public refuses a stranger', () =>
       }
     }
     expect(leaks, `these answered a stranger:\n  ${leaks.join('\n  ')}`).toEqual([]);
+  });
+
+  it('the payment return reveals no query value and the Connect receiver rejects unsigned callers',async()=>{
+    const response=await app.inject({method:'GET',url:'/payment/return?invoice=private-fixture&paid=true'});
+    expect(response.statusCode).toBe(200);expect(response.body).not.toContain('private-fixture');
+    expect(response.body).toContain('does not confirm a payment');
+    expect((await app.inject({method:'POST',url:'/hooks/stripe/connect',payload:{id:'evt_unsigned'}})).statusCode).toBe(400);
   });
 
   it('the proof link is public but answers 404 for a token nobody issued', async () => {

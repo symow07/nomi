@@ -12,7 +12,7 @@ import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catal
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
 import { defaultUnitFor, sellsByQuantity } from '../../core/owner/sellingStyle.js';
-import { renderStoreForms, filePick, type StoreFormRefusal } from './storeImport.js';
+import { renderStoreForms, filePick, type StoreFormRefusal, type ShopifyFormProps } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
 import { mayLoad } from './thirdParty.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -912,7 +912,7 @@ export function renderAddForm(
   /** EXT — the page reader can read a PDF on this installation (its model provider takes documents). */
   pdfReadable = false,
   /** Phase 6 — a form on this page that came to nothing: its sentence goes under it, the page is the same. */
-  refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | null = null,
+  refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | { readonly shopify: ShopifyFormProps } | null = null,
   now: Date = new Date(),
 ): string {
   // Phase 9 (V1-328) — the way back to the list, above the title, as on a product's page.
@@ -958,7 +958,7 @@ export function renderAddForm(
       </form>
       <p class="caption muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>
-    ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null)}
+    ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null, refused && 'shopify' in refused ? refused.shopify : undefined)}
     ${renderPricesToMe(locale, pricesToOwner)}</section>`;
 }
 

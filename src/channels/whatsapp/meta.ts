@@ -46,6 +46,8 @@ export function metaAdapter(cfg: MetaConfig): ChannelAdapter {
     sendDocument: (to, doc) => client.sendDocument(to, doc.url, doc.filename, doc.caption),
     // WA-S — the approved template that reopens a customer's closed window.
     sendTemplate: (to, t) => client.sendTemplate(to, t),
+    // Part B (5.3) — one item of the business's own linked catalogue.
+    sendProduct: (to, p) => client.sendProduct(to, p),
   };
 }
 

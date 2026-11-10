@@ -149,7 +149,7 @@ const isolated = (locale: Locale, params: Record<string, string | number> | unde
 
 /** `t`, with `{name}` filled from the request — and, right to left, every figure isolated. An explicit `name` still wins. */
 export const t = (locale: Locale, key: MessageKey, params?: Record<string, string | number>): string =>
-  isolateFigures(locale, sayPlain(locale, key, { name: assistantName(locale), ...isolated(locale, params) }));
+  isolateFigures(locale, sayPlain(locale, key, { ...(scope.getStore()?.name ? { name: scope.getStore()!.name! } : {}), ...isolated(locale, params) }));
 
 /**
  * A counted sentence (`tn` in the catalogue): the form the language gives the
@@ -157,7 +157,7 @@ export const t = (locale: Locale, key: MessageKey, params?: Record<string, strin
  * right-to-left page, like every figure — and `{name}` from the request.
  */
 export const tn = (locale: Locale, base: string, n: number, params?: Record<string, string | number>): string =>
-  isolateFigures(locale, countedPlain(locale, base, n, { name: assistantName(locale), ...isolated(locale, params) }));
+  isolateFigures(locale, countedPlain(locale, base, n, { ...(scope.getStore()?.name ? { name: scope.getStore()!.name! } : {}), ...isolated(locale, params) }));
 
 /**
  * The facts per business, remembered for a minute so a page costs no extra

@@ -16620,6 +16620,121 @@ told and by whom, the other figures, each thing that waits). The four `copilot.h
 `copilot.handoff.ask` are what the advisor's model is given, in the owner's language. To translate first:
 `copilot.suggest`, `copilot.flash.suggested` and `copilot.handoff.wait.*`.
 
+## What Nomi did for you (2026-11-08; block 4.3)
+
+Ninety-two English-only lines: 65 in `src/core/owner/i18n/monthReport.ts` (`MONTH_REPORT_EN`) and 27 in
+`src/core/owner/i18n/monthMail.ts` (`MONTH_MAIL_EN`). Every other language shows the English until a native reader
+translates them. The page and the e-mail describe the same month's figures; keep their terms consistent.
+
+- **The page:** `monthReport.*` — the title and introduction; the month picker and its previous / next doors; the
+  running, first-month and empty states; the Customers, Replies, Time to first reply, Orders, Invoices and Handed to
+  you sections, their row labels, definitions and empty lines; the median's sample and still-waiting captions;
+  `duration.underMinute`; the time estimate, its formula and minutes form; and the monthly e-mail switch. The
+  `section.*` and `n.*` keys are labels, not sentences that change with the count.
+- **The e-mail, tab and notices:** `monthMail.tab` (the Results tab's "Monthly report" label), `monthMail.subject`,
+  19 body lines (`monthMail.opening`, `.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`,
+  `.medianOne`, `.medianNone`, `.orders`, `.ordersBare`, `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`,
+  `.handedOther`, `.estimate`, `.open`, `.off`), and six flashes (`monthMail.flash.mailOff`, `.mailOn`, `.minutesSaved`,
+  `.minutesCleared`, `.minutesInvalid`, `.ownerOnly`). These cover the mail switch, saving or removing the minutes,
+  and refusals that leave the settings unchanged.
+- **The assistant's name:** ten page lines carry `{name}`: `monthReport.intro`, `.empty.past`, `.empty.running`,
+  `.def.answered`, `.n.alone`, `.def.asWritten`, `.def.edited`, `.def.handed`, `.handed.none`, `.estimate.label`.
+  `monthMail.alone` carries `{name}` too. Keep the chosen name as data; do not give the assistant a gender.
+- **Counts and quantities:** four page lines carry `{n}`: `monthReport.median.from.one`, `.from.other`,
+  `monthReport.median.waiting.one`, `.waiting.other`; keep the one / other meanings distinct. Twelve mail lines
+  carry `{n}`: `monthMail.answered`, `.alone`, `.asWritten`, `.edited`, `.notSent`, `.median`, `.orders`, `.ordersBare`,
+  `.invoices`, `.invoicesBare`, `.handed`, `.handedReason`. `monthMail.medianOne` says "1 customer" explicitly;
+  `.medianNone` has no count. `monthReport.estimate.formula` and `monthMail.estimate` carry `{replies}`, `{minutes}`
+  and `{hours}`; `monthMail.flash.minutesSaved` carries `{minutes}`. The page's `estimate.hint` and the mail catalogue's
+  `flash.minutesInvalid` say the allowed range, 1 to 60. Preserve the placeholders, the formula and the separate
+  currencies in `{totals}`; a count's wording must not change what is measured.
+- **Other values:** the page's previous / next names, running state and empty title carry `{month}`; its first-month
+  line carries `{date}`. The mail subject and opening carry `{business}` and `{month}`; `.median` and `.medianOne`
+  carry `{time}`, `.handedReason` carries `{reason}`, `.orders` and `.invoices` carry `{totals}`, and `.open` carries
+  `{url}`. Preserve the names, formatted values and the link when translating.
+- **To translate first:** `monthMail.tab`, then `monthMail.subject`, then all six `monthMail.flash.*` lines, especially
+  `.minutesInvalid` and `.ownerOnly` so the owner understands why nothing changed. Then the page and e-mail body,
+  checking the matching labels, `{name}` sentences and count forms together.
+
+## Set up in minutes (2026-11-08; block 4.4, 0232)
+
+The 4.4 inventory from `946c25de`, with catalogue wording updated during the cleanup of `165bf19d`, has 104
+English-only lines in `src/core/owner/i18n/setupMinutes.ts` (`SETUP_MINUTES_EN`):
+99 page lines (including inline refusals) and five flashes. `redesign.ts` registers this whole set; other languages
+show the English until a native reader translates it. There is no new mail copy. Three other fixed English lines
+outside the catalogue are listed below: two example CSV rows and one export label, making 107 fixed lines in all.
+
+- **Customers from a file — 55 page lines:** `contactImport.*`, apart from `.flash.*`: the upload, column-mapping,
+  checking and completion titles; the introduction and customer-list door; the CSV example hint, international-phone
+  hint, file and paste fields, Read it and step counter; `columns.*` (name, phone, language, notes, no column, numbered
+  column, header-row choice and preview); Continue, Back and All customers; `check.*` (the totals, the three groups,
+  matching explanation, row number and existing name, tick / untick, deletion reminder, missing name, accessible
+  row-selection label and empty group); `contactImport.add` ("Add the ticked customers", with no count in the button);
+  Discard and its asking; and the two `done.*` counts.
+  The six file refusals are `contactImport.refused.not_a_table`, `.empty`, `.too_large`, `.too_many`, `.encoding`,
+  `.no_phone_column`. The eight row refusals are `contactImport.refused.row.no_phone`, `.not_international`,
+  `.bad_phone`, `.language_not_recognised`, `.duplicate_in_file`, `.long_name`, `.long_notes`, `.ambiguous_existing`.
+- **Shopify — 29 page lines:** all 28 `storeToken.*` lines and `import.store.refused.password_protected`. These cover
+  the disclosure, store address and hint, the two credential methods and their labels, the Dev Dashboard steps
+  (`dev.step1`, `.step2`, `.step4`) and two help doors, Read the store, and the one-use credentials explanation
+  (`storeToken.kept`). The twelve `storeToken.refused.*` lines are `.not_myshopify`, `.choose_one`, `.spaces`,
+  `.shop_not_permitted`, `.app_not_found`, `.client_rejected`, `.rejected`, `.no_scope`, `.no_store`, `.slow_down`,
+  `.unreachable`, `.currency_mismatch`. Keep the distinction between the field named below and the Client ID / Client
+  secret pair, and between something Shopify did not accept, missing product permission and a store the app cannot
+  read. The refusals refer to "the store's organization" (`.app_not_found`) and "the app's Settings"
+  (`.client_rejected`); preserve who each belongs to.
+- **Shopify's screen labels:** `storeToken.token` is the field label `Admin API access token`, with no quotes.
+  `storeToken.refused.choose_one` says "Fill in one way: the “Admin API access token”, or both the Client ID and the
+  Client secret." `storeToken.refused.rejected` says "Shopify did not accept this “Admin API access token”. Check you
+  copied all of it, then paste it again." `storeToken.dev.step4` still quotes “Credentials”. **Shopify's own words:
+  translate to match Shopify's screen in that language.** These exact phrases are the named exceptions in
+  `SHOPIFY_SCREEN_LABELS` (`tests/parity/shopify-screen-labels.ts`); only the field label is unquoted. Our surrounding
+  sentences stay in plain words and follow the owner vocabulary rules. The exception list refers to existing
+  messages and adds no catalogue lines.
+- **Get started — 15 page lines:** `setupClock.title`, `.running`, `.done`; the four milestones `.products`,
+  `.contacts`, `.channel`, `.reply`; the three doors `.products.go`, `.contacts.go`, `.channel.go`; `.reply.how`;
+  and `.doneAt`, `.doneOn`, `.notYet`, `.ownerDoes`. The clock says time since sign-up, not time spent working.
+- **Five flashes:** `contactImport.flash.added.one`, `.added.other`, `.none`, `.discarded`, `.gone`. The backend uses
+  this same catalogue; it adds no separate flash or mail set. Keep "Nobody was sent a message" distinct from adding
+  records, and "no longer kept" distinct from an empty file.
+- **Names and counts:** `{name}` is the assistant in `contactImport.intro` and `setupClock.reply.how`, but the existing
+  customer in `contactImport.check.onRecord`. Eight lines carry `{n}`: `contactImport.step`, `.columns.numbered`,
+  `.check.row`, `.check.select`, `.done.matched`, `.flash.added.one`, `.flash.added.other`, `.refused.row.duplicate_in_file`.
+  Keep the flash's singular / plural pair and the distinction between a row number and a customer count. The add
+  button's wording stays the same as ticks change; the completion flash states the count actually added.
+  `contactImport.check.summary` carries `{rows}`, `{add}`, `{existing}`, `{refused}`;
+  `.done.counts` carries `{existing}`, `{skipped}`, `{refused}`. Preserve the stated limits (three steps, 5 MB,
+  5,000 rows, 120 name characters, 1,000 note characters) and the `+` / `00` international-number markers.
+- **Other values:** `storeToken.refused.no_store` carries `{host}`. `setupClock.running`, `.done` and `.doneAt` carry
+  `{elapsed}`; `.doneOn` carries `{date}`. Preserve formatted values and direction isolation. `setupElapsed` in
+  `src/api/web/guide.ts` currently formats English units with `Intl.NumberFormat('en')` and `Intl.ListFormat('en')`,
+  including the explicit `h` unit; review its minute / hour / day wording with the clock's translations. These
+  generated unit forms are not additional fixed catalogue lines.
+- **Three other fixed lines:** `src/api/web/contactImport.ts` shows the literal CSV header `name,phone,language,notes`
+  and example record `Avery Example,+12025550101,en,Ask about blue.`; `src/api/web/buyerCopy.ts` adds the export label
+  `language, from a file of customers`. The CSV is example data: keep its header identifiers, international phone and
+  language code valid if its name or note is localized. Keep the export's stated language distinct from language
+  learned from the customer's own messages. The Shopify address example and credential field identifiers are data,
+  not prose to translate.
+- **To translate first:** `contactImport.door`, `.title`, `.phoneHint`, `.check.deleted`, `.add`, `.discard.confirm`, the
+  `contactImport.refused.*` lines and all five flashes; then `storeToken.open`, `.kept`, `.token`, `.dev.step4` and its
+  refusal lines plus `import.store.refused.password_protected`, so the owner can act on a refusal, find Shopify's
+  matching screen labels and understand credential handling.
+  Next translate `setupClock.*` and its elapsed units, then the remaining controls, hints and export label. Read
+  the add / discard promises, name-bearing lines and singular / plural flash pair together.
+
+## Order questions from Shopify (2026-11-10; 0237)
+
+Forty-six lines, English only, in `src/core/owner/i18n/shopifyOrders.ts` (`SHOPIFY_ORDERS_EN`): the page under My
+business (`shopifyOrders.*`: the title, the lede, the rule a customer is held to, that each reply waits; connected, the
+scopes Shopify granted, the 60-day line, a write scope, the version Shopify answered with; the switch, Disconnect and its
+asking; the recent lookups and their nine outcomes; the three connect refusals and the flashes), the Practice line
+`shopifyOrders.practice`, `inbox.draft.held.order_facts` (the approval card's line), and `card.source.order` ("from the
+order in Shopify ({order})", the card's reading for a figure the verified order holds; added 2026-11-10). The connect form reuses the store
+import's `storeToken.*` labels. The customer's fixed sentence "I couldn't find an order with those details" is English
+only and is not in the catalogue (`src/core/commerce/shopifyOrders.ts`). To translate first: `shopifyOrders.disconnectAsk`,
+`shopifyOrders.rule`, `inbox.draft.held.order_facts`.
+
 ## Before it goes live (2026-11-07; 0230)
 
 Thirty-odd lines, English only, in `src/core/owner/i18n/cases.ts` (`CASES_EN`): the checks page and one check's page
@@ -16677,6 +16792,191 @@ language. The PDF's own labels are English too, as the text proforma's are.
   name in every language; that `invoice.send.reminders` and `invoice.settings.reminders` say the same rule in the same
   order (3 and 10 days; English; the window; else a draft).
 
+## Invoice payment links
+
+`paymentLinks.*` is English only. New connection, account mapping, invoice payment, fee, payout, bank receipt and refusal text awaits native review in other locales.
+
+## Owner-written follow-ups (2026-11-09; 0234)
+
+50 new lines, English only, in `src/core/owner/i18n/followUps.ts` (`FOLLOW_UPS_EN`, registered in `redesign.ts`). No translations are invented. The owner’s own follow-up is kept exactly as typed and is never translated.
+
+The settings and conversation page use 44 lines; the three notices use 3; the calendar, monthly subset and approval-card reason use 3. The rule starts off and only prepares a draft: translating it must never promise an automatic send.
+
+| Key | English pending native review |
+| --- | --- |
+| `followUp.title` | Follow-ups after a quote |
+| `followUp.intro` | When a customer has not answered a quote, prepare one follow-up in your words. You choose Send. Nothing goes on its own. |
+| `followUp.enabled` | Prepare a follow-up after a quote |
+| `followUp.off` | Off |
+| `followUp.on` | On |
+| `followUp.delay` | Days to wait |
+| `followUp.days` | {n} days |
+| `followUp.day` | 1 day |
+| `followUp.clock` | Choose 1 to 7 whole days. Two days means 48 hours after the quote was sent. |
+| `followUp.wording` | Your follow-up |
+| `followUp.wordsHelp` | Up to 500 characters, kept exactly as you write them. |
+| `followUp.preview` | Preview |
+| `followUp.emptyWords` | No words saved yet. |
+| `followUp.future` | Changes apply to future follow-ups. Follow-ups already planned keep their words and date. |
+| `followUp.save` | Save follow-up |
+| `followUp.ruleError` | Choose 1 to 7 whole days and write up to 500 characters. Add your words before turning this on. |
+| `followUp.flash.saved` | Follow-up saved. You still choose Send. |
+| `followUp.flash.skipped` | Follow-up skipped. |
+| `followUp.flash.changed` | This follow-up has changed. Check the conversation before choosing again. |
+| `followUp.run` | Follow-up |
+| `followUp.due` | Due |
+| `followUp.source` | The quote it follows |
+| `followUp.planned` | Planned |
+| `followUp.dueNow` | Due for a draft |
+| `followUp.review` | Waiting for you to review |
+| `followUp.sending` | Send chosen; waiting for confirmation |
+| `followUp.sent` | Sent |
+| `followUp.failed` | Not confirmed as sent. Check the conversation. |
+| `followUp.closed` | Follow-up due; {channel} is closed until the customer writes. |
+| `followUp.canceled` | Canceled |
+| `followUp.skipped` | Skipped |
+| `followUp.skip` | Skip this follow-up |
+| `followUp.answered` | The customer answered. |
+| `followUp.optedOut` | The customer asked for no more messages. |
+| `followUp.unsubscribed` | Messages to this customer are stopped. |
+| `followUp.deletion` | The customer asked to have their information removed. |
+| `followUp.person` | A person is looking after this conversation. |
+| `followUp.conversationClosed` | The conversation is closed. |
+| `followUp.stopped` | The assistant is stopped. |
+| `followUp.silenced` | The assistant is paused. |
+| `followUp.allowance` | The daily allowance is used. |
+| `followUp.billing` | The workspace is waiting for payment. |
+| `followUp.workspaceClosed` | The workspace is closed. |
+| `followUp.practice` | This is a practice conversation. |
+| `followUp.expired` | The time to send this draft has passed. |
+| `followUp.dismissed` | No reply needed was chosen. |
+| `followUp.race` | The customer wrote as Send was being chosen. Check the conversation to see what went. |
+| `followUp.calendar` | A follow-up you set |
+| `followUp.month` | Follow-ups you sent: {n} |
+| `inbox.draft.held.owner_follow_up` | A follow-up you set. You choose Send. |
+
+- **Values:** `followUp.days` and `followUp.month` carry `{n}`; `followUp.closed` carries `{channel}`. None carries `{name}`. Keep the displayed count and channel intact.
+- **Translate first:** the rule’s introduction, Save and Skip buttons, validation sentence and three notices; then the closed-channel and cancellation reasons, the approval-card reason and the remaining labels. The monthly line is a subset, never another total.
+
+## WhatsApp catalogue (2026-11-09; 0235)
+
+75 English-only owner lines in `src/core/owner/i18n/waCatalogue.ts` (`WA_CATALOGUE_EN`): 62 page, navigation and state lines, 13 flashes. Other languages keep the English until a native reader supplies a reviewed translation. No line carries a name or count placeholder. Product names, descriptions, brands, prices and provider replies remain their actual recorded content.
+
+Translate first: the catalogue navigation label, the tick/confirm and photo-publication notice, the availability choices, then refusals and pending/unknown results. Keep a submitted update distinct from an accepted item; keep the owner's explicit selection and the image-copy limitation clear.
+
+| Key | English line |
+|---|---|
+| `waCatalog.title` | WhatsApp catalogue |
+| `waCatalog.intro` | Choose the products to show in your linked WhatsApp catalogue. Review every change before anything is added or removed. |
+| `waCatalog.update` | Update the WhatsApp catalogue |
+| `waCatalog.review` | Review the changes |
+| `waCatalog.confirm` | Apply the ticked changes |
+| `waCatalog.tick` | Tick each change you want. Nothing is ticked for you. |
+| `waCatalog.empty` | There are no products here yet. |
+| `waCatalog.noChanges` | There are no changes ready to review. |
+| `waCatalog.details` | Details for WhatsApp |
+| `waCatalog.description` | Description |
+| `waCatalog.link` | Product link |
+| `waCatalog.availability` | Availability |
+| `waCatalog.choose` | Choose one |
+| `waCatalog.available` | Ready to ship |
+| `waCatalog.unavailable` | Not available |
+| `waCatalog.toOrder` | Available to order |
+| `waCatalog.discontinued` | No longer sold |
+| `waCatalog.brand` | Brand |
+| `waCatalog.condition` | Condition |
+| `waCatalog.new` | New |
+| `waCatalog.refurbished` | Refurbished |
+| `waCatalog.used` | Used |
+| `waCatalog.photo` | Use this product photo for WhatsApp |
+| `waCatalog.photoNeeded` | Choose a photo on the product page first. |
+| `waCatalog.save` | Save these details |
+| `waCatalog.product` | Open product |
+| `waCatalog.back` | Back to the WhatsApp catalogue |
+| `waCatalog.ready` | Ready to add |
+| `waCatalog.removal` | Needs removal from WhatsApp |
+| `waCatalog.changed` | Needs an update on WhatsApp |
+| `waCatalog.notPushed` | Not added |
+| `waCatalog.synced` | Accepted by Meta |
+| `waCatalog.pending` | Waiting for Meta to finish. This is not yet confirmed. |
+| `waCatalog.unknown` | The result is not known. No second attempt was made. |
+| `waCatalog.error` | Needs attention |
+| `waCatalog.removed` | Removed from WhatsApp |
+| `waCatalog.check` | Check the result |
+| `waCatalog.latest` | Open the latest review |
+| `waCatalog.create` | Add to WhatsApp |
+| `waCatalog.updateItem` | Update on WhatsApp |
+| `waCatalog.delete` | Remove from WhatsApp |
+| `waCatalog.metaSaid` | Meta reported |
+| `waCatalog.practice` | Practice does not add products to WhatsApp or publish their photos. |
+| `waCatalog.staff` | Only the owner can change the WhatsApp catalogue. |
+| `waCatalog.photoNotice` | Ticking a product allows Meta to read its chosen photo. Meta may keep a copy after you remove the product. |
+| `waCatalog.reason.inactive` | This product is not offered. |
+| `waCatalog.reason.not_findable` | Add a name customers use for this product. |
+| `waCatalog.reason.price` | Add a single price above zero. |
+| `waCatalog.reason.tiers` | Products with quantity prices are not added. |
+| `waCatalog.reason.currency` | The price must use the business currency. |
+| `waCatalog.reason.not_vetted` | The owner needs to approve a reply quoting this price first. |
+| `waCatalog.reason.prices_to_owner` | Prices are set to go to the owner. |
+| `waCatalog.reason.practice` | Practice products are not added. |
+| `waCatalog.reason.availability` | Choose the availability you know is correct. |
+| `waCatalog.reason.link` | Add the full secure link to this product. |
+| `waCatalog.reason.image` | Choose a saved product photo. |
+| `waCatalog.reason.name` | The product needs a name within the allowed length. |
+| `waCatalog.reason.description` | Add a description within the allowed length. |
+| `waCatalog.reason.brand` | Add the brand within the allowed length. |
+| `waCatalog.reason.condition` | Choose the condition. |
+| `waCatalog.flash.saved` | Details saved. Review the catalogue changes when you are ready. |
+| `waCatalog.flash.refused` | Those details could not be saved. Check the fields and try again. |
+| `waCatalog.flash.changed` | Something changed after this review. Open a new review before continuing. |
+| `waCatalog.flash.connection` | Connect your own WhatsApp account before updating its catalogue. |
+| `waCatalog.flash.noCatalogue` | Link a product catalogue to your WhatsApp account in Meta Commerce Manager, then try again. |
+| `waCatalog.flash.unknown` | Meta did not give a clear result. Nothing is marked accepted. |
+| `waCatalog.flash.pending` | The ticked changes were submitted. Check the result before relying on them. |
+| `waCatalog.flash.finished` | The result is ready. Read each item below for any change that was refused. |
+| `waCatalog.flash.empty` | Nothing was ticked, so nothing was submitted. |
+| `waCatalog.flash.imageAddress` | The public photo address is not ready. Nothing was submitted. |
+| `waCatalog.flash.tooLarge` | There are too many ticked changes for one update. Choose fewer and try again. |
+| `waCatalog.flash.failed` | Meta did not accept this update. Read the result before trying again. |
+| `waCatalog.flash.changedCatalogue` | The linked catalogue has changed. Restore the previous link before updating these products. |
+| `waCatalog.imageExpired` | The photo address expired before the result was checked. Review a new update to share the photo again. |
+| `waCatalog.itemRefused` | Meta did not accept this item. |
+
+
+## WhatsApp product card (2026-11-10; Part B of 0235)
+
+10 English-only owner lines, in the same `WA_CATALOGUE_EN`: 3 for the refusal `product_changed` (what, why, what to do), 3 for the conversation page's picker, 4 flashes. The picker's options are the owner's own product name and price, isolated, never translated. What the customer's transcript records (`Product card: {name}, {price}`) is a record of what was sent, not owner copy, and stays in English as written.
+
+Translate with the catalogue lines above: keep "added to WhatsApp's catalogue" (the item Meta holds) distinct from a message that was sent, and keep the 24-hour rule the same as the photo's.
+
+| Key | English line |
+|---|---|
+| `refused.what.product_changed` | A product card did not go out. |
+| `refused.why.product_changed` | This product changed since it was added to WhatsApp’s catalogue. |
+| `refused.do.product_changed` | Update the WhatsApp catalogue, then send the card. |
+| `card.send.label` | WhatsApp product card |
+| `card.send.button` | Send the product card |
+| `card.flash.sent` | Your product card is waiting to send. |
+| `card.flash.not_sendable` | That product is not ready in your WhatsApp catalogue. Update the catalogue, then send the card. |
+| `card.flash.card_unsupported` | A product card can only be sent on WhatsApp. |
+| `card.flash.window` | A product card can only go within 24 hours of the customer’s last message. Write to them in words first; when they reply, the card can go. |
+## Instagram comments
+
+The `igComments.*` and `notify.comment_asking*` English catalogue covers the comments list, incremental permission, expiry, deletion confirmation and owner alert. English fallback remains until native review in each supported language.
+
+- **Added with the owner's reply (English only too):** `igComments.reply`, `.replyHelp`, `.public`, `.send`, `.ownerReplies`;
+  `igComments.state.queued`, `.accepted`, `.uncertain`, `.refused`, `.canceled`, `.publicWaiting`, `.publicPosting`,
+  `.publicAccepted`, `.publicFailed`, `.publicUncertain`; `igComments.ambiguous`; `igComments.flash.replyQueued` and
+  `igComments.flash.reply.not_found`, `.account`, `.off`, `.not_asking`, `.used`, `.age_unknown`, `.expired`, `.empty`,
+  `.too_long`.
+- **The gate's comment refusals, English only too:** `refused.what.*`, `refused.why.*` and `refused.do.*` for
+  `comment_unchecked`, `comments_off`, `comment_not_asking`, `comment_used`, `comment_age_unknown`, `comment_expired`
+  (in `src/core/owner/i18n/instagramComments.ts`, not `messages.ts`).
+- **Not in the catalogue, on purpose:** the suggestion that fills the reply box (`src/core/channel/commentSuggestion.ts`)
+  and the public line "Sent you a message" are words a customer reads, fixed in English; the owner edits the box before
+  sending.
+- **To check first:** `igComments.replyHelp` and `igComments.state.uncertain` — the owner must understand that a comment
+  gets one private reply only, and that an uncertain one is never sent again.
 ## Ad spend beside orders (2026-11-10; 0238)
 
 About fifty English-only lines in `src/core/owner/i18n/adSpend.ts` (`AD_SPEND_EN`, spread into the redesign's English

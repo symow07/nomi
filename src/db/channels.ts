@@ -1,3 +1,4 @@
+import { lockedCommentReplyFacts, claimCommentPrivateReply } from './commentPrivateReplies.js';
 import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
@@ -24,6 +25,7 @@ import type { OutboundStore, OutboundWorkRow, ConversationSendContext } from '..
 import type { OutboundStatus } from '../outbound/sequencer.js';
 import { applyStatus, type ProviderStatus } from '../core/channel/delivery.js';
 import type { ConnectionAction } from '../channels/contract.js';
+import { productCardPayloads } from './waProductCard.js';
 
 /**
  * M3 — DB-backed channel store (migration 0011). Runs inside withTenantTx
@@ -57,6 +59,7 @@ export function channelStore(
   }
 
   return {
+    claimCommentPrivateReply: (id, now) => claimCommentPrivateReply(tx, businessId, id, now),
     async load(conversationId) {
       const res = await sql<{
         id: string; seq: number; status: OutboundStatus; requires_order: boolean;
@@ -124,6 +127,8 @@ export function channelStore(
       `.execute(tx);
       const c = ctxRes.rows[0];
 
+      const cards = await productCardPayloads(tx, businessId,
+        res.rows.filter((r) => r.kind === 'product' && (r.status === 'queued' || r.status === 'sending')).map((r) => r.id));
       const rows: OutboundWorkRow[] = res.rows.map((r) => ({
         id: r.id, seq: r.seq, status: r.status, requiresOrder: r.requires_order,
         attempts: r.attempts, sentAt: r.sent_at, to: r.to_wa_id ?? '', body: r.body,
@@ -134,6 +139,9 @@ export function channelStore(
         ...(r.asks ? { asks: r.asks } : {}),
         ...(r.notice ? { notice: r.notice } : {}),
         ...(r.approved ? { approved: true } : {}),
+        // Part B (5.3) — a product card carries the item only while it still matches what Meta accepted; null
+        // otherwise, which the worker refuses (never its words as text).
+        ...(r.kind === 'product' ? { product: cards.get(r.id) ?? null } : {}),
       }));
       /**
        * C4.a — WHICH CHANNEL THIS CONVERSATION IS ON, because the three facts
@@ -247,7 +255,11 @@ export function channelStore(
            and identity = any(${identities}::text[]) and lifted_at is null`.execute(tx)).rows[0]?.at ?? null;
       // 0215 — a TikTok conversation's counts: TikTok limits how many messages the account sends (tiktokLimits.ts).
       const tiktok = channel === 'tiktok' ? await tiktokHistory(tx, conversationId) : null;
+      const commentPrivateReplies = rows.some(r => r.kind === 'comment_private_reply')
+        ? await lockedCommentReplyFacts(tx, businessId, conversationId, rows.filter(r => r.kind === 'comment_private_reply').map(r => r.id))
+        : undefined;
       const ctx: ConversationSendContext = {
+        ...(commentPrivateReplies ? { commentPrivateReplies } : {}),
         ...(tiktok ? { tiktok } : {}),
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
@@ -489,6 +501,14 @@ export async function pilotFactsFor(
 }
 
 /**
+ * Block 4.4 — the one lock under which a WhatsApp customer is made, per workspace: by ensureConversation for a number
+ * nobody has, and by the customer import for its whole file (src/db/contactImports.ts). Held to the transaction's end.
+ */
+export async function lockNewCustomers(tx: Tx, businessId: BusinessId): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`new-customer:${businessId}`}, 0))`.execute(tx);
+}
+
+/**
  * Find-or-create the client + active conversation for a channel identity.
  * Tenant comes from the channel credential (caller resolved it) — NEVER from
  * the payload. Runs inside the caller's tenant transaction.
@@ -517,11 +537,19 @@ export async function ensureConversation(
   profileName: string | null,
   channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' | 'web_chat' | 'telegram' | 'tiktok' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
-  const existing = await sql<{ client_id: string; display_name: string | null }>`
+  const lookup = () => sql<{ client_id: string; display_name: string | null }>`
     select cc.client_id, cl.display_name from client_channels cc
       join clients cl on cl.id = cc.client_id
      where cc.channel = ${channel} and cc.channel_user_id = ${identity}
   `.execute(tx);
+  let existing = await lookup();
+  // Block 4.4 — customers brought in from a file are written under this lock (src/db/contactImports.ts). A WhatsApp
+  // number nobody has is looked for again once it is held, so a customer an import was adding at this very moment is
+  // found, never made a second time.
+  if (!existing.rows[0] && channel === 'whatsapp') {
+    await lockNewCustomers(tx, businessId);
+    existing = await lookup();
+  }
   let clientId = existing.rows[0]?.client_id;
 
   // A name that arrives later fills a blank, never overwrites: the first
@@ -636,8 +664,10 @@ export async function enqueueOutboundRow(
    * Phase 2d (0152) — a photo Nomi serves, at its absolute public address: the row goes as a picture
    * (`kind = 'image'`, 0024), its body the caption. The worker still refuses one it does not serve (F1).
    * 0226 — or a document (`kind: 'document'`, an invoice as a PDF), the same way.
+   * Part B (5.3) — or a WhatsApp product card (`kind: 'product'`, no address): its item is kept beside the row
+   * (`wa_catalogue_sends`) and its body is what the transcript shows.
    */
-  media: { readonly url: string; readonly kind?: 'image' | 'document' } | null = null,
+  media: { readonly url: string; readonly kind?: 'image' | 'document' } | { readonly url: null; readonly kind: 'product' } | null = null,
   /**
    * Audit batch 1 (B8) — false where the caller's own transaction makes the row exactly once (a person's approval,
    * an order confirmed): two identical replies approved minutes apart are two replies, and both go. Left true for a
@@ -646,7 +676,14 @@ export async function enqueueOutboundRow(
   dedupe = true,
   /** 0224 — the quote whose figure this message carries; copied onto the sent `messages` row by the 'sent' transition. */
   quoteId: string | null = null,
+  /**
+   * 5.4 — the owner's one private reply to an Instagram comment (`kind = 'comment_private_reply'`): addressed to the
+   * commenter's own identity on the comment, never to whichever identity the conversation heard from last.
+   */
+  comment: { readonly recipient: string } | null = null,
 ): Promise<string | null> {
+  // 5.4 — a private reply to a comment is words only: Meta's one private reply carries no picture or document here.
+  if (comment && media) throw new Error('enqueueOutboundRow: a comment reply carries no media');
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
   // anything else, which is why an e-mail could be composed and never queued.
@@ -657,8 +694,8 @@ export async function enqueueOutboundRow(
      where c.id = ${conversationId}
      limit 1
   `.execute(tx);
-  const recipient = to.rows[0]?.channel_user_id;
-  const channel = to.rows[0]?.channel ?? 'whatsapp';
+  const recipient = comment ? comment.recipient : to.rows[0]?.channel_user_id;
+  const channel = comment ? 'instagram' : to.rows[0]?.channel ?? 'whatsapp';
   if (!recipient) return null;   // no channel identity — nothing to send to
 
   /**
@@ -694,7 +731,7 @@ export async function enqueueOutboundRow(
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
            ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
-           ${media ? media.kind ?? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
+           ${comment ? 'comment_private_reply' : media ? media.kind ?? 'image' : 'text'}, ${media?.url ?? null}, ${quoteId}::uuid
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not ${dedupe} or not exists (
       select 1 from outbound_messages

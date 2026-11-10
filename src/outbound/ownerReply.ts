@@ -3,6 +3,7 @@ import { withTenantTx, lockConversation, type Db, type Tx } from '../db/client.j
 import { tenantRepos } from '../db/repos.js';
 import { enqueueOutboundRow } from '../db/channels.js';
 import { productPhotoToken, productPhotoUrl, PHOTO_CHANNELS } from '../db/productPhotos.js';
+import { productCardSnapshot, productCardText, recordProductCard } from '../db/waProductCard.js';
 import { ownershipOf, ownerMayReply, type ConversationOwnership } from '../core/conversation/ownership.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 
@@ -106,6 +107,42 @@ export async function ownerPhoto(
     if (rowId === null) return { outcome: 'no_channel', ownership: cur };
     // Audit: who, and which product's photo — no picture, no customer data.
     await tenantRepos(tx, input.businessId).events.append(input.conversationId as ConversationId, 'owner_photo', { actor: input.actor, productId: input.productId });
+    return { outcome: 'sent', ownership: cur };
+  });
+  if (result.outcome === 'sent') await deps.kickDrive(input.businessId, input.conversationId);
+  return result;
+}
+
+/**
+ * Part B (5.3) — the owner sends ONE product of their linked WhatsApp catalogue as a product card, through the same
+ * ONE path as their words: the same ownership gate, the conversation lock, the one writer, origin 'owner', the drive
+ * kicked after commit. The row's body is what the transcript shows ("Product card: {name}, {price}", from the
+ * snapshot); the item is kept beside it and checked again by the worker before anything leaves. WhatsApp only.
+ */
+export type OwnerProductCardOutcome = OwnerReplyOutcome | 'card_unsupported' | 'not_sendable';
+
+export async function ownerProductCard(
+  deps: OwnerReplyDeps,
+  input: { businessId: BusinessId; conversationId: string; productId: string; actor: string },
+): Promise<{ readonly outcome: OwnerProductCardOutcome; readonly ownership: ConversationOwnership | null }> {
+  const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{ outcome: OwnerProductCardOutcome; ownership: ConversationOwnership | null }> => {
+    const cur = await currentOwnership(tx, input.businessId, input.conversationId);
+    if (cur === null) return { outcome: 'not_found', ownership: null };
+    if (cur === 'AI') return { outcome: 'ai_owned', ownership: cur };
+    if (!ownerMayReply(cur)) return { outcome: 'must_take_over', ownership: cur };
+    const channel = (await sql<{ channel: string }>`
+      select channel from conversations where id = ${input.conversationId}::uuid and business_id = ${input.businessId}`
+      .execute(tx)).rows[0]?.channel ?? null;
+    if (channel !== 'whatsapp') return { outcome: 'card_unsupported', ownership: cur };
+    await lockConversation(tx, input.conversationId);
+    const card = /^[0-9a-f-]{36}$/i.test(input.productId) ? await productCardSnapshot(tx, input.businessId, input.productId) : null;
+    if (!card) return { outcome: 'not_sendable', ownership: cur };
+    const rowId = await enqueueOutboundRow(tx, input.businessId, input.conversationId, productCardText(card), 'owner',
+      null, null, null, false, { url: null, kind: 'product' });
+    if (rowId === null) return { outcome: 'no_channel', ownership: cur };
+    await recordProductCard(tx, input.businessId, rowId, card);
+    // Audit: who, and which product — no customer data.
+    await tenantRepos(tx, input.businessId).events.append(input.conversationId as ConversationId, 'owner_product_card', { actor: input.actor, productId: input.productId });
     return { outcome: 'sent', ownership: cur };
   });
   if (result.outcome === 'sent') await deps.kickDrive(input.businessId, input.conversationId);

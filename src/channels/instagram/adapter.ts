@@ -1,3 +1,5 @@
+import { metaCommentPrivateReplySender } from '../meta/commentReplies.js';
+import { parseInstagramComments } from '../meta/comments.js';
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
 import { parseMetaMessaging, metaMessagingSender, metaImageSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
@@ -21,6 +23,8 @@ export function instagramAdapter(cfg: {
    * graph.facebook.com is refused with a 400 — found on the first live reply.
    */
   readonly pageId: string;
+  /** Only connected-account composition supplies the private-comment endpoint. */
+  readonly igAccountId?: string;
   /** The Page access token that authorises the connected Instagram account. */
   readonly accessToken: string;
   /** The Meta app secret, which signs every webhook. */
@@ -41,8 +45,10 @@ export function instagramAdapter(cfg: {
     kind: 'instagram',
     provider: 'meta',
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
-    parseWebhook: (payload) => parseMetaMessaging('instagram', payload),
+    parseWebhook: (payload) => [...parseMetaMessaging('instagram', payload), ...parseInstagramComments(payload)],
     sendText: send,
+    ...(cfg.igAccountId ? { commentPrivateReplyAccountId: cfg.igAccountId,
+      sendCommentPrivateReply: metaCommentPrivateReplySender({ ...sendAs, accountId: cfg.igAccountId }) } : {}),
     // Phase 2d — a product's photo, by the address Nomi serves it at (no caption: Meta's pictures carry none).
     sendMedia: metaImageSender(sendAs),
     nameOf,

@@ -54,6 +54,8 @@ import { statesAPrice } from '../core/safety/statesPrice.js';
 import { computeQuote, selectTier, startingQuantity } from '../core/commerce/quote.js';
 import { closureNote, withheldOf } from '../core/commerce/closures.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
+import { ORDER_LOOKUP_REFUSAL, orderFactNumbers, readOrderAsk, saysDelivered, type OrderContext } from '../core/commerce/shopifyOrders.js';
+import type { OrderLookup } from './orderLookup.js';
 import { proofUrl } from '../db/proofs.js';
 import {
   guardFallbackReply,
@@ -102,6 +104,12 @@ export type TurnPorts = {
    * src/core/conversation/strict.ts, by name, in the commit that names the reader.
    */
   strict?: StrictSigned;
+  /**
+   * 5.5 — the Shopify order lookup. Absent: no order is ever looked up (suggestions, case checks, tests that do not
+   * pass one). Present, it answers 'off' — with no request to Shopify — unless the workspace's switch is on, a store
+   * is connected, the workspace is not a practice copy, and an e-mail is known.
+   */
+  orderLookup?: OrderLookup;
 };
 
 export type TurnRequest = {
@@ -239,6 +247,12 @@ export type TurnResult = {
    * reached), for the conversation's record and the card. Null when none applied.
    */
   procedure: { readonly id: string; readonly title: string; readonly step: number; readonly of: number; readonly handoff: boolean } | null;
+  /**
+   * 5.5 — this reply came from a Shopify order lookup: built on the order's verified facts, or the one fixed sentence
+   * every other outcome gives. Either way it waits for the owner (`order_facts`). Null when no lookup made the reply.
+   * A flag only: no field of the order is kept on the turn.
+   */
+  orderLookup: 'verified' | 'refused' | null;
   /**
    * M45 — this buyer asked for a sample.
    *
@@ -617,6 +631,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // N1 — set beside every place that decides the words, so the label cannot
   // drift from the branch that produced them. `model` until something else did.
   let answerPath: AnswerPath = 'model';
+  /** 5.5 — whether a Shopify order lookup made this reply. */
+  let orderLookup: TurnResult['orderLookup'] = null;
   /** The product the taught-answer search ran under, for `analyserWasAvoidable`. */
   let productSearchedUnder: string | null = null;
   let guardViolations = 0;
@@ -826,6 +842,42 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         ...nameNumbers,
       ];
 
+      /*
+       * 5.5 — A SHOPIFY ORDER, ASKED ABOUT WITH ITS NUMBER AND ITS E-MAIL.
+       *
+       * Rules, no model: `readOrderAsk` finds ONE order number (`#…`) and at most one e-mail, never a phone. The port
+       * decides the rest without a request to Shopify when it can ('off': the switch, the connection, a practice copy,
+       * no e-mail typed and no e-mail channel sender). A lookup that does not verify — not found, a mismatch, a
+       * redacted e-mail, several matches, too old for the store's scopes, five lookups this hour, Shopify failing —
+       * is the same fixed sentence, so the reply never says which. Verified facts go to the writer as CONTEXT.order,
+       * their figures sourced like her facts. Both wait for the owner (commitTurn, `order_facts`).
+       */
+      const orderAsk = ports.orderLookup ? readOrderAsk(req.text) : null;
+      const looked = orderAsk ? await ports.orderLookup!.look({ conversationId: req.conversationId, ...orderAsk }) : null;
+      let orderCtx: OrderContext | null = null;
+      if (looked?.kind === 'refused') {
+        // The fixed sentence passes her forbidden words, as M46's does. Blocked, it is the stand-in, held for her
+        // (`guards_failed_twice`), and her card names the words that stopped it.
+        const clean = guardForbidden({ reply: ORDER_LOOKUP_REFUSAL, ownerTerms: forbiddenTerms });
+        if (clean.ok) {
+          reply = clean.value;
+          answerPath = 'canned';
+        } else {
+          forbiddenHits = clean.error.terms;
+          guardsFailedTwice = true;
+          reply = SAFE_REPLIES[sayIn];
+          answerPath = 'stand_in';
+        }
+        replyDeterministic = true;
+        orderLookup = 'refused';
+        break;
+      }
+      if (looked?.kind === 'verified') {
+        orderCtx = looked.order;
+        orderLookup = 'verified';
+        numeralAllow.push(...orderFactNumbers(orderCtx));
+      }
+
       /**
        * M46 — "where is my order?"
        *
@@ -838,7 +890,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
        * makes "she never estimates a date" a property of the code rather than
        * an instruction in a prompt.
        */
-      if (asksOrderStatus(req.text)) {
+      if (orderCtx === null && asksOrderStatus(req.text)) {
         // G4 — by buyer: his order was confirmed in a conversation that
         // closed, and this question is in a new one.
         const order = await tenant.orders.latestForClient(state.clientId);
@@ -873,7 +925,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // owner's authored answer (claims-guarded — an unauthorised cert in the
       // answer still cannot pass), no LLM, no tokens. This is what makes the
       // teach→answer→correct loop deterministic and provable in the sandbox.
-      const faq = knowledge.find((s) => ANSWER_KINDS.has(s.kind) && s.relevance >= FAQ_ANSWER_MIN_RELEVANCE);
+      // 5.5 — verified order facts are answered by the writer, never by a taught answer that cannot hold them.
+      const faq = orderCtx ? undefined : knowledge.find((s) => ANSWER_KINDS.has(s.kind) && s.relevance >= FAQ_ANSWER_MIN_RELEVANCE);
       if (faq) {
         const answerAllow = [...numeralAllow, ...extractNumerals(faq.content).map((n) => n.value)];
         const claimed = guardClaims({ reply: faq.content, policy: claimsPolicy });
@@ -923,6 +976,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           ...(priceFirst ? { priceFirst: true } : {}),
           // 0229 — the owner's step for this turn.
           ...(procedureNow && procedureNow.step.kind === 'do' ? { procedure: procedureContext(procedureNow) } : {}),
+          // 5.5 — the verified order's facts. Absent when no lookup verified one: the prompt is then today's, byte for byte.
+          ...(orderCtx ? { order: orderCtx } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
@@ -984,6 +1039,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           guardViolations++;
           unkeptPromise = promised;
           lastViolation = 'unkept_promise';
+          continue;
+        }
+        // 5.5 — a fulfilment is not a delivery: "delivered" only where Shopify recorded a delivery time.
+        if (orderCtx && !orderCtx.shipments.some((s) => s.delivered_on) && saysDelivered(clean.value)) {
+          guardViolations++;
+          lastViolation = null;
           continue;
         }
         lastViolation = null;
@@ -1214,6 +1275,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     unkeptPromise,
     addressUnwritten: addressHandOver && deletionPromiseWithheld === null,
     forbiddenInHerText,
+    // 5.5 — only while the lookup's own reply stands: a hand-off that replaced it (prices to the owner, a deletion
+    // promise) is not held for `order_facts`.
+    orderLookup: reply !== null && notice === null ? orderLookup : null,
     procedure: procedureNow && (procedureNow.step.kind === 'handoff' || (decision.action.kind === 'generate_reply' && reply !== null))
       ? { id: procedureNow.procedure.id, title: procedureNow.procedure.title, step: procedureNow.index, of: procedureNow.procedure.steps.length, handoff: procedureNow.step.kind === 'handoff' }
       : null,
@@ -1596,7 +1660,10 @@ export async function commitTurn(
       });
     })();
     const strictWithheld = strictOk ? null : { reason: 'strict_unapproved' as const, language: strictLanguage! };
-    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);
+    // 5.5 — a reply from the Shopify order lookup waits for the owner whatever the capability's level: whether one may
+    // ever go alone is the owner's decision. Without a lookup this is false and nothing below changes.
+    const orderHeld = r.orderLookup !== null;
+    const mayDisclose = !speaksAlone || (!orderHeld && earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);
     /** What the card and the timeline say about the language, when that is why it waits. */
     /** The language that held it: the customer's, or (G8) the reply's own. */
     const heldBy = language !== UNDETERMINED && tenant.autonomy.released(language) && replyDiffers ? replyIn! : language;
@@ -1616,14 +1683,14 @@ export async function commitTurn(
       // owner set it is the kind of thing she should be able to find.
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
-        ...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld
+        ...(orderHeld ? { reason: 'order_facts' } : !earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld
           ? languageWithheld : strictWithheld ? strictWithheld : { reason: named ? 'no_assistant_name' : 'assistant_not_named' }),
       });
     }
     // Blocker 2 (2026-10-14) — the same reason, for the trust checks (`TurnEffects.heldBack`); or the operator's
     // force-draft switch, when it alone turned a reply that would have gone alone into a draft.
     heldBack = speaksAlone && !mayDisclose
-      ? (!earned ? 'not_earned' : !vetted ? 'first_quote' : languageWithheld
+      ? (orderHeld ? 'order_facts' : !earned ? 'not_earned' : !vetted ? 'first_quote' : languageWithheld
         ? languageWithheld.reason : strictWithheld ? strictWithheld.reason : named ? 'no_assistant_name' : 'assistant_not_named')
       : mode === 'draft' && speaksAlone && !(r.hold && !stopLine) && switches.forceDraft.includes(capability) ? 'ops_force_draft' : null;
 
@@ -1781,7 +1848,9 @@ export async function commitTurn(
         ...(disclosureInstead ? { disclosureSent: true } : {}),
         // 2026-09-30 — it would have gone alone, but the customer's language
         // has no signed-off sentence saying who is answering: the card says so.
-        ...(speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
+        // 5.5 — and a reply from the order lookup says so, in either mode (it never goes alone).
+        ...(orderHeld ? { withheld: { reason: 'order_facts' } }
+          : speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
           : speaksAlone && !vetted ? { withheld: { reason: 'first_quote' } }
           : speaksAlone && languageWithheld ? { withheld: languageWithheld }
           : speaksAlone && strictWithheld ? { withheld: strictWithheld } : {}),

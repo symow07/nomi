@@ -1,6 +1,6 @@
 import { markSmall } from '../../core/owner/brand.js';
 import { extractNumerals, near } from '../../core/safety/numerals.js';
-import { figuresIn } from '../../core/conversation/figures.js';
+import { figuresIn, westernDigits } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
 import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
@@ -16,6 +16,8 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { sellsByQuantity, tradesForExport } from '../../core/owner/sellingStyle.js';
 import { stageFacts, stageOf, type Stage } from '../../db/customerStage.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { orderSourcedOf, type OrderSourced } from '../../pipeline/orderSourced.js';
+import { sayOnPage } from './shopifyOrders.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
@@ -34,6 +36,7 @@ import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKin
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { productsWithPhotos, PHOTO_CHANNELS } from '../../db/productPhotos.js';
+import { sendableCatalogueProducts } from '../../db/waProductCard.js';
 import { detectClaims } from '../../core/safety/claims.js';
 import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
@@ -724,7 +727,7 @@ export type ConversationDetail = {
       | { readonly reason: ReminderWithheld; readonly key: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
-      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -733,6 +736,12 @@ export type ConversationDetail = {
     procedure?: { readonly title: string; readonly step: number; readonly of: number; readonly do?: string } | null;
     /** G10 — the owner's translation of it, kept on the draft; never sent. */
     translation?: { readonly text: string; readonly locale: string } | null;
+    /**
+     * 5.5 — an `order_facts` draft's record of which of its own figures the verified Shopify order holds, and the
+     * order's name (src/pipeline/orderSourced.ts). The reading names the order as their source; nothing else of the
+     * order is kept. Absent or null: those figures read as having no source.
+     */
+    orderSourced?: OrderSourced | null;
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
@@ -850,6 +859,8 @@ export type ConversationDetail = {
   readonly channel?: string;
   /** Phase 2d (0152) — the product photos the owner may send here; none on a channel that cannot carry a picture. */
   readonly photos?: readonly { readonly productId: string; readonly name: string; readonly nameZh: string | null; readonly token: string }[];
+  /** Part B (5.3) — the products of the linked WhatsApp catalogue a card may carry now; WhatsApp only. */
+  readonly productCards?: readonly { readonly productId: string; readonly name: string; readonly price: string; readonly currency: string }[];
   /**
    * G5b — the newest reply, when it waited past the day its channel allows and
    * was marked expired: shown for what it was, never offered to send.
@@ -1019,13 +1030,17 @@ export async function loadConversationDetail(
     // `draft_pending` event the turn wrote beside THIS draft.
     const draft = (await sql<{
       id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null;
-      translation: string | null; translation_locale: string | null;
+      translation: string | null; translation_locale: string | null; sourced: unknown;
     }>`
       select d.id, d.draft_text, d.capability, d.owner_edit, d.translation, d.translation_locale,
              (select e.payload from conversation_events e
                where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
                  and e.payload->>'draftId' = d.id::text
-               order by e.id desc limit 1) as pending
+               order by e.id desc limit 1) as pending,
+             (select e.payload from conversation_events e
+               where e.conversation_id = d.conversation_id and e.type = 'order_sourced'
+                 and e.payload->>'draftId' = d.id::text
+               order by e.id desc limit 1) as sourced
         from drafts d where d.conversation_id = ${conversationId} and d.status = 'pending'
        order by d.created_at desc, d.id desc limit 1
     `.execute(tx)).rows[0];
@@ -1131,7 +1146,9 @@ export async function loadConversationDetail(
             ownerEdit: draft.owner_edit,
             language: typeof draft.pending?.['language'] === 'string' ? String(draft.pending['language']).slice(0, 8) : null,
             procedure: procedureOf(draft.pending?.['procedure']),
-            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
+            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null,
+            // 5.5 — only beside a draft that waits because it uses an order.
+            orderSourced: withheldOf(draft.pending?.['withheld'])?.reason === 'order_facts' ? orderSourcedOf(draft.sourced) : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
       ownerTesting: head.owner_testing === true,
@@ -1174,6 +1191,8 @@ export async function loadConversationDetail(
       channel: head.channel,
       // Phase 2d — the photos the owner can send here: only on a channel that carries a picture.
       photos: PHOTO_CHANNELS.includes(head.channel) ? await productsWithPhotos(tx) : [],
+      // Part B (5.3) — and the catalogue products a product card may carry, on WhatsApp only.
+      productCards: head.channel === 'whatsapp' ? await sendableCatalogueProducts(tx, bid.value) : [],
       // The quote's figures are read with or without a turn on record.
       reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
     };
@@ -1279,11 +1298,13 @@ export const perPiece = (locale: Locale, m: Money): string => `${show.money(loca
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
-  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' }
   | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  // 0237 — a reply built on a verified Shopify order (or its fixed refusal) always waits for the owner.
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown' || reason === 'order_facts') return { reason };
+  if (reason === 'owner_follow_up') return { reason };
   // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
   if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
     && typeof key === 'string') return { reason, key: key.slice(0, 40) };
@@ -1629,6 +1650,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         ${photoForm(d, locale)}
+        ${viewer.isOwner ? productCardForm(d, locale) : ''}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
@@ -1665,6 +1687,29 @@ function photoForm(d: ConversationDetail, locale: Locale): string {
       <select id="photo-pick" name="product" required>${ordered.map((p) =>
         `<option value="${esc(p.productId)}">${esc(productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.name)}</option>`).join('')}</select>
       <button class="btn" type="submit">${esc(t(locale, 'photo.send.button'))}</button>
+    </form>`;
+}
+
+/**
+ * Part B (5.3) — the OWNER sends one product of their linked WhatsApp catalogue as a product card. Only the products
+ * Meta holds as they are now; the conversation's own product first. Each option says what the transcript will say.
+ */
+function cardChoice(locale: Locale, p: { readonly name: string; readonly price: string; readonly currency: string }): string {
+  const m = moneyFromRow(p.price, p.currency);
+  // The owner's own product name and the price, each isolated (rule 38): an option cannot hold a <bdi>.
+  return `${show.isolate(locale, p.name)} \u00b7 ${m ? show.money(locale, m) : show.isolate(locale, `${p.price} ${p.currency}`)}`;
+}
+
+function productCardForm(d: ConversationDetail, locale: Locale): string {
+  const cards = d.productCards ?? [];
+  if (cards.length === 0) return '';
+  const own = d.product?.name ?? null;
+  const ordered = [...cards].sort((a, b) => Number(b.name === own) - Number(a.name === own));
+  return `<form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/product-card" class="photosend">
+      <label class="muted" for="card-pick">${esc(t(locale, 'card.send.label'))}</label>
+      <select id="card-pick" name="product" required>${ordered.map((p) =>
+        `<option value="${esc(p.productId)}">${esc(cardChoice(locale, p))}</option>`).join('')}</select>
+      <button class="btn" type="submit">${esc(t(locale, 'card.send.button'))}</button>
     </form>`;
 }
 
@@ -1928,27 +1973,42 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   const r = d.reading ?? null;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
-  const waits = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
-    esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
+  const waitsHtml = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
+    esc(t(locale, 'card.waiting'))}</b> ${sentence}</p>`;
+  const waits = (sentence: string, english = false) => waitsHtml(english ? `<bdi lang="en" dir="ltr">${esc(sentence)}</bdi>` : esc(sentence));
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     // 0229 — which step of the owner's procedure this reply does.
     p.procedure ? `<p class="stateline" role="note">${esc(t(locale, 'inbox.draft.procedure', { title: p.procedure.title, step: p.procedure.step, of: p.procedure.of, do: p.procedure.do ?? '' }))}</p>` : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
-    p.withheld ? waits('language' in p.withheld
+    // 5.5 — its sentence is English only: on an Arabic page it is set apart as English, its full stop on its own side.
+    p.withheld?.reason === 'order_facts' ? waitsHtml(sayOnPage(locale, 'inbox.draft.held.order_facts', { name }))
+    : p.withheld ? waits('language' in p.withheld
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
       : 'key' in p.withheld
         ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, key: String(p.withheld.key) })
-        : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
+        : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name }), p.withheld.reason === 'owner_follow_up') : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
 
+  // 5.5 (t1r's ruling, 2026-11-10) — a code the order record names ("1Z999AA10123456784") is listed whole, as written,
+  // never as its digit runs; every other figure as G10 lists it, all in the order the reply writes them.
+  const figuresListed = (text: string, sourced: OrderSourced | null): string[] => {
+    const codes = [...new Set((sourced?.figures ?? []).flatMap((f) =>
+      typeof f !== 'number' && f.kind === 'identifier' && f.written && text.includes(f.written) ? [f.written] : []))];
+    if (codes.length === 0) return figuresIn(text);
+    let masked = text;
+    for (const c of codes) masked = masked.split(c).join(' '.repeat(c.length));
+    const western = westernDigits(masked);
+    return [...figuresIn(masked).map((n) => ({ n, at: western.indexOf(n) })), ...codes.map((n) => ({ n, at: text.indexOf(n) }))]
+      .sort((a, b) => a.at - b.at).map((x) => x.n);
+  };
   // G10 (decision 38) — a reply in a language the owner may not read: said so,
   // its figures listed in Western digits from the reply itself, and a
   // translation into the owner's own language on request — never sent.
   const foreign = p.language && p.language !== locale ? (() => {
-    const nums = figuresIn(p.draftText);
+    const nums = figuresListed(p.draftText, p.orderSourced ?? null);
     const tr = p.translation && p.translation.locale === locale ? p.translation.text : null;
     return `<div class="foreign">
       ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
@@ -1987,6 +2047,8 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),
     heldQuantity: d.quantity,
     productCodes: [ownSku(d.product.sku)].filter((x): x is string => x !== null),
+    // 5.5 — the figures of this reply its verified Shopify order holds, as recorded beside the draft.
+    orderFigures: p.orderSourced?.figures ?? [],
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
     l.words !== undefined ? l.words
@@ -2017,7 +2079,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
   };
   const inspectFigure = (l: Extract<ReadingLine, { kind: 'figure' }>): string => {
-    if (l.source === 'unsourced') return '';
+    if (l.source === 'unsourced' || l.source === 'order') return '';
     const inspect = (body: string) => `<details class="reading-proof"><summary>${esc(t(locale, 'inbox.tools.source', { value: figure(l) }))}</summary>${body}</details>`;
     if (l.source === 'their_words') {
       const index = d.messages.findIndex((m) => m.direction === 'inbound' && (l.words !== undefined ? m.text === l.customerText : extractNumerals(m.text).some((n) => near(n.value, l.value))));
@@ -2046,6 +2108,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
       : line(l.source !== 'unsourced', figure(l), (l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
+        : l.source === 'order' ? sayOnPage(locale, 'card.source.order', { order: p.orderSourced?.order ?? '' })
         : esc(t(locale, `card.source.${l.source}` as MessageKey))), l.source === 'unsourced' ? whereIn(l.value) : '', inspectFigure(l))),
     ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a

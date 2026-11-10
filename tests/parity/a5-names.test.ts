@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { t, assistantName, withAssistantName, makeNameCache } from '../../src/api/web/say.js';
-import { ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, assistantName, withAssistantName, makeNameCache } from '../../src/api/web/say.js';
+import { ASSISTANT_FALLBACK, t as plainT } from '../../src/core/owner/i18n/messages.js';
 import { renderOwnerAlert } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -58,6 +58,18 @@ describe('A5.2 · the name in force', () => {
     expect(withAssistantName(null, () => assistantName('en'))).toBe('Your assistant');
     expect(withAssistantName('', () => assistantName('en'))).toBe('Your assistant');
     withAssistantName('Sara', () => expect(t('en', 'people.issued.title', { name: 'Xiao Chen' })).toContain('Xiao Chen'));
+  });
+
+  it('uses the sentence language for an unchosen name in every English-only catalogue', () => {
+    expect(t('ar', 'monthReport.intro')).toContain('who your assistant answered');
+    expect(plainT('ar', 'monthReport.intro')).toContain('who your assistant answered');
+    expect(t('ar', 'monthReport.def.asWritten')).toContain('Your assistant drafted');
+    expect(tn('ar', 'monthReport.median.from', 3)).toContain('customers.');
+    expect(t('ar', 'booksSpending.preview')).toBe('Preview of your assistant');
+    expect(t('ar', 'nav.employee')).toBe(ASSISTANT_FALLBACK.ar);
+    for (const name of ['Lily', 'ليلى', ASSISTANT_FALLBACK.ar]) {
+      expect(withAssistantName(name, () => t('ar', 'monthReport.intro'))).toContain(`who ${name} answered`);
+    }
   });
 });
 

@@ -180,7 +180,8 @@ export interface DraftRepo {
      * send it unchanged; editing it is untouched.
      */
     replacedByDisclosure?: boolean;
-    turnMessageId: string;
+    /** Null for a fixed owner-written follow-up: no inbound or model turn is invented. */
+    turnMessageId: string | null;
     /**
      * 0080 — the question this reply asks the customer, if any. It becomes the
      * conversation's pending question only when the reply actually leaves

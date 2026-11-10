@@ -1,3 +1,10 @@
+import {connectClient,connectConfigFrom,type ConnectConfig,type ConnectClient} from './payments/stripeConnect.js';
+import {reconcileStripePayments} from './payments/invoicePayments.js';
+import { recordCommentPrivateReply } from './db/commentPrivateReplies.js';
+import { commentsConfigId } from './channels/meta/commentConnect.js';
+import { withoutInstagramComments } from './channels/meta/comments.js';
+import { insertInstagramComment } from './db/instagramComments.js';
+import { registerInstagramCommentWorkers, registerInstagramCommentSweep } from './pipeline/instagramComments.js';
 import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -18,6 +25,7 @@ import { businessesReadingInbox, liveMailAccount } from './db/mailAccounts.js';
 import { invoiceLinkToken, resolveInvoiceLink } from './db/invoiceLinks.js';
 import { invoicePdfViewOf } from './db/invoiceSending.js';
 import { invoicePdf, invoicePdfFilename } from './core/books/invoicePdf.js';
+import { sweepFollowUpWorkspaces } from './outbound/followUps.js';
 import { remindDueInvoices } from './outbound/invoiceReminders.js';
 import { zoneOf } from './db/zone.js';
 import { dayKey } from './core/owner/i18n/format.js';
@@ -63,6 +71,9 @@ import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey, acceptRetiredKeys, decryptSecret, encryptSecret, credentialFingerprint } from './security/credentials.js';
+import { shopifyTransport, type ShopifyTransport } from './net/shopifyAdmin.js';
+import { ShopifyPacer } from './net/shopifyOrders.js';
+import { shopifyOrderLookup } from './pipeline/orderLookup.js';
 import { apolloSource } from './connectors/apollo.js';
 import { OPTIONAL_RECIPIENTS, recipientNamed, unnamedRecipientProblems, type OptionalRecipient } from './core/legal/recipients.js';
 import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/whatsapp/meta.js';
@@ -105,6 +116,7 @@ import type { Locale } from './core/owner/i18n/locale.js';
 import type { MailAttachment, ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { expireContactImports } from './db/contactImports.js';
 import type { PgBoss } from 'pg-boss';
 import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -121,6 +133,7 @@ import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
+import { monthMailOn, monthReportsDue } from './pipeline/monthMail.js';
 import { readEveryConnectedSystem } from './books/readIn.js';
 import { retryStaleGrants } from './books/staleGrants.js';
 import type { QboCall } from './books/connectors/quickbooks.js';
@@ -540,6 +553,7 @@ export async function buildProduction(
     signupGuard?: SignupGuard | null;
     /** BILL — tests only: Stripe's client with the network a recorder, and its webhook secret. */
     stripe?: { readonly client: StripeClient; readonly webhookSecret: string };
+    stripeConnect?: {readonly config:ConnectConfig;readonly client:ConnectClient}|null;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -594,6 +608,8 @@ export async function buildProduction(
     metaFetch?: MetaFetch;
     /** WA — Meta's WhatsApp API as a test sees it: a business's own number sends and fetches through this. */
     whatsappFetch?: FetchLike;
+    /** 5.5 — Shopify as a test sees it: the order lookups and the connect page ask through this. */
+    shopifyTransport?: ShopifyTransport;
     /** 0238 — Meta's Marketing API as a test sees it: the ads login and the Insights read go through this. */
     adsFetch?: AdsFetch;
   },
@@ -620,6 +636,13 @@ export async function buildProduction(
       credentialKey: deriveKey(cfg.CREDENTIAL_KEY), appSecret: cfg.META_APP_SECRET ?? '',
       graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: overrides?.whatsappFetch,
     }),
+    // 5.5 — the Shopify order lookup, one pacer for the process (Shopify meters per app and store).
+    orderLookups: (() => {
+      const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+      const pacer = new ShopifyPacer();
+      const transport = overrides?.shopifyTransport ?? shopifyTransport;
+      return ({ db, businessId }) => shopifyOrderLookup({ db, businessId, credentialKey, transport, pacer });
+    })(),
     ...(overrides?.media ?? mediaPortsFor(cfg)),
   };
   // REKEY — a rotation in progress: tokens sealed with the key this one
@@ -778,6 +801,7 @@ export async function buildProduction(
     const c = stripeConfigFrom(process.env);
     return c ? { client: stripeClient(c), webhookSecret: c.webhookSecret } : null;
   })();
+  const stripeConnect = overrides?.stripeConnect === undefined ? (()=>{const config=connectConfigFrom(process.env);return config?{config,client:connectClient(config)}:null;})() : overrides.stripeConnect;
   if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
     console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
   }
@@ -1017,6 +1041,8 @@ export async function buildProduction(
       signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
       // BILL — the payment provider; null until the owner pastes its keys.
       stripe,
+      stripeConnect,
+      kickStripePayments:async(businessId)=>{await boss.send(QUEUES.stripePayments,{businessId},{singletonKey:businessId});},
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1053,6 +1079,8 @@ export async function buildProduction(
     // C5 — her connector keys are encrypted with the same key as every other
     // credential; Apollo is built from her key per request, never held.
     credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
+    // 5.5 — a test's Shopify: the connect page and the product import ask through it.
+    ...(overrides?.shopifyTransport ? { shopifyTransport: overrides.shopifyTransport } : {}),
     // D18 — Apollo receives prospect searches: wired only once the privacy page names it.
     ...(recipientNamed('apollo') ? { prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }) } : {}),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
@@ -1074,6 +1102,7 @@ export async function buildProduction(
     // C10 — the login a business connects its OWN Page with, and what it takes
     // to finish the connection when Meta sends her back.
     metaLogin,
+    metaCommentsConfigId: commentsConfigId(process.env),
     adsLogin,
     adsFetch,
     metaConnect: {
@@ -1139,6 +1168,10 @@ export async function buildProduction(
       kickDrive: async (businessId, conversationId) => {
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });
+      },
+      // 5.4 — the owner's private reply to a comment: its row and the drive's job commit together.
+      queueOutboundDrive: async (tx, businessId, conversationId) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId, db: txDatabase(tx) });
       },
       // P3 — a practice message joins the SAME inbound queue a customer's does.
       enqueueInbound: (job) => enqueueInbound(boss, job),
@@ -1240,6 +1273,11 @@ export async function buildProduction(
           await lockConversation(tx, cid);
           const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
           const fx = await finishConversationOutbound({ store, now: () => new Date() }, send, result);
+          if (send.row.kind === 'comment_private_reply') {
+            const commentId = await recordCommentPrivateReply(tx, businessId.value, send.row.id, result, new Date());
+            if (commentId) await boss.send(QUEUES.instagramCommentPublic,
+              { businessId: businessId.value, commentId }, { db: txDatabase(tx) });
+          }
           // The practice customer's phone is the page: a reply accepted is a reply
           // delivered. Recorded through the receipt path a status webhook takes, so
           // the next reply is not held for a receipt that could never come (the
@@ -1272,6 +1310,12 @@ export async function buildProduction(
    * both modes: Practice runs with no channel configured, too.
    */
   const erasePracticeDaily = async (): Promise<void> => {
+    // Fixed owner words become drafts, in either mode. No sender or model is passed to this job.
+    await boss.schedule(QUEUES.followUpDrafts, '* * * * *', {});
+    await boss.work(QUEUES.followUpDrafts, async () => {
+      await sweepFollowUpWorkspaces({ db, now: () => new Date() });
+    });
+    await registerInstagramCommentSweep({db,boss});
     await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
       const n = await expirePractice(db);
@@ -1283,6 +1327,13 @@ export async function buildProduction(
     await boss.work(QUEUES.advisorExpiry, async () => {
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
+    });
+    // Block 4.4 (0232) — a file of customers waiting for Add or Discard is kept seven days at most: every hour, older
+    // ones are erased (`expire_contact_imports`). Counts only, never a row's words.
+    await boss.schedule(QUEUES.contactImportExpiry, '55 * * * *', {});
+    await boss.work(QUEUES.contactImportExpiry, async () => {
+      const n = await expireContactImports(db);
+      if (n > 0) console.log(`[contacts] ${n} file(s) of customers kept seven days erased`);
     });
     // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
@@ -1386,6 +1437,17 @@ export async function buildProduction(
     });
   };
 
+  if(stripeConnect){
+    await boss.schedule(QUEUES.stripePayments,'*/5 * * * *',{});
+    await boss.work<{businessId?:string}>(QUEUES.stripePayments,async jobs=>{
+      for(const job of jobs){
+        const ids=job.data.businessId?[{business_id:job.data.businessId}]:(await sql<{business_id:string}>`select business_id::text from stripe_pending_workspaces()`.execute(db)).rows;
+        for(const row of ids){const bid=parseBusinessId(row.business_id);if(bid.ok)await reconcileStripePayments({db,client:stripeConnect.client,live:stripeConnect.config.live,now:()=>new Date(),publicBaseUrl:cfg.PUBLIC_BASE_URL,
+          alert:async(b)=>{await sendAlert(boss,{businessId:b,kind:'payment_paid_over',conversationId:null});}},bid.value);}
+      }
+    });
+  }else await boss.unschedule(QUEUES.stripePayments).catch(()=>undefined);
+
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
   // webhook routes — for hosting before ANY channel is configured. An override
   // adapter (tests) always takes the messaging path so composition stays
@@ -1479,6 +1541,13 @@ export async function buildProduction(
     if (!token) return {};
     const noted = (a: ChannelAdapter): ChannelAdapter => ({
       ...a,
+      ...(a.sendCommentPrivateReply ? { sendCommentPrivateReply: async (commentId: string, body: string) => {
+        const r = await a.sendCommentPrivateReply!(commentId, body);
+        if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
+          await withTenantTx(db, businessId, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
+        }
+        return r;
+      } } : {}),
       sendText: async (to, body) => {
         const r = await a.sendText(to, body);
         if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
@@ -1490,7 +1559,7 @@ export async function buildProduction(
     const common = { accessToken: token, appSecret: socialSecret ?? '', graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch };
     return {
       messenger: noted(messengerAdapter({ accountId: account.pageId, ...common })),
-      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, ...common })) } : {}),
+      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, igAccountId: account.igAccountId, ...common })) } : {}),
     };
   };
 
@@ -1522,6 +1591,7 @@ export async function buildProduction(
         sendText: async (to, body) => noted(await base.sendText(to, body)),
         ...(base.sendMedia ? { sendMedia: async (to: string, m: Parameters<NonNullable<ChannelAdapter['sendMedia']>>[1]) => noted(await base.sendMedia!(to, m)) } : {}),
         ...(base.sendTemplate ? { sendTemplate: async (to: string, tpl: Parameters<NonNullable<ChannelAdapter['sendTemplate']>>[1]) => noted(await base.sendTemplate!(to, tpl)) } : {}),
+        ...(base.sendProduct ? { sendProduct: async (to: string, p: Parameters<NonNullable<ChannelAdapter['sendProduct']>>[1]) => noted(await base.sendProduct!(to, p)) } : {}),
       },
     };
   };
@@ -1647,6 +1717,8 @@ export async function buildProduction(
    * from), else drafted for the owner with the reason on the card (outbound/invoiceReminders.ts). Registered beside the
    * outbound worker it feeds, for the same reason the follow-ups are.
    */
+
+
   await boss.schedule(QUEUES.invoiceReminders, '20 * * * *', {});
   await boss.work(QUEUES.invoiceReminders, async () => {
     const r = await remindDueInvoices({
@@ -1900,6 +1972,22 @@ export async function buildProduction(
   });
 
   /**
+   * Block 4.3 (0231) — WHAT NOMI DID FOR YOU, by e-mail, once a month: OFF unless the operator sets
+   * MONTH_REPORT_MAIL=on. Every fifteen minutes each workspace whose 1st has reached 08:00 (outside the owner's quiet
+   * hours) is claimed once for the month just ended, and its owner gets the month by the capped owner-mail sender.
+   * Off, the schedule is taken away, so a schedule left by an earlier deploy does not queue jobs nobody works.
+   */
+  if (monthMailOn(process.env)) {
+    await boss.schedule(QUEUES.monthReports, '*/15 * * * *', {});
+    await boss.work(QUEUES.monthReports, async () => {
+      const done = await monthReportsDue({ db, mail: alertMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, new Date());
+      if (done.length > 0) console.log(`[month-report] ${done.length} month(s): ${done.map((d) => d.outcome).join(', ')}`);
+    });
+  } else {
+    await boss.unschedule(QUEUES.monthReports).catch(() => undefined);
+  }
+
+  /**
    * CEIL — every hour, Meta's error rate per workspace (0085): the operator is
    * told of any workspace over the line (src/core/ops/metaErrors.ts), by e-mail
    * always, at most once in six hours — the next hour's check would repeat it.
@@ -2066,6 +2154,8 @@ export async function buildProduction(
    * transaction writes the row, the conversation, and queues the job through it (pg-boss in the same transaction);
    * a failure leaves nothing, and the retry is new.
    */
+  await registerInstagramCommentWorkers({db,boss,key:credentialKey,fetchImpl:metaFetch,graphVersion:cfg.META_GRAPH_API_VERSION});
+
   const persistEvent = async (e: ChannelEvent, rawPayload: unknown, channel: string): Promise<'new' | 'duplicate'> => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
@@ -2073,6 +2163,15 @@ export async function buildProduction(
       // acknowledged and dropped, never stored, and no turn runs. The channel stays connected, so renewing
       // resumes at once.
       if (await withTenantTx(db, bid, (tx) => billingHeld(tx))) return 'duplicate';
+      if (e.kind === 'comment') {
+        if (channel !== 'instagram') return 'duplicate';
+        return withTenantTx(db,bid,async tx=>{
+          const id=await insertInstagramComment(tx,bid,e);
+          if(!id)return 'duplicate';
+          await boss.send(QUEUES.instagramComments,{businessId:bid,commentId:id},{db:txDatabase(tx)});
+          return 'new';
+        });
+      }
       // Seen already: answered before the name is looked up (a network call), which a duplicate never needed.
       const seen = await withTenantTx(db, bid, async (tx) => (await sql<{ id: string }>`
         select id from channel_events where id = ${e.dedupKey}`.execute(tx)).rows.length > 0);
@@ -2086,7 +2185,7 @@ export async function buildProduction(
             (${e.dedupKey}, ${bid}, ${channel}, ${providerOf[channel] ?? 'unknown'},
              ${e.kind === 'message' ? 'message.inbound' : e.kind === 'echo' ? 'message.echo' : 'status'},
              ${e.kind === 'message' || e.kind === 'echo' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
-             ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
+             ${JSON.stringify(channel==='instagram'?withoutInstagramComments(rawPayload):rawPayload)}::jsonb, ${e.occurredAt})
           on conflict (id) do nothing
           returning id
         `.execute(tx);
@@ -2098,6 +2197,7 @@ export async function buildProduction(
 
   /** What a new event sets going, in the transaction that stored it (A2): every job goes through `tx`. */
   const queueEvent = async (tx: Tx, bid: BusinessId, e: ChannelEvent, channel: string, profileName: string | null): Promise<void> => {
+      if(e.kind === 'comment')return; // comments never enter the DM/echo/status queue
       const inTx = txDatabase(tx);
       if (e.kind === 'message') {
         const conv = await ensureConversation(tx, bid, e.waId, profileName,
@@ -2130,6 +2230,8 @@ export async function buildProduction(
           ...(e.ref ? { ref: e.ref } : {}),
           // CH7 — and the shop's own post it is about, so its caption can be read.
           ...(e.postId ? { postId: e.postId } : {}),
+          // 5.4 — and which of our messages it answers, so a private reply to a comment is matched for certain.
+          ...(e.replyToMid ? { replyToMid: e.replyToMid } : {}),
         }, inTx);
       } else if (e.kind === 'echo') {
         // CH3 — read a little later, so a send of ours has written its id first. 0215 — TikTok's echoes too: a message
