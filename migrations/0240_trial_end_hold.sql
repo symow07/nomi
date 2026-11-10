@@ -58,7 +58,7 @@ $$;
 revoke all on function billing_hold_reason() from public;
 grant execute on function billing_hold_reason() to nomi_app;
 
--- 0117's, with the trial's end: the one question every frozen thing asks.
+-- Re-made from 0117's, with the trial's end: the one question every frozen thing asks.
 create or replace function billing_held() returns boolean
 language sql stable security definer set search_path = public as $$
   select billing_hold_reason() is not null
@@ -66,7 +66,7 @@ $$;
 revoke all on function billing_held() from public;
 grant execute on function billing_held() to nomi_app;
 
--- 0117's, with the trial's end told once (`billing_trial_over`).
+-- Re-made from 0117's, with the trial's end told once (`billing_trial_over`).
 create or replace function claim_billing_alerts() returns table (business_id uuid, kind text, at timestamptz)
 language plpgsql volatile security definer set search_path = public as $$
 #variable_conflict use_column
