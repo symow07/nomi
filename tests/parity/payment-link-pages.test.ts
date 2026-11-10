@@ -28,22 +28,23 @@ describe('payment-link owner pages',()=>{
     for(const flags of [[false,true,true],[true,false,true],[true,true,false]])expect(renderInvoicePaymentDoor('invoice','ar',...flags as [boolean,boolean,boolean])).toBe('');
     expect(buttonsAndDoors(renderInvoicePaymentDoor('invoice','en',true,true,true))).toEqual([]);
   });
-  it.each(['en','ar'] as const)('%s: an invoice paid twice lists both payments and a link still open is said, never silent',locale=>{
-    const twice={paid:[{amount:'100',currency:'GBP',date:'2026-10-12'},{amount:'100',currency:'GBP',date:'2026-10-14'}],stillOpen:false};
-    const html=renderInvoicePaymentDoor('invoice',locale,true,true,true,twice);
-    expect(html).toContain('This invoice was paid twice through payment links.');expect(html).toContain('Nothing has been refunded.');
-    expect(html.match(/id="paid-twice"[\s\S]*?<\/ul>/)![0].match(/<li /g)).toHaveLength(2);
+  it.each(['en','ar'] as const)('%s: an invoice a link paid more than it owed says what is owed back and lists every payment and how it came; a link still open is said, never silent',locale=>{
+    const over={over:{owedBack:'40',currency:'GBP',payments:[{date:'2026-10-12',amount:'40',currency:'GBP',how:'hand' as const},{date:'2026-10-14',amount:'100',currency:'GBP',how:'link' as const}]},stillOpen:false};
+    const html=renderInvoicePaymentDoor('invoice',locale,true,true,true,over);
+    expect(html).toContain('A payment link brought in more than this invoice still owed.');expect(html).toContain('Nothing has been refunded.');
+    expect(html).toContain('Owed back to the customer:');expect(html).toContain('Recorded by hand');expect(html).toContain('Through a payment link');
+    expect(html.match(/id="paid-over"[\s\S]*?<\/ul>/)![0].match(/<li /g)).toHaveLength(2);
     expect(html).not.toContain('still open');
-    const open=renderInvoicePaymentDoor('invoice',locale,true,true,true,{paid:[twice.paid[0]!],stillOpen:true});
-    expect(open).toContain('Another payment link for this invoice is still open');expect(open).not.toContain('paid twice');
+    const open=renderInvoicePaymentDoor('invoice',locale,true,true,true,{over:null,stillOpen:true});
+    expect(open).toContain('Another payment link for this invoice is still open');expect(open).not.toContain('paid-over');
     for(const h of [html,open]){expect(buttonsAndDoors(h)).toEqual([]);expect(unisolatedFigures(h)).toEqual([]);expect(h).not.toMatch(/>paymentLinks\./);expect(h.match(/class="btn send"/g)).toBeNull();}
-    expect(renderInvoicePaymentDoor('invoice',locale,true,true,true,{paid:[twice.paid[0]!],stillOpen:false})).not.toMatch(/paid twice|still open/);
+    expect(renderInvoicePaymentDoor('invoice',locale,true,true,true,{over:null,stillOpen:false})).not.toMatch(/paid-over|still open/);
   });
-  it('the payments page names a link Nomi expired because another was paid, and the one that paid twice',()=>{
+  it('the payments page names a link Nomi expired because another was paid, and the one that paid more than was owed',()=>{
     const html=renderStripePayments({...page,attempts:[
-      {id:'b',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'expired',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:'a',paidTwice:null},
-      {id:'c',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'paid',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:null,paidTwice:'told'}]},'en',null);
-    expect(html).toContain('Expired by Nomi because the invoice was paid through another link.');expect(html).toContain('This invoice was paid twice through payment links.');
+      {id:'b',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'expired',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:'a',paidOver:null},
+      {id:'c',invoiceId:'i',key:'F-2026-0001',amount:'100',currency:'GBP',state:'paid',reason:null,expiresAt:new Date('2026-10-11'),url:null,closedFor:null,paidOver:'told'}]},'en',null);
+    expect(html).toContain('Expired by Nomi because the invoice was paid through another link.');expect(html).toContain('Paid more than the invoice still owed. The difference is owed back to the customer.');
   });
   it('keeps an unavailable fee, mixed payout and posting exception visible, escaping all external values',()=>{
     const html=renderStripePayments({...page,movements:[{id:'m',kind:'payment',amount:'100',currency:'GBP',date:'2026-10-10',entryId:null,reason:'period',providerId:'ch_<script>'}],

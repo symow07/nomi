@@ -119,13 +119,27 @@ export async function storeStripeEvent(tx: Tx, businessId: string, connectionId:
   return Number(r.numAffectedRows) === 1;
 }
 
-/** What the invoice page says of its payment links: every link paid (two or more is paid twice), and whether another is still payable after one was paid. */
-export type InvoiceLinkState = { readonly paid: readonly { amount: string; currency: string; date: string | null }[]; readonly stillOpen: boolean };
+/**
+ * What the invoice page says of its payment links. `over`: a link brought in more than the invoice still owed (another
+ * link paid, a payment recorded by hand, a credit note) and the customer is still owed the excess back — every payment
+ * of the invoice, each said as through a link, by hand, or a refund. `stillOpen`: a link is paid and another is still payable.
+ */
+export type InvoicePaymentRow = { readonly date: string; readonly amount: string; readonly currency: string; readonly how: 'link' | 'hand' | 'refund' };
+export type InvoiceLinkState = { readonly over: { readonly owedBack: string; readonly currency: string; readonly payments: readonly InvoicePaymentRow[] } | null; readonly stillOpen: boolean };
 export async function invoiceLinkState(tx: Tx, businessId: string, invoiceId: string): Promise<InvoiceLinkState> {
-  if (!uuid(invoiceId)) return { paid: [], stillOpen: false };
-  const paid = (await sql<{ amount: string; currency: string; date: string | null }>`select a.amount::text,a.currency,
-    (select min(m.event_date)::text from stripe_movements m where m.business_id=a.business_id and m.attempt_id=a.id and m.kind='payment' and m.entry_id is not null) as date
-    from stripe_checkout_attempts a where a.business_id=${businessId}::uuid and a.invoice_id=${invoiceId}::uuid and a.state='paid' order by date nulls last,a.created_at`.execute(tx)).rows;
-  const stillOpen = paid.length > 0 && (await sql`select 1 from stripe_checkout_attempts where business_id=${businessId}::uuid and invoice_id=${invoiceId}::uuid and state in ('creating','open','processing') limit 1`.execute(tx)).rows.length > 0;
-  return { paid, stillOpen };
+  if (!uuid(invoiceId)) return { over: null, stillOpen: false };
+  const head = (await sql<{ back: string; currency: string; over: boolean; paid: boolean; open: boolean }>`select
+      (-(invoice_total(i.id)-invoice_credited(i.id)-invoice_paid(i.id)))::text as back, i.currency,
+      exists(select 1 from stripe_checkout_attempts a where a.business_id=i.business_id and a.invoice_id=i.id and a.paid_over is not null) as over,
+      exists(select 1 from stripe_checkout_attempts a where a.business_id=i.business_id and a.invoice_id=i.id and a.state='paid') as paid,
+      exists(select 1 from stripe_checkout_attempts a where a.business_id=i.business_id and a.invoice_id=i.id and a.state in ('creating','open','processing')) as open
+    from invoices i where i.business_id=${businessId}::uuid and i.id=${invoiceId}::uuid`.execute(tx)).rows[0];
+  if (!head) return { over: null, stillOpen: false };
+  const stillOpen = head.paid && head.open;
+  if (!head.over || compareDecimal(decimal(head.back), decimal('0')) <= 0) return { over: null, stillOpen };
+  const payments = (await sql<InvoicePaymentRow>`select p.paid_on::text as date,p.amount::text,p.currency,
+      case when p.kind='refund' then 'refund' when p.stripe_attempt_id is not null then 'link' else 'hand' end as how
+    from invoice_payments p where p.business_id=${businessId}::uuid and p.invoice_id=${invoiceId}::uuid and p.kind in ('in','refund')
+    order by p.paid_on,p.created_at`.execute(tx)).rows;
+  return { over: { owedBack: head.back, currency: head.currency, payments }, stillOpen };
 }

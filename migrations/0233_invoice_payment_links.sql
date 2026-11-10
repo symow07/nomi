@@ -40,8 +40,9 @@ create table stripe_checkout_attempts (
  session_id text, intent_id text, url text, expires_at timestamptz not null, created_at timestamptz not null default now(),
  reason text, unique(business_id,id), unique(connection_id,session_id), unique(connection_id,intent_id),
  -- closed_for: the paid attempt of the same invoice whose payment made Nomi expire this link.
- -- paid_twice: this attempt's payment came after another link of the invoice was paid, and was more than was owed.
- closed_for uuid, paid_twice text check(paid_twice in ('untold','told')),
+ -- paid_over: this attempt's payment was more than the invoice still owed when it arrived (another link paid, a payment
+ -- recorded by hand, a credit note): recorded whole, the excess owed back; 'untold' until the owner's alert is queued.
+ closed_for uuid, paid_over text check(paid_over in ('untold','told')),
  foreign key(business_id,connection_id) references stripe_connections(business_id,id),
  foreign key(business_id,mapping_id) references stripe_mappings(business_id,id),
  foreign key(business_id,invoice_id) references invoices(business_id,id)
@@ -165,6 +166,12 @@ alter table invoice_payments add foreign key (business_id,reverses_payment_id) r
 alter table invoice_payments drop constraint invoice_payments_kind_check;
 alter table invoice_payments add constraint invoice_payments_kind_check check (kind in ('in','refund','refund_reversal'));
 alter table invoice_payments add constraint invoice_refund_reversal_source check ((kind = 'refund_reversal') = (reverses_payment_id is not null));
+-- The payment a link attempt brought in names that attempt, once. Only such a payment may be more than is still owed
+-- (invoice_payments_rules). One column, `on delete set null`: a closing workspace keeps its books and erases its Stripe
+-- records, and the rule below lets that clear the pointer and nothing else.
+alter table invoice_payments add column stripe_attempt_id uuid references stripe_checkout_attempts(id) on delete set null;
+alter table invoice_payments add constraint invoice_payment_attempt_kind check (stripe_attempt_id is null or kind = 'in');
+create unique index invoice_payments_once_per_attempt on invoice_payments(stripe_attempt_id) where stripe_attempt_id is not null;
 -- Re-made from 0188_credit_notes.sql; existing payment/refund checks stay unchanged, with a separate refund-reversal branch.
 create or replace function invoice_payments_rules() returns trigger
 language plpgsql as $$
@@ -173,6 +180,12 @@ declare
 begin
   if tg_op <> 'INSERT' then
     if books_purge_allowed() then return coalesce(new, old); end if;
+    -- The attempt it named is gone (its workspace's Stripe records erased, the books kept): only the pointer clears.
+    if tg_op = 'UPDATE' and old.stripe_attempt_id is not null and new.stripe_attempt_id is null
+       and to_jsonb(new) - 'stripe_attempt_id' = to_jsonb(old) - 'stripe_attempt_id'
+       and not exists (select 1 from stripe_checkout_attempts a where a.id = old.stripe_attempt_id) then
+      return new;
+    end if;
     raise exception 'books: a payment never changes — a correction is a new entry' using errcode = 'NB019';
   end if;
   select state, currency into i from invoices where id = new.invoice_id for update;
@@ -183,10 +196,22 @@ begin
     raise exception 'books: a payment is in its invoice''s currency (%)', i.currency using errcode = 'NB019';
   end if;
   owed := invoice_total(new.invoice_id) - invoice_credited(new.invoice_id) - invoice_paid(new.invoice_id);
-  -- A customer who paid a second payment link of an invoice already paid through another has paid twice: the
-  -- money arrived, so it is recorded whole and the excess is owed back to them (refund_due). Never refunded here.
-  if new.kind = 'in' and new.amount > owed and not (new.created_by = 'stripe' and exists(
-       select 1 from stripe_checkout_attempts a where a.business_id = new.business_id and a.invoice_id = new.invoice_id and a.state = 'paid')) then
+  -- A payment that names a link attempt is that attempt's own payment: Stripe's, of THIS invoice, the attempt paid, for
+  -- exactly its amount and currency, and recorded once (the unique index is the last word under concurrency).
+  if new.stripe_attempt_id is not null then
+    if new.created_by <> 'stripe' or not exists (select 1 from stripe_checkout_attempts a
+         where a.id = new.stripe_attempt_id and a.business_id = new.business_id and a.invoice_id = new.invoice_id
+           and a.state = 'paid' and a.amount = new.amount and a.currency = new.currency) then
+      raise exception 'books: a payment names a paid payment link of its own invoice, for that link''s amount' using errcode = 'NB019';
+    end if;
+    if exists (select 1 from invoice_payments x where x.stripe_attempt_id = new.stripe_attempt_id) then
+      raise exception 'books: a payment link''s payment is recorded once' using errcode = 'NB019';
+    end if;
+  end if;
+  -- Money that arrived through a link when the invoice owed less than the link asked (another link paid, a payment
+  -- recorded by hand, a credit note) is recorded whole, and the excess is owed back to the customer (refund_due).
+  -- Never refunded here. Every other payment over what is owed is refused.
+  if new.kind = 'in' and new.amount > owed and new.stripe_attempt_id is null then
     raise exception 'books: % is more than is still owed (%)', new.amount, owed using errcode = 'NB019';
   end if;
   if new.kind = 'refund' and new.amount > -owed then

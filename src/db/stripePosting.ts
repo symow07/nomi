@@ -65,18 +65,24 @@ export async function postCapturedPayment(tx: Tx, businessId: string, attemptId:
   if (!pay.same) return result(tx,businessId,a,{ state:'exception',reason:'payment_differs' });
   await sql`update stripe_checkout_attempts set intent_id=${fact.id} where business_id=${businessId}::uuid and id=${a.id}::uuid`.execute(tx);
   if (!pay.entryId) {
-    // Paid twice: another link of this invoice is already paid and this payment is more than is still owed. Nothing is
-    // refunded or reversed: both are posted, the invoice shows the excess owed back, and the owner is told once.
-    const twice=(await sql<{twice:boolean}>`select ${a.amount}::numeric > invoice_total(i.id)-invoice_credited(i.id)-invoice_paid(i.id)
-      and exists(select 1 from stripe_checkout_attempts o where o.business_id=i.business_id and o.invoice_id=i.id and o.id<>${a.id}::uuid and o.state='paid') as twice
-      from invoices i where i.business_id=${businessId}::uuid and i.id=${a.invoiceId}::uuid`.execute(tx)).rows[0]?.twice===true;
-    const posted=await recordPayment(tx,businessId,a.invoiceId,'stripe',{paidOn:date,amount:a.amount,journalId:m.journalId,accountId:m.clearingId,paidTwice:twice});
+    // Money that arrived through a link is recorded whole, whatever the invoice still owes: another link already paid,
+    // a payment recorded by hand, a credit note. The excess is owed back to the customer (refund_due), the invoice says
+    // so and the owner is told once (`paid_over`). Nothing is refunded or reversed here.
+    const over=(await sql<{over:boolean}>`select ${a.amount}::numeric > invoice_total(i.id)-invoice_credited(i.id)-invoice_paid(i.id) as over
+      from invoices i where i.business_id=${businessId}::uuid and i.id=${a.invoiceId}::uuid`.execute(tx)).rows[0]?.over===true;
+    // The payment names its attempt, and the database accepts that only for a PAID attempt: marked paid first, undone
+    // with the savepoint if the payment is refused (`result` then records the exception as before).
+    await sql`savepoint stripe_payment`.execute(tx);
+    await sql`update stripe_checkout_attempts set state='paid' where business_id=${businessId}::uuid and id=${a.id}::uuid`.execute(tx);
+    const posted=await recordPayment(tx,businessId,a.invoiceId,'stripe',{paidOn:date,amount:a.amount,journalId:m.journalId,accountId:m.clearingId,stripeAttemptId:a.id});
     if (posted.kind==='refused') {
+      await sql`rollback to savepoint stripe_payment`.execute(tx);
       await sql`update stripe_movements set reason=${posted.reason} where id=${pay.id}::uuid`.execute(tx);
       return result(tx,businessId,a,{state:'exception',reason:posted.reason});
     }
+    await sql`release savepoint stripe_payment`.execute(tx);
     await sql`update stripe_movements set entry_id=${posted.entryId}::uuid,reason=null where id=${pay.id}::uuid`.execute(tx);
-    if (twice) await sql`update stripe_checkout_attempts set paid_twice='untold' where business_id=${businessId}::uuid and id=${a.id}::uuid and paid_twice is null`.execute(tx);
+    if (over) await sql`update stripe_checkout_attempts set paid_over='untold' where business_id=${businessId}::uuid and id=${a.id}::uuid and paid_over is null`.execute(tx);
   }
   const b=ch.balance;
   if (!b || b.currency!==a.currency || compareDecimal(b.gross,a.amount)!==0) {

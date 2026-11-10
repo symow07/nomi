@@ -6,7 +6,7 @@ import type { ConnectClient } from './stripeConnect.js';
 import type { BusinessId } from '../core/types/ids.js';
 
 export type PaymentDeps = { readonly db:Db; readonly client:ConnectClient; readonly live:boolean; readonly now:()=>Date; readonly publicBaseUrl:string|null|undefined;
-  /** The owner's alert that an invoice was paid twice (`payment_paid_twice`, e-mail always). Absent, it waits for the worker that has it. */
+  /** The owner's alert that a link paid more than its invoice still owed (`payment_paid_over`, e-mail always). Absent, it waits for the worker that has it. */
   readonly alert?:((bid:BusinessId)=>Promise<void>)|undefined };
 type LinkResult={readonly ok:true;readonly value:PaymentAttempt}|{readonly ok:false;readonly reason:string};
 /** No provider call before the workspace, country and Practice checks. */
@@ -136,7 +136,7 @@ export async function reconcileStripePayments(deps:PaymentDeps,bid:BusinessId):P
     }else out={state:'posted'};
     await mark(deps,bid,e,out);
   }
-  await tellPaidTwice(deps,bid);
+  await tellPaidOver(deps,bid);
 }
 
 /**
@@ -156,16 +156,16 @@ export async function closeOtherLinks(deps:PaymentDeps,bid:BusinessId,paidId:str
   }
 }
 
-/** The owner is told once of each attempt that paid an invoice a second time: claimed first, handed back if the alert could not be queued. */
-async function tellPaidTwice(deps:PaymentDeps,bid:BusinessId):Promise<void>{
+/** The owner is told once of each attempt that paid more than its invoice still owed: claimed first, handed back if the alert could not be queued. */
+async function tellPaidOver(deps:PaymentDeps,bid:BusinessId):Promise<void>{
   if(!deps.alert)return;
-  const claimed=(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`update stripe_checkout_attempts set paid_twice='told'
-    where business_id=${bid}::uuid and paid_twice='untold' returning id::text`.execute(tx))).rows;
+  const claimed=(await withTenantTx(deps.db,bid,tx=>sql<{id:string}>`update stripe_checkout_attempts set paid_over='told'
+    where business_id=${bid}::uuid and paid_over='untold' returning id::text`.execute(tx))).rows;
   for(let n=0;n<claimed.length;n++){
     try{await deps.alert(bid);}
     catch(err){
       const back=claimed.slice(n).map(c=>c.id);
-      await withTenantTx(deps.db,bid,tx=>sql`update stripe_checkout_attempts set paid_twice='untold' where business_id=${bid}::uuid and id=any(${back}::uuid[])`.execute(tx));
+      await withTenantTx(deps.db,bid,tx=>sql`update stripe_checkout_attempts set paid_over='untold' where business_id=${bid}::uuid and id=any(${back}::uuid[])`.execute(tx));
       throw err;
     }
   }

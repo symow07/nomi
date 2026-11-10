@@ -314,8 +314,13 @@ export async function receivableMove(tx: Tx, businessId: string, invoiceId: stri
  */
 export async function recordPayment(tx: Tx, businessId: string, invoiceId: string, by: string,
   p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean; readonly reversesRefundId?: string;
-       /** A second payment link the customer also paid (payments/invoicePayments.ts): the money arrived, so it is recorded whole and the excess is owed back to them. The database allows it only for Stripe when another link of the invoice is paid. */
-       readonly paidTwice?: boolean;
+       /**
+        * The payment link attempt this money came through (payments/invoicePayments.ts). Money that arrived through a link
+        * is recorded whole even when the invoice now owes less (another link paid, a payment recorded by hand, a credit
+        * note): the excess is owed back to the customer. The database allows that only for the attempt's own payment —
+        * Stripe's, of this invoice, the attempt paid, for exactly its amount, once (0233).
+        */
+       readonly stripeAttemptId?: string;
        readonly paid?: { readonly currency: string; readonly amount: Decimal | null } | null }):
   Promise<{ readonly kind: 'recorded'; readonly entryId: string; readonly fx: Decimal } | InvoiceRefusal> {
   const a = await booksAccountsOf(tx, businessId);
@@ -339,7 +344,7 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
     reversal = { amount: d(original.amount), relief: d(original.relief), remainingAmount: subDecimal(d(original.amount),d(original.returned)), remainingRelief: subDecimal(d(original.relief),d(original.restored)) };
   }
   const room = reversal?.remainingAmount ?? (refund ? subDecimal(d('0'), owed) : owed);
-  if (compareDecimal(p.amount, room) > 0 && !(p.paidTwice && !refund && !reversal)) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
+  if (compareDecimal(p.amount, room) > 0 && !(p.stripeAttemptId && !refund && !reversal)) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
   const named = p.paid && p.paid.currency !== inv.currency ? p.paid : null;
   if (named && !(CURRENCIES as readonly string[]).includes(named.currency)) return { kind: 'refused', reason: 'other', detail: null };
   if (named && (named.amount === null || signOf(named.amount) <= 0)) return { kind: 'refused', reason: 'arrived_missing', detail: named.currency };
@@ -386,9 +391,10 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
     const posted = await postEntry(tx, businessId, made.id, by);
     if (posted.kind === 'refused') { await sql`rollback to savepoint record_payment`.execute(tx); return posted; }
     await sql`insert into invoice_payments (business_id, invoice_id, paid_on, currency, amount, receivable_book, account_id, entry_id, created_by, kind,
-                                            paid_currency, paid_amount, reverses_payment_id)
+                                            paid_currency, paid_amount, reverses_payment_id, stripe_attempt_id)
       values (${businessId}::uuid, ${invoiceId}::uuid, ${p.paidOn}::date, ${inv.currency}, ${p.amount}::numeric, ${move.relief}::numeric,
-              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${reversal ? 'refund_reversal' : refund ? 'refund' : 'in'}, ${across?.currency ?? null}, ${across?.amount ?? null}::numeric, ${p.reversesRefundId ?? null}::uuid)`.execute(tx);
+              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${reversal ? 'refund_reversal' : refund ? 'refund' : 'in'}, ${across?.currency ?? null}, ${across?.amount ?? null}::numeric, ${p.reversesRefundId ?? null}::uuid,
+              ${p.stripeAttemptId && !refund && !reversal ? p.stripeAttemptId : null}::uuid)`.execute(tx);
     await sql`release savepoint record_payment`.execute(tx);
     return { kind: 'recorded', entryId: made.id, fx };
   } catch (e) {

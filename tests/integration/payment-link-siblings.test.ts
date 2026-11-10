@@ -44,7 +44,7 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
   const p=paymentProvider({id:ACCOUNT,country:'GB',currency:'GBP',ready:true});
   const alerts:NotifyJob[]=[];
   // The worker's alert (src/main.ts) queues exactly this job; here it is recorded.
-  const deps=(now=at(0))=>({db,client:p.client,live:false,now,publicBaseUrl:'https://nomi.example',alert:async(b:BusinessId)=>{alerts.push({businessId:b,kind:'payment_paid_twice',conversationId:null});}});
+  const deps=(now=at(0))=>({db,client:p.client,live:false,now,publicBaseUrl:'https://nomi.example',alert:async(b:BusinessId)=>{alerts.push({businessId:b,kind:'payment_paid_over',conversationId:null});}});
   const form=(url:string,body:Record<string,string>={},cookie=owner)=>app.inject({method:'POST',url,headers:{cookie,'content-type':'application/x-www-form-urlencoded'},payload:new URLSearchParams(body).toString()});
   const get=(url:string,cookie=owner)=>app.inject({method:'GET',url,headers:{cookie}});
   const q=async<T>(text:string,values:unknown[]=[])=>(await admin.query(text,values)).rows as T[];
@@ -61,7 +61,7 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     const i=await draftInvoice(tx,bid,'owner',{partyId:party,issueDate:'2026-10-10',dueDate:null,currency:'GBP',label:null,lines:[{label:'Goods',quantity:decimal('1'),unitPrice:decimal('100'),accountId:ids['4000']!,taxCodeId:null}]});
     if(i.kind!=='drafted')throw new Error(i.reason);expect((await issueInvoice(tx,bid,i.id,'owner')).kind).toBe('issued');return i.id;
   });
-  const attempts=async(inv:string)=>q<{id:string;state:string;closed_for:string|null;paid_twice:string|null}>('select id::text,state,closed_for::text,paid_twice from stripe_checkout_attempts where invoice_id=$1 order by created_at',[inv]);
+  const attempts=async(inv:string)=>q<{id:string;state:string;closed_for:string|null;paid_over:string|null}>('select id::text,state,closed_for::text,paid_over from stripe_checkout_attempts where invoice_id=$1 order by created_at',[inv]);
   const state=async(a:string)=>(await q<{state:string}>('select state from stripe_checkout_attempts where id=$1',[a]))[0]!.state;
   const payments=async(inv:string)=>q<{amount:string;kind:string}>('select amount::text,kind from invoice_payments where invoice_id=$1 order by created_at',[inv]);
   const owed=async(inv:string)=>(await q<{owed:string}>('select (invoice_total(id)-invoice_credited(id)-invoice_paid(id))::text as owed from invoices where id=$1',[inv]))[0]!.owed;
@@ -100,7 +100,7 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     return deliver('checkout.session.completed',{id:s.id,payment_intent:pi});
   };
   const invoicePage=async(inv:string)=>{const r=await get(`/app/books/invoices/${inv}`);expect(r.statusCode).toBe(200);return r.body;};
-  const STILL_OPEN='Another payment link for this invoice is still open',TWICE='This invoice was paid twice through payment links';
+  const STILL_OPEN='Another payment link for this invoice is still open',TWICE='A payment link brought in more than this invoice still owed';
 
   beforeAll(async()=>{
     admin=new pg.Client({connectionString:process.env['MIGRATE_DATABASE_URL']});await admin.connect();db=createDb(process.env['DATABASE_URL']!);
@@ -169,7 +169,7 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     expect(await invoicePage(f.inv)).toContain(STILL_OPEN);
   });
 
-  it('BOTH PAID: both payments posted, the invoice shows it was paid twice, the owner is told once by e-mail, nothing refunded', async()=>{
+  it('BOTH PAID: both payments posted, the invoice shows it was paid more than it owed, the owner is told once by e-mail, nothing refunded', async()=>{
     const f=await failedThenNew();
     alerts.length=0;
     const paidNew=await newPaid(f.b);await reconcile();
@@ -181,8 +181,8 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     expect(await payments(f.inv)).toEqual([{amount:'100.00',kind:'in'},{amount:'100.00',kind:'in'}]);
     expect(await owed(f.inv)).toBe('-100.00');                                 // owed back to the customer, not refunded
     expect((await q<{state:string}>('select state from stripe_event_inbox where event_id=any($1)',[[paidNew,paidOld]])).map(r=>r.state)).toEqual(['done','done']);
-    expect(alerts).toEqual([{businessId:bid,kind:'payment_paid_twice',conversationId:null}]);
-    expect((await attempts(f.inv)).find(r=>r.id===f.a)!.paid_twice).toBe('told');
+    expect(alerts).toEqual([{businessId:bid,kind:'payment_paid_over',conversationId:null}]);
+    expect((await attempts(f.inv)).find(r=>r.id===f.a)!.paid_over).toBe('told');
     // Told once: the same event again, another event, and more reconciles change nothing.
     await oldSucceeds(f);await reconcile();
     expect(alerts).toHaveLength(1);
@@ -193,16 +193,16 @@ d('payment links · a payment on one link closes the others (signed webhook, fak
     expect(await q("select 1 from stripe_movements m join stripe_checkout_attempts a on a.id=m.attempt_id where a.invoice_id=$1 and m.kind not in ('payment','fee')",[f.inv])).toEqual([]);
     const page=await invoicePage(f.inv);
     expect(page).toContain(TWICE);expect(page).toContain('Nothing has been refunded.');
-    expect(page.match(/id="paid-twice"[\s\S]*?<\/ul>/)![0].match(/<li /g)).toHaveLength(2);
+    expect(page.match(/id="paid-over"[\s\S]*?<\/ul>/)![0].match(/<li /g)).toHaveLength(2);
     // The alert's path: e-mail always.
-    expect(goesByMail('payment_paid_twice')).toBe(true);
+    expect(goesByMail('payment_paid_over')).toBe(true);
     const person=(await q<{id:string}>('select id::text from people where business_id=$1 and is_owner and archived_at is null',[bid]))[0]?.id
       ??(await q<{id:string}>("insert into people(business_id,name,is_owner) values($1,'Owner',true) returning id::text",[bid]))[0]!.id;
     await admin.query("insert into logins(business_id,person_id,email,password_hash) values($1,$2,'owner@example.test','scrypt$never-used')",[bid,person]);
     const mails:{to:string;subject:string;text:string}[]=[];
     const out=await deliverOwnerAlert({db,adapter:{sendText:async()=>{throw new Error('no WhatsApp here');}},mail:{send:async m=>{mails.push(m);return {ok:true};}},publicBaseUrl:'https://nomi.example'},alerts[0]!);
     expect(out).toBe('sent');
-    expect(mails).toEqual([expect.objectContaining({to:'owner@example.test',subject:'An invoice was paid twice'})]);
+    expect(mails).toEqual([expect.objectContaining({to:'owner@example.test',subject:'A customer paid more than an invoice owed'})]);
     expect(mails[0]!.text).toContain('https://nomi.example/app/payments/stripe');
   });
 

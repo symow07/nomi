@@ -99,10 +99,10 @@ export const goesByMail = (kind: AlertKind): boolean =>
   || kind === 'mailbox_disconnected'
   // BILL — money: the trial ending, a failed payment, the hold, a plan's month used.
   || isBillingAlert(kind)
-  // Payment links — money a customer paid twice: the refund is the owner's, and it cannot wait in the app.
-  || kind === 'payment_paid_twice';
+  // Payment links — money that arrived through a link when the invoice owed less: the refund is the owner's, and it cannot wait in the app.
+  || kind === 'payment_paid_over';
 
-/** Where the paid-twice letter opens: the payment links, each with its invoice. */
+/** Where the paid-over letter opens: the payment links, each with its invoice. */
 export const PAYMENT_LINKS_PAGE = '/app/payments/stripe';
 
 /** BILL (0117) — the owner's billing e-mails; each opens Billing. */
@@ -555,7 +555,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
 type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
-  | 'connection_approved' | 'connection_refused' | 'mailbox_disconnected' | 'payment_paid_twice'
+  | 'connection_approved' | 'connection_refused' | 'mailbox_disconnected' | 'payment_paid_over'
   | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number] | typeof DAILY_KINDS[number]>;
 const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
 void everyKindClassified;
@@ -601,10 +601,11 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE
     // 0217 — a dead mailbox opens the e-mail channel page, where it is connected again.
     : job.kind === 'mailbox_disconnected' ? '/app/channels/email'
-    : job.kind === 'payment_paid_twice' ? PAYMENT_LINKS_PAGE
+    : job.kind === 'payment_paid_over' ? PAYMENT_LINKS_PAGE
     : isBillingAlert(job.kind) ? BILLING_PAGE : null;
   const body = opens && deps.publicBaseUrl
-    ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
+    // A payment letter opens a page, not a conversation: its own line says which.
+    ? `${words}\n\n${t(locale, job.kind === 'payment_paid_over' ? 'notify.payment_paid_over.open' : 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
 
   let tried = 0; let sent = 0;
   const why: string[] = [];

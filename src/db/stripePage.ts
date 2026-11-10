@@ -8,7 +8,7 @@ export type StripePage={
   country:string|null;practice:boolean;configured:boolean;live:boolean;connection:StripeBinding|null;mapping:StripeMapping|null;
   accounts:readonly {id:string;code:string;name:string;kind:string}[];
   banks:readonly {id:string;code:string;name:string}[];journals:readonly {id:string;code:string;name:string}[];
-  attempts:readonly {id:string;invoiceId:string;key:string;amount:string;currency:string;state:string;reason:string|null;expiresAt:Date;url:string|null;closedFor?:string|null;paidTwice?:string|null}[];
+  attempts:readonly {id:string;invoiceId:string;key:string;amount:string;currency:string;state:string;reason:string|null;expiresAt:Date;url:string|null;closedFor?:string|null;paidOver?:string|null}[];
   movements:readonly {id:string;kind:string;amount:string;currency:string;date:string;entryId:string|null;reason:string|null;providerId:string}[];
   payouts:readonly {id:string;amount:string;currency:string;date:string;status:string;nomiAmount:string|null;entryId:string|null;receiptId:string|null;reversalId?:string|null;failureDate?:string|null;reason:string|null}[];
   statements:readonly {id:string;amount:string;currency:string;date:string;bankId:string}[];
@@ -23,7 +23,7 @@ export async function readStripePage(tx:Tx,bid:string,configured:boolean,live:bo
     accounts:(await sql<StripePage['accounts'][number]>`select a.id::text,a.code,a.name,a.kind from accounts a where a.business_id=${bid}::uuid and a.is_active and a.kind in ('asset','expense')
       and not exists(select 1 from accounts ch where ch.business_id=a.business_id and ch.parent_id=a.id and ch.is_active) order by a.code`.execute(tx)).rows,
     banks:await paymentAccounts(tx,bid),journals:(await sql<StripePage['journals'][number]>`select id::text,code,name from journals where business_id=${bid}::uuid and kind='general' order by code`.execute(tx)).rows,
-    attempts:(await sql<StripePage['attempts'][number]>`select a.id::text,a.invoice_id::text as "invoiceId",'F-'||i.year||'-'||lpad(i.number::text,4,'0') as key,a.amount::text,a.currency,a.state,a.reason,a.expires_at as "expiresAt",a.url,a.closed_for::text as "closedFor",a.paid_twice as "paidTwice"
+    attempts:(await sql<StripePage['attempts'][number]>`select a.id::text,a.invoice_id::text as "invoiceId",'F-'||i.year||'-'||lpad(i.number::text,4,'0') as key,a.amount::text,a.currency,a.state,a.reason,a.expires_at as "expiresAt",a.url,a.closed_for::text as "closedFor",a.paid_over as "paidOver"
       from stripe_checkout_attempts a join invoices i on i.id=a.invoice_id join stripe_connections c on c.id=a.connection_id
       where a.business_id=${bid}::uuid and c.live=${live} order by a.created_at desc limit 100`.execute(tx)).rows,
     movements:(await sql<StripePage['movements'][number]>`select m.id::text,m.kind,m.amount::text,m.currency,m.event_date::text as date,m.entry_id::text as "entryId",m.reason,m.provider_id as "providerId"

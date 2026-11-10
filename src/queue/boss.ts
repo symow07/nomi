@@ -287,7 +287,7 @@ export type NotifyJob = {
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
     | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
     | 'backup_failed' | 'mailbox_disconnected'
-    | 'payment_paid_twice';   // payment links — a customer paid one invoice through two links; the owner refunds, if anyone does   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
+    | 'payment_paid_over';   // payment links — a link paid more than the invoice still owed; the owner refunds, if anyone does   // 0167 — production an hour behind main, and caught up again; 0217 — a scheduled backup failed, a mailbox's grant died
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
