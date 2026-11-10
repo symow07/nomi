@@ -33,7 +33,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey, messages } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, messages, messageLocale } from '../../core/owner/i18n/messages.js';
 import { flashTone } from '../../core/owner/flashTone.js';
 import { esc, deeper } from './layout.js';
 import { t } from './say.js';
@@ -52,6 +52,8 @@ export type FlashTone = 'ok' | 'bad';
  */
 export type Flash = {
   readonly text: string; readonly bad: boolean;
+  /** Present only when a notice includes English fallback; preserve each sentence's language. */
+  readonly parts?: readonly { readonly text: string; readonly englishFallback: boolean }[];
   readonly undo?: { readonly action: string; readonly label: string } | undefined;
 };
 
@@ -121,6 +123,7 @@ export function readFlash(
     if (typeof exp !== 'number' || exp < now) return null;
     if (!Array.isArray(rawParts) || rawParts.length === 0) return null;
     const said: string[] = [];
+    const parts: { text: string; englishFallback: boolean }[] = [];
     let bad = false;
     for (const part of rawParts) {
       if (!Array.isArray(part) || part.length !== 2) return null;
@@ -135,14 +138,17 @@ export function readFlash(
           if (typeof v === 'string' || typeof v === 'number') safe[k] = v;
         }
       }
-      said.push(t(locale, key as MessageKey, safe));
+      const text = t(locale, key as MessageKey, safe);
+      said.push(text);
+      parts.push({ text, englishFallback: locale !== 'en' && messageLocale(locale, key as MessageKey) === 'en' });
       // Several sentences, one banner: a refusal anywhere in it makes it one.
       if (flashTone(key as MessageKey) === 'bad') bad = true;
     }
     // Phase 5 — the way back, only to an address of the one shape an Undo may have.
+    const flash = { text: said.join(' '), bad, ...(parts.some(p => p.englishFallback) ? { parts } : {}) };
     return typeof undo === 'string' && UNDO_ACTION.test(undo) && !bad
-      ? { text: said.join(' '), bad, undo: { action: undo, label: t(locale, 'common.undo') } }
-      : { text: said.join(' '), bad };
+      ? { ...flash, undo: { action: undo, label: t(locale, 'common.undo') } }
+      : flash;
   } catch { return null; }
 }
 
@@ -153,7 +159,11 @@ export function readFlash(
  */
 export const saidFlash = (
   locale: Locale, key: MessageKey, params?: Record<string, string | number>,
-): Flash => ({ text: t(locale, key, params), bad: flashTone(key) === 'bad' });
+): Flash => {
+  const text = t(locale, key, params);
+  return { text, bad: flashTone(key) === 'bad', ...(locale !== 'en' && messageLocale(locale, key) === 'en'
+    ? { parts: [{ text, englishFallback: true }] } : {}) };
+};
 
 /**
  * The banner itself, in one place — so a route cannot accidentally paint a
@@ -163,11 +173,14 @@ export const saidFlash = (
  * `id` makes the banner a page's landing point (CC-25: a conversation's
  * `#latest`), so the address an action returns to opens on the notice itself.
  */
-export const flashBanner = (f: Flash | null, id?: string): string =>
-  f === null ? ''
-    : `<div class="flash${f.bad ? ' bad' : ''}${f.undo ? ' has-undo' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${
-      f.undo ? `<span>${esc(f.text)}</span><form method="post" action="${esc(f.undo.action)}" class="undo"><button class="btn" type="submit">${
-        esc(f.undo.label)}</button></form>` : esc(f.text)}</div>`;
+export const flashBanner = (f: Flash | null, id?: string): string => {
+  if (f === null) return '';
+  const words = f.parts ? f.parts.map(p => p.englishFallback
+    ? `<bdi lang="en" dir="ltr">${esc(p.text)}</bdi>` : esc(p.text)).join(' ') : esc(f.text);
+  return `<div class="flash${f.bad ? ' bad' : ''}${f.undo ? ' has-undo' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${
+    f.undo ? `<span>${words}</span><form method="post" action="${esc(f.undo.action)}" class="undo"><button class="btn" type="submit">${
+      esc(f.undo.label)}</button></form>` : words}</div>`;
+};
 
 /**
  * CC-26 — what a page watches while it is open, and what it says when that

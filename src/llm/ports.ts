@@ -6,6 +6,7 @@ import type { Quote } from '../core/types/commerce.js';
 import type { RetrievedProduct } from '../retrieval/ports.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { Speaker } from '../core/owner/assistants.js';
+import type { OrderContext } from '../core/commerce/shopifyOrders.js';
 
 /**
  * LLM ports. The pipeline depends on these, never on a vendor SDK — which is
@@ -119,6 +120,12 @@ export interface ReplyWriter {
      * repeat and never a source of facts: the guards run on the reply as before. Absent when no procedure applies.
      */
     procedure?: ProcedureContext;
+    /**
+     * 5.5 — one Shopify order's verified facts (no e-mail, address, phone or name; never the order's id). Present
+     * only when the customer's order number and e-mail matched it; then, and only then, the prompt's ORDER section
+     * is added. Absent: the prompt is byte-identical to the one before 5.5.
+     */
+    order?: OrderContext;
   }): Promise<{ reply: string | null; promptVersion: string; modelId: string;
     usage: ModelUsage }>;
 }

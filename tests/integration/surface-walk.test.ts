@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ, RUN_NS } from './tenant.js';
 import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
-import { unisolatedFigures } from '../parity/isolates.js';
+import { unisolatedFigures, unisolatedLatin } from '../parity/isolates.js';
 import { thirdPartyIn, pageRequests, cssRequests, scriptRequests, offList } from '../parity/third-party.js';
 
 /**
@@ -182,8 +182,24 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
       secureCookie: false, messagingEnabled: false,
       kickOutbound: async () => {}, kickDrive: async () => {},
+      // 0238 — ad spend is drawn only where the installation has its login: on here, so Results' card and the
+      // connect routes are walked on real rows. Meta is never asked (a GET draws; the read is the daily job's).
+      adsLogin: { appId: '4070500000000001', appSecret: 'walk-secret', configId: '9876543210' },
+      adsFetch: async () => { throw new Error('the walk never asks Meta'); },
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
+    // 0238 — a live ad account with this month's spend, an unknown placement among it, so Results draws every line.
+    await withTenantTx(db, bid.value, async (tx) => {
+      await sql`insert into ad_spend_connections (business_id, ad_account_id, ad_account_name, account_currency, timezone_name, token_ciphertext, token_fingerprint, connected_by)
+        select ${RUN_BIZ}::uuid, '123450000', 'Walk ads 2', 'USD', 'Asia/Shanghai', 'v1.walk', 'walk', 'owner'
+         where not exists (select 1 from ad_spend_connections where business_id = ${RUN_BIZ}::uuid and archived_at is null)`.execute(tx);
+      const acct = (await sql<{ a: string }>`select ad_account_id as a from ad_spend_connections where business_id = ${RUN_BIZ}::uuid and archived_at is null`.execute(tx)).rows[0]!.a;
+      for (const [platform, amount] of [['instagram', '1234.56'], ['facebook', '7.5'], ['messenger', '0.99'], ['zz_walk_place', '3']] as const) {
+        await sql`insert into ad_spend_days (business_id, ad_account_id, day, platform, amount, currency, timezone_name)
+          values (${RUN_BIZ}::uuid, ${acct}, (now() at time zone 'Asia/Shanghai')::date, ${platform}, ${amount}, 'USD', 'Asia/Shanghai')
+          on conflict do nothing`.execute(tx);
+      }
+    });
 
     const login = await app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`,
@@ -235,6 +251,11 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       select token as t from product_images where product_id = ${real['productId']}::uuid and token is not null`
       .execute(tx).then((r) => r.rows[0]?.t ?? null));
     if (photo) ownToken['/media/:token'] = photo;
+    // The catalogue has a separate, explicitly selected publication grant; another token must remain 404.
+    const { seedCatalogueForWalk } = await import('./catalogue-fixture.js');
+    const catalogue = await seedCatalogueForWalk(db, bid.value);
+    ownToken['/catalogue-media/:token'] = catalogue.token;
+    real['batchId'] = catalogue.batchId;
   }, 90_000);
 
   afterAll(async () => { await app?.close(); await advisorDb?.destroy(); await db?.destroy(); });
@@ -407,7 +428,23 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       await sql`insert into calendar_entries (business_id, title, starts_at, created_by)
                 values (${RUN_BIZ}, 'Visit 2', now() + interval '1 day', 'owner')`.execute(tx);
     });
+    // I12 — a comment asking a price, so the Comments page draws its English sentences and a figure ("Hours left to
+    // reply"). The Page it came through is archived: nothing on any page reaches Meta.
+    const pg = (await import('pg')).default;
+    const admin = new pg.Client({ connectionString: process.env['MIGRATE_DATABASE_URL'] });
+    await admin.connect();
+    const ig = `7${Date.now()}`;
+    try {
+      const account = (await admin.query(`insert into meta_accounts (business_id, page_id, page_name, ig_account_id, token_ciphertext, fingerprint,
+          scopes, connected_by, archived_at, archived_by) values ($1, $2, 'Page', $2, 'v1.fake-test-ciphertext', '000000000000',
+          'instagram_manage_comments', 'owner', now(), 'owner') returning id`, [RUN_BIZ, ig])).rows[0].id as string;
+      await admin.query(`insert into ig_comments (business_id, meta_account_id, account_id, comment_id, identity, words, media_id, asking, created_at)
+          values ($1, $2, $3, $4, 'rtl-person', 'How much is the blue one?', 'rtl-post', true, now() - interval '5 hours')`,
+        [RUN_BIZ, account, ig, `${ig}1`]);
+    } finally { await admin.end(); }
     const problems: string[] = [];
+    const english: string[] = [];
+    let commentsDrawn = false;
     let pages = 0;
     for (const url of [...new Set(routes)]) {
       if (!url.startsWith('/app') || url.startsWith('/app/live')) continue;
@@ -423,7 +460,16 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       if (!res.body.includes('<nav class="side">')) continue;
       pages++;
       for (const hit of unisolatedFigures(res.body)) problems.push(`${target}: «${hit}»`);
+      // I12 — the Comments pages' own words (the settings area's content, not its navigation or the shell's): no
+      // English sentence runs right to left. The other English-only areas and the navigation's labels are not held yet.
+      if (target.startsWith('/app/channels/instagram/comments')) {
+        const main = /<div class="sa-content">([\s\S]*)<\/main>/.exec(res.body)?.[1] ?? '';
+        commentsDrawn ||= main.includes('Hours left to reply');
+        for (const hit of unisolatedLatin(main)) english.push(`${target}: «${hit}»`);
+      }
     }
+    expect(commentsDrawn, 'the Comments page was drawn with its comment').toBe(true);
+    expect(english, `English outside an isolate:\n  ${english.join('\n  ')}`).toEqual([]);
     expect(pages, 'the walk drew too few owner pages').toBeGreaterThan(30);
     expect(problems, `figures outside an isolate:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 180_000);
@@ -575,6 +621,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   it('and every surface returns 200, not merely "not 500"', async () => {
     expect(ownToken['/pi/:token'], 'no proforma link was made, so /pi/:token would be walked with another link').toBeTruthy();
     expect(ownToken['/media/:token'], 'no product photo was kept, so /media/:token would be walked with another address').toBeTruthy();
+    expect(ownToken['/catalogue-media/:token'], 'no selected catalogue photo was published').toBeTruthy();
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {
       // Skipped because this walk cannot mint the credential they carry in the

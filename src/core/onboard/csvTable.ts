@@ -16,11 +16,20 @@ import { type Decimal, parseDecimal, signOf } from '../types/decimal.js';
 
 export type Table = { readonly header: readonly string[]; readonly rows: readonly (readonly string[])[] };
 
-/** Rows of a CSV (quotes, doubled quotes, line breaks inside quotes) or a tab-separated paste. */
-export function parseTable(text: string): Table | null {
+/**
+ * Every record of a CSV (quotes, doubled quotes, line breaks inside quotes) or a separated paste, as read: cells
+ * untrimmed, blank records kept. `unterminated` is a quoted cell the text never closed. `seps` are the separators the
+ * first line may use, the most frequent winning (ties to the last listed, so a comma
+ * wins a tie with a tab, as it always did). Block 4.4's customer import reads files
+ * through it as well (src/core/onboard/contactImport.ts).
+ */
+export function tableRecords(text: string, seps: readonly string[] = ['\t', ',']):
+  { readonly records: readonly (readonly string[])[]; readonly unterminated: boolean } {
   const src = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
   const first = src.split('\n', 1)[0] ?? '';
-  const sep = (first.match(/\t/g)?.length ?? 0) > (first.match(/,/g)?.length ?? 0) ? '\t' : ',';
+  let sep = seps[seps.length - 1] ?? ',';
+  let most = -1;
+  for (const s of seps) { const n = first.split(s).length - 1; if (n >= most) { most = n; sep = s; } }
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -36,7 +45,12 @@ export function parseTable(text: string): Table | null {
     else cell += c;
   }
   if (cell !== '' || row.length > 0) { row.push(cell); rows.push(row); }
-  const body = rows.map((r) => r.map((x) => x.trim())).filter((r) => r.some((x) => x !== ''));
+  return { records: rows, unterminated: quoted };
+}
+
+/** Rows of a CSV (quotes, doubled quotes, line breaks inside quotes) or a tab-separated paste. */
+export function parseTable(text: string): Table | null {
+  const body = tableRecords(text).records.map((r) => r.map((x) => x.trim())).filter((r) => r.some((x) => x !== ''));
   if (body.length < 2 || body[0]!.length < 2) return null;
   return { header: body[0]!, rows: body.slice(1) };
 }

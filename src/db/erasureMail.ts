@@ -23,6 +23,11 @@ export async function markLedgerMailed(db: Db, ids: readonly string[]): Promise<
 }
 
 /** The mail: one JSON line per ledger line, what tools/replay-erasures.mjs --ledger reads. */
+export function mailedLedgerLine(line: Record<string, unknown>): Record<string, unknown> {
+  const { comment_digests: _expiring, ...idsOnly } = line;
+  return idsOnly;
+}
+
 export function ledgerLinesNotice(lines: readonly Record<string, unknown>[]): { subject: string; text: string } {
   return {
     subject: `Erasure ledger: ${lines.length} line${lines.length === 1 ? '' : 's'}`,
@@ -30,7 +35,7 @@ export function ledgerLinesNotice(lines: readonly Record<string, unknown>[]): { 
       + 'a team member removed, an erasure run with an operator\'s tool, or a mail that did not go at the time.\n\n'
       + 'Keep this mail: if a backup is ever restored, save these lines to a file and give it to '
       + 'tools/replay-erasures.mjs --ledger (docs/BACKUP-RESTORE.md, "Restore").\n\n'
-      + `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`,
+      + `${lines.map((l) => JSON.stringify(mailedLedgerLine(l))).join('\n')}\n`,
   };
 }
 

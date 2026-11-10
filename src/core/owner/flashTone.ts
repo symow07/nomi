@@ -25,6 +25,13 @@ import type { MessageKey } from './i18n/messages.js';
 
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
+  'contactImport.flash.none', 'contactImport.flash.gone',
+  'paymentLinks.flash.refused',
+  'followUp.flash.changed',
+  'waCatalog.flash.refused', 'waCatalog.flash.changed', 'waCatalog.flash.connection', 'waCatalog.flash.noCatalogue',
+  'waCatalog.flash.unknown', 'waCatalog.flash.imageAddress', 'waCatalog.flash.tooLarge', 'waCatalog.flash.failed', 'waCatalog.flash.changedCatalogue',
+  // Part B (5.3) — a product card that could not be queued.
+  'card.flash.not_sendable', 'card.flash.card_unsupported', 'card.flash.window',
   // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
   // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
   'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
@@ -32,6 +39,10 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.staleNotYet', 'books.flash.staleEndedConnectAgain',
   // 0226 — an invoice that did not go, and a switch only the owner may touch.
   'invoice.flash.ownerOnly', 'invoice.flash.window', 'invoice.flash.not_found', 'invoice.flash.not_issued', 'invoice.flash.no_conversation',
+  'igComments.flash.refused',
+  'igComments.flash.reply.not_found', 'igComments.flash.reply.account', 'igComments.flash.reply.off', 'igComments.flash.reply.not_asking',
+  'igComments.flash.reply.used', 'igComments.flash.reply.age_unknown', 'igComments.flash.reply.expired', 'igComments.flash.reply.empty',
+  'igComments.flash.reply.too_long',
   'invoice.flash.no_address', 'invoice.flash.no_proforma', 'invoice.flash.no_channel', 'invoice.flash.off',
   // 0215 — TikTok's connect refusals
   'connect.tiktok.flash.scopes_missing', 'connect.tiktok.flash.account_taken', 'connect.tiktok.flash.unavailable', 'connect.tiktok.flash.not_configured',
@@ -81,11 +92,15 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'procedures.flash.refused.title_missing', 'procedures.flash.refused.title_long', 'procedures.flash.refused.steps_missing', 'procedures.flash.refused.steps_many',
   'procedures.flash.refused.step_long', 'procedures.flash.refused.money', 'procedures.flash.refused.price', 'procedures.flash.refused.promise',
   'procedures.flash.refused.injection', 'procedures.flash.refused.after_handoff',
+  // 5.5 — a switch or disconnect asked of a workspace with no store connected.
+  'shopifyOrders.flash.nothing',
   'cases.flash.notDone', 'cases.flash.gone', 'cases.flash.failed',
   // Block 6.1 — Write to us: nothing typed, not set up here, too many in a while, the mail did not leave.
   'help.write.empty', 'help.write.cannot', 'help.write.limit', 'help.write.failed',
   'copilot.flash.notSuggested.nothing_to_answer', 'copilot.flash.notSuggested.deletion', 'copilot.flash.notSuggested.allowance',
   'copilot.flash.notSuggested.no_reply', 'copilot.flash.notSuggested.unavailable',
+  // Block 4.3 — the month page's two owner-only forms: minutes refused, a colleague's post.
+  'monthMail.flash.minutesInvalid', 'monthMail.flash.ownerOnly',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
   'channel.flash.number_taken', 'channel.flash.test_not_connected', 'closures.flash.ends_before_starts',
@@ -129,6 +144,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
   'booksSpending.flash.billRefused', 'booksSpending.flash.categoryRefused', 'booksSpending.flash.recurringRefused', 'booksSpending.flash.proposalGone',
+  // 0238 — ad spend: what did not connect, and a month and placement already recorded as a cost.
+  'adSpend.flash.notConfigured', 'adSpend.flash.noAccounts', 'adSpend.flash.expired', 'adSpend.flash.denied', 'adSpend.flash.unavailable', 'adSpend.flash.recordRefused',
   'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'product.tier.notRemoved', 'practice.flash.media_refused', 'proof.owner.flash.failed',
   // Found 2026-10-13 by the walk of every key a route hands a notice (pr3-errors-countries-flash): named no `.flash.`.
   'staff.notAllowed', 'product.add.nothingRead', 'business.kind.invalid', 'pi.owner.flash.failed',
@@ -162,6 +179,12 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  'contactImport.flash.added.one', 'contactImport.flash.added.other', 'contactImport.flash.discarded',
+  'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
+  'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
+  'followUp.flash.saved', 'followUp.flash.skipped',
+  'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.submitted.one', 'waCatalog.flash.submitted.other', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
+  'card.flash.sent',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
   'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',
   // B2 — a workbook read in.
@@ -189,14 +212,19 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // KS6 — asked; asked before; or nothing to ask.
   'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed', 'channel.connect.flash.sent',
   // R2 — a conversation marked as the owner testing, or as a real customer again.
+  'igComments.flash.on', 'igComments.flash.off', 'igComments.flash.deleted', 'igComments.flash.replyQueued',
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
   'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',
   // B13 — a promise marked kept.
   'calendar.flash.kept',
   'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
+  // Block 4.3 — the month page: the minutes saved or removed, the monthly e-mail stopped or started.
+  'monthMail.flash.minutesSaved', 'monthMail.flash.minutesCleared', 'monthMail.flash.mailOff', 'monthMail.flash.mailOn',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
-  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'help.write.sent',
+  'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added', 'procedures.flash.added', 'procedures.flash.archived', 'copilot.flash.suggested', 'cases.flash.started', 'cases.flash.kept', 'cases.flash.reverted', 'adSpend.flash.connected', 'adSpend.flash.disconnected', 'adSpend.flash.recorded', 'help.write.sent',
+  // 5.5 — Shopify order questions: connected, switched on or off, disconnected.
+  'shopifyOrders.flash.connected', 'shopifyOrders.flash.on', 'shopifyOrders.flash.off', 'shopifyOrders.flash.disconnected',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
   'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',
