@@ -2,6 +2,9 @@ import { renderResultsTabs } from './resultsNavigation.js';
 import {registerPaymentRoutes} from './paymentRoutes.js';
 import {renderInvoicePaymentDoor} from './stripePayments.js';
 import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
+import { renderFollowUpRule, renderFollowUps } from './followUps.js';
+import { readFollowUpRule } from '../../core/conversation/followUps.js';
+import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
@@ -4770,6 +4773,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : [];
     // 0128 — whether the model provider refuses for billing, said on the page while it lasts.
     const refusing = await providerRefusing(deps.db);
+    const followUps = bid.ok ? await withTenantTx(deps.db, bid.value, tx => followUpsOf(tx, bid.value, conversationId)) : [];
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
@@ -4778,7 +4782,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderListPane(list, locale, now, conversationId, people,
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
-        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s), { returnHref }),
+        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s), { returnHref })
+          + renderFollowUps(locale, followUps, personOf(s).isOwner, now),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '', { conversationId, locale })),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live:
@@ -6612,8 +6617,42 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true)
+        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner),
     }));
+  });
+  app.post('/app/settings/assistant/follow-ups', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME); if (!s) return reply;
+    const input = (req.body ?? {}) as { enabled?: unknown; delayDays?: unknown; wording?: unknown };
+    const parsed = readFollowUpRule(input);
+    if (!parsed.ok) {
+      const locale = localeOf(req);
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'followUp.title'), active: 'settings',
+        bodyHtml: back(ASSISTANT_HOME, t(locale, 'nav.employee'))
+          + `<h1><bdi lang="en" dir="ltr">${esc(t(locale, 'followUp.title'))}</bdi></h1>` + renderFollowUpRule(locale, {
+          enabled: input.enabled === '1', delayDays: /^[1-7]$/.test(String(input.delayDays)) ? Number(input.delayDays) : 2,
+          wording: typeof input.wording === 'string' ? input.wording : '',
+        }, true, true),
+      }));
+    }
+    await withTenantTx(deps.db, s.businessId as BusinessId, tx => saveFollowUpRule(tx, s.businessId, parsed.rule, new Date()));
+    return flashTo(reply, `${ASSISTANT_HOME}#follow-ups`, 'followUp.flash.saved');
+  });
+  app.post('/app/inbox/:conversationId/follow-ups/:runId/skip', async (req, reply) => {
+    const { conversationId, runId } = req.params as { conversationId: string; runId: string };
+    const here = UUID.test(conversationId) ? conversationUrl(conversationId) : '/app/inbox';
+    const s = await ownerOnly(req, reply, 'capability_grant', here); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(conversationId) || !UUID.test(runId)) return reply.redirect(here);
+    const skipped = await withTenantTx(deps.db, bid.value, async tx => {
+      await lockConversation(tx, conversationId);
+      const run = (await sql<FollowUpRun>`select * from follow_up_runs where business_id = ${bid.value}::uuid
+        and conversation_id = ${conversationId}::uuid and id = ${runId}::uuid
+        and state in ('scheduled', 'draft', 'window_closed') for no key update skip locked`.execute(tx)).rows[0];
+      return run ? cancelFollowUp(tx, run, 'owner_skipped', true) : false;
+    });
+    return flashTo(reply, here, skipped ? 'followUp.flash.skipped' : 'followUp.flash.changed');
   });
   // …and each row's screen: one former section, under its way back. Each is
   // its own route, so every walk of the GET routes opens every one of them.
