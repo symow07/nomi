@@ -361,6 +361,9 @@ export const RULES = Object.freeze({
   ig_comment_alerts: { do: 'erase' },
   ig_comment_tombstones: { do: 'unrelated' },
   tiktok_accounts: { do: 'unrelated' },   // 0215 — a business's own TikTok account; no customer in it
+  shopify_connections: { do: 'unrelated' },   // 0237 — a business's own Shopify store and its sealed credential; no customer in it
+  // 0237 — that a customer's Shopify order was looked up: when, the outcome, the verified order's name. Theirs.
+  shopify_order_lookups: { do: 'erase' },
   undelivered_alerts: { do: 'unrelated' },   // 0217 — an operator alert or account letter that reached nobody; no customer in it
   whatsapp_accounts: { do: 'unrelated' },
   whatsapp_templates: { do: 'unrelated' },
@@ -413,6 +416,9 @@ export const RULES = Object.freeze({
 export const VIRTUAL_EDGES = Object.freeze([
   { child: 'conversation_events', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
   { child: 'shadow.turn_decisions', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
+  // 0237 — no foreign key on purpose: a key check would wait on the turn's own lock on the conversation. A trigger
+  // checks the conversation exists in the same business (a plain read), and the erasure deletes these by conversation.
+  { child: 'shopify_order_lookups', column: 'conversation_id', parent: 'conversations', parentColumn: 'id' },
 ]);
 
 /**

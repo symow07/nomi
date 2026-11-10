@@ -20,6 +20,7 @@ import { MONTH_MAIL_EN } from './monthMail.js';
 import { SETUP_MINUTES_EN } from './setupMinutes.js';
 import { FOLLOW_UPS_EN } from './followUps.js';
 import { WA_CATALOGUE_EN } from './waCatalogue.js';
+import { SHOPIFY_ORDERS_EN } from './shopifyOrders.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -49,6 +50,7 @@ export const REDESIGN_EN = {
   ...SETUP_MINUTES_EN,
   ...FOLLOW_UPS_EN,
   ...WA_CATALOGUE_EN,
+  ...SHOPIFY_ORDERS_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

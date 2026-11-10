@@ -485,7 +485,8 @@ import type { Db } from './client.js';
 // 234 = owner-written follow-up drafts and their accepted-quote evidence.
 // 235 = the owner's selected WhatsApp catalogue, batch outcomes and revocable image grants.
 // 236 = comments, owner-controlled permissions, one-reply reservations and expiring erasure digests.
-export const REQUIRED_SCHEMA_VERSION = 236;
+// 237 = Shopify orders in the conversation: the store's read-only connection, its switch, and each lookup's audit (0237).
+export const REQUIRED_SCHEMA_VERSION = 237;
 
 export type SchemaState = {
   readonly required: number;

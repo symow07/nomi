@@ -27,6 +27,12 @@ import { renderChecksPage, renderCheckPage } from './cases.js';
 import { touchWords } from '../../core/owner/cases.js';
 import { applyChange, hasSavedCases, stagedChangeOf, wouldApply, type StagedChange } from '../../pipeline/caseChecks.js';
 import { renderProceduresPage } from './procedures.js';
+import { renderShopifyOrdersPage, SHOPIFY_ORDERS_PAGE, type ShopifyConnectRefusal } from './shopifyOrders.js';
+import { readShopifyForm } from '../../core/onboard/shopifyGraphql.js';
+import { readStoreGrant } from '../../net/shopifyOrders.js';
+import {
+  disconnectShopify, liveShopifyConnection, recentOrderLookups, saveShopifyConnection, sealShopifyCredential, setAnswerOrders,
+} from '../../db/shopifyConnections.js';
 import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
@@ -9050,6 +9056,51 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   }
 
+  // 0237 — order questions from Shopify: read by anyone signed in; connecting, the switch and disconnecting are the
+  // owner's (`messaging_activation`: the switch lets the assistant tell a customer something new). The credential is
+  // read from the request, checked with Shopify, sealed, and never drawn, logged or sent back.
+  app.get(SHOPIFY_ORDERS_PAGE, authed('settings', async (s, req, locale, reply) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return missingPage(locale, t(locale, 'shopifyOrders.notConnected'), { href: '/app/settings/business', label: t(locale, 'settingsArea.business') });
+    const [connection, lookups] = await withTenantTx(deps.db, bid.value, async (tx) =>
+      [await liveShopifyConnection(tx, bid.value), await recentOrderLookups(tx, bid.value)] as const);
+    return { title: t(locale, 'shopifyOrders.title'), bodyHtml: renderShopifyOrdersPage(locale, {
+      owner: mayDo(personOf(s), 'messaging_activation'), connection, lookups, flash: takeFlash(req, reply),
+    }) };
+  }));
+  app.post(`${SHOPIFY_ORDERS_PAGE}/connect`, { logLevel: 'warn' }, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', SHOPIFY_ORDERS_PAGE); if (!s) return reply;
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, SHOPIFY_ORDERS_PAGE, 'people.flash.failed');
+    const again = (code: ShopifyConnectRefusal, address: string) => reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'shopifyOrders.title'), active: 'settings',
+      bodyHtml: renderShopifyOrdersPage(locale, { owner: true, connection: null, lookups: [], flash: null, refused: { code, address } }),
+    }));
+    const f = readShopifyForm((req.body ?? {}) as Record<string, unknown>);
+    if (!f.ok) return again(f.refusal === 'not_myshopify' ? 'not_myshopify' : f.refusal === 'spaces' ? 'spaces' : 'choose_one', f.address);
+    if (!deps.credentialKey) return again('unavailable', f.shop);
+    const grant = await readStoreGrant(f.shop, f.credential, deps.shopifyTransport ?? shopifyTransport);
+    if (!grant.ok) return again(grant.refusal, f.shop);
+    const ciphertext = sealShopifyCredential(f.credential, deps.credentialKey);
+    await withTenantTx(deps.db, bid.value, (tx) => saveShopifyConnection(tx, bid.value, {
+      shop: f.shop, way: f.credential.way, ciphertext, scopes: grant.scopes, version: grant.version, by: personOf(s).id,
+    }));
+    return flashTo(reply, SHOPIFY_ORDERS_PAGE, 'shopifyOrders.flash.connected');
+  });
+  app.post(`${SHOPIFY_ORDERS_PAGE}/switch`, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', SHOPIFY_ORDERS_PAGE); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, SHOPIFY_ORDERS_PAGE, 'people.flash.failed');
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    const done = await withTenantTx(deps.db, bid.value, (tx) => setAnswerOrders(tx, bid.value, on, personOf(s).id));
+    return flashTo(reply, `${SHOPIFY_ORDERS_PAGE}#switch`, !done ? 'shopifyOrders.flash.nothing' : on ? 'shopifyOrders.flash.on' : 'shopifyOrders.flash.off');
+  });
+  app.post(`${SHOPIFY_ORDERS_PAGE}/disconnect`, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', SHOPIFY_ORDERS_PAGE); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, SHOPIFY_ORDERS_PAGE, 'people.flash.failed');
+    const done = await withTenantTx(deps.db, bid.value, (tx) => disconnectShopify(tx, bid.value, personOf(s).id));
+    return flashTo(reply, SHOPIFY_ORDERS_PAGE, done ? 'shopifyOrders.flash.disconnected' : 'shopifyOrders.flash.nothing');
+  });
+
   // 0229 — the owner's procedures: read by anyone signed in, written by the owner (it directs what the assistant does).
   const PROCEDURES = '/app/assistant/knowledge/procedures';
   app.get(PROCEDURES, authed('knowledge', async (s, req, locale, reply) => {
@@ -9161,6 +9212,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const settings = live.ok ? await practiceSettings(deps.db, live.value, copy) : null;
       // P4 — the checklist: what the copy shows was seen, written on the workspace; the totals settled.
       // B16 — the one reader every readiness count reads (`loadReadiness`).
+      // 0237 — Practice never asks Shopify: where the workspace has a store connected, the page says so.
+      const shopifyHere = live.ok ? (await withTenantTx(deps.db, live.value, (tx) => liveShopifyConnection(tx, live.value))) !== null : false;
       const checklist = live.ok ? {
         totals: await settleTotals(deps.db, live.value, copy),
         ...await loadReadiness(deps.db, live.value),
@@ -9170,7 +9223,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
         // Phase 7 — a row of the assistant's menu: its way back leads (the transcript's own "earlier" link is not one).
-        bodyHtml: `<div class="assistant-practice"><h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
+        bodyHtml: `<div class="assistant-practice"><h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>`
+          + (shopifyHere ? `<p class="caption" id="shopify-practice">${esc(t(locale, 'shopifyOrders.practice'))}</p>` : '')
+          + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`+(checklist?renderPracticeChecklist(checklist,locale):''))

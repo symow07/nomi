@@ -725,7 +725,7 @@ export type ConversationDetail = {
       | { readonly reason: ReminderWithheld; readonly key: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
-      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' } | null;
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -1284,11 +1284,12 @@ export const perPiece = (locale: Locale, m: Money): string => `${show.money(loca
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn' | 'strict_unapproved'; language: string }
-  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' | 'owner_follow_up' | 'order_facts' }
   | { reason: ReminderWithheld; key: string } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language, key } = v as { reason?: unknown; language?: unknown; key?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  // 0237 — a reply built on a verified Shopify order (or its fixed refusal) always waits for the owner.
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown' || reason === 'order_facts') return { reason };
   if (reason === 'owner_follow_up') return { reason };
   // 0226 — an invoice reminder the sweep could not send alone: which invoice, and why it waits.
   if ((reason === 'invoice_window' || reason === 'invoice_language' || reason === 'invoice_mailbox' || reason === 'invoice_held' || reason === 'invoice_unnamed')
