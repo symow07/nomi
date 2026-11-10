@@ -72,5 +72,63 @@ begin
   return new;
 end $$;
 
+-- ── The same failure in a second trigger: a sequence's step (the fix round's V1) ─────────────────────────────────────
+--
+-- `sequence_steps.sequence_id` is a single-column key too, and `sequence_steps_frozen()` (0047) also runs as the caller
+-- and read the sequence by id alone. From workspace A's session B's sequence was invisible, so `approved` was null and
+-- the freeze did not raise: A could write a step on B's APPROVED sequence, or take position 1 of B's draft (B's own
+-- first step was then refused by `unique (sequence_id, position)`, for a reason B cannot see). As admin there was no
+-- workspace check at all. No route reached it (the step routes read the sequence under row security first).
+--
+-- The rule now reads the sequence in the step's own workspace and refuses one it does not find (23503, constraint
+-- `sequence_steps_own_sequence`), as the app role and as any role past row security. On an UPDATE that moves a step,
+-- the sequence it leaves is held to the same freeze as the one it joins.
+
+do $$
+declare n bigint;
+begin
+  select count(*) into n
+    from sequence_steps t
+    join sequences s on s.id = t.sequence_id
+   where s.business_id <> t.business_id;
+  if n > 0 then
+    raise exception '0241: % sequence step(s) already belong to another workspace''s sequence; nothing was changed', n;
+  end if;
+end $$;
+
+-- Re-made from 0047_sequences.sql (its latest definition): the same freeze, the sequence read in the step's own
+-- workspace, not found refused.
+create or replace function sequence_steps_frozen() returns trigger
+language plpgsql as $$
+declare
+  approved timestamptz;
+begin
+  -- FOR SHARE: an edit and her approval cannot both commit on the same
+  -- snapshot. The approving UPDATE takes the row lock; an edit in flight either
+  -- lands before it (and she approves what includes it — the approval route
+  -- checks the fingerprint of the words she read) or waits and is refused.
+  select s.approved_at into approved from sequences s
+   where s.id = new.sequence_id and s.business_id = new.business_id
+   for share;
+  if not found then
+    raise exception 'a sequence step belongs to a sequence of its own workspace'
+      using errcode = 'foreign_key_violation', constraint = 'sequence_steps_own_sequence';
+  end if;
+  if approved is not null then
+    raise exception 'sequence % is approved; its steps cannot change', new.sequence_id
+      using errcode = 'check_violation';
+  end if;
+  if tg_op = 'UPDATE' and old.sequence_id is distinct from new.sequence_id then
+    select s.approved_at into approved from sequences s
+     where s.id = old.sequence_id and s.business_id = old.business_id
+     for share;
+    if approved is not null then
+      raise exception 'sequence % is approved; its steps cannot change', old.sequence_id
+        using errcode = 'check_violation';
+    end if;
+  end if;
+  return new;
+end $$;
+
 insert into _migrations (version, name) values (241, 'bank_match_own_lines')
   on conflict (version) do nothing;
