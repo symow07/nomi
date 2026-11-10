@@ -4,13 +4,15 @@ import type { BusinessId } from '../core/types/ids.js';
 import { decryptSecret } from '../security/credentials.js';
 import { readInsights, type AdsFetch, type InsightsRead } from '../channels/meta/adSpend.js';
 import { dayIn, readSpan } from '../core/ads/spend.js';
-import { finishRead, liveAdConnection, markAdConnection, readHistory, startRead, storeSpend } from '../db/adSpend.js';
+import { finishRead, liveAdConnection, lockAdConnectionRead, markAdConnection, readHistory, startRead, storeSpend } from '../db/adSpend.js';
 
 /**
  * 0238 — ONE WORKSPACE'S AD SPEND, read once a day.
  *
  * Never a loop: the read's row is written (and committed) BEFORE Meta is asked, and a connection already read on
- * this UTC day is skipped — so a job retried by the queue, or run twice, asks Meta nothing more that day. Any
+ * this UTC day is skipped — so a job retried by the queue, or run twice, asks Meta nothing more that day. Two calls
+ * at the same moment are one read too (C02): the day's history is read and the row written under a lock per
+ * connection, let go before Meta is asked; the second caller is told a read is `under_way` and asks nothing. Any
  * outcome but `ok` keeps nothing of what was read (all or nothing) and is tried again the next day; a refused
  * token (190, whatever the subcode) or a lost permission (200) stops every read until the owner connects again;
  * a throttle waits as long as Meta says, or an hour. No row of the workspace's is touched by a failed read.
@@ -24,7 +26,8 @@ export type AdSpendReadDeps = {
   readonly now?: () => Date;
 };
 
-export type AdSpendReadOutcome = 'off' | 'skipped' | InsightsRead['kind'];
+/** `under_way`: a read of this connection was started today and has not finished (another caller's, or one cut off). */
+export type AdSpendReadOutcome = 'off' | 'skipped' | 'under_way' | InsightsRead['kind'];
 
 const THROTTLE_FLOOR_SEC = 3600;
 
@@ -41,12 +44,17 @@ export async function readAdSpendFor(deps: AdSpendReadDeps, businessId: Business
     // the one rule for that (a second copy here was proven dead by switching each off), so only its row is read.
     const c = await liveAdConnection(tx, businessId);
     if (!c) return null;
+    // From here to the read's row, one caller per connection (C02): the history is read after the lock is held, so a
+    // read another caller claimed a moment ago is seen and Meta is not asked twice.
+    await lockAdConnectionRead(tx, c.id);
     const h = await readHistory(tx, businessId, c.id, now);
+    if (h.todayOpen) return 'under_way' as const;
     if (h.today) return null;
     const span = readSpan(dayIn(now, c.timezone), !h.everOk);
     return { c, span, readId: await startRead(tx, businessId, c, span, now) };
   });
   if (!begun) return 'skipped';
+  if (begun === 'under_way') return 'under_way';
   const { c, span, readId } = begun;
 
   let token: string | null = null;

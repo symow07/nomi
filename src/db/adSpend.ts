@@ -54,13 +54,25 @@ export async function archiveAdConnection(tx: Tx, businessId: string, by: string
 // ── The read ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Has this connection been read on this UTC day, or ever read whole? (One read a day; never a loop.) */
-export async function readHistory(tx: Tx, businessId: string, connectionId: string, now: Date): Promise<{ readonly today: boolean; readonly everOk: boolean }> {
-  const r = (await sql<{ today: boolean; ever_ok: boolean }>`select
+export async function readHistory(tx: Tx, businessId: string, connectionId: string, now: Date): Promise<{ readonly today: boolean; readonly todayOpen: boolean; readonly everOk: boolean }> {
+  const r = (await sql<{ today: boolean; today_open: boolean; ever_ok: boolean }>`select
       exists (select 1 from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid
                and (started_at at time zone 'UTC')::date = (${now}::timestamptz at time zone 'UTC')::date) as today,
+      exists (select 1 from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid
+               and (started_at at time zone 'UTC')::date = (${now}::timestamptz at time zone 'UTC')::date and finished_at is null) as today_open,
       exists (select 1 from ad_spend_reads where business_id = ${businessId}::uuid and connection_id = ${connectionId}::uuid and outcome = 'ok') as ever_ok`
     .execute(tx)).rows[0]!;
-  return { today: r.today, everOk: r.ever_ok };
+  return { today: r.today, todayOpen: r.today_open, everOk: r.ever_ok };
+}
+
+/**
+ * C02 — ONE CLAIM OF THE DAY'S READ AT A TIME, PER CONNECTION. Taken in the transaction that reads the day's history
+ * and writes the read's row, and let go when it commits — before Meta is asked, so it is never held across Meta's
+ * call. A second caller waits only for that short transaction, then sees the row and asks nothing. Keyed on the
+ * connection: another connection, another workspace, is never held up.
+ */
+export async function lockAdConnectionRead(tx: Tx, connectionId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`ad-spend-read:${connectionId}`}, 0))`.execute(tx);
 }
 
 export async function startRead(tx: Tx, businessId: string, c: { readonly id: string; readonly adAccountId: string }, span: { since: string; until: string }, now: Date): Promise<string> {
