@@ -13,9 +13,11 @@ import { flashSaid } from './tenant.js';
  *   · every page drawn for a signed-in person carries its "?", and the help page answers owner, team and accountant;
  *   · a question is metered on the ASKER's workspace (the advisor's ledger), never on anyone else's; a used-up
  *     allowance asks nothing;
- *   · a model that invents a feature is not believed: the guide's own lines are the answer;
- *   · "Write to us" reaches the operator's mailbox with the words, the page, the workspace and the person — never the
- *     asker's address or anything about a customer — and a team member may use it; an accountant may not.
+ *   · only the guide's own lines reach the owner: the tester's fifteen invented sentences, in five languages, never
+ *     do; a guide line the model quotes is shown, in every owner language;
+ *   · "Write to us" reaches the operator's mailbox with exactly what the notice lists — the words, the page, the
+ *     workspace's id and who asked — never the business's name, the asker's address or anything about a customer —
+ *     and a team member may use it; an accountant may not.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -38,7 +40,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
   let owner = ''; let staff = ''; let accountant = ''; let staffId = '';
   const outbox: { to: string; subject: string; text: string }[] = [];
   const calls: string[] = [];
-  let invent = false;
+  let said: string | null = null;
   const model: AdvisorModel = {
     recognise: async ({ question }) => {
       calls.push('recognise');
@@ -46,7 +48,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     },
     phrase: async () => {
       calls.push('phrase');
-      return { text: invent ? 'Practice can also post your products to Shopify for you.' : 'In Practice you write as a customer and nothing reaches anyone.', usage: { inputTokens: 300, outputTokens: 50 } };
+      return { text: said ?? t('en', 'help.g.practice.1'), usage: { inputTokens: 300, outputTokens: 50 } };
     },
   };
   const ledger = async (biz: string) => (await admin.query(
@@ -56,8 +58,13 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     const r = await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
     return String(r.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   };
-  const post = (cookie: string, url: string, body: Record<string, string>) =>
-    app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(body).toString() });
+  /** The answer box alone: the page around it lists the guides' lines too. */
+  const answerOf = (body: string): string => {
+    const at = body.indexOf('class="help-answer"');
+    return at < 0 ? '' : body.slice(at, body.indexOf('</div>', at));
+  };
+  const post = (cookie: string, url: string, body: Record<string, string>, lang = 'en') =>
+    app.inject({ method: 'POST', url, headers: { cookie, ...FORM, 'accept-language': lang }, payload: new URLSearchParams(body).toString() });
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL }); await admin.connect();
@@ -130,20 +137,49 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     const mine = await ledger(OTHER); const op = await ledger(OP);
     const r = await post(staff, '/app/help/ask', { q: 'How does practice work?', from: '/app/assistant/practice' });
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('In Practice you write as a customer and nothing reaches anyone.');
+    expect(answerOf(r.body)).toContain(esc(t('en', 'help.g.practice.1')));
+    expect(answerOf(r.body)).not.toContain(esc(t('en', 'help.g.practice.2')));
     expect(calls).toEqual(['recognise', 'phrase']);
     const after = await ledger(OTHER);
     expect({ calls: after.calls - mine.calls, i: after.i - mine.i, o: after.o - mine.o, turns: after.turns - mine.turns }).toEqual({ calls: 2, i: 800, o: 80, turns: 0 });
     expect(await ledger(OP)).toEqual(op);
   });
 
-  it('a model that invents a feature is not believed: the guide\'s own lines are the answer', async () => {
-    invent = true;
+  it('only the guide\'s own lines reach the owner: fifteen invented sentences in five languages never do', async () => {
+    // The tester's fifteen (6.1's verification, Q3); ten reached the owner under the English term list.
+    const invented: readonly (readonly [string, string])[] = [
+      ['en', 'Practice can also post your products to Shopify.'], ['en', 'Practice gives you 500 messages a day.'],
+      ['en', 'Practice gives you five hundred messages a day.'], ['en', 'Practice will take videos from December.'],
+      ['en', 'Practice can also send discount codes to customers who leave their cart.'], ['en', 'Practice also syncs your catalogue with Pinterest and Square.'],
+      ['en', 'Every reply that waits is automatically translated into the customer’s language.'], ['en', 'From the Inbox you can message all your customers at once.'],
+      ['en', 'The assistant can reply to customers with voice messages.'], ['en', 'You can unsend a reply up to an hour after it goes.'],
+      ['ar', 'يمكن للتدريب أيضًا إرسال رسائل نصية قصيرة إلى عملائك.'], ['ar', 'يرسل التدريب ردودك إلى واتساب العميل مباشرة.'],
+      ['zh', '练习也可以给你的客户发短信。'], ['es', 'Práctica también puede hacer llamadas telefónicas a tus clientes.'], ['fr', 'Practice publie aussi vos produits sur Shopify.'],
+    ];
+    const reached: string[] = [];
     try {
-      const r = await post(owner, '/app/help/ask', { q: 'What else can practice do?', from: '/app/assistant/practice' });
-      expect(r.body).not.toContain('Shopify');
-      expect(r.body).toContain(esc(t('en', 'help.g.practice.1')));
-    } finally { invent = false; }
+      for (const [lang, text] of invented) {
+        said = text;
+        const r = await post(owner, '/app/help/ask', { q: 'What else can practice do?', from: '/app/assistant/practice' }, lang);
+        expect(r.statusCode).toBe(200);
+        if (r.body.includes(esc(text))) reached.push(text);
+        expect(answerOf(r.body), text).toContain(esc(t('en', 'help.g.practice.2')));
+      }
+      expect(reached).toEqual([]);
+      // A guide line the model quotes is shown, as the guide words it, in every owner language; one word changed is not.
+      const line = t('en', 'help.g.practice.2');
+      for (const lang of ['en', 'ar', 'zh', 'es']) {
+        said = line.toLowerCase().replace(/\./g, '');
+        const r = await post(owner, '/app/help/ask', { q: 'How many practice messages?', from: '/app/assistant/practice' }, lang);
+        const answer = answerOf(r.body);
+        expect(answer, lang).toContain(esc(line));
+        expect(answer, lang).not.toContain(esc(t('en', 'help.g.practice.1')));
+        said = line.replace('50', '60');
+        const changed = await post(owner, '/app/help/ask', { q: 'How many practice messages?', from: '/app/assistant/practice' }, lang);
+        expect(changed.body, lang).not.toContain('60 messages');
+        expect(answerOf(changed.body), lang).toContain(esc(t('en', 'help.g.practice.1')));
+      }
+    } finally { said = null; }
     calls.length = 0;
     const r = await post(owner, '/app/help/ask', { q: 'Can Nomi answer my WeChat messages?' });
     expect(r.body).toContain(esc(t('en', 'help.ask.notYet')));
@@ -161,7 +197,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     } finally { await admin.query(`delete from tenant_budgets where business_id = $1`, [OTHER]); }
   });
 
-  it('Write to us: the operator\'s mailbox gets the words, the page, the workspace and the person — nothing else of theirs', async () => {
+  it('Write to us: the operator\'s mailbox gets the words, the page, the workspace\'s id and who asked — nothing else of theirs', async () => {
     const sent = outbox.length;
     const r = await post(staff, '/app/help/write', { words: 'How do I add a second WhatsApp number?', from: '/app/settings/channels' });
     expect(r.statusCode).toBe(302);
@@ -169,11 +205,14 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     expect(outbox.length).toBe(sent + 1);
     const m = outbox.at(-1)!;
     expect(m.to).toBe(OP_MAIL);
-    expect(m.subject).toContain(`Help Shop ${RUN}`);
+    expect(m.subject).toBe(`Help request from workspace ${OTHER}`);
     expect(m.text).toContain('How do I add a second WhatsApp number?');
     expect(m.text).toContain('Page: /app/settings/channels');
     expect(m.text).toContain(`Workspace: ${OTHER}`);
-    expect(m.text).toContain(`Person: ${staffId} (team member)`);
+    expect(m.text).toContain('Asked by: team member');
+    // Not the business's name (the operator looks it up by the id), not the person's id.
+    expect(`${m.subject}\n${m.text}`).not.toContain(`Help Shop ${RUN}`);
+    expect(m.text).not.toContain(staffId);
     expect(m.text).not.toContain(OTHER_MAIL);
     expect(m.text).not.toContain(CUSTOMER);
     expect(m.text).not.toContain(OP);
@@ -191,6 +230,7 @@ d('Block 6.1 · help that answers (requires DATABASE_URL + MIGRATE_DATABASE_URL)
     expect(r.statusCode).toBe(302);
     expect(outbox.length).toBe(sent + 3);
     expect(outbox.at(-1)!.text).toContain(`Workspace: ${OP}`);
-    expect(outbox.at(-1)!.text).toContain('(owner)');
+    expect(outbox.at(-1)!.text).toContain('Asked by: owner');
+    expect(outbox.at(-1)!.text).not.toContain(`Help Operator ${RUN}`);
   });
 });

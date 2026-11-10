@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { registerWebApp } from '../../src/api/web/app.js';
-import { shell, helpDoor } from '../../src/api/web/layout.js';
+import { shell, helpDoor, esc } from '../../src/api/web/layout.js';
 import { guideFileAt, hasVideo } from '../../src/api/web/guide.js';
 import { GUIDES, KB_SOURCES, helpFor, pageFrom, guideLines, guideTitle, guideDoor, FROM_MAX, type GuideId } from '../../src/api/web/helpTopics.js';
 import { renderHelp, helpRoutes, topicsFor, type HelpIO, type HelpViewer } from '../../src/api/web/helpPanel.js';
-import { answerHelp, namesAFeature, notYetIn, NOT_YET } from '../../src/advisor/help.js';
+import { answerHelp, linesOfGuide, helpTokens, notYetIn, NOT_YET } from '../../src/advisor/help.js';
+import { NOT_YET_ASKS, NOT_YET_PASSING } from './help-not-yet-corpus.js';
+import { HELP_MAIL_FIELDS, helpMail, helpMailFields, helpNoticeKey } from '../../src/core/owner/helpMail.js';
+import { BUYER_CHANNELS } from '../../src/db/connectedChannels.js';
 import { t } from '../../src/api/web/say.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { messages } from '../../src/core/owner/i18n/messages.js';
@@ -109,6 +112,26 @@ describe('Block 6.1 · every owner page has a help panel', () => {
   });
 });
 
+describe('Block 6.1 · the "?" covers no control', () => {
+  it('every area menu at a page\'s head keeps the room of the "?" (tools/check-help-door.mjs measures it in a browser)', () => {
+    const web = `${ROOT}src/api/web/`;
+    const layout = readFileSync(`${web}layout.ts`, 'utf8');
+    // The room: the door's 44 px and a gap (layout.ts, beside `.help-door`).
+    const ROOM = String.raw`(?:padding|margin)-inline-end:calc\(44px \+ var\(--space-8\)\)`;
+    const rule = (sel: string): boolean => new RegExp(String.raw`\.content \.${sel}\b[^{]*\{[^}]*${ROOM}`).test(layout);
+    // Every area's phone chooser (the second-level one in Settings sits below its own row) and every area's row of links.
+    const choosers = new Set<string>(); const rows = new Set<string>();
+    for (const f of readdirSync(web).filter((x) => x.endsWith('.ts'))) {
+      const src = readFileSync(`${web}${f}`, 'utf8');
+      for (const m of src.matchAll(/class="area-chooser ([a-z]+-chooser)"/g)) if (m[1] !== 'sa-page-chooser') choosers.add(m[1]!);
+      for (const m of src.matchAll(/<nav class="([a-z]{2}-(?:nav|pages))"/g)) rows.add(m[1]!);
+    }
+    expect([...choosers].sort()).toEqual(['aa-chooser', 'ba-chooser', 'ca-chooser', 'pa-chooser', 'sa-chooser']);
+    for (const c of [...choosers, ...rows]) expect(rule(c), c).toBe(true);
+    expect(layout).toMatch(/\.content \.area-nav \.area-chooser \{ margin-inline-end:calc\(44px \+ var\(--space-8\)\)/);
+  });
+});
+
 describe('Block 6.1 · the page a request came from is only ever a same-origin owner path', () => {
   it('accepts plain owner paths, query and fragment dropped', () => {
     expect(pageFrom('/app')).toBe('/app');
@@ -142,6 +165,26 @@ describe('Block 6.1 · the page a request came from is only ever a same-origin o
   });
 });
 
+/** The tester's fifteen invented sentences (6.1's verification, Q3): ten reached the owner under the English term list. */
+const INVENTED: readonly { readonly lang: 'en' | 'ar' | 'zh' | 'es' | 'fr'; readonly pick: GuideId; readonly text: string }[] = [
+  { lang: 'en', pick: 'practice', text: 'Practice can also post your products to Shopify.' },
+  { lang: 'en', pick: 'practice', text: 'Practice gives you 500 messages a day.' },
+  { lang: 'en', pick: 'practice', text: 'Practice gives you five hundred messages a day.' },
+  { lang: 'en', pick: 'practice', text: 'Practice will take videos from December.' },
+  { lang: 'en', pick: 'practice', text: 'Practice can also send discount codes to customers who leave their cart.' },
+  { lang: 'en', pick: 'practice', text: 'Practice also syncs your catalogue with Pinterest and Square.' },
+  { lang: 'en', pick: 'approve', text: 'Every reply that waits is automatically translated into the customer’s language.' },
+  { lang: 'en', pick: 'inbox', text: 'From the Inbox you can message all your customers at once.' },
+  { lang: 'en', pick: 'practice', text: 'The assistant can reply to customers with voice messages.' },
+  { lang: 'en', pick: 'approve', text: 'You can unsend a reply up to an hour after it goes.' },
+  { lang: 'ar', pick: 'practice', text: 'يمكن للتدريب أيضًا إرسال رسائل نصية قصيرة إلى عملائك.' },
+  { lang: 'ar', pick: 'practice', text: 'يرسل التدريب ردودك إلى واتساب العميل مباشرة.' },
+  { lang: 'zh', pick: 'practice', text: '练习也可以给你的客户发短信。' },
+  { lang: 'es', pick: 'practice', text: 'Práctica también puede hacer llamadas telefónicas a tus clientes.' },
+  { lang: 'fr', pick: 'practice', text: 'Practice publie aussi vos produits sur Shopify.' },
+];
+const OWNER_LOCALES = ['en', 'ar', 'zh', 'es'] as const;
+
 describe('Block 6.1 · the help question: grounded on the guides, never inventing a feature', () => {
   const usage = { inputTokens: 100, outputTokens: 20 };
   const scripted = (pick: string | null, text: string | null, log: string[] = []): AdvisorModel => ({
@@ -149,36 +192,69 @@ describe('Block 6.1 · the help question: grounded on the guides, never inventin
     phrase: async ({ facts }) => { log.push(`phrase:${facts.length}`); return { text, usage }; },
   });
 
-  it('an answer worded from the guide stands, and both calls are counted', async () => {
-    const r = await answerHelp(scripted('practice', 'In Practice you write as a customer and nothing reaches anyone.'), 'How do I test replies?', topicsFor('/app/assistant/practice'), 'en');
-    expect(r.answer.kind).toBe('answer');
-    expect(r.spent).toEqual({ llmCalls: 2, inputTokens: 200, outputTokens: 40, cachedInputTokens: 0 });
-  });
-
-  it('a model that invents a feature is refused: the guide\'s own lines are the answer', async () => {
-    for (const invented of [
-      'Yes — Nomi posts your products to Shopify every night.',
-      'Practice can also send a broadcast to all your customers.',
-      'You can connect Zapier from Practice.',
-      'In Practice, 75 messages a day are free.',
-    ]) {
-      const r = await answerHelp(scripted('practice', invented), 'Can Practice do more?', topicsFor('/app/assistant/practice'), 'en');
-      expect(r.answer.kind, invented).toBe('guide');
-      if (r.answer.kind === 'guide') expect(r.answer.topic.id).toBe('practice');
+  it('the model chooses guide lines: they stand, as the guide words them, and both calls are counted', async () => {
+    const two = `${t('en', 'help.g.practice.2').toUpperCase()}   ${t('en', 'help.g.practice.1').replace(/\./g, '!')}`;
+    for (const locale of OWNER_LOCALES) {
+      const r = await answerHelp(scripted('practice', two), 'How do I test replies?', topicsFor('/app/assistant/practice', locale), locale);
+      expect(r.answer, locale).toMatchObject({ kind: 'answer', lines: [1, 0] });
+      expect(r.spent).toEqual({ llmCalls: 2, inputTokens: 200, outputTokens: 40, cachedInputTokens: 0 });
     }
   });
 
-  it('a question about something Nomi does not do is "not yet", and the model is not asked', async () => {
-    for (const q of ['Can Nomi answer my WeChat?', 'Does it reply to SMS?', '能连小红书吗', 'Can the assistant make phone calls to customers?', 'Do you sync with Google Calendar?', 'Can I sell on Amazon with this?']) {
+  it('an allowlist: the tester\'s fifteen invented sentences, in five languages, are each thrown away for the guide\'s lines', async () => {
+    expect(INVENTED.length).toBe(15);
+    for (const c of INVENTED) {
+      const locale = c.lang === 'fr' ? 'en' : c.lang;
+      const r = await answerHelp(scripted(c.pick, c.text), 'What else can it do?', topicsFor('/app/assistant/practice', locale), locale);
+      expect(r.answer.kind, c.text).toBe('guide');
+      if (r.answer.kind === 'guide') expect(r.answer.topic.id).toBe(c.pick);
+    }
+    // And the builder's own: a feature, a broadcast, a connection, a figure.
+    for (const invented of ['Yes — Nomi posts your products to Shopify every night.', 'Practice can also send a broadcast to all your customers.',
+      'You can connect Zapier from Practice.', 'In Practice, 75 messages a day are free.', 'In Practice you write as a customer and nothing reaches anyone.']) {
+      expect((await answerHelp(scripted('practice', invented), 'More?', topicsFor('/app/assistant/practice'), 'en')).answer.kind, invented).toBe('guide');
+    }
+  });
+
+  it('a guide line with one word changed, a figure changed, a line of another guide, or a line plus a sentence, is thrown away', async () => {
+    const line = t('en', 'help.g.practice.2'); // "… Practice has 50 messages a day."
+    const tps = topicsFor('/app/assistant/practice');
+    const practice = tps.find((x) => x.id === 'practice')!;
+    expect(linesOfGuide(line, practice)).toEqual([1]);
+    for (const bad of [
+      line.replace('photo', 'video'), line.replace('50', '500'), line.replace('50', 'fifty'), line.replace('a day', 'an hour'),
+      `${line} It also sends SMS.`, `Yes! ${line}`, t('en', 'help.g.data.1'), line.slice(0, -10), '',
+    ]) {
+      expect(linesOfGuide(bad, practice), bad).toBeNull();
+      expect((await answerHelp(scripted('practice', bad), 'Q?', tps, 'en')).answer.kind, bad).toBe('guide');
+    }
+    // A figure keeps its own marks: "20,000" is never "20000" or "200.00".
+    expect(helpTokens('Up to 20,000 rows.')).toEqual(['up', 'to', '20,000', 'rows']);
+    expect(helpTokens('up to 20000 rows')).not.toEqual(helpTokens('Up to 20,000 rows.'));
+    expect(helpTokens('Up — to\u00a0“20,000” ROWS!')).toEqual(helpTokens('Up to 20,000 rows.'));
+  });
+
+  it('a question about something Nomi does not do is "not yet", and the model is not asked — the corpus, every owner language', async () => {
+    const langs = new Set(NOT_YET_ASKS.map((a) => a.lang));
+    expect([...langs].sort()).toEqual(['ar', 'en', 'es', 'fr', 'zh']);
+    expect(new Set(NOT_YET_PASSING.map((a) => a.lang))).toEqual(langs);
+    for (const n of NOT_YET) expect(NOT_YET_ASKS.some((a) => a.term === n.name), `${n.name} has an ask in the corpus`).toBe(true);
+    for (const a of NOT_YET_ASKS) {
+      expect(a.why.length, a.text).toBeGreaterThan(5);
+      expect(notYetIn(a.text), `${a.text} (${a.why})`).toBe(a.term);
       const log: string[] = [];
-      const r = await answerHelp(scripted('setup', 'Yes, of course.', log), q, topicsFor(null), 'en');
-      expect(r.answer.kind, q).toBe('notYet');
-      expect(log, q).toEqual([]);
+      const r = await answerHelp(scripted('setup', 'Yes, of course.', log), a.text, topicsFor(null), 'en');
+      expect(r.answer.kind, a.text).toBe('notYet');
+      expect(log, a.text).toEqual([]);
       expect(r.spent.llmCalls).toBe(0);
     }
-    // Words that merely look like one are not refused.
-    for (const q of ['How do I reply to text on WhatsApp?', 'Where is the calendar?', 'Which line of my price list failed?']) expect(notYetIn(q), q).toBeNull();
-    expect(NOT_YET.length).toBeGreaterThan(5);
+    for (const p of NOT_YET_PASSING) {
+      expect(p.why.length, p.text).toBeGreaterThan(5);
+      expect(notYetIn(p.text), `${p.text} (${p.why})`).toBeNull();
+    }
+    for (const q of ['Why did line 3 of my list fail?', 'Can a customer say "call me Ana"?', 'I texted them yesterday, will it show here?']) {
+      expect(NOT_YET_PASSING.some((p) => p.text === q), q).toBe(true);
+    }
   });
 
   it('no guide fits: the fixed sentence, never a guess; a model that fails: the fixed failure', async () => {
@@ -188,16 +264,31 @@ describe('Block 6.1 · the help question: grounded on the guides, never inventin
     expect((await answerHelp(broken, 'How?', topicsFor(null), 'en')).answer.kind).toBe('failed');
   });
 
-  it('the feature check names what the guide does not', () => {
-    expect(namesAFeature('Connect it on WhatsApp.', ['WhatsApp, Instagram and Messenger.'])).toEqual([]);
-    expect(namesAFeature('Connect it on Shopify.', ['WhatsApp, Instagram and Messenger.'])).toEqual(['shopify']);
-  });
-
-  it('the topics are the page\'s guides first, then every other guide, in English', () => {
-    const ts = topicsFor('/app/settings/channels');
+  it('the topics are the page\'s guides first, then every other guide, in English, with the lines as the page shows them', () => {
+    const ts = topicsFor('/app/settings/channels', 'ar');
     expect(ts.slice(0, 2).map((x) => x.id)).toEqual(['channels', 'whatsapp']);
     expect(ts.length).toBe(Object.keys(GUIDES).length);
     expect(ts[0]!.lines[0]).toBe(t('en', 'help.g.channels.1'));
+    expect(ts[0]!.shown?.[0]).toBe(t('ar', 'help.g.channels.1'));
+  });
+
+  it('help.g.channels.2 names exactly what completes the channels step, as setup.ts decides it (BUYER_CHANNELS)', () => {
+    // How the guides name each channel. A channel added to BUYER_CHANNELS without a word here fails, and so does the line.
+    const WORD: Record<string, string> = { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger', email: 'e-mail', telegram: 'Telegram', tiktok: 'TikTok' };
+    for (const c of BUYER_CHANNELS) expect(WORD[c], c).toBeDefined();
+    const listed = Object.entries(WORD).filter(([, w]) => t('en', 'help.g.channels.1').includes(w)).map(([c]) => c);
+    expect(listed.sort()).toEqual(Object.keys(WORD).sort());
+    const [completes, rest] = t('en', 'help.g.channels.2').split('completes that setup step');
+    expect(rest, 'the line says what completes the step').toBeDefined();
+    const notThese = rest!.split('.')[0]!;
+    expect(notThese).toMatch(/\bdoes not\b/);
+    for (const c of listed) {
+      const counts = (BUYER_CHANNELS as readonly string[]).includes(c);
+      expect(completes!.includes(WORD[c]!), `${c} named as completing`).toBe(counts);
+      expect(notThese.includes(WORD[c]!), `${c} named as not completing`).toBe(!counts);
+    }
+    // Only English has the line; a translation added later must be held here too.
+    for (const l of LOCALES) expect(t(l, 'help.g.channels.2'), l).toBe(t('en', 'help.g.channels.2'));
   });
 });
 
@@ -208,6 +299,7 @@ describe('Block 6.1 · the page, by who reads it', () => {
       expect(html).toContain('action="/app/help/ask"');
       expect(html).toContain('action="/app/help/write"');
       expect(html).toContain(t('en', 'help.write.lede'));
+      for (const f of HELP_MAIL_FIELDS) expect(html).toContain(t('en', helpNoticeKey(f)));
       expect(html).toContain('within one working day');
       expect(buttonsAndDoors(html), role).toEqual([]);
     }
@@ -245,7 +337,7 @@ describe('Block 6.1 · the routes: metered, limited, and writing only what was t
       viewer: () => viewer, locale: () => 'en', page: (_r: FastifyRequest, p) => `<html>${p.bodyHtml}</html>`,
       model: o.model === undefined ? {
         recognise: async () => ({ pick: { id: 'setup', period: null, customer: null, product: null, reference: null }, usage: { inputTokens: 10, outputTokens: 1 } }),
-        phrase: async () => ({ text: 'Getting started lists five steps.', usage: { inputTokens: 20, outputTokens: 2 } }),
+        phrase: async () => ({ text: t('en', 'help.g.setup.1'), usage: { inputTokens: 20, outputTokens: 2 } }),
       } : o.model,
       allowanceUsed: async () => o.allowanceUsed ?? false,
       spent: async (_b, s) => { spent.push(s); },
@@ -272,17 +364,36 @@ describe('Block 6.1 · the routes: metered, limited, and writing only what was t
     const { app, spent } = mk({});
     const r = await app.inject({ method: 'POST', url: '/app/help/ask', headers: FORM, payload: 'q=How%20do%20I%20start%3F&from=/app/inbox' });
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('Getting started lists five steps.');
+    expect(r.body).toContain(esc(t('en', 'help.g.setup.1')));
     expect(spent).toEqual([{ llmCalls: 2, inputTokens: 30, outputTokens: 3, cachedInputTokens: 0 }]);
   });
 
-  it('Write to us: the words, the page, the workspace and the person — three an hour', async () => {
+  it('Write to us: the notice lists exactly what the mail carries — one list, HELP_MAIL_FIELDS', () => {
+    const html = renderHelp('en', { from: '/app/inbox', role: 'owner', canAsk: true, canWrite: true });
+    const notice = [...html.match(/<ul class="help-sends">([\s\S]*?)<\/ul>/)![1]!.matchAll(/<li[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
+    expect(notice).toEqual(HELP_MAIL_FIELDS.map((f) => t('en', helpNoticeKey(f))));
+    for (const role of ['owner', 'staff'] as const) {
+      const req = { words: 'Where do I add a second number?', page: '/app/settings/channels', workspaceId: BIZ, role };
+      const fields = helpMailFields('en', req);
+      expect(Object.keys(fields)).toEqual([...HELP_MAIL_FIELDS]);
+      const mail = helpMail('en', req);
+      const fixed = new Set([t('en', 'help.mail.intro'), t('en', 'help.mail.answer'), '']);
+      // Every line of the mail is a field or a fixed line; every field is in it, once.
+      expect(mail.text.split('\n').filter((l) => !fixed.has(l))).toEqual(HELP_MAIL_FIELDS.map((f) => fields[f]));
+      expect(mail.subject).toBe(t('en', 'help.mail.subject', { id: BIZ }));
+      expect(fields.role).toContain(t('en', role === 'owner' ? 'help.role.owner' : 'help.role.staff'));
+    }
+    // A refused page is said as none.
+    expect(helpMailFields('en', { words: 'x', page: null, workspaceId: BIZ, role: 'owner' }).page).toBe(t('en', 'help.mail.page', { page: '—' }));
+  });
+
+  it('Write to us: the words, the page and who asked — three an hour', async () => {
     const sent: unknown[] = [];
     const { app, flashes, tick } = mk({ viewer: { businessId: BIZ, personId: 'p-9', role: 'staff' }, write: async (b, w) => { sent.push({ b, ...w }); return 'sent'; } });
     const post = (words: string, from = '/app/products') => app.inject({ method: 'POST', url: '/app/help/write', headers: FORM, payload: new URLSearchParams({ words, from }).toString() });
     for (let i = 0; i < 3; i++) await post(`Where are my products? ${i}`);
     await post('a fourth');
-    expect(sent).toEqual([0, 1, 2].map((i) => ({ b: BIZ, words: `Where are my products? ${i}`, page: '/app/products', personId: 'p-9', role: 'staff' })));
+    expect(sent).toEqual([0, 1, 2].map((i) => ({ b: BIZ, words: `Where are my products? ${i}`, page: '/app/products', role: 'staff' })));
     expect(flashes.slice(-1)[0]).toBe('/app/help/page?from=/app/products#write help.write.limit');
     tick(61 * 60 * 1000);
     await post('after an hour');

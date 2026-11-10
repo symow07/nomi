@@ -1349,6 +1349,16 @@ const STYLE_PAGES = `
   .help-door .hdi { inline-size:26px; block-size:26px; }
   /* On a phone the workspace's name heads the page: it keeps clear of the "?". */
   main > .business-name { padding-inline-end:var(--space-48); }
+  /* …and so does every area's own menu at the head of a page, at every width where it is a row or a phone's chooser
+     (6.1's check: at 390 px the "?" sat on the area menu's arrow on Today, Calendar and Results; between a phone and a
+     laptop it sat on the last link of the Books, Assistant, Customers and Settings rows). Each stops short of the "?"
+     by the door and a gap. tools/check-help-door.mjs measures every shell page against every control. */
+  .content .ca-nav, .content .pa-nav, .content .sa-pages { padding-inline-end:calc(44px + var(--space-8)); }
+  @media (max-width:1100px) { .content .aa-nav, .content .ba-nav, .content .sa-nav { padding-inline-end:calc(44px + var(--space-8)); } }
+  @media (max-width:720px) { .content .area-nav .area-chooser { margin-inline-end:calc(44px + var(--space-8)); } }
+  @media (max-width:600px) {
+    .content .sa-chooser, .content .aa-chooser, .content .ca-chooser, .content .pa-chooser, .content .ba-chooser { margin-inline-end:calc(44px + var(--space-8)); }
+  }
   .help-door:hover { color:var(--color-ink); background:var(--color-sand); }
   .help-door:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .help { display:flex; flex-direction:column; gap:var(--space-16); }

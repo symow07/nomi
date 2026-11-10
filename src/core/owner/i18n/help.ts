@@ -27,7 +27,13 @@ export const HELP_EN = {
   'help.ask.empty': 'Type a question first.',
   'help.ask.tooLong': 'That question is too long. Keep it under 1,000 characters.',
   'help.write.title': 'Still stuck? Write to us',
-  'help.write.lede': 'We get your question, the page you were on and your workspace’s number — nothing about your customers. We answer within one working day.',
+  'help.write.lede': 'We get exactly this, and nothing about your customers:',
+  // One line per field of the mail (src/core/owner/helpMail.ts, HELP_MAIL_FIELDS): the notice says what is sent.
+  'help.write.sends.words': 'your words, as you typed them',
+  'help.write.sends.page': 'the page you were on',
+  'help.write.sends.workspace': 'your workspace’s number',
+  'help.write.sends.role': 'whether you are the owner or a team member',
+  'help.write.promise': 'We answer within one working day.',
   'help.write.label': 'What do you need?',
   'help.write.go': 'Send to Nomi',
   'help.write.sent': 'Sent. We’ll answer within one working day.',
@@ -35,11 +41,11 @@ export const HELP_EN = {
   'help.write.cannot': 'Writing to us isn’t set up here yet.',
   'help.write.failed': 'That didn’t send. Try again in a minute.',
   'help.write.empty': 'Type what you need first.',
-  'help.mail.subject': 'Help request from {business}',
+  'help.mail.subject': 'Help request from workspace {id}',
   'help.mail.intro': 'Someone in a workspace wrote from the help panel. Their words, as typed:',
   'help.mail.page': 'Page: {page}',
-  'help.mail.workspace': 'Workspace: {id} ({business})',
-  'help.mail.person': 'Person: {id} ({role})',
+  'help.mail.workspace': 'Workspace: {id}',
+  'help.mail.role': 'Asked by: {role}',
   'help.mail.answer': 'Promised: an answer within one working day.',
   'help.role.owner': 'owner',
   'help.role.staff': 'team member',
@@ -58,7 +64,9 @@ export const HELP_EN = {
 
   'help.g.channels.title': 'Where customers reach you',
   'help.g.channels.1': 'Channels connects the accounts your customers write to: WhatsApp, Instagram, Messenger, e-mail, Telegram and TikTok direct messages.',
-  'help.g.channels.2': 'Connecting any one of them completes that setup step. Each account shows its state: connected, needs attention, or disconnected.',
+  // The setup step is done by the channels `connectedChannels` reads (src/db/connectedChannels.ts, BUYER_CHANNELS);
+  // tests/parity/help-panel.test.ts holds this line to that list.
+  'help.g.channels.2': 'Connecting WhatsApp, Instagram, Messenger or e-mail completes that setup step; Telegram or TikTok alone does not. Each account shows its state: connected, needs attention, or disconnected.',
   'help.g.channels.3': 'On Instagram and Messenger, replies go through Nomi for 24 hours after the customer’s last message; the customer always writes first.',
   'help.g.channels.door': 'Open Channels',
 

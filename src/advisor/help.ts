@@ -1,6 +1,6 @@
 import type { AdvisorModel, AdvisorCallUsage } from '../llm/ports.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
-import { checkPhrasing, normalise } from './check.js';
+import { normalise } from './check.js';
 import { LANGUAGE, type AdvisorSpent } from './answer.js';
 
 /**
@@ -11,16 +11,28 @@ import { LANGUAGE, type AdvisorSpent } from './answer.js';
  *   1. a question that names something Nomi does not do (`NOT_YET`, each checked in the code) is "not yet", and the
  *      model is not asked;
  *   2. no guide fits: a fixed sentence (the guides do not cover it — write to us), never a guess;
- *   3. the sentence the model wrote is checked: rule 4's check (no figure, date or name that is not in the guide),
- *      and `namesAFeature` — a channel, a service or a kind of feature the guide's lines do not name throws it
- *      away. Thrown away, the guide's own lines are the answer.
+ *   3. AN ALLOWLIST, NOT A BLOCKLIST (6.1's verification, 2026-11-10): the owner sees only lines that come from the
+ *      help's own sources — the chosen guide's lines, as given to the model and as the page shows them. The model
+ *      may choose the guide and which of its lines to say; what it wrote is shown only when, once normalised
+ *      (`helpTokens`: NFKC, case, spacing and punctuation), it is made of whole lines of that guide, and then the
+ *      guide's own words are shown, never the model's. Anything else — a feature, a figure, a date, a line with one
+ *      word changed, a sentence in another language — is thrown away and the guide's lines are the answer.
+ *      (The English term list this replaced let 10 of 15 invented sentences through, every ar/zh/es one among them.)
  * Pure: no database, no file, no sender. The route asks the day's allowance before and records `spent` after.
  */
 
-export type HelpTopic = { readonly id: string; readonly title: string; readonly lines: readonly string[] };
+export type HelpTopic = {
+  readonly id: string;
+  readonly title: string;
+  /** The guide's lines as the model is given them: the facts it may word an answer from. */
+  readonly lines: readonly string[];
+  /** The same lines as the help page shows them in the owner's language, index for index; absent: `lines`. */
+  readonly shown?: readonly string[];
+};
 
 export type HelpAnswer =
-  | { readonly kind: 'answer'; readonly text: string; readonly topic: HelpTopic }
+  /** The model chose these lines of the guide (indices into `topic.lines`, in its order): they are shown, as written. */
+  | { readonly kind: 'answer'; readonly topic: HelpTopic; readonly lines: readonly number[] }
   /** The model's sentence was thrown away (or none came): the guide's own lines. */
   | { readonly kind: 'guide'; readonly topic: HelpTopic }
   | { readonly kind: 'notYet' }
@@ -30,49 +42,83 @@ export type HelpAnswer =
 export type HelpAnswered = { readonly answer: HelpAnswer; readonly spent: AdvisorSpent };
 
 /**
- * Things Nomi does not do, as a question names them. Each was checked in the code (2026-11-10) and is listed in
- * the build notes for the owner: WeChat, WeCom and RED are on Channels as coming (`COMING_SOON`, channels.ts); no
- * SMS, phone or voice-call channel exists (src/channels); no Viber or LINE channel; no Zapier, Google Calendar,
- * Amazon or eBay connection.
+ * Things Nomi does not do, as a question names them — in every owner language (en, zh, ar, es, fr). Each was
+ * checked in the code (2026-11-10) and is listed in the build notes for the owner: WeChat, WeCom and RED are on
+ * Channels as coming (`COMING_SOON`, channels.ts); no SMS, phone or voice-call channel exists (src/channels); no
+ * Viber or LINE channel; no Zapier, Google Calendar, Amazon or eBay connection.
+ *
+ * Both ways, with reasons: tests/parity/help-not-yet-corpus.ts holds the asks each pattern must catch and the
+ * passing mentions it must not ("line 3 of my list", "call me Ana", "I texted them yesterday"). A new phrasing goes
+ * into that corpus first, with its reason, and only then into a pattern here.
+ *
+ * Matched on the question after NFKC and the bidi isolates are taken out (`normalise`), case kept: LINE and WeChat
+ * written as names (capitals) are told apart from the words "line" and "we chat" that way.
  */
 export const NOT_YET: readonly { readonly name: string; readonly re: RegExp }[] = [
-  { name: 'WeChat', re: /\bwe-?chat\b|微信|weixin/i },
-  { name: 'WeCom', re: /\bwecom\b|企业微信/i },
-  { name: 'RED', re: /\brednote\b|\bxiaohongshu\b|小红书/i },
-  { name: 'SMS', re: /\bsms\b|短信/i },
-  { name: 'calls', re: /\b(?:phone|voice)[ -]?calls?\b|\bcall (?:my|the|a) customers?\b|\bmake calls?\b|打电话给客户/i },
-  { name: 'Viber', re: /\bviber\b/i },
-  { name: 'LINE', re: /\bline (?:app|messenger)\b/i },
-  { name: 'Zapier', re: /\bzapier\b/i },
-  { name: 'Google Calendar', re: /\bgoogle calendar\b/i },
-  { name: 'Amazon', re: /\bamazon\b/i },
-  { name: 'eBay', re: /\bebay\b/i },
+  // WeCom first: its Chinese name 企业微信 holds WeChat's.
+  { name: 'WeCom', re: /\bwecom\b|企业微信/iu },
+  // WeChat: one word in any case; two words only as the name ("We Chat") or with what makes it the app — never
+  // "can we chat about prices?".
+  { name: 'WeChat', re: /[Ww][Ee][Cc][Hh][Aa][Tt]|[Ww][Ee][Ii][Xx][Ii][Nn]|\bW[Ee][ -]C[Hh][Aa][Tt]\b|\b[Ww]e[ -]chat (?:app|account|official)|微信|وي ?تشات|وي ?شات|ويتشات/u },
+  { name: 'RED', re: /\brednote\b|\bxiaohongshu\b|小红书/iu },
+  { name: 'SMS', re: new RegExp([
+    '\\b(?:sms|mms)\\b', 'إس ?إم ?إس', 'اس ?ام ?اس',
+    // a text message, as a channel — never text pasted or copied from a chat (that is how products are added)
+    '(?<!(?:paste|pasted|copy|copied) )\\btext messag(?:e|es|ing)\\b',
+    // to text someone — never "the text customers see"
+    '(?<!\\b(?:the|this|that|a|some|of|your|my) )\\btext(?:ing)? (?:my |our |all |your )?(?:customers?|clients?)\\b',
+    '\\bsend (?:them |customers |my customers |clients )?texts\\b', '\\bsend (?:them |customers )?a text (?:message|to)\\b',
+    '(?:能|可以|会|能否|可否|支持|可不可以)[^，。？?！!]{0,10}短信', '短信(?:渠道|功能|群发|吗)',
+    'رسا(?:ئ|ي)ل ?نصي', 'رسالة ?نصي',
+    '\\bmensajes? de texto\\b', '\\bmessages? textes?\\b', '\\b(?:envoyer|envoie|envoyez|envoyer des) (?:des |un )?textos?\\b',
+  ].join('|'), 'iu') },
+  { name: 'calls', re: new RegExp([
+    '\\b(?:phone|voice|video)[ -]?calls?\\b', '\\b(?:call|phone|ring) (?:my |the |a |our |all |your )?(?:customers?|clients?)\\b',
+    '\\bmake (?:phone |voice )?calls?\\b', '\\b(?:answer|take|receive|handle)s? (?:phone |voice )?calls\\b',
+    '(?:能|可以|会|能否|可否|可不可以)[^，。？?！!]{0,10}(?:打电话|拨打|语音通话|接电话)', '(?:打电话|拨打电话)给(?:客户|顾客|买家)', '语音通话',
+    'مكالم(?:ة|ات) ?(?:هاتفي|صوتي)', '(?:إجراء|اجراء|يجري|تجري) ?مكالم', '(?:يتصل|تتصل|الاتصال|اتصال|يكلم|تكلم) ?ب(?:ال)?(?:عملاء|عملائ|زبائن|الزبائن)',
+    '\\bllamadas? (?:telef[oó]nicas?|de voz)\\b', '\\bllamar a (?:mis |los |tus |nuestros )?clientes\\b', '\\bhacer llamadas\\b',
+    '\\bappels? (?:t[ée]l[ée]phoniques?|vocaux)\\b', '\\bappeler (?:mes |les |nos |vos )?clients\\b', '\\bpasser des appels\\b',
+  ].join('|'), 'iu') },
+  { name: 'Viber', re: /\bviber\b|فايبر/iu },
+  // LINE: the name in capitals anywhere; otherwise only with what makes it the app ("the Line app", "connect Line").
+  { name: 'LINE', re: /\bLINE\b|\b[Ll]ine (?:app|messenger|chat|official account)\b|\b(?:support|connect(?:ed)? to|connect|integrate(?:d)? with|works? with|reply on|answer on) (?:the )?[Ll]ine\b(?![\s-]*(?:\d|of\b|breaks?\b|items?\b|by\b|up\b))|لاين/u },
+  { name: 'Zapier', re: /\bzapier\b|زابير/iu },
+  { name: 'Google Calendar', re: /\bgoogle calendar\b|谷歌日历|google日历|تقويم (?:جوجل|غوغل|google)|\bcalendario de google\b|\bagenda google\b/iu },
+  { name: 'Amazon', re: /\bamazon\b|亚马逊|أمازون|امازون/iu },
+  { name: 'eBay', re: /\bebay\b|إيباي|ايباي|易贝/iu },
 ];
 
 /**
- * Names of channels, services and kinds of feature an answer could claim. A sentence that names one the guide's
- * lines do not name is claiming something the guide does not say, and is thrown away. Matched on whole words,
- * case and width folded.
+ * A text as the allowlist compares it: NFKC, the bidi isolates out, lower case, and its words and figures in order —
+ * spacing and punctuation gone. A figure keeps its own marks ("20,000" stays one figure, never "20000" or "200.00").
  */
-export const FEATURE_TERMS: readonly string[] = [
-  'whatsapp', 'instagram', 'messenger', 'facebook', 'telegram', 'tiktok', 'wechat', 'wecom', 'line', 'viber', 'signal',
-  'sms', 'e-mail', 'email', 'phone call', 'voice call', 'call', 'calls',
-  'shopify', 'woocommerce', 'etsy', 'amazon', 'ebay', 'stripe', 'paypal', 'xero', 'quickbooks', 'zapier', 'slack',
-  'google', 'sheets', 'excel', 'pdf', 'csv', 'calendar', 'invoice', 'invoices', 'refund', 'refunds', 'payment',
-  'payments', 'translate', 'translation', 'voice note', 'photo', 'photos', 'video', 'videos', 'app', 'apps',
-  'integration', 'integrations', 'plugin', 'plugins', 'export', 'import', 'schedule', 'scheduled', 'broadcast',
-  'broadcasts', 'campaign', 'campaigns', 'newsletter', 'post', 'posts', 'comments', 'stories', 'ads',
-];
+export function helpTokens(text: string): string[] {
+  return [...normalise(text).toLowerCase().matchAll(/\p{N}+(?:[.,]\p{N}+)*|[\p{L}\p{M}]+/gu)].map((m) => m[0]);
+}
 
-const fold = (s: string): string => normalise(s).toLowerCase();
-const wordAt = (text: string, term: string): boolean =>
-  new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'u').test(text);
-
-/** The feature terms `text` names that `facts` do not, folded. Empty: nothing claimed beyond the guide. */
-export function namesAFeature(text: string, facts: readonly string[]): string[] {
-  const said = fold(text);
-  const known = fold(facts.join('\n'));
-  return FEATURE_TERMS.filter((term) => wordAt(said, term) && !wordAt(known, term));
+/**
+ * The guide lines `text` is made of, in its order — each a whole line, as given to the model or as shown — or null
+ * when any of it is not a line of this guide. Empty text is null.
+ */
+export function linesOfGuide(text: string, topic: HelpTopic): number[] | null {
+  const said = helpTokens(text);
+  if (said.length === 0) return null;
+  const forms = topic.lines.map((l, i) => [helpTokens(l), helpTokens(topic.shown?.[i] ?? l)].filter((f) => f.length > 0));
+  const at = (pos: number, form: readonly string[]): boolean => form.every((w, k) => said[pos + k] === w);
+  const from = (pos: number): number[] | null => {
+    if (pos === said.length) return [];
+    for (let i = 0; i < forms.length; i++) {
+      for (const f of forms[i]!) {
+        if (pos + f.length > said.length || !at(pos, f)) continue;
+        const rest = from(pos + f.length);
+        if (rest) return [i, ...rest];
+      }
+    }
+    return null;
+  };
+  const found = from(0);
+  return found ? [...new Set(found)] : null;
 }
 
 /** Which NOT_YET thing the question names, or null. */
@@ -105,8 +151,6 @@ export async function answerHelp(model: AdvisorModel, question: string, topics: 
     counted(r.usage);
     text = r.text;
   } catch { text = null; }
-  if (!text) return done({ kind: 'guide', topic });
-  const held = checkPhrasing(text, { facts: topic.lines, names: [], known: [], must: [], locale });
-  if (!held.ok || namesAFeature(text, topic.lines).length > 0) return done({ kind: 'guide', topic });
-  return done({ kind: 'answer', text, topic });
+  const lines = text ? linesOfGuide(text, topic) : null;
+  return done(lines ? { kind: 'answer', topic, lines } : { kind: 'guide', topic });
 }

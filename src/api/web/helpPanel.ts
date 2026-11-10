@@ -11,6 +11,7 @@ import { makeThrottle } from './throttle.js';
 import { answerHelp, type HelpAnswer, type HelpTopic } from '../../advisor/help.js';
 import type { AdvisorSpent } from '../../advisor/answer.js';
 import { GUIDES, helpFor, guideTitle, guideDoor, guideLines, pageFrom, type GuideId } from './helpTopics.js';
+import { HELP_MAIL_FIELDS, helpNoticeKey } from '../../core/owner/helpMail.js';
 
 /**
  * Block 6.1 — HELP THAT ANSWERS. The "?" on every owner page (the shell's `helpDoor`, layout.ts) is a door to
@@ -39,20 +40,25 @@ export type HelpIO = {
   readonly model: AdvisorModel | null;
   readonly allowanceUsed: (businessId: string) => Promise<boolean>;
   readonly spent: (businessId: string, spent: AdvisorSpent) => Promise<void>;
-  /** The operator's mail; null: this installation has none. */
-  readonly write: ((businessId: string, req: { words: string; page: string | null; personId: string; role: 'owner' | 'staff' }) => Promise<'sent' | 'skipped' | 'failed'>) | null;
+  /** The operator's mail (exactly `HELP_MAIL_FIELDS`, src/core/owner/helpMail.ts); null: this installation has none. */
+  readonly write: ((businessId: string, req: { words: string; page: string | null; role: 'owner' | 'staff' }) => Promise<'sent' | 'skipped' | 'failed'>) | null;
   readonly flashTo: (reply: FastifyReply, path: string, key: MessageKey, params?: Record<string, string>) => FastifyReply;
   readonly takeFlash: (req: FastifyRequest, reply: FastifyReply) => Flash | null;
   /** For tests: the clock the limits read. */
   readonly now?: () => number;
 };
 
-/** The guides of a page, as the help question's topics: their English lines are the only facts it may use. */
-export const topicsFor = (path: string | null): HelpTopic[] => {
+/**
+ * The guides of a page, as the help question's topics: their English lines are the only facts it may use, and with
+ * them the lines as the page shows them in `locale` — the only sentences the owner can be shown (src/advisor/help.ts).
+ */
+export const topicsFor = (path: string | null, locale: Locale = 'en'): HelpTopic[] => {
   const ids: GuideId[] = [...helpFor(path ?? '/app')];
   // The page's own guides first, then every other one, so a question about another page still finds its guide.
   for (const id of Object.keys(GUIDES) as GuideId[]) if (!ids.includes(id)) ids.push(id);
-  return ids.map((id) => ({ id, title: t('en', guideTitle(id)), lines: guideLines(id).map((k) => t('en', k)) }));
+  return ids.map((id) => ({
+    id, title: t('en', guideTitle(id)), lines: guideLines(id).map((k) => t('en', k)), shown: guideLines(id).map((k) => t(locale, k)),
+  }));
 };
 
 // `from` has passed `pageFrom`: plain path characters only.
@@ -70,7 +76,11 @@ function guideHtml(locale: Locale, id: GuideId): string {
 
 function answerHtml(locale: Locale, a: HelpAnswer): string {
   switch (a.kind) {
-    case 'answer': return `<p><bdi>${esc(a.text)}</bdi></p>`;
+    // The lines the model chose, in the guide's own words as the page shows them — never the model's text.
+    case 'answer': {
+      const keys = guideLines(a.topic.id as GuideId);
+      return a.lines.map((i) => `<p dir="auto">${esc(t(locale, keys[i]!))}</p>`).join('');
+    }
     case 'guide': return `<p dir="auto">${esc(t(locale, 'help.ask.fromGuide', { guide: t(locale, guideTitle(a.topic.id as GuideId)) }))}</p>
       <ul>${guideLines(a.topic.id as GuideId).map((k) => `<li dir="auto">${esc(t(locale, k))}</li>`).join('')}</ul>`;
     case 'notYet': return `<p dir="auto">${esc(t(locale, 'help.ask.notYet'))}</p>`;
@@ -107,6 +117,8 @@ export function renderHelp(locale: Locale, v: HelpView): string {
   const write = !asks ? '' : `<section class="help-write" id="write" aria-labelledby="help-write-h">
       <h2 id="help-write-h" dir="auto">${esc(t(locale, 'help.write.title'))}</h2>
       <p dir="auto">${esc(t(locale, 'help.write.lede'))}</p>
+      <ul class="help-sends">${HELP_MAIL_FIELDS.map((f) => `<li dir="auto">${esc(t(locale, helpNoticeKey(f)))}</li>`).join('')}</ul>
+      <p dir="auto">${esc(t(locale, 'help.write.promise'))}</p>
       ${v.canWrite ? `<form method="post" action="/app/help/write">${hidden}
         <label for="help-w" dir="auto">${esc(t(locale, 'help.write.label'))}</label>
         <textarea id="help-w" name="words" rows="3" maxlength="${HELP_MAX}" dir="auto" required>${esc(v.asked?.question ?? '')}</textarea>
@@ -164,7 +176,7 @@ export function helpRoutes(app: FastifyInstance, io: HelpIO): void {
     if (await io.allowanceUsed(viewer.businessId).catch(() => true)) {
       return draw(req, reply, viewer, from, { refused: 'help.ask.allowance' });
     }
-    const r = await answerHelp(io.model, question, topicsFor(from), locale);
+    const r = await answerHelp(io.model, question, topicsFor(from, locale), locale);
     await io.spent(viewer.businessId, r.spent);
     // The question is the owner's own words: nothing here logs it.
     return draw(req, reply, viewer, from, { asked: { question, answer: answerHtml(locale, r.answer) } });
@@ -182,7 +194,7 @@ export function helpRoutes(app: FastifyInstance, io: HelpIO): void {
     const at = now();
     if (daily.spent(viewer.businessId, at) || !hourly.allow(viewer.businessId, at)) return io.flashTo(reply, `${to}#write`, 'help.write.limit');
     daily.allow(viewer.businessId, at);
-    const r = await io.write(viewer.businessId, { words: words.slice(0, HELP_MAX), page: from, personId: viewer.personId, role: viewer.role })
+    const r = await io.write(viewer.businessId, { words: words.slice(0, HELP_MAX), page: from, role: viewer.role })
       .catch(() => 'failed' as const);
     return io.flashTo(reply, `${to}#write`, r === 'sent' ? 'help.write.sent' : r === 'skipped' ? 'help.write.cannot' : 'help.write.failed');
   });

@@ -14,6 +14,7 @@ import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
+import { helpMail } from '../core/owner/helpMail.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
 import { archivePhone, livePhones, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
 import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
@@ -1024,35 +1025,25 @@ export async function notifyOperatorOfWhatsAppNumber(
 
 /**
  * Block 6.1 — "Still stuck? Write to us" from the help panel. The operator hears by the installation's own mail
- * (never the capped stranger sender: rule 70's caps are for codes and owner alerts), with what to answer from: the
- * words as typed, the page, the workspace and the person's id and role — no address of theirs and nothing about a
- * customer. The route rate-limits it per workspace (helpPanel.ts).
+ * (never the capped stranger sender: rule 70's caps are for codes and owner alerts), with exactly what the owner's
+ * notice lists (`helpMail`, src/core/owner/helpMail.ts): the words as typed, the page, the workspace's id and who
+ * asked (owner or team member). Not the business's name — the operator looks it up by the id — no address of theirs
+ * and nothing about a customer. The route rate-limits it per workspace (helpPanel.ts).
  */
 export async function notifyOperatorOfHelpRequest(
   deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, askingBusinessIdRaw: string,
-  req: { readonly words: string; readonly page: string | null; readonly personId: string; readonly role: 'owner' | 'staff' },
+  req: { readonly words: string; readonly page: string | null; readonly role: 'owner' | 'staff' },
 ): Promise<'sent' | 'skipped' | 'failed'> {
   const op = parseBusinessId(operatorBusinessIdRaw);
   const asking = parseBusinessId(askingBusinessIdRaw);
   if (!op.ok || !asking.ok) return 'skipped';
-  const business = await withTenantTx(deps.db, asking.value, (tx) =>
-    sql<{ name: string }>`select name from businesses where id = ${asking.value}`.execute(tx).then((r) => r.rows[0]?.name ?? null));
   const to = await withTenantTx(deps.db, op.value, async (tx) => ({
     locale: (await sql<{ owner_locale: string }>`select owner_locale from businesses where id = ${op.value}`.execute(tx)).rows[0]?.owner_locale ?? 'en',
     email: await ownerLoginEmail(tx, op.value),
   }));
-  if (business === null || !to.email) return 'skipped';
+  if (!to.email) return 'skipped';
   const locale: Locale = parseLocale(to.locale) ?? 'en';
-  const r = await deps.mail.send({
-    to: to.email, subject: t(locale, 'help.mail.subject', { business }),
-    text: [
-      t(locale, 'help.mail.intro'), '', req.words, '',
-      t(locale, 'help.mail.page', { page: req.page ?? '—' }),
-      t(locale, 'help.mail.workspace', { id: asking.value, business }),
-      t(locale, 'help.mail.person', { id: req.personId, role: t(locale, req.role === 'owner' ? 'help.role.owner' : 'help.role.staff') }),
-      t(locale, 'help.mail.answer'),
-    ].join('\n'),
-  });
+  const r = await deps.mail.send({ to: to.email, ...helpMail(locale, { words: req.words, page: req.page, workspaceId: asking.value, role: req.role }) });
   return r.ok ? 'sent' : 'failed';
 }
 
