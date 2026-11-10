@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import pg from 'pg';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { flashSaid } from './tenant.js';
 import type { ShopifyAnswer, ShopifyRequest } from '../../src/net/shopifyAdmin.js';
@@ -57,6 +58,8 @@ const DECIDES = t('en', 'staff.ownerDecides');
 
 type Conv = { client: string; conv: string };
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+/** Playwright's Chromium, where this machine has it (a developer's Mac does; CI installs none). */
+const CHROMIUM = await import('playwright').then(({ chromium }) => existsSync(chromium.executablePath())).catch(() => false);
 
 d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let app: import('fastify').FastifyInstance;
@@ -237,6 +240,54 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
     await admin.query(`update shopify_connections set api_version_seen = '2026-10' where business_id = $1 and archived_at is null`, [A]);
   });
 
+  /*
+   * 5.5's verification, criterion 9: the version sentence sat in a `.pill`, which never wraps, and the page ran 862 px
+   * wide on a 390 px phone (en and ar, owner and staff). A sentence is the page's state line; a pill is for a state's
+   * word. Measured in a real browser where this Mac has Playwright's Chromium (CI installs none: there the markup
+   * check below still holds the defect).
+   */
+  it('THE VERSION SENTENCE WRAPS: never inside a pill, in en and ar, for the owner and for staff', async () => {
+    await admin.query(`update shopify_connections set api_version_seen = '2026-07' where business_id = $1 and archived_at is null`, [A]);
+    try {
+      for (const locale of ['en', 'ar'] as const) for (const [who, cookie] of [['owner', owner], ['staff', staff]] as const) {
+        const html = (await app.inject({ method: 'GET', url: SHOPIFY_ORDERS_PAGE, headers: { cookie, 'accept-language': locale } })).body;
+        expect(html, `${locale}/${who}`).toContain(`<html lang="${locale}"`);
+        const pills = [...html.matchAll(/<span class="pill[^"]*">([\s\S]*?)<\/span>/g)].map((m) => m[1]!);
+        expect(pills.some((p) => p.includes('2026-07')), `${locale}/${who}: no pill holds the sentence`).toBe(false);
+        expect(html, `${locale}/${who}: the sentence is the state line`).toMatch(/<p class="stateline" role="status"><span class="dot warn[^>]*><\/span> [^<]*2026-07/);
+      }
+    } finally {
+      await admin.query(`update shopify_connections set api_version_seen = '2026-10' where business_id = $1 and archived_at is null`, [A]);
+    }
+  });
+
+  it.skipIf(!CHROMIUM)('THE PAGE AT 390 px, in a real browser: no wider than the phone, en and ar, owner and staff', async () => {
+    const { chromium } = await import('playwright');
+    await admin.query(`update shopify_connections set api_version_seen = '2026-07' where business_id = $1 and archived_at is null`, [A]);
+    const browser = await chromium.launch();
+    try {
+      for (const locale of ['en', 'ar'] as const) for (const [who, cookie] of [['owner', owner], ['staff', staff]] as const) {
+        const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+        const page = await context.newPage();
+        // Every request the page makes is answered by the app itself, never the network.
+        await page.route('**/*', async (route) => {
+          const url = new URL(route.request().url());
+          if (url.host !== 'nomi.test') return route.abort();
+          const r = await app.inject({ method: 'GET', url: url.pathname + url.search, headers: { cookie, 'accept-language': locale } });
+          return route.fulfill({ status: r.statusCode, headers: { 'content-type': String(r.headers['content-type'] ?? 'text/plain') }, body: r.rawPayload });
+        });
+        await page.goto(`http://nomi.test${SHOPIFY_ORDERS_PAGE}`, { waitUntil: 'load' });
+        const width = await page.evaluate<number>('document.documentElement.scrollWidth');
+        expect(width, `${locale}/${who}: scrollWidth at 390`).toBe(390);
+        expect(await page.locator('p.stateline[role="status"]').count(), `${locale}/${who}: the sentence on the page`).toBe(1);
+        await context.close();
+      }
+    } finally {
+      await browser.close();
+      await admin.query(`update shopify_connections set api_version_seen = '2026-10' where business_id = $1 and archived_at is null`, [A]);
+    }
+  });
+
   it('SWITCH OFF: a lookup asks Shopify nothing and writes nothing', async () => {
     seen.length = 0;
     const r = await (await lookupFor(A)).look({ conversationId: C.chat.conv, orderName: ORDER, email: ORDER_EMAIL });
@@ -328,6 +379,33 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
       .rejects.toMatchObject({ code: '23503' });
     await expect(admin.query(`update shopify_order_lookups set conversation_id = $2 where conversation_id = $1`, [C.pair.conv, C.theirs.conv]))
       .rejects.toMatchObject({ code: '23503' });
+  });
+
+  it('A DEFINER INSERT, called by nomi_app scoped to A, meets the same trigger: B\'s conversation, or none, is 23503', async () => {
+    // A definer that writes the table with no check of its own (claim_order_lookup checks first, so it answers 42501
+    // before the trigger is reached). Made and dropped inside one transaction that is rolled back: nothing is kept.
+    expect((await admin.query(`select rolsuper as s from pg_roles where rolname = current_user`)).rows[0].s).toBe(true);
+    await admin.query('begin');
+    try {
+      await admin.query(`create function public.shopify_lookup_definer_probe(p_business uuid, p_conversation uuid) returns void
+        language sql security definer set search_path = public, pg_temp as
+        $$ insert into shopify_order_lookups (business_id, conversation_id, outcome) values (p_business, p_conversation, 'asking') $$`);
+      await admin.query('grant execute on function public.shopify_lookup_definer_probe(uuid, uuid) to nomi_app');
+      await admin.query('set local role nomi_app');
+      await admin.query("select set_config('app.business_id', $1, true)", [A]);
+      expect((await admin.query('select current_user as u')).rows[0].u).toBe('nomi_app');
+      for (const conversation of [C.theirs.conv, randomUUID()]) {
+        await admin.query('savepoint probe');
+        await expect(admin.query('select public.shopify_lookup_definer_probe($1::uuid, $2::uuid)', [A, conversation]))
+          .rejects.toMatchObject({ code: '23503' });
+        await admin.query('rollback to savepoint probe');
+      }
+      // The control: A's own conversation is written through the same definer.
+      await admin.query('select public.shopify_lookup_definer_probe($1::uuid, $2::uuid)', [A, C.held.conv]);
+    } finally {
+      await admin.query('rollback');
+    }
+    expect(await n(`select count(*) as n from pg_proc where proname = 'shopify_lookup_definer_probe'`, [])).toBe(0);
   });
 
   // ── condition 2 ──────────────────────────────────────────────────────────────────────────────────────────────

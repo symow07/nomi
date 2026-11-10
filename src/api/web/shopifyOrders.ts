@@ -1,4 +1,4 @@
-import { esc, deeper, conversationUrl } from './layout.js';
+import { esc, deeper, conversationUrl, signalMark } from './layout.js';
 import { t } from './say.js';
 import * as show from './values.js';
 import { fieldRow } from './rows.js';
@@ -46,7 +46,8 @@ export function renderShopifyOrdersPage(locale: Locale, view: {
   const { readsAllOrders } = orderScopes(c.scopes);
   const writes = c.scopes.some((s) => WRITE_SCOPE.test(s));
   const version = c.apiVersionSeen === null ? `<p class="caption">${text('shopifyOrders.version.none')}</p>`
-    : c.apiVersionSeen !== SHOPIFY_API_VERSION ? `<p role="status"><span class="pill warn">${text('shopifyOrders.version.other', { version: c.apiVersionSeen })}</span></p>` : '';
+    // A sentence, so the page's state line, never a pill: a pill does not wrap, and ran 862 px wide on a 390 px phone.
+    : c.apiVersionSeen !== SHOPIFY_API_VERSION ? `<p class="stateline" role="status">${signalMark('waiting')} ${text('shopifyOrders.version.other', { version: c.apiVersionSeen })}</p>` : '';
   const state = `<p>${text('shopifyOrders.connected', { shop: c.shop.replace(/^https:\/\//, ''), date: show.date(locale, c.connectedAt) })}</p>
     <p class="caption"><bdi lang="en" dir="ltr">${text('shopifyOrders.scopes', { scopes: c.scopes.length ? c.scopes.join(', ') : '—' })}</bdi></p>
     ${readsAllOrders ? '' : `<p class="caption">${text('shopifyOrders.scopes.recent')}</p>`}
