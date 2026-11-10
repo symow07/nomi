@@ -62,6 +62,38 @@ const metaFetch: import('../../src/channels/meta/messaging.js').MetaFetch = asyn
   return { status: 400, text: async () => JSON.stringify({ error: { message: 'not a real token' } }) };
 };
 
+/**
+ * This file's own queued work, ended before its production stops. A buyer's message here queues a turn; the models
+ * are offline, so every turn fails and pg-boss retries it with backoff for minutes. Left in the queue when this file's
+ * worker stopped, those jobs were taken by a LATER file's worker, with that file's composition — Meta was called from
+ * a file that never touched it. So: what is due runs here (an active or due job is waited for), and what is only
+ * waiting to retry is cancelled through pg-boss itself. A job still there after the limit fails the file, by name.
+ */
+async function endOwnJobs(boss: import('pg-boss').PgBoss, businessId: string, ms = 30_000): Promise<void> {
+  const pg = (await import('pg')).default;
+  const c = new pg.Client({ connectionString: DATABASE_URL! });
+  await c.connect();
+  try {
+    const until = Date.now() + ms;
+    for (;;) {
+      const left = (await c.query<{ id: string; name: string; state: string; due: boolean }>(
+        `select id::text as id, name, state, start_after <= now() as due from pgboss.job
+          where data->>'businessId' = $1 and state in ('created', 'retry', 'active')`, [businessId])).rows;
+      if (left.length === 0) return;
+      if (Date.now() > until) throw new Error(`this file's jobs outlived it: ${JSON.stringify(left)}`);
+      if (!left.some((j) => j.state === 'active' || j.due)) {
+        for (const name of new Set(left.map((j) => j.name))) {
+          await boss.cancel(name, left.filter((j) => j.name === name).map((j) => j.id));
+        }
+        continue;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } finally {
+    await c.end();
+  }
+}
+
 d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
@@ -158,6 +190,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     delete process.env['META_PAGE_ACCESS_TOKEN'];
     delete process.env['META_PAGE_ID'];
     delete process.env['META_IG_ACCOUNT_ID'];
+    if (prod) await endOwnJobs(prod.boss, BIZ);
     try { await prod?.close(); } finally { await cancelQueuedJobs(BIZ); }
   });
 
@@ -437,7 +470,9 @@ d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABAS
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'social-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { models: offlineModels(), logger: false });   // no adapter override: the real no-WhatsApp path
+    // No adapter override: the real no-WhatsApp path. Meta itself is the fake (the name asked of it, the reply sent
+    // through the environment's Page): without it this block called graph.facebook.com.
+    }, { models: offlineModels(), logger: false, metaFetch });
     await withTenantTx(prod.db, await tenant(), (x) => sql`
       insert into businesses (id, name) values (${BIZ2}, 'Page Only Factory') on conflict (id) do nothing`.execute(x));
     const login = await prod.app.inject({
@@ -447,7 +482,10 @@ d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABAS
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   }, 90_000);
 
-  afterAll(async () => { try { await prod?.close(); } finally { await cancelQueuedJobs(BIZ2); } });
+  afterAll(async () => {
+    if (prod) await endOwnJobs(prod.boss, BIZ2);
+    try { await prod?.close(); } finally { await cancelQueuedJobs(BIZ2); }
+  });
 
   it('IS NOT DEPLOYMENT MODE: both webhooks are up, WhatsApp is not, and /health still tells the truth', async () => {
     expect([...prod.channels].sort()).toEqual(['instagram', 'messenger']);
