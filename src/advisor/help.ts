@@ -54,6 +54,26 @@ export type HelpAnswered = { readonly answer: HelpAnswer; readonly spent: Adviso
  * Matched on the question after NFKC and the bidi isolates are taken out (`normalise`), case kept: LINE and WeChat
  * written as names (capitals) are told apart from the words "line" and "we chat" that way.
  */
+/*
+ * BY WORD FAMILY (6.1's re-verification, 2026-11-10: "Can Nomi phone people…", «هل يدعم الرسائل القصيرة؟», "¿Funciona
+ * con Line?", "…peut téléphoner aux clients ?" reached the model). A sentence that ASKS WHETHER NOMI DOES IT — a
+ * question frame whose subject is Nomi (can Nomi / does it / هل / ¿puede / est-ce que Nomi peut / 能…吗) — and then
+ * any word of the family: the verbs and nouns of calling, of SMS and text messages, and the apps by name. Outside such
+ * a frame the family's words are left alone ("I'll call you back", «اتصلت بالعميل أمس», "line 4").
+ */
+/** en: the question's frame with Nomi as its subject, then the rest of that sentence. */
+const EN_ASKS = String.raw`\b(?:can|could|will|would|does|do|is|are)\s+(?:nomi|it|she|he|the assistant|my assistant|your assistant|you|this|the app|the bot)\b[^.?!]{0,60}?`;
+/** Who is called or texted: people, never "me" or "us" (a name: "call me Ana") and never a thing ("call it a draft"). */
+const EN_WHOM = String.raw`(?:up\s+|back\s+)?(?:my |the |a |our |all |your |those |these |new |any |some )?(?:customers?|clients?|people|persons?|buyers?|leads?|contacts?|users?|shoppers?|them|everyone|anyone|someone|him|her)\b`;
+/** es: ¿puede / podría / sabe / va a / es capaz de …, the rest of the sentence. */
+const ES_ASKS = String.raw`\b(?:puede|podr[ií]a|sabe|va a|es capaz de)\b[^.?!¿]{0,50}?`;
+/** fr: peut-il / pourrait / sait / va, or est-ce que Nomi / il / elle …, the rest of the sentence. */
+const FR_ASKS = String.raw`(?:\b(?:peut|pourrait|sait|va)(?:-(?:il|elle|on))?\b|\best-ce qu(?:e |')(?:nomi|il|elle|l'assistant)\b)[^.?!]{0,50}?`;
+/** ar: هل … in the same question. */
+const AR_ASKS = String.raw`هل[^.؟?!]{0,40}?`;
+/** zh: a modal before the word (能 / 可以 / 会 / 支持…), in the same clause. */
+const ZH_ASKS = String.raw`(?:能|可以|会|能否|可否|可不可以|能不能|支持|有没有)[^，。？?！!]{0,10}`;
+
 export const NOT_YET: readonly { readonly name: string; readonly re: RegExp }[] = [
   // WeCom first: its Chinese name 企业微信 holds WeChat's.
   { name: 'WeCom', re: /\bwecom\b|企业微信/iu },
@@ -71,6 +91,11 @@ export const NOT_YET: readonly { readonly name: string; readonly re: RegExp }[] 
     '(?:能|可以|会|能否|可否|支持|可不可以)[^，。？?！!]{0,10}短信', '短信(?:渠道|功能|群发|吗)',
     'رسا(?:ئ|ي)ل ?نصي', 'رسالة ?نصي',
     '\\bmensajes? de texto\\b', '\\bmessages? textes?\\b', '\\b(?:envoyer|envoie|envoyez|envoyer des) (?:des |un )?textos?\\b',
+    // the family, asked of Nomi: to text people, to send texts; «الرسائل القصيرة» (both words definite: SMS, never
+    // «الرسائل قصيرة», "the messages are short" — the voice's length); un texto / unos textos sent
+    `${EN_ASKS}\\btext(?:s|ing)?\\s+${EN_WHOM}`, `${EN_ASKS}\\bsend(?:s|ing)?\\s+(?:\\w+\\s+){0,2}?(?:texts|a text)\\b(?! of)`,
+    `${AR_ASKS}الرسائل القصيرة`, '(?:يدعم|تدعم|يرسل|ترسل|إرسال|ارسال|يبعث|تبعث) ?(?:ال)?رسا(?:ئ|ي)ل (?:ال)?قصير',
+    `${ES_ASKS}\\b(?:enviar|mandar)(?:les)? (?:un texto|unos textos|textos)\\b(?! de)`,
   ].join('|'), 'iu') },
   { name: 'calls', re: new RegExp([
     '\\b(?:phone|voice|video)[ -]?calls?\\b', '\\b(?:call|phone|ring) (?:my |the |a |our |all |your )?(?:customers?|clients?)\\b',
@@ -79,10 +104,31 @@ export const NOT_YET: readonly { readonly name: string; readonly re: RegExp }[] 
     'مكالم(?:ة|ات) ?(?:هاتفي|صوتي)', '(?:إجراء|اجراء|يجري|تجري) ?مكالم', '(?:يتصل|تتصل|الاتصال|اتصال|يكلم|تكلم) ?ب(?:ال)?(?:عملاء|عملائ|زبائن|الزبائن)',
     '\\bllamadas? (?:telef[oó]nicas?|de voz)\\b', '\\bllamar a (?:mis |los |tus |nuestros )?clientes\\b', '\\bhacer llamadas\\b',
     '\\bappels? (?:t[ée]l[ée]phoniques?|vocaux)\\b', '\\bappeler (?:mes |les |nos |vos )?clients\\b', '\\bpasser des appels\\b',
+    // the family, asked of Nomi: call / phone / ring someone; llamar / telefonear (never "llamar al asistente", a
+    // name); appeler / téléphoner (never "appeler l'assistant"); يتصل / مكالمة / الاتصال ب (never «معلومات الاتصال»,
+    // contact details, nor «اتصل بي»); 打电话 / 电话通知 / 致电
+    `${EN_ASKS}\\b(?:call|phone|ring|telephone|dial)(?:s|ing)?\\s+${EN_WHOM}`,
+    `${EN_ASKS}\\b(?:make|take|answer|receive|handle|place)s?\\s+(?:a |the )?(?:phone |voice )?calls?\\b`,
+    `${ES_ASKS}\\b(?:llamar|telefonear)(?:les|los|las|le|lo)?\\b(?! (?:al? |a (?:mi |el |tu |su ))?(?:asistente|nomi|ayuda)\\b)`, `${ES_ASKS}\\bllamadas?\\b`,
+    `${FR_ASKS}\\b(?:t[ée]l[ée]phoner|appeler)\\b(?! (?:l'assistant|nomi)\\b)`, `${FR_ASKS}\\bappels?\\b`,
+    `${AR_ASKS}(?:يتصل|تتصل|يهاتف|تهاتف|يكلم|تكلم|مكالم|(?<!معلومات |بيانات |جهة |جهات |وسائل |وسيلة |طرق |رقم )(?:ال)?اتصال ?ب(?!نا|ك|ي))`,
+    `${ZH_ASKS}(?:打电话|电话通知|电话联系|电话回访|致电|回电|拨打|通话|来电)`,
   ].join('|'), 'iu') },
   { name: 'Viber', re: /\bviber\b|فايبر/iu },
-  // LINE: the name in capitals anywhere; otherwise only with what makes it the app ("the Line app", "connect Line").
-  { name: 'LINE', re: /\bLINE\b|\b[Ll]ine (?:app|messenger|chat|official account)\b|\b(?:support|connect(?:ed)? to|connect|integrate(?:d)? with|works? with|reply on|answer on) (?:the )?[Ll]ine\b(?![\s-]*(?:\d|of\b|breaks?\b|items?\b|by\b|up\b))|لاين/u },
+  // LINE: the name in capitals anywhere (its own entry, case kept); otherwise only with what makes it the app.
+  // In any case after what joins an app to Nomi, in every owner language: "¿Funciona con Line?", "Ça marche avec
+  // Line ?", 接入Line — never a line of a list ("line 4", "line of", "line breaks") nor a person called Line ("a
+  // support line", "responder a Line": a customer's name is answered to, an app is connected).
+  { name: 'LINE', re: /\bLINE\b/u },
+  { name: 'LINE', re: new RegExp([
+    '\\bline (?:app|messenger|chat|official account)\\b',
+    '\\b(?:(?<!\\b(?:a|the|our|your|customer|tech|help) )support|connect(?:ed)? to|connect|integrate(?:d)? with|works? with|reply on|answer on|use|using) (?:the )?[Ll][Ii][Nn][Ee]\\b(?![\\s-]*(?:\\d|of\\b|breaks?\\b|items?\\b|by\\b|up\\b|spacing\\b|height\\b))',
+    '\\b(?:funciona|funcionar|trabaja|compatible|integra(?:r|rse)?|conecta(?:r|rse)?|vincula(?:r|rse)?|enlaza(?:r|rse)?) (?:con|a) (?:la app de |la aplicaci[oó]n )?[Ll][Ii][Nn][Ee]\\b(?!\\s*\\d)',
+    '\\b(?:responde(?:r)?|contesta(?:r)?) (?:por|en) [Ll][Ii][Nn][Ee]\\b(?!\\s*\\d)',
+    "\\b(?:marche|fonctionne|compatible|int[ée]gr\\w*|connect\\w*|reli\\w*|branch\\w*) (?:avec|à|a|sur) (?:l'appli(?:cation)? )?[Ll][Ii][Nn][Ee]\\b(?!\\s*\\d)",
+    '\\br[ée]pond\\w* sur [Ll][Ii][Nn][Ee]\\b',
+    '(?:接入|接|连接|连|支持|用|对接|绑定) ?[Ll][Ii][Nn][Ee]\\b', 'لاين',
+  ].join('|'), 'iu') },
   { name: 'Zapier', re: /\bzapier\b|زابير/iu },
   { name: 'Google Calendar', re: /\bgoogle calendar\b|谷歌日历|google日历|تقويم (?:جوجل|غوغل|google)|\bcalendario de google\b|\bagenda google\b/iu },
   { name: 'Amazon', re: /\bamazon\b|亚马逊|أمازون|امازون/iu },
