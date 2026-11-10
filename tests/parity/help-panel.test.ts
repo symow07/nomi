@@ -251,6 +251,11 @@ describe('Block 6.1 · the help question: grounded on the guides, never inventin
     for (const p of NOT_YET_PASSING) {
       expect(p.why.length, p.text).toBeGreaterThan(5);
       expect(notYetIn(p.text), `${p.text} (${p.why})`).toBeNull();
+      // and the model is asked: a passing mention is a question like any other
+      const log: string[] = [];
+      const r = await answerHelp(scripted('setup', 'Yes, of course.', log), p.text, topicsFor(null), 'en');
+      expect(r.answer.kind, p.text).not.toBe('notYet');
+      expect(log.length, p.text).toBeGreaterThan(0);
     }
     for (const q of ['Why did line 3 of my list fail?', 'Can a customer say "call me Ana"?', 'I texted them yesterday, will it show here?']) {
       expect(NOT_YET_PASSING.some((p) => p.text === q), q).toBe(true);
