@@ -46,7 +46,7 @@ export type InvoiceView = InvoiceRow & {
   readonly entryId: string | null;
   readonly billedTo: BilledTo;
   readonly lines: readonly { lineNo: number; label: string; quantity: string; unitPrice: string; account: string; taxCode: string | null; net: Decimal; tax: Decimal }[];
-  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean; paid: { currency: string; amount: Decimal } | null }[];
+  readonly payments: readonly { paidOn: string; amount: Decimal; account: string; entryId: string; refund: boolean; refundReversal?: boolean; paid: { currency: string; amount: Decimal } | null }[];
   readonly creditNotes: readonly { id: string; key: string | null; state: string; issueDate: string; total: Decimal }[];
 };
 
@@ -99,7 +99,7 @@ export async function loadInvoice(tx: Tx, businessId: string, id: string, today:
       registry: r.b_registry, siret: r.b_siret, registro: r.b_registro },
     credited: d(r.credited), status: statusOf(r.state, d(r.total), d(r.credited), d(r.paid), r.due_date, today),
     lines: lines.map((l) => ({ lineNo: l.line_no, label: l.label, quantity: d(l.quantity), unitPrice: d(l.unit_price), account: l.account, taxCode: l.tax_code, net: d(l.net), tax: d(l.tax) })),
-    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund',
+    payments: payments.map((p) => ({ paidOn: p.paid_on, amount: d(p.amount), account: p.account, entryId: p.entry_id, refund: p.kind === 'refund', refundReversal: p.kind === 'refund_reversal',
       paid: p.paid_currency === null ? null : { currency: p.paid_currency, amount: d(p.paid_amount!) } })),
     creditNotes: (await sql<{ id: string; year: number | null; number: number | null; state: string; issue_date: string; total: string }>`
       select id::text as id, year, number, state, issue_date::text as issue_date, credit_note_total(id)::text as total from credit_notes
@@ -261,7 +261,7 @@ export async function issueInvoice(tx: Tx, businessId: string, id: string, by: s
  * The difference between `relief` and what the posting moved at the day's rate goes back on the receivable in the
  * books' currency and is the exchange gain or loss, its own marked line.
  */
-export async function receivableMove(tx: Tx, businessId: string, invoiceId: string, amount: Decimal, lowers: boolean, day: string):
+export async function receivableMove(tx: Tx, businessId: string, invoiceId: string, amount: Decimal, lowers: boolean, day: string, reversal?: { amount: Decimal; relief: Decimal; remainingAmount: Decimal; remainingRelief: Decimal }):
   Promise<{ readonly relief: Decimal; readonly lines: readonly DraftLine[]; readonly fx: Decimal } | InvoiceRefusal> {
   const a = await booksAccountsOf(tx, businessId);
   if (!a.receivableAccountId) return { kind: 'refused', reason: 'accounts_not_set', detail: null };
@@ -283,7 +283,9 @@ export async function receivableMove(tx: Tx, businessId: string, invoiceId: stri
     .execute(tx)).rows[0]!.r);
   const left = subDecimal(booked, relieved);                   // the receivable's value in the books' currency, now
   let relief: Decimal;
-  if (lowers) {
+  if (reversal) {
+    relief = compareDecimal(amount, reversal.remainingAmount) === 0 ? reversal.remainingRelief : divDecimal(mulDecimal(reversal.relief, amount), reversal.amount, 2);
+  } else if (lowers) {
     if (signOf(owed) <= 0) relief = turned(amount);           // nothing owed: all of it a credit, at its own rate
     else if (compareDecimal(amount, owed) < 0) relief = roundDecimal(divDecimal(mulDecimal(booked, amount), total, 6), 2);
     else relief = addDecimal(left, turned(subDecimal(amount, owed)));   // it settles: what is left, and any excess at its rate
@@ -311,7 +313,14 @@ export async function receivableMove(tx: Tx, businessId: string, invoiceId: stri
  * gain or loss of its own (beside the receivable's own difference, as before). The entry is marked across currencies.
  */
 export async function recordPayment(tx: Tx, businessId: string, invoiceId: string, by: string,
-  p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean;
+  p: { readonly paidOn: string; readonly amount: Decimal; readonly journalId: string; readonly accountId: string; readonly refund?: boolean; readonly reversesRefundId?: string;
+       /**
+        * The payment link attempt this money came through (payments/invoicePayments.ts). Money that arrived through a link
+        * is recorded whole even when the invoice now owes less (another link paid, a payment recorded by hand, a credit
+        * note): the excess is owed back to the customer. The database allows that only for the attempt's own payment —
+        * Stripe's, of this invoice, the attempt paid, for exactly its amount, once (0233).
+        */
+       readonly stripeAttemptId?: string;
        readonly paid?: { readonly currency: string; readonly amount: Decimal | null } | null }):
   Promise<{ readonly kind: 'recorded'; readonly entryId: string; readonly fx: Decimal } | InvoiceRefusal> {
   const a = await booksAccountsOf(tx, businessId);
@@ -320,16 +329,27 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
   const inv = (await sql<{ state: string; currency: string; party_id: string; entry_id: string | null; total: string; credited: string; paid: string; year: number | null; number: number | null }>`
     select state, currency, party_id::text as party_id, entry_id::text as entry_id, invoice_total(id)::text as total,
            invoice_credited(id)::text as credited, invoice_paid(id)::text as paid, year, number
-      from invoices where business_id = ${businessId}::uuid and id = ${invoiceId}::uuid`.execute(tx)).rows[0];
+      from invoices where business_id = ${businessId}::uuid and id = ${invoiceId}::uuid for update`.execute(tx)).rows[0];
   if (!inv || inv.state !== 'issued' || !inv.entry_id) return { kind: 'refused', reason: 'not_issued', detail: null };
   const owed = owedOn(d(inv.total), d(inv.credited), d(inv.paid));
-  const room = refund ? subDecimal(d('0'), owed) : owed;
-  if (compareDecimal(p.amount, room) > 0) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
+  let reversal: { amount: Decimal; relief: Decimal; remainingAmount: Decimal; remainingRelief: Decimal } | undefined;
+  if (p.reversesRefundId) {
+    const original = (await sql<{ amount: string; relief: string; returned: string; restored: string }>`
+      select r.amount::text,(-r.receivable_book)::text as relief,
+        coalesce((select sum(x.amount) from invoice_payments x where x.reverses_payment_id=r.id),0)::text as returned,
+        coalesce((select sum(x.receivable_book) from invoice_payments x where x.reverses_payment_id=r.id),0)::text as restored
+      from invoice_payments r where r.business_id=${businessId}::uuid and r.id=${p.reversesRefundId}::uuid
+        and r.invoice_id=${invoiceId}::uuid and r.kind='refund' and r.account_id=${p.accountId}::uuid and r.currency=${inv.currency}`.execute(tx)).rows[0];
+    if (!original || refund || p.paid) return { kind: 'refused', reason: 'other', detail: null };
+    reversal = { amount: d(original.amount), relief: d(original.relief), remainingAmount: subDecimal(d(original.amount),d(original.returned)), remainingRelief: subDecimal(d(original.relief),d(original.restored)) };
+  }
+  const room = reversal?.remainingAmount ?? (refund ? subDecimal(d('0'), owed) : owed);
+  if (compareDecimal(p.amount, room) > 0 && !(p.stripeAttemptId && !refund && !reversal)) return { kind: 'refused', reason: refund ? 'too_much_refund' : 'too_much', detail: `${signOf(room) > 0 ? room : '0'} ${inv.currency}` };
   const named = p.paid && p.paid.currency !== inv.currency ? p.paid : null;
   if (named && !(CURRENCIES as readonly string[]).includes(named.currency)) return { kind: 'refused', reason: 'other', detail: null };
   if (named && (named.amount === null || signOf(named.amount) <= 0)) return { kind: 'refused', reason: 'arrived_missing', detail: named.currency };
   const across = named ? { currency: named.currency, amount: named.amount! } : null;
-  const move = await receivableMove(tx, businessId, invoiceId, p.amount, !refund, p.paidOn);
+  const move = await receivableMove(tx, businessId, invoiceId, p.amount, !refund, p.paidOn, reversal);
   if ('kind' in move) return move;
   const bank = across ?? { currency: inv.currency, amount: p.amount };
   const lines: DraftLine[] = refund ? [
@@ -371,9 +391,10 @@ export async function recordPayment(tx: Tx, businessId: string, invoiceId: strin
     const posted = await postEntry(tx, businessId, made.id, by);
     if (posted.kind === 'refused') { await sql`rollback to savepoint record_payment`.execute(tx); return posted; }
     await sql`insert into invoice_payments (business_id, invoice_id, paid_on, currency, amount, receivable_book, account_id, entry_id, created_by, kind,
-                                            paid_currency, paid_amount)
+                                            paid_currency, paid_amount, reverses_payment_id, stripe_attempt_id)
       values (${businessId}::uuid, ${invoiceId}::uuid, ${p.paidOn}::date, ${inv.currency}, ${p.amount}::numeric, ${move.relief}::numeric,
-              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${refund ? 'refund' : 'in'}, ${across?.currency ?? null}, ${across?.amount ?? null}::numeric)`.execute(tx);
+              ${p.accountId}::uuid, ${made.id}::uuid, ${by}, ${reversal ? 'refund_reversal' : refund ? 'refund' : 'in'}, ${across?.currency ?? null}, ${across?.amount ?? null}::numeric, ${p.reversesRefundId ?? null}::uuid,
+              ${p.stripeAttemptId && !refund && !reversal ? p.stripeAttemptId : null}::uuid)`.execute(tx);
     await sql`release savepoint record_payment`.execute(tx);
     return { kind: 'recorded', entryId: made.id, fx };
   } catch (e) {

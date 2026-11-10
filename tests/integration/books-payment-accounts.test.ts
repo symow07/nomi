@@ -112,7 +112,8 @@ d('BPAY · where a payment lands (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
     expect(codes.every((c) => /^51[46]/.test(String(c)) || c === '1000')).toBe(true);
     expect(options.slice(1).some((o) => o[2])).toBe(false);
     expect(bank.body).not.toContain('id="bank-open"');            // nothing is read until an account is chosen
-    expect(bank.body).not.toContain('2340');                      // never a fixed asset among the choices
+    expect(codes).not.toContain('2340');
+    expect(bank.body.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '')).not.toContain('2340'); // never a fixed asset among the choices
     const chosen = await get(`/app/books/bank?account=${await idOf('accounts', '5141')}`);
     expect(chosen.statusCode).toBe(200);
     expect(chosen.body).toContain('id="bank-open"');
