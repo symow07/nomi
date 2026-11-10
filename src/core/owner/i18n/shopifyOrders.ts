@@ -45,4 +45,5 @@ export const SHOPIFY_ORDERS_EN = {
   'shopifyOrders.refused.unavailable': 'Shopify did not answer. Nothing was saved. Try again in a minute.',
   'shopifyOrders.practice': 'Shopify is not connected in Practice: order questions here get no order facts.',
   'inbox.draft.held.order_facts': 'This reply uses an order from your Shopify store, so it waits for you.',
+  'card.source.order': 'from the order in Shopify ({order})',
 } as const;
