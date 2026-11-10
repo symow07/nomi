@@ -1,8 +1,9 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import type { BusinessId } from '../core/types/ids.js';
-import { extractNumerals, near } from '../core/safety/numerals.js';
-import { orderFactNumbers, type OrderContext } from '../core/commerce/shopifyOrders.js';
+import { asciiDigits, extractNumerals, near } from '../core/safety/numerals.js';
+import { type OrderContext } from '../core/commerce/shopifyOrders.js';
+import { tokenAround, type KindedOrderFigure, type OrderFigure, type OrderFigureKind } from '../core/owner/reading.js';
 import type { OrderLookup } from './orderLookup.js';
 
 /**
@@ -18,32 +19,76 @@ import type { OrderLookup } from './orderLookup.js';
  *
  * `order` is the order's name as the lookup row already keeps it; `figures` are the order's facts INTERSECTED with
  * the draft's own text — values the reply already writes, and nothing else: never the e-mail, a tracking number not
- * in the reply, a link, an id, or a date the reply does not state. It is provenance for figures already in the reply,
+ * in the reply, a link, an id, or a date the reply does not state. Each figure says what it is in the order
+ * (`{ value, kind, written? }`, `orderSourcedFigures`), so the card draws a code as the reply wrote it. It is provenance for figures already in the reply,
  * erased with the customer and the workspace like every conversation event.
  *
  * Written only when the lookup verified an order AND the turn's draft waits as `order_facts`. A failure to write it
  * changes nothing the turn did: the card then says "No source", as before.
  */
 
-/** The figures the reply writes that the verified order holds; in the reply's order, each once. */
-export function orderSourcedFigures(order: OrderContext, replyText: string): number[] {
-  const facts = orderFactNumbers(order);
-  const out: number[] = [];
+/** A code compared without its case and separators ("T55-4401" is "t554401"). */
+const bare = (s: string): string => asciiDigits(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * The figures the reply writes that the verified order holds, each with WHAT it is in the order (t1r's ruling,
+ * 2026-11-10); in the reply's order, each once.
+ *
+ * - `identifier`: the token the figure sits in (letters, digits and separators, as the reply wrote it) IS the order's
+ *   name or a tracking number, whole or one of its separated parts. The token is kept, so the card shows it as written
+ *   on one line. A figure that merely shares digits with a code ("1" beside "1Z999AA10123456784") is not the order's.
+ * - `date`: a year, month or day of one of the order's dates.
+ *
+ * The order holds no amount or quantity today; the record's kinds name them for the reader all the same.
+ */
+export function orderSourcedFigures(order: OrderContext, replyText: string): KindedOrderFigure[] {
+  const codes = [order.name, ...order.shipments.flatMap((s) => (s.tracking ?? []).map((t) => t.number))]
+    .flatMap((c) => [bare(c), ...asciiDigits(c).split(/[^A-Za-z0-9]+/).map(bare)])
+    .filter((c) => /\d/.test(c));
+  const dateParts: number[] = [];
+  for (const d of [order.placed_on, order.cancelled_on, ...order.shipments.flatMap((s) => [s.delivered_on, s.expected_on])]) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d ?? '');
+    if (m) dateParts.push(Number(m[1]), Number(m[2]), Number(m[3]));
+  }
+  const text = asciiDigits(replyText);
+  const out: KindedOrderFigure[] = [];
+  // One entry per code (its first figure stands for it) and per date figure.
+  const add = (f: KindedOrderFigure) => {
+    if (!out.some((o) => o.kind === f.kind && (f.kind === 'identifier' ? o.written === f.written : near(o.value, f.value)))) out.push(f);
+  };
   for (const n of extractNumerals(replyText)) {
-    if (!Number.isFinite(n.value) || !facts.some((f) => near(f, n.value))) continue;
-    if (!out.some((o) => near(o, n.value))) out.push(n.value);
+    if (!Number.isFinite(n.value)) continue;
+    if (n.at) {
+      const [from, to] = tokenAround(text, n.at);
+      if (codes.includes(bare(text.slice(from, to)))) { add({ value: n.value, kind: 'identifier', written: replyText.slice(from, to) }); continue; }
+    }
+    if (dateParts.some((p) => near(p, n.value))) add({ value: n.value, kind: 'date' });
   }
   return out;
 }
 
-/** The record as the card reads it back: anything malformed is no record. */
-export type OrderSourced = { readonly order: string; readonly figures: readonly number[] };
+/**
+ * The record as the card reads it back: anything malformed is no record. A record written before the kinds holds
+ * bare numbers; they are kept as numbers and read as they were then.
+ */
+export type OrderSourced = { readonly order: string; readonly figures: readonly OrderFigure[] };
+const KINDS: readonly OrderFigureKind[] = ['amount', 'quantity', 'date', 'identifier'];
+function figureOf(f: unknown): OrderFigure | null {
+  if (typeof f === 'number') return Number.isFinite(f) ? f : null;
+  if (typeof f !== 'object' || f === null) return null;
+  const { value, kind, written } = f as { value?: unknown; kind?: unknown; written?: unknown };
+  if (typeof value !== 'number' || !Number.isFinite(value) || !KINDS.includes(kind as OrderFigureKind)) return null;
+  if (kind === 'identifier') {
+    return typeof written === 'string' && written !== '' && written.length <= 64 ? { value, kind, written } : null;
+  }
+  return written === undefined ? { value, kind: kind as OrderFigureKind } : null;
+}
 export function orderSourcedOf(v: unknown): OrderSourced | null {
   if (typeof v !== 'object' || v === null) return null;
   const { order, figures } = v as { order?: unknown; figures?: unknown };
   if (typeof order !== 'string' || order.trim() === '' || order.length > 64 || !Array.isArray(figures) || figures.length > 40) return null;
-  const nums = figures.filter((f): f is number => typeof f === 'number' && Number.isFinite(f));
-  return nums.length === figures.length ? { order, figures: nums } : null;
+  const read = figures.map(figureOf);
+  return read.every((f) => f !== null) ? { order, figures: read as OrderFigure[] } : null;
 }
 
 /**

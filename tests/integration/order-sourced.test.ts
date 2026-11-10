@@ -121,6 +121,7 @@ d('5.5 · an order reply\'s figures, sourced on the owner\'s card (requires DATA
        from drafts d where d.conversation_id = $1 and d.status = 'pending'`, [conv])).rows[0] as { id: string; reason: string | null } | undefined, 'the draft');
   const records = (conv: string) => admin.query(`select payload from conversation_events where conversation_id = $1 and type = 'order_sourced'`, [conv])
     .then((r) => r.rows.map((x) => x.payload as Record<string, unknown>));
+  const valuesOf = (record: Record<string, unknown>): number[] => (record['figures'] as { value: number }[]).map((f) => f.value);
 
   beforeAll(async () => {
     process.env['PILOT_BUSINESS_ID'] = BIZ;
@@ -166,12 +167,14 @@ d('5.5 · an order reply\'s figures, sourced on the owner\'s card (requires DATA
     const draft = await pendingDraft(first);
     expect(draft.reason).toBe('order_facts');
     const [record] = await until(async () => { const r = await records(first); return r.length ? r : undefined; }, 'the record');
-    expect(record).toEqual({ draftId: draft.id, order: ORDER, figures: [7701, placedDay, placedYear] });
+    // Each figure says what it is in the order (t1r's ruling, 2026-11-10): the order's name as the reply wrote it, two dates.
+    expect(record).toEqual({ draftId: draft.id, order: ORDER, figures: [
+      { value: 7701, kind: 'identifier', written: 'NOMI-7701' }, { value: placedDay, kind: 'date' }, { value: placedYear, kind: 'date' }] });
     expect(await records(first)).toHaveLength(1);
     // Never the expected day, the month as a number, the e-mail, the tracking number, a link or an id.
     const text = JSON.stringify(record);
-    expect(record!['figures']).not.toContain(expectedDay);
-    if (placedMonth !== placedDay) expect(record!['figures']).not.toContain(placedMonth);
+    expect(valuesOf(record!)).not.toContain(expectedDay);
+    if (placedMonth !== placedDay) expect(valuesOf(record!)).not.toContain(placedMonth);
     for (const canary of [ORDER_EMAIL, ORDER_EMAIL.split('@')[0]!, TRACKING, GID, 'gid://', 'https://', dayIn(EXPECTED, 'UTC')]) expect(text).not.toContain(canary);
   });
 
@@ -204,7 +207,7 @@ d('5.5 · an order reply\'s figures, sourced on the owner\'s card (requires DATA
       expect(html).not.toContain(esc(t('en', 'card.source.unsourced')));
       // The record is the one the worker wrote: the edit added nothing to it.
       expect(await records(first)).toEqual(before);
-      expect(before[0]!['figures']).not.toContain(expectedDay);
+      expect(valuesOf(before[0]!)).not.toContain(expectedDay);
     } finally {
       expect((await post('/app/business/start-assistant', {})).statusCode).toBe(302);
     }

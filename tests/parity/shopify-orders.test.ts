@@ -9,6 +9,7 @@ import {
   ShopifyPacer, LOOKUP_DEADLINE_MS, lookUpShopifyOrder, readStoreGrant, type Clock,
 } from '../../src/net/shopifyOrders.js';
 import type { ShopifyAnswer, ShopifyRequest, ShopifyTransport } from '../../src/net/shopifyAdmin.js';
+import type { OrderFigure } from '../../src/core/owner/reading.js';
 
 /**
  * BLOCK 5.5 — SHOPIFY ORDERS, THE PURE HALF AND THE REQUESTS, against a fake Shopify that records every request and
@@ -312,7 +313,7 @@ describe('5.5 · the card\'s reading of an order reply', async () => {
     shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-14', tracking: [{ number: 'AP5505-0000-8821' }] }],
   } as const;
   const REPLY = 'Your order #NOMI-7701 was placed on 9 November 2026 and is on its way.';
-  const read = (reply: string, orderFigures?: readonly number[]) =>
+  const read = (reply: string, orderFigures?: readonly OrderFigure[]) =>
     readReply({ reply, includeSmallFigures: true, productNames: [], quote: null, theirTexts: [], heldQuantity: null, ...(orderFigures ? { orderFigures } : {}) });
   const sourceOf = (r: ReturnType<typeof read>, v: number): string | null => {
     const l = r.lines.find((x) => x.kind === 'figure' && x.value === v);
@@ -321,9 +322,10 @@ describe('5.5 · the card\'s reading of an order reply', async () => {
 
   it('the record holds only the figures the reply writes: an order date, a tracking number or a month the reply does not state is not there', () => {
     const figures = orderSourcedFigures(ORDER, REPLY);
-    expect(figures).toEqual([7701, 9, 2026]);
+    // Each with what it is in the order (t1r's ruling, 2026-11-10): the order's name as the reply wrote it; two dates.
+    expect(figures).toEqual([{ value: 7701, kind: 'identifier', written: 'NOMI-7701' }, { value: 9, kind: 'date' }, { value: 2026, kind: 'date' }]);
     // The expected day (14), the month as a number (11), the tracking number's digits: in the order, not in the reply.
-    for (const absent of [14, 11, 5505, 8821]) expect(figures, String(absent)).not.toContain(absent);
+    for (const absent of [14, 11, 5505, 8821]) expect(figures.map((f) => f.value), String(absent)).not.toContain(absent);
     expect(orderSourcedFigures(ORDER, 'Thanks, how else can I help?')).toEqual([]);
   });
 
@@ -350,9 +352,16 @@ describe('5.5 · the card\'s reading of an order reply', async () => {
   });
 
   it('a malformed record is no record', () => {
+    // A record from before the kinds (bare numbers) is still a record; so is one whose figures say what they are.
     expect(orderSourcedOf({ draftId: 'd', order: '#NOMI-7701', figures: [9, 2026] })).toEqual({ order: '#NOMI-7701', figures: [9, 2026] });
+    const kinded = [{ value: 7701, kind: 'identifier', written: 'NOMI-7701' }, { value: 9, kind: 'date' }, { value: 889900, kind: 'amount' }, { value: 2, kind: 'quantity' }];
+    expect(orderSourcedOf({ draftId: 'd', order: '#NOMI-7701', figures: kinded })).toEqual({ order: '#NOMI-7701', figures: kinded });
     for (const bad of [null, 'x', {}, { order: '', figures: [] }, { order: '#1', figures: ['9'] }, { order: '#1', figures: 9 },
-      { order: 'x'.repeat(65), figures: [] }, { order: '#1', figures: Array.from({ length: 41 }, () => 1) }]) {
+      { order: 'x'.repeat(65), figures: [] }, { order: '#1', figures: Array.from({ length: 41 }, () => 1) },
+      { order: '#1', figures: [{ value: '9', kind: 'date' }] }, { order: '#1', figures: [{ value: 9, kind: 'price' }] },
+      { order: '#1', figures: [{ value: 9 }] }, { order: '#1', figures: [{ value: 1, kind: 'identifier' }] },
+      { order: '#1', figures: [{ value: 1, kind: 'identifier', written: 'x'.repeat(65) }] },
+      { order: '#1', figures: [{ value: 9, kind: 'date', written: '9' }] }]) {
       expect(orderSourcedOf(bad), JSON.stringify(bad)).toBeNull();
     }
   });
@@ -394,7 +403,7 @@ describe('5.5 · a code from the order is shown as written; the English lines ar
   } as const;
   const BARE = { ...ORDER, shipments: [{ ...ORDER.shipments[0], tracking: [{ number: '4455667788' }] }] };
   const REPLY = 'Your order #T55-4401 was placed on 9 November 2026. Tracking number TRK4455667788, in 2 parcels.';
-  const lineOf = (reply: string, figures: readonly number[], v: number, quote: Parameters<typeof readReply>[0]['quote'] = null) => {
+  const lineOf = (reply: string, figures: readonly OrderFigure[], v: number, quote: Parameters<typeof readReply>[0]['quote'] = null) => {
     const l = readReply({ reply, includeSmallFigures: true, productNames: [], quote, theirTexts: [], heldQuantity: null, orderFigures: figures })
       .lines.find((x) => x.kind === 'figure' && x.value === v);
     return l?.kind === 'figure' ? l : null;
@@ -402,7 +411,7 @@ describe('5.5 · a code from the order is shown as written; the English lines ar
 
   it('the tracking code reads as the reply wrote it, never as 4,455,667,788; the record still holds its digits (the storage stands)', () => {
     const figures = orderSourcedFigures(ORDER, REPLY);
-    expect(figures).toContain(4455667788);
+    expect(figures).toContainEqual({ value: 4455667788, kind: 'identifier', written: 'TRK4455667788' });
     const l = lineOf(REPLY, figures, 4455667788);
     expect(l).toMatchObject({ source: 'order', words: 'TRK4455667788' });
     // The order's name as a code: its two figures are one line, the code as written.
@@ -474,4 +483,129 @@ describe('5.5 · a code from the order is shown as written; the English lines ar
     expect(ar).toContain(`data-confirm="${esc(t('en', 'shopifyOrders.disconnectAsk'))}"`);
     expect(withoutIsolates(renderShopifyOrdersPage('en', view))).not.toContain(`<bdi lang="en" dir="ltr">${version}`);
   });
+});
+
+/*
+ * t1r's ruling on the last re-verify (2026-11-10): the record says what each figure is. The worker knows which of the
+ * order's fields a figure came from when it intersects the order with the reply, and keeps it — `identifier` (the
+ * order's name, a tracking number, any code) with the whole token as the reply wrote it, or `date` (and `amount`,
+ * `quantity` for a reader of any record). The card shows an identifier exactly as written, one line, never split into
+ * further lines; amounts, quantities and dates keep their formats. No length guess. A record with no kinds reads as before.
+ */
+describe('5.5 · each order figure knows what it is', async () => {
+  const { orderSourcedFigures } = await import('../../src/pipeline/orderSourced.js');
+  const { readReply } = await import('../../src/core/owner/reading.js');
+  const { approvalCard } = await import('../../src/api/web/inbox.js');
+  const { moneyFromRow } = await import('../../src/core/types/money.js');
+  const { t } = await import('../../src/core/owner/i18n/messages.js');
+  const { esc } = await import('../../src/api/web/layout.js');
+  const { withoutIsolates } = await import('./isolates.js');
+  type Line = Extract<ReturnType<typeof readReply>['lines'][number], { kind: 'figure' }>;
+  const orderWith = (...tracking: string[]) => ({
+    name: '#T55-4401', placed_on: '2026-11-09', fulfillment: 'FULFILLED', payment: 'PAID',
+    shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-15', tracking: tracking.map((number) => ({ number })) }],
+  }) as const;
+  const figuresOf = (reply: string, orderFigures: readonly OrderFigure[], quote: Parameters<typeof readReply>[0]['quote'] = null): Line[] =>
+    readReply({ reply, includeSmallFigures: true, productNames: [], quote, theirTexts: [], heldQuantity: null, orderFigures })
+      .lines.filter((l): l is Line => l.kind === 'figure');
+  const fromOrder = (lines: readonly Line[]) => lines.filter((l) => l.source === 'order');
+
+  const UPS = '1Z999AA10123456784';
+  const UPS_REPLY = `Your order #T55-4401 is on its way: tracking number ${UPS}.`;
+
+  it(`UPS ${UPS}: one identifier in the record, the whole code as written; the card's reading has one line for it and no "1"`, () => {
+    const figures = orderSourcedFigures(orderWith(UPS), UPS_REPLY);
+    expect(figures).toEqual([{ value: 55, kind: 'identifier', written: 'T55-4401' }, { value: 1, kind: 'identifier', written: UPS }]);
+    const lines = figuresOf(UPS_REPLY, figures);
+    expect(lines.map((l) => [l.source, l.words])).toEqual([['order', 'T55-4401'], ['order', UPS]]);
+    // A "1" standing apart is not the order's: the code's leading digit is not a figure the order gives it.
+    const apart = `Tracking number ${UPS}, in 1 parcel.`;
+    const kept = orderSourcedFigures(orderWith(UPS), apart);
+    expect(kept).toEqual([{ value: 1, kind: 'identifier', written: UPS }]);
+    expect(fromOrder(figuresOf(apart, kept)).map((l) => l.words)).toEqual([UPS]);
+  });
+
+  it('889900 as a tracking number is shown as written; 889900 as an amount is formatted as an amount', () => {
+    const reply = 'Tracking number 889900.';
+    const figures = orderSourcedFigures(orderWith('889900'), reply);
+    expect(figures).toEqual([{ value: 889900, kind: 'identifier', written: '889900' }]);
+    expect(fromOrder(figuresOf(reply, figures))).toEqual([{ kind: 'figure', value: 889900, source: 'order', words: '889900' }]);
+    // The same six digits as an amount — a recorded amount, or the quote's IDR price: no "as written".
+    const priced = 'The total was Rp 889900.';
+    expect(figuresOf(priced, [{ value: 889900, kind: 'amount' }])).toEqual([{ kind: 'figure', value: 889900, source: 'order' }]);
+    const quote = { unitPrice: 889900, total: 889900, quantity: 1, discountPct: 0, leadTimeDays: null, moq: null };
+    expect(figuresOf(priced, [], quote)).toEqual([{ kind: 'figure', value: 889900, source: 'price' }]);
+  });
+
+  it('TRK…, a 22-digit code and a code with separators: as written; a date, an amount and a quantity unchanged', () => {
+    const LONG = '9400100000000000000000';
+    const reply = `Your order #T55-4401 was placed on 9 November 2026. Tracking TRK4455667788 and ${LONG}, expected on 15 November.`;
+    const figures = orderSourcedFigures(orderWith('TRK4455667788', LONG), reply);
+    expect(figures.filter((f) => f.kind === 'identifier').map((f) => f.written)).toEqual(['T55-4401', 'TRK4455667788', LONG]);
+    expect(figures.filter((f) => f.kind === 'date').map((f) => f.value)).toEqual([9, 2026, 15]);
+    const lines = figuresOf(reply, figures);
+    expect(fromOrder(lines).filter((l) => l.words && /[A-Z]|\d{6,}/.test(l.words)).map((l) => l.words)).toEqual(['T55-4401', 'TRK4455667788', LONG]);
+    expect(lines.find((l) => l.value === 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order' });
+    expect(lines.find((l) => l.value === 15)).toEqual({ kind: 'figure', value: 15, source: 'order' });
+    // An amount and a quantity the record names keep their formats.
+    const more = 'It comes in 2 parcels; the total was 1250.00.';
+    const kinded = [{ value: 2, kind: 'quantity' }, { value: 1250, kind: 'amount' }] as const;
+    expect(figuresOf(more, kinded).map((l) => [l.value, l.source, l.words])).toEqual([[2, 'order', '2'], [1250, 'order', undefined]]);
+  });
+
+  it('a record written before the kinds (bare numbers) is read as it was at e82124ba', () => {
+    const reply = 'Your order #T55-4401 was placed on 9 November 2026. Tracking number TRK4455667788, in 2 parcels.';
+    const old = [55, 4401, 9, 2026, 4455667788];
+    const lines = figuresOf(reply, old);
+    expect(fromOrder(lines).filter((l) => l.words && /[A-Z]/.test(l.words)).map((l) => l.words)).toEqual(['T55-4401', 'TRK4455667788']);
+    expect(lines.find((l) => l.value === 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order' });
+    // The old guesses stand for old records: seven digits or more as written, six formatted, and a code's "1" its own line.
+    expect(figuresOf('Tracking number 4455667788.', [4455667788])).toEqual([{ kind: 'figure', value: 4455667788, source: 'order', words: '4455667788' }]);
+    expect(figuresOf('Tracking number 889900.', [889900])).toEqual([{ kind: 'figure', value: 889900, source: 'order' }]);
+    expect(fromOrder(figuresOf(`Tracking number ${UPS}.`, [1, 999, 10123456784])).length).toBeGreaterThan(1);
+  });
+
+  const NOW = new Date('2026-11-10T10:00:00Z');
+  const detailFor = (draftText: string, figures: readonly OrderFigure[], unitPrice = '1250') => ({
+    conversationId: '0b0c3a3e-6a5c-4f0e-9a3b-1d2e3f405056', buyer: 'Ana', country: 'US', status: 'awaiting',
+    product: { name: null, nameZh: null }, quantity: null,
+    quote: { unitPrice: moneyFromRow(unitPrice, 'USD')!, total: moneyFromRow(unitPrice, 'USD')!, quantity: 1 }, order: null,
+    messages: [{ direction: 'inbound', text: 'Where is my order?', at: new Date('2026-11-10T09:58:00Z') }],
+    pendingDraft: { draftId: 'd-56', draftText, capability: 'greet', language: 'en',
+      withheld: { reason: 'order_facts' }, orderSourced: { order: '#T55-4401', figures } },
+    ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+    knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
+    channel: 'instagram',
+  }) as unknown as import('../../src/api/web/inbox.js').ConversationDetail;
+  const cardOf = (detail: ReturnType<typeof detailFor>, locale: 'en' | 'ar') =>
+    withoutIsolates(approvalCard(detail, locale, NOW, { act: '/app/inbox/x/act', handTo: '/app/inbox/x/takeover' }));
+  const orderLines = (c: string) => c.split(esc(t('en', 'card.source.order', { order: '#T55-4401' }))).length - 1;
+
+  for (const locale of ['en', 'ar'] as const) {
+    it(`${locale} · the card: the UPS code one line as written, no "1"; 889900 as a tracking number as written`, () => {
+      const ups = cardOf(detailFor(UPS_REPLY, orderSourcedFigures(orderWith(UPS), UPS_REPLY)), locale);
+      expect(ups).toContain(`<bdi>${UPS}</bdi>`);
+      expect(ups).toContain('<bdi>T55-4401</bdi>');
+      for (const part of ['>1<', '>999<', '>10123456784<', '10,123,456,784']) expect(ups, part).not.toContain(part);
+      expect(orderLines(ups)).toBe(2);
+      // On the Arabic page the reply is in a language the owner may not read: its figures list (G10) names the code whole.
+      if (locale === 'ar') expect(ups).toContain(`<bdi dir="ltr">T55-4401</bdi>, <bdi dir="ltr">${UPS}</bdi></p>`);
+      const reply = 'Your order #T55-4401 is on its way: tracking number 889900.';
+      const six = cardOf(detailFor(reply, orderSourcedFigures(orderWith('889900'), reply)), locale);
+      expect(six).toContain('<bdi>889900</bdi>');
+      expect(six).not.toContain('889,900');
+    });
+
+    it(`${locale} · the card: 889900 as an amount is formatted; a date keeps its format; an old record reads as before`, () => {
+      const amount = cardOf(detailFor('Your order #T55-4401 came to Rp 889900.', [{ value: 889900, kind: 'amount' }]), locale);
+      expect(amount).toContain('<bdi>889,900</bdi>');
+      expect(amount).not.toContain('<bdi>889900</bdi>');
+      const dated = 'Your order #T55-4401 was placed on 9 November 2026.';
+      const kinded = cardOf(detailFor(dated, orderSourcedFigures(orderWith(UPS), dated)), locale);
+      expect(kinded).toContain('<bdi>2,026</bdi>');
+      expect(kinded).toContain('<bdi>T55-4401</bdi>');
+      const old = cardOf(detailFor('Tracking number 889900.', [889900]), locale);
+      expect(old).toContain('<bdi>889,900</bdi>');
+    });
+  }
 });
