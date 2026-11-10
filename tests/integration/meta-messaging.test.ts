@@ -20,6 +20,22 @@ const d = DATABASE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd540000-0000-4000-8000-${RUN}0001`;
+
+/**
+ * None of this file's jobs outlive it. Its webhooks queue inbound jobs that its own worker never drives (the file
+ * proves the webhook path, not the turn, and its models are offline); left queued, the NEXT file's production worker
+ * took them first — eight a run — and its own turn waited behind them (block1-records, CI 42462911630 pass 2) or
+ * asked offline models a question (g7-operator's lines). Cancelled as pg-boss cancels a job, after the worker has
+ * stopped, so none can start again.
+ */
+const cancelQueuedJobs = async (businessId: string): Promise<void> => {
+  const { createDb } = await import('../../src/db/client.js');
+  const db = createDb(DATABASE_URL!);
+  try {
+    await sql`update pgboss.job set completed_on = now(), state = 'cancelled'
+               where state < 'completed' and data->>'businessId' = ${businessId}`.execute(db);
+  } finally { await db.destroy(); }
+};
 const CREDENTIAL_KEY = 'b'.repeat(64);
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session').digest('hex');
@@ -175,7 +191,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     delete process.env['META_PAGE_ID'];
     delete process.env['META_IG_ACCOUNT_ID'];
     if (prod) await endOwnJobs(prod.boss, BIZ);
-    await prod?.close();
+    try { await prod?.close(); } finally { await cancelQueuedJobs(BIZ); }
   });
 
   it('UNTIL SHE CONNECTS THE ACCOUNT, a buyer\'s message is acknowledged and dropped', async () => {
@@ -468,7 +484,7 @@ d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABAS
 
   afterAll(async () => {
     if (prod) await endOwnJobs(prod.boss, BIZ2);
-    await prod?.close();
+    try { await prod?.close(); } finally { await cancelQueuedJobs(BIZ2); }
   });
 
   it('IS NOT DEPLOYMENT MODE: both webhooks are up, WhatsApp is not, and /health still tells the truth', async () => {

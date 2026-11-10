@@ -56,7 +56,9 @@ describe('the identity system: the brand draws, the meanings do not', () => {
     let rings = 0, underlines = 0, on = 0;
     for (const [name, sheet] of SHEETS) {
       for (const r of parse(sheet)) {
-        for (const d of r.body.split(';').filter((x) => EDGE.test(x) && BRAND.test(x))) {
+        // Owner-shell maps brand to ink; the shared chosen tab keeps magenta through accent.
+        for (const d of r.body.split(';').filter((x) => EDGE.test(x)
+          && (BRAND.test(x) || (r.sel === '.tab.on' && /var\(--color-accent\)/.test(x))))) {
           const prop = d.trim().split(':')[0]!.trim();
           for (const sel of r.sel.split(',').map((x) => x.trim())) {
             if (prop.startsWith('outline')) { if (/focus|is-focus/.test(sel)) rings++; else wrong.push(`${name}: ${sel} { ${prop} } is a ring that is not focus`); }
