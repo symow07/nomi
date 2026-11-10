@@ -4,7 +4,7 @@ import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { mainAssistant } from './assistants.js';
 import { setupProgress, type SetupProgress } from './setup.js';
-import { billingHeld } from './billing.js';
+import { billingHoldReason, type BillingHold } from './billing.js';
 
 /**
  * D — the facts about a workspace that EVERY page needs before it draws
@@ -27,6 +27,8 @@ export type WorkspaceFacts = {
   readonly country: string | null;
   /** D4 (2026-10-12) — the subscription lapsed: frozen, read-only, nothing sent or received. */
   readonly frozen: boolean;
+  /** 4.1 (0240) — which hold froze it: the lapse, or the trial over with no card. Null when not frozen. */
+  readonly frozenWhy: BillingHold | null;
   /** A6 (0176) — the books are switched on for this workspace. */
   readonly books: boolean;
 };
@@ -53,7 +55,8 @@ export async function workspaceFacts(tx: Tx, businessId: BusinessId): Promise<Wo
   const zone = await zoneOf(tx, businessId);
   const country = (await sql<{ country: string | null }>`
     select country from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.country ?? null;
-  const frozen = await billingHeld(tx);
+  const frozenWhy = await billingHoldReason(tx);
+  const frozen = frozenWhy !== null;
   const books = (await sql<{ on: boolean }>`select books_area as on from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.on === true;
-  return { name: who.name, several: who.several, outreach, setup, zone, country, frozen, books };
+  return { name: who.name, several: who.several, outreach, setup, zone, country, frozen, frozenWhy, books };
 }

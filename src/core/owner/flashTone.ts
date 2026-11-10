@@ -71,7 +71,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'books.invoice.tooMuch', 'books.invoice.notIssued', 'books.entry.problem.ambiguous', 'books.entry.problem.amount',
   'books.flash.statementUnreadable', 'books.flash.statementProblems', 'books.flash.columnsRefused', 'books.flash.matchRefused', 'books.flash.notWritten', 'books.flash.paperRefused', 'books.flash.paperNotRead', 'books.papers.noReader', 'books.papers.allowance', 'books.papers.pdfNotRead', 'books.flash.paperReadProblems', 'books.flash.paperNotDrafted', 'books.flash.closeRefused', 'data.flash.busy', 'data.flash.eraseRefused',
   // D4 (2026-10-12) — a change refused while the workspace is frozen.
-  'frozen.refused',
+  'frozen.refused', 'frozen.refused.trialOver',
   // 0130 — an advisor history switch or deletion that did not go through: nothing changed.
   'advisor.flash.failed',
   'conv.deletion.flash.moved',

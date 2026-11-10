@@ -8,6 +8,8 @@ import {
   renderSite, SITE_CSS, parseSiteHosts, SITE_HOSTS_SHAPE, hostOf, isAppPath, appAddress, siteHostsInForce,
 } from '../../src/api/web/site.js';
 import { validateEnv } from '../../src/main.js';
+import { priceText } from '../../src/core/billing/status.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * Phase 5 — what the public site may say, and how it is drawn.
@@ -20,6 +22,14 @@ import { validateEnv } from '../../src/main.js';
 const siteKeys = (l: (typeof LOCALES)[number]) =>
   (Object.keys(messages[l]) as MessageKey[]).filter((k) => k.startsWith('site.'));
 const siteCopy = (l: (typeof LOCALES)[number]) => siteKeys(l).map((k) => [k, messages[l][k]] as const);
+/**
+ * 4.1 — the pricing section's words (rule 12 lifts for the price only). Every other site.* line keeps every ban; these
+ * keep theirs below: no figure of their own, no "free", no discount, no percentage — the price and the counts come
+ * from the operator's plan row as parameters.
+ */
+const PRICE_KEY = /^site\.price\./;
+const notPriceCopy = (l: (typeof LOCALES)[number]) => siteCopy(l).filter(([k]) => !PRICE_KEY.test(k));
+const priceCopy = (l: (typeof LOCALES)[number]) => siteCopy(l).filter(([k]) => PRICE_KEY.test(k));
 
 const page = (locale: (typeof LOCALES)[number], noindex = false) => renderSite({
   locale, path: noindex ? '/site' : '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex,
@@ -38,7 +48,17 @@ describe('Phase 5 · the site copy', () => {
   it('names no price, currency, trial, discount figure or percentage', () => {
     const banned = /[0-9٠-٩$€£¥￥%]|percent|per month|\/mo\b|\bfree\b|\btrial\b|pricing|plans?\b|试用|免费|月费|套餐|价格方案|百分|تجربة|مجان|اشتراك|بالمئة|٪/i;
     for (const l of LOCALES) {
-      const bad = siteCopy(l).filter(([, v]) => banned.test(v));
+      const bad = notPriceCopy(l).filter(([, v]) => banned.test(v));
+      expect(bad.map(([k, v]) => `${l} ${k}: ${v}`)).toEqual([]);
+    }
+  });
+
+  it('4.1 · the pricing words carry no figure, currency, "free", discount or percentage of their own', () => {
+    const banned = /[0-9٠-٩$€£¥￥%٪]|percent|\bfree\b|discount|\boff\b|免费|折扣|优惠|百分|مجان|تخفيض|بالمئة|gratis|gratuit|descuento|remise|réduction|por ciento|pour ?cent/i;
+    for (const l of LOCALES) {
+      expect(priceCopy(l).length, l).toBe(10);
+      // Arabic's discount noun stands alone (يُخصم, "is charged", shares its root and is not a discount).
+      const bad = priceCopy(l).filter(([, v]) => banned.test(v.replace(/\{(price|n|days)\}/g, '')) || /(?<![\p{L}\p{M}])(?:ال)?خصم(?![\p{L}\p{M}])/u.test(v));
       expect(bad.map(([k, v]) => `${l} ${k}: ${v}`)).toEqual([]);
     }
   });
@@ -60,7 +80,10 @@ describe('Phase 5 · the site copy', () => {
     // NARROWED at the Phase 3 stop-gate (the owner's decision 2, 2026-10-13): the reel's made-up shop may show a
     // quantity and a per-piece price moving, and the catalogue holds no digit, so those two lines take the example's
     // figures as {qty} and {now} — those two placeholders, in those two keys, and nothing else anywhere.
-    const EXAMPLE_FIGURES: Record<string, string[]> = { 'site.reel.s2.asks': ['{qty}'], 'site.reel.s2.reply': ['{qty}', '{now}'] };
+    const EXAMPLE_FIGURES: Record<string, string[]> = { 'site.reel.s2.asks': ['{qty}'], 'site.reel.s2.reply': ['{qty}', '{now}'],
+      // 4.1 — the plan row's figures, as parameters, in these keys only.
+      'site.price.month': ['{price}'], 'site.price.customers': ['{n}'], 'site.price.people': ['{n}'], 'site.price.assistants': ['{n}'],
+      'site.price.trialDays': ['{days}'] };
     for (const l of LOCALES) {
       const left = siteCopy(l).map(([k, v]) => [k, (EXAMPLE_FIGURES[k] ?? []).reduce((s, p) => s.split(p).join(''), v)] as const);
       expect(left.filter(([, v]) => v.includes('{')).map(([k]) => `${l} ${k}`)).toEqual([]);
@@ -273,5 +296,89 @@ describe('SITE · the button follows sign-up as it stands (opening step 4)', () 
     const html = renderSite({ locale: 'en', path: '/', contact: null, signIn: '/login', signUp: '/signup', noindex: false });
     expect(html).toContain('href="/signup"');
     expect(html).not.toContain('mailto:');
+  });
+});
+
+/**
+ * 4.1 — the price, on the site, only as the operator's plan row says it (rule 12 lifts for the price only). No plan:
+ * every check above, on the page exactly as it was. A plan: one section names it, and every figure a visitor reads is
+ * the row's — nowhere else on the page.
+ */
+describe('4.1 · the pricing section comes from the plan row, or not at all', () => {
+  const plan = { id: 'nomi', name: 'Nomi', amountMinor: 4900, currency: 'usd', period: 'month' as const, customersAMonth: 300,
+    seats: null, assistants: 1, stripePriceId: 'price_launch01' };
+  const priced = (l: (typeof LOCALES)[number], over: Partial<{ trialDays: number | null; cardFirst: boolean; signUp: string | null }> = {}) => renderSite({
+    locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false,
+    signUp: over.signUp ?? null,
+    pricing: { plans: [plan], trialDays: over.trialDays ?? null, cardFirst: over.cardFirst ?? true },
+  });
+  const text = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ');
+  const section = (html: string) => html.slice(html.indexOf('<section class="site-sec" aria-labelledby="site-price">'),
+    html.indexOf('</section>', html.indexOf('aria-labelledby="site-price"')) + '</section>'.length);
+
+  it('no plan (absent or null): no section, and the page is byte for byte the page without pricing', () => {
+    for (const l of LOCALES) {
+      const without = page(l);
+      expect(without, l).not.toContain('site-price');
+      expect(renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false, pricing: null }), l)
+        .toBe(without);
+    }
+  });
+
+  for (const l of LOCALES) {
+    it(`${l} · the price a month, customers a month, what is included, the trial on request, card up front — and nowhere else`, () => {
+      const html = withoutIsolates(priced(l));
+      const sec = section(html);
+      expect(sec, l).toContain(`<h2 id="site-price">${esc(t(l, 'site.price.title'))}</h2>`);
+      expect(sec, l).toContain(`<h3>Nomi</h3>`);
+      expect(sec, l).toContain(esc(t(l, 'site.price.month', { price: priceText(l, 4900, 'usd') })));
+      expect(sec, l).toContain(esc(t(l, 'site.price.customers', { n: 300 })));
+      expect(sec, l).toContain(esc(t(l, 'site.price.assistants', { n: 1 })));
+      expect(sec, l).not.toContain(esc(t(l, 'site.price.people', { n: 1 }).split(':')[0]!));
+      expect(sec, l).toContain(esc(t(l, 'site.price.included')));
+      expect(sec, l).toContain(esc(t(l, 'site.price.trialOnRequest')));
+      expect(sec, l).toContain(esc(t(l, 'site.price.card')));
+      expect(sec, l).toContain(esc(t(l, 'site.price.renews')));
+      // Outside the section the page is as rule 12 has it: no price-looking figure, and none of the row's numbers.
+      const rest = text(html.replace(sec, ''));
+      expect(rest, l).not.toMatch(/[$€£¥￥]\s*\d|\d\s*(US)?\$/);
+      for (const figure of ['49', '300']) expect(rest, `${l} ${figure}`).not.toContain(figure);
+      // The section's own figures are only the row's: the price, the customers, the assistants.
+      expect(text(sec).match(/\d+(?:[.,]\d+)?/g)?.sort(), l).toEqual(['1', '300', '49.00'].map((n) => l === 'fr' || l === 'es' ? n.replace('.', ',') : n).sort());
+      // Rule 76 untouched: by invitation, the invitation; one filled button.
+      expect(html, l).toContain(esc(t(l, 'site.cta.invite')));
+      expect(html.match(/class="site-go"/g)?.length, l).toBe(1);
+    });
+  }
+
+  it('the trial is what billing_settings stores; "card up front" only while the switch is on; the row\'s own figures', () => {
+    const days = section(priced('en', { trialDays: 14, cardFirst: false }));
+    expect(days).toContain(esc(t('en', 'site.price.trialDays', { days: 14 })));
+    expect(days).not.toContain(esc(t('en', 'site.price.trialOnRequest')));
+    expect(days).not.toContain(esc(t('en', 'site.price.card')));
+    const other = renderSite({ locale: 'en', path: '/', contact: null, signIn: '/login', noindex: false,
+      pricing: { plans: [{ ...plan, name: 'Shop <b>', amountMinor: 2500, currency: 'eur', customersAMonth: 120, seats: 3, assistants: null }], trialDays: null, cardFirst: true } });
+    const sec = section(other);
+    expect(sec).toContain('€25.00');
+    expect(sec).toContain(esc(t('en', 'site.price.customers', { n: 120 })));
+    expect(sec).toContain(esc(t('en', 'site.price.people', { n: 3 })));
+    expect(sec).not.toContain('Assistants:');
+    expect(sec).toContain('Shop &lt;b&gt;');
+    expect(text(other)).not.toMatch(/\b(49|300)\b/);
+  });
+
+  it('open sign-up with a plan: the button is still sign-up (rule 76)', () => {
+    const html = priced('en', { signUp: 'https://app.example.test/signup' });
+    expect(html).toContain(`<a class="site-go" href="https://app.example.test/signup">${esc(t('en', 'site.cta.signup'))}</a>`);
+    expect(html).toContain('id="site-price"');
+  });
+
+  it('still no script, no "%", one stylesheet, with a plan', () => {
+    for (const l of LOCALES) {
+      const html = priced(l);
+      expect(html, l).not.toMatch(/<script/);
+      expect(html.match(/<style/g)?.length, l).toBe(1);
+      expect(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/href="mailto:[^"]*"/g, ''), l).not.toContain('%');
+    }
   });
 });

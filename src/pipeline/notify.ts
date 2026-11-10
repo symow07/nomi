@@ -107,7 +107,7 @@ export const goesByMail = (kind: AlertKind): boolean =>
 export const PAYMENT_LINKS_PAGE = '/app/payments/stripe';
 
 /** BILL (0117) — the owner's billing e-mails; each opens Billing. */
-export const BILLING_ALERT_KINDS = ['billing_trial_ending', 'billing_payment_failed', 'billing_lapsed', 'plan_limit'] as const satisfies readonly AlertKind[];
+export const BILLING_ALERT_KINDS = ['billing_trial_ending', 'billing_payment_failed', 'billing_lapsed', 'plan_limit', 'billing_trial_over'] as const satisfies readonly AlertKind[];
 export const isBillingAlert = (kind: AlertKind): boolean => (BILLING_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 export const BILLING_PAGE = '/app/settings/billing';
 
@@ -395,7 +395,7 @@ export function renderOwnerAlert(
   if (kind === 'billing_trial_ending') {
     return t(locale, 'notify.billing_trial_ending', { date: formatDate(locale, detail.billingAt ? new Date(detail.billingAt) : new Date(), detail.zone ?? 'UTC') });
   }
-  if (kind === 'billing_payment_failed' || kind === 'billing_lapsed' || kind === 'plan_limit') return t(locale, `notify.${kind}`);
+  if (kind === 'billing_payment_failed' || kind === 'billing_lapsed' || kind === 'plan_limit' || kind === 'billing_trial_over') return t(locale, `notify.${kind}`);
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };

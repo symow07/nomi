@@ -59,7 +59,9 @@ describe('D4 · the dashboard is read-only, with the doors that must stay open',
       expect(list, door).toContain(door);
     }
     expect(list.match(/\/\^/g)?.length).toBe(8);
-    expect(app).toMatch(/if \(!\(await withTenantTx\(deps\.db, bid\.value, \(tx\) => billingHeld\(tx\)\)\)\) return;\s*const back/);
+    // 4.1 (0240) — the same one gate, asking which hold (a lapse, or a trial over with no card) to say why in true words.
+    expect(app).toMatch(/const why = await withTenantTx\(deps\.db, bid\.value, \(tx\) => billingHoldReason\(tx\)\);\s*if \(!why\) return;\s*const back/);
+    expect(app).toContain(`flashTo(reply, to, why === 'trial_over' ? 'frozen.refused.trialOver' : 'frozen.refused')`);
   });
   it('every language says what frozen means and the way back, and the refusal names Billing', () => {
     for (const l of LOCALES) {
@@ -67,6 +69,11 @@ describe('D4 · the dashboard is read-only, with the doors that must stay open',
         expect(t(l, k).length, `${l} ${k}`).toBeGreaterThan(5);
       }
       expect(t(l, 'frozen.refused'), l).toContain(t(l, 'billing.title'));
+      // 4.1 (0240) — a trial over with no card is frozen the same way, and says so without a subscription that never was.
+      for (const k of ['frozen.trialOver.title', 'frozen.trialOver.body', 'frozen.trialOver.billing', 'frozen.refused.trialOver'] as const) {
+        expect(t(l, k).length, `${l} ${k}`).toBeGreaterThan(k.endsWith('.billing') ? 2 : 5);
+      }
+      expect(t(l, 'frozen.refused.trialOver'), l).toContain(t(l, 'billing.title'));
     }
   });
 });
@@ -75,7 +82,8 @@ describe('D4 · one notice when it freezes: what frozen means, and the way back 
   const frozen = { en: /frozen/i, zh: /冻结/, ar: /تجمّد|مجمّد/, es: /congelado/i, fr: /gelé/i } as const;
   it('the lapse e-mail, the Billing line and Setup say frozen, in every language; none promises "Needs you" any more', () => {
     for (const l of LOCALES) {
-      for (const k of ['notify.billing_lapsed.subject', 'notify.billing_lapsed', 'billing.status.lapsed', 'setup.value.billing.lapsed'] as const) {
+      for (const k of ['notify.billing_lapsed.subject', 'notify.billing_lapsed', 'billing.status.lapsed', 'setup.value.billing.lapsed',
+        'notify.billing_trial_over.subject', 'notify.billing_trial_over', 'billing.status.trialOver', 'frozen.trialOver.title'] as const) {
         expect(t(l, k), `${l} ${k}`).toMatch(frozen[l]);
       }
     }

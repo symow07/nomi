@@ -16,7 +16,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { messageLocale, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, booksShown, viewerRole } from './say.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, workspaceFrozenWhy, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate, railFigure } from './values.js';
@@ -2942,10 +2942,12 @@ export const notFoundInside = (locale: Locale): string =>
  */
 export function frozenBanner(locale: Locale): string {
   if (!workspaceFrozen()) return '';
+  // 4.1 (0240) — a trial that ended with no card is frozen the same way, said in its own true words.
+  const at = workspaceFrozenWhy() === 'trial_over' ? 'frozen.trialOver' : 'frozen.banner';
   return `<div class="held-all" role="status" id="frozen">
-    <p class="fwarn">${esc(t(locale, 'frozen.banner.title'))}</p>
-    <p class="muted">${esc(t(locale, 'frozen.banner.body'))}</p>
-    <div class="doors">${deeper('/app/settings/billing', t(locale, 'frozen.banner.billing'))}${deeper('/app/settings/data', t(locale, 'frozen.banner.data'))}</div>
+    <p class="fwarn">${esc(t(locale, `${at}.title`))}</p>
+    <p class="muted">${esc(t(locale, `${at}.body`))}</p>
+    <div class="doors">${deeper('/app/settings/billing', t(locale, `${at}.billing`))}${deeper('/app/settings/data', t(locale, 'frozen.banner.data'))}</div>
   </div>`;
 }
 

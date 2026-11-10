@@ -6,7 +6,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard } from './rows.js';
 import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
-import type { BillingState, Plan } from '../../db/billing.js';
+import type { BillingHold, BillingState, Plan } from '../../db/billing.js';
 
 /**
  * BILL (0117) — the Billing page: where the workspace stands, the plans on
@@ -23,6 +23,10 @@ export type BillingView = {
   readonly assistants: number;
   /** Back from Stripe's page: 'saved' or 'cancelled'. */
   readonly returned: 'saved' | 'cancelled' | null;
+  /** 4.1 (0240) — the workspace is frozen, and why: the lapse, or the trial over with no card. Absent: not frozen. */
+  readonly hold?: BillingHold | null;
+  /** 4.1 — a card is needed before the first channel (`billing_card_needed()`: the switch or the sign-up's risk), none saved. */
+  readonly cardFirst?: boolean;
 };
 
 export function renderBilling(v: BillingView, locale: Locale, flash: Flash | null, backLabel: string): string {
@@ -49,14 +53,22 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
   const returned = v.returned === 'saved' ? (s.cardSavedAt ? '' : atWork(t(locale, 'billing.returned.saved')))
     : v.returned ? `<p class="muted" role="status">${esc(t(locale, `billing.returned.${v.returned}` as MessageKey))}</p>` : '';
 
-  const status = s.status === 'lapsed' ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.lapsed'))}</p>`
+  const trialOver = v.hold === 'trial_over';
+  const status = trialOver ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.trialOver'))}</p>`
+    : s.status === 'lapsed' ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.lapsed'))}</p>`
     : s.status === 'past_due' ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.past_due'))}</p>`
     : s.status === 'trial' ? `<p>${esc(t(locale, 'billing.status.trial', { date: date(s.trialEndsAt), plan: plan?.name ?? '—' }))}</p>`
     : s.status === 'active' ? `<p>${esc(t(locale, 'billing.status.active', { date: date(s.currentPeriodEnd), plan: plan?.name ?? '—' }))}</p>`
     : s.cardSavedAt ? `<p>${esc(t(locale, 'billing.status.cardSaved', { plan: plan?.name ?? '—' }))}</p>`
     : `<p>${esc(t(locale, 'billing.status.none'))}</p>`;
-  const trial = s.trialDays && !s.trialStartedAt && s.status === 'none'
-    ? `<p class="muted">${esc(t(locale, 'billing.trial', { days: s.trialDays }))}</p>` : '';
+  // 4.1 — the trial as it stands (N days, or on request), the card asked first, and what the trial's end does: said
+  // from the rows (`trial_days_for`, `billing_card_needed()`), never a figure typed here. Not once it is over.
+  const trial = s.status !== 'none' || trialOver || s.trialStartedAt ? ''
+    : s.trialDays ? `<p class="muted">${esc(t(locale, 'billing.trial', { days: s.trialDays }))}</p>`
+    : `<p class="muted">${esc(t(locale, 'billing.trial.onRequest'))}</p>`;
+  const cardFirst = v.cardFirst && !trialOver && s.status === 'none' ? `<p>${esc(t(locale, 'billing.cardFirst'))}</p>` : '';
+  const trialEnd = trialOver || (s.status !== 'none' && s.status !== 'trial') || v.plans.length === 0 ? ''
+    : `<p class="muted">${esc(t(locale, 'billing.trialEnd.charged'))}${v.cardFirst ? ` ${esc(t(locale, 'billing.trialEnd.noCard'))}` : ''}</p>`;
 
   // Plans are chosen before a subscription exists; after, Stripe's page is for the card, the invoices and cancelling.
   // Beside the button, in plain text and not greyed: the plan renews every month, at its price, until cancelled,
@@ -74,7 +86,7 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
         <button class="btn send" type="submit">${esc(t(locale, s.cardSavedAt ? 'billing.usePlan' : 'billing.saveCard'))}</button>
         <p>${esc(t(locale, 'billing.renews', { portal: t(locale, 'billing.portal') }))}</p>
         <p><a href="/refunds">${esc(t(locale, 'legal.refunds.title'))}</a></p>
-        <p class="muted">${esc(t(locale, 'billing.noChargeYet'))}</p>
+        ${trialOver ? '' : `<p class="muted">${esc(t(locale, 'billing.noChargeYet'))}</p>`}
       </form>`;
 
   const usage = plan ? `<section class="block"><h2>${esc(t(locale, 'billing.usage.title'))}</h2><ul class="rows">
@@ -87,6 +99,6 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
       <button class="btn" type="submit">${esc(t(locale, 'billing.portal'))}</button></form>` : '';
 
   return `${head}
-    <section class="block">${returned}${status}${trial}${plans}${portal}</section>
+    <section class="block">${returned}${status}${trial}${cardFirst}${trialEnd}${plans}${portal}</section>
     ${usage}`;
 }

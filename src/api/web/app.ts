@@ -53,7 +53,7 @@ import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.
 import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
-import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHoldReason, cardNeeded, sitePricing } from '../../db/billing.js';
 import { renderBilling } from './billing.js';
 import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
@@ -1053,9 +1053,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
         newestWaiting(deps.db, bid.value).catch(() => null),
         // D4 — frozen or not, read fresh like the count: a page must never say frozen after a renewal, or miss a lapse.
-        withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)).catch(() => f.frozen),
+        withTenantTx(deps.db, bid.value, (tx) => billingHoldReason(tx)).catch(() => f.frozenWhy),
       ]).then(
-        ([c, newest, frozen]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at), frozen }, done),
+        ([c, newest, frozenWhy]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at), frozen: frozenWhy !== null, frozenWhy }, done),
         () => withWorkspace(f, done),
       );
     };
@@ -1171,10 +1171,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     const bid = s ? parseBusinessId(s.businessId) : null;
     if (!s || !bid || !bid.ok) return;
-    if (!(await withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)))) return;
+    const why = await withTenantTx(deps.db, bid.value, (tx) => billingHoldReason(tx));
+    if (!why) return;
     const back = String(req.headers['referer'] ?? '');
     const to = (() => { try { const u = new URL(back, 'http://x'); return u.pathname.startsWith('/app') ? u.pathname : '/app'; } catch { return '/app'; } })();
-    return flashTo(reply, to, 'frozen.refused');
+    return flashTo(reply, to, why === 'trial_over' ? 'frozen.refused.trialOver' : 'frozen.refused');
   });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
@@ -1755,6 +1756,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
     signUp: (await signupModeNow()) === 'open'
       ? (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/signup') : null) ?? '/signup' : null,
+    // 4.1 — the price, only from the plan the operator defined from Stripe, and only where payments are switched on
+    // (a card can be saved); asked on every request, like the button. No plan, no section.
+    pricing: deps.stripe ? await sitePricing(deps.db) : null,
   });
   const site = async (req: FastifyRequest, path: '/' | '/site', noindex: boolean): Promise<string> => renderSite(await siteInput(req, path, noindex));
   // Phase 3a — the reel becomes the first screen only once every language's words have had a native read
@@ -2506,6 +2510,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
       state: await billingState(tx), plans: await plansOnOffer(tx),
+      hold: await billingHoldReason(tx), cardFirst: await cardNeeded(tx),
       counts: (await sql<{ people: number; assistants: number }>`
         select (select count(*)::int from people where business_id = ${bid.value}::uuid and archived_at is null) as people,
                (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
@@ -2517,6 +2522,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
+      hold: facts.hold, cardFirst: facts.cardFirst,
     }, locale, takeFlash(req, reply), t(locale, 'nav.setup'))
       + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
