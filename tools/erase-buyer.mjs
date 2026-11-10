@@ -286,6 +286,10 @@ export const RULES = Object.freeze({
   survey_asks: { do: 'erase' },
   // 0226 — an invoice's public link (a token and its expiry on the business's own invoice): no customer in it.
   invoice_links: { do: 'unrelated' },
+  stripe_connections: { do: 'unrelated' }, stripe_mappings: { do: 'unrelated' },
+  stripe_oauth_states: { do: 'unrelated' }, stripe_checkout_attempts: { do: 'unrelated' },
+  stripe_event_inbox: { do: 'unrelated' }, stripe_movements: { do: 'unrelated' }, stripe_payouts: { do: 'unrelated' },
+  stripe_link_sends: { do: 'detach', detach: ['conversation_id', 'outbound_id'], says: 'the payment send record stays; customer references go' },
   // 0226 — that an invoice went, and the reminders about it: the business's record of its invoice stays (when, which
   // channel, how many reminders); the keys to the customer's conversation, message and draft go.
   invoice_sends: {

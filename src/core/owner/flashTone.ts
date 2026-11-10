@@ -26,6 +26,7 @@ import type { MessageKey } from './i18n/messages.js';
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'contactImport.flash.none', 'contactImport.flash.gone',
+  'paymentLinks.flash.refused',
   // 0225 (Block 2 PR 1) — the country page: a country kept because entries are posted, one the packs do not cover, a year
   // or a start the database refused, a state that is not one or already has its code, no sales-tax account yet.
   'books.flash.countryPosted', 'books.flash.countryNotYet', 'books.flash.countryRefused', 'books.flash.stateExists', 'books.flash.stateBad', 'books.flash.stateNoAccount',
@@ -164,6 +165,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'contactImport.flash.added.one', 'contactImport.flash.added.other', 'contactImport.flash.discarded',
+  'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
+  'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.
   'books.flash.countrySaved', 'books.flash.stateAdded', 'books.flash.moneySaved',
   // B2 — a workbook read in.
