@@ -181,13 +181,33 @@ d('5.5 · an order reply\'s figures, sourced on the owner\'s card (requires DATA
     expect(html).not.toContain(esc(t('en', 'card.source.unsourced')));
   });
 
-  it('THE CARD after an owner edit of the draft\'s figure: the record does not hold it, so "no source"', async () => {
-    // As if the draft now said the expected day: a figure the order holds, but not one the record kept.
-    await admin.query(`update drafts set draft_text = $2 where conversation_id = $1 and status = 'pending'`,
-      [first, `Your order ${ORDER} should reach you on ${expectedDay} ${MONTH}.`]);
-    const html = await page(first);
-    expect(html).toContain(esc(t('en', 'card.source.unsourced')));
-    await admin.query(`update drafts set draft_text = $2 where conversation_id = $1 and status = 'pending'`, [first, REPLY]);
+  it('THE CARD after the owner\'s KEPT EDIT (the real path: Stop, the edit refused and kept): the reading attributes nothing of it to the order, and the box shows the owner\'s words', async () => {
+    // The edit names the expected day: a figure Shopify's order holds, but the owner wrote it, not the assistant.
+    const edit = `Your order ${ORDER} should reach you on ${expectedDay} ${MONTH}.`;
+    const draft = await pendingDraft(first);
+    const before = await records(first);
+    expect((await post('/app/business/stop-assistant', {})).statusCode).toBe(302);
+    try {
+      expect((await post(`/app/inbox/${first}/act`, { draftId: draft.id, command: '改', edit })).statusCode).toBe(302);
+      // Refused while stopped, and kept: the draft's own words are untouched; nothing went out.
+      const row = (await admin.query(`select status, draft_text, owner_edit, sent_text from drafts where id = $1`, [draft.id])).rows[0];
+      expect(row).toEqual({ status: 'pending', draft_text: REPLY, owner_edit: edit, sent_text: null });
+      expect(await n(`select count(*) as n from outbound_messages where conversation_id = $1`, [first])).toBe(0);
+      const html = await page(first);
+      // The box holds the owner's words.
+      expect(html).toMatch(new RegExp(`<textarea id="reply"[^>]*>${esc(edit).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</textarea>`));
+      // The reading explains the assistant's draft only: its figures from the order, none of the edit's.
+      const reasons = html.slice(html.indexOf('<ul class="reasons">'), html.indexOf('</ul>', html.indexOf('<ul class="reasons">')));
+      expect(reasons).toContain(esc(t('en', 'card.source.order', { order: ORDER })));
+      expect(reasons).toContain(`<bdi>${placedDay}</bdi>`);
+      expect(reasons).not.toContain(`<bdi>${expectedDay}</bdi>`);
+      expect(html).not.toContain(esc(t('en', 'card.source.unsourced')));
+      // The record is the one the worker wrote: the edit added nothing to it.
+      expect(await records(first)).toEqual(before);
+      expect(before[0]!['figures']).not.toContain(expectedDay);
+    } finally {
+      expect((await post('/app/business/start-assistant', {})).statusCode).toBe(302);
+    }
   });
 
   it('THE RECORD CANNOT BE WRITTEN: the turn stands — its draft waits as order_facts — and the card says "No source"', async () => {

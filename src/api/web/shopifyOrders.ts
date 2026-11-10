@@ -4,7 +4,7 @@ import * as show from './values.js';
 import { fieldRow } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import type { MessageKey } from '../../core/owner/i18n/messages.js';
+import { messageLocale, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { SHOPIFY_API_VERSION } from '../../core/onboard/shopifyGraphql.js';
 import { orderScopes } from '../../core/commerce/shopifyOrders.js';
 import type { LookupRecord, ShopifyConnection } from '../../db/shopifyConnections.js';
@@ -30,6 +30,19 @@ const REFUSAL_WORDS: Readonly<Record<ShopifyConnectRefusal, MessageKey>> = {
 
 const WRITE_SCOPE = /^write_/;
 
+/**
+ * 5.5's words are English only (listed for native review). On a page in another language a sentence that is still the
+ * English one is set apart as English, left to right, so on an Arabic page its full stop and brackets stay on its own
+ * side (as 5.4's Comments page does). Its figures are already isolated by `t`. Escaped text; never inside an attribute.
+ */
+export function sayOnPage(locale: Locale, key: MessageKey, params?: Record<string, string | number>): string {
+  const words = esc(t(locale, key, params));
+  return locale !== 'en' && messageLocale(locale, key) === 'en' ? `<bdi lang="en" dir="ltr">${words}</bdi>` : words;
+}
+/** A door whose label is still the English one is set apart the same way. */
+const doorOnPage = (locale: Locale, href: string, key: MessageKey): string =>
+  deeper(href, t(locale, key), '', '', locale !== 'en' && messageLocale(locale, key) === 'en' ? 'en' : undefined);
+
 export function renderShopifyOrdersPage(locale: Locale, view: {
   readonly owner: boolean;
   readonly connection: ShopifyConnection | null;
@@ -37,7 +50,7 @@ export function renderShopifyOrdersPage(locale: Locale, view: {
   readonly flash: Flash | null;
   readonly refused?: { readonly code: ShopifyConnectRefusal; readonly address: string } | null;
 }): string {
-  const text = (k: MessageKey, p?: Record<string, string | number>) => esc(t(locale, k, p));
+  const text = (k: MessageKey, p?: Record<string, string | number>) => sayOnPage(locale, k, p);
   const c = view.connection;
   const head = `<h1 class="page">${text('shopifyOrders.title')}</h1>${flashBanner(view.flash)}
     <p class="lede">${text('shopifyOrders.lede')}</p><p>${text('shopifyOrders.rule')}</p><p class="caption">${text('shopifyOrders.drafts')}</p>`;
@@ -59,7 +72,7 @@ export function renderShopifyOrdersPage(locale: Locale, view: {
       <button class="btn${on ? ' ghost' : ' send'}" type="submit">${text(on ? 'shopifyOrders.switch.turnOff' : 'shopifyOrders.switch.turnOn')}</button></form>`
       : `<p class="caption">${text('staff.ownerDecides')}</p>`}</section>`;
   const disconnect = view.owner ? `<form method="post" action="${SHOPIFY_ORDERS_PAGE}/disconnect" class="inline"><button class="btn danger" type="submit"
-      onclick="return confirm(this.dataset.confirm)" data-confirm="${text('shopifyOrders.disconnectAsk')}">${text('shopifyOrders.disconnect')}</button></form>` : '';
+      onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'shopifyOrders.disconnectAsk'))}">${text('shopifyOrders.disconnect')}</button></form>` : '';
   return `${head}${state}${switchRow}${lookupList(locale, view.lookups)}${disconnect}`;
 }
 
@@ -67,17 +80,17 @@ function lookupList(locale: Locale, rows: readonly LookupRecord[]): string {
   const now = new Date();
   const items = rows.map((r) => {
     const what = r.outcome === 'verified' && r.orderName
-      ? t(locale, 'shopifyOrders.outcome.verified', { order: r.orderName })
-      : t(locale, `shopifyOrders.outcome.${r.outcome === 'verified' ? 'not_found' : r.outcome}` as MessageKey);
-    return `<li class="setrow"><div class="fr-l"><span class="fr-name"><bdi>${esc(what)}</bdi></span><span class="fr-desc">${show.when(locale, r.at, now)}</span></div>
-      <div class="fr-c">${deeper(conversationUrl(r.conversationId), t(locale, 'shopifyOrders.lookups.open'))}</div></li>`;
+      ? sayOnPage(locale, 'shopifyOrders.outcome.verified', { order: r.orderName })
+      : sayOnPage(locale, `shopifyOrders.outcome.${r.outcome === 'verified' ? 'not_found' : r.outcome}` as MessageKey);
+    return `<li class="setrow"><div class="fr-l"><span class="fr-name"><bdi>${what}</bdi></span><span class="fr-desc">${show.when(locale, r.at, now)}</span></div>
+      <div class="fr-c">${doorOnPage(locale, conversationUrl(r.conversationId), 'shopifyOrders.lookups.open')}</div></li>`;
   }).join('');
-  return `<section class="block" id="lookups"><h2>${esc(t(locale, 'shopifyOrders.lookups.title'))}</h2>${rows.length === 0
-    ? `<p class="muted">${esc(t(locale, 'shopifyOrders.lookups.none'))}</p>` : `<ul class="scard">${items}</ul>`}</section>`;
+  return `<section class="block" id="lookups"><h2>${sayOnPage(locale, 'shopifyOrders.lookups.title')}</h2>${rows.length === 0
+    ? `<p class="muted">${sayOnPage(locale, 'shopifyOrders.lookups.none')}</p>` : `<ul class="scard">${items}</ul>`}</section>`;
 }
 
 function connectForm(locale: Locale, refused: { readonly code: ShopifyConnectRefusal; readonly address: string } | null): string {
-  const text = (k: MessageKey) => esc(t(locale, k));
+  const text = (k: MessageKey) => sayOnPage(locale, k);
   const address = refused && /^(?:https:\/\/)?[a-z0-9][a-z0-9-]*\.myshopify\.com\/?$/i.test(refused.address) ? refused.address : '';
   const secret = (field: 'token' | 'client_id' | 'client_secret', key: MessageKey) => fieldRow({
     label: t(locale, key), forId: `shopify-${field}`,

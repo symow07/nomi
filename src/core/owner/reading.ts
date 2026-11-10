@@ -85,6 +85,24 @@ export function readReply(input: {
   ];
   const q = input.quote;
   const fromOrder = (v: number): boolean => (input.orderFigures ?? []).some((o) => near(o, v));
+  // 5.5 (t1r's ruling, 2026-11-10) — on an order-source line, a figure that is part of a code (Latin letters and
+  // digits together: "TRK4455667788", "T55-4401") or a long run of digits alone (seven or more: a tracking number,
+  // which no date or quantity of an order reaches) is an identifier: it is shown as the reply wrote it, never as
+  // "4,455,667,788". Quantities, amounts and dates keep their formats; an ordinal ("21st") is a date, not a code.
+  const asWritten = (n: ReturnType<typeof extractNumerals>[number]): string | undefined => {
+    if (!n.at) return undefined;
+    const alnum = (i: number) => i >= 0 && i < text.length && /[A-Za-z0-9]/.test(text[i]!);
+    const joined = (i: number) => (text[i] === '-' || text[i] === '_') && alnum(i - 1) && alnum(i + 1);
+    let [from, to] = n.at;
+    while (to > from && text[to - 1] === ',') to--;   // "4455667788," — the comma is the sentence's, not the number's
+    const digits = [from, to] as const;
+    while (from > 0 && (alnum(from - 1) || joined(from - 1))) from--;
+    while (to < text.length && (alnum(to) || joined(to))) to++;
+    const token = text.slice(from, to);
+    if (/[A-Za-z]/.test(token) && !/^\d{1,2}(?:st|nd|rd|th)$/i.test(token)) return input.reply.slice(from, to);
+    if (/^\d{7,}$/.test(text.slice(...digits))) return input.reply.slice(...digits);
+    return undefined;
+  };
   const sourceOf = (v: number): Exclude<ReadingSource, 'product'> => {
     if (q && near(v, q.unitPrice)) return 'price';
     if (q && near(v, q.total)) return 'total';
@@ -128,7 +146,11 @@ export function readReply(input: {
     }
     if (seen.some((s) => near(s, n.value))) continue;
     seen.push(n.value);
-    lines.push({ kind: 'figure', value: n.value, source: sourceOf(n.value) });
+    const source = sourceOf(n.value);
+    const written = source === 'order' ? asWritten(n) : undefined;
+    // Two figures of one code ("T55-4401") are one line: the code as written.
+    if (written !== undefined && lines.some((l) => l.kind === 'figure' && l.words === written)) continue;
+    lines.push({ kind: 'figure', value: n.value, source, ...(written !== undefined ? { words: written } : {}) });
   }
   return {
     lines,

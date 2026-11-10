@@ -371,3 +371,107 @@ describe('5.5 · the card\'s reading of an order reply', async () => {
     }
   });
 });
+
+/*
+ * t1r's ruling on VERIFY-2 (2026-11-10). (a) The record may hold a tracking number's digits when the reply writes the
+ * number — it holds nothing the draft does not. The card must not draw that code as a quantity: on an order-source
+ * line, a figure that is part of a code (letters and digits together) or a long digit run (a tracking number) is shown
+ * as the reply wrote it; quantities, amounts and dates keep their formats. (The observation) 5.5's English-only lines
+ * on an Arabic page are set apart as English, left to right, so the full stop stays on the sentence's own side.
+ */
+describe('5.5 · a code from the order is shown as written; the English lines are set apart on an Arabic page', async () => {
+  const { orderSourcedFigures } = await import('../../src/pipeline/orderSourced.js');
+  const { readReply } = await import('../../src/core/owner/reading.js');
+  const { renderConversationDetail, approvalCard } = await import('../../src/api/web/inbox.js');
+  const { renderShopifyOrdersPage } = await import('../../src/api/web/shopifyOrders.js');
+  const { moneyFromRow } = await import('../../src/core/types/money.js');
+  const { t } = await import('../../src/core/owner/i18n/messages.js');
+  const { esc } = await import('../../src/api/web/layout.js');
+  const { withoutIsolates } = await import('./isolates.js');
+  const ORDER = {
+    name: '#T55-4401', placed_on: '2026-11-09', fulfillment: 'FULFILLED', payment: 'PAID',
+    shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-15', tracking: [{ number: 'TRK4455667788' }] }],
+  } as const;
+  const BARE = { ...ORDER, shipments: [{ ...ORDER.shipments[0], tracking: [{ number: '4455667788' }] }] };
+  const REPLY = 'Your order #T55-4401 was placed on 9 November 2026. Tracking number TRK4455667788, in 2 parcels.';
+  const lineOf = (reply: string, figures: readonly number[], v: number, quote: Parameters<typeof readReply>[0]['quote'] = null) => {
+    const l = readReply({ reply, includeSmallFigures: true, productNames: [], quote, theirTexts: [], heldQuantity: null, orderFigures: figures })
+      .lines.find((x) => x.kind === 'figure' && x.value === v);
+    return l?.kind === 'figure' ? l : null;
+  };
+
+  it('the tracking code reads as the reply wrote it, never as 4,455,667,788; the record still holds its digits (the storage stands)', () => {
+    const figures = orderSourcedFigures(ORDER, REPLY);
+    expect(figures).toContain(4455667788);
+    const l = lineOf(REPLY, figures, 4455667788);
+    expect(l).toMatchObject({ source: 'order', words: 'TRK4455667788' });
+    // The order's name as a code: its two figures are one line, the code as written.
+    const named = readReply({ reply: REPLY, includeSmallFigures: true, productNames: [], quote: null, theirTexts: [], heldQuantity: null, orderFigures: figures });
+    expect(named.lines.filter((x) => x.kind === 'figure' && x.words === 'T55-4401')).toHaveLength(1);
+    // A long digit run alone (a numeric tracking number) is an identifier too, as written.
+    const bare = 'Tracking number 4455667788, placed on 9 November 2026.';
+    expect(lineOf(bare, orderSourcedFigures(BARE, bare), 4455667788)).toMatchObject({ source: 'order', words: '4455667788' });
+  });
+
+  it('dates and amounts keep their formats: no "as written" override on them', () => {
+    const figures = orderSourcedFigures(ORDER, REPLY);
+    expect(lineOf(REPLY, figures, 2026)).toEqual({ kind: 'figure', value: 2026, source: 'order' });
+    expect(lineOf(REPLY, figures, 9)).toMatchObject({ source: 'order', words: '9' });
+    // An ordinal is a date, not a code; an amount is the quote's, not the order's.
+    const ordinal = 'It should reach you on the 15th, and the parcel is 1250.00 in total.';
+    expect(lineOf(ordinal, orderSourcedFigures(ORDER, ordinal), 15)).toEqual({ kind: 'figure', value: 15, source: 'order' });
+    const quote = { unitPrice: 1250, total: 1250, quantity: 1, discountPct: 0, leadTimeDays: null, moq: null };
+    expect(lineOf(ordinal, [], 1250, quote)).toEqual({ kind: 'figure', value: 1250, source: 'price' });
+  });
+
+  const NOW = new Date('2026-11-10T10:00:00Z');
+  const detail = {
+    conversationId: '0b0c3a3e-6a5c-4f0e-9a3b-1d2e3f405055', buyer: 'Ana', country: 'US', status: 'awaiting',
+    product: { name: null, nameZh: null }, quantity: null,
+    quote: { unitPrice: moneyFromRow('1250', 'USD')!, total: moneyFromRow('1250', 'USD')!, quantity: 1 }, order: null,
+    messages: [{ direction: 'inbound', text: 'Where is my order? ana@example.test', at: new Date('2026-11-10T09:58:00Z') }],
+    pendingDraft: { draftId: 'd-55', draftText: `${REPLY} The total was 1250.`, capability: 'greet', language: 'en',
+      withheld: { reason: 'order_facts' }, orderSourced: { order: ORDER.name, figures: orderSourcedFigures(ORDER, REPLY) } },
+    ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+    knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
+    channel: 'instagram',
+  } as unknown as import('../../src/api/web/inbox.js').ConversationDetail;
+  const card = (locale: 'en' | 'ar') => withoutIsolates(approvalCard(detail, locale, NOW, { act: '/app/inbox/x/act', handTo: '/app/inbox/x/takeover' }));
+
+  for (const locale of ['en', 'ar'] as const) {
+    it(`${locale} · the card draws the tracking code as written, beside "from the order", and the amount as money`, () => {
+      const c = card(locale);
+      expect(c).toContain('<bdi>TRK4455667788</bdi>');
+      expect(c).not.toContain('4,455,667,788');
+      expect(c).toContain(esc(t('en', 'card.source.order', { order: ORDER.name })));
+      expect(c).toMatch(/1,250\.00/);
+    });
+  }
+
+  it('ar · the card\'s English lines stand in a left-to-right isolate, each sentence whole inside it, its full stop last', () => {
+    const c = card('ar');
+    const held = esc(t('en', 'inbox.draft.held.order_facts'));
+    expect(held.endsWith('.')).toBe(true);
+    expect(c).toContain(`<bdi lang="en" dir="ltr">${held}</bdi>`);
+    expect(c).toContain(`<bdi lang="en" dir="ltr">${esc(t('en', 'card.source.order', { order: ORDER.name }))}</bdi>`);
+    // English pages are drawn as before: nothing set apart.
+    expect(card('en')).not.toContain('<bdi lang="en" dir="ltr">');
+    // The whole page too.
+    expect(withoutIsolates(renderConversationDetail(detail, 'ar', NOW, null))).toContain(`<bdi lang="en" dir="ltr">${held}</bdi>`);
+  });
+
+  it('ar · the Shopify page\'s English lines are set apart the same way: the version line keeps its full stop on its own side', () => {
+    const view = {
+      owner: true, lookups: [], flash: null,
+      connection: { shop: 'https://atlas-mode.myshopify.com', scopes: ['read_orders'], apiVersionSeen: '2026-07', answerOrders: true, connectedAt: NOW },
+    } as unknown as Parameters<typeof renderShopifyOrdersPage>[1];
+    const ar = withoutIsolates(renderShopifyOrdersPage('ar', view));
+    const version = esc(t('en', 'shopifyOrders.version.other', { version: '2026-07' }));
+    expect(version.endsWith('.')).toBe(true);
+    expect(ar).toContain(`<bdi lang="en" dir="ltr">${version}</bdi>`);
+    expect(ar).toContain(`<bdi lang="en" dir="ltr">${esc(t('en', 'shopifyOrders.lede'))}</bdi>`);
+    // Never inside an attribute: the disconnect question stays plain text there.
+    expect(ar).toContain(`data-confirm="${esc(t('en', 'shopifyOrders.disconnectAsk'))}"`);
+    expect(withoutIsolates(renderShopifyOrdersPage('en', view))).not.toContain(`<bdi lang="en" dir="ltr">${version}`);
+  });
+});

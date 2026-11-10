@@ -254,7 +254,10 @@ d('5.5 · Shopify orders over Postgres (requires DATABASE_URL + MIGRATE_DATABASE
         expect(html, `${locale}/${who}`).toContain(`<html lang="${locale}"`);
         const pills = [...html.matchAll(/<span class="pill[^"]*">([\s\S]*?)<\/span>/g)].map((m) => m[1]!);
         expect(pills.some((p) => p.includes('2026-07')), `${locale}/${who}: no pill holds the sentence`).toBe(false);
-        expect(html, `${locale}/${who}: the sentence is the state line`).toMatch(/<p class="stateline" role="status"><span class="dot warn[^>]*><\/span> [^<]*2026-07/);
+        expect(html, `${locale}/${who}: the sentence is the state line`).toMatch(/<p class="stateline" role="status"><span class="dot warn[^>]*><\/span> (?:<bdi lang="en" dir="ltr">)?[^<]*2026-07/);
+        // The ruling on VERIFY-2's observation: on the Arabic page the English sentence stands apart, left to right.
+        if (locale === 'ar') expect(html).toMatch(/<\/span> <bdi lang="en" dir="ltr">[^<]*2026-07[^<]*\.<\/bdi><\/p>/);
+        else expect(html).not.toMatch(/<bdi lang="en" dir="ltr">[^<]*2026-07/);
       }
     } finally {
       await admin.query(`update shopify_connections set api_version_seen = '2026-10' where business_id = $1 and archived_at is null`, [A]);

@@ -17,6 +17,7 @@ import { sellsByQuantity, tradesForExport } from '../../core/owner/sellingStyle.
 import { stageFacts, stageOf, type Stage } from '../../db/customerStage.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { orderSourcedOf, type OrderSourced } from '../../pipeline/orderSourced.js';
+import { sayOnPage } from './shopifyOrders.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
@@ -1942,14 +1943,17 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   const r = d.reading ?? null;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
-  const waits = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
-    esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
+  const waitsHtml = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
+    esc(t(locale, 'card.waiting'))}</b> ${sentence}</p>`;
+  const waits = (sentence: string) => waitsHtml(esc(sentence));
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     // 0229 — which step of the owner's procedure this reply does.
     p.procedure ? `<p class="stateline" role="note">${esc(t(locale, 'inbox.draft.procedure', { title: p.procedure.title, step: p.procedure.step, of: p.procedure.of, do: p.procedure.do ?? '' }))}</p>` : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
-    p.withheld ? waits('language' in p.withheld
+    // 5.5 — its sentence is English only: on an Arabic page it is set apart as English, its full stop on its own side.
+    p.withheld?.reason === 'order_facts' ? waitsHtml(sayOnPage(locale, 'inbox.draft.held.order_facts', { name }))
+    : p.withheld ? waits('language' in p.withheld
       ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
       : 'key' in p.withheld
         ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, key: String(p.withheld.key) })
@@ -2062,7 +2066,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
       : line(l.source !== 'unsourced', figure(l), (l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
-        : l.source === 'order' ? esc(t(locale, 'card.source.order', { order: p.orderSourced?.order ?? '' }))
+        : l.source === 'order' ? sayOnPage(locale, 'card.source.order', { order: p.orderSourced?.order ?? '' })
         : esc(t(locale, `card.source.${l.source}` as MessageKey))), l.source === 'unsourced' ? whereIn(l.value) : '', inspectFigure(l))),
     ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
