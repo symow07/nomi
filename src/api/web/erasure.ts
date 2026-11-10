@@ -8,6 +8,7 @@ import { recordBuyerRequest, BUYER_NOTE_MAX } from './dataRights.js';
 import { samePersonLine } from './conversations.js';
 import type { SamePersonRecord } from '../../db/samePerson.js';
 import * as show from './values.js';
+import { mailedLedgerLine } from '../../db/erasureMail.js';
 
 /**
  * 0126 — THE OWNER DELETES; IT IS GONE (the owner's direction, 2026-10-04).
@@ -143,7 +144,7 @@ export async function closeWorkspace(db: Db, businessIdRaw: string, typedName: s
  */
 export function erasureNotice(kind: 'customer' | 'workspace', lines: readonly Record<string, unknown>[]): { subject: string; text: string } {
   const business = String(lines[0]?.['business_id'] ?? '');
-  const json = (lines.length ? lines : [{}]).map((l) => JSON.stringify(l)).join('\n');
+  const json = (lines.length ? lines : [{}]).map((l) => JSON.stringify(mailedLedgerLine(l))).join('\n');
   const many = lines.length > 1;
   return {
     subject: kind === 'customer' ? `Customer data erased · ${business}` : `Workspace closed and erased · ${business}`,

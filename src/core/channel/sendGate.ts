@@ -11,7 +11,22 @@ import type { OutboundRow } from '../../outbound/sequencer.js';
  * conversation was paused, or a free-form message into a closed window.
  */
 
+/** Facts resolved under the outbound transaction's comment/account locks, never from form fields. */
+export type CommentPrivateReplyGate = {
+  readonly channel: string;
+  readonly enabled: boolean;
+  readonly asking: boolean;
+  readonly accountBound: boolean;
+  /** ready means the durable reservation belongs to THIS outbound row and has never begun a call. */
+  readonly claim: 'ready' | 'used';
+  readonly createdAt: Date | null;
+  readonly now: Date;
+};
+
 export type GateInput = {
+  /** Only the explicit new kind can substitute the comment window for the ordinary DM window. */
+  readonly messageKind?: string;
+  readonly commentPrivateReply?: CommentPrivateReplyGate;
   /** The message still carries our own JSON (`carriesOurJson`, read by the worker from the body). */
   readonly garbled?: boolean;
   /**
@@ -174,6 +189,8 @@ export const GATE_REFUSALS = [
   'language_not_reviewed', // 0153 — the buyer's language has no signed disclosure: nothing automated reaches them
   'tiktok_limit',         // 0215 — TikTok's messages per window are used: nothing more until the customer writes
   'garbled',              // 2026-11-04 — the assistant's message still carries our own JSON: it never reaches a customer
+  'comment_unchecked', 'comments_off', 'comment_not_asking',
+  'comment_used', 'comment_age_unknown', 'comment_expired',
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -297,6 +314,27 @@ export function gateOutbound(g: GateInput): GateDecision {
 
   // 0215 — the channel's own count, like the window below: it binds everyone.
   if (g.channelLimitReached === true) return { allow: false, reason: 'tiktok_limit' };
+
+  // The one owner-authored private reply to a comment has its own provider window.
+  // Every common refusal above keeps its order; no other kind enters this branch.
+  if (g.messageKind === 'comment_private_reply') {
+    const c = g.commentPrivateReply;
+    if (!c || c.channel !== 'instagram' || !c.accountBound
+      || g.origin !== 'owner' || g.approved !== true || g.automated === true
+      || g.outreach != null || g.notice != null) return { allow: false, reason: 'comment_unchecked' };
+    if (!c.enabled) return { allow: false, reason: 'comments_off' };
+    if (!c.asking) return { allow: false, reason: 'comment_not_asking' };
+    // A comment cannot lift a standing stop, even if an earlier DM once reopened its ordinary window.
+    if (g.optOut) return { allow: false, reason: 'opted_out' };
+    if (c.claim !== 'ready') return { allow: false, reason: 'comment_used' };
+    const made = c.createdAt?.getTime();
+    const at = c.now.getTime();
+    if (made === undefined || !Number.isFinite(made) || !Number.isFinite(at) || made > at) {
+      return { allow: false, reason: 'comment_age_unknown' };
+    }
+    if (at - made >= 7 * 24 * 60 * 60 * 1000) return { allow: false, reason: 'comment_expired' };
+    return { allow: true, viaTemplate: false };
+  }
 
   // The window binds everyone — the provider rejects violations regardless of
   // who typed the message.

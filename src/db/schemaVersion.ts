@@ -484,7 +484,8 @@ import type { Db } from './client.js';
 // 232 = setup in minutes: a file of customers kept while the owner checks it, and the first import's time (0232).
 // 234 = owner-written follow-up drafts and their accepted-quote evidence.
 // 235 = the owner's selected WhatsApp catalogue, batch outcomes and revocable image grants.
-export const REQUIRED_SCHEMA_VERSION = 235;
+// 236 = comments, owner-controlled permissions, one-reply reservations and expiring erasure digests.
+export const REQUIRED_SCHEMA_VERSION = 236;
 
 export type SchemaState = {
   readonly required: number;
