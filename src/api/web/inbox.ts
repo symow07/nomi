@@ -16,6 +16,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { sellsByQuantity, tradesForExport } from '../../core/owner/sellingStyle.js';
 import { stageFacts, stageOf, type Stage } from '../../db/customerStage.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { orderSourcedOf, type OrderSourced } from '../../pipeline/orderSourced.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
@@ -733,6 +734,12 @@ export type ConversationDetail = {
     procedure?: { readonly title: string; readonly step: number; readonly of: number; readonly do?: string } | null;
     /** G10 — the owner's translation of it, kept on the draft; never sent. */
     translation?: { readonly text: string; readonly locale: string } | null;
+    /**
+     * 5.5 — an `order_facts` draft's record of which of its own figures the verified Shopify order holds, and the
+     * order's name (src/pipeline/orderSourced.ts). The reading names the order as their source; nothing else of the
+     * order is kept. Absent or null: those figures read as having no source.
+     */
+    orderSourced?: OrderSourced | null;
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
@@ -1019,13 +1026,17 @@ export async function loadConversationDetail(
     // `draft_pending` event the turn wrote beside THIS draft.
     const draft = (await sql<{
       id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null;
-      translation: string | null; translation_locale: string | null;
+      translation: string | null; translation_locale: string | null; sourced: unknown;
     }>`
       select d.id, d.draft_text, d.capability, d.owner_edit, d.translation, d.translation_locale,
              (select e.payload from conversation_events e
                where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
                  and e.payload->>'draftId' = d.id::text
-               order by e.id desc limit 1) as pending
+               order by e.id desc limit 1) as pending,
+             (select e.payload from conversation_events e
+               where e.conversation_id = d.conversation_id and e.type = 'order_sourced'
+                 and e.payload->>'draftId' = d.id::text
+               order by e.id desc limit 1) as sourced
         from drafts d where d.conversation_id = ${conversationId} and d.status = 'pending'
        order by d.created_at desc, d.id desc limit 1
     `.execute(tx)).rows[0];
@@ -1131,7 +1142,9 @@ export async function loadConversationDetail(
             ownerEdit: draft.owner_edit,
             language: typeof draft.pending?.['language'] === 'string' ? String(draft.pending['language']).slice(0, 8) : null,
             procedure: procedureOf(draft.pending?.['procedure']),
-            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
+            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null,
+            // 5.5 — only beside a draft that waits because it uses an order.
+            orderSourced: withheldOf(draft.pending?.['withheld'])?.reason === 'order_facts' ? orderSourcedOf(draft.sourced) : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
       ownerTesting: head.owner_testing === true,
@@ -1988,6 +2001,8 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),
     heldQuantity: d.quantity,
     productCodes: [ownSku(d.product.sku)].filter((x): x is string => x !== null),
+    // 5.5 — the figures of this reply its verified Shopify order holds, as recorded beside the draft.
+    orderFigures: p.orderSourced?.figures ?? [],
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
     l.words !== undefined ? l.words
@@ -2018,7 +2033,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
     return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
   };
   const inspectFigure = (l: Extract<ReadingLine, { kind: 'figure' }>): string => {
-    if (l.source === 'unsourced') return '';
+    if (l.source === 'unsourced' || l.source === 'order') return '';
     const inspect = (body: string) => `<details class="reading-proof"><summary>${esc(t(locale, 'inbox.tools.source', { value: figure(l) }))}</summary>${body}</details>`;
     if (l.source === 'their_words') {
       const index = d.messages.findIndex((m) => m.direction === 'inbound' && (l.words !== undefined ? m.text === l.customerText : extractNumerals(m.text).some((n) => near(n.value, l.value))));
@@ -2047,6 +2062,7 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
       : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
       : line(l.source !== 'unsourced', figure(l), (l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
+        : l.source === 'order' ? esc(t(locale, 'card.source.order', { order: p.orderSourced?.order ?? '' }))
         : esc(t(locale, `card.source.${l.source}` as MessageKey))), l.source === 'unsourced' ? whereIn(l.value) : '', inspectFigure(l))),
     ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a

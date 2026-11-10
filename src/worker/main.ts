@@ -39,6 +39,7 @@ import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor, interrupts, sendAlert } from '../pipeline/notify.js';
 import { loggableLine, loggableMessage } from '../security/loggable.js';
+import { rememberingOrderLookup, recordOrderSourced } from '../pipeline/orderSourced.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
 } from './appErrors.js';
@@ -253,6 +254,8 @@ export async function startWorker(
     let heldAfterPaying = false;
     // P5 — who pays: the workspace itself, or, for a practice copy, the workspace it practises for.
     let payer: BusinessId = businessId.value;
+    /** 5.5 — the order this turn's lookup verified, if any: read after the turn commits, for the card's record. */
+    const orderSeen: { current: ReturnType<typeof rememberingOrderLookup> | null } = { current: null };
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
       // B24 (audit batch 5) — asked under the lock, so two processes holding the same job, or a job retried after its
@@ -270,11 +273,12 @@ export async function startWorker(
         ? { ...base, autonomy: { ...base.autonomy, released: rehearsal.autonomyReleased } }
         : base;
       const retriever = hybridRetriever(tx, businessId.value);
+      orderSeen.current = media.orderLookups ? rememberingOrderLookup(media.orderLookups({ db, businessId: businessId.value })) : null;
       const ports = {
         tenant, retriever, analyzer, replyWriter, now: () => new Date(),
         publicBaseUrl: env.PUBLIC_BASE_URL ?? null,
         // 5.5 — asks Shopify nothing unless this workspace connected a store and switched answering on.
-        ...(media.orderLookups ? { orderLookup: media.orderLookups({ db, businessId: businessId.value }) } : {}),
+        ...(orderSeen.current ? { orderLookup: orderSeen.current.port } : {}),
       };
 
       if (input.heard) {
@@ -376,6 +380,13 @@ export async function startWorker(
     // send is retried after it succeeded; that is tolerated.
     // B24 — nothing ran: another turn had already answered this.
     if (effects === null) return;
+    // 5.5 — which figures of an order reply the verified order holds, for the owner's card (t1r's ruling A): written
+    // after the turn committed, in its own transaction, beside an `order_facts` draft only. Failing changes nothing.
+    const sourcedOrder = orderSeen.current?.verified() ?? null;
+    if (sourcedOrder && 'draftCreated' in effects && effects.draftCreated) {
+      await recordOrderSourced(db, businessId.value, { conversationId: effects.draftCreated.conversationId, draftId: effects.draftCreated.draftId, order: sourcedOrder })
+        .catch(() => console.error('[shopify-orders] the order reply\'s sources were not recorded'));
+    }
     if (effects.outbound) {
       await boss.send(QUEUES.outbound, {
         businessId: input.businessId,

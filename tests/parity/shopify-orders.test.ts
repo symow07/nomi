@@ -298,3 +298,76 @@ describe('5.5 · connecting reads the grant Shopify really gave', () => {
     expect(readGrantedScopes({ errors: [{ message: 'x' }] })).toBeNull();
   });
 });
+
+/*
+ * t1r's ruling A (2026-11-10) — the owner's card reads where an order reply's figures came from. The worker keeps one
+ * `order_sourced` record beside an `order_facts` draft: the order's name and the order's facts INTERSECTED with the
+ * draft's own text. The reading names the order for those figures only; anything else still has no source.
+ */
+describe('5.5 · the card\'s reading of an order reply', async () => {
+  const { orderSourcedFigures, orderSourcedOf, rememberingOrderLookup } = await import('../../src/pipeline/orderSourced.js');
+  const { readReply } = await import('../../src/core/owner/reading.js');
+  const ORDER = {
+    name: '#NOMI-7701', placed_on: '2026-11-09', fulfillment: 'FULFILLED', payment: 'PAID',
+    shipments: [{ status: 'SUCCESS', display_status: 'IN_TRANSIT', expected_on: '2026-11-14', tracking: [{ number: 'AP5505-0000-8821' }] }],
+  } as const;
+  const REPLY = 'Your order #NOMI-7701 was placed on 9 November 2026 and is on its way.';
+  const read = (reply: string, orderFigures?: readonly number[]) =>
+    readReply({ reply, includeSmallFigures: true, productNames: [], quote: null, theirTexts: [], heldQuantity: null, ...(orderFigures ? { orderFigures } : {}) });
+  const sourceOf = (r: ReturnType<typeof read>, v: number): string | null => {
+    const l = r.lines.find((x) => x.kind === 'figure' && x.value === v);
+    return l?.kind === 'figure' ? l.source : null;
+  };
+
+  it('the record holds only the figures the reply writes: an order date, a tracking number or a month the reply does not state is not there', () => {
+    const figures = orderSourcedFigures(ORDER, REPLY);
+    expect(figures).toEqual([7701, 9, 2026]);
+    // The expected day (14), the month as a number (11), the tracking number's digits: in the order, not in the reply.
+    for (const absent of [14, 11, 5505, 8821]) expect(figures, String(absent)).not.toContain(absent);
+    expect(orderSourcedFigures(ORDER, 'Thanks, how else can I help?')).toEqual([]);
+  });
+
+  it('a figure from the order reads "from the order in Shopify"; without the record it has no source, as before', () => {
+    const withRecord = read(REPLY, orderSourcedFigures(ORDER, REPLY));
+    expect(sourceOf(withRecord, 9)).toBe('order');
+    expect(sourceOf(withRecord, 2026)).toBe('order');
+    expect(withRecord.everyFigureSourced).toBe(true);
+    const without = read(REPLY);
+    expect(sourceOf(without, 9)).toBe('unsourced');
+    expect(sourceOf(without, 2026)).toBe('unsourced');
+    expect(without.everyFigureSourced).toBe(false);
+  });
+
+  it('an invented date, and an owner\'s edit with a figure the record does not hold, still read "no source"', () => {
+    const recorded = orderSourcedFigures(ORDER, REPLY);
+    const invented = read('Your order #NOMI-7701 was placed on 9 November 2026 and arrives on 21 November.', recorded);
+    expect(sourceOf(invented, 9)).toBe('order');
+    expect(sourceOf(invented, 21)).toBe('unsourced');
+    // The owner's edit names the expected day: it IS in Shopify's order, but not in the record — so no source.
+    const edited = read('Your order #NOMI-7701 should reach you on 14 November.', recorded);
+    expect(sourceOf(edited, 14)).toBe('unsourced');
+    expect(edited.everyFigureSourced).toBe(false);
+  });
+
+  it('a malformed record is no record', () => {
+    expect(orderSourcedOf({ draftId: 'd', order: '#NOMI-7701', figures: [9, 2026] })).toEqual({ order: '#NOMI-7701', figures: [9, 2026] });
+    for (const bad of [null, 'x', {}, { order: '', figures: [] }, { order: '#1', figures: ['9'] }, { order: '#1', figures: 9 },
+      { order: 'x'.repeat(65), figures: [] }, { order: '#1', figures: Array.from({ length: 41 }, () => 1) }]) {
+      expect(orderSourcedOf(bad), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it('the remembering port passes every answer through and keeps only a verified order, for this one turn', async () => {
+    const answers = [{ kind: 'verified', order: ORDER }, { kind: 'refused' }, { kind: 'off' }] as const;
+    const m = rememberingOrderLookup({ look: async () => answers[0] });
+    expect(m.verified()).toBeNull();
+    expect(await m.port.look({ conversationId: 'c', orderName: '#NOMI-7701', email: null })).toBe(answers[0]);
+    expect(m.verified()).toBe(ORDER);
+    let i = 1;
+    const later = rememberingOrderLookup({ look: async () => answers[i]! });
+    for (; i < answers.length; i++) {
+      expect(await later.port.look({ conversationId: 'c', orderName: '#NOMI-7701', email: null })).toBe(answers[i]);
+      expect(later.verified()).toBeNull();
+    }
+  });
+});

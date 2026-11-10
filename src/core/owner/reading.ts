@@ -20,7 +20,7 @@ import { asciiDigits, extractNumerals, isSafeSmall, near } from '../safety/numer
  */
 
 export type ReadingSource =
-  | 'product' | 'price' | 'total' | 'discount' | 'minimum' | 'lead_time' | 'their_words' | 'unsourced';
+  | 'product' | 'price' | 'total' | 'discount' | 'minimum' | 'lead_time' | 'their_words' | 'order' | 'unsourced';
 
 export type ReadingLine =
   | { readonly kind: 'product'; readonly name: string }
@@ -51,6 +51,12 @@ export function readReply(input: {
    * line every owner reads said "No source for 300".
    */
   readonly productCodes?: readonly string[];
+  /**
+   * 5.5 — the figures of a verified Shopify order that this reply itself writes: the `order_sourced` record the worker
+   * keeps beside an `order_facts` draft (the order's facts INTERSECTED with the draft's own text, nothing else). A
+   * figure here reads "from the order in Shopify"; one that is not still reads as having no source. Absent: none.
+   */
+  readonly orderFigures?: readonly number[];
 }): { readonly lines: readonly ReadingLine[]; readonly everyFigureSourced: boolean } {
   const lines: ReadingLine[] = [];
   const lower = input.reply.toLocaleLowerCase();
@@ -78,6 +84,7 @@ export function readReply(input: {
     ...(input.heldQuantity !== null ? [input.heldQuantity] : []),
   ];
   const q = input.quote;
+  const fromOrder = (v: number): boolean => (input.orderFigures ?? []).some((o) => near(o, v));
   const sourceOf = (v: number): Exclude<ReadingSource, 'product'> => {
     if (q && near(v, q.unitPrice)) return 'price';
     if (q && near(v, q.total)) return 'total';
@@ -85,6 +92,7 @@ export function readReply(input: {
     if (q && q.moq !== null && near(v, q.moq)) return 'minimum';
     if (q && q.leadTimeDays !== null && near(v, q.leadTimeDays)) return 'lead_time';
     if ((q && near(v, q.quantity)) || theirs.some((t) => near(t, v))) return 'their_words';
+    if (fromOrder(v)) return 'order';
     return 'unsourced';
   };
 
@@ -113,6 +121,7 @@ export function readReply(input: {
         extractNumerals(raw).some((other) => near(other.value, n.value) && context(raw, other).kind === 'quantity')) : undefined;
       const source = c.kind === 'duration' && q?.leadTimeDays !== null && q?.leadTimeDays !== undefined && near(n.value, q.leadTimeDays) ? 'lead_time'
         : c.kind === 'quantity' && ((q && near(n.value, q.quantity)) || (input.heldQuantity !== null && near(n.value, input.heldQuantity)) || customerText !== undefined) ? 'their_words'
+        : fromOrder(n.value) ? 'order'
         : 'unsourced';
       lines.push({kind:'figure',value:n.value,source,words:c.words,...(customerText !== undefined ? {customerText} : {})});
       continue;
