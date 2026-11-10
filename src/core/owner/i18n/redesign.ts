@@ -21,6 +21,7 @@ import { SETUP_MINUTES_EN } from './setupMinutes.js';
 import { FOLLOW_UPS_EN } from './followUps.js';
 import { WA_CATALOGUE_EN } from './waCatalogue.js';
 import { SHOPIFY_ORDERS_EN } from './shopifyOrders.js';
+import { AD_SPEND_EN } from './adSpend.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -51,6 +52,7 @@ export const REDESIGN_EN = {
   ...FOLLOW_UPS_EN,
   ...WA_CATALOGUE_EN,
   ...SHOPIFY_ORDERS_EN,
+  ...AD_SPEND_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

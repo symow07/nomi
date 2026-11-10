@@ -196,4 +196,8 @@ export const COOKIES: readonly NomiCookie[] = [
     name: 'yf_wa', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of a WhatsApp number connection in progress, checked when Meta sends the person back.',
   },
+  {
+    name: 'yf_ads', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
+    reason: 'The state of an ad account connection in progress (ad spend), checked when Meta sends the person back.',
+  },
 ];
