@@ -490,7 +490,9 @@ import type { Db } from './client.js';
 //       it, a re-read's history, every read's outcome, and a month and placement recorded as a cost (0238).
 // 239 = a row may point only at its own workspace's rows: outbound messages, quotes and conversations refuse another
 //       workspace's conversation, quote or client, and the three targets' workspace never changes (0239).
-export const REQUIRED_SCHEMA_VERSION = 239;
+// 241 = a bank match names only its own workspace's journal line: the match rule reads both lines in the match's
+//       workspace and refuses one it does not find (0241; 0240 is held for another branch).
+export const REQUIRED_SCHEMA_VERSION = 241;
 
 export type SchemaState = {
   readonly required: number;
