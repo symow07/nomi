@@ -136,6 +136,8 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   // A customer's data deleted now (G1, fix round 4): the second stage, as the page that asks sends it — the first stage
   // (no `asked`) is the forms' and B's drawn forms'. The note says how they asked: nothing was noted from their message.
   '/app/conversations/:conversationId/deletion/erase': { asked: '1', note: 'authz: asked by phone' },
+  // A question for the Copilot and for the help panel (G3, fix round 4): the scripted advisor model answers both.
+  '/app/inbox/:conversationId/copilot': { q: 'What did they ask about?' }, '/app/help/ask': { q: 'How do I add a product?' },
   // How you sell (G2): the hours answered, then its one line ticked on the confirm page.
   '/app/business/selling/:q': { hours: 'Monday to Friday, 9 to 5' }, '/app/business/selling/:q/confirm': { 'line:hours': 'on' },
   '/app/books/bank/columns': { preview: '[["date","amount","label"],["2026-04-20","100","authz"]]', sep: ',', headerRow: '0', date: '0', dateFormat: 'YYYY-MM-DD',
@@ -360,8 +362,6 @@ const flashReason = (res: { headers: Record<string, unknown> }): string => {
  * reason in this list is checked against what the route says, every run. `why` says what that answer means here.
  */
 const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
-  "POST /app/inbox/:conversationId/copilot": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
-  "POST /app/help/ask": ["200, nothing written", "an answer page: it reads and writes nothing (no model in the walk)"],
   "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
   "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
@@ -875,6 +875,21 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       v['creditNote2'] = (await admin.query(`insert into credit_notes (business_id, invoice_id, issue_date, currency, reason, created_by) values ($1, $2, '2026-04-21', 'MAD', $3, 'owner') returning id::text as id`,
         [v['W'], v['invoiceIssued'], `Credit 2 ${v['MARK']}`])).rows[0].id as string;
     }
+    /**
+     * G3 (fix round 4) — THE ADVISOR'S MODEL, SCRIPTED: a local stand-in, never a provider (the walk's LLM_BASE_URL points
+     * nowhere, and the network guard refuses any connection). It names the conversation's summary where that is offered,
+     * else the first entry it is offered, and words an answer from the facts it is given alone — so the Copilot answers and
+     * keeps its thread, the help panel answers, and both meter the question: writes the walk judges. A hole that handed
+     * it B's rows would put B's marker in the answer.
+     */
+    const usage = { inputTokens: 0, outputTokens: 0 };
+    const advisorModel: import('../../src/llm/ports.js').AdvisorModel = {
+      recognise: async ({ entries }) => {
+        const pick = entries.find((e) => e.id === 'summarise_chat') ?? entries[0];
+        return { pick: pick ? { id: pick.id, period: null, customer: null, product: null, reference: null } : null, usage };
+      },
+      phrase: async ({ facts }) => ({ text: facts.join(' ') || null, usage }),
+    };
     const make = async (name: 'A' | 'B' | 'C', w: string, ns: string, seeded: Record<string, string>, record: boolean): Promise<WS> => {
       // AUTHZ_WALK_LOG=1: the routes' own error log, to read why one answered 5xx (never on by default).
       const app = Fastify({ logger: process.env['AUTHZ_WALK_LOG'] ? { level: 'error' } : false });
@@ -886,7 +901,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         // The Copilot's read-only port, so its summary reads (it answered 503 without one, and a 5xx now fails the walk);
         // the domain check's lookup, which production always passes (no network here: every record reads as absent);
         // and the advisor's history (R2), which production composes, so its routes reach their ids.
-        advisorDb: db, resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }), advisorMemory: memory, documents,
+        advisorDb: db, resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }), advisorMemory: memory, documents, advisorModel,
       } as unknown as Parameters<typeof registerWebApp>[1]);
       await app.ready();
       const personCode = `P${name}${RUN.slice(0, 2).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}-${RUN.slice(2, 7).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}`;
