@@ -829,7 +829,28 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
   };
   /** One call, judged; a walk that signed itself out (a password changed, a session ended) signs in again and calls once more. */
   type Body = { kind: 'form'; data: string } | { kind: 'json'; data: string } | { kind: 'multipart'; data: Buffer; type: string } | null;
+  /**
+   * Fix round 4 (G3) — the moment before a pass's late calls, the ones that take A's rows away (history switched off,
+   * forget, purge, erase, close, withdraw): what A holds of B's is judged THEN as well. The end's check alone could not
+   * see a row such a call deleted — every pass ends by switching the advisor's history off, which deletes every thread
+   * the pass's own calls kept, so B's id kept in one was gone before it was read.
+   */
+  const DELETES = /\/advisor-history\/(workspace|me)$|\/(forget|purge|erase|close|withdraw)(\/|$)/;
+  let lastDeleting = true; let checkpoints = 0; const heldMid: string[] = [];
+  const checkpoint = async (method: string, url: string) => {
+    const path = url.split('?')[0]!;
+    const deleting = DELETES.test(path);
+    if (deleting && !lastDeleting && theirs.size > 0) {
+      checkpoints++;
+      for (const [t, h] of await heldBy(admin, scopes, A, theirs)) {
+        const line = `${pass}, before ${method} ${path}: ${t}: ${h.n} row(s) ${JSON.stringify(h.shapes)}`;
+        if (h.n > (heldBefore.get(t)?.n ?? 0) && !heldMid.includes(line)) heldMid.push(line);
+      }
+    }
+    lastDeleting = deleting;
+  };
   const callAs = async (s: WS, method: string, url: string, body: Body, where: string) => {
+    if (s === ws.A && pass !== 'reach') await checkpoint(method, url);
     const go = () => s.app.inject({ method: method as 'POST', url, headers: { cookie: AS_PERSON.test(url) && s.personCookie ? s.personCookie : s.cookie,
       ...(body ? { 'content-type': body.kind === 'form' ? 'application/x-www-form-urlencoded' : body.kind === 'json' ? 'application/json' : body.type } : {}) },
       ...(body ? { payload: body.data } : {}) });
@@ -1171,6 +1192,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     };
     // ── 5. A's real forms, crawled first, while A is whole ────────────────────────────────────────────────────────
     pass = 'forms';
+    await restoreAdvisor();   // the reach check's late calls switched the history off; A's forms are crawled with it on
     const { pages, forms, copies } = !runs('forms') ? { pages: new Set<string>(), forms: [] as Form[], copies: new Map<string, Form[]>() } : await crawl(ws.A);
     // Any field a drawn form fills with an id is an id field, listed or not (the audit's list missed `saved`, R3):
     // the later passes put B's ids in it too.
@@ -1319,7 +1341,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       writeFileSync(report, JSON.stringify({ routes: walk.length, calls, passCalls, pages: pages.size, forms: forms.length, relogins, ids: ids.length,
         idFields: idFields.length, statuses: Object.fromEntries(statuses), errors: errors.slice(0, 400), shown: [...new Set(shown)].slice(0, 100),
         addedIdFields, reached: [...reach.values()].filter((o) => o === 'reached').length, aliases: [...reach.values()].filter((o) => o.startsWith('alias of ')).length,
-        passSeconds: Object.fromEntries(Object.entries(passMs).map(([k, v]) => [k, Math.round(v / 1000)])), sent5xx, unreached: Object.fromEntries(unreached), notListed, nowReached, otherwise, binaries: binaries.length, unreadable, formsOfB: [...drawnB.copies.values()].flat().length }, null, 1));
+        checkpoints, heldMid, passSeconds: Object.fromEntries(Object.entries(passMs).map(([k, v]) => [k, Math.round(v / 1000)])), sent5xx, unreached: Object.fromEntries(unreached), notListed, nowReached, otherwise, binaries: binaries.length, unreadable, formsOfB: [...drawnB.copies.values()].flat().length }, null, 1));
     }
     if (reachOnly) {
       expect([...new Set(errors)], `routes answered 5xx:\n${[...new Set(errors)].join('\n')}`).toEqual([]);
@@ -1346,6 +1368,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     if (!only) expect(forms.length, 'the crawl found A\'s forms').toBeGreaterThan(50);
     expect(changed, `B's rows changed:\n${changed.join('\n')}`).toEqual([]);
     expect(held, `A's rows hold B's ids:\n${held.join('\n')}`).toEqual([]);
+    expect(checkpoints, 'A held was judged before each pass\'s deleting calls').toBeGreaterThan(only ? 0 : 3);
+    expect(heldMid, `A's rows held B's ids before a deleting call took them away:\n${heldMid.join('\n')}`).toEqual([]);
     expect(across, `rows point across workspaces:\n${across.join('\n')}`).toEqual([]);
     expect(unproven.slice(0, 40), `answers that are not words and not provably A's own:\n${unproven.slice(0, 40).join('\n')}`).toEqual([]);
     expect(unreadable.slice(0, 40), `files the walk could not open to look inside:\n${unreadable.slice(0, 40).join('\n')}`).toEqual([]);
