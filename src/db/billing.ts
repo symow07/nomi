@@ -53,7 +53,7 @@ export async function billingState(tx: Tx): Promise<BillingState> {
  * The plans a workspace may choose: those on offer that the refund terms describe (core/billing/refunds.ts). The
  * database already refuses any other (0134); this keeps the page's promise if that ever changes first.
  */
-export async function plansOnOffer(tx: Tx): Promise<Plan[]> {
+export async function plansOnOffer(tx: Tx | Db): Promise<Plan[]> {
   return (await sql<{ id: string; name: string; amount_minor: number; currency: string; period: 'month' | 'year';
     customers_a_month: number; seats: number | null; assistants: number | null; stripe_price_id: string }>`
     select * from plans_on_offer()`.execute(tx)).rows.map((p) => ({
@@ -68,9 +68,24 @@ export async function selfServeTrialDays(db: Db): Promise<number | null> {
   return typeof d === 'number' && d > 0 ? d : null;
 }
 
-/** The hold: the payment lapsed (never a pilot). */
+/**
+ * The hold (never a pilot): the payment lapsed, or (0240) the trial is over with no card saved while one is needed.
+ * One question for everything D4 freezes.
+ */
 export async function billingHeld(tx: Tx): Promise<boolean> {
   return (await sql<{ h: boolean }>`select billing_held() as h`.execute(tx)).rows[0]?.h === true;
+}
+
+/** The installation's switch `billing_required` (0240's `billing_required_on()`): the trial's end holds only while it is on. */
+export async function billingRequiredOn(tx: Tx | Db): Promise<boolean> {
+  return (await sql<{ on: boolean }>`select billing_required_on() as on`.execute(tx)).rows[0]?.on === true;
+}
+
+/** Which hold (0240): the subscription lapsed, or the trial ended with no card. Null: none. */
+export type BillingHold = 'lapsed' | 'trial_over';
+export async function billingHoldReason(tx: Tx): Promise<BillingHold | null> {
+  const r = (await sql<{ r: string | null }>`select billing_hold_reason() as r`.execute(tx)).rows[0]?.r;
+  return r === 'lapsed' || r === 'trial_over' ? r : null;
 }
 
 /** A new customer this month, past what the plan allows. */
@@ -145,10 +160,29 @@ export async function recordSubscribed(db: Db, s: {
   await sql`select billing_subscribed(${s.businessId}::uuid, ${s.subscriptionId}, ${s.status}, ${s.trialStartedAt}, ${s.trialEnd}, ${s.periodEnd})`.execute(db);
 }
 
-export type BillingAlertKind = 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit';
+export type BillingAlertKind = 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit' | 'billing_trial_over';
 
 export async function claimBillingAlerts(db: Db): Promise<{ businessId: string; kind: BillingAlertKind; at: Date | null }[]> {
   return (await sql<{ business_id: string; kind: BillingAlertKind; at: Date | null }>`
     select business_id::text as business_id, kind, at from claim_billing_alerts()`.execute(db)).rows
     .map((r) => ({ businessId: r.business_id, kind: r.kind, at: r.at }));
+}
+
+/**
+ * 4.1 — what the public site may say about the price: the plans the operator defined from a Stripe price (never a
+ * figure typed into the product), the trial new workspaces start with (null: on request), and whether a card is
+ * asked before the first channel (`billing_required`, for everyone). Null — no section, the site as rule 12 has it —
+ * when no plan is on offer, or the database does not answer.
+ */
+export type SitePricing = { readonly plans: readonly Plan[]; readonly trialDays: number | null; readonly cardFirst: boolean };
+export async function sitePricing(db: Db): Promise<SitePricing | null> {
+  try {
+    const plans = await plansOnOffer(db);
+    if (plans.length === 0) return null;
+    const trialDays = await selfServeTrialDays(db);
+    const cardFirst = await billingRequiredOn(db);
+    return { plans, trialDays, cardFirst };
+  } catch {
+    return null;
+  }
 }

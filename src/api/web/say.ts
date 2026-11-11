@@ -54,6 +54,8 @@ export type RequestScope = {
   readonly country?: string | null;
   /** D4 (2026-10-12) — the subscription lapsed: the workspace is frozen, and every page says so. */
   readonly frozen?: boolean;
+  /** 4.1 (0240) — why it is frozen: the subscription lapsed, or the trial ended with no card. */
+  readonly frozenWhy?: 'lapsed' | 'trial_over' | null;
   /** A6 (0176) — the books are switched on for this workspace. */
   readonly books?: boolean;
   readonly exportTrade?: boolean;
@@ -79,7 +81,7 @@ export const withAssistantName = <T>(
   const outer = scope.getStore();
   return scope.run({
     name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
-    needsYou: outer?.needsYou ?? null, needsYouAt: outer?.needsYouAt ?? null, frozen: outer?.frozen ?? false,
+    needsYou: outer?.needsYou ?? null, needsYouAt: outer?.needsYouAt ?? null, frozen: outer?.frozen ?? false, frozenWhy: outer?.frozenWhy ?? null,
     books: outer?.books ?? false, ...(outer?.viewerRole ? { viewerRole: outer.viewerRole } : {}),
   }, fn);
 };
@@ -97,6 +99,8 @@ export const withNeedsYou = <T>(needsYou: number | null, fn: () => T): T => {
 
 /** D4 — is this workspace frozen (its subscription lapsed)? Outside a scope: no. */
 export const workspaceFrozen = (): boolean => scope.getStore()?.frozen ?? false;
+/** 4.1 — why: 'trial_over' when the trial ended with no card saved; else the lapse D4 was written for. */
+export const workspaceFrozenWhy = (): 'lapsed' | 'trial_over' => scope.getStore()?.frozenWhy === 'trial_over' ? 'trial_over' : 'lapsed';
 
 /** A6 — are the books switched on for this workspace? Outside a scope: no. */
 export const exportSettingsShown = (): boolean => scope.getStore()?.exportTrade ?? true;

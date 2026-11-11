@@ -36,7 +36,9 @@ export type TakeoverOutcome =
   /** G3 — the same, because the day's allowance is used. */
   | 'allowance_used'
   // BILL (0117) — the payment lapsed: the same refusal, under its own name.
-  | 'billing_lapsed';
+  | 'billing_lapsed'
+  // 4.1 (0240) — the trial ended with no card saved: the same refusal, under its own name.
+  | 'billing_trial_over';
 export type TakeoverResult = { readonly outcome: TakeoverOutcome; readonly ownership: ConversationOwnership | null };
 
 /** Read assigned_to for a tenant-owned conversation. null row = not this tenant's. */

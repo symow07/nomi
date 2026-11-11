@@ -490,7 +490,9 @@ import type { Db } from './client.js';
 //       it, a re-read's history, every read's outcome, and a month and placement recorded as a cost (0238).
 // 239 = a row may point only at its own workspace's rows: outbound messages, quotes and conversations refuse another
 //       workspace's conversation, quote or client, and the three targets' workspace never changes (0239).
-export const REQUIRED_SCHEMA_VERSION = 239;
+// 240 = the trial's end wired to `billing_required`: a workspace with no card whose trial is over is held as a lapse
+//       is, told once (`told_trial_over_at`, `billing_hold_reason()`) (0240).
+export const REQUIRED_SCHEMA_VERSION = 240;
 
 export type SchemaState = {
   readonly required: number;
