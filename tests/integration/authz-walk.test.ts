@@ -669,7 +669,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // A draft sequence for steps (the seeded one is approved during the walk; a sequence changes only as a draft).
     await one('sequence2', `insert into sequences (business_id, name, created_by) values ($W, 'Draft 2 ' || $MARK, 'owner') returning id::text as id`);
     // An order not yet in the books (the seeded one is the issued invoice's), for "draft its invoice".
-    await one('orderBook', `insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit, status, total_value_usd, currency) values ('AZB-' || $MARK, $W, $client, $conv4, $product, 10, 'pcs', 'confirmed', 20, 'MAD') returning id::text as id`);
+    // The conversation's own customer, as the order writer takes it (the erase tool refuses an order that sits in another
+    // customer's conversation, and found this seed doing so).
+    await one('orderBook', `insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit, status, total_value_usd, currency)
+      select 'AZB-' || $MARK, $W, c.client_id, c.id, $product, 10, 'pcs', 'confirmed', 20, 'MAD' from conversations c where c.id = $conv4 returning id::text as id`);
     await one('importPhoto', `insert into catalog_import_photos (business_id, import_id, position, media_type, bytes, transcript) values ($W, $catalogImport, 1, 'image/png', decode('${PNG.toString('hex')}', 'hex'), 'Bag ' || $MARK || ' 3.00') returning id::text as id`);
     // The photo Nomi serves for the product (0152), so B has one a broken "remove the photo" would delete — without it
     // that route had nothing of B's to take, and a remove under the body's workspace passed the walk (my break N5).
