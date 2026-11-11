@@ -133,6 +133,9 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   // An answer the owner gave, taught or set aside by its question (no id: the question is the key).
   '/app/knowledge/answers/teach': { question: 'How long is delivery?', label: 'Delivery', content: 'Three days' },
   '/app/knowledge/answers/dismiss': { question: 'Do you ship abroad?' },
+  // A customer's data deleted now (G1, fix round 4): the second stage, as the page that asks sends it — the first stage
+  // (no `asked`) is the forms' and B's drawn forms'. The note says how they asked: nothing was noted from their message.
+  '/app/conversations/:conversationId/deletion/erase': { asked: '1', note: 'authz: asked by phone' },
   // How you sell (G2): the hours answered, then its one line ticked on the confirm page.
   '/app/business/selling/:q': { hours: 'Monday to Friday, 9 to 5' }, '/app/business/selling/:q/confirm': { 'line:hours': 'on' },
   '/app/books/bank/columns': { preview: '[["date","amount","label"],["2026-04-20","100","authz"]]', sep: ',', headerRow: '0', date: '0', dateFormat: 'YYYY-MM-DD',
@@ -196,6 +199,8 @@ const ROUTE_OWN: Record<string, Record<string, string>> = {
   '/app/assistant/knowledge/readings/:id': { id: 'proposal' }, '/app/assistant/knowledge/readings/:id/again': { id: 'proposal' },
   '/app/knowledge/from-page/:id': { id: 'proposal' }, '/app/knowledge/from-page/:id/again': { id: 'proposal' }, '/app/knowledge/from-page/:id/confirm': { id: 'proposal' },
   '/app/assistant/ask/:id': { id: 'advisorThread' },
+  // The erasure takes a customer of its own (G1): every conversation of that customer goes with them.
+  '/app/conversations/:conversationId/deletion/erase': { conversationId: 'convErase' },
   '/app/inbox/:conversationId/act': { conversationId: 'conv4' }, '/app/inbox/:conversationId/translate': { conversationId: 'conv4' },
   '/app/knowledge/:id/restore': { id: 'knowledgeArchived' },
   // What is done with an issued invoice (a credit note, a payment, a refund, sending it) is done with the issued one.
@@ -358,7 +363,6 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/inbox/:conversationId/copilot": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
   "POST /app/help/ask": ["200, nothing written", "an answer page: it reads and writes nothing (no model in the walk)"],
   "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
-  "POST /app/conversations/:conversationId/deletion/erase": ["200, nothing written", "answers a confirmation page first (writes nothing until confirmed with the customer's name)"],
   "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/settings/business/shopify/connect": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
@@ -752,6 +756,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('clientGone', `insert into clients (business_id, display_name) values ($W, 'Gone ' || $MARK) returning id::text as id`);
     await one('deletionRequest', `insert into deletion_requests (business_id, scope, client_id, asked_by) values ($W, 'buyer', $clientGone, 'owner') returning id::text as id`);
     await one('enrollmentWaiting', `insert into sequence_enrollments (business_id, sequence_id, identity, enrolled_by, awaiting_confirmation_since) values ($W, $sequenceLive, 'waiting-' || $MARK || '@example.com', 'owner', now()) returning id::text as id`);
+    // G1 (fix round 4): a customer of its own, with a conversation and a message, for "delete this customer's data now".
+    await one('clientErase', `insert into clients (business_id, display_name) values ($W, 'Erase ' || $MARK) returning id::text as id`);
+    await one('convErase', `insert into conversations (business_id, client_id, channel) values ($W, $clientErase, 'whatsapp') returning id::text as id`);
+    await one('msgErase', `insert into messages (conversation_id, direction, text_content) values ($convErase, 'inbound', 'Delete me ' || $MARK) returning id::text as id`);
     await one('resultAccount', `insert into accounts (business_id, code, name, kind) values ($W, '1191', 'Result ' || $MARK, 'equity') returning id::text as id`);
     return v;
   };

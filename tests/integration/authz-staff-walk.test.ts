@@ -45,6 +45,9 @@ const WORDS = {
   date: '2026-04-20', name: 'Authz Walk', price: '3', floor: '0.5', maxDiscountPct: '10', askAbovePct: '5', rate: '7', level: 'sells',
   phone: '+971500009999', label: 'x', domain: 'example.com', selector: 's1', which: 'owner_ready', channel: 'whatsapp', enabled: 'true',
   locale: 'en', tone: 'plain', length: 'short', emoji: 'never',
+  // A customer's data deleted now (G1, fix round 4): the second stage, as the page that asks sends it. Only that route
+  // and the workspace's own closure read it (the closure refuses the installation's own workspace first).
+  asked: '1',
 };
 
 /** The sales job (people.ts, OWNER_ONLY's comment): reply, take over, hand back, label, name a customer, record an opt-out, the profile. */
@@ -61,6 +64,8 @@ const OWNER_REACHED = [
   'POST /app/settings/rate', 'POST /app/settings/samples', 'POST /app/business/deactivate', 'POST /app/business/allowlist/add',
   'POST /app/channels/domain', 'POST /app/onboarding/assistant-name', 'POST /app/books/chart/cgnc', 'POST /app/settings/books/invoices-out',
   'GET /app/conversations/:conversationId/copy.csv', 'POST /app/settings/identifiers',
+  // G1 — the erasure's second stage: the owner's walk deletes a customer; staff's never got past the gate.
+  'POST /app/conversations/:conversationId/deletion/erase',
 ];
 
 /**
@@ -316,7 +321,7 @@ d('Authorization audit · staff and the accountant on every route (requires DATA
     for (const r of OWNER_ONLY_ROUTES) {
       const [method, path] = r.split(' ') as [string, string];
       const url = path.replace(/:(\w+)/g, () => ids[0]!);
-      const res = await app.inject({ method: method as 'POST', url, ...(method === 'POST' ? { payload: 'confirm=yes', headers: { cookie: cookies.team, 'content-type': 'application/x-www-form-urlencoded' } } : { headers: { cookie: cookies.team } }) });
+      const res = await app.inject({ method: method as 'POST', url, ...(method === 'POST' ? { payload: 'confirm=yes&asked=1', headers: { cookie: cookies.team, 'content-type': 'application/x-www-form-urlencoded' } } : { headers: { cookie: cookies.team } }) });
       const said = flashSaid(res, SECRET);
       if (res.statusCode !== 302 || said !== notice) answered.push(`${r}: ${res.statusCode} ${String(res.headers['location'] ?? '')} ${said}`);
     }
