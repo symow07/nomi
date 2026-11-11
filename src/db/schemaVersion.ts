@@ -492,7 +492,9 @@ import type { Db } from './client.js';
 //       workspace's conversation, quote or client, and the three targets' workspace never changes (0239).
 // 240 = the trial's end wired to `billing_required`: a workspace with no card whose trial is over is held as a lapse
 //       is, told once (`told_trial_over_at`, `billing_hold_reason()`) (0240).
-export const REQUIRED_SCHEMA_VERSION = 240;
+// 242 = KS6's "connected before" is 0240's `first_channel_at()`: a workspace that ever connected any channel kind is
+//       never asked for approval again (0242).
+export const REQUIRED_SCHEMA_VERSION = 242;
 
 export type SchemaState = {
   readonly required: number;
