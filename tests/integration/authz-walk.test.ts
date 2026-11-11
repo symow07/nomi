@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { inflateRawSync, inflateSync } from 'node:zlib';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify from 'fastify';
@@ -14,7 +15,7 @@ import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
  * The authorization audit (Block 7) — WORKSPACE A'S OWNER, EVERY ROUTE, WORKSPACE B'S IDS. STATE, NOT STATUS.
  *
  * Signed in as A's owner (the most a session can do), the web app's routes are called with B's ids, and what is
- * judged is what the DATABASE holds afterwards, never what a route answered. Five passes:
+ * judged is what the DATABASE holds afterwards, never what a route answered. Six passes:
  *
  *   1. every route, each of B's ids in every path parameter, every id field and the query (urlencoded; GET by query);
  *   2. the same as JSON, for every route that takes a body;
@@ -23,7 +24,11 @@ import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
  *      ids of the matching table and every other id is A's own, with plain values in the words a form wants first —
  *      a route that needs A's own account beside B's journal line now reaches the line (the bank match, finding 1);
  *   5. A'S REAL FORMS: A's pages are crawled while A is intact, every form found is submitted as drawn, with one
- *      id-holding field (or an id in its address) swapped for each of B's ids of the same table.
+ *      id-holding field (or an id in its address) swapped for each of B's ids of the same table;
+ *   6. B'S OWN REQUESTS UNDER A'S SESSION (fix round 3, F1): every form B's own pages draw, as drawn, and every route as
+ *      B's owner would call it — B's ids TOGETHER (a conversation and its proposal, a sequence and its enrolment).
+ *
+ * In every pass B's ids go in the QUERY of a POST as they go in its body (F3), B's workspace id among them.
  *
  * An id field is any field the audit's list names, any name ending in `Id`/`_id` that src/api spells, `reading`, and
  * any form field that holds a UUID. Then, over the database:
@@ -32,7 +37,9 @@ import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
  *      one of them by a key (messages, price tiers …), reads byte for byte as before;
  *   b. no A row holds any of B's ids — anywhere in the row, key or text or JSON (`assigned_to`, an event's payload);
  *   c. no single-column key between two workspace tables points from A to B or back;
- *   d. nothing of B is shown — B's rows carry a marker in their words, and no body or redirect contains it;
+ *   d. nothing of B is shown — B's rows carry a marker in their words and B's files in their bytes, and no answer or
+ *      redirect contains it: not a page, not a picture, not an entry of a zip or workbook once opened, not a PDF's
+ *      streams. An answer that is not words must be bytes A keeps or this walk sent, or it fails (F2);
  *   e. no route answered 5xx.
  *
  * What it still cannot see: a value no form of A draws and no handler names (a typed confirmation of a name it does not
@@ -65,7 +72,7 @@ const LISTED_ID_FIELDS = ['account', 'account_id', 'assistant', 'back', 'categor
   'match', 'messageId', 'number_id', 'orderId', 'page_id', 'party', 'partyId', 'payFrom', 'pay_from', 'person', 'personId', 'photo',
   'product', 'productId', 'proposal', 'proposalId', 'quoteId', 'realmId', 'recurring', 'request', 'requestId', 'run', 'runId',
   'scenarioId', 'saved', 'sequence', 'source', 'sourceId', 'subscription', 'supplier', 'supplierId', 'tax', 'taxCode', 'tax_code', 'thread',
-  'to', 'waba_id', 'year', 'category_id', 'party_id', 'tax_code_id', 'substitute', 'substituteId', 'procedure', 'case', 'check', 'reading',
+  'to', 'waba_id', 'year', 'result', 'category_id', 'party_id', 'tax_code_id', 'substitute', 'substituteId', 'procedure', 'case', 'check', 'reading',
   ...['businessId', 'business_id', 'business', 'workspace', 'workspaceId', 'workspace_id', 'tenant', 'tenantId']];
 /** The fields that name a WORKSPACE (R3): B's own id goes there wherever the walk offers B's ids, and A's among A's own. */
 const BUSINESS_FIELDS = new Set(['businessId', 'business_id', 'business', 'workspace', 'workspaceId', 'workspace_id', 'tenant', 'tenantId']);
@@ -114,7 +121,23 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((i) => [[`account${i}`, ''], [`quantity${i}`, ''], [`price${i}`, ''], [`label${i}`, ''], [`tax${i}`, '']])) }])),
   ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
   '/app/settings/closures': { from: '2026-12-01', to: '2026-12-02' },
+  // Fix round 3 (F4, F6): what each of these reads before it reads an id. A year's close names the account its result
+  // goes to and the journal; a follow-up is confirmed at its position; a reading's lines are ticked by key; a request
+  // is withdrawn by its id; a state's tax names the state; a statement's columns are chosen over its first rows.
+  '/app/books/closing/year': { result: '@resultAccount', journal: '@journal_general' },
+  '/app/sequences/:id/enrollments/:eid/confirm': { position: '1' },
+  '/app/knowledge/from-page/:id/confirm': { 'line:k1': 'on' },
+  '/app/settings/data/withdraw': { id: '@deletionRequest' },
+  '/app/books/country/state-tax': { state: 'CA' },
+  '/app/books/taxes/start': { system: 'odoo', code: 'T20', from: '2026-01-01' },
+  // An answer the owner gave, taught or set aside by its question (no id: the question is the key).
+  '/app/knowledge/answers/teach': { question: 'How long is delivery?', label: 'Delivery', content: 'Three days' },
+  '/app/knowledge/answers/dismiss': { question: 'Do you ship abroad?' },
+  '/app/books/bank/columns': { preview: '[["date","amount","label"],["2026-04-20","100","authz"]]', sep: ',', headerRow: '0', date: '0', dateFormat: 'YYYY-MM-DD',
+    shape: 'single', amount: '1', decimal: '.', description: '2', currency: '', reference: '', out: '', in: '' },
 };
+/** A route a PERSON's session calls (F6): a phone is removed by the person it belongs to, never by the access-code owner. */
+const AS_PERSON = /^\/app\/settings\/alerts\/phone\/[^/]+\/remove(\?|$)/;
 /** A field drawn once per line (`account0`, `party3`) is its line's `account`, `party`. */
 const baseOf = (f: string) => f.replace(/\d+$/, '');
 /** The table an id field names, where the field's name says it. A field not here takes any of B's ids. */
@@ -133,7 +156,7 @@ const FIELD_TABLES: Record<string, readonly string[]> = {
   import: ['catalog_imports', 'contact_imports', 'statement_imports'], importId: ['catalog_imports', 'contact_imports'],
   saved: ['saved_replies'], sequence: ['sequences'], procedure: ['procedures'], case: ['case_checks'], check: ['case_checks'], subscription: ['push_subscriptions'],
   request: ['deletion_requests'], requestId: ['deletion_requests'], photo: ['product_images'], thread: ['advisor_threads'],
-  salesJournal: ['journals'], receivable: ['accounts'], sales: ['accounts'], fxLoss: ['accounts'], fxGain: ['accounts'],
+  result: ['accounts'], salesJournal: ['journals'], receivable: ['accounts'], sales: ['accounts'], fxLoss: ['accounts'], fxGain: ['accounts'],
   ...Object.fromEntries([...BUSINESS_FIELDS].map((f) => [f, ['businesses']])),
 };
 /**
@@ -143,7 +166,7 @@ const FIELD_TABLES: Record<string, readonly string[]> = {
  */
 const FIELD_OWN: Record<string, string | readonly string[]> = {
   account: 'bank', account_id: 'bank', payFrom: 'bank', pay_from: 'bank',
-  line: ['stmtLine', 'stmtLine2', 'stmtLine3'], journalLine: ['jline', 'jline_2', 'jline_3'],
+  line: ['stmtLine', 'stmtLine2', 'stmtLine3'], journalLine: ['jline', 'jline_2', 'jline_3'], match: 'stmtMatch', request: 'deletionRequest', requestId: 'deletionRequest', result: 'resultAccount',
   category: 'category', category_id: 'category', party: 'party', partyId: 'party', party_id: 'party', supplier: 'party', supplierId: 'party',
   tax: 'tax', taxCode: 'tax', tax_code: 'tax', tax_code_id: 'tax', journal: 'journal', year: 'fy', entry: 'entry', entryId: 'entry',
   invoice: 'invoice', invoiceId: 'invoice', clientId: 'client', conversationId: 'conv', draftId: 'draft', orderId: 'order', label: 'label',
@@ -162,7 +185,7 @@ const ROUTE_OWN: Record<string, Record<string, string>> = {
   '/app/settings/alerts/phone/:id/remove': { id: 'phone' },
   '/app/books/spending/bills/:id/pay': { id: 'bill' }, '/app/books/spending/proposals/:id/post': { id: 'spendingProposal' },
   '/app/books/spending/proposals/:id/skip': { id: 'spendingProposal2' }, '/app/books/entries/:id/discard': { id: 'draftEntry2' }, '/app/business/prices/volume/:id/archive': { id: 'volume' },
-  '/app/sequences/:id/enrollments/:eid/confirm': { id: 'sequenceLive', eid: 'enrollment' }, '/app/sequences/:id/enrollments/:eid/stop': { id: 'sequenceLive', eid: 'enrollment' },
+  '/app/sequences/:id/enrollments/:eid/confirm': { id: 'sequenceLive', eid: 'enrollmentWaiting' }, '/app/sequences/:id/enrollments/:eid/stop': { id: 'sequenceLive', eid: 'enrollment' },
   '/app/inbox/:conversationId/follow-ups/:runId/skip': { runId: 'run' }, '/app/faces/:clientId': { clientId: 'face' },
   '/app/assistant/knowledge/checks/:id': { id: 'caseCheck' }, '/app/assistant/knowledge/checks/:id/keep': { id: 'caseCheck' },
   '/app/assistant/knowledge/checks/:id/revert': { id: 'caseCheck2' }, '/app/products/import/:importId/photo/:n': { importId: 'catalogImport', n: '=1' },
@@ -256,6 +279,41 @@ const multipart = (fields: Record<string, string>, file: { field: string; name: 
 };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const CSV = Buffer.from('date,amount,label\n2026-04-20,100,authz\n');
+const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+/** What a zip (a workbook, an export) holds once opened: each entry's name and bytes. `null` when it cannot be read. */
+const unzipped = (buf: Buffer): Buffer[] | null => {
+  const out: Buffer[] = [];
+  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (eocd < 0) return null;
+  try {
+    const n = buf.readUInt16LE(eocd + 10); let p = buf.readUInt32LE(eocd + 16);
+    for (let i = 0; i < n; i++) {
+      if (buf.readUInt32LE(p) !== 0x02014b50) return null;
+      const method = buf.readUInt16LE(p + 10); const size = buf.readUInt32LE(p + 20);
+      const nameLen = buf.readUInt16LE(p + 28); const extraLen = buf.readUInt16LE(p + 30); const commentLen = buf.readUInt16LE(p + 32);
+      const local = buf.readUInt32LE(p + 42);
+      const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+      const data = buf.subarray(start, start + size);
+      if (method !== 0 && method !== 8) return null;
+      out.push(buf.subarray(p + 46, p + 46 + nameLen), method === 8 ? inflateRawSync(data) : data);
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+  } catch { return null; }
+  return out;
+};
+/** A PDF's streams, opened where they are deflated. `null` when one cannot be read. */
+const pdfStreams = (buf: Buffer): Buffer[] | null => {
+  const out: Buffer[] = [buf];
+  if (!buf.includes('/FlateDecode')) return out;
+  let at = 0;
+  for (;;) {
+    const s0 = buf.indexOf('stream', at); if (s0 < 0) break;
+    const from = s0 + 6 + (buf[s0 + 6] === 0x0d ? 2 : 1); const end = buf.indexOf('endstream', from); if (end < 0) return null;
+    try { out.push(inflateSync(buf.subarray(from, end))); } catch { /* a stream that is not deflated is read as it is, above */ }
+    at = end + 9;
+  }
+  return out;
+};
 
 /** The notice a redirect carries, as message keys (the flash cookie's payload; this test's own server minted it). */
 const flashKeys = (res: { headers: Record<string, unknown> }): string[] => {
@@ -269,13 +327,17 @@ const flashKeys = (res: { headers: Record<string, unknown> }): string[] => {
   } catch { return []; }
 };
 
-/** The notice's words (a debugging aid: AUTHZ_WHY=1 adds them to a refusal's outcome). */
-const flashWhy = (res: { headers: Record<string, unknown> }): string => {
+/** The reason a refusal's notice gives in words, where it gives one (`why`): part of the outcome NOT_REACHED pins. */
+const flashReason = (res: { headers: Record<string, unknown> }): string => {
   const raw = ([] as string[]).concat((res.headers['set-cookie'] as string | string[] | undefined) ?? [])
-    .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_flash='));
+    .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_flash=') && c.length > 'yf_flash='.length);
   if (!raw) return '';
   const token = raw.slice('yf_flash='.length);
-  try { return Buffer.from(token.slice(0, token.lastIndexOf('.')), 'base64url').toString('utf8').slice(0, 300); } catch { return ''; }
+  try {
+    const parsed = JSON.parse(Buffer.from(token.slice(0, token.lastIndexOf('.')), 'base64url').toString('utf8')) as unknown[];
+    const why = ((parsed[0] as unknown[][])[0]?.[1] as { why?: unknown } | null)?.why;
+    return typeof why === 'string' && why ? ` — ${why}` : '';
+  } catch { return ''; }
 };
 
 /**
@@ -283,151 +345,142 @@ const flashWhy = (res: { headers: Record<string, unknown> }): string => {
  * a route here refuses or turns away C's own ids and words for a reason the walk cannot supply, so a swap of one of B's
  * ids into it proves only what the route says before it reads an id. A route not reached and not listed fails the walk:
  * send what it needs (WORDS, a seeded row, ROUTE_OWN), or list it here with the reason.
+ *
+ * Fix round 3 (F4): each entry is `[how, why]`. `how` is the route's OWN answer to C's call — its status, or the notice it
+ * gave and the reason that notice words — and the walk fails when the route answers anything else, or is reached: a
+ * reason in this list is checked against what the route says, every run. `why` says what that answer means here.
  */
-const NOT_REACHED: Record<string, string> = {
-  'POST /app/advisor': 'an answer page: it reads and writes nothing (no model in the walk)',
-  'POST /app/inbox/:conversationId/copilot': 'the Copilot answers with JSON and writes nothing (read-only by design)',
-  'POST /app/help/ask': 'an answer page: it reads and writes nothing (no model in the walk)',
-  'POST /app/inbox/:conversationId/copilot/reply': 'the Copilot answers with JSON and writes nothing (read-only by design)',
-  'POST /app/conversations/:conversationId/deletion/erase': "answers a confirmation page first (writes nothing until confirmed with the customer's name)",
-  'POST /app/products/add/store': "a store's address is read over the public internet (the walk has no network): refused as unreadable",
-  'POST /app/products/add/shopify': "a store's address is read over the public internet (the walk has no network): refused as unreadable",
-  'POST /app/settings/business/shopify/connect': "a store's address is read over the public internet (the walk has no network): refused as unreadable",
-  'POST /app/products/add/photo': 'a photo of a price list needs the page reader (no model in the walk)',
-  'POST /app/channels/instagram/comments/switch': "Instagram comments need a connected Instagram account and Meta's login (not configured)",
-  'POST /app/knowledge/from-page': "a page of the owner's site needs the page reader (no model in the walk); no proposal can be made, so none can be confirmed or read again",
-  'POST /app/knowledge/from-page/:id/again': "a page of the owner's site needs the page reader (no model in the walk); no proposal can be made, so none can be confirmed or read again",
-  'GET /app/settings/components': "the components gallery is the installation's own workspace's alone",
-  'GET /app/books/spending/:id/draft': "a paper's draft page is drawn only after the paper was read (no reader in the walk)",
-  'GET /app/inbox/:conversationId/voice/:messageId': "needs a customer's voice note; the walk's conversations have none",
-  'GET /app/orders/:id/proforma.txt': "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry",
-  'GET /app/live/practice': "Practice's live line answers only where Practice runs (no inbound queue in the walk)",
-  'GET /app/products/whatsapp/review/:batchId': "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)",
-  'POST /app/products/whatsapp/review/:batchId': "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)",
-  'POST /app/products/whatsapp/batches/:batchId/check': "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)",
-  'GET /app/channels/instagram/comments/:id/delete': 'no comment exists without a connected Instagram account (Meta not configured)',
-  'POST /app/channels/instagram/comments/:id/delete': 'no comment exists without a connected Instagram account (Meta not configured)',
-  'POST /app/channels/instagram/comments/:id/reply': 'no comment exists without a connected Instagram account (Meta not configured)',
-  'POST /app/payments/stripe/attempts/:id/expire': "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)",
-  'POST /app/payments/stripe/payouts/:id/confirm': "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)",
-  'POST /app/payments/stripe/payouts/:id/receive': "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)",
-  'POST /app/sandbox/message': 'Practice needs the inbound queue, which the walk does not compose',
-  'POST /app/sandbox/media': 'Practice needs the inbound queue, which the walk does not compose',
-  'POST /app/sandbox/scenario': 'Practice needs the inbound queue, which the walk does not compose',
-  'POST /app/business/selling/:q': 'a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there',
-  'POST /app/business/selling/:q/confirm': 'a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there',
-  'POST /app/business/selling/:q/skip': 'a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there',
-  'POST /app/inbox/:conversationId/answer-now': "needs a customer's voice note (answer-now also the answer kicker); the walk's conversations have none",
-  'POST /app/inbox/:conversationId/heard': "needs a customer's voice note (answer-now also the answer kicker); the walk's conversations have none",
-  'POST /app/products/import/:importId/columns': "the seeded list is a paste, not a file (columns), has no rows for the closer reading (extract, no model), and is confirmed through its review; each answers 'not there' as a redirect",
-  'POST /app/products/import/:importId/extract': "the seeded list is a paste, not a file (columns), has no rows for the closer reading (extract, no model), and is confirmed through its review; each answers 'not there' as a redirect",
-  'POST /app/products/import/:importId/confirm': "the seeded list is a paste, not a file (columns), has no rows for the closer reading (extract, no model), and is confirmed through its review; each answers 'not there' as a redirect",
-  'POST /app/channels/chat': "a retired form address: it sends the owner to the channel's own settings page",
-  'POST /app/channels/telegram': "a retired form address: it sends the owner to the channel's own settings page",
-  'POST /app/settings/account/password': "the walk signs in with a session of its own; C's owner has no password login to change",
-  'GET /app/connect/meta-ads/start': "Meta's ads login is not configured in the walk's composition",
-  'GET /app/connect/meta-ads/callback': "Meta's ads login is not configured in the walk's composition",
-  'POST /app/connect/meta-ads/choose': "Meta's ads login is not configured in the walk's composition",
-  'POST /app/connect/meta-ads/disconnect': "Meta's ads login is not configured in the walk's composition",
-  'POST /app/advisor/consent': "the advisor is not switched on for the walk's workspace: 'failed' before any id is read",
-  'POST /app/advisor/c/:id/delete': "the legacy advisor's threads live in the advisor memory as the person's own; C's owner has none under that address",
-  'POST /app/settings/alerts/phone': 'phone alerts need the push service, which the walk does not compose',
-  'POST /app/settings/alerts/phone/:id/remove': 'phone alerts need the push service, which the walk does not compose',
-  'POST /app/settings/alerts/test': 'phone alerts need the push service, which the walk does not compose',
-  'POST /app/settings/billing/card': "Stripe billing is not configured in the walk's composition (no keys)",
-  'POST /app/settings/billing/portal': "Stripe billing is not configured in the walk's composition (no keys)",
-  'POST /app/books/closing/lock': 'the close checklist is not clear (the walk keeps a draft entry on purpose)',
-  'POST /app/books/closing/journal': 'takes no id; the chart already has its closing and opening journals',
-  'POST /app/books/closing/opening-journal': 'takes no id; the chart already has its closing and opening journals',
-  'POST /app/books/closing/year': "a year is closed once it has ended (the walk's year ends 2026-12-31)",
-  'POST /app/books/closing/reopen': "Avis 24's floor: the year stays locked up to the current periods' start",
-  'POST /app/books/bank/columns': "needs a bank statement read with its columns chosen and a line matched; the walk's statement is not read as one",
-  'POST /app/books/bank/unmatch': "needs a bank statement read with its columns chosen and a line matched; the walk's statement is not read as one",
-  'POST /app/books/workbook': "needs an Excel workbook of the books' own shape (the walk uploads a CSV)",
-  'POST /app/books/papers/:id/draft': 'reading a paper needs the document reader (no model in the walk); nothing is drafted from an unread paper',
-  'POST /app/books/papers/:id/read': 'reading a paper needs the document reader (no model in the walk); nothing is drafted from an unread paper',
-  'GET /app/books/quickbooks/callback': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'GET /app/books/quickbooks/start': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/quickbooks/read': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/quickbooks/write': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/quickbooks/disconnect': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/quickbooks/again': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/quickbooks/stale': "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'GET /app/books/sheets/callback': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'GET /app/books/sheets/start': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/sheets/write': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/odoo/write': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/sheets/read': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/odoo/connect': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/odoo/read': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/sheets/disconnect': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/sheets/again': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/sheets/stale': "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read",
-  'POST /app/books/country/state-tax': "a state's sales tax is the United States pack's alone (the walk's books are Moroccan)",
-  'POST /app/books/taxes/start': 'the tax start belongs to the Odoo connection, which is not offered here',
-  'GET /app/books/xero/callback': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'GET /app/books/xero/start': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/xero/read': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/xero/write': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/xero/disconnect': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/xero/again': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/books/xero/stale': "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read",
-  'POST /app/channels/whatsapp/ask': "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)",
-  'POST /app/channels/whatsapp/connect': "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)",
-  'GET /app/connect/:provider/callback': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/meta/callback': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/whatsapp/callback': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/tiktok/callback': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'POST /app/connect/meta/choose': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'POST /app/connect/whatsapp/choose': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/:provider/start': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/meta/start': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/whatsapp/start': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'GET /app/connect/tiktok/start': "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)",
-  'POST /app/channels/whatsapp/templates/submit': "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)",
-  'POST /app/channels/whatsapp/templates/check': "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)",
-  'POST /app/connect/mail/disconnect': 'nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect',
-  'POST /app/connect/whatsapp/disconnect': 'nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect',
-  'POST /app/connect/tiktok/disconnect': 'nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect',
-  'POST /app/connect/meta/disconnect': 'nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect',
-  'POST /app/contacts/write': "writing first needs the outbound worker (messaging is off in the walk's composition): 'notLive'",
-  'POST /app/conversations/:conversationId/deletion': 'a retired address: it says the control moved, before reading any id',
-  'POST /app/conversations/:conversationId/copilot/suggest': "a suggestion needs the real turn's model (none in the walk): 'unavailable' after the conversation is read",
-  'POST /app/settings/data/withdraw': 'nothing to withdraw: the seeded workspace has no open workspace deletion request',
-  'POST /app/settings/data/close': "the walk's owner signs in with the access code (person 'owner'), which may never close a workspace: 'protected', before the name is read",
-  'POST /app/help/write': 'writing to Nomi needs the help writer, which the walk does not compose',
-  'GET /app/channels/instagram/comments/callback': "Instagram comments need a connected Instagram account and Meta's login (not configured)",
-  'POST /app/inbox/:conversationId/translate': "the draft is read and found (C's own id passes); the translator is not composed, so it stops at 'unavailable'",
-  'POST /app/knowledge/answers/teach': "an answer given is offered from a real conversation's reply the owner gave; the walk has none to teach",
-  'POST /app/knowledge/answers/dismiss': "an answer given is offered from a real conversation's reply the owner gave; the walk has none to teach",
-  'POST /app/inbox/:conversationId/maybe-yes/order': "the 'maybe' signal's product has no price for that quantity in the walk's catalogue",
-  'POST /app/knowledge/from-page/:id/confirm': "a page of the owner's site needs the page reader (no model in the walk); no proposal can be made, so none can be confirmed or read again",
-  'GET /app/payments/stripe/return': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/connect': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/accounts': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/invoices/:id/create': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/invoices/:id/send': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/retry': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/payments/stripe/disconnect': "payment links are not offered to the walk's country (MA) and Stripe is not configured",
-  'POST /app/orders/:id/proforma-link': "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry",
-  'POST /app/orders/:id/proforma-link/off': "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry",
-  'POST /app/business/pilot/resume': "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated",
-  'POST /app/business/pilot/end': "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated",
-  'POST /app/prospects/key/remove': "no prospect-search key is stored for the walk's workspace",
-  'POST /app/settings/rate': "the rate page exists only where the selling currency differs from the country's (MAD in MA)",
-  'POST /app/channels/instagram/connect': "Instagram and Messenger connection is not configured in the walk's composition (no Meta app)",
-  'POST /app/channels/messenger/connect': "Instagram and Messenger connection is not configured in the walk's composition (no Meta app)",
-  'POST /app/sequences/:id/enroll': "enrolling needs the outbound worker (messaging is off in the walk's composition): 'notLive'",
-  'POST /app/sequences/:id/enrollments/:eid/confirm': "enrolling needs the outbound worker (messaging is off in the walk's composition): 'notLive'",
-  'POST /app/settings/business/shopify/switch': 'no Shopify store is connected in the seeded workspace',
-  'POST /app/settings/business/shopify/disconnect': 'no Shopify store is connected in the seeded workspace',
-  'POST /app/products/whatsapp/preview': 'the WhatsApp catalogue needs a connected WhatsApp Business account (not configured)',
+const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
+  "POST /app/inbox/:conversationId/copilot": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
+  "POST /app/help/ask": ["200, nothing written", "an answer page: it reads and writes nothing (no model in the walk)"],
+  "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "the Copilot answers with JSON and writes nothing (read-only by design)"],
+  "POST /app/conversations/:conversationId/deletion/erase": ["200, nothing written", "answers a confirmation page first (writes nothing until confirmed with the customer's name)"],
+  "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
+  "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
+  "POST /app/settings/business/shopify/connect": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
+  "POST /app/products/add/photo": ["400", "a photo of a price list needs the page reader (no model in the walk)"],
+  "POST /app/channels/instagram/comments/switch": ["400", "Instagram comments need a connected Instagram account and Meta's login (not configured)"],
+  "POST /app/knowledge/from-page": ["400", "takes no id; reading a page needs the page reader, which the walk does not compose (no model): 'not configured', before anything is read"],
+  "POST /app/knowledge/from-page/:id/again": ["400", "reading a page again needs the page reader, which the walk does not compose (no model): 'not configured', before the reading's id is read"],
+  "GET /app/settings/components": ["404", "the components gallery is the installation's own workspace's alone"],
+  "GET /app/books/spending/:id/draft": ["404", "a paper's draft page is drawn only after the paper was read (no reader in the walk)"],
+  "GET /app/inbox/:conversationId/voice/:messageId": ["404", "needs a customer's voice note; the walk's conversations have none"],
+  "GET /app/orders/:id/proforma.txt": ["404", "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry"],
+  "GET /app/live/practice": ["404", "Practice's live line answers only where Practice runs (no inbound queue in the walk)"],
+  "GET /app/products/whatsapp/review/:batchId": ["no id of its own for :batchId", "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)"],
+  "POST /app/products/whatsapp/review/:batchId": ["no id of its own for :batchId", "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)"],
+  "POST /app/products/whatsapp/batches/:batchId/check": ["no id of its own for :batchId", "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)"],
+  "GET /app/channels/instagram/comments/:id/delete": ["no id of its own for :id", "no comment exists without a connected Instagram account (Meta not configured)"],
+  "POST /app/channels/instagram/comments/:id/delete": ["no id of its own for :id", "no comment exists without a connected Instagram account (Meta not configured)"],
+  "POST /app/channels/instagram/comments/:id/reply": ["no id of its own for :id", "no comment exists without a connected Instagram account (Meta not configured)"],
+  "POST /app/payments/stripe/attempts/:id/expire": ["no id of its own for :id", "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)"],
+  "POST /app/payments/stripe/payouts/:id/confirm": ["no id of its own for :id", "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)"],
+  "POST /app/payments/stripe/payouts/:id/receive": ["no id of its own for :id", "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)"],
+  "POST /app/sandbox/message": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
+  "POST /app/sandbox/media": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
+  "POST /app/sandbox/scenario": ["redirect to /app/assistant/practice, no notice, nothing written", "Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
+  "POST /app/business/selling/:q": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
+  "POST /app/business/selling/:q/confirm": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
+  "POST /app/business/selling/:q/skip": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
+  "POST /app/inbox/:conversationId/answer-now": ["redirect to /app/inbox/:id, no notice, nothing written", "the answer kicker is not composed in the walk: it turns back to the conversation before the message id is read"],
+  "POST /app/inbox/:conversationId/heard": ["redirect to /app/inbox/:id, no notice, nothing written", "what was heard is corrected on a customer's voice note; the walk's conversations have none, so no message id of its own is sent and it turns back before any read"],
+  "POST /app/products/import/:importId/columns": ["redirect to /app/products/add, no notice, nothing written", "the list is read and found; columns are chosen for a file, and the seeded list is a paste: 'not there'"],
+  "POST /app/products/import/:importId/confirm": ["400", "the list is read and found (C's own id passes); none of its rows is ticked, so it answers the review again (400) and adds nothing"],
+  "POST /app/channels/chat": ["redirect to /app/settings/channels/chat, no notice, nothing written", "a retired form address: it sends the owner to the channel's own settings page"],
+  "POST /app/channels/telegram": ["redirect to /app/settings/channels/telegram, no notice, nothing written", "a retired form address: it sends the owner to the channel's own settings page"],
+  "POST /app/settings/account/password": ["refused: account.flash.failed", "the walk signs in with a session of its own; C's owner has no password login to change"],
+  "GET /app/connect/meta-ads/start": ["refused: adSpend.flash.notConfigured", "Meta's ads login is not configured in the walk's composition"],
+  "GET /app/connect/meta-ads/callback": ["refused: adSpend.flash.notConfigured", "Meta's ads login is not configured in the walk's composition"],
+  "POST /app/connect/meta-ads/choose": ["refused: adSpend.flash.notConfigured", "Meta's ads login is not configured in the walk's composition"],
+  "POST /app/connect/meta-ads/disconnect": ["refused: adSpend.flash.notConfigured", "Meta's ads login is not configured in the walk's composition"],
+  "POST /app/settings/alerts/phone": ["refused: alerts.flash.bad", "takes no id; a phone is added through the push service, which the walk does not compose"],
+  "POST /app/settings/alerts/test": ["refused: alerts.flash.testNone", "takes no id; a test alert goes through the push service, which the walk does not compose"],
+  "POST /app/settings/billing/card": ["refused: billing.flash.notConfigured", "Stripe billing is not configured in the walk's composition (no keys)"],
+  "POST /app/settings/billing/portal": ["refused: billing.flash.notConfigured", "Stripe billing is not configured in the walk's composition (no keys)"],
+  "POST /app/books/closing/lock": ["refused: books.flash.closeRefused — Not clear yet — Draft entries: 1.", "the close checklist is not clear (the walk keeps a draft entry on purpose)"],
+  "POST /app/books/closing/journal": ["refused: books.flash.closeRefused — That could not be done as it is.", "takes no id; the chart the walk applied (the CGNC, an earlier call) already has its closing journal"],
+  "POST /app/books/closing/opening-journal": ["refused: books.flash.closeRefused — That could not be done as it is.", "takes no id; the chart the walk applied (the CGNC, an earlier call) already has its opening journal"],
+  "POST /app/books/closing/year": ["refused: books.flash.closeRefused — A year is closed once it has ended (2026-12-31).", "the year, the result account and the journal are read as the workspace's own; the close itself is refused because the year has not ended (the walk's year ends 2026-12-31)"],
+  "POST /app/books/closing/reopen": ["refused: books.flash.closeRefused — The books begin on 2026-04-01: nothing before it reopens.", "Avis 24's floor: the year stays locked up to the current periods' start"],
+  "POST /app/books/workbook": ["refused: books.flash.notWorkbook", "needs an Excel workbook of the books' own shape (the walk uploads a CSV)"],
+  "POST /app/books/papers/:id/draft": ["refused: books.flash.paperNotDrafted — Nothing is drafted from a reading with problems.", "the paper is read and found; nothing is drafted from a paper that was not read (no document reader in the walk)"],
+  "POST /app/books/papers/:id/read": ["refused: books.flash.paperNotRead — No reader is set up here: draft the entry by hand.", "the paper is read and found; reading it needs the document reader (no model in the walk)"],
+  "GET /app/books/quickbooks/callback": ["refused: books.flash.quickbooksNotConnected", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "GET /app/books/quickbooks/start": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/read": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/write": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/disconnect": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/again": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/stale": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "GET /app/books/sheets/callback": ["refused: books.flash.sheetsNotConnected", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "GET /app/books/sheets/start": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/sheets/write": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/odoo/write": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/sheets/read": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/odoo/connect": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/odoo/read": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/sheets/disconnect": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/sheets/again": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/sheets/stale": ["refused: books.flash.sheetsNotOffered", "the spreadsheet and Odoo connections are not offered in the walk's composition (no connector configured): refused before any id is read"],
+  "POST /app/books/country/state-tax": ["refused: books.flash.stateNoAccount", "the state and the rate are read; a state's sales tax is the United States pack's alone, and the walk's books are Moroccan: 'no account'. Takes no id"],
+  "GET /app/books/xero/callback": ["refused: books.flash.xeroNotConnected", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "GET /app/books/xero/start": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/read": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/write": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/disconnect": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/again": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/stale": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/channels/whatsapp/ask": ["refused: channel.connect.flash.failed", "takes no id; asking Nomi for a number goes by the operator's mail, which the walk does not compose: 'failed' after the number is read"],
+  "POST /app/channels/whatsapp/connect": ["refused: channel.flash.not_configured", "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)"],
+  "GET /app/connect/:provider/callback": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/meta/callback": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/whatsapp/callback": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/tiktok/callback": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "POST /app/connect/meta/choose": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "POST /app/connect/whatsapp/choose": ["refused: connect.flash.expired", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/:provider/start": ["refused: connect.flash.not_configured", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/meta/start": ["refused: connect.flash.not_configured", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/whatsapp/start": ["refused: connect.flash.not_configured", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "GET /app/connect/tiktok/start": ["refused: connect.flash.not_configured", "a provider's login: not configured here, and a callback needs the provider's signed state (no network in the walk)"],
+  "POST /app/channels/whatsapp/templates/submit": ["refused: connect.flash.not_configured", "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)"],
+  "POST /app/channels/whatsapp/templates/check": ["refused: connect.flash.not_configured", "WhatsApp's own-number connection is not configured in the walk's composition (no Meta app)"],
+  "POST /app/connect/mail/disconnect": ["refused: connect.flash.rejected", "nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect"],
+  "POST /app/connect/whatsapp/disconnect": ["refused: connect.flash.rejected", "nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect"],
+  "POST /app/connect/tiktok/disconnect": ["refused: connect.flash.rejected", "nothing of that provider is connected in the seeded workspace, so there is nothing to disconnect"],
+  "POST /app/connect/meta/disconnect": ["refused: connect.flash.rejected", "Meta's login is not configured in the walk's composition, and nothing is connected: 'rejected'"],
+  "POST /app/contacts/write": ["refused: contacts.flash.notLive", "writing first needs the outbound worker (messaging is off in the walk's composition): 'notLive'"],
+  "POST /app/conversations/:conversationId/deletion": ["refused: conv.deletion.flash.moved", "a retired address: it says the control moved, before reading any id"],
+  "POST /app/conversations/:conversationId/copilot/suggest": ["refused: copilot.flash.notSuggested.unavailable", "a suggestion needs the real turn's model (none in the walk): 'unavailable' after the conversation is read"],
+  "POST /app/settings/data/close": ["refused: data.flash.protected", "the walk's owner signs in with the access code (person 'owner'), which may never close a workspace: 'protected', before the name is read"],
+  "POST /app/help/write": ["refused: help.write.cannot", "writing to Nomi needs the help writer, which the walk does not compose"],
+  "GET /app/channels/instagram/comments/callback": ["refused: igComments.flash.refused", "Instagram comments need a connected Instagram account and Meta's login (not configured)"],
+  "POST /app/inbox/:conversationId/translate": ["refused: inbox.flash.translate.unavailable", "the draft is read and found (C's own id passes); the translator is not composed, so it stops at 'unavailable'"],
+  "POST /app/inbox/:conversationId/maybe-yes/order": ["refused: order.flash.prepare.not_priceable", "the 'maybe' signal's product has no price for that quantity in the walk's catalogue"],
+  "GET /app/payments/stripe/return": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/connect": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/accounts": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/invoices/:id/create": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/invoices/:id/send": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/retry": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/payments/stripe/disconnect": ["refused: paymentLinks.flash.refused — Payment links are not available for this country.", "payment links are not offered to the walk's country (MA) and Stripe is not configured"],
+  "POST /app/orders/:id/proforma-link": ["refused: pi.owner.flash.failed", "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry"],
+  "POST /app/orders/:id/proforma-link/off": ["refused: pi.owner.flash.failed", "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry"],
+  "POST /app/business/pilot/resume": ["refused: pilot.flash.not_active", "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated"],
+  "POST /app/business/pilot/end": ["refused: pilot.flash.not_active", "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated"],
+  "POST /app/prospects/key/remove": ["refused: prospects.flash.failed", "no prospect-search key is stored for the walk's workspace"],
+  "POST /app/settings/rate": ["refused: rate.flash.none", "the rate page exists only where the selling currency differs from the country's (MAD in MA)"],
+  "POST /app/channels/instagram/connect": ["refused: reach.inbound.flash.notConfigured", "Instagram and Messenger connection is not configured in the walk's composition (no Meta app)"],
+  "POST /app/channels/messenger/connect": ["refused: reach.inbound.flash.notConfigured", "Instagram and Messenger connection is not configured in the walk's composition (no Meta app)"],
+  "POST /app/sequences/:id/enroll": ["refused: seq.flash.notLive", "enrolling needs the outbound worker (messaging is off in the walk's composition): 'notLive'"],
+  "POST /app/settings/business/shopify/switch": ["refused: shopifyOrders.flash.nothing", "no Shopify store is connected in the seeded workspace"],
+  "POST /app/settings/business/shopify/disconnect": ["refused: shopifyOrders.flash.nothing", "no Shopify store is connected in the seeded workspace"],
+  "POST /app/products/whatsapp/preview": ["refused: waCatalog.flash.connection", "the WhatsApp catalogue needs a connected WhatsApp Business account (not configured)"],
 };
 
 d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 1_800_000 }, () => {
   let admin: pg.Client;
   let db: import('../../src/db/client.js').Db;
-  type WS = { name: 'A' | 'B' | 'C'; w: string; conv: string; seeded: Record<string, string>; tableOf: Map<string, string>; app: import('fastify').FastifyInstance; cookie: string };
+  type WS = { name: 'A' | 'B' | 'C'; w: string; conv: string; seeded: Record<string, string>; tableOf: Map<string, string>; app: import('fastify').FastifyInstance; cookie: string; personCookie: string; personCode: string };
   const ws: Record<'A' | 'B' | 'C', WS> = {} as Record<'A' | 'B' | 'C', WS>;
   const routes: { method: string; url: string; source: string }[] = [];
   let ids: { table: string; id: string }[] = [];
@@ -438,12 +491,22 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
   let scopes: { table: string; where: string }[] = [];
   let idFields: string[] = [];
   const shown: string[] = [];
+  /** F2 — the bytes B keeps (by hash), what A keeps or the walk itself sent, and each answer that was neither words nor a refusal. */
+  let bBlobs = new Set<string>();
+  const ownBlobs = new Set<string>();
+  const binaries: { where: string; hash: string; type: string }[] = [];
+  const unreadable: string[] = [];
+  let blobSql = '';
+  const blobsOf = async (w: string): Promise<string[]> => blobSql ? (await admin.query(blobSql, [w])).rows.map((r) => r.h as string) : [];
   const failures: string[] = [];
   const errors: string[] = [];
   const statuses = new Map<number, number>();
   const passCalls: Record<string, number> = {};
+  const passMs: Record<string, number> = {};
+  const sent5xx: string[] = [];
   const reach = new Map<string, string>();
   let calls = 0; let relogins = 0;
+  let memory: import('../../src/advisor/memory.js').AdvisorMemory;
   let pass = '';
 
   /**
@@ -503,6 +566,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
 
   /** A workspace's extra rows, beyond the demo: one of each kind a route takes an id of, the books included. Each alone. */
   const seedWorkspace = async (ns: string, w: string, mark: string): Promise<Record<string, string>> => {
+    // Every file a workspace keeps carries its marker in its bytes (F2): a face, a list photo, a product photo, a paper —
+    // so each workspace's files differ, and one of B's served to A is known by its bytes.
+    const png = Buffer.concat([PNG, Buffer.from(mark)]).toString('hex');
     const v: Record<string, string> = { W: w, conv: `${ns}-0000-4000-8000-000000000301`, client: `${ns}-0000-4000-8000-000000000201`,
       product: `${ns}-0000-4000-8000-000000000101`, MARK: mark };
     const tag = w === B ? 'B' : w === C ? 'C' : 'A';
@@ -594,7 +660,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('stmtImport', `insert into statement_imports (business_id, account_id, format, sha256, added, refused, imported_by) values ($W, $bank, 'csv', md5($MARK) || md5($MARK), 1, 0, 'owner') returning id::text as id`);
     await one('stmtLine', `insert into statement_lines (business_id, import_id, account_id, booked_on, amount, currency, wording, fingerprint) values ($W, $stmtImport, $bank, '2026-04-20', 100, 'MAD', 'Wire ' || $MARK, $MARK) returning id::text as id`);
     // Two more posted bank lines, each with its statement line: a copy for each swap of the bank match's fields.
-    for (const [n, amount] of [[2, 101], [3, 102]] as const) {
+    for (const [n, amount] of [[2, 101], [3, 102], [4, 103]] as const) {
       await one(`entry${n}`, `insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values ($W, $journal, $fy, '2026-04-19', 'Entry ${n} ' || $MARK, 'owner') returning id::text as id`);
       await one(`jline_${n}`, `insert into journal_lines (business_id, entry_id, line_no, account_id, currency, debit, credit) values ($W, $entry${n}, 1, $bank, 'MAD', ${amount}, 0) returning id::text as id`);
       await one(`jline2_${n}`, `insert into journal_lines (business_id, entry_id, line_no, account_id, currency, debit, credit) values ($W, $entry${n}, 2, $receivable, 'MAD', 0, ${amount}) returning id::text as id`);
@@ -629,7 +695,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('enrollment', `insert into sequence_enrollments (business_id, sequence_id, identity, enrolled_by) values ($W, $sequenceLive, 'enrolled-' || $MARK || '@example.com', 'owner') returning id::text as id`);
     await one('run', `insert into follow_up_runs (business_id, client_id, conversation_id, source_quote_id, source_outbound_id, episode_key, channel, quoted_at, due_at, delay_days, wording) values ($W, $client, $conv, $quote, $outbound, gen_random_uuid(), 'whatsapp', now(), now() + interval '2 days', 2, 'Follow ' || $MARK) returning id::text as id`);
     await one('volume', `insert into negotiation_rules (business_id, priority, condition, action, is_active) values ($W, 100, '{"qtyGte": 50}', '{"kind": "discount_pct", "value": 5}', true) returning id::text as id`);
-    await one('face', `insert into client_faces (client_id, business_id, state, bytes, content_type, version, kept_at) values ($client, $W, 'kept', decode('${PNG.toString('hex')}', 'hex'), 'image/png', '0123456789ab', now()) returning client_id::text as id`);
+    await one('face', `insert into client_faces (client_id, business_id, state, bytes, content_type, version, kept_at) values ($client, $W, 'kept', decode('${png}', 'hex'), 'image/png', '0123456789ab', now()) returning client_id::text as id`);
     // Two finished checks: keep decides one, revert the other (each is decided once).
     for (const k of ['caseCheck', 'caseCheck2']) {
       await one(k, `insert into case_checks (business_id, kind, change, summary, created_by, status) values ($W, 'knowledge', '{"kind":"knowledge","productId":null,"knowledgeKind":"faq","label":"Authz check","content":"Authz answer"}', 'Check ' || $MARK, 'owner', 'done') returning id::text as id`);
@@ -673,11 +739,19 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // customer's conversation, and found this seed doing so).
     await one('orderBook', `insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit, status, total_value_usd, currency)
       select 'AZB-' || $MARK, $W, c.client_id, c.id, $product, 10, 'pcs', 'confirmed', 20, 'MAD' from conversations c where c.id = $conv4 returning id::text as id`);
-    await one('importPhoto', `insert into catalog_import_photos (business_id, import_id, position, media_type, bytes, transcript) values ($W, $catalogImport, 1, 'image/png', decode('${PNG.toString('hex')}', 'hex'), 'Bag ' || $MARK || ' 3.00') returning id::text as id`);
+    await one('importPhoto', `insert into catalog_import_photos (business_id, import_id, position, media_type, bytes, transcript) values ($W, $catalogImport, 1, 'image/png', decode('${png}', 'hex'), 'Bag ' || $MARK || ' 3.00') returning id::text as id`);
     // The photo Nomi serves for the product (0152), so B has one a broken "remove the photo" would delete — without it
     // that route had nothing of B's to take, and a remove under the body's workspace passed the walk (my break N5).
     await one('productPhoto', `insert into product_images (product_id, url, token, media_type, bytes)
-      select $product, '/media/' || t, t, 'image/png', decode('${PNG.toString('hex')}', 'hex') from (select md5($MARK || 'photo') || md5(random()::text) as t) s returning id::text as id`);
+      select $product, '/media/' || t, t, 'image/png', decode('${png}', 'hex') from (select md5($MARK || 'photo') || md5(random()::text) as t) s returning id::text as id`);
+    // Fix round 3 (F4, F6). A bank line already matched (to set aside), a customer's deletion request still open (to
+    // withdraw), a follow-up waiting for a person's yes (to confirm), the account a year's result is carried to. B has
+    // each too: a route broken on any of them has something of B's to take.
+    await one('stmtMatch', `insert into statement_matches (business_id, statement_line_id, journal_line_id, matched_by) values ($W, $stmtLine4, $jline_4, 'owner') returning id::text as id`);
+    await one('clientGone', `insert into clients (business_id, display_name) values ($W, 'Gone ' || $MARK) returning id::text as id`);
+    await one('deletionRequest', `insert into deletion_requests (business_id, scope, client_id, asked_by) values ($W, 'buyer', $clientGone, 'owner') returning id::text as id`);
+    await one('enrollmentWaiting', `insert into sequence_enrollments (business_id, sequence_id, identity, enrolled_by, awaiting_confirmation_since) values ($W, $sequenceLive, 'waiting-' || $MARK || '@example.com', 'owner', now()) returning id::text as id`);
+    await one('resultAccount', `insert into accounts (business_id, code, name, kind) values ($W, '1191', 'Result ' || $MARK, 'equity') returning id::text as id`);
     return v;
   };
 
@@ -714,22 +788,41 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     calls++; passCalls[pass] = (passCalls[pass] ?? 0) + 1;
     statuses.set(res.statusCode, (statuses.get(res.statusCode) ?? 0) + 1);
     if (res.statusCode >= 500) errors.push(`${pass}: ${where} → ${res.statusCode}`);
-    const text = `${res.body}\n${String(res.headers['location'] ?? '')}`;
-    if (text.includes(MARK)) shown.push(`${pass}: ${where}`);
+    // Nothing of B shown, in words OR in bytes (F2). The marker is looked for in the raw answer (a page, JSON, a CSV,
+    // a picture kept as sent), in every entry of a zip or workbook once opened, and in a PDF's streams; an answer that
+    // is not words is also compared with every file B keeps. What is left — bytes with no marker that are not B's
+    // files — must be A's own (kept by A, or sent by this walk): judged at the end, `binaries`.
+    const raw = (res as { rawPayload?: Buffer }).rawPayload ?? Buffer.from(res.body);
+    if (raw.includes(MARK) || String(res.headers['location'] ?? '').includes(MARK)) { shown.push(`${pass}: ${where}`); return; }
+    const type = String(res.headers['content-type'] ?? '');
+    if (res.statusCode !== 200 || raw.length === 0 || /html|json|text\/|javascript|xml|csv/i.test(type)) return;
+    const hash = sha(raw);
+    if (bBlobs.has(hash)) { shown.push(`${pass}: ${where} (B's file, by its bytes)`); return; }
+    const inside = raw.subarray(0, 2).toString() === 'PK' ? unzipped(raw) : raw.subarray(0, 5).toString() === '%PDF-' ? pdfStreams(raw) : undefined;
+    if (inside === null) { unreadable.push(`${pass}: ${where} (${type})`); return; }
+    if (inside) { if (inside.some((b) => b.includes(MARK))) shown.push(`${pass}: ${where} (inside the file)`); return; }
+    binaries.push({ where: `${pass}: ${where}`, hash, type });
   };
   const signIn = async (s: WS) => {
     const login = await s.app.inject({ method: 'POST', url: '/login', payload: `code=${CODE}`, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-    s.cookie = ([] as string[]).concat((login.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
+    const sessionOf = (r: { headers: Record<string, unknown> }) => ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
+    s.cookie = sessionOf(login);
+    // The teammate's own session (F6), by the teammate's own code: a route that acts for "this person" needs one.
+    if (s.personCode) s.personCookie = sessionOf(await s.app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(s.personCode)}`, headers: { 'content-type': 'application/x-www-form-urlencoded' } }));
   };
   /** One call, judged; a walk that signed itself out (a password changed, a session ended) signs in again and calls once more. */
   type Body = { kind: 'form'; data: string } | { kind: 'json'; data: string } | { kind: 'multipart'; data: Buffer; type: string } | null;
   const callAs = async (s: WS, method: string, url: string, body: Body, where: string) => {
-    const go = () => s.app.inject({ method: method as 'POST', url, headers: { cookie: s.cookie,
+    const go = () => s.app.inject({ method: method as 'POST', url, headers: { cookie: AS_PERSON.test(url) && s.personCookie ? s.personCookie : s.cookie,
       ...(body ? { 'content-type': body.kind === 'form' ? 'application/x-www-form-urlencoded' : body.kind === 'json' ? 'application/json' : body.type } : {}) },
       ...(body ? { payload: body.data } : {}) });
+    const t0 = Date.now();
     let res = await go();
     if (res.statusCode >= 300 && res.statusCode < 400 && String(res.headers['location'] ?? '').startsWith('/login')) { relogins++; await signIn(s); res = await go(); }
     look(where, res);
+    passMs[pass] = (passMs[pass] ?? 0) + Date.now() - t0;
+    // What was sent to a route that answered 5xx (for the report: AUTHZ_WALK_REPORT).
+    if (res.statusCode >= 500 && sent5xx.length < 20) sent5xx.push(`${where}: ${method} ${url.slice(0, 300)} ${body && body.kind !== 'multipart' ? body.data.slice(0, 600) : ''}`);
     return res;
   };
   const call = (method: string, url: string, body: Body, where: string) => callAs(ws.A, method, url, body, where);
@@ -755,7 +848,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const documents = documentStoresFrom({}, deriveKey('d'.repeat(64)));
     db = createDb(DATABASE_URL!);
     // The advisor's history, as production composes it (main.ts): a port onto our own database, not a provider (R2).
-    const memory = advisorMemory(db, advisorKeysFrom({ ADVISOR_KEY: 'ac'.repeat(32) }));
+    memory = advisorMemory(db, advisorKeysFrom({ ADVISOR_KEY: 'ac'.repeat(32) }));
     for (const [v, mark] of [[seededA, A_MARK], [seededB, MARK], [seededC, C_MARK]] as const) await seedAdvisor(memory, v, mark);
     // The second invoice issued by the app's own writer, then a credit note against it.
     const { issueInvoice } = await import('../../src/db/booksInvoices.js');
@@ -787,11 +880,17 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         advisorDb: db, resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }), advisorMemory: memory, documents,
       } as unknown as Parameters<typeof registerWebApp>[1]);
       await app.ready();
-      const s: WS = { name, w, conv: `${ns}-0000-4000-8000-000000000301`, seeded, tableOf: new Map(), app, cookie: '' };
+      const personCode = `P${name}${RUN.slice(0, 2).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}-${RUN.slice(2, 7).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}`;
+      const { hashCode } = await import('../../src/api/web/people.js');
+      await admin.query(`update people set code_hash = $2 where id = $1`, [seeded['person'], hashCode(SECRET, personCode)]);
+      const s: WS = { name, w, conv: `${ns}-0000-4000-8000-000000000301`, seeded, tableOf: new Map(), app, cookie: '', personCookie: '', personCode };
       await signIn(s);
       expect(s.cookie).not.toBe('');
+      expect(s.personCookie, `${name}'s teammate signed in`).not.toBe('');
       // A paper of the workspace's own, through the route that keeps one (the store seals it: no SQL could).
-      const m = multipart({}, { field: 'file', name: 'paper.png', type: 'image/png', bytes: PNG });
+      const paperBytes = Buffer.concat([PNG, Buffer.from(`paper ${seeded['MARK']}`)]);
+      if (name === 'B') bBlobs.add(sha(paperBytes)); else ownBlobs.add(sha(paperBytes));
+      const m = multipart({}, { field: 'file', name: 'paper.png', type: 'image/png', bytes: paperBytes });
       const up = await app.inject({ method: 'POST', url: '/app/books/papers', headers: { cookie: s.cookie, 'content-type': m.type }, payload: m.payload });
       const paper = /\/app\/books\/spending\/([0-9a-f-]{36})/.exec(String(up.headers['location'] ?? ''))?.[1];
       if (paper) seeded['paper'] = paper; else failures.push(`seed ${name} paper: ${up.statusCode} ${String(up.headers['location'] ?? '')}`);
@@ -814,6 +913,13 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     idFields = [...new Set([...LISTED_ID_FIELDS, ...spelledIdFields()])];
     before = await snapshot(B);
     heldBefore = await heldBy(admin, scopes, A, theirs);
+    // F2 — every file each workspace keeps, by the hash of its bytes (every bytea column of every table of a workspace).
+    const byteCols = (await admin.query(`select c.relname as t, a.attname as col from pg_class c join pg_attribute a on a.attrelid = c.oid and a.atttypid = 'bytea'::regtype and not a.attisdropped
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','p') order by 1, 2`)).rows as { t: string; col: string }[];
+    const parts = byteCols.flatMap((b) => scopes.filter((sc) => sc.table === b.t).map((sc) => `select encode(sha256(x.${b.col}), 'hex') as h from ${sc.table} x where (${sc.where}) and x.${b.col} is not null`));
+    blobSql = parts.join(' union ');
+    bBlobs = new Set([...bBlobs, ...await blobsOf(B)]);
+    for (const h of [...await blobsOf(A), ...await blobsOf(C)]) ownBlobs.add(h);
   }, 600_000);
   afterAll(async () => {
     await ws.A?.app.close(); await ws.B?.app.close(); await ws.C?.app.close(); await db?.destroy();
@@ -871,7 +977,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const formOf = (id: string, url = ''): Record<string, string> => { const o: Record<string, string> = { ...WORDS }; for (const f of idFields) o[f] = BUSINESS_FIELDS.has(f) ? B : id; return { ...o, ...wordsOf(url, null) }; };
     const ownBody = (s: WS, copy: number, url = '') => { const o: Record<string, string> = { ...WORDS }; for (const f of idFields) { const x = ownOf(s, f, copy); if (x) o[f] = x; } return { ...o, ...wordsOf(url, s) }; };
     /** A drawn form's empty boxes filled as a person would type them (R1): a form refused for an empty box proves nothing. */
-    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : WORDS[n] ?? 'authz']);
+    // An id's box drawn empty stays empty ("none chosen"; `label` is words as often as an id, and is typed): a person
+    // cannot type into a hidden box, and words in one are
+    // not an id (the prices form's empty `productId` answered 500 to 'authz': reported, not this walk's to judge).
+    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : n in WORDS ? WORDS[n]! : n !== 'label' && (idFields.includes(n) || /(Id|_id)$/.test(n)) ? '' : 'authz']);
     const routeOf = (method: string, action: string) => {
       const path = action.split('?')[0]!;
       return walk.filter((r) => r.method === method && new RegExp(`^${r.url.replace(/:\w+/g, '[^/]+')}$`).test(path))
@@ -886,10 +995,12 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       const field = /\/photo$/.test(r.url) ? 'photo' : ['photo', 'media', 'file'].find((f) => r.source.includes(`'${f}'`)) ?? 'file';
       // Each image its own bytes (a store that keeps one copy of a paper refuses the same bytes twice).
       fileN++;
-      return image ? { field, name: 'a.png', type: 'image/png', bytes: Buffer.concat([PNG, Buffer.from(`authz-${fileN}`)]) } : { field, name: 'a.csv', type: 'text/csv', bytes: CSV };
+      const bytes = image ? Buffer.concat([PNG, Buffer.from(`authz-${fileN}`)]) : CSV;
+      ownBlobs.add(sha(bytes));
+      return image ? { field, name: 'a.png', type: 'image/png', bytes } : { field, name: 'a.csv', type: 'text/csv', bytes };
     };
     /** The workspace's pages crawled, and every POST form on them by shape (up to six drawn copies of each). */
-    const crawl = async (s: WS) => {
+    const crawl = async (s: WS, judge = true) => {
       const pages = new Set<string>(); const queue: string[] = [];
       const ownQuery = urlencoded(Object.fromEntries(Object.keys(FIELD_OWN).map((f) => [f, ownOf(s, f) ?? '']).filter(([, v]) => v)));
       for (const r of walk.filter((x) => x.method === 'GET')) {
@@ -903,7 +1014,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         const url = queue.shift()!;
         if (pages.has(url) || /\.(csv|xlsx|zip|pdf|json)(\?|$)/.test(url)) continue;
         pages.add(url);
-        const res = await callAs(s, 'GET', url, null, `GET ${url}`);
+        const res = judge ? await callAs(s, 'GET', url, null, `GET ${url}`) : await s.app.inject({ method: 'GET', url, headers: { cookie: s.cookie } });
         if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('html')) continue;
         for (const f of formsIn(res.body)) {
           if (!f.action.startsWith('/app') && !f.action.startsWith('/login/') ) continue;
@@ -922,6 +1033,11 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // ── 0. REACH (R1): C, A's twin, calls every route with its OWN ids — its drawn forms as drawn, else the walk's own
     //    body — and the outcome says whether the route got past its words. A route that refuses its own workspace's
     //    call (a notice of refusal, a 4xx, a redirect that wrote nothing) proves nothing when B's id is swapped in. ──
+    // B's own pages, read as B before anything is judged (F1): the forms B's owner would send, with B's ids together
+    // in them. Reading a page may stamp a row (a conversation opened), so B is photographed after it.
+    const drawnB = await crawl(ws.B, false);
+    before = await snapshot(B);
+    bBlobs = new Set([...bBlobs, ...await blobsOf(B)]);
     pass = 'reach';
     const outcome = (method: string, res: { statusCode: number; headers: Record<string, unknown> }, changed: boolean): string => {
       if (res.statusCode >= 500) return `${res.statusCode}`;
@@ -930,14 +1046,14 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       // A notice in a refusal's tone over a change it made (a reply approved that the channel will not carry yet) is
       // still the handler acting on the ids it was given.
       if (changed) return 'reached';
-      if (refusal) return `refused: ${refusal}${process.env['AUTHZ_WHY'] ? ' ' + flashWhy(res) : ''}`;
+      if (refusal) return `refused: ${refusal}${flashReason(res)}`;
       if (res.statusCode >= 400) return `${res.statusCode}`;
       if (changed || notice.length) return 'reached';
       if (res.statusCode < 300) return method === 'GET' ? 'reached' : `${res.statusCode}, nothing written`;
       const to = String(res.headers['location'] ?? '').split(/[?#]/)[0]!;
       // A page that only sends the browser on (an old address, a moved page) is reached when the page it sends to is.
       if (method === 'GET' && to.startsWith('/app')) return `alias of ${to}`;
-      return `redirect to ${to}, no notice, nothing written`;
+      return `redirect to ${to.replace(UUID_IN, ':id')}, no notice, nothing written`;
     };
     const tried = async (r: { method: string; url: string }, method: string, url: string, body: Body, where: string) => {
       const was = method === 'GET' ? '' : await stateOf(C);
@@ -952,9 +1068,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // discard a draft or end a sequence must not take away the row a later route needs (a route refused because an
     // earlier call archived its row proves nothing). Then what puts back what was taken away; last, what takes a whole
     // history or the workspace's standing.
-    const ENDS = /\/(archive|remove|delete|discard|stop|disconnect|off|skip|revert|leave|dismiss|retire|end|unmatch|reject|cancel|lock|reopen|again|stale)(\/|$)/;
+    const ENDS = /\/(archive|remove|delete|discard|stop|disconnect|off|skip|revert|leave|dismiss|retire|end|unmatch|reject|cancel|lock|reopen|again|stale|drop)(\/|$)/;
     // A waiting cost's "skip" runs on its own row before any "post" (a drawn post form may take either row).
-    const lateness = (url: string) => /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
+    const lateness = (url: string) => /\/advisor-history\/(workspace|me)$/.test(url) ? 5 : /\/alerts\/phone\/:id\/remove$/.test(url) ? 2.5 : /\/products\/import\/:importId\/confirm$/.test(url) ? 2.6 : /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
       : ENDS.test(url) ? 3 : /\/resume(\/|$)/.test(url) ? 2 : /\/(takeover|handto|step-in)(\/|$)/.test(url) ? 1
       // A draft is changed before it is issued or posted (after, it never changes).
       : /\/(issue|post)(\/|$)/.test(url) ? 0.5
@@ -988,21 +1104,71 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       else attempts.push({ r, method: r.method, url: url + q, body: { kind: 'form', data: urlencoded(body) }, where: `reach ${key}`, late });
     }
     // Pages first, while C is as seeded: a page reads, and what a form changed must not decide whether it is drawn.
-    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 3, 4, 5].flatMap((k) => attempts.filter((x) => x.late === k))) {
+    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 2.5, 2.6, 3, 4, 5].flatMap((k) => attempts.filter((x) => x.late === k))) {
       if (reach.get(`${a.r.method} ${a.r.url}`) === 'reached') continue;
       await tried(a.r, a.method, a.url, a.body, a.where);
     }
 
     // AUTHZ_WALK_REACH_ONLY=1: stop after the reach check, to work through its list (never on by default).
     const reachOnly = !!process.env['AUTHZ_WALK_REACH_ONLY'];
+    // Every pass below walks the routes with what undoes or ends things last too (F5), and begins with A's advisor
+    // history as seeded: the pass before switched it off (the switch's own call), and a route of A's that stops at
+    // "the history is off" would never read the id it was given.
+    const ordered = [...walk].sort((x, y) => lateness(x.url) - lateness(y.url));
+    // AUTHZ_WALK_ONLY=<pass,…>: only those passes after the reach check, to work on one (never on by default).
+    const only = process.env['AUTHZ_WALK_ONLY']?.split(',');
+    const runs = (p: string) => !reachOnly && (!only || only.includes(p));
+    const restoreAdvisor = async () => {
+      if (reachOnly) return;
+      await seedAdvisor(memory, ws.A.seeded, A_MARK);
+      for (const k of ['advisorThread', 'advisorThreadStaff']) if (ws.A.seeded[k]) ws.A.tableOf.set(ws.A.seeded[k]!, 'advisor_threads');
+    };
     // ── 5. A's real forms, crawled first, while A is whole ────────────────────────────────────────────────────────
     pass = 'forms';
-    const { pages, forms, copies } = reachOnly ? { pages: new Set<string>(), forms: [] as Form[], copies: new Map<string, Form[]>() } : await crawl(ws.A);
+    const { pages, forms, copies } = !runs('forms') ? { pages: new Set<string>(), forms: [] as Form[], copies: new Map<string, Form[]>() } : await crawl(ws.A);
     // Any field a drawn form fills with an id is an id field, listed or not (the audit's list missed `saved`, R3):
     // the later passes put B's ids in it too.
     const drawnIdFields = [...new Set([...forms, ...[...copies.values()].flat(), ...[...reachC.copies.values()].flat()].flatMap((f) => f.fields.filter(([, v]) => UUID.test(v)).map(([n]) => n)))];
     const addedIdFields = drawnIdFields.filter((f) => !idFields.includes(f));
     idFields = [...idFields, ...addedIdFields];
+    // ── 6. B'S OWN REQUESTS, UNDER A'S SESSION (F1): B's ids TOGETHER ─────────────────────────────────────────────
+    //    The passes above offer one of B's ids at a time, or the same one everywhere. A route keyed by a parent and
+    //    its child (a conversation and its proposal, a sequence and its enrolment, an import and its row) is only
+    //    crossed by B's pair. So: every form B's own pages draw, sent as drawn; and every route called as the reach
+    //    check calls it for C, with B's own rows. Each with B's workspace id in every field that names one, in the body
+    //    and in the query, as a form and as JSON (and with its file where it reads one).
+    //    FIRST of the passes, while A is as seeded: a pass before it leaves A's own rows changed (a discount ceiling, a
+    //    draft decided), and a form refused for A's own state never reads the ids it carries — the volume discount's
+    //    unchecked product was only found with this pass run alone.
+    pass = 'replay';
+    if (runs('replay')) {
+      const withB = (fields: [string, string][]): [string, string][] => [...fields, ...[...BUSINESS_FIELDS].filter((f) => !fields.some(([n]) => n === f)).map((f) => [f, B] as [string, string])];
+      for (const [, all] of drawnB.copies) for (const f of all) {
+        // B's words are not sent with B's ids (a name in a box, drawn from B's row): a route that answers with what it
+        // was sent would "show" them. What is shown of B must come from B's rows.
+        const fields = withB(typed(f.fields)).map(([k, x]) => [k, x.split(MARK).join('zqx')] as [string, string]); const q = new URLSearchParams(fields).toString();
+        const url = `${f.action}${f.action.includes('?') ? '&' : '?'}${q}`;
+        await call('POST', url, { kind: 'form', data: q }, `replay B's form ${f.action}`);
+        await call('POST', url, { kind: 'json', data: JSON.stringify(Object.fromEntries(fields)) }, `replay B's form ${f.action} json`);
+      }
+      for (const r of ordered) {
+        const params = [...r.url.matchAll(/:(\w+)/g)].map((m) => m[1]!);
+        const own = params.map((p) => ownParam(ws.B, r.url, p));
+        if (own.some((x) => !x)) continue;
+        let n = -1; const url = r.url.replace(/:(\w+)/g, () => { n++; return own[n]!; });
+        const body = ownBody(ws.B, 0, r.url); const q = urlencoded(body); const where = `replay ${r.method} ${r.url}`;
+        if (r.method === 'GET') { await call('GET', `${url}?${q}`, null, where); continue; }
+        await call(r.method, `${url}?${q}`, { kind: 'form', data: q }, where);
+        await call(r.method, `${url}?${q}`, { kind: 'json', data: JSON.stringify(body) }, `${where} json`);
+        if (readsFile(r)) {
+          const m = multipart(/limits:\s*\{[^}]*parts:/.test(r.source) ? {} : body, fileFor(r));
+          await call(r.method, `${url}?${q}`, { kind: 'multipart', data: m.payload, type: m.type }, `${where} multipart`);
+        }
+      }
+    }
+
+    pass = 'forms';
+    await restoreAdvisor();
     // Each swapped position submits its OWN copy of the form (the k-th position the k-th copy drawn, where A has
     // several): a swap that leaves the form valid uses A's row, and must not use up the row the next swap needs.
     for (const [, all] of copies) {
@@ -1027,7 +1193,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
 
     // ── 4. one of B's ids among A's own, field by field as each handler reads them ────────────────────────────────
     pass = 'mixed';
-    for (const r of reachOnly ? [] : walk) {
+    await restoreAdvisor();
+    for (const r of runs('mixed') ? ordered : []) {
       const params = [...r.url.matchAll(/:(\w+)/g)].map((m) => m[1]!);
       const ownPath = params.map((p) => ownParam(ws.A, r.url, p));
       if (ownPath.some((x) => !x)) continue;
@@ -1036,7 +1203,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       const fields = idFields.filter((f) => read(r.source, f));
       const send = (url: string, o: Record<string, string>, where: string) => r.method === 'GET'
         ? call('GET', `${url}?${urlencoded(o)}`, null, where)
-        : call(r.method, url, { kind: 'form', data: urlencoded(o) }, where);
+        : call(r.method, `${url}?${urlencoded(o)}`, { kind: 'form', data: urlencoded(o) }, where);
       for (const [k, f] of fields.entries()) for (const b of bOf(FIELD_TABLES[f] ?? FIELD_TABLES[baseOf(f)])) await send(pathWith(-1, ''), { ...ownBody(ws.A, k, r.url), [f]: b }, `${r.method} ${r.url} ${f}=${b}`);
       for (let k = 0; k < params.length; k++) {
         const t = ws.A.tableOf.get(ownPath[k]!);
@@ -1047,7 +1214,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // ── 1–2. B's ids everywhere, as a form, and as JSON for every route that takes a body ─────────────────────────
     for (const [p, json] of [['ids', false], ['json', true]] as const) {
       pass = p;
-      for (const r of reachOnly ? [] : walk) {
+      await restoreAdvisor();
+      for (const r of runs(p) ? ordered : []) {
         if (json && r.method === 'GET') continue;
         const twice = /^\/app\/(inbox|conversations)\/:conversationId/.test(r.url) ? [false, true] : [false];
         for (const keep of twice) {
@@ -1055,7 +1223,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
             const url = fillAll(r.url, id, keep);
             const where = `${r.method} ${url} (${table})`;
             if (r.method === 'GET') await call('GET', `${url}${url.includes('?') ? '&' : '?'}${urlencoded(formOf(id, r.url))}`, null, where);
-            else await call(r.method, url, json ? { kind: 'json', data: JSON.stringify({ ...formOf(id, r.url), ids: [id] }) } : { kind: 'form', data: urlencoded(formOf(id, r.url)) }, where);
+            // F3 — the query of a POST carries B's ids as its body does (the workspace's own id among them).
+            else await call(r.method, `${url}?${urlencoded(formOf(id, r.url))}`, json ? { kind: 'json', data: JSON.stringify({ ...formOf(id, r.url), ids: [id] }) } : { kind: 'form', data: urlencoded(formOf(id, r.url)) }, where);
             if (!r.url.includes(':') && r.method === 'GET') break;   // a page with no id in its address: once is enough for the query
           }
         }
@@ -1064,7 +1233,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
 
     // ── 3. multipart, for every route whose handler reads a file: a small file, the fields it reads, B's ids ────────
     pass = 'multipart';
-    for (const r of (reachOnly ? [] : walk).filter(readsFile)) {
+    await restoreAdvisor();
+    for (const r of (runs('multipart') ? ordered : []).filter(readsFile)) {
       const words = Object.fromEntries(Object.entries(WORDS).filter(([k]) => r.source.includes(`'${k}'`)).slice(0, 3));
       const file = fileFor(r);
       for (const { table, id } of ids) {
@@ -1083,18 +1253,22 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     };
     const unreached = [...reach].filter(([, o]) => !aliasReached(o));
     const notListed = unreached.filter(([k]) => !(k in NOT_REACHED)).map(([k, o]) => `${k} — ${o}`);
-    const nowReached = Object.keys(NOT_REACHED).filter((k) => reach.get(k) === 'reached');
+    const nowReached = Object.keys(NOT_REACHED).filter((k) => aliasReached(reach.get(k) ?? ''));
+    const otherwise = unreached.filter(([k, o]) => k in NOT_REACHED && NOT_REACHED[k]![0] !== o).map(([k, o]) => `${k} — answered "${o}", listed as "${NOT_REACHED[k]![0]}"`);
     // AUTHZ_WALK_REPORT=<file>: what was called and how it answered, for the audit's report (never on by default).
     const report = process.env['AUTHZ_WALK_REPORT'];
     if (report) {
       const { writeFileSync } = await import('node:fs');
       writeFileSync(report, JSON.stringify({ routes: walk.length, calls, passCalls, pages: pages.size, forms: forms.length, relogins, ids: ids.length,
         idFields: idFields.length, statuses: Object.fromEntries(statuses), errors: errors.slice(0, 400), shown: [...new Set(shown)].slice(0, 100),
-        addedIdFields, reached: [...reach.values()].filter((o) => o === 'reached').length, unreached: Object.fromEntries(unreached), notListed, nowReached }, null, 1));
+        addedIdFields, reached: [...reach.values()].filter((o) => o === 'reached').length, aliases: [...reach.values()].filter((o) => o.startsWith('alias of ')).length,
+        passSeconds: Object.fromEntries(Object.entries(passMs).map(([k, v]) => [k, Math.round(v / 1000)])), sent5xx, unreached: Object.fromEntries(unreached), notListed, nowReached, otherwise, binaries: binaries.length, unreadable, formsOfB: [...drawnB.copies.values()].flat().length }, null, 1));
     }
     if (reachOnly) {
       expect([...new Set(errors)], `routes answered 5xx:\n${[...new Set(errors)].join('\n')}`).toEqual([]);
       expect(notListed, notListed.join('\n')).toEqual([]);
+      expect(nowReached, `listed in NOT_REACHED, and reached:\n${nowReached.join('\n')}`).toEqual([]);
+      expect(otherwise, `not reached for another reason than the one listed:\n${otherwise.join('\n')}`).toEqual([]);
       return;
     }
     const after = await snapshot(B);
@@ -1104,14 +1278,22 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const held = [...await heldBy(admin, scopes, A, theirs)].filter(([t, h]) => h.n > (heldBefore.get(t)?.n ?? 0))
       .map(([t, h]) => `${t}: ${h.n} row(s) ${JSON.stringify(h.shapes)}`);
     const across = await crossings();
+    // F2 — an answer that is not words, to a call that carried B's ids, is A's own or it fails: its bytes are kept by A
+    // (or by C, whose own calls the reach check made) now or at the start, or were sent by this walk.
+    const kept = new Set([...ownBlobs, ...await blobsOf(A), ...await blobsOf(C)]);
+    const unproven = [...new Set(binaries.filter((b) => !kept.has(b.hash)).map((b) => `${b.where} (${b.type})`))];
     // The session is still A's, and still works.
     if ((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode !== 200) await signIn(ws.A);
     expect((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode).toBe(200);
     expect(calls).toBeGreaterThan(1000);
-    expect(forms.length, 'the crawl found A\'s forms').toBeGreaterThan(50);
+    if (!only) expect(forms.length, 'the crawl found A\'s forms').toBeGreaterThan(50);
     expect(changed, `B's rows changed:\n${changed.join('\n')}`).toEqual([]);
     expect(held, `A's rows hold B's ids:\n${held.join('\n')}`).toEqual([]);
     expect(across, `rows point across workspaces:\n${across.join('\n')}`).toEqual([]);
+    expect(unproven.slice(0, 40), `answers that are not words and not provably A's own:\n${unproven.slice(0, 40).join('\n')}`).toEqual([]);
+    expect(unreadable.slice(0, 40), `files the walk could not open to look inside:\n${unreadable.slice(0, 40).join('\n')}`).toEqual([]);
+    expect(nowReached, `listed in NOT_REACHED, and reached:\n${nowReached.join('\n')}`).toEqual([]);
+    expect(otherwise, `not reached for another reason than the one listed:\n${otherwise.join('\n')}`).toEqual([]);
     expect([...new Set(shown)].slice(0, 40), `B's words shown to A:\n${[...new Set(shown)].slice(0, 40).join('\n')}`).toEqual([]);
     expect([...new Set(errors)].slice(0, 40), `routes answered 5xx:\n${[...new Set(errors)].slice(0, 40).join('\n')}`).toEqual([]);
     expect(notListed, `routes C's own call does not get past their first checks (send what they need, or list them in NOT_REACHED with the reason):\n${notListed.join('\n')}`).toEqual([]);
