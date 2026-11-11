@@ -2516,6 +2516,8 @@ const STYLE_PAGES = `
     align-items:baseline; padding:var(--space-8) 0; }
   @media (max-width: 560px) { .prow, .cx { grid-template-columns:minmax(0, 8em) minmax(0, 1fr); } }
   .prow:last-child, .cx:last-child { border-bottom:0; }
+  /* A reference with no break in it (an order number written outside Nomi's own) wraps inside its row; it never widens the page. */
+  .cx { overflow-wrap:break-word; }
   .cx-l { color:var(--color-ink-secondary); }
   /* The history: a line down the reading edge, each kind told by its mark, not by a colour. */
   .tl { list-style:none; padding:0; margin:0; max-width:var(--measure-prose); }
