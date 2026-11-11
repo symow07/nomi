@@ -671,6 +671,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // An order not yet in the books (the seeded one is the issued invoice's), for "draft its invoice".
     await one('orderBook', `insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit, status, total_value_usd, currency) values ('AZB-' || $MARK, $W, $client, $conv4, $product, 10, 'pcs', 'confirmed', 20, 'MAD') returning id::text as id`);
     await one('importPhoto', `insert into catalog_import_photos (business_id, import_id, position, media_type, bytes, transcript) values ($W, $catalogImport, 1, 'image/png', decode('${PNG.toString('hex')}', 'hex'), 'Bag ' || $MARK || ' 3.00') returning id::text as id`);
+    // The photo Nomi serves for the product (0152), so B has one a broken "remove the photo" would delete — without it
+    // that route had nothing of B's to take, and a remove under the body's workspace passed the walk (my break N5).
+    await one('productPhoto', `insert into product_images (product_id, url, token, media_type, bytes)
+      select $product, '/media/' || t, t, 'image/png', decode('${PNG.toString('hex')}', 'hex') from (select md5($MARK || 'photo') || md5(random()::text) as t) s returning id::text as id`);
     return v;
   };
 
