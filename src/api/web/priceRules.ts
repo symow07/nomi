@@ -239,7 +239,8 @@ export async function savePriceRulesTx(
   const bid = { value: business } as const;
   {
     // The list price is needed to reject a floor above it, so read it first.
-    const product = input.productId
+    // An id that is not one finds no product (it answered 500 on the cast: the audit's fix round 3).
+    const product = input.productId && PRODUCT_ID.test(input.productId)
       ? (await sql<{ price: string | null; currency: string; is_active: boolean }>`
           select price_usd_per_unit as price, currency, is_active from products
            where business_id = ${bid.value} and id = ${input.productId} limit 1
@@ -354,6 +355,7 @@ export async function savePriceRulesTx(
  * at all is refused too: the floor is what makes a discount safe, and M29's
  * whole argument is that absence of a rule is never a default.
  */
+const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type VolumeField = 'minQty' | 'discountPct';
 export type VolumeError = 'missing' | 'not_a_number' | 'not_positive' | 'above_max' | 'no_limits';
 export type VolumeResult =
@@ -378,6 +380,14 @@ export async function saveVolumeDiscount(
     else if (!Number.isFinite(pct)) errors.discountPct = 'not_a_number';
     else if (pct <= 0 || pct > 100) errors.discountPct = 'not_positive';
     if (Object.keys(errors).length) return { ok: false, errors };
+    // The authorization audit (fix round 3) — a rule names a product of THIS workspace or none: the id from the form
+    // was written into the rule as sent (another workspace's product, or words). Refused as the limits' form refuses
+    // a product it does not find; nothing is written.
+    if (input.productId !== null) {
+      const own = PRODUCT_ID.test(input.productId)
+        && (await sql`select 1 from products where business_id = ${bid.value} and id = ${input.productId}::uuid`.execute(tx)).rows.length > 0;
+      if (!own) return { ok: false, errors: { minQty: 'missing' } };
+    }
 
     // The ceiling that applies: this product's own, else the business default.
     const ceiling = (await sql<{ max: string }>`
