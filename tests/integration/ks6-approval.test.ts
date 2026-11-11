@@ -29,6 +29,8 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `ad600000-0000-4000-8000-${RUN}0001`;
+/** A workspace the operator made (`signed_up_at` null): never asked, whatever it has connected. */
+const OPERATOR_MADE = `ad600000-0000-4000-8000-${RUN}0002`;
 const CODE = `ks6-${RUN}`;
 const SECRET = 'a-test-session-secret-of-sufficient-length';
 const OPERATOR = `operator-${RUN}@nomi.example`;
@@ -74,12 +76,14 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
       db, businessId: PILOT, accessCode: CODE, sessionSecret: SECRET, legalContact: 'legal@nomi.example',
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled', secureCookie: false, messagingEnabled: false,
       kickOutbound: async () => {}, kickDrive: async () => {},
+      chatIngest: async () => 'refused' as const, telegramBot: { username: 'nomi_test_bot' },
       systemMail: { from: 'no-reply@nomi.test', send: async (m: { to: string; subject: string; text: string }) => { outbox.push(m); return { ok: true as const }; } },
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     pilotCookie = cookieOf(await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`, headers: FORM }));
-    // Three workspaces that signed themselves up: one that asks, one refused, one that connected a Page before.
-    for (const name of ['asks', 'refused', 'before']) {
+    // Workspaces that signed themselves up: one that asks, one refused, one that connected a Page before;
+    // (R1, 0242) one each that connected only a mailbox, only Telegram, only the chat page — and one with nothing.
+    for (const name of ['asks', 'refused', 'before', 'mailbox', 'telegram', 'chat', 'nothing']) {
       const email = `ks6-${name}-${RUN}@shop.example`;
       const made = await provisionAccount(db, {
         factory: `KS6 ${name} ${RUN}`, language: 'en', ownerName: 'Samira', email, passwordHash: await hashPassword(`ks6-password-${RUN}`),
@@ -93,8 +97,29 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     }
     await admin.query(`insert into meta_accounts (business_id, page_id, page_name, token_ciphertext, fingerprint, scopes, connected_by, archived_at, archived_by)
                        values ($1, '7000000001', 'Old Page', 'v1.not-a-real-token', '0123456789ab', 'pages_messaging', 'test', now(), 'test')`, [shops['before']!.id]);
+    // R1 (0242): connected before through the app's own writers — on, then off again (or archived) — before the switch.
+    {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { connectMailAccount, archiveMailAccount } = await import('../../src/db/mailAccounts.js');
+      const { setTelegram } = await import('../../src/db/telegram.js');
+      const { setChatPage } = await import('../../src/db/webChat.js');
+      const idOf = (name: string) => { const b = parseBusinessId(shops[name]!.id); if (!b.ok) throw new Error('fixture'); return b.value; };
+      const mail = idOf('mailbox');
+      await withTenantTx(db, mail, async (tx) => {
+        await connectMailAccount(tx, mail, { provider: 'google', address: `soap-${RUN}@shop.example`, ciphertext: 'v1.not-a-real-token',
+          fingerprint: '0123456789ab', scopes: 'gmail.send', by: 'test' });
+        await archiveMailAccount(tx, mail, 'test');
+      });
+      const tg = idOf('telegram');
+      await withTenantTx(db, tg, async (tx) => { await setTelegram(tx, tg, true, 'test'); await setTelegram(tx, tg, false, 'test'); });
+      const chat = idOf('chat');
+      await withTenantTx(db, chat, async (tx) => { await setChatPage(tx, chat, true, 'test'); await setChatPage(tx, chat, false, 'test'); });
+      // A workspace the operator made, with nothing connected either.
+      await admin.query(`insert into businesses (id, name, owner_locale) values ($1, $2, 'en')`, [OPERATOR_MADE, `KS6 operator-made ${RUN}`]);
+    }
     expect(await op.setOperatorFlag(admin, { flag: 'approve_connections', businessId: null, reason: `ks6 test ${RUN}`, by: 'test' })).toBe(1);
-  }, 90_000);
+  }, 150_000);
   afterAll(async () => {
     await op.clearOperatorFlag(admin, { flag: 'approve_connections', businessId: null }).catch(() => undefined);
     await app?.close(); await db?.destroy(); await admin?.end();
@@ -124,6 +149,36 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
       expect(flashSaid(r, SECRET)).not.toBe(t('en', 'connect.flash.approval'));
       expect((await get(cookie, '/app/settings/channels')).body).not.toContain('id="approval"');
     }
+  });
+
+  it('R1 (0242) · CONNECTED BEFORE is any channel kind: a mailbox, Telegram or the chat page alone is never asked again; nothing connected is asked; the operator\'s workspace never', async () => {
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const needed = async (id: string): Promise<boolean> => {
+      const b = parseBusinessId(id); if (!b.ok) throw new Error('fixture');
+      return (await withTenantTx(db, b.value, (tx) => sql<{ n: boolean }>`select connection_approval_needed() as n`.execute(tx))).rows[0]!.n;
+    };
+    // The question itself, the switch on.
+    expect({
+      mailbox: await needed(shops['mailbox']!.id), telegram: await needed(shops['telegram']!.id), chat: await needed(shops['chat']!.id),
+      before: await needed(shops['before']!.id), nothing: await needed(shops['nothing']!.id),
+      operatorMade: await needed(OPERATOR_MADE), installation: await needed(PILOT),
+    }).toEqual({ mailbox: false, telegram: false, chat: false, before: false, nothing: true, operatorMade: false, installation: false });
+    // Through the doors: Telegram and the chat page come back on; the mailbox's Page door is not asked.
+    const tg = await post(shops['telegram']!.cookie, '/app/channels/telegram', { on: '1' });
+    expect(flashSaid(tg, SECRET)).toBe(t('en', 'channels.telegram.flash.on'));
+    const chat = await post(shops['chat']!.cookie, '/app/channels/chat', { on: '1' });
+    expect(flashSaid(chat, SECRET)).toBe(t('en', 'channels.chat.flash.on'));
+    expect(flashSaid(await get(shops['mailbox']!.cookie, '/app/connect/meta/start'), SECRET)).not.toBe(t('en', 'connect.flash.approval'));
+    for (const name of ['mailbox', 'telegram', 'chat']) {
+      expect((await get(shops[name]!.cookie, '/app/settings/channels')).body, name).not.toContain('id="approval"');
+    }
+    // Nothing connected: Telegram's door asks, and nothing is written.
+    const first = await post(shops['nothing']!.cookie, '/app/channels/telegram', { on: '1' });
+    expect(flashSaid(first, SECRET)).toBe(t('en', 'connect.flash.approval'));
+    expect((await admin.query(`select 1 from channels where business_id = $1`, [shops['nothing']!.id])).rowCount).toBe(0);
+    expect((await get(shops['nothing']!.cookie, '/app/settings/channels')).body).toContain('id="approval"');
   });
 
   it('THE OWNER ASKS once, naming where the business can be seen; the operator hears at once and the daily list counts it', async () => {
