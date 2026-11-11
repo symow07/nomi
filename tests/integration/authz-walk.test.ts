@@ -138,6 +138,8 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   '/app/conversations/:conversationId/deletion/erase': { asked: '1', note: 'authz: asked by phone' },
   // A question for the Copilot and for the help panel (G3, fix round 4): the scripted advisor model answers both.
   '/app/inbox/:conversationId/copilot': { q: 'What did they ask about?' }, '/app/help/ask': { q: 'How do I add a product?' },
+  // A customer's voice note (fix round 4, item 4): what was heard corrected, and an answer asked for, on the note.
+  '/app/inbox/:conversationId/heard': { messageId: '@voiceMsg', heard: 'authz: heard again' }, '/app/inbox/:conversationId/answer-now': { messageId: '@voiceMsg' },
   // How you sell (G2): the hours answered, then its one line ticked on the confirm page.
   '/app/business/selling/:q': { hours: 'Monday to Friday, 9 to 5' }, '/app/business/selling/:q/confirm': { 'line:hours': 'on' },
   '/app/books/bank/columns': { preview: '[["date","amount","label"],["2026-04-20","100","authz"]]', sep: ',', headerRow: '0', date: '0', dateFormat: 'YYYY-MM-DD',
@@ -203,6 +205,9 @@ const ROUTE_OWN: Record<string, Record<string, string>> = {
   '/app/assistant/ask/:id': { id: 'advisorThread' },
   // The erasure takes a customer of its own (G1): every conversation of that customer goes with them.
   '/app/conversations/:conversationId/deletion/erase': { conversationId: 'convErase' },
+  // The voice note's routes take its own conversation (answer-now hands it back to the assistant).
+  '/app/inbox/:conversationId/heard': { conversationId: 'convVoice' }, '/app/inbox/:conversationId/answer-now': { conversationId: 'convVoice' },
+  '/app/inbox/:conversationId/voice/:messageId': { conversationId: 'convVoice', messageId: 'voiceMsg' },
   '/app/inbox/:conversationId/act': { conversationId: 'conv4' }, '/app/inbox/:conversationId/translate': { conversationId: 'conv4' },
   '/app/knowledge/:id/restore': { id: 'knowledgeArchived' },
   // What is done with an issued invoice (a credit note, a payment, a refund, sending it) is done with the issued one.
@@ -372,7 +377,6 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/knowledge/from-page/:id/again": ["400", "reading a page again needs the page reader, which the walk does not compose (no model): 'not configured', before the reading's id is read"],
   "GET /app/settings/components": ["404", "the components gallery is the installation's own workspace's alone"],
   "GET /app/books/spending/:id/draft": ["404", "a paper's draft page is drawn only after the paper was read (no reader in the walk)"],
-  "GET /app/inbox/:conversationId/voice/:messageId": ["404", "needs a customer's voice note; the walk's conversations have none"],
   "GET /app/orders/:id/proforma.txt": ["404", "a proforma needs the order's payment terms and incoterm, which the seeded order does not carry"],
   "GET /app/live/practice": ["404", "Practice's live line answers only where Practice runs (no inbound queue in the walk)"],
   "GET /app/products/whatsapp/review/:batchId": ["no id of its own for :batchId", "a WhatsApp catalogue batch exists only after Meta's catalogue answered (not configured)"],
@@ -387,8 +391,6 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/sandbox/message": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/sandbox/media": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/sandbox/scenario": ["redirect to /app/assistant/practice, no notice, nothing written", "Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
-  "POST /app/inbox/:conversationId/answer-now": ["redirect to /app/inbox/:id, no notice, nothing written", "the answer kicker is not composed in the walk: it turns back to the conversation before the message id is read"],
-  "POST /app/inbox/:conversationId/heard": ["redirect to /app/inbox/:id, no notice, nothing written", "what was heard is corrected on a customer's voice note; the walk's conversations have none, so no message id of its own is sent and it turns back before any read"],
   "POST /app/products/import/:importId/columns": ["redirect to /app/products/add, no notice, nothing written", "the list is read and found; columns are chosen for a file, and the seeded list is a paste: 'not there'"],
   "POST /app/products/import/:importId/confirm": ["400", "the list is read and found (C's own id passes); none of its rows is ticked, so it answers the review again (400) and adds nothing"],
   "POST /app/channels/chat": ["redirect to /app/settings/channels/chat, no notice, nothing written", "a retired form address: it sends the owner to the channel's own settings page"],
@@ -455,7 +457,6 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/connect/meta/disconnect": ["refused: connect.flash.rejected", "Meta's login is not configured in the walk's composition, and nothing is connected: 'rejected'"],
   "POST /app/contacts/write": ["refused: contacts.flash.notLive", "writing first needs the outbound worker (messaging is off in the walk's composition): 'notLive'"],
   "POST /app/conversations/:conversationId/deletion": ["refused: conv.deletion.flash.moved", "a retired address: it says the control moved, before reading any id"],
-  "POST /app/conversations/:conversationId/copilot/suggest": ["refused: copilot.flash.notSuggested.unavailable", "a suggestion needs the real turn's model (none in the walk): 'unavailable' after the conversation is read"],
   "POST /app/settings/data/close": ["refused: data.flash.protected", "the walk's owner signs in with the access code (person 'owner'), which may never close a workspace: 'protected', before the name is read"],
   "POST /app/help/write": ["refused: help.write.cannot", "writing to Nomi needs the help writer, which the walk does not compose"],
   "GET /app/channels/instagram/comments/callback": ["refused: igComments.flash.refused", "Instagram comments need a connected Instagram account and Meta's login (not configured)"],
@@ -760,6 +761,11 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('clientErase', `insert into clients (business_id, display_name) values ($W, 'Erase ' || $MARK) returning id::text as id`);
     await one('convErase', `insert into conversations (business_id, client_id, channel) values ($W, $clientErase, 'whatsapp') returning id::text as id`);
     await one('msgErase', `insert into messages (conversation_id, direction, text_content) values ($convErase, 'inbound', 'Delete me ' || $MARK) returning id::text as id`);
+    // Item 4 (fix round 4): a customer's voice note, in a conversation of its own. Its media id carries the marker, and
+    // the walk's audio fetcher answers with bytes that name the id: one of B's notes played to A shows B's marker.
+    await one('clientVoice', `insert into clients (business_id, display_name) values ($W, 'Voice ' || $MARK) returning id::text as id`);
+    await one('convVoice', `insert into conversations (business_id, client_id, channel) values ($W, $clientVoice, 'whatsapp') returning id::text as id`);
+    await one('voiceMsg', `insert into messages (conversation_id, direction, input_type, provider_media_id, text_content) values ($convVoice, 'inbound', 'voice', 'voice-' || $MARK, 'Heard ' || $MARK) returning id::text as id`);
     await one('resultAccount', `insert into accounts (business_id, code, name, kind) values ($W, '1191', 'Result ' || $MARK, 'equity') returning id::text as id`);
     return v;
   };
@@ -890,6 +896,19 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       },
       phrase: async ({ facts }) => ({ text: facts.join(' ') || null, usage }),
     };
+    /**
+     * Item 4 (fix round 4) — three more ports, each local: the channel's AUDIO FETCHER (its bytes name the media id the row
+     * holds, so B's note played to A carries B's marker; A's and C's are A's own bytes), the ANSWER KICKER (records
+     * nothing: the worker is not composed; the route's own reads and writes are what is walked), and "SUGGEST A REPLY"
+     * (a scripted suggestion for any conversation: production's turn refuses another workspace's conversation itself,
+     * so here the route's own write, the words kept in the box, is what has to hold).
+     */
+    const audioBytes = (media: string) => Buffer.from(`audio ${media}`);
+    for (const m of [A_MARK, C_MARK]) ownBlobs.add(sha(audioBytes(`voice-${m}`)));
+    bBlobs.add(sha(audioBytes(`voice-${MARK}`)));
+    const audio = async (media: string) => ({ ok: true as const, mediaType: 'audio/ogg', base64: audioBytes(media).toString('base64') });
+    const kickAnswer = async () => {};
+    const suggestReply = async () => ({ ok: true as const, text: 'Suggested authz' });
     const make = async (name: 'A' | 'B' | 'C', w: string, ns: string, seeded: Record<string, string>, record: boolean): Promise<WS> => {
       // AUTHZ_WALK_LOG=1: the routes' own error log, to read why one answered 5xx (never on by default).
       const app = Fastify({ logger: process.env['AUTHZ_WALK_LOG'] ? { level: 'error' } : false });
@@ -902,6 +921,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         // the domain check's lookup, which production always passes (no network here: every record reads as absent);
         // and the advisor's history (R2), which production composes, so its routes reach their ids.
         advisorDb: db, resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }), advisorMemory: memory, documents, advisorModel,
+        audio, kickAnswer, suggestReply,
       } as unknown as Parameters<typeof registerWebApp>[1]);
       await app.ready();
       const personCode = `P${name}${RUN.slice(0, 2).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}-${RUN.slice(2, 7).toUpperCase().replace(/[^A-Z2-9]/g, 'Q')}`;
