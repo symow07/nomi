@@ -133,6 +133,8 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   // An answer the owner gave, taught or set aside by its question (no id: the question is the key).
   '/app/knowledge/answers/teach': { question: 'How long is delivery?', label: 'Delivery', content: 'Three days' },
   '/app/knowledge/answers/dismiss': { question: 'Do you ship abroad?' },
+  // How you sell (G2): the hours answered, then its one line ticked on the confirm page.
+  '/app/business/selling/:q': { hours: 'Monday to Friday, 9 to 5' }, '/app/business/selling/:q/confirm': { 'line:hours': 'on' },
   '/app/books/bank/columns': { preview: '[["date","amount","label"],["2026-04-20","100","authz"]]', sep: ',', headerRow: '0', date: '0', dateFormat: 'YYYY-MM-DD',
     shape: 'single', amount: '1', decimal: '.', description: '2', currency: '', reference: '', out: '', in: '' },
 };
@@ -178,8 +180,10 @@ const FIELD_OWN: Record<string, string | readonly string[]> = {
 /** A path parameter whose name and segment say nothing of its table: which seeded row of the workspace it is. */
 const ROUTE_OWN: Record<string, Record<string, string>> = {
   // A value that is not a row (`=…`): a question of How you sell, a capability, a provider. `key+suffix`: a row's id and words after it.
-  '/app/business/selling/:q': { q: '=returns' }, '/app/business/selling/:q/confirm': { q: '=returns' }, '/app/business/selling/:q/skip': { q: '=returns' },
-  '/app/settings/business/selling/:q': { q: '=returns' }, '/app/settings/business/selling/:q/confirm': { q: '=returns' },
+  // How you sell's question is one both lists ask (`questionsFor`): a workspace whose prices go to its owner — which an
+  // earlier call of the walk's own makes it — is asked the services' list, where `returns` is "gone" (G2, fix round 4).
+  '/app/business/selling/:q': { q: '=hours' }, '/app/business/selling/:q/confirm': { q: '=hours' }, '/app/business/selling/:q/skip': { q: '=hours' },
+  '/app/settings/business/selling/:q': { q: '=hours' }, '/app/settings/business/selling/:q/confirm': { q: '=hours' },
   '/app/settings/assistant/capability/:capability/promote': { capability: '=greet' },
   '/app/connect/:provider/start': { provider: '=gmail' }, '/app/connect/:provider/callback': { provider: '=gmail' },
   '/app/settings/alerts/phone/:id/remove': { id: 'phone' },
@@ -379,9 +383,6 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/sandbox/message": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/sandbox/media": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/sandbox/scenario": ["redirect to /app/assistant/practice, no notice, nothing written", "Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
-  "POST /app/business/selling/:q": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
-  "POST /app/business/selling/:q/confirm": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
-  "POST /app/business/selling/:q/skip": ["redirect to /app/business/selling, no notice, nothing written", "a retired address: it moves to /app/settings/business/selling/…, which the walk reaches there"],
   "POST /app/inbox/:conversationId/answer-now": ["redirect to /app/inbox/:id, no notice, nothing written", "the answer kicker is not composed in the walk: it turns back to the conversation before the message id is read"],
   "POST /app/inbox/:conversationId/heard": ["redirect to /app/inbox/:id, no notice, nothing written", "what was heard is corrected on a customer's voice note; the walk's conversations have none, so no message id of its own is sent and it turns back before any read"],
   "POST /app/products/import/:importId/columns": ["redirect to /app/products/add, no notice, nothing written", "the list is read and found; columns are chosen for a file, and the seeded list is a paste: 'not there'"],
