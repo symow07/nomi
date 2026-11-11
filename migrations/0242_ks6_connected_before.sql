@@ -24,6 +24,7 @@
 -- nothing ever connected still asked.
 -- ---------------------------------------------------------------------------
 
+-- Re-made from 0115's (its only definition): "connected before" is `first_channel_at()`.
 create or replace function connection_approval_needed()
 returns boolean
 language sql stable security definer set search_path = public as $$
