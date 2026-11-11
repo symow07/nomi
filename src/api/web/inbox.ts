@@ -21,7 +21,7 @@ import { sayOnPage } from './shopifyOrders.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
-import { t, assistantName, tn } from './say.js';
+import { t, assistantName, tn, workspaceFrozen, workspaceFrozenWhy } from './say.js';
 import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
@@ -1471,12 +1471,16 @@ function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date, channel 
   const say = { name, channel: channelName(locale, channel) };
   return `<div class="card refused">
     ${stateHead('bad', t(locale, 'refused.title'))}
-    ${rs.map((r) => `<div class="rf">
+    ${rs.map((r) => {
+      // 4.1 (0240) — refused while frozen because the trial ended with no card: said in its own words.
+      const trial = r.reason === 'frozen' && workspaceFrozen() && workspaceFrozenWhy() === 'trial_over';
+      return `<div class="rf">
       <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, say))}</div>
-      <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, say))}</div>
-      <div class="rf-d">${esc(t(locale, `refused.do.${r.reason}` as MessageKey, say))}</div>
+      <div class="rf-y muted">${esc(t(locale, trial ? 'refused.frozen.trialOver.why' : `refused.why.${r.reason}` as MessageKey, say))}</div>
+      <div class="rf-d">${esc(t(locale, trial ? 'refused.frozen.trialOver.do' : `refused.do.${r.reason}` as MessageKey, say))}</div>
       <div class="rf-t muted">${esc(show.when(locale, r.at, now))}</div>
-    </div>`).join('')}
+    </div>`;
+    }).join('')}
   </div>`;
 }
 

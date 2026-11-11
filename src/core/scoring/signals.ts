@@ -119,6 +119,11 @@ export type Signal =
    */
   | { readonly kind: 'billing_lapsed' }
   /**
+   * 4.1 (0240) — the trial ended with no card saved while `billing_required` is on: the same hold as the lapse,
+   * under its own name, so nothing says a subscription ended that never began.
+   */
+  | { readonly kind: 'billing_trial_over' }
+  /**
    * BILL (0117) — a new customer this month, and the plan's month already holds
    * as many as it allows: a person answers; customers already answered this
    * month are answered as before.
@@ -223,6 +228,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'allowance_used',
   // BILL (0117) — the payment lapsed; a plan's month used for a new customer.
   'billing_lapsed',
+  // 4.1 (0240) — the trial ended with no card saved; a person answers.
+  'billing_trial_over',
   'plan_limit',
   // 0128 — the model provider refused for billing; a person answers.
   'provider_billing',
@@ -265,6 +272,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   stock_asked: { kind: 'stock_asked' },
   allowance_used: { kind: 'allowance_used' },
   billing_lapsed: { kind: 'billing_lapsed' },
+  billing_trial_over: { kind: 'billing_trial_over' },
   plan_limit: { kind: 'plan_limit' },
   provider_billing: { kind: 'provider_billing' },
   language_not_reviewed: { kind: 'language_not_reviewed' },
@@ -312,6 +320,7 @@ export const TRIGGER_REASONS = [
   'opted_out',
   'stock_asked',
   'billing_lapsed',
+  'billing_trial_over',
   'plan_limit',
   'provider_billing',
   'language_not_reviewed',
@@ -363,6 +372,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'allowance_used';
     case 'billing_lapsed':
       return 'billing_lapsed';
+    case 'billing_trial_over':
+      return 'billing_trial_over';
     case 'plan_limit':
       return 'plan_limit';
     case 'provider_billing':

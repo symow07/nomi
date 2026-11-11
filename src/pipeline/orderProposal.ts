@@ -44,7 +44,8 @@ export type ProposalOutcome =
   | 'assistant_stopped'  // 0070 — stopped on every channel: it stays waiting
   | 'assistant_silenced' // 0071 — ops paused sending: it stays waiting
   | 'allowance_used'     // G3 — the day's allowance is used: it stays waiting
-  | 'billing_lapsed';    // BILL — the payment lapsed: it stays waiting
+  | 'billing_lapsed'     // BILL — the payment lapsed: it stays waiting
+  | 'billing_trial_over'; // 4.1 (0240) — the trial ended with no card saved: it stays waiting
 
 export type ProposalDeps = {
   readonly db: Db;

@@ -302,7 +302,7 @@ export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
-    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
+    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit' | 'billing_trial_over'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance'
     | 'deploy_behind' | 'deploy_caught_up' | 'deploy_unseen' | 'deploy_seen_again'
     | 'backup_failed' | 'mailbox_disconnected' | 'comment_asking'

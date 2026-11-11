@@ -77,8 +77,14 @@ export function detectLanguage(text: string): string | null {
 
 /* ── quantity ───────────────────────────────────────────────────────────── */
 
+/**
+ * The words a customer counts pieces with, in every language this file reads (a regular-expression alternation). The
+ * approval card's reading (`src/core/owner/reading.ts`) reads the same words, so "3 items" is a quantity there too.
+ */
+export const PIECE_WORDS = 'pcs?|pieces?|piece|units?|items?|pzs?|piezas?|unidades|pièces?|stück|adet|buah|个|件|只|条|قطعة|قطع|حبة|حبات|وحدة';
+
 const UNITS: readonly (readonly [RegExp, string])[] = [
-  [/^(pcs?|pieces?|piece|units?|items?|pzs?|piezas?|unidades|pièces?|stück|adet|buah|个|件|只|条|قطعة|قطع|حبة|حبات|وحدة)$/i, 'pcs'],
+  [new RegExp(`^(${PIECE_WORDS})$`, 'i'), 'pcs'],
   [/^(sets?|套|طقم)$/i, 'sets'], [/^(cartons?|ctns?|boxes|box|cajas?|箱|كرتون|كراتين|صندوق)$/i, 'cartons'],
   [/^(dozens?|dz|打|دزينة)$/i, 'dozen'], [/^(pairs?|双|زوج)$/i, 'pairs'],
   [/^(rolls?|卷)$/i, 'rolls'], [/^(meters?|metres?|m|米|متر)$/i, 'm'], [/^(kgs?|kilos?|公斤|كيلو)$/i, 'kg'],

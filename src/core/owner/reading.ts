@@ -1,4 +1,5 @@
 import { asciiDigits, extractNumerals, isSafeSmall, near } from '../safety/numerals.js';
+import { PIECE_WORDS } from '../conversation/understand.js';
 
 /**
  * "HOW {name} READ THIS" — the approval card's reasons (the design pass,
@@ -52,6 +53,15 @@ export function tokenAround(text: string, at: readonly [number, number]): readon
   while (to < text.length && (alnum(to) || joined(to))) to++;
   return [from, to];
 }
+
+/**
+ * N1 (2026-11-11) — the word after a small figure that makes it a quantity: every word a customer counts pieces with
+ * (`PIECE_WORDS`, the same words `extractQuantity` reads: "items", "units", «قطع», 件…), the singulars the fixed
+ * sentences write in Spanish, French and Portuguese, and bottles. "3 items" read "no source found" because only
+ * pieces, pcs, units and bottles were here. A word ends where the letters do (`\b` knows only ASCII: «قطع» and
+ * «قطعة» are both whole words); Chinese writes the noun straight after its counter ("3件衬衫").
+ */
+const QUANTITY_AFTER = new RegExp(`^\\s*(?:(?:${PIECE_WORDS}|unidad|unidades?|pi[eè]ces?|bottles?)(?![\\p{L}\\p{M}\\p{N}])|[件个個只条瓶])`, 'iu');
 
 export type ReadingQuote = {
   readonly unitPrice: number; readonly total: number; readonly quantity: number;
@@ -162,7 +172,7 @@ export function readReply(input: {
     const normalized = asciiDigits(raw), end = n.at?.[1] ?? 0;
     const tail = normalized.slice(end);
     const duration = /^\s*(?:days?\b|天|日)/iu.exec(tail);
-    const quantity = /^\s*(?:pieces?\b|pcs\b|units?\b|bottles?\b|件|个|個|瓶)/iu.exec(tail);
+    const quantity = QUANTITY_AFTER.exec(tail);
     const unit = duration ?? quantity;
     return { kind: duration ? 'duration' : quantity ? 'quantity' : 'unknown',
       words: n.at ? raw.slice(n.at[0], end + (unit?.[0].length ?? 0)) : String(n.value) };

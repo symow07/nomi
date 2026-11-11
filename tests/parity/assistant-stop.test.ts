@@ -92,7 +92,8 @@ describe('where Stop is asked', () => {
     expect(approve).toContain("cmd.kind === 'approve' || cmd.kind === 'edit' ? await assistantHold(tx, input.businessId) : null");
     expect(approve).toContain('outcome: HOLD_OUTCOME[hold]');
     // G3 — one map from the hold to what the owner is told; the allowance has its own.
-    expect(HOLD_OUTCOME).toEqual({ silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed' });
+    // 4.1 (0240) — the trial over with no card is the same hold under its own name (fix round D4).
+    expect(HOLD_OUTCOME).toEqual({ silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', trial_over: 'billing_trial_over' });
   });
 
   it('0071 — the ops switch hands the buyer to a person under its own reason, in every language', () => {
@@ -106,6 +107,21 @@ describe('where Stop is asked', () => {
       }
     }
     expect(src('src/worker/main.ts')).toContain('{ kind: HOLD_REASON[hold] }');
-    expect(HOLD_REASON).toEqual({ silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', plan_limit: 'plan_limit' });
+    expect(HOLD_REASON).toEqual({ silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', trial_over: 'billing_trial_over', plan_limit: 'plan_limit' });
+  });
+
+  it('4.1 fix D4 — the trial over with no card has its own words wherever the lapse has its own, in every language', () => {
+    expect(PROBLEM_SIGNAL_KINDS).toContain('billing_trial_over');
+    expect(toTriggerReason(SIGNAL_SAMPLES.billing_trial_over)).toBe('billing_trial_over');
+    for (const l of LOCALES) {
+      for (const [k, lapse] of [['takeover.reason.billing_trial_over', 'takeover.reason.billing_lapsed'],
+        ['takeover.flash.billing_trial_over', 'takeover.flash.billing_lapsed'], ['inbox.flash.billing_trial_over', 'inbox.flash.billing_lapsed'],
+        ['order.flash.billing_trial_over', 'order.flash.billing_lapsed'], ['advisor.k.held.trial_over', 'advisor.k.held.billing'],
+        ['refused.frozen.trialOver.why', 'refused.why.frozen'], ['refused.frozen.trialOver.do', 'refused.do.frozen']] as const) {
+        const said = t(l, k as MessageKey, { name: 'X' });
+        expect(said, `${l} ${k}`).not.toBe(k);
+        expect(said, `${l} ${k} must not be the lapse's words`).not.toBe(t(l, lapse as MessageKey, { name: 'X' }));
+      }
+    }
   });
 });
