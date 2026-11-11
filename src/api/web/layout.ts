@@ -2,6 +2,7 @@ import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
 import { MONTH_REPORT_CSS } from './monthReportStyle.js';
 import { SETUP_MINUTES_CSS } from './setupMinutesStyle.js';
 import { FOLLOW_UP_CSS } from './followUpStyle.js';
+import { pageFrom } from './helpTopics.js';
 import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
 import { BOOKS_SPENDING_CSS } from './booksSpendingStyle.js';
@@ -1350,6 +1351,40 @@ const STYLE_PAGES = `
      and the value beside it keeps its words (up to its half of the row) instead of giving way to the line. */
   .srow.sr-two { min-height:64px; }
   .srow.sr-menu.sr-two > .sr-main { flex:1 1 0; }
+  /* ── helpPanel.ts (Block 6.1) — the "?" at the head of every page, and the help it opens. */
+  .content { position:relative; }
+  .help-door { position:absolute; z-index:2; inset-block-start:var(--space-16); inset-inline-end:var(--space-16);
+    display:inline-grid; place-items:center; inline-size:44px; block-size:44px; border-radius:var(--radius-chip);
+    color:var(--color-ink-secondary); text-decoration:none; }
+  .help-door .hdi { inline-size:26px; block-size:26px; }
+  /* On a phone the workspace's name heads the page: it keeps clear of the "?". */
+  main > .business-name { padding-inline-end:var(--space-48); }
+  /* …and so does every area's own menu at the head of a page, at every width where it is a row or a phone's chooser
+     (6.1's check: at 390 px the "?" sat on the area menu's arrow on Today, Calendar and Results; between a phone and a
+     laptop it sat on the last link of the Books, Assistant, Customers and Settings rows). Each stops short of the "?"
+     by the door and a gap. tools/check-help-door.mjs measures every shell page against every control. */
+  .content .ca-nav, .content .pa-nav, .content .sa-pages { padding-inline-end:calc(44px + var(--space-8)); }
+  @media (max-width:1100px) { .content .aa-nav, .content .ba-nav, .content .sa-nav { padding-inline-end:calc(44px + var(--space-8)); } }
+  @media (max-width:720px) { .content .area-nav .area-chooser { margin-inline-end:calc(44px + var(--space-8)); } }
+  @media (max-width:600px) {
+    .content .sa-chooser, .content .aa-chooser, .content .ca-chooser, .content .pa-chooser, .content .ba-chooser { margin-inline-end:calc(44px + var(--space-8)); }
+  }
+  .help-door:hover { color:var(--color-ink); background:var(--color-sand); }
+  .help-door:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+  .help { display:flex; flex-direction:column; gap:var(--space-16); }
+  dialog.sheet .help { max-inline-size:var(--measure-column); max-block-size:85vh; overflow:auto; padding:var(--space-24);
+    background:var(--color-surface); border-radius:var(--radius-card); }
+  .help-guides { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
+  .help-guide { padding:var(--space-16); border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
+  .help-guide h2, .help-ask h2, .help-write h2 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
+  .help-guide ul { margin:0 0 var(--space-8); padding-inline-start:var(--space-24); }
+  /* The notice's lines are English in every language, each left to right by its own dir="auto": on a right-to-left page
+     a line's bullet sits on its left, outside the list. Room on both sides keeps it inside whichever way a line runs
+     (F1: 7 px of sideways scroll on the Arabic help page at 390). tools/check-help-fits.mjs measures it. */
+  .help-sends { padding-inline:var(--space-24); }
+  .help-video video { inline-size:100%; max-inline-size:100%; block-size:auto; border-radius:var(--radius-card); margin-block:var(--space-8); }
+  .help-ask textarea, .help-write textarea { inline-size:100%; max-inline-size:100%; box-sizing:border-box; }
+  .help-answer { padding:var(--space-12) var(--space-16); border-inline-start:3px solid var(--color-border); background:var(--color-paper); margin-block-end:var(--space-12); }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:0; border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
@@ -3038,11 +3073,24 @@ ${scriptTo(LIVE_JS)}</head>
   </nav>
   <div class="content">
     ${areaNavigation(locale, input.path, input.active)}
+    ${helpDoor(locale, input.path)}
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }
 
+
+/**
+ * Block 6.1 — the "?" on every owner page: a door to that page's help (helpPanel.ts), carrying the page's own
+ * path, which the help page reads only through `pageFrom`. With the page's one script it opens in the sheet
+ * (`data-card`, the profile card's way); without it, it is the help page. Not drawn on the help page itself.
+ */
+export const helpDoor = (locale: Locale, path: string): string => {
+  const from = pageFrom(path);
+  if (from === '/app/help' || from?.startsWith('/app/help/')) return '';
+  // `pageFrom` admits plain path characters only, so the address needs no escaping beyond the attribute's.
+  return `<a class="help-door" href="/app/help/page${from ? `?from=${esc(from)}` : ''}" data-card aria-label="${esc(t(locale, 'help.door'))}">${icon('question', 'hdi')}</a>`;
+};
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — the product's own way of asking
