@@ -1140,10 +1140,16 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     //    FIRST of the passes, while A is as seeded: a pass before it leaves A's own rows changed (a discount ceiling, a
     //    draft decided), and a form refused for A's own state never reads the ids it carries — the volume discount's
     //    unchecked product was only found with this pass run alone.
-    pass = 'replay';
-    if (runs('replay')) {
+    const replay = async (late: boolean) => {
+      pass = 'replay';
+      if (!runs('replay')) return;
+      // What starts the books, ends or undoes things goes in the LAST stage, after every other pass (F5): B's
+      // "start the books" form sent first left A's periods started, and an entry of A's was refused for its day
+      // before its journal was read (break N3 passed the walk that way).
+      const now = (url: string | undefined) => (lateness(url ?? '') >= 0.7) === late;
       const withB = (fields: [string, string][]): [string, string][] => [...fields, ...[...BUSINESS_FIELDS].filter((f) => !fields.some(([n]) => n === f)).map((f) => [f, B] as [string, string])];
       for (const [, all] of drawnB.copies) for (const f of all) {
+        if (!now(routeOf('POST', f.action)?.url)) continue;
         // B's words are not sent with B's ids (a name in a box, drawn from B's row): a route that answers with what it
         // was sent would "show" them. What is shown of B must come from B's rows.
         const fields = withB(typed(f.fields)).map(([k, x]) => [k, x.split(MARK).join('zqx')] as [string, string]); const q = new URLSearchParams(fields).toString();
@@ -1152,6 +1158,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         await call('POST', url, { kind: 'json', data: JSON.stringify(Object.fromEntries(fields)) }, `replay B's form ${f.action} json`);
       }
       for (const r of ordered) {
+        if (!now(r.url)) continue;
         const params = [...r.url.matchAll(/:(\w+)/g)].map((m) => m[1]!);
         const own = params.map((p) => ownParam(ws.B, r.url, p));
         if (own.some((x) => !x)) continue;
@@ -1165,7 +1172,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
           await call(r.method, `${url}?${q}`, { kind: 'multipart', data: m.payload, type: m.type }, `${where} multipart`);
         }
       }
-    }
+    };
+    await replay(false);
 
     pass = 'forms';
     await restoreAdvisor();
@@ -1243,6 +1251,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         await call(r.method, `${url}?${urlencoded(formOf(id, r.url))}`, { kind: 'multipart', data: m.payload, type: m.type }, `${r.method} ${url} (${table}) multipart`);
       }
     }
+
+    await restoreAdvisor();
+    await replay(true);
 
     // An old address is reached when the address it sends to is (R1): resolved through the chain of them.
     const aliasReached = (o: string, depth = 0): boolean => {
