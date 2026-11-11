@@ -58,6 +58,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // 0080 — the order still waits, or was already decided; and like
   // `inbox.flash.sentNotLive`, recorded but nothing sent.
   'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
+  // A conversation that already holds an open order: the proposal waits (found by the authorization walk, 2026-11-12).
+  'order.flash.order_open',
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   // G3 — the day's allowance is used: the order still waits.
   'order.flash.allowance_used', 'order.flash.billing_lapsed',

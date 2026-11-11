@@ -55,7 +55,14 @@ export type Flash = {
   /** Present only when a notice includes English fallback; preserve each sentence's language. */
   readonly parts?: readonly { readonly text: string; readonly englishFallback: boolean }[];
   readonly undo?: { readonly action: string; readonly label: string } | undefined;
+  /** A refusal that names a thing the owner may want to open (the order already open): a door to it. */
+  readonly door?: { readonly href: string; readonly label: string } | undefined;
 };
+
+/** A notice's door on its way: where, and the sentence that labels it (a message key and its values). */
+export type FlashDoor = { readonly href: string; readonly key: MessageKey; readonly params?: Record<string, string | number> };
+/** The only addresses a notice's door may lead to: an order's own page, by its id. */
+export const DOOR_HREF = new RegExp(`^/app/orders/${'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'}$`);
 
 /** The only addresses an Undo may post to: a thing's own restore, by its id. */
 const UNDO_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -95,10 +102,14 @@ export type FlashPart = { readonly key: MessageKey; readonly params?: Record<str
  * token minted before a sentence was reclassified cannot outlive the decision.
  */
 export function mintFlash(
-  secret: string, parts: readonly FlashPart[], now: number, undo?: string,
+  secret: string, parts: readonly FlashPart[], now: number, undo?: string, door?: FlashDoor,
 ): string {
   const body: unknown[] = [parts.map((p) => [p.key, p.params ?? null]), now + FLASH_TTL_MS];
   if (undo !== undefined && UNDO_ACTION.test(undo)) body.push(undo);
+  if (door !== undefined && DOOR_HREF.test(door.href)) {
+    if (body.length === 2) body.push(null);
+    body.push([door.href, door.key, door.params ?? null]);
+  }
   const payload = Buffer.from(JSON.stringify(body), 'utf8').toString('base64url');
   return `${payload}.${flashMac(secret, payload)}`;
 }
@@ -118,8 +129,8 @@ export function readFlash(
   if (!sameHash(token.slice(dot + 1), flashMac(secret, payload))) return null;
   try {
     const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (!Array.isArray(parsed) || (parsed.length !== 2 && parsed.length !== 3)) return null;
-    const [rawParts, exp, undo] = parsed as unknown[];
+    if (!Array.isArray(parsed) || parsed.length < 2 || parsed.length > 4) return null;
+    const [rawParts, exp, undo, rawDoor] = parsed as unknown[];
     if (typeof exp !== 'number' || exp < now) return null;
     if (!Array.isArray(rawParts) || rawParts.length === 0) return null;
     const said: string[] = [];
@@ -145,12 +156,24 @@ export function readFlash(
       if (flashTone(key as MessageKey) === 'bad') bad = true;
     }
     // Phase 5 — the way back, only to an address of the one shape an Undo may have.
-    const flash = { text: said.join(' '), bad, ...(parts.some(p => p.englishFallback) ? { parts } : {}) };
+    const flash = { text: said.join(' '), bad, ...(parts.some(p => p.englishFallback) ? { parts } : {}), ...doorOf(rawDoor, locale) };
     return typeof undo === 'string' && UNDO_ACTION.test(undo) && !bad
       ? { ...flash, undo: { action: undo, label: t(locale, 'common.undo') } }
       : flash;
   } catch { return null; }
 }
+
+/** The door a notice carries, read back: only an address of the one shape, labelled by a sentence this build has. */
+const doorOf = (raw: unknown, locale: Locale): { door?: { href: string; label: string } } => {
+  if (!Array.isArray(raw) || raw.length !== 3) return {};
+  const [href, key, params] = raw as unknown[];
+  if (typeof href !== 'string' || !DOOR_HREF.test(href) || typeof key !== 'string' || !(key in messages.en)) return {};
+  const safe: Record<string, string | number> = {};
+  if (params !== null && typeof params === 'object' && !Array.isArray(params)) {
+    for (const [k, v] of Object.entries(params as Record<string, unknown>)) if (typeof v === 'string' || typeof v === 'number') safe[k] = v;
+  }
+  return { door: { href, label: t(locale, key as MessageKey, safe) } };
+};
 
 /**
  * A notice for a page that is being rendered RIGHT NOW, with no redirect in
@@ -177,9 +200,10 @@ export const flashBanner = (f: Flash | null, id?: string): string => {
   if (f === null) return '';
   const words = f.parts ? f.parts.map(p => p.englishFallback
     ? `<bdi lang="en" dir="ltr">${esc(p.text)}</bdi>` : esc(p.text)).join(' ') : esc(f.text);
+  const door = f.door ? ` ${deeper(f.door.href, f.door.label)}` : '';
   return `<div class="flash${f.bad ? ' bad' : ''}${f.undo ? ' has-undo' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${
     f.undo ? `<span>${words}</span><form method="post" action="${esc(f.undo.action)}" class="undo"><button class="btn" type="submit">${
-      esc(f.undo.label)}</button></form>` : words}</div>`;
+      esc(f.undo.label)}</button></form>` : words}${door}</div>`;
 };
 
 /**

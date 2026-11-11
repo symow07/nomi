@@ -296,7 +296,7 @@ import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, wordsHtml, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
-import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
+import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart, type FlashDoor } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { refusedByCap } from '../../core/ops/mailCap.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -880,18 +880,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * of the page being DRAWN rather than the one that posted.
    */
   const noticeOnNextPage = (
-    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
+    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string, door?: FlashDoor,
   ): void => {
     const parts = typeof key === 'string' ? [{ key, ...(params ? { params } : {}) }] : key;
-    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now(), undo),
+    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now(), undo, door),
       { path: '/', maxAgeSec: Math.ceil(FLASH_TTL_MS / 1000) });
   };
 
   /** Phase 5 — `undo`: the thing's own `…/restore`, offered on the notice instead of asking first. */
   const flashTo = (
-    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
+    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string, door?: FlashDoor,
   ): FastifyReply => {
-    noticeOnNextPage(reply, key, params, undo);
+    noticeOnNextPage(reply, key, params, undo, door);
     return reply.redirect(path);
   };
 
@@ -5087,6 +5087,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
       { businessId: bid.value, conversationId: cid, proposalId, decidedBy: personOf(s).id },
     );
+    // The conversation already holds an open order: said in words, naming it, with a door to it; the proposal waits.
+    if (r.outcome === 'order_open' && r.orderId && r.orderReference) {
+      // The door's label is a door's words, not a notice: it has no tone of its own (the notice's is a refusal).
+      const door: FlashDoor = { href: `/app/orders/${r.orderId}`, key: 'order.openDoor', params: { number: r.orderReference } };
+      return flashTo(reply, conversationUrl(cid), 'order.flash.order_open', { number: r.orderReference }, undefined, door);
+    }
     const key: MessageKey = r.outcome === 'confirmed' && notLive
       ? 'order.flash.confirmedNotLive'
       : `order.flash.${r.outcome}` as MessageKey;
@@ -9549,7 +9555,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const r = confirm
         ? await confirmOrderProposal({ db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound }, input)
         : await stepIntoOrder({ db: deps.db, now: () => new Date() }, input);
-      return flashTo(reply, practiceUrl(), `order.flash.${r.outcome}` as MessageKey);
+      const open = r.outcome === 'order_open' && 'orderReference' in r ? r.orderReference : undefined;
+      return typeof open === 'string'
+        ? flashTo(reply, practiceUrl(), 'order.flash.order_open', { number: open })
+        : flashTo(reply, practiceUrl(), `order.flash.${r.outcome}` as MessageKey);
     };
     app.post('/app/sandbox/order/confirm', practiceOrder(true));
     app.post('/app/sandbox/order/step-in', practiceOrder(false));
