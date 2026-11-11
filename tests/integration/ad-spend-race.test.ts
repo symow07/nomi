@@ -25,7 +25,7 @@ const KEY = Buffer.alloc(32, 7);
 const ACCOUNT: Record<string, string> = { [ONE]: '700000001', [TWO]: '700000002', [FAIL]: '700000003' };
 const DAY1 = new Date('2026-11-10T10:00:00Z');
 const plusDays = (n: number) => new Date(DAY1.getTime() + n * 86_400_000);
-/** How many rounds of "two at once" each race test makes: the race was lost on most single rounds, on one of five almost surely. */
+/** How many rounds of "two at once" each race test makes, each on a new day; every round is held to overlap (`twoAtOnce`). */
 const ROUNDS = 5;
 
 const calls: string[] = [];
@@ -63,6 +63,31 @@ d('0238 · two reads at once ask Meta once (requires DATABASE_URL)', { timeout: 
   const days = (raw: string) => q(raw, (x) => sql<{ day: string; platform: string; amount: string; revision: number }>`
     select to_char(day, 'YYYY-MM-DD') as day, platform, amount, revision from ad_spend_days order by day, platform`.execute(x).then((r) => r.rows));
   const at = async (raw: string, now: Date) => read.readAdSpendFor(deps(now), await bidOf(raw));
+  /**
+   * Two callers of one connection, made to overlap — certainly, not likely. Meta's answer is held until one of the
+   * two callers has come back; the caller that comes back while the other is still asking Meta can only have been
+   * told the read is `under_way`. Without the hold the first read could finish before the second took the lock, and
+   * the second was then rightly told `skipped` — the day was read (CI on #462): the test assumed an overlap it never
+   * forced. Sequential order (`skipped`) is the next test's. `first` is the outcome of the caller that came back
+   * first; a hold that ran out (the second caller never came back while the first asked) is `late`, never hidden.
+   */
+  const twoAtOnce = async (raw: string, day: Date, meta: (account: string) => Promise<{ status: number; body: unknown }>) => {
+    let release!: () => void;
+    const oneBack = new Promise<void>((r) => { release = r; });
+    let late = false;
+    answer = async (account) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const ran = new Promise<'late'>((r) => { timer = setTimeout(() => r('late'), 10_000); });
+      if ((await Promise.race([oneBack.then(() => 'back' as const), ran])) === 'late') late = true;
+      clearTimeout(timer);
+      return meta(account);
+    };
+    const callers = [at(raw, day), at(raw, day)];
+    for (const c of callers) void c.then(release, release);
+    const first = await Promise.race(callers);
+    const outcomes = await Promise.all(callers);
+    return { first, late, outcomes: [...outcomes].sort() };
+  };
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL }); await admin.connect();
@@ -83,14 +108,13 @@ d('0238 · two reads at once ask Meta once (requires DATABASE_URL)', { timeout: 
   beforeEach(() => { calls.length = 0; });
 
   it('TWO READS STARTED TOGETHER: Meta is asked once, one read is recorded, the other caller is told it is under way', async () => {
-    const seen: { asked: number; outcomes: string[]; reads: (string | null)[] }[] = [];
+    const seen: { asked: number; first: string; late: boolean; outcomes: string[]; reads: (string | null)[] }[] = [];
     for (let n = 0; n < ROUNDS; n++) {
       const day = plusDays(n);
       const ymd = day.toISOString().slice(0, 10);
       calls.length = 0;
-      answer = async (account) => okPage(account, ymd);
-      const outcomes = await Promise.all([at(ONE, day), at(ONE, day)]);
-      seen.push({ asked: callsFor(ONE), outcomes: [...outcomes].sort(), reads: await readsOn(ONE, day) });
+      const two = await twoAtOnce(ONE, day, async (account) => okPage(account, ymd));
+      seen.push({ asked: callsFor(ONE), ...two, reads: await readsOn(ONE, day) });
       // Both callers are done: the rows are the one read's, each kept once.
       const today = (await days(ONE)).filter((r) => r.day === ymd);
       expect(today).toEqual([
@@ -98,7 +122,7 @@ d('0238 · two reads at once ask Meta once (requires DATABASE_URL)', { timeout: 
         { day: ymd, platform: 'instagram', amount: '4.20', revision: 1 },
       ]);
     }
-    expect(seen).toEqual(Array.from({ length: ROUNDS }, () => ({ asked: 1, outcomes: ['ok', 'under_way'], reads: ['ok'] })));
+    expect(seen).toEqual(Array.from({ length: ROUNDS }, () => ({ asked: 1, first: 'under_way', late: false, outcomes: ['ok', 'under_way'], reads: ['ok'] })));
   });
 
   it('A READ AFTER THE FIRST FINISHED behaves as before: the same day asks nothing, the next day asks again', async () => {
@@ -142,14 +166,13 @@ d('0238 · two reads at once ask Meta once (requires DATABASE_URL)', { timeout: 
   });
 
   it('A READ WHOSE META CALL FAILS lets go of the lock: the twin is told, the next read asks again, nothing waits', async () => {
-    const seen: { asked: number; outcomes: string[]; reads: (string | null)[] }[] = [];
+    const seen: { asked: number; first: string; late: boolean; outcomes: string[]; reads: (string | null)[] }[] = [];
     for (let n = 0; n < ROUNDS; n++) {
       const day = plusDays(30 + 2 * n);
       calls.length = 0;
-      // Meta's call throws (the connection lost): the read fails and keeps nothing.
-      answer = async () => { throw new Error('socket hang up'); };
-      const outcomes = await Promise.all([at(FAIL, day), at(FAIL, day)]);
-      seen.push({ asked: callsFor(FAIL), outcomes: [...outcomes].sort(), reads: await readsOn(FAIL, day) });
+      // Meta's call throws (the connection lost), once the twin has been told: the read fails and keeps nothing.
+      const two = await twoAtOnce(FAIL, day, async () => { throw new Error('socket hang up'); });
+      seen.push({ asked: callsFor(FAIL), ...two, reads: await readsOn(FAIL, day) });
       const askedTogether = callsFor(FAIL);
       // The same day: no retry loop (the refresh rule), and no wait either — the lock is not held.
       expect(await at(FAIL, new Date(day.getTime() + 60_000))).toBe('skipped');
@@ -160,6 +183,6 @@ d('0238 · two reads at once ask Meta once (requires DATABASE_URL)', { timeout: 
       expect(await at(FAIL, next)).toBe('ok');
       expect(callsFor(FAIL)).toBe(askedTogether + 1);
     }
-    expect(seen).toEqual(Array.from({ length: ROUNDS }, () => ({ asked: 1, outcomes: ['failed', 'under_way'], reads: ['failed'] })));
+    expect(seen).toEqual(Array.from({ length: ROUNDS }, () => ({ asked: 1, first: 'under_way', late: false, outcomes: ['failed', 'under_way'], reads: ['failed'] })));
   });
 });
