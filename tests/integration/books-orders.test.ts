@@ -16,6 +16,7 @@ const ADMIN_URL = process.env['MIGRATE_DATABASE_URL'];
 const d = DATABASE_URL && ADMIN_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `c10a0000-0000-4000-8000-${RUN}0001`;
+const OTHER = `c10a0000-0000-4000-8000-${RUN}0002`;
 const CODE = `orders-owner-${RUN}`;
 const SECRET = 'a-test-session-secret-of-sufficient-length';
 
@@ -88,7 +89,7 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
   afterAll(async () => {
     await app?.close(); await db?.destroy(); await tenant?.end();
     await admin.query('delete from orders where business_id = $1', [BIZ]);   // orders do not cascade from their business
-    await purgeBusinesses(admin, [BIZ], 'books-orders-test'); await admin?.end();
+    await purgeBusinesses(admin, [BIZ, OTHER], 'books-orders-test'); await admin?.end();
   });
 
   it('the accounts come first: until they are chosen, nothing is drafted', async () => {
@@ -161,6 +162,26 @@ d('C1 · entries from Nomi\'s orders (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect((await page()).body).not.toContain(`ORD-5-${RUN}`);
     await post(`/app/books/invoices/${String(drafted.headers['location']).split('/').pop()}/discard`);
     expect((await page()).body).toContain(`ORD-5-${RUN}`);
+  });
+
+  it('a tax code that is not this workspace\'s is refused in words, never a 500; nothing is written and the order stays listed', async () => {
+    // Found by the authorization walk (2026-11-11): the line's key (business_id, tax_code_id) refused another
+    // workspace's code inside the drafting transaction, and the route answered 500.
+    await admin.query(`insert into businesses (id, name, engine, country, currency, books_area) values ($1, $2, 'service', 'MA', 'MAD', true)`, [OTHER, `Orders other ${RUN}`]);
+    const otherAccount = (await admin.query(`insert into accounts (business_id, code, name, kind) values ($1, '4455', 'TVA', 'liability') returning id::text as id`, [OTHER])).rows[0].id as string;
+    const theirs = (await admin.query(`insert into tax_codes (business_id, code, label, rate, kind, account_id, valid_from) values ($1, 'TVA20', 'TVA 20 %', 20, 'collected', $2, '2026-01-01') returning id::text as id`,
+      [OTHER, otherAccount])).rows[0].id as string;
+    const count = async () => (await as((q) => q(`select count(*)::int as n from invoices where source_order_id = $1 and state <> 'discarded'`, [orders.later]))).rows[0].n as number;
+    for (const taxCode of [theirs, randomUUID()]) {
+      const r = await post(`/app/books/orders/${orders.later}/draft`, { party: customer, taxCode });
+      expect(r.statusCode, r.body.slice(0, 200)).toBe(302);
+      expect(await notice(r)).toContain("That tax code is not one of this workspace's: choose one from the list.");
+      expect(await count()).toBe(0);
+    }
+    expect((await page()).body).toContain(`ORD-5-${RUN}`);
+    // the workspace's own code still drafts it
+    expect(await notice(await post(`/app/books/orders/${orders.later}/draft`, { party: customer, taxCode: k.tax }))).toContain('Drafted as an invoice.');
+    expect(await count()).toBe(1);
   });
 
   it('the accountant does not reach the orders (they name buyers): sent to the books', async () => {

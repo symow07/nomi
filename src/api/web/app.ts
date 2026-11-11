@@ -3141,7 +3141,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (out.kind === 'drafted') return flashTo(reply, `/app/books/invoices/${out.id}`, 'books.flash.orderDrafted');
     const why = out.reason === 'accounts_not_set' ? t(localeOf(req), 'books.orders.setFirst')
       : out.reason === 'not_an_order' ? t(localeOf(req), 'books.orders.alreadyIn')
-      : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
+      : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer')
+      : out.reason === 'tax_not_found' ? t(localeOf(req), 'books.orders.taxNotFound') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
     return flashTo(reply, '/app/books/orders', 'books.flash.entryRefused', { why });
   });
   // Block 2 PR 5 — the five reports in the owner's words (`src/db/booksOwnerReports.ts`), a page and a spreadsheet each.

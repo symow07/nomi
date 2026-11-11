@@ -57,7 +57,7 @@ export async function saveBooksAccounts(tx: Tx, businessId: string, a: BooksAcco
 }
 
 export async function draftInvoiceFromOrder(tx: Tx, businessId: string, orderId: string, partyId: string, taxCodeId: string | null, by: string):
-  Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal | { readonly kind: 'refused'; readonly reason: 'accounts_not_set' | 'not_an_order' | 'no_customer'; readonly detail: null }> {
+  Promise<{ readonly kind: 'drafted'; readonly id: string } | EntryRefusal | { readonly kind: 'refused'; readonly reason: 'accounts_not_set' | 'not_an_order' | 'no_customer' | 'tax_not_found'; readonly detail: null }> {
   const a = await booksAccountsOf(tx, businessId);
   if (!a.salesJournalId || !a.receivableAccountId || !a.salesAccountId) return { kind: 'refused', reason: 'accounts_not_set', detail: null };
   const order = (await ordersToEnter(tx, businessId)).find((o) => o.id === orderId);
@@ -66,6 +66,10 @@ export async function draftInvoiceFromOrder(tx: Tx, businessId: string, orderId:
   const party = (await sql<{ id: string }>`select id::text as id from parties where business_id = ${businessId}::uuid and id = ${partyId}::uuid
     and kind = 'customer' and is_active`.execute(tx)).rows[0];
   if (!party) return { kind: 'refused', reason: 'no_customer', detail: null };
+  // A tax code is the workspace's own, asked before the line is written: the line's key (business_id, tax_code_id)
+  // would refuse any other, and that refusal inside this transaction was a 500 (found by the authorization walk).
+  if (taxCodeId !== null && !(await sql<{ id: string }>`select id::text as id from tax_codes where business_id = ${businessId}::uuid and id = ${taxCodeId}::uuid`
+    .execute(tx)).rows[0]) return { kind: 'refused', reason: 'tax_not_found', detail: null };
   // Two drafts of one order at once: the database's index keeps one; the other is told it is already entered.
   try {
     return await draftInvoice(tx, businessId, by, {
