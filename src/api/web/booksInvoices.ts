@@ -35,6 +35,8 @@ export type BooksDocumentContext = {
   readonly returnHref?: string;
   /** 0226 — sending the invoice to its customer: the switch, where it would go, and what went before. */
   readonly sending?: InvoiceSendingView;
+  /** F18 — a draft being edited: its figures as the books last saved them, already formatted. */
+  readonly savedTotal?: { readonly net: string; readonly tax: string; readonly total: string };
 };
 
 /**
@@ -224,34 +226,42 @@ export type InvoiceChoices = {
 export const PARTY_CUSTOM = 'cf_party_';
 export const INVOICE_FORM_LINES = 5;
 
+/** F18 — a saved draft's figures for its edit form: the document page's own sums, formatted the same way. */
+export function savedTotalOf(locale: Locale, v: InvoiceView): { net: string; tax: string; total: string } {
+  const net = v.lines.reduce((s, l) => addDecimal(s, l.net), '0' as Decimal);
+  const tax = v.lines.reduce((s, l) => addDecimal(s, l.tax), '0' as Decimal);
+  return { net: plainMoney(locale, net, v.currency), tax: plainMoney(locale, tax, v.currency), total: plainMoney(locale, v.total, v.currency) };
+}
+
 /** A new invoice, saved as a draft; 0216 (a) — or, with `editing`, a draft's own form, saving over it. */
 export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string,
   editing: string | null = null, opts: BooksDocumentContext = {}): string {
   const v = (k: string) => esc(values[k] ?? '');
   const options = (rows: readonly { id: string; code: string; name?: string; label?: string }[], name: string, blank: boolean, fallback?: string | null) =>
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${(values[name] ?? fallback) === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
+  /*
+   * THE UI CORRECTION (2026-11-13, audit F18) — the task in its own order: the customer first (and the way to add
+   * one, there, where it is needed), ONE item, "Add item" for each further one, the rarely-changed details on request,
+   * and the total beside Save. Every field the form had is still in it under the same name, so the save handler and
+   * its checks are untouched; an item or a detail that holds a value is drawn open, so nothing typed is ever hidden.
+   */
+  const filled = (i: number) => ['label', 'quantity', 'price'].some((k) => (values[`${k}${i}`] ?? '').trim() !== '');
+  const count = formLines(values, INVOICE_FORM_LINES, 'label');
+  const ownAccount = (i: number) => !!values[`account${i}`] && values[`account${i}`] !== c.salesAccountId;
   const line = (i: number) => `<fieldset class="bd-edit-line"><legend>${esc(t(locale,'booksDocs.line',{n:i+1}))}</legend>
       <label class="pq bd-line-description"><span>${esc(t(locale,'books.entry.label'))}</span><input name="label${i}" value="${v(`label${i}`)}" maxlength="200" aria-label="${esc(t(locale,'books.entry.label'))} ${i+1}" /></label>
       <label class="pq"><span>${esc(t(locale,'books.invoice.quantity'))}</span><input name="quantity${i}" inputmode="decimal" value="${v(`quantity${i}`)}" aria-label="${esc(t(locale,'books.invoice.quantity'))} ${i+1}" /></label>
       <label class="pq"><span>${esc(t(locale,'books.invoice.unitPrice'))}</span><input name="price${i}" inputmode="decimal" value="${v(`price${i}`)}" aria-label="${esc(t(locale,'books.invoice.unitPrice'))} ${i+1}" /></label>
       <label class="pq"><span>${esc(t(locale,'books.entry.tax'))}</span><select name="tax${i}" aria-label="${esc(t(locale,'books.entry.tax'))} ${i+1}">${options(c.taxCodes,`tax${i}`,true)}</select></label>
-      <label class="pq"><span>${esc(t(locale,'books.entry.account'))}</span><select name="account${i}" aria-label="${esc(t(locale,'books.entry.account'))} ${i+1}">${options(c.accounts,`account${i}`,false,c.salesAccountId)}</select></label></fieldset>`;
-  return `<section class="book-doc-editor">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'))}</h1>
-    <p class="lede">${esc(t(locale, 'books.invoice.newLede'))}</p>
-    ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    ${c.parties.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.invoice.noCustomer'))}</span></p>` : ''}
-    <form method="post" action="${editing ? `/app/books/invoices/${esc(editing)}/edit` : '/app/books/invoices'}" class="pform bd-editor-form">${documentReturnField(opts)}
-      <fieldset class="bd-header-fields"><legend>${esc(t(locale,'booksDocs.details'))}</legend><label class="pq"><span>${esc(t(locale, 'books.invoice.customer'))}</span><select name="party" required>${options(c.parties, 'party', false)}</select></label>
-      <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
-      <label class="pq"><span>${esc(t(locale, 'books.invoice.due'))}</span><input type="date" name="dueDate" value="${v('dueDate')}" /></label>
-      <label class="pq"><span>${esc(t(locale, 'books.entry.currency'))}</span><select name="currency">${CURRENCIES.map((cur) => `<option${(values['currency'] ?? c.bookCurrency) === cur ? ' selected' : ''}>${cur}</option>`).join('')}</select></label>
-      <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" maxlength="200" /></label>
-      </fieldset><section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${Array.from({length:formLines(values,INVOICE_FORM_LINES,'label')},(_,i)=>line(i)).join('')}</section>
-      <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
-    </form>
-    <div class="block" id="customer">
-      <h2>${esc(t(locale, 'books.invoice.addCustomer'))}</h2>
-      <form method="post" action="/app/books/parties" class="pform">
+      <details class="bd-optional bd-line-account"${ownAccount(i) ? ' open' : ''}><summary>${esc(t(locale,'booksDocs.lineAccount'))}</summary>
+      <label class="pq"><span>${esc(t(locale,'books.entry.account'))}</span><select name="account${i}" aria-label="${esc(t(locale,'books.entry.account'))} ${i+1}">${options(c.accounts,`account${i}`,false,c.salesAccountId)}</select></label></details></fieldset>`;
+  // Item 2 onwards: each behind its own "Add item", one inside the last, so they open one at a time and in order.
+  const anyFrom = (i: number): boolean => { for (let k = i; k < count; k++) if (filled(k)) return true; return false; };
+  const further = (i: number): string => i >= count ? '' :
+    `<details class="bd-add-item"${anyFrom(i) ? ' open' : ''}><summary><span class="btn">${esc(t(locale,'booksDocs.addItem'))}</span></summary>${line(i)}${further(i + 1)}</details>`;
+  const detailsOpen = !!(values['dueDate'] ?? '').trim() || !!(values['label'] ?? '').trim() || (!!values['currency'] && values['currency'] !== c.bookCurrency);
+  const none = c.parties.length === 0;
+  const partyForm = `      <form method="post" action="/app/books/parties" class="pform">
         <label class="pq"><span>${esc(t(locale, 'books.party.code'))}</span><input name="code" required maxlength="20" pattern="[0-9A-Za-z][0-9A-Za-z.\\-]{0,19}" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.name'))}</span><input name="name" required maxlength="200" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.country'))}</span><input name="country" maxlength="2" /></label>
@@ -265,8 +275,32 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         <label class="pq"><span>${esc(t(locale, 'books.party.address'))}</span><textarea name="address" maxlength="400" rows="3"></textarea></label>
         ${customInputs(locale, c.fields ?? [], 'party', PARTY_CUSTOM, {})}
         <button class="btn" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
-      </form>
-    </div></section>`;
+      </form>`;
+  const total = opts.savedTotal
+    ? `<dl class="bd-totals bd-editor-total"><div class="row"><dt>${esc(t(locale,'booksDocs.subtotal'))}</dt><dd>${esc(opts.savedTotal.net)}</dd></div><div class="row"><dt>${esc(t(locale,'booksDocs.tax'))}</dt><dd>${esc(opts.savedTotal.tax)}</dd></div><div class="row"><dt>${esc(t(locale,'booksDocs.totalSaved'))}</dt><dd><strong>${esc(opts.savedTotal.total)}</strong></dd></div></dl>`
+    : `<p class="bd-editor-total caption muted">${esc(t(locale,'booksDocs.totalOnSave'))}</p>`;
+  return `<section class="book-doc-editor">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.invoice.newLede'))}</p>
+    ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
+    <section class="bd-customer" aria-labelledby="bd-customer-h"><h2 id="bd-customer-h">${esc(t(locale, 'books.invoice.customer'))}</h2>
+      ${none ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.invoice.noCustomer'))}</span></p>`
+        : `<label class="pq"><span class="sr">${esc(t(locale, 'books.invoice.customer'))}</span><select name="party" form="invoice-form" required>${options(c.parties, 'party', false)}</select></label>`}
+      <details class="bd-optional bd-add-customer" id="customer"${none ? ' open' : ''}><summary>${esc(t(locale, 'books.invoice.addCustomer'))}</summary>
+      ${partyForm}
+      </details>
+    </section>
+    <form method="post" id="invoice-form" action="${editing ? `/app/books/invoices/${esc(editing)}/edit` : '/app/books/invoices'}" class="pform bd-editor-form">${documentReturnField(opts)}
+      <section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${line(0)}${further(1)}</section>
+      <fieldset class="bd-header-fields"><legend>${esc(t(locale,'booksDocs.details'))}</legend>
+      <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
+      <details class="bd-optional bd-more-details"${detailsOpen ? ' open' : ''}><summary>${esc(t(locale,'booksDocs.moreDetails'))}</summary><div class="bd-more-fields">
+      <label class="pq"><span>${esc(t(locale, 'books.invoice.due'))}</span><input type="date" name="dueDate" value="${v('dueDate')}" /></label>
+      <label class="pq"><span>${esc(t(locale, 'books.entry.currency'))}</span><select name="currency">${CURRENCIES.map((cur) => `<option${(values['currency'] ?? c.bookCurrency) === cur ? ' selected' : ''}>${cur}</option>`).join('')}</select></label>
+      <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" maxlength="200" /></label>
+      </div></details>
+      </fieldset>
+      <div class="bd-save">${total}<button class="btn send" type="submit"${none ? ' disabled' : ''}>${esc(t(locale, 'books.entry.saveDraft'))}</button></div>
+    </form></section>`;
 }
 
 /**

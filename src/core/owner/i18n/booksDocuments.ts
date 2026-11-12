@@ -20,4 +20,7 @@ export const BOOKS_DOCUMENTS_EN = {
  'booksDocs.noMatch':'No invoices match these filters.', 'booksDocs.notIssued':'Not issued', 'booksDocs.noDue':'No due date',
  'booksDocs.lines':'Items', 'booksDocs.details':'Invoice details', 'booksDocs.actions':'Manage this invoice',
  'booksDocs.creditActions':'Manage this credit note', 'booksDocs.currency':'Amounts in {currency}',
+ 'booksDocs.addItem':'Add item', 'booksDocs.moreDetails':'Due date, currency and reference',
+ 'booksDocs.lineAccount':'Sales account for this item', 'booksDocs.totalSaved':'Total as saved',
+ 'booksDocs.totalOnSave':'The total, with tax, is worked out when you save the draft. Nothing is issued until you issue it.',
 } as const;

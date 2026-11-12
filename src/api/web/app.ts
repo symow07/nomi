@@ -82,6 +82,7 @@ import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
+import { savedTotalOf } from './booksInvoices.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -3345,10 +3346,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
-    const v = await withTenantTx(deps.db, bid, (tx) => draftInvoiceForm(tx, bid, id));
+    // F18 — the draft's figures as the books last saved them, shown beside Save (read, never worked out here).
+    const [v, saved] = await withTenantTx(deps.db, bid, async (tx) => [await draftInvoiceForm(tx, bid, id), await loadInvoice(tx, bid, id, booksToday())] as const);
     if (!v) return reply.callNotFound();
+    const savedTotal = saved ? savedTotalOf(locale, saved) : undefined;
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.draft.editTitle'), active: 'settings',
-      bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], booksToday(), id, invoiceContext(req)) }));
+      bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], booksToday(), id, { ...invoiceContext(req), ...(savedTotal ? { savedTotal } : {}) }) }));
   });
   app.get('/app/books/invoices/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
