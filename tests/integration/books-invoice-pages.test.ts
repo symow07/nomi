@@ -146,4 +146,77 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     await expect(admin.query(`update parties set registry_number = 'ABC' where id = $1`, [party.id])).rejects.toThrow(/parties_registry_shape/);
     await expect(admin.query(`update parties set siret = '55210055400099', tax_number = 'FR11999999999' where id = $1`, [party.id])).rejects.toThrow(/parties_siret_shape|parties_vat_matches_registry/);
   });
+
+  /**
+   * F18 (the UI correction, 2026-11-13) — THE TOTAL WHILE THE FORM IS FILLED. The preview route answers what Save would
+   * store, from the books' own per-line figures (`invoiceLineFigures`, the one function `writeInvoiceLines` uses), and
+   * writes nothing. Held here: the preview of a form EQUALS what the database holds after that same form is saved
+   * (tax, several lines, figures that round), and the form is the owner's: the accountant and a stranger get nothing.
+   */
+  it('F18 · the total preview equals what Save stores for the same lines, writes nothing, and is the owner\'s alone', async () => {
+    const { renderInvoiceTotal } = await import('../../src/api/web/booksInvoices.js');
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const cases: Record<string, string>[] = [
+      // one line, taxed
+      { label0: 'Sacs en toile', quantity0: '100', price0: '45', account0: k.sales, tax0: k.tax },
+      // several lines: a taxed one whose tax rounds (3 × 33.33 at 20 %), an untaxed one, a fractional quantity with a typed thousands mark
+      { label0: 'Trousse', quantity0: '3', price0: '33.33', account0: k.sales, tax0: k.tax,
+        label1: 'Livraison', quantity1: '7', price1: '0.19', account1: k.sales, tax1: '',
+        label2: 'Sur mesure', quantity2: '1.5', price2: '1,250.55', account2: k.sales, tax2: k.tax },
+      // a line left empty between two filled ones is left out by both
+      { label0: 'A', quantity0: '2', price0: '9.99', account0: k.sales, tax0: k.tax, label2: 'C', quantity2: '1', price2: '0.01', account2: k.sales, tax2: k.tax },
+    ];
+    for (const lines of cases) {
+      const form = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '', ...lines };
+      const before = await counts();
+      const shown = await post('/app/books/invoices/preview', form);
+      expect(shown.statusCode).toBe(200);
+      expect(shown.headers['cache-control']).toBe('no-store');
+      expect(await counts(), 'the preview writes nothing').toEqual(before);
+      // …then the same form, saved: the figures the database holds for it
+      const saved = await post('/app/books/invoices', form);
+      expect(saved.statusCode).toBe(303);
+      const id = String(saved.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+      const stored = (await as((q) => q(`select coalesce(sum(net), 0)::text as net, coalesce(sum(tax), 0)::text as tax, invoice_total($1)::text as total, count(*)::int as n
+        from invoice_lines where invoice_id = $1`, [id]))).rows[0];
+      expect(stored.n).toBe(Object.keys(lines).filter((x) => x.startsWith('label')).length);
+      const dec = (x: string) => x as import('../../src/core/types/decimal.js').Decimal;
+      expect(shown.body).toBe(`<div data-total-body>${renderInvoiceTotal('en', { net: dec(stored.net), tax: dec(stored.tax), total: dec(stored.total), currency: 'MAD' })}</div>`);
+      expect(shown.body).toContain('MAD');
+      // and the saved draft's edit form shows those same figures beside Save
+      expect((await get(`/app/books/invoices/${id}/edit`)).body).toContain(renderInvoiceTotal('en', { net: dec(stored.net), tax: dec(stored.tax), total: dec(stored.total), currency: 'MAD' }, 'booksDocs.totalSaved'));
+    }
+    // the rounding case, in figures: 99.99 + 1.33 + 1,875.83 before tax; 20.00 + 375.17 of tax
+    const again = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[1]! });
+    expect(again.body).toMatch(/1,977\.15[\s\S]*395\.17[\s\S]*2,372\.32/);
+
+    // NOT YET, said plainly, never a figure: nothing typed; a quantity that is not one; a line with no label
+    for (const partial of [{}, { label0: 'Sacs', quantity0: 'abc', price0: '45', account0: k.sales }, { quantity0: '2', price0: '45', account0: k.sales }]) {
+      const r = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...partial });
+      expect(r.statusCode).toBe(200);
+      expect(r.body).toContain('cannot be worked out yet');
+      expect(r.body).not.toMatch(/\d/);
+    }
+    // the customer and the date are Save's to check: they do not hold the total back
+    expect((await post('/app/books/invoices/preview', { party: '', issueDate: '', currency: 'MAD', ...cases[0]! })).body).toContain('5,400.00');
+
+    // the form names the route, and stands without the script: the sentence, in the place the total is drawn
+    const page = (await get('/app/books/invoices/new')).body;
+    expect(page).toContain('data-total="/app/books/invoices/preview"');
+    expect(page).toMatch(/data-total-out aria-live="polite"><p class="caption muted">The total, with tax, is worked out when you save the draft/);
+
+    // the owner's alone, like the form: the accountant is refused as on Save, a stranger gets nothing, and neither wrote anything
+    const before = await counts();
+    const refused = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[0]! }, accountant);
+    const refusedSave = await post('/app/books/invoices', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[0]! }, accountant);
+    expect(refused.statusCode).toBe(refusedSave.statusCode);
+    expect(refused.statusCode).not.toBe(200);
+    expect(refused.body).not.toContain('5,400.00');
+    const stranger = await app.inject({ method: 'POST', url: '/app/books/invoices/preview', payload: new URLSearchParams({ ...cases[0]! }).toString(), headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    expect(stranger.statusCode).not.toBe(200);
+    expect(stranger.body).not.toContain('5,400.00');
+    expect(await counts()).toEqual(before);
+  });
 });

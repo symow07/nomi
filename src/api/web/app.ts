@@ -82,7 +82,7 @@ import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
-import { savedTotalOf } from './booksInvoices.js';
+import { savedTotalOf, renderInvoiceTotal } from './booksInvoices.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -364,7 +364,7 @@ import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.
 import { renderPaper, renderSpending, renderSpendingDraft, type PaperChoices } from './booksPapers.js';
 import { draftFromReading, keepReading, paperOf } from '../../db/booksDocuments.js';
 import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
-import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
+import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
 import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
@@ -3294,12 +3294,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewInvoice(locale, await invoiceChoices(bid), {}, [], booksToday(), null, invoiceContext(req))}` }));
   });
   /** A new invoice's draft, or (0216 (a)) a draft saved over. */
-  const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    const bid = bidOf(s); if (!bid) return reply.callNotFound();
-    const editing = (req.params as { id?: string }).id ?? null;
-    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
-    const locale = localeOf(req);
+  /**
+   * The invoice form as posted, read ONCE for both of its uses: Save (below) and the total's preview (F18). The same
+   * checks in the same order, so a form the preview can total is a form Save's own checks accept, line for line.
+   */
+  const readInvoiceForm = async (req: FastifyRequest, bid: BusinessId, locale: Locale) => {
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries((req.body ?? {}) as Record<string, unknown>)) if (typeof v === 'string') values[k] = v.slice(0, 300);
     const c = await invoiceChoices(bid);
@@ -3331,6 +3330,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       lines.push({ label, quantity, unitPrice, accountId: account!, taxCodeId: tax });
     }
     if (problems.length === 0 && lines.length === 0) problems.push(t(locale, 'books.invoice.problem.noLines'));
+    return { values, c, problems, lines, due, currency };
+  };
+  const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const editing = (req.params as { id?: string }).id ?? null;
+    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
+    const locale = localeOf(req);
+    const { values, c, problems, lines, due, currency } = await readInvoiceForm(req, bid, locale);
     const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'), active: 'settings', bodyHtml: renderNewInvoice(locale, c, values, list, booksToday(), editing, invoiceContext(req)) }));
     if (problems.length > 0) return again(problems);
@@ -3340,6 +3348,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return editing ? flashTo(reply, invoiceDestination(req,`/app/books/invoices/${out.id}`), 'books.flash.draftSaved') : reply.redirect(invoiceDestination(req,`/app/books/invoices/${out.id}`), 303);
   };
   app.post('/app/books/invoices', saveInvoice);
+  /**
+   * F18 — THE TOTAL WHILE THE FORM IS FILLED. Reads the form exactly as Save does and answers what Save would store for
+   * its lines (`previewInvoiceTotals`: the books' own per-line figures), as a fragment the page puts beside Save.
+   * It writes nothing. The same role as Save (`BOOKS_ROUTES`: post). A form Save's checks would send back is "not yet",
+   * never a guessed figure; the customer and the dates are Save's to check and do not hold a total back.
+   */
+  app.post('/app/books/invoices/preview', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = await readInvoiceForm(req, bid, locale);
+    const lineTrouble = f.lines.length === 0 || f.problems.some((p) => p !== t(locale, 'books.invoice.problem.customer') && p !== t(locale, 'books.entry.problem.date') && p !== t(locale, 'books.invoice.problem.due'));
+    const currencyOk = (CURRENCIES as readonly string[]).includes(f.currency);
+    reply.header('cache-control', 'no-store').type('text/html; charset=utf-8');
+    // Wrapped so the page's script takes exactly this element out of the answer and nothing else.
+    const body = (inner: string) => `<div data-total-body>${inner}</div>`;
+    if (lineTrouble || !currencyOk) return reply.send(body(renderInvoiceTotal(locale, null)));
+    const sums = await withTenantTx(deps.db, bid, (tx) => previewInvoiceTotals(tx, bid, f.lines));
+    return reply.send(body(renderInvoiceTotal(locale, { ...sums, currency: f.currency })));
+  });
   app.post('/app/books/invoices/:id/edit', saveInvoice);
   app.get('/app/books/invoices/:id/edit', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3349,7 +3377,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // F18 — the draft's figures as the books last saved them, shown beside Save (read, never worked out here).
     const [v, saved] = await withTenantTx(deps.db, bid, async (tx) => [await draftInvoiceForm(tx, bid, id), await loadInvoice(tx, bid, id, booksToday())] as const);
     if (!v) return reply.callNotFound();
-    const savedTotal = saved ? savedTotalOf(locale, saved) : undefined;
+    const savedTotal = saved ? savedTotalOf(saved) : undefined;
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.draft.editTitle'), active: 'settings',
       bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], booksToday(), id, { ...invoiceContext(req), ...(savedTotal ? { savedTotal } : {}) }) }));
   });

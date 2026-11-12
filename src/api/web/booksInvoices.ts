@@ -36,7 +36,7 @@ export type BooksDocumentContext = {
   /** 0226 — sending the invoice to its customer: the switch, where it would go, and what went before. */
   readonly sending?: InvoiceSendingView;
   /** F18 — a draft being edited: its figures as the books last saved them, already formatted. */
-  readonly savedTotal?: { readonly net: string; readonly tax: string; readonly total: string };
+  readonly savedTotal?: { readonly net: Decimal; readonly tax: Decimal; readonly total: Decimal; readonly currency: string };
 };
 
 /**
@@ -227,10 +227,21 @@ export const PARTY_CUSTOM = 'cf_party_';
 export const INVOICE_FORM_LINES = 5;
 
 /** F18 — a saved draft's figures for its edit form: the document page's own sums, formatted the same way. */
-export function savedTotalOf(locale: Locale, v: InvoiceView): { net: string; tax: string; total: string } {
+export function savedTotalOf(v: InvoiceView): { net: Decimal; tax: Decimal; total: Decimal; currency: string } {
   const net = v.lines.reduce((s, l) => addDecimal(s, l.net), '0' as Decimal);
   const tax = v.lines.reduce((s, l) => addDecimal(s, l.tax), '0' as Decimal);
-  return { net: plainMoney(locale, net, v.currency), tax: plainMoney(locale, tax, v.currency), total: plainMoney(locale, v.total, v.currency) };
+  return { net, tax, total: v.total, currency: v.currency };
+}
+
+/**
+ * F18 — the total beside Save, as a fragment: the form draws it, and the preview route answers it for the page's script
+ * to put in the same place. `null` is "not yet": no item complete, or a figure Save would send back — said plainly,
+ * never a guessed amount and never a zero.
+ */
+export function renderInvoiceTotal(locale: Locale, sums: { readonly net: Decimal; readonly tax: Decimal; readonly total: Decimal; readonly currency: string } | null,
+  totalKey: MessageKey = 'books.entry.total'): string {
+  if (!sums) return `<p class="caption muted">${esc(t(locale, 'booksDocs.totalNotYet'))}</p>`;
+  return `<dl class="bd-totals"><div class="row"><dt>${esc(t(locale, 'booksDocs.subtotal'))}</dt><dd>${money(locale, sums.net, sums.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksDocs.tax'))}</dt><dd>${money(locale, sums.tax, sums.currency)}</dd></div><div class="row"><dt>${esc(t(locale, totalKey))} <span class="muted">${esc(sums.currency)}</span></dt><dd><strong>${money(locale, sums.total, sums.currency)}</strong></dd></div></dl>`;
 }
 
 /** A new invoice, saved as a draft; 0216 (a) — or, with `editing`, a draft's own form, saving over it. */
@@ -276,9 +287,11 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         ${customInputs(locale, c.fields ?? [], 'party', PARTY_CUSTOM, {})}
         <button class="btn" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
       </form>`;
-  const total = opts.savedTotal
-    ? `<dl class="bd-totals bd-editor-total"><div class="row"><dt>${esc(t(locale,'booksDocs.subtotal'))}</dt><dd>${esc(opts.savedTotal.net)}</dd></div><div class="row"><dt>${esc(t(locale,'booksDocs.tax'))}</dt><dd>${esc(opts.savedTotal.tax)}</dd></div><div class="row"><dt>${esc(t(locale,'booksDocs.totalSaved'))}</dt><dd><strong>${esc(opts.savedTotal.total)}</strong></dd></div></dl>`
-    : `<p class="bd-editor-total caption muted">${esc(t(locale,'booksDocs.totalOnSave'))}</p>`;
+  // Without the page's script this is what stands: a saved draft's figures, or the plain sentence. With it, the region is
+  // redrawn from the preview route as lines change (`data-total`, liveScript.ts) and read out politely.
+  const total = `<div class="bd-editor-total" data-total-out aria-live="polite">${opts.savedTotal
+    ? renderInvoiceTotal(locale, opts.savedTotal, 'booksDocs.totalSaved')
+    : `<p class="caption muted">${esc(t(locale,'booksDocs.totalOnSave'))}</p>`}</div>`;
   return `<section class="book-doc-editor">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.invoice.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
@@ -289,7 +302,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
       ${partyForm}
       </details>
     </section>
-    <form method="post" id="invoice-form" action="${editing ? `/app/books/invoices/${esc(editing)}/edit` : '/app/books/invoices'}" class="pform bd-editor-form">${documentReturnField(opts)}
+    <form method="post" id="invoice-form" data-total="/app/books/invoices/preview" action="${editing ? `/app/books/invoices/${esc(editing)}/edit` : '/app/books/invoices'}" class="pform bd-editor-form">${documentReturnField(opts)}
       <section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${line(0)}${further(1)}</section>
       <fieldset class="bd-header-fields"><legend>${esc(t(locale,'booksDocs.details'))}</legend>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>

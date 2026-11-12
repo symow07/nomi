@@ -23,4 +23,5 @@ export const BOOKS_DOCUMENTS_EN = {
  'booksDocs.addItem':'Add item', 'booksDocs.moreDetails':'Due date, currency and reference',
  'booksDocs.lineAccount':'Sales account for this item', 'booksDocs.totalSaved':'Total as saved',
  'booksDocs.totalOnSave':'The total, with tax, is worked out when you save the draft. Nothing is issued until you issue it.',
+ 'booksDocs.totalNotYet':'The total cannot be worked out yet: an item needs its label, a quantity above zero and a price.',
 } as const;

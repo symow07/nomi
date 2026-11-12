@@ -82,7 +82,8 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bd-header-fields>.pq{max-width:var(--measure-form);}
 .bd-more-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-16);margin-block:var(--space-4) var(--space-8);}
 .bd-save{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-16) var(--space-24);padding-block:var(--space-16);border-top:1px solid var(--color-border);}
-.bd-save .bd-editor-total{margin:0;flex:1 1 280px;max-width:var(--measure-form);}
+.bd-save .bd-editor-total{margin:0;flex:1 1 280px;max-width:var(--measure-form);min-height:3lh;}
+.bd-save .bd-editor-total>*,.bd-save .bd-editor-total [data-total-body]>*{margin:0;}
 .bd-save .btn{flex:none;}
 @media(max-width:600px){
  .bd-filters{align-items:stretch;}.bd-filters label{flex-basis:100%;}.bd-filters .btn{flex:1;}

@@ -507,6 +507,33 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     box.addEventListener('click', function (e) { if (e.target === box) shut(); });
   }
 
+  /* F18: a form that names where its total is worked out (data-total) asks as its fields change: a moment after the
+     last change, one question at a time, the newest state asked again when one was in the air. The answer is the
+     page's own fragment, put where the form shows its total. Without this the form reads as it was drawn. */
+  function totals() {
+    var form = doc.querySelector('form[data-total]');
+    var out = doc.querySelector('[data-total-out]');
+    if (!form || !out || !window.fetch || !window.FormData || !window.URLSearchParams || !window.DOMParser) return;
+    var timer = 0, flying = false, again = false;
+    function ask() {
+      if (flying) { again = true; return; }
+      flying = true; again = false;
+      fetch(form.getAttribute('data-total'), { method: 'POST', credentials: 'same-origin', body: new URLSearchParams(new FormData(form)) })
+        .then(function (r) { return r.ok && !r.redirected ? r.text() : ''; })
+        .then(function (words) {
+          var drawn = words && new DOMParser().parseFromString(words, 'text/html').querySelector('[data-total-body]');
+          if (!drawn) return;
+          while (out.firstChild) out.removeChild(out.firstChild);
+          out.appendChild(doc.adoptNode(drawn));
+        })
+        .catch(function () {})
+        .then(function () { flying = false; if (again) ask(); });
+    }
+    function soon(e) { if (e.target && e.target.form === form) { clearTimeout(timer); timer = setTimeout(ask, 400); } }
+    doc.addEventListener('input', soon);
+    doc.addEventListener('change', soon);
+  }
+
   /* Phase 6: a form on its way says so on the button that sent it, and is not
      sent twice. A page that stays (a download) gives the button back after a while. */
   var SENDING = 12000;
@@ -985,6 +1012,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   phone();
   asking();
   sending();
+  totals();
   orbs();
   cards();
   faces();
