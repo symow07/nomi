@@ -3,6 +3,7 @@ import { ANSWER_MAX, QUESTION_MAX, type AnswerSuggestion } from '../../core/owne
 import type { Viewer } from '../../core/conversation/people.js';
 import { t, tn } from './say.js';
 import { esc } from './layout.js';
+import { sourceText } from './knowledge-insights.js';
 import * as show from './values.js';
 
 /**
@@ -13,7 +14,7 @@ import * as show from './values.js';
  */
 export function renderAnswerSuggestions(locale: Locale, rows: readonly AnswerSuggestion[], viewer: Viewer, now: Date): string {
   const card = (s: AnswerSuggestion) => {
-    const head = `<div class="ki-q"><bdi dir="auto">${esc(s.question)}</bdi></div>
+    const head = `<div class="ki-q">${sourceText(locale, s.question)}</div>
       <div class="ki-meta"><span class="muted">${esc(tn(locale, 'knowledge.given.asks', s.asks))}</span>
         <span class="muted">${esc(show.when(locale, s.lastAt, now))}</span></div>`;
     if (!viewer.isOwner) {
@@ -29,7 +30,7 @@ export function renderAnswerSuggestions(locale: Locale, rows: readonly AnswerSug
           <textarea name="content" rows="3" required maxlength="${ANSWER_MAX}" dir="auto">${esc(s.answer)}</textarea></label>
         <button class="btn send" type="submit">${esc(t(locale, 'knowledge.given.teach'))}</button>
       </form>
-      <form method="post" action="/app/knowledge/answers/dismiss" class="inline">${q}
+      <form method="post" action="/app/knowledge/answers/dismiss" class="inline given-dismiss">${q}
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'knowledge.given.dismissAsk'))}">${esc(t(locale, 'knowledge.given.dismiss'))}</button>
       </form></div>`;
   };

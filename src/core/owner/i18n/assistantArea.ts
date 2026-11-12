@@ -15,7 +15,7 @@ export const ASSISTANT_AREA_EN = {
  'assistants.flash.note_long':'That line is too long: up to 200 characters.',
  'assistants.flash.note_injection':'That line reads like an instruction to the assistant rather than a way of talking, so it was not saved. Describe the sound, not the rules.',
  'assistants.flash.voice_invalid':'Pick the tone, the length and the emoji choice from their lists.',
- 'assistantKnowledge.changeFact':'Change or archive this fact',
+ 'assistantKnowledge.changeFact':'Change or archive this fact', 'assistantKnowledge.wholeMessage':'The whole message',
  'assistantAsk.placeholder':'What would you like to know?',
  'assistantArea.questionMissing':'The original customer message is unavailable.',
  'assistantKnowledge.unnamed':'Unnamed product',
