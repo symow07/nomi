@@ -166,12 +166,12 @@ export const DESIGN_TOKENS = {
    * (`needs`), the rail's one count. It is no longer a link colour, a field or panel wash, a selection, or a button.
    * Success stays the quiet green, with its tick and its word; there is no red.
    *
-   * Measured (WCAG 2.x relative luminance; `tests/parity/palette.test.ts` computes each):
-   *   ink #171717 on surface #FFFFFF 17.7:1 · on paper #FAFAF9 16.9:1 · on sand #F1F1EF 15.6:1
-   *   inkSecondary #5E5E5A on surface 6.6:1 · on paper 6.3:1 · on sand 5.8:1
-   *   surface #FFFFFF on ink (the primary button's label) 17.7:1
-   *   ok #3F6B5C on surface 6.0:1 · brand #9A0F5E on surface 8.1:1 (a dot or the seal; never running text)
-   *   controlLine #8A8A86 on surface 3.5:1 (a field's edge: AA for a control's boundary, 3:1)
+   * Measured (WCAG 2.x relative luminance; `tests/parity/warmth-pass.test.ts` holds each pair to its floor):
+   *   ink #171717 on surface #FFFFFF 17.9:1 · on paper #FAFAF9 17.2:1 · on sand #F1F1EF 15.9:1
+   *   inkSecondary #5E5E5A on surface 6.5:1 · on paper 6.2:1 · on sand 5.8:1
+   *   surface #FFFFFF on ink (the primary button's label) 17.9:1
+   *   ok #3F6B5C on surface 6.0:1 · brand #9A0F5E on surface 8.1:1, on paper 7.7:1 (a dot, the seal, the count)
+   *   controlLine #8A8A86 on surface 3.5:1, on paper 3.3:1 (a field's edge: 3:1 is the floor for a control's boundary)
    */
   color: {
     ok: '#3F6B5C',

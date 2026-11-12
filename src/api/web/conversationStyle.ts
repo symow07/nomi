@@ -41,7 +41,7 @@ export const CONVERSATION_CSS = `
 .conv-more-menu form.testing { display:flex; flex-direction:column; align-items:stretch; gap:var(--space-4); margin:0; }
 .conv-more-menu .btn { justify-content:flex-start; inline-size:100%; color:var(--color-ink); }
 /* The thread: the page's own heading is the region's name, so it is kept for a reader and not drawn. */
-.conversation-workspace .conv-thread { padding-block:var(--space-16); outline-offset:-2px; }
+.conversation-workspace .conv-thread { padding-block:var(--space-8); outline-offset:-2px; }
 .conversation-workspace .conv-thread .block > h2 { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .conversation-workspace .conv-thread .block { margin:0; }
 .conversation-workspace .conv-acts > .draft:first-child, .conversation-workspace .conv-acts > .flash + .draft { padding-block-start:var(--space-16); }
