@@ -2638,10 +2638,30 @@ export function renderConversationDetail(
     ${knew}
     ${context}`;
 
+  /*
+   * THE UI CORRECTION (2026-11-13, audit F12) — the work starts at once. A compact head (the way back, who, where
+   * things stand, the two tools and a labelled "More" for what is rarely pressed), then the thread as its own
+   * scroll region, then what the owner does about its newest message, held under it. Every card and control that
+   * was here is still here, in CC-25's order: the transcript, then the reply for approval, then the rest.
+   */
+  const more = viewer.isOwner ? `<details class="conv-more"><summary>${esc(t(locale, 'nav.more'))}</summary><div class="conv-more-menu">
+    ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
+      viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
+      ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
+      <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
+      ${/* Phase 9 (V1-219, V1-255) — an act, said as one, and asked first when it takes a conversation out of the count. */ ''}<button class="btn ghost quiet" type="submit"${d.ownerTesting ? ''
+        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
+    </div></details>` : '';
   return `
+    <div class="conv-top">
     <div class="dhead">
       ${back(esc(options.returnHref ?? '/app/inbox'), t(locale, 'inbox.detail.back'))}
       ${LIVE_SLOT}
+      <nav class="conversation-actions" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
+      <form method="get" action="/app/inbox/${encodeURIComponent(d.conversationId)}/copilot" class="inline"><button class="btn" type="submit" data-open-tool="ask" aria-controls="conversation-tools" aria-expanded="false">${markSmall(20, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></button></form>
+      <a class="deeper file-door" href="${d.catchUp ? '#customer' : `/app/conversations/${encodeURIComponent(d.conversationId)}`}" data-open-tool="customer" aria-controls="conversation-tools" aria-expanded="false">${esc(t(locale, 'panel.open'))}${GO}</a>
+      ${more}
+    </nav>
     </div>
     ${catchUpStrip(d, locale, now, viewer)}
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
@@ -2651,19 +2671,14 @@ export function renderConversationDetail(
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
-    <nav class="conversation-actions" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
-      <form method="get" action="/app/inbox/${encodeURIComponent(d.conversationId)}/copilot" class="inline"><button class="btn" type="submit" data-open-tool="ask" aria-controls="conversation-tools" aria-expanded="false">${markSmall(20, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></button></form>
-      <a class="deeper file-door" href="${d.catchUp ? '#customer' : `/app/conversations/${encodeURIComponent(d.conversationId)}`}" data-open-tool="customer" aria-controls="conversation-tools" aria-expanded="false">${esc(t(locale, 'panel.open'))}${GO}</a>
-    </nav>
-    ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
-      viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
-      ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
-      <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
-      ${/* Phase 9 (V1-219, V1-255) — an act, said as one, and asked first when it takes a conversation out of the count. */ ''}<button class="btn ghost quiet" type="submit"${d.ownerTesting ? ''
-        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
+    </div>
+    <div class="conv-thread" role="region" tabindex="0" aria-label="${esc(t(locale, 'inbox.detail.log'))}"><div class="conv-thread-in">
     ${log}
+    </div></div>
+    <div class="conv-acts">
     ${flashHtml}
-    ${acts}`;
+    ${acts}
+    </div>`;
 }
 
 /**
