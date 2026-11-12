@@ -41,6 +41,7 @@ export type ProposalOutcome =
   | 'not_found'          // no such proposal on this conversation
   | 'already_decided'    // someone decided it already (idempotent no-op)
   | 'incomplete'         // the proposal cannot make an order (a product or price is gone)
+  | 'order_open'         // the conversation already holds an order that is not cancelled: it stays waiting
   | 'assistant_stopped'  // 0070 — stopped on every channel: it stays waiting
   | 'assistant_silenced' // 0071 — ops paused sending: it stays waiting
   | 'allowance_used'     // G3 — the day's allowance is used: it stays waiting
@@ -57,10 +58,10 @@ export type ProposalDeps = {
 export async function confirmOrderProposal(
   deps: ProposalDeps,
   input: { businessId: BusinessId; conversationId: string; proposalId: string; decidedBy: string },
-): Promise<{ outcome: ProposalOutcome; orderReference?: string }> {
+): Promise<{ outcome: ProposalOutcome; orderReference?: string; orderId?: string }> {
   const now = deps.now();
   const r = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{
-    outcome: ProposalOutcome; orderReference?: string; sendText: string | null;
+    outcome: ProposalOutcome; orderReference?: string; orderId?: string; sendText: string | null;
   }> => {
     const p = await lockProposal(tx, input.conversationId, input.proposalId);
     if (!p) return { outcome: 'not_found', sendText: null };
@@ -76,6 +77,16 @@ export async function confirmOrderProposal(
 
     const confirmable = confirmableFromProposal(p);
     if (!confirmable.ok) return { outcome: 'incomplete', sendText: null };
+
+    // A conversation holds one order that is not cancelled (orders_one_open_per_conversation, ADR-0004). Asked here,
+    // under the conversation's lock, BEFORE the insert: the order writer met the index by inserting, and a failed insert
+    // aborts the transaction — its catch then queried an aborted transaction and the owner's tap answered 500 (found by
+    // the authorization walk, 2026-11-12). The owner is told which order is open; the proposal stays waiting.
+    const open = (await sql<{ id: string; reference: string }>`
+      select id::text as id, order_reference as reference from orders
+       where conversation_id = ${input.conversationId}::uuid and business_id = ${input.businessId}::uuid and status <> 'cancelled'
+       order by created_at limit 1`.execute(tx)).rows[0];
+    if (open) return { outcome: 'order_open', orderReference: open.reference, orderId: open.id, sendText: null };
 
     const repos = tenantRepos(tx, input.businessId);
     const cid = input.conversationId as ConversationId;
@@ -104,7 +115,7 @@ export async function confirmOrderProposal(
     return { outcome: 'confirmed', orderReference: created.orderReference, sendText };
   });
 
-  return r.orderReference ? { outcome: r.outcome, orderReference: r.orderReference } : { outcome: r.outcome };
+  return { outcome: r.outcome, ...(r.orderReference ? { orderReference: r.orderReference } : {}), ...(r.orderId ? { orderId: r.orderId } : {}) };
 }
 
 /**

@@ -296,7 +296,7 @@ import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, wordsHtml, back, isOutreachRoute, isExportRoute, isMoroccanBooksRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
-import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
+import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart, type FlashDoor } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { refusedByCap } from '../../core/ops/mailCap.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -880,18 +880,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * of the page being DRAWN rather than the one that posted.
    */
   const noticeOnNextPage = (
-    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
+    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string, door?: FlashDoor,
   ): void => {
     const parts = typeof key === 'string' ? [{ key, ...(params ? { params } : {}) }] : key;
-    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now(), undo),
+    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now(), undo, door),
       { path: '/', maxAgeSec: Math.ceil(FLASH_TTL_MS / 1000) });
   };
 
   /** Phase 5 — `undo`: the thing's own `…/restore`, offered on the notice instead of asking first. */
   const flashTo = (
-    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
+    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string, door?: FlashDoor,
   ): FastifyReply => {
-    noticeOnNextPage(reply, key, params, undo);
+    noticeOnNextPage(reply, key, params, undo, door);
     return reply.redirect(path);
   };
 
@@ -3147,7 +3147,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (out.kind === 'drafted') return flashTo(reply, `/app/books/invoices/${out.id}`, 'books.flash.orderDrafted');
     const why = out.reason === 'accounts_not_set' ? t(localeOf(req), 'books.orders.setFirst')
       : out.reason === 'not_an_order' ? t(localeOf(req), 'books.orders.alreadyIn')
-      : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
+      : out.reason === 'no_customer' ? t(localeOf(req), 'books.invoice.problem.customer')
+      : out.reason === 'tax_not_found' ? t(localeOf(req), 'books.orders.taxNotFound') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
     return flashTo(reply, '/app/books/orders', 'books.flash.entryRefused', { why });
   });
   // Block 2 PR 5 — the five reports in the owner's words (`src/db/booksOwnerReports.ts`), a page and a spreadsheet each.
@@ -5093,6 +5094,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
       { businessId: bid.value, conversationId: cid, proposalId, decidedBy: personOf(s).id },
     );
+    // The conversation already holds an open order: said in words, naming it, with a door to it; the proposal waits.
+    if (r.outcome === 'order_open' && r.orderId && r.orderReference) {
+      // The door's label is a door's words, not a notice: it has no tone of its own (the notice's is a refusal).
+      const door: FlashDoor = { href: `/app/orders/${r.orderId}`, key: 'order.openDoor', params: { number: r.orderReference } };
+      return flashTo(reply, conversationUrl(cid), 'order.flash.order_open', { number: r.orderReference }, undefined, door);
+    }
     const key: MessageKey = r.outcome === 'confirmed' && notLive
       ? 'order.flash.confirmedNotLive'
       : `order.flash.${r.outcome}` as MessageKey;
@@ -6819,14 +6826,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
+      // A name that is not a capability is an address that does not exist (it was a 500: the write below threw).
+      if (!(CAPABILITIES as readonly string[]).includes(cap)) return reply.callNotFound();
       // The single-capability grant is the same decision as a level, so it is
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
         return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notReleased');
       }
       // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
-      // (An unknown capability, or confirm_order, is refused by the grant itself.)
-      const need = (CAPABILITIES as readonly string[]).includes(cap) ? rungOf(cap as Capability) : 3;
+      // (confirm_order is refused by the grant itself.)
+      const need = rungOf(cap as Capability);
       if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
         return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notEarned');
       }
@@ -9575,7 +9584,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const r = confirm
         ? await confirmOrderProposal({ db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound }, input)
         : await stepIntoOrder({ db: deps.db, now: () => new Date() }, input);
-      return flashTo(reply, practiceUrl(), `order.flash.${r.outcome}` as MessageKey);
+      const open = r.outcome === 'order_open' && 'orderReference' in r ? r.orderReference : undefined;
+      return typeof open === 'string'
+        ? flashTo(reply, practiceUrl(), 'order.flash.order_open', { number: open })
+        : flashTo(reply, practiceUrl(), `order.flash.${r.outcome}` as MessageKey);
     };
     app.post('/app/sandbox/order/confirm', practiceOrder(true));
     app.post('/app/sandbox/order/step-in', practiceOrder(false));
