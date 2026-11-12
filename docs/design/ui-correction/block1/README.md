@@ -46,11 +46,24 @@ same pages; the instance ran with it off.
 - Corners: control 8, card 12, panel 16. Rail icons 20 px in a 48 px target.
 - The public pages (website, legal, customer documents, web chat) keep their previous tokens until their own block.
 
+## The fix round (same day)
+
+- **The invoice's total while it is filled** ([after](invoice-new-total-desktop-after.png)): the form asks a preview route as its
+  lines change (400 ms after the last change, one question at a time) and shows Before tax, Tax and Total with the
+  currency. The route reads the form exactly as Save does and answers from the one function Save uses for a line's
+  figures; it writes nothing. A form Save would send back for its lines reads "cannot be worked out yet". Without
+  script the form reads as before. `tests/integration/books-invoice-pages.test.ts` holds the preview equal to what the
+  database stores after the same form is saved (tax, several lines, a tax that rounds).
+- **Send on a phone**: Send and Hand to me rest just above the tab bar while any part of the reply is on the screen.
+  390×844: [top of the page](conversation-phone-390-top-after.png) Send 721–767, [newest message](conversation-phone-390-latest-after.png)
+  597–643, bar at 775; no scroll position puts them under the bar. 320×568: [newest message](conversation-phone-320-latest-after.png)
+  445–491, bar at 499; at the [top of the page](conversation-phone-320-top-after.png) the reply is still below the screen.
+  While scrolling at 320 px the reply's head emerges from behind the bar for about 120 px, as all content does.
+- `node tools/pre-pilot.mjs --scripted`: 14 of 14 on `84cb4580` and 14 of 14 on this branch.
+
 ## Not done here
 
-- A running total while typing a new invoice: the form says the total is worked out on save, and a saved draft's edit
-  form shows the figures the books saved. A live total needs either the books' tax arithmetic repeated in the page or a
-  preview route — a decision, not made in this block.
 - The pending state's label and size during a slow save were not observed (one request left for two presses was).
 - Phone keyboard and touch behaviour on a physical device.
+- The Advanced entry's long phone page and its mid-width table scroll: with the accounting tables, in the Books block.
 - Every other page: its own block.
