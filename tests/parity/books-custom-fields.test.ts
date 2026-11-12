@@ -140,7 +140,7 @@ describe('D7 · the owner\'s copy, and the page', () => {
     const html = customInputs('en', fields, 'party', 'cf_party_', { cf_party_segment: 'retail' });
     expect(html).toContain('<select name="cf_party_segment" aria-label="Segment" required><option value=""></option><option selected>retail</option><option>wholesale</option></select>');
     expect(html).toContain('name="cf_party_since" value="" aria-label="Customer since" type="date"');
-    expect(customInputs('en', fields, 'line', 'cf_line0_', {}, { bare: true, n: 1 })).toBe('<td><input name="cf_line0_weight_kg" value="" aria-label="Weight (kg) 1" inputmode="decimal" dir="ltr" /></td>');
+    expect(customInputs('en', fields, 'line', 'cf_line0_', {}, { bare: true, n: 1 })).toBe('<td data-label="Weight (kg)"><input name="cf_line0_weight_kg" value="" aria-label="Weight (kg) 1" inputmode="decimal" dir="ltr" /></td>');
     expect(customFromForm(fields, 'party', { cf_party_since: '2026-02-30' }, 'cf_party_').wrong).toEqual([
       { label: 'Segment', why: 'required_field' }, { label: 'Customer since', why: 'bad_field_value' }]);
     expect(customFromForm(fields, 'party', { cf_party_segment: ' retail ' }, 'cf_party_')).toEqual({ values: { segment: 'retail' }, wrong: [] });

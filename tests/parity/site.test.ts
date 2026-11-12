@@ -1,5 +1,6 @@
 import {markSmall} from '../../src/core/owner/brand.js';
 import { describe, it, expect } from 'vitest';
+import { PUBLIC_TOKENS } from '../../src/core/owner/tokens.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -110,7 +111,9 @@ describe('Phase 5 · the page', () => {
     const html = page('en');
     expect(html.match(/<style/g)?.length).toBe(1);
     expect(html).toContain(SITE_CSS);
-    expect(html).toContain(cssVariables());
+    // The UI correction (2026-11-13): the public pages keep the tokens they had until their own block (F42, F43; F45 deferred);
+    // the site still carries ONE token block, the public one, whole.
+    expect(html).toContain(cssVariables(PUBLIC_TOKENS));
     const own = SITE_CSS;
     expect(own).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(own).not.toMatch(/\b(rgb|rgba|hsl|hsla|oklch|color-mix)\(/);

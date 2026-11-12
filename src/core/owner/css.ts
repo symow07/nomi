@@ -38,11 +38,17 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  * Emitted as a single string that the shell drops into its <style>. Everything
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
-export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
+/** What `cssVariables` walks: the app's tokens, or the public pages' (a palette and roles of their own keys). */
+export type TokenSet = Omit<typeof DESIGN_TOKENS, 'color' | 'colorRole' | 'radiusPx' | 'font'> & {
+  readonly font: Omit<typeof DESIGN_TOKENS.font, 'sizePx'> & { readonly sizePx: Readonly<Record<string, number>> };
+  readonly color: Readonly<Record<string, string>>; readonly colorRole: Readonly<Record<string, string>>; readonly radiusPx: Readonly<Record<string, number>>;
+};
+export function cssVariables(tokens: TokenSet = DESIGN_TOKENS): string {
   const { font, color, colorRole, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint } = tokens;
 
   // Typed, not cast: a job that names no colour of the palette does not compile.
-  const roles: Readonly<Record<string, keyof typeof color>> = colorRole;
+  // A job that names no colour of its palette is refused by `design-system.test.ts` (the walk is typed loosely so two palettes can pass through it).
+  const roles: Readonly<Record<string, string>> = colorRole;
   const lines: string[] = [
     // One scheme: form controls, scrollbars and the caret stay light even on
     // a device set to dark, so nothing is drawn against a palette we never made.

@@ -303,7 +303,7 @@ export const SITE_CSS = `
   /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
      that wraps is centred in its button, in even lines. */
   .site-go:hover { box-shadow:none; }
-  .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-control-line); }
+  .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
   .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .site-member a { display:inline-block; padding-block:var(--space-12); font-weight:600; }
 

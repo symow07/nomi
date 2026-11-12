@@ -24,7 +24,7 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .conversation-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:0; margin-inline-start:auto; }
 .conversation-workspace .dhead .live + .conversation-actions { margin-inline-start:0; }
 .conversation-workspace .conversation-actions .btn { min-height:44px; padding-block:var(--space-8); }
-.conversation-workspace .catchup { grid-template-columns:auto minmax(0,1fr); column-gap:var(--space-12); row-gap:2px; padding:0; border:0; }
+.conversation-workspace .catchup { grid-template-columns:auto minmax(0,1fr); column-gap:var(--space-12); row-gap:var(--space-4); padding:0; border:0; }
 .conversation-workspace .catchup > .face-link { grid-row:1 / span 2; align-self:center; }
 .conversation-workspace .catchup .face-l { inline-size:44px; block-size:44px; font-size:var(--font-size-base); }
 .conversation-workspace .catchup h1.who { font-size:var(--font-size-base); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }

@@ -179,10 +179,12 @@ describe('M49 · the two voices are on the right axis', () => {
     expect(conversation).not.toMatch(/font-family:\s*var\(--font-voice\)/);
     const customers = await readFile(new URL('customersStyle.ts', WEB_DIR), 'utf8');
     const customerSerif = [...customers.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map(m => m[1]!.trim());
-    expect(customerSerif).toEqual(['.ca-heading h1']);
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: one sans for the working app, titles and names included.
+    // The serif left these two page titles; no rule in either sheet may bring it back.
+    expect(customerSerif).toEqual([]);
     const products = await readFile(new URL('productsStyle.ts', WEB_DIR), 'utf8');
     const productSerif = [...products.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map(m => m[1]!.trim());
-    expect(productSerif).toEqual(['.product-area h1.page']);
+    expect(productSerif).toEqual([]);
   });
 
   it('and on the Split Today sheet it is on headings and big numbers alone, never running text', async () => {
@@ -234,7 +236,9 @@ describe('M49 · colour once or twice per screen', () => {
   it('the SEND button is the brand fill; every other button is outlined', async () => {
     const css = await shellCss();
     expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-brand\)/);
-    expect(css).toMatch(/\.btn \{[^}]*border:1\.5px solid var\(--color-ink-secondary\)[^}]*background:var\(--color-surface\)/);
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look (F05, F06): a secondary button's edge is a 1 px control line (3.5:1 on white),
+    // not a 1.5 px stone frame; it is still outlined on the surface, never filled.
+    expect(css).toMatch(/\.btn \{[^}]*border:1px solid var\(--color-control-line\)[^}]*background:var\(--color-surface\)/);
   });
 });
 

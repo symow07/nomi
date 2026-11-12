@@ -18,10 +18,10 @@ main:has(.books-area){max-width:var(--measure-column);}
 /* THE UI CORRECTION (2026-11-13, audit F21) — the Advanced entry editor. The form was held to the 40ch form measure
    with an eight-column table inside it, so a select could be 40 px wide and USD read "US". The head is a short grid;
    the lines take the page's width, and every column has a floor wide enough to read what is chosen. */
-main:has(.entry-form){max-width:none;}
-.books-area .entry-form{max-width:none;}
+main:has(.entry-form){max-width:100%;}
+.books-area .entry-form{max-width:100%;}
 .books-area .entry-lines th,.books-area .entry-lines td{padding:var(--space-8) 6px;}
-.entry-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-16);max-width:960px;}
+.entry-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-16);max-width:var(--measure-column);}
 .entry-head .pq{min-width:0;}.entry-head input,.entry-head select{width:100%;}
 .entry-lines table{width:100%;table-layout:auto;}
 .entry-lines td{vertical-align:middle;}
@@ -31,7 +31,7 @@ main:has(.entry-form){max-width:none;}
 .entry-lines td{min-width:110px;}
 .entry-lines .el-account{min-width:190px;}.entry-lines .el-party{min-width:130px;}.entry-lines .el-tax{min-width:110px;}
 .entry-lines .el-currency{min-width:86px;}.entry-lines .el-amount{min-width:100px;}.entry-lines .el-label{min-width:100px;}
-.entry-lines .el-fx{min-width:0;text-align:center;}
+.entry-lines .el-fx{min-width:0;}
 .entry-lines .el-amount input{text-align:end;font-variant-numeric:tabular-nums;}
 .entry-lines .el-fx input{inline-size:20px;block-size:20px;}
 @media(max-width:720px){

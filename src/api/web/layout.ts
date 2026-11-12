@@ -18,7 +18,7 @@ import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n
 import { messageLocale, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, workspaceFrozenWhy, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
+import { DESIGN_TOKENS, PUBLIC_TOKENS } from '../../core/owner/tokens.js';
 import { isolate, railFigure } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { INSTALL_LINKS } from './phone.js';
@@ -300,7 +300,8 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
  * Every other state's shape is DRAWN the same way (marks.ts, the type pass): no
  * face the product serves has ✓ ○ ✕, so a typed one came from the device's fonts.
  */
-export const NEEDS_DOT = 'content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:var(--needs-dot, var(--color-cue)); vertical-align:baseline;';
+export const NEEDS_DOT = 'content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:currentColor; vertical-align:baseline;';
+
 const markBefore = (s: Signal, selectors: readonly string[]): string => {
   const list = selectors.map((x) => `${x}::before`).join(', ');
   if (s === 'waiting') return `  ${list} { ${NEEDS_DOT} margin-inline-end:0.4em; }`;
@@ -315,7 +316,7 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
   /* The needs dot as an element (signalMark): the disc is its own box, the glyph it carries for a page read
      without the sheet is pushed out of it. */
   .dot.warn { color:var(--color-needs); display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip);
-    background:var(--color-cue); overflow:hidden; text-indent:1em; white-space:nowrap; vertical-align:baseline; }
+    background:currentColor; overflow:hidden; text-indent:1em; white-space:nowrap; vertical-align:baseline; }
   .dot.bad { color:var(--color-warn); }
   /* THE IDENTITY SYSTEM (2026-10-04) — THE ASSISTANT'S NAME TAG, its shape now that the four-point mark is gone:
      its wash as the ground, its light words, a chip, beside what it wrote. Draw it with .as-tag; the
@@ -746,15 +747,16 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border:1px solid var(--color-control-line);
     background:var(--color-surface); color:var(--color-ink);
     font:inherit; font-size:var(--font-size-small); font-weight:500; cursor:pointer; }
-  /* The UI correction (2026-11-13, audit F06) — three acts, told apart in greyscale: the PRIMARY is the one ink fill;
-     a SECONDARY is white with a hairline edge; a CONSEQUENTIAL act (.danger: remove, stop, close) is white with a
-     heavy ink edge and weight — never a fill, never red. */
-  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); font-weight:600; }
+  /* The UI correction (2026-11-13, audit F06) — three acts, told apart in greyscale: the PRIMARY is the one fill (ink on
+     every signed-in page: the owner theme sets the brand variable to the ink there); a SECONDARY is white with a
+     hairline edge; a CONSEQUENTIAL act (.danger: remove, stop, close) is white with a heavy ink edge and weight —
+     never a fill, never red. */
+  .btn.send { background:var(--color-brand); border-color:transparent; color:var(--color-surface); font-weight:600; }
   .btn:not(.send):not(.ghost):not(:disabled):hover { background:var(--color-sand); }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
-  .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); --needs-dot:currentColor; }
+  .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
   .btn.send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
-  .btn.danger { border:1.5px solid var(--color-ink); color:var(--color-ink); font-weight:600; }
+  .btn.danger { border-color:var(--color-warn); border-width:1.5px; color:var(--color-warn); font-weight:600; }
   .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
   .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
   .inline { display:inline; }
@@ -779,7 +781,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      reached through its label, which is the 44px target. */
   .pform input:not([type="checkbox"]):not([type="radio"]), .pform textarea, .pform select {
     background:var(--color-surface); border:1px solid var(--color-control-line);
-    border-radius:var(--radius-control); color:var(--color-ink); padding:10px 12px; font:inherit;
+    border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
   .pform label.check { display:flex; align-items:center; gap:var(--space-8); min-height:44px; }
   /* Phase 9 (cross-new-03) — a field sent back is marked by its edge on every form, the calendar's too, not only a settings row. */
@@ -2704,7 +2706,7 @@ const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href
 
 /** The public document's base rules: the same tokens, a reading page on paper. */
 const PUBLIC_STYLE = `
-${cssVariables()}
+${cssVariables(PUBLIC_TOKENS)}
   * { box-sizing:border-box; }
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
          font: var(--font-size-base)/var(--line-height) var(--font-family);
