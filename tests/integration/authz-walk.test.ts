@@ -8,7 +8,9 @@ import pg from 'pg';
 import { demoSeedSql } from '../../src/demo/factory.js';
 import { ensureQueueSchema } from './tenant.js';
 import { purgeBusinesses } from './books-db.js';
-import { heldBy, type Held } from './authzHeld.js';
+import { heldBy, sealedColumnsIn, sealedShapedIn, SEALED_COLUMNS, type Held, type Sealed, type SealKeys } from './authzHeld.js';
+// @ts-expect-error — a tool helper, plain JS on purpose (the integration job runs tools without a build).
+import * as sealedTool from '../../tools/lib/sealed.mjs';
 import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
 
 /**
@@ -35,7 +37,8 @@ import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
  *
  *   a. B is untouched — every row of every table that holds B's workspace, and every row of a table that hangs off
  *      one of them by a key (messages, price tiers …), reads byte for byte as before;
- *   b. no A row holds any of B's ids — anywhere in the row, key or text or JSON (`assigned_to`, an event's payload);
+ *   b. no A row holds any of B's ids — anywhere in the row, key or text or JSON (`assigned_to`, an event's payload),
+ *      and inside every SEALED value, opened with the walk's own keys (the advisor's kept turns, a paper's bytes: H1);
  *   c. no single-column key between two workspace tables points from A to B or back;
  *   d. nothing of B is shown — B's rows carry a marker in their words and B's files in their bytes, and no answer or
  *      redirect contains it: not a page, not a picture, not an entry of a zip or workbook once opened, not a PDF's
@@ -496,6 +499,11 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
   let theirs = new Set<string>();
   let before = new Map<string, string>();
   let heldBefore = new Map<string, Held>();
+  /** H1 — the walk's own seals' keys, and what a sealed value is searched for once opened (authzHeld.ts). */
+  let sealKeys: SealKeys;
+  const sealedSeen = new Map<string, number>();
+  const sealedNow = (): Sealed => ({ keys: sealKeys, marks: [MARK], blobs: bBlobs, seen: sealedSeen });
+  let sealedShapedBefore: string[] = [];
   let scopes: { table: string; where: string }[] = [];
   let idFields: string[] = [];
   const shown: string[] = [];
@@ -842,7 +850,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const deleting = DELETES.test(path);
     if (deleting && !lastDeleting && theirs.size > 0) {
       checkpoints++;
-      for (const [t, h] of await heldBy(admin, scopes, A, theirs)) {
+      for (const [t, h] of await heldBy(admin, scopes, A, theirs, sealedNow())) {
         const line = `${pass}, before ${method} ${path}: ${t}: ${h.n} row(s) ${JSON.stringify(h.shapes)}`;
         if (h.n > (heldBefore.get(t)?.n ?? 0) && !heldMid.includes(line)) heldMid.push(line);
       }
@@ -884,9 +892,13 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // Where papers are kept, as production composes it (DOCUMENT_STORES unset: in the database), so the papers' routes
     // have papers to reach (R1).
     const documents = documentStoresFrom({}, deriveKey('d'.repeat(64)));
+    const { documentKeyFrom } = await import('../../src/security/documentSeal.js');
+    // The keys this composition seals with, kept to open what it judges (H1). No credential key is composed: a value
+    // sealed with one could not be opened, and counts as held.
+    sealKeys = { advisor: advisorKeysFrom({ ADVISOR_KEY: 'ac'.repeat(32) }), credential: null, documents: [documentKeyFrom(deriveKey('d'.repeat(64)))] };
     db = createDb(DATABASE_URL!);
     // The advisor's history, as production composes it (main.ts): a port onto our own database, not a provider (R2).
-    memory = advisorMemory(db, advisorKeysFrom({ ADVISOR_KEY: 'ac'.repeat(32) }));
+    memory = advisorMemory(db, sealKeys.advisor);
     for (const [v, mark] of [[seededA, A_MARK], [seededB, MARK], [seededC, C_MARK]] as const) await seedAdvisor(memory, v, mark);
     // The second invoice issued by the app's own writer, then a credit note against it.
     const { issueInvoice } = await import('../../src/db/booksInvoices.js');
@@ -979,7 +991,6 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     theirs = new Set([...ids.map((i) => i.id), ...[...bByTable.values()].flat()].map((x) => x.toLowerCase()));
     idFields = [...new Set([...LISTED_ID_FIELDS, ...spelledIdFields()])];
     before = await snapshot(B);
-    heldBefore = await heldBy(admin, scopes, A, theirs);
     // F2 — every file each workspace keeps, by the hash of its bytes (every bytea column of every table of a workspace).
     const byteCols = (await admin.query(`select c.relname as t, a.attname as col from pg_class c join pg_attribute a on a.attrelid = c.oid and a.atttypid = 'bytea'::regtype and not a.attisdropped
       where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','p') order by 1, 2`)).rows as { t: string; col: string }[];
@@ -987,6 +998,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     blobSql = parts.join(' union ');
     bBlobs = new Set([...bBlobs, ...await blobsOf(B)]);
     for (const h of [...await blobsOf(A), ...await blobsOf(C)]) ownBlobs.add(h);
+    // After B's files are known by their bytes: a sealed paper of A's is opened and compared with them (H1).
+    heldBefore = await heldBy(admin, scopes, A, theirs, sealedNow());
+    for (const w of [A, B, C]) sealedShapedBefore = [...new Set([...sealedShapedBefore, ...await sealedShapedIn(admin, scopes, w)])];
   }, 600_000);
   afterAll(async () => {
     await ws.A?.app.close(); await ws.B?.app.close(); await ws.C?.app.close(); await db?.destroy();
@@ -1004,6 +1018,28 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       expect(tables.has(t), t).toBe(true);
     }
     expect(heldBefore.size, `A's rows hold B's ids before the walk:\n${[...heldBefore].map(([t, h]) => `${t}: ${h.n}`).join('\n')}`).toBe(0);
+  });
+
+  it('H1 — every sealed column is one the walk opens: by its name, by the tools\' own lists, and by what the rows hold', async () => {
+    const listed = new Set(SEALED_COLUMNS.map((c) => `${c.table}.${c.column}`));
+    // By name: every `*_ciphertext` column and every sealed bytea of this checkout's schema.
+    const named = await sealedColumnsIn(admin);
+    expect(named.length).toBeGreaterThanOrEqual(16);
+    expect(named.filter((c) => !listed.has(c)), 'a sealed column the walk does not open (add it to SEALED_COLUMNS with its key)').toEqual([]);
+    // By the lists the operator tools keep (tools/lib/sealed.mjs): what rekey re-seals, and the advisor's history.
+    const tools = [...(sealedTool.SEALED as { table: string; column: string }[]), ...(sealedTool.APP_SEALED as { table: string; column: string }[])].map((c) => `${c.table}.${c.column}`);
+    expect(tools.filter((c) => !listed.has(c)), 'sealed per tools/lib/sealed.mjs, not opened by the walk').toEqual([]);
+    // Nothing listed that is not there (a renamed column would be skipped in silence).
+    expect([...listed].filter((c) => !named.includes(c)), 'listed in SEALED_COLUMNS, not a sealed column of this schema').toEqual([]);
+    // By what the rows hold: a value in one of the three sealed formats, in any column of A, B or C, is in a listed column.
+    expect(sealedShapedBefore.filter((c) => !listed.has(c)), 'a sealed-looking value in a column the walk does not open').toEqual([]);
+    // … and the walk really opened A's own: a kept advisor turn and its thread's title, and a paper (none left unopened:
+    // the test above fails on `[sealed, not opened]`).
+    for (const c of ['advisor_threads.title_ciphertext', 'advisor_turns.question_ciphertext', 'advisor_turns.params_ciphertext',
+      'advisor_turns.answer_ciphertext', 'advisor_turns.facts_ciphertext', 'document_blobs.sealed']) {
+      expect(sealedSeen.get(c) ?? 0, `${c}: values of A's opened before the walk`).toBeGreaterThan(0);
+      expect(sealedShapedBefore, `${c} holds sealed values`).toContain(c);
+    }
   });
 
   it('every route, B\'s ids alone and among A\'s own, as a form, JSON, multipart and A\'s real forms: B untouched, A holds nothing of B\'s, nothing points across, nothing of B shown, no 5xx; and every route reached', async () => {
@@ -1336,14 +1372,16 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const otherwise = unreached.filter(([k, o]) => k in NOT_REACHED && NOT_REACHED[k]![0] !== o).map(([k, o]) => `${k} — answered "${o}", listed as "${NOT_REACHED[k]![0]}"`);
     // AUTHZ_WALK_REPORT=<file>: what was called and how it answered, for the audit's report (never on by default).
     const report = process.env['AUTHZ_WALK_REPORT'];
-    if (report) {
+    const writeReport = async (more: Record<string, unknown>) => {
+      if (!report) return;
       const { writeFileSync } = await import('node:fs');
-      writeFileSync(report, JSON.stringify({ routes: walk.length, calls, passCalls, pages: pages.size, forms: forms.length, relogins, ids: ids.length,
+      writeFileSync(report, JSON.stringify({ ...more, routes: walk.length, calls, passCalls, pages: pages.size, forms: forms.length, relogins, ids: ids.length,
         idFields: idFields.length, statuses: Object.fromEntries(statuses), errors: errors.slice(0, 400), shown: [...new Set(shown)].slice(0, 100),
         addedIdFields, reached: [...reach.values()].filter((o) => o === 'reached').length, aliases: [...reach.values()].filter((o) => o.startsWith('alias of ')).length,
         checkpoints, heldMid, passSeconds: Object.fromEntries(Object.entries(passMs).map(([k, v]) => [k, Math.round(v / 1000)])), sent5xx, unreached: Object.fromEntries(unreached), notListed, nowReached, otherwise, binaries: binaries.length, unreadable, formsOfB: [...drawnB.copies.values()].flat().length }, null, 1));
-    }
+    };
     if (reachOnly) {
+      await writeReport({});
       expect([...new Set(errors)], `routes answered 5xx:\n${[...new Set(errors)].join('\n')}`).toEqual([]);
       expect(notListed, notListed.join('\n')).toEqual([]);
       expect(nowReached, `listed in NOT_REACHED, and reached:\n${nowReached.join('\n')}`).toEqual([]);
@@ -1354,13 +1392,18 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const changed = [...before].filter(([t, h]) => after.get(t) !== h).map(([t, h]) => `${t}: ${h} → ${after.get(t)}`);
     // Every value of A's that holds one of B's ids, judged whole (authzHeld.ts): the one exemption is B's id as the whole
     // of a `label`, the owner's typed words stored as typed.
-    const held = [...await heldBy(admin, scopes, A, theirs)].filter(([t, h]) => h.n > (heldBefore.get(t)?.n ?? 0))
+    const held = [...await heldBy(admin, scopes, A, theirs, sealedNow())].filter(([t, h]) => h.n > (heldBefore.get(t)?.n ?? 0))
       .map(([t, h]) => `${t}: ${h.n} row(s) ${JSON.stringify(h.shapes)}`);
     const across = await crossings();
+    // H1 — a sealed-looking value anywhere in A's rows is in a column the walk opens (a route that sealed into another).
+    const listedSealed = new Set(SEALED_COLUMNS.map((c) => `${c.table}.${c.column}`));
+    const sealedElsewhere = (await sealedShapedIn(admin, scopes, A)).filter((c) => !listedSealed.has(c));
     // F2 — an answer that is not words, to a call that carried B's ids, is A's own or it fails: its bytes are kept by A
     // (or by C, whose own calls the reach check made) now or at the start, or were sent by this walk.
     const kept = new Set([...ownBlobs, ...await blobsOf(A), ...await blobsOf(C)]);
     const unproven = [...new Set(binaries.filter((b) => !kept.has(b.hash)).map((b) => `${b.where} (${b.type})`))];
+    // The report carries the end's own findings too: which check caught a break is read from it, not from the first failed line.
+    await writeReport({ changed, held, across, sealedElsewhere, sealedSeen: Object.fromEntries(sealedSeen) });
     // The session is still A's, and still works.
     if ((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode !== 200) await signIn(ws.A);
     expect((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode).toBe(200);
@@ -1370,6 +1413,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     expect(held, `A's rows hold B's ids:\n${held.join('\n')}`).toEqual([]);
     expect(checkpoints, 'A held was judged before each pass\'s deleting calls').toBeGreaterThan(only ? 0 : 3);
     expect(heldMid, `A's rows held B's ids before a deleting call took them away:\n${heldMid.join('\n')}`).toEqual([]);
+    expect(sealedElsewhere, `sealed values in columns the walk does not open:\n${sealedElsewhere.join('\n')}`).toEqual([]);
     expect(across, `rows point across workspaces:\n${across.join('\n')}`).toEqual([]);
     expect(unproven.slice(0, 40), `answers that are not words and not provably A's own:\n${unproven.slice(0, 40).join('\n')}`).toEqual([]);
     expect(unreadable.slice(0, 40), `files the walk could not open to look inside:\n${unreadable.slice(0, 40).join('\n')}`).toEqual([]);
