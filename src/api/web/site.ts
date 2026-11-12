@@ -3,6 +3,8 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, NEEDS_DOT, gapAfter, inviteMailto } from './layout.js';
 import { face } from './faces.js';
+import { priceText } from '../../core/billing/status.js';
+import type { SitePricing } from '../../db/billing.js';
 
 /**
  * Phase 5 — nomidoes.com, served by this app.
@@ -20,6 +22,14 @@ import { face } from './faces.js';
  *
  * WHAT IT MAY SAY. Only what the product does today, checked against the code:
  * no price of Nomi's, no trial, no channel that is not wired (WeChat is not).
+ * ONE EXCEPTION (4.1, the owner's launch default of 2026-11-11): the pricing
+ * section, drawn only from the `plans` row the operator defined from a Stripe
+ * price it READ (`tools/billing.mjs plan-set`) — the price a month, customers
+ * answered a month, what is included, the trial as `billing_settings` stores it
+ * (on request when none), and "card up front" only while `billing_required` is
+ * on. No plan row, no section: the site is exactly what rule 12 says. Its words
+ * are `site.price.*`; the price and every count are parameters from the row, so
+ * the catalogue still holds no figure, no "free", no discount, no percentage.
  * The assistant has no pronoun and no fixed name — "an assistant you name".
  * Copy is in the catalogue under `site.*`, so the banned vocabulary and pronoun
  * tests read it like every other sentence.
@@ -89,6 +99,11 @@ export type SiteInput = {
   readonly signUp?: string | null;
   /** The preview on the app host is not for search engines. */
   readonly noindex: boolean;
+  /**
+   * 4.1 — the plans on offer, as the operator defined them from Stripe, with the trial and the card rule. Absent or
+   * null: no pricing section, and nothing on the page names a price.
+   */
+  readonly pricing?: SitePricing | null;
 };
 
 /**
@@ -192,7 +207,7 @@ export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
     <p class="site-prose">${k('site.who.body')}</p>
     <p class="site-prose">${k('site.who.languages')}</p>
   </section>
-
+${v.pricing && v.pricing.plans.length > 0 ? `\n  ${pricingSection(l, v.pricing, k)}\n` : ''}
   <section class="site-sec" aria-labelledby="site-first">
     <h2 id="site-first">${k('site.first.title')}</h2>
     <p class="site-prose">${k(signUp ? 'site.first.open' : 'site.first.invite')}</p>
@@ -222,6 +237,30 @@ export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
   </footer>
 </div>`,
   });
+}
+
+/**
+ * 4.1 — the pricing section: each plan on offer (in practice one), every figure from its row. The price is the
+ * plan's own currency as Stripe gave it (`priceText`, as on Billing); the sentence carries it as a parameter, and the
+ * web `t` isolates it on an Arabic page. People and assistants are said only where the plan limits them.
+ */
+function pricingSection(l: Locale, p: SitePricing, k: (key: Parameters<typeof t>[1]) => string): string {
+  const say = (key: Parameters<typeof t>[1], params?: Record<string, string | number>) => esc(t(l, key, params));
+  const plan = (pl: SitePricing['plans'][number]) => `<div class="site-card"><h3>${esc(pl.name)}</h3>
+      <p class="site-lead">${say('site.price.month', { price: priceText(l, pl.amountMinor, pl.currency) })}</p>
+      <ul class="site-when">
+        <li>${say('site.price.customers', { n: pl.customersAMonth })}</li>
+        ${pl.seats ? `<li>${say('site.price.people', { n: pl.seats })}</li>` : ''}
+        ${pl.assistants ? `<li>${say('site.price.assistants', { n: pl.assistants })}</li>` : ''}
+        <li>${k('site.price.included')}</li>
+        <li>${p.trialDays ? say('site.price.trialDays', { days: p.trialDays }) : k('site.price.trialOnRequest')}</li>
+        ${p.cardFirst ? `<li>${k('site.price.card')}</li>` : ''}
+        <li>${k('site.price.renews')}</li>
+      </ul></div>`;
+  return `<section class="site-sec" aria-labelledby="site-price">
+    <h2 id="site-price">${k('site.price.title')}</h2>
+    <div class="site-cards">${p.plans.map(plan).join('')}</div>
+  </section>`;
 }
 
 /**

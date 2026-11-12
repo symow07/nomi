@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh" dir="ltr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomi — 替你回复客户的助手</title>
+<meta name="description" content="Nomi 给你的生意配一位由你取名的助手，在 WhatsApp、Instagram、Messenger 和邮件上回复客户：回复先写好等你批准，没有你的允许，什么都不会自己发出。">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZmlsbD0iI0Y1RjFFQSIgZD0iTTAgOGE4IDggMCAxIDAgMTYgMGE4IDggMCAxIDAtMTYgMHoiLz48cGF0aCBmaWxsPSIjNUEwQTJFIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xIDhhNyA3IDAgMSAwIDE0IDBhNyA3IDAgMSAwLTE0IDB6TTIuMjUgOGE1Ljc1IDUuNzUgMCAxIDAgMTEuNSAwYTUuNzUgNS43NSAwIDEgMC0xMS41IDB6TTMuMjUgOGE0Ljc1IDQuNzUgMCAxIDAgOS41IDBhNC43NSA0Ljc1IDAgMSAwLTkuNSAwek01IDVoNnY2aC02eiIvPjwvc3ZnPg==">
+<style>
+:root {
+  color-scheme: light;
+  --font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif;
+  --font-voice: "Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif;
+  --font-size-caption: 13px;
+  --font-size-small: 15px;
+  --font-size-base: 17px;
+  --font-size-title: 20px;
+  --font-size-display: 26px;
+  --font-size-hero: 34px;
+  --font-size-overview-title: 44px;
+  --font-size-overview-phone: 36px;
+  --font-size-overview-money: 40px;
+  --line-height: 1.6;
+  --line-height-tight: 1.2;
+  --tracking-tight: -0.02em;
+  --color-ok: #3F6B5C;
+  --color-brand: #9A0F5E;
+  --color-needs: #9A0F5E;
+  --color-needs-wash: #F9EAF2;
+  --color-warn: #171717;
+  --color-assistant: #171717;
+  --color-assistant-wash: #F9EAF2;
+  --color-ink: #171717;
+  --color-ink-secondary: #625D57;
+  --color-surface: #FFFDFA;
+  --color-paper: #F7F3EE;
+  --color-sand: #EDE7DF;
+  --color-border: #DED7CF;
+  --color-ok-wash: #FFFDFA;
+  --color-ok-line: #DED7CF;
+  --color-warn-wash: #FFFDFA;
+  --color-warn-line: #DED7CF;
+  --color-orb-glow: #9A0F5E;
+  --color-coin: #5A0A2E;
+  --color-coin-ground: #F5F1EA;
+  --color-nav-active: var(--color-needs);
+  --color-accent: var(--color-needs);
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-panel: 20px;
+  --radius-chip: 999px;
+  --measure-column: 1040px;
+  --measure-prose: 62ch;
+  --measure-form: 40ch;
+  --shadow-lift1: none;
+  --shadow-lift2: none;
+  --motion-fast: 160ms;
+  --motion-normal: 220ms;
+  --motion-max: 250ms;
+  --motion-step: 40ms;
+  --motion-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --motion-ease-in: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --motion-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --travel-nudge: 2px;
+  --travel-fold: 8px;
+  --travel-page: 12px;
+  --travel-rise: 16px;
+  --travel-toast: 24px;
+  --travel-sheet: 48px;
+  --motion-scale-press: 0.97;
+  --motion-scale-enter: 0.96;
+  --face-1-bg: #3366A8;
+  --face-1-fg: #FFFFFF;
+  --face-2-bg: #187A70;
+  --face-2-fg: #FFFFFF;
+  --face-3-bg: #6B7320;
+  --face-3-fg: #FFFFFF;
+  --face-4-bg: #8C6B0A;
+  --face-4-fg: #FFFFFF;
+  --face-5-bg: #AD5C14;
+  --face-5-fg: #FFFFFF;
+  --face-6-bg: #6450B0;
+  --face-6-fg: #FFFFFF;
+  --face-7-bg: #0F7085;
+  --face-7-fg: #FFFFFF;
+  --face-8-bg: #8A5A3C;
+  --face-8-fg: #FFFFFF;
+}
+html[lang="zh"] { --line-height: 1.7; --font-family: "Noto Sans SC", "Noto Sans", "Noto Sans Arabic", system-ui, sans-serif; --font-voice: "Noto Serif SC", "Noto Serif", "Noto Naskh Arabic", serif; --line-height-tight: 1.35; --tracking-tight: 0; }
+html[lang="ar"] { --line-height: 1.75; --font-family: "Noto Sans Arabic", "Noto Sans", "Noto Sans SC", system-ui, sans-serif; --font-voice: "Noto Naskh Arabic", "Noto Serif", "Noto Serif SC", serif; --line-height-tight: 1.45; --tracking-tight: 0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--color-paper); color:var(--color-ink);
+         font: var(--font-size-base)/var(--line-height) var(--font-family);
+         -webkit-text-size-adjust:100%; }
+  main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
+  h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-24); font-weight:700; }
+  h2 { font-size:var(--font-size-title); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  @media (max-width: 560px) { h1 { font-size:var(--font-size-display); } }
+  p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  p, li { text-wrap:pretty; }
+  h1, h2 { text-wrap:balance; }
+  ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
+  a { color:var(--color-ink); text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
+  main { overflow-wrap:anywhere; }
+  .updated { margin-top:var(--space-48); }
+  button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
+           border-radius:var(--radius-control); background:var(--color-ink);
+           color:var(--color-surface); cursor:pointer; min-height:44px; }
+  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-sand);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
+  /* Phase 9 (public-missed-09) — the same pill on the site, the door and the shell:
+     names, not underlined links. */
+  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-8);
+    border-radius:var(--radius-chip); font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); white-space:nowrap; text-decoration:none; }
+  /* Five names fit a 360 px phone with the narrow padding; a wider screen gets the roomier one. */
+  @media (min-width: 25rem) { .langsw a { padding:0 var(--space-12); } }
+  /* The switcher is chrome. A solid jade fill made it the loudest object
+     on a page whose subject was somebody's business. */
+  .langsw a.on { background:var(--color-surface); color:var(--color-brand); font-weight:600; }
+  .face { position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden;
+    border-radius:var(--radius-chip); inline-size:40px; block-size:40px; font-size:var(--font-size-base);
+    font-weight:600; line-height:1; user-select:none; }
+  .face-xs { inline-size:24px; block-size:24px; font-size:var(--font-size-caption); }
+  .face-s { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
+  .face-l { inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
+  .face-xl { inline-size:96px; block-size:96px; font-size:var(--font-size-hero); }
+  .face-i { display:grid; place-items:center; inline-size:100%; block-size:100%; }
+  /* The Solar run — the person drawn for a customer with no name yet is Solar's, at 1.4em of the face's size; its
+     line is the one for the size it is drawn at (18 px on the smallest face, 24 on the usual one). */
+  .face-i svg { inline-size:1.4em; block-size:1.4em; }
+  .face-p { position:absolute; inset:0; inline-size:100%; block-size:100%; object-fit:cover; }
+  .face.t1 { background:var(--face-1-bg); color:var(--face-1-fg); }
+  .face.t2 { background:var(--face-2-bg); color:var(--face-2-fg); }
+  .face.t3 { background:var(--face-3-bg); color:var(--face-3-fg); }
+  .face.t4 { background:var(--face-4-bg); color:var(--face-4-fg); }
+  .face.t5 { background:var(--face-5-bg); color:var(--face-5-fg); }
+  .face.t6 { background:var(--face-6-bg); color:var(--face-6-fg); }
+  .face.t7 { background:var(--face-7-bg); color:var(--face-7-fg); }
+  .face.t8 { background:var(--face-8-bg); color:var(--face-8-fg); }
+  main.site { max-width:var(--measure-column); padding:var(--space-24) var(--space-16) var(--space-48); }
+  .site-root { display:flex; flex-direction:column; gap:var(--space-48); }
+  .site-root h2 { font-size:var(--font-size-display); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:700; color:var(--color-ink);
+    margin:0 0 var(--space-16); }
+  .site-root h3 { font-size:var(--font-size-title); line-height:var(--line-height-tight); font-weight:600; color:var(--color-ink);
+    margin:0 0 var(--space-8); }
+  .site-root p { max-width:var(--measure-prose); }
+  .site-root h3 { text-wrap:balance; }
+
+  /* V1-019 — on a phone the name and Sign in share the first row and the language
+     switch has the next one to itself; on a wide screen all three are one row. */
+  .site-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
+  .site-brand { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px;
+    font-weight:700; font-size:var(--font-size-title); text-decoration:none; color:var(--color-ink); }
+  .site-brand .mark { flex:none; }
+  .site-lang { flex:1 0 20rem; }
+  .site-signin { display:inline-flex; align-items:center; min-height:44px; font-weight:600;
+    font-size:var(--font-size-small); color:var(--color-ink); }
+
+  .site-hero { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-32); align-items:center;
+    padding-block:var(--space-24); }
+  .site-hero h1 { font-family:var(--font-voice); font-size:var(--font-size-hero); line-height:1.1; margin:0 0 var(--space-24); font-weight:400;
+    color:var(--color-ink); letter-spacing:var(--tracking-tight); }
+  /* The type pass (2026-10-04) — the lead is large and quiet: light, the one place a stranger meets the light weight first. */
+  .site-lead { font-size:var(--font-size-title); font-weight:300; color:var(--color-ink); }
+  .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
+    margin:var(--space-32) 0 0; }
+  .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
+    font-weight:600; text-decoration:none; text-align:center; text-wrap:balance; }
+  /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
+     that wraps is centred in its button, in even lines. */
+  .site-go:hover { box-shadow:none; }
+  .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
+  .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .site-member a { display:inline-block; padding-block:var(--space-12); font-weight:600; }
+
+  .site-example { margin:0; padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-card);
+    border:1px solid var(--color-border); box-shadow:none; display:flex; flex-direction:column; gap:var(--space-16); }
+  .site-example figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .site-said { display:flex; flex-direction:column; gap:var(--space-4); align-items:flex-start; }
+  .site-said.site-draft { align-items:flex-end; }
+  .site-who { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .site-draft .site-who { justify-content:flex-end; }
+  .site-as { color:var(--color-assistant); }
+  /* The identity system (2026-10-04) — as in the product: the assistant's label is its name tag (its wash, its
+     light words, a chip), and what waits for the reader carries the needs dot. */
+  .site-draft .site-who > span:not(.site-draft-tag) { display:inline-flex; align-items:center; gap:var(--space-4);
+    padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
+  .site-bubble { margin:0; padding:var(--space-12) var(--space-16); border-radius:var(--radius-card);
+    background:var(--color-paper); color:var(--color-ink);
+    font-size:var(--font-size-small); max-width:var(--measure-form); }
+  /* w4-public-03 — the assistant's words on the assistant's wash, as in a conversation. */
+  .site-draft .site-bubble { background:var(--color-assistant-wash); }
+  .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-needs-wash);
+    color:var(--color-needs); border:1px solid var(--color-border); font-weight:600; }
+  /* The product's waiting mark: a shape before the word, so the colour is not alone. */
+  .site-draft-tag::before { content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:currentColor; vertical-align:baseline; margin-inline-end:0.4em; }
+  .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
+    text-align:end; text-wrap:balance; }
+
+  .site-sec { border-top:1px solid var(--color-border); padding-top:var(--space-48); }
+  .site-steps { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-32);
+    grid-template-columns:minmax(0, 1fr); counter-reset:site-step; }
+  .site-steps li { counter-increment:site-step; margin:0; }
+  /* V1-022 — the number sits in a disc you can see, its edge on the heading's edge.
+     V1-028 — the same digits as every other page, Arabic included. */
+  .site-steps li::before { content:counter(site-step); display:inline-flex; align-items:center; justify-content:center;
+    inline-size:40px; block-size:40px; border-radius:var(--radius-chip); margin-bottom:var(--space-12);
+    background:var(--color-surface); border:1px solid var(--color-border);
+    color:var(--color-ink); font-weight:700; font-size:var(--font-size-title); }
+
+  /* w4-public-09 — one card to a row at every width, each as tall as its own words. */
+  .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24);
+    max-width:var(--measure-prose); }
+  .site-card { background:transparent; border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
+  .site-card p { margin:0; }
+  .site-card p + p, .site-when + p { margin-top:var(--space-12); }
+  .site-when { margin:var(--space-8) 0 0; padding-inline-start:var(--space-24); }
+  .site-when li { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
+  .site-honest { margin-top:var(--space-24); padding-top:var(--space-16);
+    border-top:1px solid var(--color-border); }
+
+  .site-channels { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-12);
+    grid-template-columns:minmax(0, 1fr); }
+  .site-channels li { display:flex; flex-direction:column; gap:var(--space-4); margin:0; padding:var(--space-16) var(--space-24);
+    background:transparent; border-top:1px solid var(--color-border); }
+  .site-channels strong { color:var(--color-ink); font-size:var(--font-size-title); }
+  .site-channels span { font-size:var(--font-size-small); }
+
+  /* V1-020 — the invitation's indent is a box you can see. */
+  .site-invite { padding:var(--space-32) 0; background:transparent; border-top:1px solid var(--color-border); }
+
+  .site-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--space-16); flex-wrap:wrap;
+    padding-top:var(--space-24); border-top:1px solid var(--color-border); }
+  /* V1-029 — on a phone one link to a line, so none is left alone on the last. */
+  .site-links { display:flex; flex-direction:column; gap:0 var(--space-24); font-size:var(--font-size-small); }
+  .site-links a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
+
+  @media (min-width: 48rem) {
+    main.site { padding-inline:var(--space-32); }
+    .site-lang { flex:0 0 auto; order:1; margin-inline-start:auto; }
+    .site-links { flex-direction:row; flex-wrap:wrap; }
+    .site-signin { order:2; }
+    .site-steps { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .site-channels { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 60rem) {
+    .site-hero { grid-template-columns:minmax(0, 7fr) minmax(0, 5fr); gap:var(--space-48); padding-block:var(--space-48); }
+  }
+
+@font-face { font-family:"Noto Sans Arabic"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-arabic-arabic-wght-normal.ce85091f020920b6.woff2) format("woff2"); unicode-range:U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FBC2,U+FBD3-FD8F,U+FD92-FDC7,U+FDCF,U+FDF0-FDFF,U+FE70-FE74,U+FE76-FEFC,U+10EFD-10EFF; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-108-wght-normal.91882203459867be.woff2) format("woff2"); unicode-range:U+0024,U+4E08,U+4E43,U+4E4F,U+4EF0,U+4F2A,U+507F,U+50AC,U+50BB,U+5151,U+51BB,U+51F6,U+51FD,U+5272,U+52FE,U+5362,U+53C9,U+53D4,U+53E0,U+543B,U+54F2,U+5507,U+5524,U+558A,U+55B5,U+561B,U+56CA,U+5782,U+57C3,U+5893,U+5915,U+5949,U+5962,U+59AE,U+59DC,U+59FB,U+5BD3,U+5C38,U+5CB3,U+5D07,U+5D29,U+5DE1,U+5DFE,U+5E15,U+5ECA,U+5F2F,U+5F7C,U+5FCC,U+6021,U+609F,U+60F9,U+6108,U+6148,U+6155,U+6170,U+61D2,U+6251,U+629B,U+62AB,U+62E8,U+62F3,U+6321,U+6350,U+6566,U+659C,U+65E8,U+6635,U+6655,U+6670,U+66F9,U+6734,U+679D,U+6851,U+6905,U+6B49,U+6B96,U+6C1B,U+6C41,U+6C6A,U+6C83,U+6CF3,U+6D9B,U+6DCB,U+6E1D,U+6E20-6E21,U+6EAA,U+6EE4,U+6EE9,U+6F58,U+70E4,U+722C,U+7262,U+7267,U+72B9,U+72E0,U+72EE,U+72F1,U+7334,U+73AB,U+7433,U+7470,U+758F,U+75D5,U+764C,U+7686,U+76C6,U+76FE,U+7720,U+77E2,U+7802,U+7816,U+788D,U+7891,U+7A00,U+7A9D,U+7B52,U+7BAD,U+7C98,U+7CCA,U+7EBA,U+7EEA,U+7EF5,U+7F1D,U+7F69,U+806A,U+809A,U+80BF,U+80C3,U+81C0,U+820C,U+82AC,U+82AF,U+82CD,U+82D7,U+838E,U+839E,U+8404,U+84B8,U+852C,U+8587,U+8650,U+8679,U+86C7,U+8702,U+87BA,U+886B-886C,U+8870,U+8C10,U+8C23,U+8C6B,U+8D3E,U+8D4B-8D4C,U+8D64,U+8D6B,U+8D74,U+8E29,U+8F69,U+8F74,U+8FB0,U+8FDF,U+901B,U+9038,U+9093,U+9171,U+9489,U+94AE,U+94C3,U+9508,U+9510,U+9601,U+9614,U+964C,U+9675,U+971C,U+97F5,U+9888,U+98D8,U+9971,U+9AA4,U+9E3F,U+9E45,U+9E4F,U+9E70,U+9F7F; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-110-wght-normal.bbca9081655c4523.woff2) format("woff2"); unicode-range:U+300C-300D,U+4E54,U+4E58,U+4E95,U+4EC1,U+4F2F,U+4F38,U+4FA3,U+4FCA,U+503E,U+5141,U+5144,U+517C,U+51CC,U+51ED,U+5242,U+52B2,U+52D2,U+52E4,U+540A,U+5439,U+5448,U+5496,U+54ED,U+5565,U+5761,U+5766,U+58EE,U+593A,U+594B,U+594F,U+5954,U+5996,U+59C6,U+59FF,U+5B64,U+5BFF,U+5C18,U+5C1D,U+5C97,U+5CA9,U+5CB8,U+5E9F,U+5EC9,U+5F04,U+5F7B,U+5FA1,U+5FCD,U+6012,U+60A6,U+60AC,U+60B2,U+60EF,U+626E,U+6270,U+6276,U+62D6,U+62DC,U+6316,U+632F,U+633A,U+6355,U+63AA,U+6447,U+649E,U+64C5,U+654C,U+65C1,U+65CB,U+65E6,U+6606,U+6731,U+675C,U+67CF,U+67DC,U+6846,U+6B8B,U+6BEB,U+6C61,U+6C88,U+6CBF,U+6CDB,U+6CEA,U+6D45,U+6D53,U+6D74,U+6D82,U+6DA8,U+6DB5,U+6DEB,U+6EDA,U+6EE8,U+6F0F,U+706D,U+708E,U+70AE,U+70BC,U+70C2,U+70E6,U+7237-7238,U+72FC,U+730E,U+731B,U+739B,U+73BB,U+7483,U+74DC,U+74F6,U+7586,U+7626,U+775B,U+77FF,U+788E,U+78B0,U+7956,U+7965,U+79E6,U+7AF9,U+7BEE,U+7C97,U+7EB1,U+7EB7,U+7ED1,U+7ED5,U+7F6A,U+7F72,U+7FBD,U+8017,U+808C,U+80A9,U+80C6,U+80CE,U+8150,U+8170,U+819C,U+820D,U+8230,U+8239,U+827E,U+8377,U+8389,U+83B2,U+8428,U+8463,U+867E,U+88C2,U+88D9,U+8986,U+8BCA,U+8BDE,U+8C13,U+8C8C,U+8D21,U+8D24,U+8D56,U+8D60,U+8D8B,U+8DB4,U+8E2A,U+8F68,U+8F89,U+8F9B,U+8FA8,U+8FBD,U+9003,U+90CE,U+90ED,U+9189,U+94BB,U+9505,U+95F9,U+963B,U+9655,U+966A,U+9677,U+96FE,U+9896,U+99A8,U+9A71,U+9A82,U+9A91,U+9B45,U+9ECE,U+9F20,U+FEFF,U+FF0D; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-111-wght-normal.372be010ac0e87cb.woff2) format("woff2"); unicode-range:U+4E4C,U+4E88,U+4EA1,U+4EA6,U+4ED3-4ED4,U+4EFF,U+4F30,U+4FA7,U+4FC4,U+4FD7,U+500D,U+504F,U+5076-5077,U+517D,U+5192,U+51C9,U+51EF,U+5238,U+5251,U+526A,U+52C7,U+52DF,U+52FF,U+53A6,U+53A8,U+53EC,U+5410,U+559D,U+55B7,U+5634,U+573E,U+5783,U+585E,U+586B,U+58A8,U+5999,U+59D3,U+5A1C,U+5A46,U+5B54-5B55,U+5B85,U+5B8B,U+5B8F,U+5BBF,U+5BD2,U+5C16,U+5C24,U+5E05,U+5E45,U+5E7C,U+5E84,U+5F03,U+5F1F,U+5F31,U+5F84,U+5F90,U+5FBD,U+5FC6,U+5FD9,U+5FE7,U+6052,U+6062,U+6089,U+60A3,U+60D1,U+6167,U+622A,U+6234,U+624E,U+6269,U+626C,U+62B5,U+62D2,U+6325,U+63E1,U+643A,U+6446,U+6562,U+656C,U+65E2,U+65FA,U+660C,U+6628,U+6652,U+6668,U+6676,U+66FC,U+66FF,U+6717,U+676D,U+67AA,U+67D4,U+6843,U+6881,U+68D2,U+695A,U+69FD,U+6A2A,U+6B8A,U+6C60,U+6C64,U+6C9F,U+6CAA,U+6CC9,U+6CE1,U+6CFD,U+6D1B,U+6D1E,U+6D6E,U+6DE1,U+6E10,U+6E7F,U+6F5C,U+704C,U+7070,U+7089,U+70B8,U+718A,U+71C3,U+723D,U+732A,U+73CD,U+7518,U+756A,U+75AF,U+75BE,U+75C7,U+76D2,U+76D7,U+7763,U+78E8,U+795D,U+79DF,U+7C4D,U+7D2F,U+7EE9,U+7F13,U+7F8A,U+8000,U+8010,U+80AF,U+80F6,U+80F8,U+8212,U+8273,U+82F9,U+83AB,U+83B1,U+83F2,U+8584,U+871C,U+8861,U+888B,U+88C1,U+88E4,U+8BD1,U+8BF1,U+8C31,U+8D5A,U+8D75-8D76,U+8DE8,U+8F85,U+8FA3,U+8FC5,U+9006,U+903C,U+904D,U+9075,U+9178,U+9274,U+950B,U+9526,U+95EA,U+9636,U+9686,U+978B,U+987F,U+9A7E,U+9B42,U+9E1F,U+9EA6,U+9F13,U+9F84,U+FF5E; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-112-wght-normal.34a4580239eae8dc.woff2) format("woff2"); unicode-range:U+0023,U+003D,U+4E01,U+4E39,U+4E73,U+4ECD,U+4ED9,U+4EEA,U+4F0A,U+4F1F,U+4F5B,U+4FA0,U+4FC3,U+501F,U+50A8,U+515A,U+5175,U+51A0,U+51C0,U+51E1,U+51E4,U+5200,U+520A,U+5224,U+523A,U+52AA,U+52B1,U+52B3,U+5348,U+5353,U+5360,U+5371,U+5377,U+539A,U+541B,U+5434,U+547C,U+54E6,U+5510,U+5531,U+5609,U+56F0,U+56FA,U+5733,U+574F,U+5851,U+5854,U+5899,U+58C1,U+592E,U+5939,U+5976,U+5986,U+59BB,U+5A18,U+5A74,U+5B59,U+5B87,U+5B97,U+5BA0,U+5BAB,U+5BBD-5BBE,U+5BF8,U+5C0A,U+5C3A,U+5C4A,U+5E16,U+5E1D,U+5E2D,U+5E8A,U+6015,U+602A,U+6050,U+6069,U+6162,U+61C2,U+6293,U+6297,U+62B1,U+62BD,U+62DF,U+62FC,U+6302,U+635F,U+638C,U+63ED,U+6458,U+6469,U+6563,U+6620,U+6653,U+6696-6697,U+66DD,U+675F,U+676F-6770,U+67D0,U+67D3,U+684C,U+6865,U+6885,U+68B0,U+68EE,U+690D,U+6B23,U+6B32,U+6BD5,U+6C89,U+6D01,U+6D25,U+6D89,U+6DA6,U+6DB2,U+6DF7,U+6ED1,U+6F02,U+70C8,U+70DF,U+70E7,U+7126,U+7236,U+7259,U+731C,U+745E,U+74E3,U+751A,U+751C,U+7532,U+7545,U+75DB,U+7761,U+7A0D,U+7B51,U+7CA4,U+7CD6,U+7D2B,U+7EA0,U+7EB9,U+7ED8,U+7F18,U+7F29,U+8033,U+804A,U+80A4-80A5,U+80E1,U+817F,U+829D,U+82E6,U+8336,U+840C,U+8499,U+864E,U+8651,U+865A,U+88AD,U+89E6,U+8BD7,U+8BFA,U+8C37,U+8D25,U+8D38,U+8DDD,U+8FEA,U+9010,U+9012,U+906D,U+907F-9080,U+90D1,U+9177,U+91CA,U+94FA,U+9501,U+9634-9635,U+9694,U+9707,U+9738,U+9769,U+9A7B,U+9A97,U+9AA8,U+9B3C,U+9C81,U+9ED8; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-113-wght-normal.614ab8f616352583.woff2) format("woff2"); unicode-range:U+0026,U+003C,U+00D7,U+4E4E,U+4E61,U+4E71,U+4EBF,U+4F26,U+5012,U+51AC,U+51B0,U+51B2,U+51B7,U+5218,U+521A,U+5220,U+5237,U+523B,U+526F,U+5385,U+53BF,U+53E5,U+53EB,U+53F3,U+53F6,U+5409,U+5438,U+54C8,U+54E5,U+552F,U+5584,U+5706,U+5723,U+5750,U+575A,U+5987-5988,U+59B9,U+59D0,U+59D4,U+5B88,U+5B9C,U+5BDF,U+5BFB,U+5C01,U+5C04,U+5C3E,U+5C4B,U+5C4F,U+5C9B,U+5CF0,U+5DDD,U+5DE6,U+5DE8,U+5E01,U+5E78,U+5E7B,U+5E9C,U+5EAD,U+5EF6,U+5F39,U+5FD8,U+6000,U+6025,U+604B,U+6076,U+613F,U+6258,U+6263,U+6267,U+6298,U+62A2,U+62E5,U+62EC,U+6311,U+6377,U+6388-6389,U+63A2,U+63D2,U+641E,U+642D,U+654F,U+6551,U+6597,U+65CF,U+65D7,U+65E7,U+6682,U+66F2,U+671D,U+672B,U+6740,U+6751,U+6768,U+6811,U+6863,U+6982,U+6BD2,U+6CF0,U+6D0B,U+6D17,U+6D59,U+6DD8,U+6DFB,U+6E7E,U+6F6E,U+6FB3,U+706F,U+719F,U+72AF,U+72D0,U+72D7,U+732B,U+732E,U+7389,U+73E0,U+7530,U+7687,U+76D6,U+76DB,U+7840,U+786C,U+79CB,U+79D2,U+7A0E,U+7A33,U+7A3F,U+7A97,U+7ADE-7ADF,U+7B26,U+7E41,U+7EC3,U+7F3A,U+8089,U+80DC,U+811A,U+8131,U+8138,U+821E,U+8349,U+83DC,U+8457,U+867D,U+86CB,U+8A89,U+8BA8,U+8BAD,U+8BEF,U+8BFE,U+8C6A,U+8D1D,U+8D4F,U+8D62,U+8DD1,U+8DF3,U+8F6E,U+8FF9,U+900F,U+9014,U+9057,U+9192,U+91CE,U+9488,U+94A2,U+9547,U+955C,U+95F2,U+9644,U+964D,U+96C4-96C5,U+96E8,U+96F6-96F7,U+9732,U+9759,U+9760,U+987A,U+989C,U+9910,U+996D-996E,U+9B54,U+9E21,U+9EBB,U+9F50; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-114-wght-normal.cf7b8344807a316e.woff2) format("woff2"); unicode-range:U+007E,U+2026,U+4E03,U+4E25,U+4E30,U+4E34,U+4E45,U+4E5D,U+4E89,U+4EAE,U+4ED8,U+4F11,U+4F19,U+4F24,U+4F34,U+4F59,U+4F73,U+4F9D,U+4FB5,U+5047,U+505C,U+5170,U+519C,U+51CF,U+5267,U+5356,U+5374,U+5382,U+538B,U+53E6,U+5426,U+542B,U+542F,U+5462,U+5473,U+554A,U+5566,U+5708,U+571F,U+5757,U+57DF,U+57F9,U+5802,U+590F,U+591C,U+591F,U+592B,U+5965,U+5979,U+5A01,U+5A5A,U+5B63,U+5B69,U+5B81,U+5BA1,U+5BA3,U+5C3C,U+5C42,U+5C81,U+5DE7,U+5DEE,U+5E0C,U+5E10,U+5E55,U+5E86,U+5E8F,U+5EA7,U+5F02,U+5F52,U+5F81,U+5FF5,U+60CA,U+60E0,U+6279,U+62C5,U+62FF,U+63CF,U+6444,U+64CD,U+653B,U+65BD,U+65E9,U+665A,U+66B4,U+66FE,U+6728,U+6742,U+677E,U+67B6,U+680F,U+68A6,U+68C0,U+699C,U+6B4C,U+6B66,U+6B7B,U+6BCD,U+6BDB,U+6C38,U+6C47,U+6C49,U+6CB3,U+6CB9,U+6CE2,U+6D32,U+6D3E,U+6D4F,U+6E56,U+6FC0,U+7075,U+7206,U+725B,U+72C2,U+73ED,U+7565,U+7591,U+7597,U+75C5,U+76AE,U+76D1,U+76DF,U+7834,U+7968,U+7981,U+79C0,U+7A7F,U+7A81,U+7AE5,U+7B14,U+7C89,U+7D27,U+7EAF,U+7EB3,U+7EB8,U+7EC7,U+7EE7,U+7EFF,U+7F57,U+7FFB,U+805A,U+80A1,U+822C,U+82CF,U+82E5,U+8363,U+836F,U+84DD,U+878D,U+8840,U+8857,U+8863,U+8865,U+8B66,U+8BB2,U+8BDA,U+8C01,U+8C08,U+8C46,U+8D1F,U+8D35,U+8D5B,U+8D5E,U+8DA3,U+8DDF,U+8F93,U+8FDD,U+8FF0,U+8FF7,U+8FFD,U+9000,U+9047,U+9152,U+949F,U+94C1,U+94F6,U+9646,U+9648,U+9669,U+969C,U+96EA,U+97E9,U+987B,U+987E,U+989D,U+9970,U+9986,U+9C7C,U+9C9C; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-115-wght-normal.fb29957c7adccb9a.woff2) format("woff2"); unicode-range:U+0025,U+4E14,U+4E1D,U+4E3D,U+4E49,U+4E60,U+4E9A,U+4EB2,U+4EC5,U+4EFD,U+4F3C,U+4F4F,U+4F8B,U+4FBF,U+5019,U+5145,U+514B,U+516B,U+516D,U+5174,U+5178,U+517B,U+5199,U+519B,U+51B3,U+51B5,U+5207,U+5212,U+5219,U+521D,U+52BF,U+533B,U+5343,U+5347,U+534A,U+536B,U+5370,U+53E4,U+53F2,U+5403,U+542C,U+547D,U+54A8,U+54CD,U+54EA,U+552E,U+56F4,U+5747,U+575B,U+5883,U+589E,U+5931,U+5947,U+5956-5957,U+5A92,U+5B83,U+5BA4,U+5BB3,U+5BCC,U+5C14,U+5C1A,U+5C3D,U+5C40,U+5C45,U+5C5E,U+5DF4,U+5E72,U+5E95,U+5F80,U+5F85,U+5FB7,U+5FD7,U+601D,U+626B,U+627F,U+62C9,U+62CD,U+6309,U+63A7,U+6545,U+65AD,U+65AF,U+65C5,U+666E,U+667A,U+670B,U+671B,U+674E,U+677F,U+6781,U+6790,U+6797,U+6821,U+6838-6839,U+697C,U+6B27,U+6B62,U+6BB5,U+6C7D,U+6C99,U+6D4B,U+6D4E,U+6D6A,U+6E29,U+6E2F,U+6EE1,U+6F14,U+6F2B,U+72B6,U+72EC,U+7387,U+7533,U+753B,U+76CA,U+76D8,U+7701,U+773C,U+77ED,U+77F3,U+7814,U+793C,U+79BB,U+79C1,U+79D8,U+79EF,U+79FB,U+7A76,U+7B11,U+7B54,U+7B56,U+7B97,U+7BC7,U+7C73,U+7D20,U+7EAA,U+7EC8,U+7EDD,U+7EED,U+7EFC,U+7FA4,U+804C,U+8058,U+80CC,U+8111,U+817E,U+826F,U+8303,U+843D,U+89C9,U+89D2,U+8BA2,U+8BBF,U+8BC9,U+8BCD,U+8BE6,U+8C22,U+8C61,U+8D22,U+8D26-8D27,U+8D8A,U+8F6F,U+8F7B,U+8F83,U+8F91,U+8FB9,U+8FD4,U+8FDC,U+9002,U+94B1,U+9519,U+95ED,U+961F,U+9632-9633,U+963F,U+968F-9690,U+96BE,U+9876,U+9884,U+98DE,U+9988,U+9999,U+9EC4,U+FF1B; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-116-wght-normal.a98dc5a726f82141.woff2) format("woff2"); unicode-range:U+002B,U+0040,U+3000,U+300A-300B,U+4E16,U+4E66,U+4E70,U+4E91-4E92,U+4E94,U+4E9B,U+4EC0,U+4ECA,U+4F01,U+4F17-4F18,U+4F46,U+4F4E,U+4F9B,U+4FEE,U+503C,U+5065,U+50CF,U+513F,U+5148,U+518D,U+51C6,U+51E0,U+5217,U+529E-529F,U+5341,U+534F,U+5361,U+5386,U+53C2,U+53C8,U+53CC,U+53D7-53D8,U+53EA,U+5404,U+5411,U+5417,U+5427,U+5468,U+559C,U+5668,U+56E0,U+56E2,U+56ED,U+5740,U+57FA,U+58EB,U+5904,U+592A,U+59CB,U+5A31,U+5B58,U+5B9D,U+5BC6,U+5C71,U+5DDE,U+5DF1,U+5E08,U+5E26,U+5E2E,U+5E93,U+5E97,U+5EB7,U+5F15,U+5F20,U+5F3A,U+5F62,U+5F69,U+5F88,U+5F8B,U+5FC5,U+600E,U+620F,U+6218,U+623F,U+627E,U+628A,U+62A4,U+62DB,U+62E9,U+6307,U+6362,U+636E,U+64AD,U+6539,U+653F,U+6548,U+6574,U+6613,U+6625,U+663E,U+666F,U+672A,U+6750,U+6784,U+6A21,U+6B3E,U+6B65,U+6BCF,U+6C11,U+6C5F,U+6DF1,U+706B,U+7167,U+724C,U+738B,U+73A9,U+73AF,U+7403,U+7537,U+754C,U+7559,U+767D,U+7740,U+786E,U+795E,U+798F,U+79F0,U+7AEF,U+7B7E,U+7BB1,U+7EA2,U+7EA6,U+7EC4,U+7EC6,U+7ECD,U+7EDC,U+7EF4,U+8003,U+80B2,U+81F3-81F4,U+822A,U+827A,U+82F1,U+83B7,U+8425,U+89C2,U+89C8,U+8BA9,U+8BB8,U+8BC6,U+8BD5,U+8BE2,U+8BE5,U+8BED,U+8C03,U+8D23,U+8D2D,U+8D34,U+8D70,U+8DB3,U+8FBE,U+8FCE,U+8FD1,U+8FDE,U+9001,U+901F-9020,U+90A3,U+914D,U+91C7,U+94FE,U+9500,U+952E,U+9605,U+9645,U+9662,U+9664,U+9700,U+9752,U+975E,U+97F3,U+9879,U+9886,U+98DF,U+9A6C,U+9A8C,U+9ED1,U+9F99; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-117-wght-normal.d94b5af0c14838af.woff2) format("woff2"); unicode-range:U+004E,U+201C-201D,U+3010-3011,U+4E07,U+4E1C,U+4E24,U+4E3E,U+4E48,U+4E50,U+4E5F,U+4E8B-4E8C,U+4EA4,U+4EAB-4EAC,U+4ECB,U+4ECE,U+4ED6,U+4EE3,U+4EF6-4EF7,U+4EFB,U+4F20,U+4F55,U+4F7F,U+4FDD,U+505A,U+5143,U+5149,U+514D,U+5171,U+5177,U+518C,U+51FB,U+521B,U+5229,U+522B,U+52A9,U+5305,U+5317,U+534E,U+5355,U+5357,U+535A,U+5373,U+539F,U+53BB,U+53CA,U+53CD,U+53D6,U+53E3,U+53F0,U+5458,U+5546,U+56DB,U+573A,U+578B,U+57CE,U+58F0,U+590D,U+5934,U+5973,U+5B57,U+5B8C,U+5B98,U+5BB9,U+5BFC,U+5C06,U+5C11,U+5C31,U+5C55,U+5DF2,U+5E03,U+5E38,U+5E76,U+5E94,U+5EFA,U+5F71,U+5F97,U+5FEB,U+6001,U+603B,U+60F3,U+611F,U+6216,U+624D,U+6253,U+6295,U+6301,U+6392,U+641C,U+652F,U+653E,U+6559,U+6599,U+661F,U+671F,U+672F,U+6761,U+67E5,U+6807,U+6837,U+683C,U+6848,U+6B22,U+6B64,U+6BD4,U+6C14,U+6C34,U+6C42,U+6CA1,U+6D41,U+6D77,U+6D88,U+6E05,U+6E38,U+6E90,U+7136,U+7231,U+7531,U+767E,U+76EE,U+76F4,U+771F,U+7801,U+793A,U+79CD,U+7A0B,U+7A7A,U+7ACB,U+7AE0,U+7B2C,U+7B80,U+7BA1,U+7CBE,U+7D22,U+7EA7,U+7ED3,U+7ED9,U+7EDF,U+7F16,U+7F6E,U+8001,U+800C,U+8272,U+8282,U+82B1,U+8350,U+88AB,U+88C5,U+897F,U+89C1,U+89C4,U+89E3,U+8A00,U+8BA1,U+8BA4,U+8BAE-8BB0,U+8BBE,U+8BC1,U+8BC4,U+8BFB,U+8D28,U+8D39,U+8D77,U+8D85,U+8DEF,U+8EAB,U+8F66,U+8F6C,U+8F7D,U+8FD0,U+9009,U+90AE,U+90FD,U+91CC-91CD,U+91CF,U+95FB,U+9650,U+96C6,U+9891,U+98CE,U+FF1F; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-118-wght-normal.76c9ddb85ae4578c.woff2) format("woff2"); unicode-range:U+003E,U+005F,U+007C,U+00A0,U+00A9,U+4E09-4E0B,U+4E0D-4E0E,U+4E13,U+4E1A,U+4E2A,U+4E3A-4E3B,U+4E4B,U+4E86,U+4E8E,U+4EA7,U+4EBA,U+4EE4-4EE5,U+4EEC,U+4F1A,U+4F4D,U+4F53,U+4F5C,U+4F60,U+4FE1,U+5165,U+5168,U+516C,U+5173,U+5176,U+5185,U+51FA,U+5206,U+5230,U+5236,U+524D,U+529B,U+52A0-52A1,U+52A8,U+5316,U+533A,U+53CB,U+53D1,U+53EF,U+53F7-53F8,U+5408,U+540C-540E,U+544A,U+548C,U+54C1,U+56DE,U+56FD-56FE,U+5728,U+5730,U+5907,U+5916,U+591A,U+5927,U+5929,U+597D,U+5982,U+5B50,U+5B66,U+5B89,U+5B9A,U+5B9E,U+5BA2,U+5BB6,U+5BF9,U+5C0F,U+5DE5,U+5E02,U+5E73-5E74,U+5E7F,U+5EA6,U+5F00,U+5F0F,U+5F53,U+5F55,U+5FAE,U+5FC3,U+6027,U+606F,U+60A8,U+60C5,U+610F,U+6210-6211,U+6237,U+6240,U+624B,U+6280,U+62A5,U+63A5,U+63A8,U+63D0,U+6536,U+6570,U+6587,U+65B9,U+65E0,U+65F6,U+660E,U+662D,U+662F,U+66F4,U+6700,U+670D,U+672C,U+673A,U+6743,U+6765,U+679C,U+682A,U+6B21,U+6B63,U+6CBB,U+6CD5,U+6CE8,U+6D3B,U+70ED,U+7247-7248,U+7269,U+7279,U+73B0,U+7406,U+751F,U+7528,U+7535,U+767B,U+76F8,U+770B,U+77E5,U+793E,U+79D1,U+7AD9,U+7B49,U+7C7B,U+7CFB,U+7EBF,U+7ECF,U+7F8E,U+8005,U+8054,U+80FD,U+81EA,U+85CF,U+884C,U+8868,U+8981,U+89C6,U+8BBA,U+8BDD,U+8BF4,U+8BF7,U+8D44,U+8FC7,U+8FD8-8FD9,U+8FDB,U+901A,U+9053,U+90E8,U+91D1,U+957F,U+95E8,U+95EE,U+95F4,U+9762,U+9875,U+9898,U+9996,U+9AD8,U+FF01,U+FF08-FF09; }
+@font-face { font-family:"Noto Sans SC"; font-style:normal; font-weight:300 700; font-display:swap; src:url(/assets/noto-sans-sc-119-wght-normal.b3b2374881f4cd93.woff2) format("woff2"); unicode-range:U+0020-0022,U+0027-002A,U+002C-003B,U+003F,U+0041-004D,U+004F-005D,U+0061-007B,U+007D,U+00AB,U+00AE,U+00B2,U+00B7,U+00BB,U+00DF-00E5,U+00E7-00EA,U+00EC-00ED,U+00F1-00F4,U+00F6,U+00F9-00FA,U+00FC,U+0101,U+0103,U+0113,U+012B,U+0148,U+014D,U+016B,U+01CE,U+01D0,U+0300-0301,U+1EBF,U+1EC7,U+2013-2014,U+2022,U+2027,U+2039-203A,U+2122,U+3001-3002,U+3042,U+3044,U+3046,U+3048,U+304A-3055,U+3057,U+3059-305B,U+305D,U+305F-3061,U+3063-306B,U+306D-3073,U+3075-3076,U+3078-3079,U+307B,U+307E-307F,U+3081-308D,U+308F,U+3092-3093,U+30A1-30A4,U+30A6-30BB,U+30BD,U+30BF-30C1,U+30C3-30C4,U+30C6-30CB,U+30CD-30D7,U+30D9-30E1,U+30E3-30E7,U+30E9-30ED,U+30EF,U+30F3,U+30FB-30FC,U+3127,U+4E00,U+4E2D,U+65B0,U+65E5,U+6708-6709,U+70B9,U+7684,U+7F51,U+FF0C,U+FF0E,U+FF1A; }
+@font-face { font-family:"Noto Naskh Arabic"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-naskh-arabic-arabic-400-normal.9cc2d2e90f7b5190.woff2) format("woff2"); unicode-range:U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010,U+204F,U+2E41,U+FB50-FBC2,U+FBD3-FD8F,U+FD92-FDC7,U+FDCF,U+FDF0-FDFF,U+FE70-FE74,U+FE76-FEFC,U+10EFD-10EFF; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-108-400-normal.a9d450627989c9e6.woff2) format("woff2"); unicode-range:U+0024,U+4E08,U+4E43,U+4E4F,U+4EF0,U+4F2A,U+507F,U+50AC,U+50BB,U+5151,U+51BB,U+51F6,U+51FD,U+5272,U+52FE,U+5362,U+53C9,U+53D4,U+53E0,U+543B,U+54F2,U+5507,U+5524,U+558A,U+55B5,U+561B,U+56CA,U+5782,U+57C3,U+5893,U+5915,U+5949,U+5962,U+59AE,U+59DC,U+59FB,U+5BD3,U+5C38,U+5CB3,U+5D07,U+5D29,U+5DE1,U+5DFE,U+5E15,U+5ECA,U+5F2F,U+5F7C,U+5FCC,U+6021,U+609F,U+60F9,U+6108,U+6148,U+6155,U+6170,U+61D2,U+6251,U+629B,U+62AB,U+62E8,U+62F3,U+6321,U+6350,U+6566,U+659C,U+65E8,U+6635,U+6655,U+6670,U+66F9,U+6734,U+679D,U+6851,U+6905,U+6B49,U+6B96,U+6C1B,U+6C41,U+6C6A,U+6C83,U+6CF3,U+6D9B,U+6DCB,U+6E1D,U+6E20-6E21,U+6EAA,U+6EE4,U+6EE9,U+6F58,U+70E4,U+722C,U+7262,U+7267,U+72B9,U+72E0,U+72EE,U+72F1,U+7334,U+73AB,U+7433,U+7470,U+758F,U+75D5,U+764C,U+7686,U+76C6,U+76FE,U+7720,U+77E2,U+7802,U+7816,U+788D,U+7891,U+7A00,U+7A9D,U+7B52,U+7BAD,U+7C98,U+7CCA,U+7EBA,U+7EEA,U+7EF5,U+7F1D,U+7F69,U+806A,U+809A,U+80BF,U+80C3,U+81C0,U+820C,U+82AC,U+82AF,U+82CD,U+82D7,U+838E,U+839E,U+8404,U+84B8,U+852C,U+8587,U+8650,U+8679,U+86C7,U+8702,U+87BA,U+886B-886C,U+8870,U+8C10,U+8C23,U+8C6B,U+8D3E,U+8D4B-8D4C,U+8D64,U+8D6B,U+8D74,U+8E29,U+8F69,U+8F74,U+8FB0,U+8FDF,U+901B,U+9038,U+9093,U+9171,U+9489,U+94AE,U+94C3,U+9508,U+9510,U+9601,U+9614,U+964C,U+9675,U+971C,U+97F5,U+9888,U+98D8,U+9971,U+9AA4,U+9E3F,U+9E45,U+9E4F,U+9E70,U+9F7F; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-110-400-normal.cd4f2bb208b10081.woff2) format("woff2"); unicode-range:U+300C-300D,U+4E54,U+4E58,U+4E95,U+4EC1,U+4F2F,U+4F38,U+4FA3,U+4FCA,U+503E,U+5141,U+5144,U+517C,U+51CC,U+51ED,U+5242,U+52B2,U+52D2,U+52E4,U+540A,U+5439,U+5448,U+5496,U+54ED,U+5565,U+5761,U+5766,U+58EE,U+593A,U+594B,U+594F,U+5954,U+5996,U+59C6,U+59FF,U+5B64,U+5BFF,U+5C18,U+5C1D,U+5C97,U+5CA9,U+5CB8,U+5E9F,U+5EC9,U+5F04,U+5F7B,U+5FA1,U+5FCD,U+6012,U+60A6,U+60AC,U+60B2,U+60EF,U+626E,U+6270,U+6276,U+62D6,U+62DC,U+6316,U+632F,U+633A,U+6355,U+63AA,U+6447,U+649E,U+64C5,U+654C,U+65C1,U+65CB,U+65E6,U+6606,U+6731,U+675C,U+67CF,U+67DC,U+6846,U+6B8B,U+6BEB,U+6C61,U+6C88,U+6CBF,U+6CDB,U+6CEA,U+6D45,U+6D53,U+6D74,U+6D82,U+6DA8,U+6DB5,U+6DEB,U+6EDA,U+6EE8,U+6F0F,U+706D,U+708E,U+70AE,U+70BC,U+70C2,U+70E6,U+7237-7238,U+72FC,U+730E,U+731B,U+739B,U+73BB,U+7483,U+74DC,U+74F6,U+7586,U+7626,U+775B,U+77FF,U+788E,U+78B0,U+7956,U+7965,U+79E6,U+7AF9,U+7BEE,U+7C97,U+7EB1,U+7EB7,U+7ED1,U+7ED5,U+7F6A,U+7F72,U+7FBD,U+8017,U+808C,U+80A9,U+80C6,U+80CE,U+8150,U+8170,U+819C,U+820D,U+8230,U+8239,U+827E,U+8377,U+8389,U+83B2,U+8428,U+8463,U+867E,U+88C2,U+88D9,U+8986,U+8BCA,U+8BDE,U+8C13,U+8C8C,U+8D21,U+8D24,U+8D56,U+8D60,U+8D8B,U+8DB4,U+8E2A,U+8F68,U+8F89,U+8F9B,U+8FA8,U+8FBD,U+9003,U+90CE,U+90ED,U+9189,U+94BB,U+9505,U+95F9,U+963B,U+9655,U+966A,U+9677,U+96FE,U+9896,U+99A8,U+9A71,U+9A82,U+9A91,U+9B45,U+9ECE,U+9F20,U+FEFF,U+FF0D; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-111-400-normal.781006ca8d546335.woff2) format("woff2"); unicode-range:U+4E4C,U+4E88,U+4EA1,U+4EA6,U+4ED3-4ED4,U+4EFF,U+4F30,U+4FA7,U+4FC4,U+4FD7,U+500D,U+504F,U+5076-5077,U+517D,U+5192,U+51C9,U+51EF,U+5238,U+5251,U+526A,U+52C7,U+52DF,U+52FF,U+53A6,U+53A8,U+53EC,U+5410,U+559D,U+55B7,U+5634,U+573E,U+5783,U+585E,U+586B,U+58A8,U+5999,U+59D3,U+5A1C,U+5A46,U+5B54-5B55,U+5B85,U+5B8B,U+5B8F,U+5BBF,U+5BD2,U+5C16,U+5C24,U+5E05,U+5E45,U+5E7C,U+5E84,U+5F03,U+5F1F,U+5F31,U+5F84,U+5F90,U+5FBD,U+5FC6,U+5FD9,U+5FE7,U+6052,U+6062,U+6089,U+60A3,U+60D1,U+6167,U+622A,U+6234,U+624E,U+6269,U+626C,U+62B5,U+62D2,U+6325,U+63E1,U+643A,U+6446,U+6562,U+656C,U+65E2,U+65FA,U+660C,U+6628,U+6652,U+6668,U+6676,U+66FC,U+66FF,U+6717,U+676D,U+67AA,U+67D4,U+6843,U+6881,U+68D2,U+695A,U+69FD,U+6A2A,U+6B8A,U+6C60,U+6C64,U+6C9F,U+6CAA,U+6CC9,U+6CE1,U+6CFD,U+6D1B,U+6D1E,U+6D6E,U+6DE1,U+6E10,U+6E7F,U+6F5C,U+704C,U+7070,U+7089,U+70B8,U+718A,U+71C3,U+723D,U+732A,U+73CD,U+7518,U+756A,U+75AF,U+75BE,U+75C7,U+76D2,U+76D7,U+7763,U+78E8,U+795D,U+79DF,U+7C4D,U+7D2F,U+7EE9,U+7F13,U+7F8A,U+8000,U+8010,U+80AF,U+80F6,U+80F8,U+8212,U+8273,U+82F9,U+83AB,U+83B1,U+83F2,U+8584,U+871C,U+8861,U+888B,U+88C1,U+88E4,U+8BD1,U+8BF1,U+8C31,U+8D5A,U+8D75-8D76,U+8DE8,U+8F85,U+8FA3,U+8FC5,U+9006,U+903C,U+904D,U+9075,U+9178,U+9274,U+950B,U+9526,U+95EA,U+9636,U+9686,U+978B,U+987F,U+9A7E,U+9B42,U+9E1F,U+9EA6,U+9F13,U+9F84,U+FF5E; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-112-400-normal.8b2392a29608a069.woff2) format("woff2"); unicode-range:U+0023,U+003D,U+4E01,U+4E39,U+4E73,U+4ECD,U+4ED9,U+4EEA,U+4F0A,U+4F1F,U+4F5B,U+4FA0,U+4FC3,U+501F,U+50A8,U+515A,U+5175,U+51A0,U+51C0,U+51E1,U+51E4,U+5200,U+520A,U+5224,U+523A,U+52AA,U+52B1,U+52B3,U+5348,U+5353,U+5360,U+5371,U+5377,U+539A,U+541B,U+5434,U+547C,U+54E6,U+5510,U+5531,U+5609,U+56F0,U+56FA,U+5733,U+574F,U+5851,U+5854,U+5899,U+58C1,U+592E,U+5939,U+5976,U+5986,U+59BB,U+5A18,U+5A74,U+5B59,U+5B87,U+5B97,U+5BA0,U+5BAB,U+5BBD-5BBE,U+5BF8,U+5C0A,U+5C3A,U+5C4A,U+5E16,U+5E1D,U+5E2D,U+5E8A,U+6015,U+602A,U+6050,U+6069,U+6162,U+61C2,U+6293,U+6297,U+62B1,U+62BD,U+62DF,U+62FC,U+6302,U+635F,U+638C,U+63ED,U+6458,U+6469,U+6563,U+6620,U+6653,U+6696-6697,U+66DD,U+675F,U+676F-6770,U+67D0,U+67D3,U+684C,U+6865,U+6885,U+68B0,U+68EE,U+690D,U+6B23,U+6B32,U+6BD5,U+6C89,U+6D01,U+6D25,U+6D89,U+6DA6,U+6DB2,U+6DF7,U+6ED1,U+6F02,U+70C8,U+70DF,U+70E7,U+7126,U+7236,U+7259,U+731C,U+745E,U+74E3,U+751A,U+751C,U+7532,U+7545,U+75DB,U+7761,U+7A0D,U+7B51,U+7CA4,U+7CD6,U+7D2B,U+7EA0,U+7EB9,U+7ED8,U+7F18,U+7F29,U+8033,U+804A,U+80A4-80A5,U+80E1,U+817F,U+829D,U+82E6,U+8336,U+840C,U+8499,U+864E,U+8651,U+865A,U+88AD,U+89E6,U+8BD7,U+8BFA,U+8C37,U+8D25,U+8D38,U+8DDD,U+8FEA,U+9010,U+9012,U+906D,U+907F-9080,U+90D1,U+9177,U+91CA,U+94FA,U+9501,U+9634-9635,U+9694,U+9707,U+9738,U+9769,U+9A7B,U+9A97,U+9AA8,U+9B3C,U+9C81,U+9ED8; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-113-400-normal.a39469f99e4d3b6e.woff2) format("woff2"); unicode-range:U+0026,U+003C,U+00D7,U+4E4E,U+4E61,U+4E71,U+4EBF,U+4F26,U+5012,U+51AC,U+51B0,U+51B2,U+51B7,U+5218,U+521A,U+5220,U+5237,U+523B,U+526F,U+5385,U+53BF,U+53E5,U+53EB,U+53F3,U+53F6,U+5409,U+5438,U+54C8,U+54E5,U+552F,U+5584,U+5706,U+5723,U+5750,U+575A,U+5987-5988,U+59B9,U+59D0,U+59D4,U+5B88,U+5B9C,U+5BDF,U+5BFB,U+5C01,U+5C04,U+5C3E,U+5C4B,U+5C4F,U+5C9B,U+5CF0,U+5DDD,U+5DE6,U+5DE8,U+5E01,U+5E78,U+5E7B,U+5E9C,U+5EAD,U+5EF6,U+5F39,U+5FD8,U+6000,U+6025,U+604B,U+6076,U+613F,U+6258,U+6263,U+6267,U+6298,U+62A2,U+62E5,U+62EC,U+6311,U+6377,U+6388-6389,U+63A2,U+63D2,U+641E,U+642D,U+654F,U+6551,U+6597,U+65CF,U+65D7,U+65E7,U+6682,U+66F2,U+671D,U+672B,U+6740,U+6751,U+6768,U+6811,U+6863,U+6982,U+6BD2,U+6CF0,U+6D0B,U+6D17,U+6D59,U+6DD8,U+6DFB,U+6E7E,U+6F6E,U+6FB3,U+706F,U+719F,U+72AF,U+72D0,U+72D7,U+732B,U+732E,U+7389,U+73E0,U+7530,U+7687,U+76D6,U+76DB,U+7840,U+786C,U+79CB,U+79D2,U+7A0E,U+7A33,U+7A3F,U+7A97,U+7ADE-7ADF,U+7B26,U+7E41,U+7EC3,U+7F3A,U+8089,U+80DC,U+811A,U+8131,U+8138,U+821E,U+8349,U+83DC,U+8457,U+867D,U+86CB,U+8A89,U+8BA8,U+8BAD,U+8BEF,U+8BFE,U+8C6A,U+8D1D,U+8D4F,U+8D62,U+8DD1,U+8DF3,U+8F6E,U+8FF9,U+900F,U+9014,U+9057,U+9192,U+91CE,U+9488,U+94A2,U+9547,U+955C,U+95F2,U+9644,U+964D,U+96C4-96C5,U+96E8,U+96F6-96F7,U+9732,U+9759,U+9760,U+987A,U+989C,U+9910,U+996D-996E,U+9B54,U+9E21,U+9EBB,U+9F50; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-114-400-normal.70c38bdf292733a2.woff2) format("woff2"); unicode-range:U+007E,U+2026,U+4E03,U+4E25,U+4E30,U+4E34,U+4E45,U+4E5D,U+4E89,U+4EAE,U+4ED8,U+4F11,U+4F19,U+4F24,U+4F34,U+4F59,U+4F73,U+4F9D,U+4FB5,U+5047,U+505C,U+5170,U+519C,U+51CF,U+5267,U+5356,U+5374,U+5382,U+538B,U+53E6,U+5426,U+542B,U+542F,U+5462,U+5473,U+554A,U+5566,U+5708,U+571F,U+5757,U+57DF,U+57F9,U+5802,U+590F,U+591C,U+591F,U+592B,U+5965,U+5979,U+5A01,U+5A5A,U+5B63,U+5B69,U+5B81,U+5BA1,U+5BA3,U+5C3C,U+5C42,U+5C81,U+5DE7,U+5DEE,U+5E0C,U+5E10,U+5E55,U+5E86,U+5E8F,U+5EA7,U+5F02,U+5F52,U+5F81,U+5FF5,U+60CA,U+60E0,U+6279,U+62C5,U+62FF,U+63CF,U+6444,U+64CD,U+653B,U+65BD,U+65E9,U+665A,U+66B4,U+66FE,U+6728,U+6742,U+677E,U+67B6,U+680F,U+68A6,U+68C0,U+699C,U+6B4C,U+6B66,U+6B7B,U+6BCD,U+6BDB,U+6C38,U+6C47,U+6C49,U+6CB3,U+6CB9,U+6CE2,U+6D32,U+6D3E,U+6D4F,U+6E56,U+6FC0,U+7075,U+7206,U+725B,U+72C2,U+73ED,U+7565,U+7591,U+7597,U+75C5,U+76AE,U+76D1,U+76DF,U+7834,U+7968,U+7981,U+79C0,U+7A7F,U+7A81,U+7AE5,U+7B14,U+7C89,U+7D27,U+7EAF,U+7EB3,U+7EB8,U+7EC7,U+7EE7,U+7EFF,U+7F57,U+7FFB,U+805A,U+80A1,U+822C,U+82CF,U+82E5,U+8363,U+836F,U+84DD,U+878D,U+8840,U+8857,U+8863,U+8865,U+8B66,U+8BB2,U+8BDA,U+8C01,U+8C08,U+8C46,U+8D1F,U+8D35,U+8D5B,U+8D5E,U+8DA3,U+8DDF,U+8F93,U+8FDD,U+8FF0,U+8FF7,U+8FFD,U+9000,U+9047,U+9152,U+949F,U+94C1,U+94F6,U+9646,U+9648,U+9669,U+969C,U+96EA,U+97E9,U+987B,U+987E,U+989D,U+9970,U+9986,U+9C7C,U+9C9C; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-115-400-normal.748c49190e86b707.woff2) format("woff2"); unicode-range:U+0025,U+4E14,U+4E1D,U+4E3D,U+4E49,U+4E60,U+4E9A,U+4EB2,U+4EC5,U+4EFD,U+4F3C,U+4F4F,U+4F8B,U+4FBF,U+5019,U+5145,U+514B,U+516B,U+516D,U+5174,U+5178,U+517B,U+5199,U+519B,U+51B3,U+51B5,U+5207,U+5212,U+5219,U+521D,U+52BF,U+533B,U+5343,U+5347,U+534A,U+536B,U+5370,U+53E4,U+53F2,U+5403,U+542C,U+547D,U+54A8,U+54CD,U+54EA,U+552E,U+56F4,U+5747,U+575B,U+5883,U+589E,U+5931,U+5947,U+5956-5957,U+5A92,U+5B83,U+5BA4,U+5BB3,U+5BCC,U+5C14,U+5C1A,U+5C3D,U+5C40,U+5C45,U+5C5E,U+5DF4,U+5E72,U+5E95,U+5F80,U+5F85,U+5FB7,U+5FD7,U+601D,U+626B,U+627F,U+62C9,U+62CD,U+6309,U+63A7,U+6545,U+65AD,U+65AF,U+65C5,U+666E,U+667A,U+670B,U+671B,U+674E,U+677F,U+6781,U+6790,U+6797,U+6821,U+6838-6839,U+697C,U+6B27,U+6B62,U+6BB5,U+6C7D,U+6C99,U+6D4B,U+6D4E,U+6D6A,U+6E29,U+6E2F,U+6EE1,U+6F14,U+6F2B,U+72B6,U+72EC,U+7387,U+7533,U+753B,U+76CA,U+76D8,U+7701,U+773C,U+77ED,U+77F3,U+7814,U+793C,U+79BB,U+79C1,U+79D8,U+79EF,U+79FB,U+7A76,U+7B11,U+7B54,U+7B56,U+7B97,U+7BC7,U+7C73,U+7D20,U+7EAA,U+7EC8,U+7EDD,U+7EED,U+7EFC,U+7FA4,U+804C,U+8058,U+80CC,U+8111,U+817E,U+826F,U+8303,U+843D,U+89C9,U+89D2,U+8BA2,U+8BBF,U+8BC9,U+8BCD,U+8BE6,U+8C22,U+8C61,U+8D22,U+8D26-8D27,U+8D8A,U+8F6F,U+8F7B,U+8F83,U+8F91,U+8FB9,U+8FD4,U+8FDC,U+9002,U+94B1,U+9519,U+95ED,U+961F,U+9632-9633,U+963F,U+968F-9690,U+96BE,U+9876,U+9884,U+98DE,U+9988,U+9999,U+9EC4,U+FF1B; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-116-400-normal.e4e121ebf09a9d49.woff2) format("woff2"); unicode-range:U+002B,U+0040,U+3000,U+300A-300B,U+4E16,U+4E66,U+4E70,U+4E91-4E92,U+4E94,U+4E9B,U+4EC0,U+4ECA,U+4F01,U+4F17-4F18,U+4F46,U+4F4E,U+4F9B,U+4FEE,U+503C,U+5065,U+50CF,U+513F,U+5148,U+518D,U+51C6,U+51E0,U+5217,U+529E-529F,U+5341,U+534F,U+5361,U+5386,U+53C2,U+53C8,U+53CC,U+53D7-53D8,U+53EA,U+5404,U+5411,U+5417,U+5427,U+5468,U+559C,U+5668,U+56E0,U+56E2,U+56ED,U+5740,U+57FA,U+58EB,U+5904,U+592A,U+59CB,U+5A31,U+5B58,U+5B9D,U+5BC6,U+5C71,U+5DDE,U+5DF1,U+5E08,U+5E26,U+5E2E,U+5E93,U+5E97,U+5EB7,U+5F15,U+5F20,U+5F3A,U+5F62,U+5F69,U+5F88,U+5F8B,U+5FC5,U+600E,U+620F,U+6218,U+623F,U+627E,U+628A,U+62A4,U+62DB,U+62E9,U+6307,U+6362,U+636E,U+64AD,U+6539,U+653F,U+6548,U+6574,U+6613,U+6625,U+663E,U+666F,U+672A,U+6750,U+6784,U+6A21,U+6B3E,U+6B65,U+6BCF,U+6C11,U+6C5F,U+6DF1,U+706B,U+7167,U+724C,U+738B,U+73A9,U+73AF,U+7403,U+7537,U+754C,U+7559,U+767D,U+7740,U+786E,U+795E,U+798F,U+79F0,U+7AEF,U+7B7E,U+7BB1,U+7EA2,U+7EA6,U+7EC4,U+7EC6,U+7ECD,U+7EDC,U+7EF4,U+8003,U+80B2,U+81F3-81F4,U+822A,U+827A,U+82F1,U+83B7,U+8425,U+89C2,U+89C8,U+8BA9,U+8BB8,U+8BC6,U+8BD5,U+8BE2,U+8BE5,U+8BED,U+8C03,U+8D23,U+8D2D,U+8D34,U+8D70,U+8DB3,U+8FBE,U+8FCE,U+8FD1,U+8FDE,U+9001,U+901F-9020,U+90A3,U+914D,U+91C7,U+94FE,U+9500,U+952E,U+9605,U+9645,U+9662,U+9664,U+9700,U+9752,U+975E,U+97F3,U+9879,U+9886,U+98DF,U+9A6C,U+9A8C,U+9ED1,U+9F99; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-117-400-normal.f59d441e134db875.woff2) format("woff2"); unicode-range:U+004E,U+201C-201D,U+3010-3011,U+4E07,U+4E1C,U+4E24,U+4E3E,U+4E48,U+4E50,U+4E5F,U+4E8B-4E8C,U+4EA4,U+4EAB-4EAC,U+4ECB,U+4ECE,U+4ED6,U+4EE3,U+4EF6-4EF7,U+4EFB,U+4F20,U+4F55,U+4F7F,U+4FDD,U+505A,U+5143,U+5149,U+514D,U+5171,U+5177,U+518C,U+51FB,U+521B,U+5229,U+522B,U+52A9,U+5305,U+5317,U+534E,U+5355,U+5357,U+535A,U+5373,U+539F,U+53BB,U+53CA,U+53CD,U+53D6,U+53E3,U+53F0,U+5458,U+5546,U+56DB,U+573A,U+578B,U+57CE,U+58F0,U+590D,U+5934,U+5973,U+5B57,U+5B8C,U+5B98,U+5BB9,U+5BFC,U+5C06,U+5C11,U+5C31,U+5C55,U+5DF2,U+5E03,U+5E38,U+5E76,U+5E94,U+5EFA,U+5F71,U+5F97,U+5FEB,U+6001,U+603B,U+60F3,U+611F,U+6216,U+624D,U+6253,U+6295,U+6301,U+6392,U+641C,U+652F,U+653E,U+6559,U+6599,U+661F,U+671F,U+672F,U+6761,U+67E5,U+6807,U+6837,U+683C,U+6848,U+6B22,U+6B64,U+6BD4,U+6C14,U+6C34,U+6C42,U+6CA1,U+6D41,U+6D77,U+6D88,U+6E05,U+6E38,U+6E90,U+7136,U+7231,U+7531,U+767E,U+76EE,U+76F4,U+771F,U+7801,U+793A,U+79CD,U+7A0B,U+7A7A,U+7ACB,U+7AE0,U+7B2C,U+7B80,U+7BA1,U+7CBE,U+7D22,U+7EA7,U+7ED3,U+7ED9,U+7EDF,U+7F16,U+7F6E,U+8001,U+800C,U+8272,U+8282,U+82B1,U+8350,U+88AB,U+88C5,U+897F,U+89C1,U+89C4,U+89E3,U+8A00,U+8BA1,U+8BA4,U+8BAE-8BB0,U+8BBE,U+8BC1,U+8BC4,U+8BFB,U+8D28,U+8D39,U+8D77,U+8D85,U+8DEF,U+8EAB,U+8F66,U+8F6C,U+8F7D,U+8FD0,U+9009,U+90AE,U+90FD,U+91CC-91CD,U+91CF,U+95FB,U+9650,U+96C6,U+9891,U+98CE,U+FF1F; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-118-400-normal.4c4cd6ef1dbb4d83.woff2) format("woff2"); unicode-range:U+003E,U+005F,U+007C,U+00A0,U+00A9,U+4E09-4E0B,U+4E0D-4E0E,U+4E13,U+4E1A,U+4E2A,U+4E3A-4E3B,U+4E4B,U+4E86,U+4E8E,U+4EA7,U+4EBA,U+4EE4-4EE5,U+4EEC,U+4F1A,U+4F4D,U+4F53,U+4F5C,U+4F60,U+4FE1,U+5165,U+5168,U+516C,U+5173,U+5176,U+5185,U+51FA,U+5206,U+5230,U+5236,U+524D,U+529B,U+52A0-52A1,U+52A8,U+5316,U+533A,U+53CB,U+53D1,U+53EF,U+53F7-53F8,U+5408,U+540C-540E,U+544A,U+548C,U+54C1,U+56DE,U+56FD-56FE,U+5728,U+5730,U+5907,U+5916,U+591A,U+5927,U+5929,U+597D,U+5982,U+5B50,U+5B66,U+5B89,U+5B9A,U+5B9E,U+5BA2,U+5BB6,U+5BF9,U+5C0F,U+5DE5,U+5E02,U+5E73-5E74,U+5E7F,U+5EA6,U+5F00,U+5F0F,U+5F53,U+5F55,U+5FAE,U+5FC3,U+6027,U+606F,U+60A8,U+60C5,U+610F,U+6210-6211,U+6237,U+6240,U+624B,U+6280,U+62A5,U+63A5,U+63A8,U+63D0,U+6536,U+6570,U+6587,U+65B9,U+65E0,U+65F6,U+660E,U+662D,U+662F,U+66F4,U+6700,U+670D,U+672C,U+673A,U+6743,U+6765,U+679C,U+682A,U+6B21,U+6B63,U+6CBB,U+6CD5,U+6CE8,U+6D3B,U+70ED,U+7247-7248,U+7269,U+7279,U+73B0,U+7406,U+751F,U+7528,U+7535,U+767B,U+76F8,U+770B,U+77E5,U+793E,U+79D1,U+7AD9,U+7B49,U+7C7B,U+7CFB,U+7EBF,U+7ECF,U+7F8E,U+8005,U+8054,U+80FD,U+81EA,U+85CF,U+884C,U+8868,U+8981,U+89C6,U+8BBA,U+8BDD,U+8BF4,U+8BF7,U+8D44,U+8FC7,U+8FD8-8FD9,U+8FDB,U+901A,U+9053,U+90E8,U+91D1,U+957F,U+95E8,U+95EE,U+95F4,U+9762,U+9875,U+9898,U+9996,U+9AD8,U+FF01,U+FF08-FF09; }
+@font-face { font-family:"Noto Serif SC"; font-style:normal; font-weight:400; font-display:swap; src:url(/assets/noto-serif-sc-119-400-normal.7d438466bfc51d35.woff2) format("woff2"); unicode-range:U+0020-0022,U+0027-002A,U+002C-003B,U+003F,U+0041-004D,U+004F-005D,U+0061-007B,U+007D,U+00AB,U+00AE,U+00B2,U+00B7,U+00BB,U+00DF-00E5,U+00E7-00EA,U+00EC-00ED,U+00F1-00F4,U+00F6,U+00F9-00FA,U+00FC,U+0101,U+0103,U+0113,U+012B,U+0148,U+014D,U+016B,U+01CE,U+01D0,U+0300-0301,U+1EBF,U+1EC7,U+2013-2014,U+2022,U+2027,U+2039-203A,U+2122,U+3001-3002,U+3042,U+3044,U+3046,U+3048,U+304A-3055,U+3057,U+3059-305B,U+305D,U+305F-3061,U+3063-306B,U+306D-3073,U+3075-3076,U+3078-3079,U+307B,U+307E-307F,U+3081-308D,U+308F,U+3092-3093,U+30A1-30A4,U+30A6-30BB,U+30BD,U+30BF-30C1,U+30C3-30C4,U+30C6-30CB,U+30CD-30D7,U+30D9-30E1,U+30E3-30E7,U+30E9-30ED,U+30EF,U+30F3,U+30FB-30FC,U+3127,U+4E00,U+4E2D,U+65B0,U+65E5,U+6708-6709,U+70B9,U+7684,U+7F51,U+FF0C,U+FF0E,U+FF1A; }
+</style>
+</head><body><main class="site"><div class="site-root" data-surface="site">
+  <header class="site-top">
+    <a class="site-brand" href="/"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="var(--color-brand)" fill-rule="evenodd" d="M1 1h30v30H1zM3 3v26h26V3zM5 5h11v10h-3V8H8v7H5zM5 17h17v10h-3V20h-4v7h-3V20H8v7H5zM24 17h3v3h-3zM24 22h3v5h-3z"/><path fill="var(--color-coin)" fill-rule="evenodd" d="M17 10a5 5 0 1 0 10 0a5 5 0 1 0-10 0zM20 8h4v4h-4z"/></svg><span>Nomi</span></a>
+    <a class="site-signin" href="/login">登录</a>
+    <div class="site-lang"><div class="langsw" role="group" aria-label="语言">
+    <a class="" hreflang="en" lang="en" href="/locale?set=en&next=/">English</a><a class="on" hreflang="zh" lang="zh" href="/locale?set=zh&next=/">中文</a><a class="" hreflang="ar" lang="ar" href="/locale?set=ar&next=/">العربية</a><a class="" hreflang="es" lang="es" href="/locale?set=es&next=/">Español</a><a class="" hreflang="fr" lang="fr" href="/locale?set=fr&next=/">Français</a></div></div>
+  </header>
+
+  <section class="site-hero">
+    <div class="site-hero-text">
+      <h1>每位客户都有回复，最后说了算的是你。</h1>
+      <p class="site-lead">Nomi 给你的生意配一位助手，名字由你来取。客户在 WhatsApp、Instagram、Messenger 或邮件上来消息，助手按你自己的产品和价格写好回复，你批准后发出。</p>
+      <p>没有你的允许，什么都不会自己发出去；允许之后，也只发你允许的那部分。任何价格都不会低于你设定的最低价。</p>
+      <p class="site-cta"><a class="site-go" href="mailto:hello@example.com?subject=%E7%94%B3%E8%AF%B7%20Nomi%20%E9%82%80%E8%AF%B7&amp;body=%E7%94%9F%E6%84%8F%E5%90%8D%E7%A7%B0%EF%BC%9A%0A%E6%88%91%E4%BB%AC%E5%8D%96%E4%BB%80%E4%B9%88%EF%BC%9A%0A%E5%AE%A2%E6%88%B7%E9%80%9A%E5%B8%B8%E5%9C%A8%E5%93%AA%E9%87%8C%E6%89%BE%E6%88%91%E4%BB%AC%EF%BC%9A%0A">写信给我们，申请邀请</a><span class="site-member">已经有工作台？<a href="/login">登录</a></span></p>
+    </div>
+    <figure class="site-example" aria-label="示例">
+      <figcaption>示例</figcaption>
+      <div class="site-said">
+        <span class="site-who"><span class="face face-s t8" aria-hidden="true"><span class="face-i">林</span></span><span>林悦，来自 Instagram</span></span>
+        <p class="site-bubble" dir="auto">你好，这款亚麻衬衫有藏青色吗？</p>
+      </div>
+      <div class="site-said site-draft">
+        <span class="site-who"><span><svg class="mark" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="var(--color-brand)" fill-rule="evenodd" d="M1 1h30v30H1zM3 3v26h26V3zM5 5h11v10h-3V8H8v7H5zM5 17h17v10h-3V20h-4v7h-3V20H8v7H5zM24 17h3v3h-3zM24 22h3v5h-3z"/><path fill="var(--color-coin)" fill-rule="evenodd" d="M17 10a5 5 0 1 0 10 0a5 5 0 1 0-10 0zM20 8h4v4h-4z"/></svg>你的助手起草</span><span class="site-draft-tag">等你处理</span></span>
+        <p class="site-bubble" dir="auto">你好，谢谢询问。有的，这款亚麻衬衫有藏青色。需要哪些尺码？</p>
+        <p class="site-acts">只有你点「发送」才会发出。也可以先修改，或者自己回复。</p>
+      </div>
+    </figure>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-how">
+    <h2 id="site-how">怎么用</h2>
+    <ol class="site-steps"><li><h3>把你的生意教给助手</h3><p>填上你卖什么、价格和能接受的最低价，再加上客户常问的信息，然后给助手取个名字。回复只用你教的内容：你没给过的价格或说法，一个都不会说。</p></li><li><h3>客户来消息</h3><p>在 WhatsApp、Instagram、Messenger 或邮件上。助手读完消息，写好回复给你看。</p></li><li><h3>你来发</h3><p>看一遍，想改就改，然后点「发送」。如果哪条信息错了，改一次，之后的回复都用改过的。</p></li></ol>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-yours">
+    <h2 id="site-yours">始终由你说了算的</h2>
+    <div class="site-cards"><div class="site-card"><h3>价格</h3><p>价格只按你定的来，永远不低于你的最低价。超过你设的优惠线，先问你。</p></div><div class="site-card"><h3>什么可以自己发</h3><p>一开始，每条回复都等你。满足下面几点后，你可以让打招呼和回答问题自己发出：</p><ul class="site-when"><li>你给助手取好了名字</li><li>你做完了「练习」里的检查</li><li>助手最近写给你自己客户的回复大多数都原样发出，涉及好几位客户、好几天</li></ul><p>带价格的仍然先给你看：价格需要再积累一段更长的记录。没有你，订单不会被确认。</p></div><div class="site-card"><h3>随时收回</h3><p>选一下，每条回复就重新先给你看；停下之后不会再发任何消息。客户、对话和你教过的东西都原样留着，还可以导出一份，表格软件直接打开。</p></div></div>
+    <p class="site-honest">不经你过目就回复时，第一条消息会告诉客户，回复的不是真人，并可以帮客户转给你的同事。</p>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-channels">
+    <h2 id="site-channels">客户在哪里找你，就在哪里回复</h2>
+    <p>消息从哪个渠道来，回复就从哪个渠道回去。</p>
+    <ul class="site-channels"><li><strong>WhatsApp</strong><span>用你平时和客户联系的号码，我们和你一起开通。</span></li><li><strong>Instagram</strong><span>通过你自己的 Instagram 商业账号，和你的 Facebook 主页一起连接。</span></li><li><strong>Messenger</strong><span>通过你自己的 Facebook 主页。</span></li><li><strong>邮件</strong><span>通过你自己的邮箱。</span></li></ul>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-who">
+    <h2 id="site-who">适合谁</h2>
+    <p class="site-prose">任何通过社交媒体和邮件卖东西、和客户沟通的生意——服装和美妆品牌、网店、初创公司、代理和服务商，也包括生产商、外贸公司和批发商。</p>
+    <p class="site-prose">工作台可以用中文、英文、阿拉伯文、西班牙文或法文。</p>
+  </section>
+
+  <section class="site-sec" aria-labelledby="site-first">
+    <h2 id="site-first">第一批工作台</h2>
+    <p class="site-prose">Nomi 先向一小批商家开放，凭邀请加入，每次只开几家。</p>
+    <p class="site-prose">每开一个新工作台，我们都会知道；需要时帮你一起设置。</p>
+  </section>
+
+  <section class="site-sec site-invite" aria-labelledby="site-invite">
+    <h2 id="site-invite">申请邀请</h2>
+    <p class="site-prose">写信告诉我们你的生意名称、卖什么、客户通常在哪里找你，我们会回信。</p>
+    <p class="site-cta"><a class="site-go site-go-2" href="mailto:hello@example.com?subject=%E7%94%B3%E8%AF%B7%20Nomi%20%E9%82%80%E8%AF%B7&amp;body=%E7%94%9F%E6%84%8F%E5%90%8D%E7%A7%B0%EF%BC%9A%0A%E6%88%91%E4%BB%AC%E5%8D%96%E4%BB%80%E4%B9%88%EF%BC%9A%0A%E5%AE%A2%E6%88%B7%E9%80%9A%E5%B8%B8%E5%9C%A8%E5%93%AA%E9%87%8C%E6%89%BE%E6%88%91%E4%BB%AC%EF%BC%9A%0A">写信给我们，申请邀请</a><span class="site-member">我们的地址：<a href="mailto:hello@example.com?subject=%E7%94%B3%E8%AF%B7%20Nomi%20%E9%82%80%E8%AF%B7&amp;body=%E7%94%9F%E6%84%8F%E5%90%8D%E7%A7%B0%EF%BC%9A%0A%E6%88%91%E4%BB%AC%E5%8D%96%E4%BB%80%E4%B9%88%EF%BC%9A%0A%E5%AE%A2%E6%88%B7%E9%80%9A%E5%B8%B8%E5%9C%A8%E5%93%AA%E9%87%8C%E6%89%BE%E6%88%91%E4%BB%AC%EF%BC%9A%0A">hello@example.com</a></span></p>
+  </section>
+
+  <footer class="site-foot">
+    <nav class="site-links" aria-label="Nomi">
+      <a href="/privacy">隐私说明</a>
+      <a href="/terms">服务条款</a>
+      <a href="/cookies">Cookie</a>
+      <a href="/refunds">退款与取消</a>
+      <a href="/data-deletion">给客户：删除你的数据</a>
+    </nav>
+    <div class="langsw" role="group" aria-label="语言">
+    <a class="" hreflang="en" lang="en" href="/locale?set=en&next=/">English</a><a class="on" hreflang="zh" lang="zh" href="/locale?set=zh&next=/">中文</a><a class="" hreflang="ar" lang="ar" href="/locale?set=ar&next=/">العربية</a><a class="" hreflang="es" lang="es" href="/locale?set=es&next=/">Español</a><a class="" hreflang="fr" lang="fr" href="/locale?set=fr&next=/">Français</a></div>
+  </footer>
+</div></main></body></html>

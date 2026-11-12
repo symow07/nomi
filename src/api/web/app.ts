@@ -53,7 +53,7 @@ import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.
 import { allowanceOf, allowanceUsed, allowanceUsedFor, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
-import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHoldReason, cardNeeded, sitePricing, billingRequiredOn } from '../../db/billing.js';
 import { renderBilling } from './billing.js';
 import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
@@ -1053,9 +1053,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
         newestWaiting(deps.db, bid.value).catch(() => null),
         // D4 — frozen or not, read fresh like the count: a page must never say frozen after a renewal, or miss a lapse.
-        withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)).catch(() => f.frozen),
+        withTenantTx(deps.db, bid.value, (tx) => billingHoldReason(tx)).catch(() => f.frozenWhy),
       ]).then(
-        ([c, newest, frozen]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at), frozen }, done),
+        ([c, newest, frozenWhy]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at), frozen: frozenWhy !== null, frozenWhy }, done),
         () => withWorkspace(f, done),
       );
     };
@@ -1171,10 +1171,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     const bid = s ? parseBusinessId(s.businessId) : null;
     if (!s || !bid || !bid.ok) return;
-    if (!(await withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)))) return;
+    const why = await withTenantTx(deps.db, bid.value, (tx) => billingHoldReason(tx));
+    if (!why) return;
     const back = String(req.headers['referer'] ?? '');
     const to = (() => { try { const u = new URL(back, 'http://x'); return u.pathname.startsWith('/app') ? u.pathname : '/app'; } catch { return '/app'; } })();
-    return flashTo(reply, to, 'frozen.refused');
+    return flashTo(reply, to, why === 'trial_over' ? 'frozen.refused.trialOver' : 'frozen.refused');
   });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
@@ -1755,6 +1756,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
     signUp: (await signupModeNow()) === 'open'
       ? (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/signup') : null) ?? '/signup' : null,
+    // 4.1 — the price, only from the plan the operator defined from Stripe, and only where payments are switched on
+    // (a card can be saved); asked on every request, like the button. No plan, no section.
+    pricing: deps.stripe ? await sitePricing(deps.db) : null,
   });
   const site = async (req: FastifyRequest, path: '/' | '/site', noindex: boolean): Promise<string> => renderSite(await siteInput(req, path, noindex));
   // Phase 3a — the reel becomes the first screen only once every language's words have had a native read
@@ -2506,6 +2510,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
       state: await billingState(tx), plans: await plansOnOffer(tx),
+      hold: await billingHoldReason(tx), cardFirst: await cardNeeded(tx), trialEndHolds: await billingRequiredOn(tx),
       counts: (await sql<{ people: number; assistants: number }>`
         select (select count(*)::int from people where business_id = ${bid.value}::uuid and archived_at is null) as people,
                (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
@@ -2517,6 +2522,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
+      hold: facts.hold, cardFirst: facts.cardFirst, trialEndHolds: facts.trialEndHolds,
     }, locale, takeFlash(req, reply), t(locale, 'nav.setup'))
       + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
@@ -5554,7 +5560,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     // 0070 — stopped: nothing asks the assistant for an answer, and the
     // conversation stays with its person, on "Needs you".
-    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced' || handedBack.outcome === 'allowance_used' || handedBack.outcome === 'billing_lapsed') {
+    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced' || handedBack.outcome === 'allowance_used' || handedBack.outcome === 'billing_lapsed' || handedBack.outcome === 'billing_trial_over') {
       return flashTo(reply, back0, `takeover.flash.${handedBack.outcome}`);
     }
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
@@ -5715,7 +5721,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
-  channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
+  // 4.1 fix D3 — reconnecting writes the channel's `connected_at` again, so it asks the one connection question too.
+  app.post('/app/channels/whatsapp/reconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
+    if (!s) return reply;
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
+    const r = await reconnectChannel(deps.db, s.businessId, personOf(s).id);
+    return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
+  });
   channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, whatsappConfigured));
 
   /**
@@ -5838,6 +5852,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('chat')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.chatIngest) return reply.redirect(channelScreenHref('chat'));
     const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    // 4.1 fix D3 — switching the page on connects a channel: the one connection question first. Off is never refused.
+    const refused = on ? await connectionRefusal(s.businessId) : null;
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     await withTenantTx(deps.db, bid.value, (tx) => setChatPage(tx, bid.value, on, personOf(s).id));
     facts.evict(s.businessId);
     return flashTo(reply, channelScreenHref('chat'), on ? 'channels.chat.flash.on' : 'channels.chat.flash.off');
@@ -5847,6 +5864,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('telegram')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId); if (!bid.ok || !deps.telegramBot) return reply.redirect(channelScreenHref('telegram'));
     const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    // 4.1 fix D3 — Telegram on connects a channel: the one connection question first. Off is never refused.
+    const refused = on ? await connectionRefusal(s.businessId) : null;
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     await withTenantTx(deps.db, bid.value, (tx) => setTelegram(tx, bid.value, on, personOf(s).id));
     facts.evict(s.businessId);
     return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
@@ -8069,6 +8089,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/connect/:provider/start', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
+    // 4.1 fix D3 — a mailbox is a channel customers write to (`first_channel_at` counts it): the one connection
+    // question every other connect asks (the operator's stop, the first connection's approval, the card), before
+    // anything is asked of the provider.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const locale = localeOf(req);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const client = provider ? deps.oauthClients?.[provider] : undefined;
@@ -8091,6 +8116,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
     // Used once, whatever happens next.
     writeCookie(reply, OAUTH_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    // 4.1 fix D3 — asked again on the way back, before the code is spent at the provider.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
     if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
