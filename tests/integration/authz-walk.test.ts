@@ -846,6 +846,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
   const DELETES = /\/advisor-history\/(workspace|me)$|\/(forget|purge|erase|close|withdraw)(\/|$)/;
   let lastDeleting = true; let checkpoints = 0; const heldMid: string[] = [];
   const checkpoint = async (method: string, url: string) => {
+    // AUTHZ_WALK_NO_CHECKPOINT=1: no mid-walk judgement, to show what the END's check catches on its own (H2). Never on
+    // by default, and a walk run with it cannot pass: it counts no checkpoint, and the walk demands them.
+    if (process.env['AUTHZ_WALK_NO_CHECKPOINT']) return;
     const path = url.split('?')[0]!;
     const deleting = DELETES.test(path);
     if (deleting && !lastDeleting && theirs.size > 0) {
@@ -1069,9 +1072,25 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       for (const t of tables) for (const [id, tt] of s.tableOf) if (tt === t) return id;
       return undefined;
     };
-    const fillAll = (url: string, id: string, keepConversation = false) => {
+    const fillAll = (url: string, id: string, keepConversation = false, own = A_CONV) => {
       let first = true;
-      return url.replace(/:(\w+)/g, (_m, name: string) => { const was = first; first = false; return keepConversation && was && /conversation/i.test(name) ? A_CONV : id; });
+      return url.replace(/:(\w+)/g, (_m, name: string) => { const was = first; first = false; return keepConversation && was && /conversation/i.test(name) ? own : id; });
+    };
+    /**
+     * H2 (the follow-up) — "delete this customer's data now" on A's OWN conversation, with B's ids in the body, is a real
+     * erasure. Sent on A's main conversation it erased A's main customer once per id (200 a walk): the end's check then
+     * read an emptied customer, and the JSON and multipart passes walked an empty conversation. So each such call takes a
+     * THROWAWAY customer of A's, made for that call — a conversation and a message, as the seeded one — and A's main
+     * customer is never erased by the walk.
+     */
+    const ERASES = /\/deletion\/erase$/;
+    let throwaways = 0;
+    const throwaway = async (): Promise<string> => {
+      throwaways++;
+      const client = (await admin.query(`insert into clients (business_id, display_name) values ($1, $2) returning id::text as id`, [A, `Throwaway ${throwaways} ${A_MARK}`])).rows[0].id as string;
+      const conv = (await admin.query(`insert into conversations (business_id, client_id, channel) values ($1, $2, 'whatsapp') returning id::text as id`, [A, client])).rows[0].id as string;
+      await admin.query(`insert into messages (conversation_id, direction, text_content) values ($1, 'inbound', $2)`, [conv, `Delete me ${throwaways} ${A_MARK}`]);
+      return conv;
     };
     const read = (src: string, f: string) => new RegExp(`['"\`]${f}['"\`]|\\b${f}\\??:|\\.${f}\\b`).test(src);
     /** B's ids everywhere: every id field holds `id`, and a field that names a workspace holds B's own (R3). */
@@ -1332,7 +1351,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
         const twice = /^\/app\/(inbox|conversations)\/:conversationId/.test(r.url) ? [false, true] : [false];
         for (const keep of twice) {
           for (const { table, id } of ids) {
-            const url = fillAll(r.url, id, keep);
+            const url = fillAll(r.url, id, keep, keep && ERASES.test(r.url) ? await throwaway() : A_CONV);
             const where = `${r.method} ${url} (${table})`;
             if (r.method === 'GET') await call('GET', `${url}${url.includes('?') ? '&' : '?'}${urlencoded(formOf(id, r.url))}`, null, where);
             // F3 — the query of a POST carries B's ids as its body does (the workspace's own id among them).
@@ -1395,6 +1414,12 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const held = [...await heldBy(admin, scopes, A, theirs, sealedNow())].filter(([t, h]) => h.n > (heldBefore.get(t)?.n ?? 0))
       .map(([t, h]) => `${t}: ${h.n} row(s) ${JSON.stringify(h.shapes)}`);
     const across = await crossings();
+    // H2 — A's main customer is as whole as the walk found them: never erased (no ledger line names them), their
+    // conversation still holds its messages; and the throwaway customers were really erased, each by its own call.
+    const mainClient = ws.A.seeded['client']!;
+    const mainErased = (await admin.query(`select count(*)::int as n from erasure_ledger l where to_jsonb(l)::text like '%' || $1 || '%'`, [mainClient])).rows[0].n as number;
+    const mainMessages = (await admin.query(`select count(*)::int as n from messages where conversation_id = $1`, [A_CONV])).rows[0].n as number;
+    const throwawaysLeft = (await admin.query(`select count(*)::int as n from clients where business_id = $1 and display_name like 'Throwaway %'`, [A])).rows[0].n as number;
     // H1 — a sealed-looking value anywhere in A's rows is in a column the walk opens (a route that sealed into another).
     const listedSealed = new Set(SEALED_COLUMNS.map((c) => `${c.table}.${c.column}`));
     const sealedElsewhere = (await sealedShapedIn(admin, scopes, A)).filter((c) => !listedSealed.has(c));
@@ -1403,7 +1428,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const kept = new Set([...ownBlobs, ...await blobsOf(A), ...await blobsOf(C)]);
     const unproven = [...new Set(binaries.filter((b) => !kept.has(b.hash)).map((b) => `${b.where} (${b.type})`))];
     // The report carries the end's own findings too: which check caught a break is read from it, not from the first failed line.
-    await writeReport({ changed, held, across, sealedElsewhere, sealedSeen: Object.fromEntries(sealedSeen) });
+    await writeReport({ changed, held, across, sealedElsewhere, throwaways, throwawaysLeft, mainErased, mainMessages, sealedSeen: Object.fromEntries(sealedSeen) });
     // The session is still A's, and still works.
     if ((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode !== 200) await signIn(ws.A);
     expect((await ws.A.app.inject({ method: 'GET', url: '/app', headers: { cookie: ws.A.cookie } })).statusCode).toBe(200);
@@ -1411,6 +1436,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     if (!only) expect(forms.length, 'the crawl found A\'s forms').toBeGreaterThan(50);
     expect(changed, `B's rows changed:\n${changed.join('\n')}`).toEqual([]);
     expect(held, `A's rows hold B's ids:\n${held.join('\n')}`).toEqual([]);
+    expect(mainErased, "A's main customer was erased by the walk (the erase stage takes a throwaway customer)").toBe(0);
+    expect(mainMessages, "A's main conversation still holds its messages").toBeGreaterThan(0);
+    if (!only || only.includes('ids') || only.includes('json')) expect(throwaways, 'the erase stage was walked on throwaway customers').toBeGreaterThan(0);
     expect(checkpoints, 'A held was judged before each pass\'s deleting calls').toBeGreaterThan(only ? 0 : 3);
     expect(heldMid, `A's rows held B's ids before a deleting call took them away:\n${heldMid.join('\n')}`).toEqual([]);
     expect(sealedElsewhere, `sealed values in columns the walk does not open:\n${sealedElsewhere.join('\n')}`).toEqual([]);
