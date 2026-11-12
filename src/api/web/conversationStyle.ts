@@ -19,6 +19,14 @@ export const CONVERSATION_CSS = `
   .conversation-workspace .conv-top .dhead > .live { order:4; flex-basis:100%; }
   .conversation-workspace .conv-top .conversation-actions > .file-door { order:5; flex-basis:100%; margin:0; }
 }
+/* A phone (t1r's decision 2, 2026-11-13): Send and Hand to me are never under the tab bar. While any part of the reply
+   to act on is on the screen, its two acts rest just above the bar (69 px: the bar's 60, its 4 + 4 of padding, its
+   line; plus the phone's own inset), on the surface, over the foot of the reply's box; scrolled to, they are in their
+   place under it. The page scrolls as before, so the thread stays one swipe away. */
+@media (max-width:720px) {
+  .conversation-workspace .conv-acts .approve .acts { position:sticky; inset-block-end:calc(69px + env(safe-area-inset-bottom, 0px)); z-index:2;
+    padding-block:var(--space-8); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+}
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
 @media (min-width:1100px) { .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); } }
 .conversation-workspace .conversation-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:0; margin-inline-start:auto; }
