@@ -12,6 +12,7 @@ import { heldBy, sealedColumnsIn, sealedShapedIn, SEALED_COLUMNS, type Held, typ
 // @ts-expect-error — a tool helper, plain JS on purpose (the integration job runs tools without a build).
 import * as sealedTool from '../../tools/lib/sealed.mjs';
 import { FLASH_REFUSALS } from '../../src/core/owner/flashTone.js';
+import { SCENARIOS } from '../../src/trust/scenarios.js';
 
 /**
  * The authorization audit (Block 7) — WORKSPACE A'S OWNER, EVERY ROUTE, WORKSPACE B'S IDS. STATE, NOT STATUS.
@@ -107,7 +108,9 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
     [u, { channel: 'email', identity: 'lead@example.com', name: 'Authz lead', company: '', note: 'authz' }])),
   '/app/sequences/:id/steps': { delayDays: '1', subject: 'Hi', body: 'Step authz' },
   '/app/prospects/add': { sourceId: 'authz-1', name: 'Authz prospect', title: '', organization: '', back: '' },
-  '/app/sandbox/message': { text: 'authz', expected: '' }, '/app/advisor/consent': { choice: 'allow' }, '/app/customers/import/:id/select': { selection: 'all' },
+  '/app/sandbox/message': { text: 'authz', expected: '' },
+  // A golden scenario's own id (H3): without one the route stops at "no such scenario", before Practice is asked at all.
+  '/app/sandbox/scenario': { scenarioId: SCENARIOS[0]!.id }, '/app/advisor/consent': { choice: 'allow' }, '/app/customers/import/:id/select': { selection: 'all' },
   '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
   '/app/books/fields': { key: 'authz_g', label: 'Authz field', kind: 'text', appliesTo: 'entry', choices: '', required: '' },
   '/app/books/parties': { code: 'AUTHZ2', name: 'Authz party', country: '', ice: '', taxNumber: '', address: '' },
@@ -395,7 +398,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/payments/stripe/payouts/:id/receive": ["no id of its own for :id", "a Stripe payment attempt or payout exists only after Stripe answered; payment links are not offered to the walk's country (MA)"],
   "POST /app/sandbox/message": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/sandbox/media": ["redirect to /app/assistant/practice, no notice, nothing written", "takes no id; Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
-  "POST /app/sandbox/scenario": ["redirect to /app/assistant/practice, no notice, nothing written", "Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
+  "POST /app/sandbox/scenario": ["redirect to /app/assistant/practice, no notice, nothing written", "the scenario is found (the walk sends a golden scenario's own id, never a row's); saying its line in Practice needs the inbound queue, which the walk does not compose: it turns back with no notice"],
   "POST /app/products/import/:importId/columns": ["redirect to /app/products/add, no notice, nothing written", "the list is read and found; columns are chosen for a file, and the seeded list is a paste: 'not there'"],
   "POST /app/products/import/:importId/confirm": ["400", "the list is read and found (C's own id passes); none of its rows is ticked, so it answers the review again (400) and adds nothing"],
   "POST /app/channels/chat": ["redirect to /app/settings/channels/chat, no notice, nothing written", "takes no id; turning the web chat on or off needs the chat's intake, which the walk does not compose: it sends the owner back to the chat's own settings page before anything is written"],
@@ -413,7 +416,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/books/closing/journal": ["refused: books.flash.closeRefused — That could not be done as it is.", "takes no id; the chart the walk applied (the CGNC, an earlier call) already has its closing journal"],
   "POST /app/books/closing/opening-journal": ["refused: books.flash.closeRefused — That could not be done as it is.", "takes no id; the chart the walk applied (the CGNC, an earlier call) already has its opening journal"],
   "POST /app/books/closing/year": ["refused: books.flash.closeRefused — A year is closed once it has ended (2026-12-31).", "the year, the result account and the journal are read as the workspace's own; the close itself is refused because the year has not ended (the walk's year ends 2026-12-31)"],
-  "POST /app/books/closing/reopen": ["refused: books.flash.closeRefused — The books begin on 2026-04-01: nothing before it reopens.", "Avis 24's floor: the year stays locked up to the current periods' start"],
+  "POST /app/books/closing/reopen": ["refused: books.flash.closeRefused — The books begin on 2026-04-01: nothing before it reopens.", "the year is read and found (the workspace's own); the books' START floor refuses it — the walk's books begin on 2026-04-01 and nothing before the start reopens (`books_reopen_year`'s first refusal; Avis 24's floor is a later check the call never gets to)"],
   "POST /app/books/workbook": ["refused: books.flash.notWorkbook", "needs an Excel workbook of the books' own shape (the walk uploads a CSV)"],
   "POST /app/books/papers/:id/draft": ["refused: books.flash.paperNotDrafted — Nothing is drafted from a reading with problems.", "the paper is read and found; nothing is drafted from a paper that was not read (no document reader in the walk)"],
   "POST /app/books/papers/:id/read": ["refused: books.flash.paperNotRead — No reader is set up here: draft the entry by hand.", "the reader is asked for first: no document reader is composed in the walk, so it refuses before the paper is opened (the id's shape only is read)"],
@@ -421,7 +424,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "GET /app/books/quickbooks/start": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/quickbooks/read": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/quickbooks/write": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
-  "POST /app/books/quickbooks/disconnect": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/quickbooks/disconnect": ["refused: books.flash.quickbooksNotOffered", "takes no id; disconnecting opens the session's own connection with the credential key, and the walk composes none: refused on the missing key alone, before anything is read (the OAuth app is not consulted here)"],
   "POST /app/books/quickbooks/again": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/quickbooks/stale": ["refused: books.flash.quickbooksNotOffered", "QuickBooks is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "GET /app/books/sheets/callback": ["refused: books.flash.sheetsNotConnected", "the spreadsheet and Odoo connections are not offered: the walk composes no Google Sheets client and no credential key (a connection's secret is sealed with it): refused before any id is read"],
@@ -439,7 +442,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "GET /app/books/xero/start": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/xero/read": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/xero/write": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
-  "POST /app/books/xero/disconnect": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
+  "POST /app/books/xero/disconnect": ["refused: books.flash.xeroNotOffered", "takes no id; disconnecting opens the session's own connection with the credential key, and the walk composes none: refused on the missing key alone, before anything is read (the OAuth app is not consulted here)"],
   "POST /app/books/xero/again": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/books/xero/stale": ["refused: books.flash.xeroNotOffered", "Xero is not offered in the walk's composition (no OAuth app configured): refused before any id is read"],
   "POST /app/channels/whatsapp/ask": ["refused: channel.connect.flash.failed", "takes no id; asking Nomi for a number goes by the operator's mail, which the walk does not compose: 'failed' after the number is read"],
