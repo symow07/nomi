@@ -74,8 +74,8 @@ const BASE = [...FACES.filter((f) => f.set === 'base'), ...SWITCH_HAN];
 export const TYPE_CSS = BASE.map(face).join('\n');
 /** …and every Chinese face with them: a page with Chinese words. */
 export const TYPE_ZH_CSS = FACES.filter((f) => f.set !== 'split').map(face).join('\n');
-/** The Split Today preview's two serif faces (`tools/fonts-split.mjs`): carried by its own sheet and nothing else. */
-export const SPLIT_FACES_CSS = FACES.filter((f) => f.set === 'split').map(face).join('\n');
+/* The UI correction (2026-11-13): the Split sheet's two serif faces (`tools/fonts-split.mjs`, set 'split') are served to no page
+   any more — the working app is one sans. Their files stay vendored and listed; no sheet declares them. */
 
 /** Every code point a Chinese face draws that the first sheet does not. */
 const ZH_ONLY = (() => {
