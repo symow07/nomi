@@ -44,7 +44,7 @@ import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
-import { signOf, type Decimal } from '../../core/types/decimal.js';
+import { compareDecimal, decimal, mulDecimal, roundDecimal, signOf, type Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { markConversationOpened } from '../../db/conversationOpened.js';
@@ -3311,15 +3311,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (due && (!iso.test(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
     const currency = values['currency'] ?? c.bookCurrency;
     if (!(CURRENCIES as readonly string[]).includes(currency)) problems.push(t(locale, 'books.entry.problem.date'));
-    /* A figure below zero is refused HERE, by the rule the table itself holds (0184: quantity > 0, unit_price >= 0), with
-       the field named — it used to reach the table and come back as an error page (the UI correction's fix round, F-5).
-       `price` says which box this is: a price may be zero, a quantity may not. */
+    /* A figure the table would refuse is refused HERE, by the table's own rules, with the field named — it used to reach
+       the table and come back as an error page (the UI correction's fix rounds, F-5 and R-2). The table is 0184's
+       invoice_lines: quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0, net numeric(18,2). A numeric(18,4)
+       column ROUNDS what it is given to four decimals (half away from zero) and holds fourteen digits before the
+       point; so the figure is read at that scale first — exactly the value the column would store — and the rules are
+       asked of that value: no stricter (a price of -0.00001 is the column's 0) and no looser (a quantity of 0.00001
+       is the column's 0, and refused). What goes on to the total and to Save is the value at the column's scale, so
+       the preview is what is stored. `price` says which box this is: a price may be zero, a quantity may not. */
+    const COLUMN_LIMIT = decimal('100000000000000'), NET_LIMIT = decimal('10000000000000000');
     const figure = (raw: string | undefined, n: number, price: boolean): Decimal | null => {
       const r = readTypedAmount((raw ?? '').trim());
       if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return null; }
-      if (r !== null && r.startsWith('-')) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
-      if (r === null || (!price && r === '0')) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
-      return r;
+      if (r === null || (!price && signOf(r) === 0)) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
+      const stored = roundDecimal(r, 4);
+      if (signOf(stored) < 0) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
+      if (!price && signOf(stored) === 0) { problems.push(t(locale, 'books.invoice.problem.quantitySmall', { n })); return null; }
+      if (compareDecimal(stored, COLUMN_LIMIT) >= 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceLarge' : 'books.invoice.problem.quantityLarge', { n })); return null; }
+      return signOf(stored) === 0 ? decimal('0') : stored;
     };
     const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
     for (let i = 0; i < formLines(values, INVOICE_FORM_LINES, 'label'); i++) {
@@ -3327,13 +3336,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const label = (values[`label${i}`] ?? '').trim();
       if (!label && !(values[`quantity${i}`] ?? '').trim() && !(values[`price${i}`] ?? '').trim()) continue;
       if (!label) { problems.push(t(locale, 'books.invoice.problem.lineLabel', { n })); continue; }
+      // 0184: a line's label is 1 to 200 characters (the box stops at 200; a form sent another way is told so).
+      if ([...label].length > 200) { problems.push(t(locale, 'books.invoice.problem.labelLong', { n })); continue; }
       const quantity = figure(values[`quantity${i}`], n, false); const unitPrice = figure(values[`price${i}`], n, true);
       const account = values[`account${i}`]; const tax = values[`tax${i}`] || null;
       if (!has(c.accounts, account) || (tax && !has(c.taxCodes, tax))) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
       if (quantity === null || unitPrice === null) continue;
+      // The line's net is numeric(18,2): sixteen digits before the point, after its own rounding to the cent.
+      if (compareDecimal(roundDecimal(mulDecimal(quantity, unitPrice), 2), NET_LIMIT) >= 0) { problems.push(t(locale, 'books.invoice.problem.lineLarge', { n })); continue; }
       lines.push({ label, quantity, unitPrice, accountId: account!, taxCodeId: tax });
     }
     if (problems.length === 0 && lines.length === 0) problems.push(t(locale, 'books.invoice.problem.noLines'));
+    // 0184: the invoice's own label is 200 characters at most.
+    if ([...(values['label'] ?? '').trim()].length > 200) problems.push(t(locale, 'books.invoice.problem.noteLong'));
     return { values, c, problems, lines, due, currency };
   };
   const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
