@@ -17008,3 +17008,7 @@ the business's name or the person's id (`help.mail.subject`, `help.mail.workspac
 names what completes the channels step — WhatsApp, Instagram, Messenger or e-mail, not Telegram or TikTok alone — and a
 translation must name the same channels (tests/parity/help-panel.test.ts ties the English to the code's list). A help
 answer now shows only guide lines, as the page shows them: a translated guide is what an owner in that language reads.
+
+**The UI correction, Block 2 (2026-11-13):** two new lines on the conversation page, for a long message's fold —
+`conv.message.whole` (完整消息 / «الرسالة كاملة») and `conv.message.less` (收起 / «عرض أقل»). Nouns and a verbal noun;
+nobody is addressed.

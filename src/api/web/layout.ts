@@ -1117,6 +1117,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
+  .bubble.long { white-space:normal; }
+  .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); }
+  .msg-long > summary::-webkit-details-marker, .msg-long > summary::before { display:none; }
+  .msg-opening, .msg-whole { display:block; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .msg-toggle { display:inline-flex; align-items:center; min-height:44px; font-family:var(--font-family); font-size:var(--font-size-small); font-weight:600;
+    color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .msg-long[open] .msg-opening, .msg-long[open] .mt-more, .msg-long:not([open]) .mt-less { display:none; }
   /* The fix wave (w4-conversation-17) — its name tag over the assistant's words, so it is read first. */
   .msg-by { font-size:var(--font-size-caption); margin-bottom:var(--space-4); }
   .as { color:var(--color-assistant); }

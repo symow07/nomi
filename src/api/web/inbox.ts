@@ -1269,6 +1269,56 @@ export const speakerOf = (m: { readonly direction: 'inbound' | 'outbound'; reado
 export const bubbleClass = (s: Speaker): string => (s === 'assistant' ? 'bubble by-as' : 'bubble');
 
 /**
+ * THE UI CORRECTION (2026-11-13, audit F14) — a long message in the thread. An e-mail brings its sender's footer, the
+ * history it quotes and addresses hundreds of characters long, and on a phone they put the reply two screens below
+ * the customer's own words. Such a message is shown as its opening — up to where the quoted history or the signature
+ * begins, a few lines at most, a very long address shortened to where it leads — with the whole message one press
+ * away, in place, and closed again by the same press. NOTHING is cut from what is kept: opened, the bubble holds the
+ * message exactly as it arrived. An address is never made a link: what a stranger sends is read, not followed (the
+ * rule the shared-post card keeps, CH7a). A message of ordinary length is drawn exactly as before.
+ */
+export const LONG_MESSAGE = { chars: 480, lines: 10, address: 72 } as const;
+/** Where an e-mail stops being this message: a quoted line, the "wrote:" line above one, a forwarded header, a signature's rule. */
+const QUOTED_FROM = [
+  /^>/, /^-{2,} ?(?:original message|forwarded message|message d'origine|mensaje original)\b/i, /^-- ?$/, /^_{8,}$/,
+  /^on .{4,160} wrote:$/i, /^le .{4,160} a écrit ?:$/i, /^el .{4,160} escribió:$/i, /^em .{4,160} escreveu:$/i,
+  /^.{0,120}(?:写道|寫道)[:：]$/, /^(?:في|بتاريخ) .{4,160} كتب.{0,60}[:：]$/,
+  /^(?:from|sent|de|envoyé|enviado|发件人|من) ?[:：] .+@.+/i,
+] as const;
+const LONG_ADDRESS = /\bhttps?:\/\/[^\s<>"']+/gi;
+const shortAddress = (url: string): string => {
+  if (Array.from(url).length <= LONG_MESSAGE.address) return url;
+  const m = /^https?:\/\/([^\/?#]+)/i.exec(url);
+  return m ? `${m[1]}/…` : url;
+};
+/** The opening of a long message, or null when the message is drawn whole. */
+export function messageOpening(text: string): string | null {
+  const lines = text.split('\n');
+  const quoted = lines.findIndex((l, i) => i > 0 && QUOTED_FROM.some((r) => r.test(l.trim())) && lines.slice(0, i).some((b) => b.trim() !== ''));
+  // An address is shortened before the opening is measured: three hundred characters of it are not the message's words.
+  let head = (quoted > 0 ? lines.slice(0, quoted) : lines).slice(0, LONG_MESSAGE.lines).join('\n').replace(LONG_ADDRESS, shortAddress);
+  const chars = Array.from(head);
+  if (chars.length > LONG_MESSAGE.chars) {
+    const cut = chars.slice(0, LONG_MESSAGE.chars).join('');
+    const space = Math.max(cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
+    head = space > LONG_MESSAGE.chars / 2 ? cut.slice(0, space) : cut;
+  }
+  const opening = head.trimEnd();
+  // Nothing worth a press is held back: a line or two, or an address a little over the line.
+  const held = Array.from(text.trimEnd()).length - Array.from(opening).length;
+  const heldLines = text.trimEnd().split('\n').length - opening.split('\n').length;
+  return opening !== '' && (held > 120 || heldLines >= 4) ? opening : null;
+}
+/** A typed line in its bubble: whole, or — a long one — its opening with the whole message one press away. */
+export function messageBubble(locale: Locale, text: string, cls: string): string {
+  const opening = messageOpening(text);
+  if (opening === null) return `<div dir="auto" class="${cls}">${esc(text)}</div>`;
+  return `<div class="${cls} long"><details class="msg-long"><summary><span dir="auto" class="msg-opening">${esc(opening)}${opening.endsWith('…') ? '' : '…'}</span>`
+    + `<span class="msg-toggle"><span class="mt-more">${esc(t(locale, 'conv.message.whole'))}</span><span class="mt-less">${esc(t(locale, 'conv.message.less'))}</span></span></summary>`
+    + `<div dir="auto" class="msg-whole">${esc(text)}</div></details></div>`;
+}
+
+/**
  * Why a customer needs the owner, in the Buyers row's own words (its badge):
  * an order waiting, a deletion asked, the stored reason they were handed over
  * (never inferred), a reply to review, or a conversation the owner holds.
@@ -2366,7 +2416,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : m.photo ? `<div class="bubble sent-photo"><img src="${esc(m.photo)}" alt="${esc(t(locale, 'photo.sent.alt'))}" loading="lazy" /></div>`
-            : `<div dir="auto" class="${bubbleClass(speakerOf(m))}">${esc(m.text)}</div>`}
+            : messageBubble(locale, m.text, bubbleClass(speakerOf(m)))}
           ${m.unconfirmed ? `<p class="note muted" role="note">${esc(t(locale, 'conv.senderUnconfirmed'))}</p>` : ''}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
