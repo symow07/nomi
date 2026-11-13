@@ -19,13 +19,23 @@ export const CONVERSATION_CSS = `
   .conversation-workspace .conv-top .dhead > .live { order:4; flex-basis:100%; }
   .conversation-workspace .conv-top .conversation-actions > .file-door { order:5; flex-basis:100%; margin:0; }
 }
-/* A phone (t1r's decision 2, 2026-11-13): Send and Hand to me are never under the tab bar. While any part of the reply
-   to act on is on the screen, its two acts rest just above the bar (69 px: the bar's 60, its 4 + 4 of padding, its
-   line; plus the phone's own inset), on the surface, over the foot of the reply's box; scrolled to, they are in their
-   place under it. The page scrolls as before, so the thread stays one swipe away. */
-@media (max-width:720px) {
-  .conversation-workspace .conv-acts .approve .acts { position:sticky; inset-block-end:calc(69px + env(safe-area-inset-bottom, 0px)); z-index:2;
-    padding-block:var(--space-8); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+/* A phone (t1r's decision 2, and the fix round of 2026-11-13): Send and Hand to me are never under the tab bar, and
+   never over the reply. What the reply is, why it waits, the reply and its two answers are ONE block, and the block
+   rests whole just above the bar (69 px: the bar's 60, its 4 + 4 of padding, its line; plus the phone's own inset)
+   wherever the page is scrolled, as a chat's writing box does: the thread and the head scroll above it, and at the
+   page's end it is in its place. The reply's box is held to a share of the screen and scrolls inside itself past
+   that, so the block leaves room to read. The two wrappers dissolve so the block can rest from the top of the page;
+   a window too short to hold it (a page zoomed far in) keeps the plain page. */
+@media (max-width:720px) and (min-height:420px) {
+  .conversation-workspace .conv-acts, .conversation-workspace .conv-acts > #approve { display:contents; }
+  .conversation-workspace #approve > .draft-dock { position:sticky; inset-block-end:calc(69px + env(safe-area-inset-bottom, 0px)); z-index:2;
+    padding-block:var(--space-12) var(--space-8); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+  .conversation-workspace #approve > .draft-dock textarea { max-block-size:max(4.5em, calc(60dvh - 150px)); }
+  /* A door lands on the newest message near the top of the screen here (a quarter down elsewhere): the room under it
+     is the block's. */
+  .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
+  .conversation-workspace #approve > .acts-more, .conversation-workspace #approve > details { margin-block-start:var(--space-8); }
+  .conversation-workspace #approve > :last-child { margin-block-end:var(--space-16); }
 }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
 @media (min-width:1100px) { .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); } }

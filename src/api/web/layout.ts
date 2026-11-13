@@ -2272,7 +2272,7 @@ const STYLE_PAGES = `
      acts in one row with the quiet one at the far end. On a wide screen it
      stays in view at the foot of the conversation while the messages above
      it scroll; on a narrow one it sits in the page's own order. */
-  #approve { display:flex; flex-direction:column; gap:var(--space-8); }
+  #approve, #approve .draft-dock { display:flex; flex-direction:column; gap:var(--space-8); }
   #approve .top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-4) var(--space-16);
     flex-wrap:wrap; font-size:var(--font-size-small); }
   #approve .top b { font-weight:600; }
@@ -2308,7 +2308,7 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-259, V1-260, V1-277) — a figure and its word never wrap apart: "total" stays with "$7,250.00". */
   .fig { white-space:nowrap; }
   /* The window sits at the far end of the acts row, and under them where the row runs out of room. */
-  .approve .src { margin:0; margin-inline-start:auto; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .acts-more .src { margin:0; margin-inline-start:auto; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .stateline { margin:0; font-size:var(--font-size-small); }
   .stateline b { font-weight:600; }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }

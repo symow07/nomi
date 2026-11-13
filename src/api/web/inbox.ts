@@ -1938,6 +1938,10 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   return `<section class="card draft" id="approve" aria-labelledby="approve-h">
+      ${/* The UI correction (2026-11-13, F12's fix round) — what the reply is, why it waits, the reply and its two
+           answers are one block (`draft-dock`), so a phone can hold that block above its tab bar WHOLE: the two
+           answers never rest over the reply's own words. "No reply needed" follows the block in a form of its own,
+           carrying the draft it puts away: that command never read the box, so what it does is unchanged. */ ''}<div class="draft-dock">
       <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
       ${top}
       ${closing}
@@ -1953,14 +1957,16 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
           <button class="${NEEDS_ACT}" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
         </div>
+      </form>
+      </div>
         ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of
              the two answers and sits on its own line under them, with the window; it puts
-             the reply away for good, so it asks first. What it does when pressed is unchanged. */ ''}<div class="acts-more">
+             the reply away for good, so it asks first. What it does when pressed is unchanged. */ ''}<form method="post" action="${esc(to.act)}" class="acts-more">
+          <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
           <button class="btn" type="submit" name="command" value="不回"
             onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'card.noReply.confirm'))}">${esc(t(locale, 'card.noReply'))}</button>
           ${window ? `<p class="src">${window}</p>` : ''}
-        </div>
-      </form>
+        </form>
       ${how}
     </section>`;
 }
