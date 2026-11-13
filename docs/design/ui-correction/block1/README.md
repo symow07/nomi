@@ -123,6 +123,68 @@ running app (Chromium emulation; no physical phone). `fix2-*` images are the "af
 - Also: buttons answer the pointer ([Send](fix2-hover-send.png), [Hand to me](fix2-hover-hand-to-me.png)); the
   conversation head's "More" is in the owner's language ([Arabic](fix2-more-ar-390.png)).
 
+## The third fix round (after a second independent test of `b21fcbd8`)
+
+Two failures were left and two new findings were placed here. `fix3-*` images are the "after". Chromium emulation;
+no physical phone.
+
+- **On a phone no control rests under the tab bar and no control covers content — by construction.** The second
+  round's layout depended on the conversation: with the thread giving the room, Send and Hand to me still rested
+  23 of 48 px under the bar at the newest message on 320×568 in Arabic, and No reply needed rested under it in
+  several states. The thread's measure (and its script) is gone. Now, on a conversation at 720 px wide or less:
+  1. **The tab bar is a row of the screen, not a layer over the page.** The screen is a column: the page's own scroll
+     region, then the bar. The region ends where the bar begins, so nothing can be under the bar — in any state, any
+     language, any size, with script or without (the stylesheet alone does it).
+  2. **A reply waiting has its box and its three answers in a band of a set height between the region and the bar.**
+     The region ends where the band begins, so the band is over nothing. The band's height is set by the stylesheet
+     and the reply's box takes what the answers leave (it scrolls inside itself), so Send, Hand to me and No reply
+     needed are whole at every moment, whatever the reply's length, the language or what is typed.
+  3. Nothing is sticky. A screen under 400 px tall has no band: everything is in the region, in the page's order.
+
+  `tests/parity/conversation-phone.test.ts` reads these rules themselves. Measured after, ten states (a reply waiting
+  on two channels, waiting for a person in English and Arabic, no reply waiting, handed over, answered, the order
+  card, a deletion request, an expired reply) at 390×844, 320×568 and 200 % of 1440×900, at the top and at the
+  newest message, in English, Arabic, Spanish, French and Chinese, with script and without: **666 measures, 1,746
+  scroll positions inside them, 0 with a control under the bar, 0 with anything drawn over text or a control, 0 with
+  an answer not whole.** The figures are the same in every language: 390×844 box 444–655, Send and Hand to me
+  663–711, No reply needed 719–767, bar 775; 320×568 box 258–379, 387–435, 443–491, bar 499; 200 % box 210–317, the
+  three answers 325–373, bar 381. The earlier tester's own script on the same build: nothing covered in 30 of 30
+  states; Arabic 320×568 at the newest message Send 387–435 (was 474–522 with the bar at 499). The desk is unchanged
+  (1440×900: box 435–511, Send 519–565, No reply needed 573–619).
+  [390 top](fix3-r1-draft-en-390x844-top.png) · [390 newest](fix3-r1-draft-en-390x844-latest.png) ·
+  [390 typing](fix3-r1-draft-en-390x844-typing.png) · [390 Arabic](fix3-r1-draft-ar-390x844-latest.png) ·
+  [320 top](fix3-r1-draft-en-320x568-top.png) · [320 newest](fix3-r1-draft-en-320x568-latest.png) ·
+  [320 Arabic](fix3-r1-draft-ar-320x568-latest.png) · [200 %](fix3-r1-draft-en-zoom200-latest.png) ·
+  [200 % Arabic](fix3-r1-draft-ar-zoom200-latest.png) · [handed over](fix3-r1-handed-en-390x844-latest.png) ·
+  [the order card, 320](fix3-r1-order-en-320x568-latest.png) · [a deletion request](fix3-r1-deletion-en-390x844-latest.png) ·
+  [an expired reply](fix3-r1-expired-en-390x844-latest.png) · [no reply waiting](fix3-r1-noDraft-en-390x844-latest.png).
+  **Known, and not the same thing:** the region scrolls, so where it comes to rest its lower edge can cut a line or a
+  control that is not in the band, as the edge of any scrolling page does (handed over at 390×844: "Send the photo"
+  is half shown at the newest message). It is under nothing; one scroll shows it. Only a reply waiting has a band.
+  On a small phone the band takes half the screen (320×568: 250 of 499 px above the bar). After the three answers the
+  keyboard's next stop is in the region above them (the page's order is unchanged; the band is drawn last).
+  This section replaces the second round's "Known" for 320×568 and 200 %.
+- **The scroll count the tester could not explain** (Send cut by the bar at 4 of 52 positions at 390×844): its loop ran
+  after its typing step, and the page keeps typed words for the tab; reloaded with the longer reply, the thread could
+  no longer give enough room and the page fell back to the plain page, where Send passed behind the bar (reproduced:
+  4 positions with the kept words, 0 without). There is no such fallback now.
+- **A quantity that rounds to nothing, a figure too large.** Before: a quantity of 0.00001 and a price of
+  1000000000000000 each showed a total and Save answered an error page. The invoice's table keeps quantities and
+  prices to four decimals and fourteen digits before the point, and a line's net to sixteen. The form now reads each
+  figure at that scale and refuses what the table would refuse, naming the field: "Line 1: the quantity is too
+  small. The smallest an invoice holds is 0.0001." / "Line 1: the price is too large for an invoice." (also a
+  quantity too large, a line whose quantity times price is too large, a label over 200 characters). Every typed value
+  is kept, nothing is written, and the total reads "cannot be worked out yet". What the table rounds and keeps is
+  still saved, as the table keeps it, and the total shown is the total stored.
+  [too small, sent back](fix3-r2-small-quantity-422.png) · [before saving](fix3-r2-small-quantity-preview.png) ·
+  [too large, sent back](fix3-r2-large-price-422.png) · [before saving](fix3-r2-large-price-preview.png).
+- **The Assistant overview overflowed sideways** by 2,123 px at 1440 and 2,637 px at 390 from the long e-mail
+  Knowledge was fixed for (the same quote, a different page; the same on `84cb4580`). It is held the same way now:
+  0 at 1440, 820, 390 and 320 in five languages, the whole message one press away.
+  [1440](fix3-n1-assistant-1440.png) · [the whole message, open](fix3-n1-assistant-1440-open.png) · [390](fix3-n1-assistant-390.png).
+- **Knowledge overflowed by 16 px at 320 in French** (a reason and a date that did not wrap): 0 in five languages.
+  [French, 320](fix3-n2-knowledge-fr-320.png).
+
 ## Not done here
 
 - Phone keyboard and touch behaviour on a physical device.

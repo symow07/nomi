@@ -507,24 +507,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     box.addEventListener('click', function (e) { if (e.target === box) shut(); });
   }
 
-  /* F12 on a phone: where the head, the thread and the reply to act on are taller than the screen, the thread gives
-     the room (its own scroll region), so the reply's two answers end above the tab bar and nothing covers anything. */
-  function room() {
-    var w = doc.querySelector('[data-conversation]');
-    if (!w || !window.matchMedia) return;
-    var d = w.querySelector('.draft-dock'), t = w.querySelector('.conv-thread'), bar = doc.querySelector('nav.side');
-    if (!d || !t || !bar) return;
-    function fit() {
-      t.removeAttribute('data-room');
-      if (!matchMedia('(max-width:720px)').matches) return;
-      var over = d.getBoundingClientRect().bottom + window.pageYOffset - bar.getBoundingClientRect().top, h = t.offsetHeight - over;
-      if (over > 0 && h >= 96) t.setAttribute('data-room', String(Math.min(576, 16 * Math.floor(h / 16))));
-    }
-    window.addEventListener('resize', fit);
-    if (window.ResizeObserver) new ResizeObserver(fit).observe(d);
-    fit();
-  }
-
   /* F21: a select marked data-echo has its choice written out under it when the words are wider than its box. */
   function echoes() {
     var all = doc.querySelectorAll('select[data-echo]'), pen;
@@ -1049,7 +1031,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   sending();
   totals();
   echoes();
-  room();
   orbs();
   cards();
   faces();

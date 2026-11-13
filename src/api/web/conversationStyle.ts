@@ -1,7 +1,4 @@
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
-/** The heights the page's script may hold a phone's thread to (it sets no style itself: it names a step, 16 px apart). */
-const THREAD_ROOM = Array.from({ length: 31 }, (_, i) => 96 + 16 * i)
-  .map((h) => `  .conversation-workspace .conv-thread[data-room="${h}"] { max-block-size:${h}px; }`).join('\n');
 export const CONVERSATION_CSS = `
 .conversation-workspace { --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
 .conversation-workspace > .conv { min-width:0; padding:var(--space-16); background:var(--color-surface); }
@@ -22,23 +19,46 @@ export const CONVERSATION_CSS = `
   .conversation-workspace .conv-top .dhead > .live { order:4; flex-basis:100%; }
   .conversation-workspace .conv-top .conversation-actions > .file-door { order:5; flex-basis:100%; margin:0; }
 }
-/* A phone (t1r's decision 2, and the fix rounds of 2026-11-13): Send and Hand to me are never under the tab bar, and
-   NOTHING rests over anything — no stuck row over the reply, no stuck block over the head or the thread. What the
-   reply is, why it waits, the reply and its two answers are one block (draft-dock) in its own place under the thread.
-   Where the head, the thread and that block are taller than the screen, the THREAD gives the room: the page's script
-   measures how much and names the height the thread is held to (a step of 16 px), as its own scroll region opened on its newest
-   message, exactly as on a desk — so the block ends just above the bar at the top of the page. Where even a short
-   thread (96 px) would not make the room (a small phone, a page zoomed far in), or without script, the page is the
-   plain page: everything in order, scrolled as any page is. The reply's box is held to a share of the screen and
-   scrolls inside itself past that. */
+/* A phone (the fix rounds of 2026-11-13; the owner's rule: no control rests under the tab bar, no control covers
+   content). Held by CONSTRUCTION, not by measuring a conversation:
+   1. On a conversation the tab bar is a ROW of the screen, not a layer over the page. The screen is a column — the
+      page's own scroll region, then the bar — so the region ends where the bar begins and nothing can be under the
+      bar, in any state, language or size, with script or without.
+   2. A reply waiting has its box and its three answers (Send, Hand to me, No reply needed) in a BAND of a fixed
+      height between the region and the bar. The region ends where the band begins, so the band is over nothing; the
+      band's height is set here and the box takes what the answers leave (it scrolls inside itself), so the answers
+      are whole at every moment whatever the reply's length, the language or what is typed.
+   Nothing is sticky. A screen under 400 px tall has no band: everything is in the region, in the page's order. */
 @media (max-width:720px) {
-  .conversation-workspace .conv-thread { overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column-reverse; }
-  .conversation-workspace .conv-thread-in { margin-block-end:auto; }
-${THREAD_ROOM}
-  .conversation-workspace #approve .draft-dock textarea { max-block-size:max(4.5em, calc(60dvh - 150px)); }
-  /* A door lands on the newest message near the top of the screen here (a quarter down elsewhere): the room under it
-     is the reply's. */
+  .owner-shell .layout:has(.conversation-workspace) { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
+  .owner-shell .layout:has(.conversation-workspace) > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:calc(69px + env(safe-area-inset-bottom)); }
+  .owner-shell .layout:has(.conversation-workspace) > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
+  /* A door lands on the newest message near the top of the region here (a quarter down elsewhere): the room under it
+     is for what was drafted and why it waits. */
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
+}
+@media (max-width:720px) and (min-height:400px) {
+  .owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) form.approve):not(:has(#customer:target)) > .content { margin-block-end:clamp(232px, 44dvh, 340px); }
+  .conversation-workspace form.approve { block-size:clamp(232px, 44dvh, 340px); }
+  /* The card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
+     with the page: on a phone the card does not rise in. */
+  .conversation-workspace #approve { animation-name:none; }
+  .conversation-workspace form.approve { position:fixed; z-index:3; inset-inline:0; inset-block-end:calc(69px + env(safe-area-inset-bottom)); box-sizing:border-box;
+    padding:var(--space-8) var(--space-16) 64px; background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+  .conversation-workspace form.approve textarea { flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed; resize:none; }
+  .conversation-workspace form.approve > p { flex:none; margin:0; font-size:var(--font-size-caption); }
+  .conversation-workspace form.approve .acts { flex:none; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-8); }
+  .conversation-workspace form.approve .acts .btn, .conversation-workspace #approve .acts-more .btn { box-sizing:border-box; block-size:48px; min-block-size:0; min-inline-size:0; padding:var(--space-4) var(--space-8);
+    justify-content:center; text-align:center; white-space:normal; line-height:1.2; overflow:hidden; }
+  .conversation-workspace #approve .acts-more .btn { position:fixed; z-index:4; inset-inline:var(--space-16); inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
+}
+/* Wide enough for the three answers in one row. */
+@media (min-width:481px) and (max-width:720px) and (min-height:400px) {
+  .owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) form.approve):not(:has(#customer:target)) > .content { margin-block-end:clamp(168px, 40dvh, 300px); }
+  .conversation-workspace form.approve { block-size:clamp(168px, 40dvh, 300px); }
+  .conversation-workspace form.approve { padding-block-end:var(--space-8); }
+  .conversation-workspace form.approve .acts { padding-inline-end:calc((100vw - 24px) / 3); }
+  .conversation-workspace #approve .acts-more .btn { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
 }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
 @media (min-width:1100px) { .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); } }
