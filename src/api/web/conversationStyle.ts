@@ -98,7 +98,7 @@ export const CONVERSATION_CSS = `
 .conversation-workspace[data-tool-open] > .conversation-tools, .conversation-workspace:has(#customer:target) > .conversation-tools { display:block; }
 .conversation-tools .panel { display:block; position:static; width:auto; height:auto; border:0; padding:0; background:none; box-shadow:none; }
 .conversation-tools .panel-close, .conversation-tools .cp-back { display:none; }
-.ct-head { margin-block-end:var(--space-24); }
+.ct-head { margin-block-end:var(--space-16); }
 .ct-head > a { display:inline-flex; min-height:44px; align-items:center; }
 .ct-tabs { display:flex; gap:var(--space-16); border-block-end:1px solid var(--color-border); }
 .ct-tabs a { display:inline-flex; gap:var(--space-8); align-items:center; min-height:44px; text-decoration:none; color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
@@ -108,10 +108,18 @@ export const CONVERSATION_CSS = `
 .copilot-panel { max-width:68ch; margin-inline:auto; overflow-wrap:anywhere; }
 .cp-head h2 { font-size:var(--font-size-title); margin:0; }
 .cp-head p { margin-block:var(--space-8) var(--space-16); }
-.cp-prompts { display:flex; flex-direction:column; align-items:stretch; gap:var(--space-8); margin-block:var(--space-24); }
+.cp-prompts { display:flex; flex-direction:column; align-items:stretch; gap:var(--space-8); margin-block:var(--space-16); }
 .cp-prompts form { margin:0; }
-.cp-prompts button { width:100%; text-align:start; justify-content:start; }
-.cp-question { display:grid; gap:var(--space-8); margin-block:var(--space-24); }
+/* A prompt is a control and is drawn as one: the quiet button's edge, its words at the start. */
+.cp-prompts .btn.cp-prompt { width:100%; min-block-size:44px; text-align:start; justify-content:start; font-weight:400; background:var(--color-surface); color:var(--color-ink); border:1px solid var(--color-control-line); }
+.cp-prompts .btn.cp-prompt:not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
+.cp-head p { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+.cp-intro, .cp-question .cp-allowance { margin:0; font-size:var(--font-size-caption); }
+/* The pane's heading takes the focus when it opens so a reader starts there; it is not a control and draws no ring. */
+#copilot-title:focus { outline:none; }
+.ct-head { position:relative; }
+.ct-status { margin:0 0 var(--space-12); }
+.cp-question { display:grid; gap:var(--space-8); margin-block:var(--space-16); }
 .cp-question textarea { width:100%; min-width:0; resize:vertical; }
 .cp-question button { justify-self:start; }
 .cp-answer, .cp-suggestion blockquote { margin-block:var(--space-24); padding:var(--space-16); background:var(--color-assistant-wash); color:var(--color-ink); border:0; border-radius:var(--radius-panel); }
@@ -129,17 +137,26 @@ export const CONVERSATION_CSS = `
 .cp-fact p, .cp-fact ul { margin-block:var(--space-8); }
 .cp-suggestion blockquote { margin-inline:0; }
 .cp-history { border-block-start:1px solid var(--color-border); margin-block-start:var(--space-24); padding-block-start:var(--space-16); }
+/* THE UI CORRECTION (2026-11-13, audit F13) — opening Ask Nomi or the customer's facts moves nothing the owner was
+   looking at. The list never leaves and the thread's own edge never moves: where the window is wide enough the pane is
+   a third column at the far side (the thread gives it the room from its far edge). Where it is not, the pane takes the
+   conversation's own place — never drawn over its words or its reply (V1-241) — with the way back first; the
+   conversation keeps its place and its scroll under it (hidden, not removed) and is there again, unmoved, on closing.
+   On a phone the pane is the whole screen, with the way back first (below). */
 @media (min-width:1100px) {
-  .conversation-workspace { display:grid; grid-template-columns:260px minmax(0,1fr); min-height:100dvh; align-items:start; }
+  .conversation-workspace { display:grid; grid-template-columns:300px minmax(0,1fr); min-height:100dvh; align-items:start; }
   .conversation-workspace > .listpane { display:block; width:auto; padding-block:var(--space-16); background:var(--color-paper); border-inline-end:1px solid var(--color-border); position:sticky; top:0; height:100dvh; overflow-y:auto; }
-  .conversation-workspace > .conv { padding:var(--space-16) var(--space-24) 0; }
-  .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:minmax(0,1fr) 340px; }
-  .conversation-workspace[data-tool-open] > .listpane, .conversation-workspace:has(#customer:target) > .listpane { display:none; }
-  .conversation-tools { position:sticky; top:0; max-height:100dvh; overflow-y:auto; }
+  .conversation-workspace > .listpane, .conversation-workspace > .conv { grid-row:1; }
+  .conversation-workspace > .conv { grid-column:2; padding:var(--space-16) var(--space-24) 0; }
+  .conversation-tools { grid-row:1; position:sticky; top:0; box-sizing:border-box; max-height:100dvh; overflow-y:auto; overscroll-behavior:contain; }
 }
-@media (min-width:1500px) {
-  .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:260px minmax(0,1fr) 340px; }
-  .conversation-workspace[data-tool-open] > .listpane, .conversation-workspace:has(#customer:target) > .listpane { display:block; }
+@media (min-width:1100px) and (max-width:1299px) {
+  .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { visibility:hidden; }
+  .conversation-workspace > .conversation-tools { grid-column:2; block-size:100dvh; border-inline-start:0; background:var(--color-surface); padding-inline:var(--space-24); }
+}
+@media (min-width:1300px) {
+  .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
+  .conversation-workspace > .conversation-tools { grid-column:3; }
 }
 @media (max-width:1099px) {
   .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { display:none; }

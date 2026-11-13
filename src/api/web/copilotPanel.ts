@@ -14,12 +14,12 @@ export function renderConversationTools(customer: string, conversationId: string
         <a href="${href}" data-tool-tab="ask">${markSmall(16, null)}${esc(t(locale, 'inbox.tools.ask'))}</a>
       </nav>
     </header>
-    <div data-tool-content="customer">${customer}</div>
-    <div data-tool-content="ask" hidden><div data-copilot-slot><p class="muted" role="status">${esc(t(locale, 'inbox.tools.loading'))}</p></div></div>
-    <p class="ct-status" data-tool-status role="status" aria-live="polite"
+    ${/* Audit F13 — ONE line says the pane is opening, working, or could not answer: this one, above what it speaks of. The slot starts empty. */ ''}<p class="ct-status" data-tool-status role="status" aria-live="polite"
       data-loading="${esc(t(locale, 'inbox.tools.loading'))}" data-busy="${esc(t(locale, 'inbox.tools.busy'))}"
       data-failed="${esc(t(locale, 'inbox.tools.failed'))}" data-stale="${esc(t(locale, 'inbox.tools.stale'))}"
       data-no-composer="${esc(t(locale, 'inbox.tools.noComposer'))}" data-used="${esc(t(locale, 'inbox.tools.used'))}"></p>
+    <div data-tool-content="customer">${customer}</div>
+    <div data-tool-content="ask" hidden><div data-copilot-slot></div></div>
   </aside>`;
 }
 
@@ -50,12 +50,12 @@ export function renderCopilotPanel(locale: Locale, view: CopilotPanelView): stri
       <p>${esc(t(locale, 'inbox.tools.context', { customer: '\u0000' })).replace('\u0000', `<bdi>${esc(view.customerName ?? t(locale, 'common.buyer'))}</bdi>`)}</p>
     </header>
     <p class="cp-intro">${esc(t(locale, 'inbox.tools.intro'))}</p>
-    <p class="cp-allowance" role="status">${esc(t(locale, `inbox.tools.allowance.${view.allowance}`))}</p>
-    <div class="cp-prompts">${prompts.map(([intent, key]) => `<form method="post" action="${base}" data-copilot-ask><input type="hidden" name="intent" value="${intent}" /><input type="hidden" name="q" value="${esc(t(locale, key))}" /><button class="btn ghost" type="submit"${disabled ? ' disabled' : ''}>${esc(t(locale, key))}</button></form>`).join('')}</div>
+    <div class="cp-prompts">${prompts.map(([intent, key]) => `<form method="post" action="${base}" data-copilot-ask><input type="hidden" name="intent" value="${intent}" /><input type="hidden" name="q" value="${esc(t(locale, key))}" /><button class="btn cp-prompt" type="submit"${disabled ? ' disabled' : ''}>${esc(t(locale, key))}</button></form>`).join('')}</div>
     <form method="post" action="${base}" class="cp-question" data-copilot-ask>
       <label for="copilot-question">${esc(t(locale, 'inbox.tools.question'))}</label>
       <textarea id="copilot-question" name="q" maxlength="1000" rows="3" required dir="auto" placeholder="${esc(t(locale, 'inbox.tools.placeholder'))}"${disabled ? ' disabled' : ''}>${esc(view.asked)}</textarea>
       <button class="btn" type="submit"${disabled ? ' disabled' : ''}>${esc(t(locale, 'inbox.tools.submit'))}</button>
+      ${/* Audit F13 — what a question costs is said beside the button that spends it, not above everything. */ ''}<p class="cp-allowance" role="status">${esc(t(locale, `inbox.tools.allowance.${view.allowance}`))}</p>
     </form>
     ${view.answer ? `<section class="cp-answer" aria-label="${esc(t(locale, 'inbox.tools.answer'))}"><div class="cp-attribution">${markSmall(16, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></div><p dir="auto">${esc(view.answer.text)}</p></section>
       ${view.answer.facts.length ? `<section class="cp-sources"><h3>${esc(t(locale, 'inbox.tools.sources'))}</h3>${view.answer.facts.map(fact).join('')}</section>` : ''}` : ''}

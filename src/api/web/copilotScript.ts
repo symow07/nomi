@@ -10,6 +10,8 @@ export const COPILOT_SCRIPT = String.raw`
   var slot = tools.querySelector('[data-copilot-slot]');
   var status = tools.querySelector('[data-tool-status]');
   var opener = null, viewScroll = null, loaded = false, pending = 0, useGeneration = 0, using = false;
+  /* On a phone the page's own region scrolls, not the window: the reading place is kept there too. */
+  var region = doc.querySelector('.content');
   var home = location.pathname + location.search + location.hash;
   function say(key) { status.textContent = key ? status.getAttribute('data-' + key) || '' : ''; }
   function invalidateUse() {
@@ -42,6 +44,7 @@ export const COPILOT_SCRIPT = String.raw`
     root.removeAttribute('data-tool-open');
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', 'false'); });
     if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
+    if (viewScroll && region) region.scrollTop = viewScroll[2];
     if (restore !== false) {
       focus(opener);
     }
@@ -50,11 +53,11 @@ export const COPILOT_SCRIPT = String.raw`
     var already = root.hasAttribute('data-tool-open');
     if (!already && remember !== false) {
       opener = link;
-      viewScroll = window.matchMedia && window.matchMedia('(max-width:1099px)').matches ? [window.scrollX, window.scrollY] : null;
+      viewScroll = window.matchMedia && window.matchMedia('(max-width:1099px)').matches ? [window.scrollX, window.scrollY, region ? region.scrollTop : 0] : null;
       home = location.pathname + location.search + location.hash;
     }
     setTab(which);
-    if (window.matchMedia && window.matchMedia('(max-width:1099px)').matches && window.scrollTo) window.scrollTo(0, 0);
+    if (window.matchMedia && window.matchMedia('(max-width:1099px)').matches && window.scrollTo) { window.scrollTo(0, 0); if (region) region.scrollTop = 0; }
     if (remember !== false) {
       try { history[already ? 'replaceState' : 'pushState']({ nomiTool: which }, '', '#nomi-' + which); } catch (_) {}
     }

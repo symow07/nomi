@@ -37,11 +37,11 @@ export const INBOX_LIST_CSS = `
 .il-page .si-list, .il-page .si-pager { padding-inline:var(--space-16); }
 .il-page .si-group > .sp-cap { padding-block:var(--space-16) var(--space-8); margin:0; }
 .il-page .sp-rows > li, .il-compact-list .sp-rows > li { scroll-margin-block-start:calc(3 * var(--space-32)); }
-.il-page .si-row, .il-compact-list .si-row { min-block-size:80px; }
+.il-page .si-row { min-block-size:80px; }
 .il-page .si-row .si-face::after, .il-compact-list .si-row .si-face::after { content:""; position:absolute; inset:-4px; }
-.il-page .si-row.is-selected, .il-compact-list .si-row.is-selected { background:var(--color-assistant-wash); }
-.il-page .si-row.is-selected .sp-rname, .il-compact-list .si-row.is-selected .sp-rname { color:var(--color-accent); }
-.il-page .si-door .sp-rname, .il-compact-list .si-door .sp-rname { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; max-inline-size:100%; white-space:normal; overflow:hidden; overflow-wrap:anywhere; text-overflow:ellipsis; }
+.il-page .si-row.is-selected { background:var(--color-assistant-wash); }
+.il-page .si-row.is-selected .sp-rname { color:var(--color-accent); }
+.il-page .si-door .sp-rname { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; max-inline-size:100%; white-space:normal; overflow:hidden; overflow-wrap:anywhere; text-overflow:ellipsis; }
 .il-page .sp-chip.is-order, .il-compact-list .sp-chip.is-order { color:var(--color-ink); background:var(--color-sand); }
 .il-page .sp-rname, .il-compact-list .sp-rname { font-size:var(--font-size-base); }
 .il-page .si-why, .il-page .si-said, .il-compact-list .si-why, .il-compact-list .si-said { font-size:var(--font-size-small); }
@@ -50,19 +50,34 @@ export const INBOX_LIST_CSS = `
 .il-empty h3 { margin-block:0 var(--space-8); font-size:var(--font-size-title); }
 .il-empty p { margin-block:0 var(--space-16); }
 .il-empty .deeper { min-block-size:44px; display:inline-flex; align-items:center; }
-.il-compact-list .si-row { grid-template-columns:8px 36px minmax(0, 1fr) 28px auto 16px; grid-template-areas:"dot face name name val go" "dot face chip thumb day go" "dot face why why why go" "dot face said said said go"; gap:var(--space-4) var(--space-8); padding:var(--space-12) var(--space-8); }
+/* THE UI CORRECTION (2026-11-13, audit F11) — the list beside a conversation is scanned, not read: one toolbar
+   (the view and the search, a row each), then two lines a customer — the name and when on the first, why they wait
+   and their last words on the second, each cut at its own end. The dot before a row is the state; the row open now
+   is a quiet tile with an ink edge, never a block of colour, and never bold (bold is "not opened yet"). The stage,
+   the product's picture and the figure stay on the Inbox itself and in the conversation's own head. */
+.listpane.il-compact-list .lp-h { margin:0 var(--space-12) var(--space-8); }
+.listpane.il-compact-list .il-view-form { margin:0 var(--space-12) var(--space-8); align-items:center; }
+.listpane.il-compact-list .il-view-form label > span { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.listpane.il-compact-list .il-view-form select { font-size:var(--font-size-small); padding-block:0; }
+.listpane.il-compact-list .il-view-form .sp-btn, .listpane.il-compact-list .search .btn { min-block-size:44px; padding-inline:var(--space-12); font-size:var(--font-size-small); white-space:nowrap; }
+.listpane.il-compact-list .search { display:flex; flex-wrap:nowrap; gap:var(--space-8); margin:0 var(--space-12) var(--space-8); }
+.listpane.il-compact-list .search input { flex:1 1 0; inline-size:auto; min-inline-size:0; min-block-size:44px; margin:0; font-size:var(--font-size-small); }
+.il-compact-list .si-row { grid-template-columns:8px 36px minmax(0, 1fr) auto; grid-template-areas:"dot face name day" "dot face line line"; align-items:center; gap:0 var(--space-8);
+  min-block-size:60px; padding:var(--space-8) var(--space-12) var(--space-8) var(--space-8); border-inline-start:2px solid transparent; }
 .il-compact-list .si-dot { grid-area:dot; }
 .il-compact-list .si-row .si-face { grid-area:face; }
-.il-compact-list .si-who, .il-compact-list .si-line { display:contents; }
+.il-compact-list .si-who { display:contents; }
 .il-compact-list .si-door { grid-area:name; min-inline-size:0; }
-.il-compact-list .si-why { grid-area:why; min-inline-size:0; }
-.il-compact-list .si-said { grid-area:said; }
-.il-compact-list .si-row .sp-thumb { grid-area:thumb; }
-.il-compact-list .sp-chip { grid-area:chip; justify-self:start; }
-.il-compact-list .sp-rval { grid-area:val; }
+.il-compact-list .si-door .sp-rname { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; -webkit-line-clamp:none; line-clamp:none; font-size:var(--font-size-small); }
+.il-compact-list .si-line { grid-area:line; display:flex; flex-wrap:nowrap; align-items:baseline; gap:var(--space-8); min-inline-size:0; overflow:hidden; white-space:nowrap; }
+.il-compact-list .si-why { flex:0 1 auto; min-inline-size:0; max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; font-size:var(--font-size-caption); }
+.il-compact-list .si-said { flex:1 1 0; min-inline-size:0; font-size:var(--font-size-caption); }
+.il-compact-list .si-row .sp-thumb, .il-compact-list .sp-chip, .il-compact-list .sp-rval, .il-compact-list .si-row .go { display:none; }
 .il-compact-list .sp-rday { grid-area:day; }
-.il-compact-list .si-row .go { grid-area:go; }
-.il-compact-list .si-group > h2 { font-size:var(--font-size-small); margin:var(--space-16) var(--space-8) var(--space-8); }
+.il-compact-list .si-row.is-selected { background:var(--color-sand); border-inline-start-color:var(--color-ink); }
+.il-compact-list .si-row.is-selected .sp-rname { color:var(--color-ink); }
+.il-compact-list .si-group > h2 { font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); margin:var(--space-12) var(--space-12) var(--space-4); padding:0; }
+.il-compact-list .lp-group { padding:var(--space-12) var(--space-12) var(--space-4); margin:0; font-weight:500; }
 .saved-replies-page { max-inline-size:960px; }
 .saved-replies-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-16); margin-block:var(--space-16) var(--space-24); }
 .saved-replies-header h1 { min-inline-size:0; overflow-wrap:anywhere; margin:0; }
