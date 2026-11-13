@@ -219,4 +219,59 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(stranger.body).not.toContain('5,400.00');
     expect(await counts()).toEqual(before);
   });
+
+  /**
+   * F-5 (the UI correction's fix round, 2026-11-13) — A FIGURE BELOW ZERO. The table holds `quantity > 0` and
+   * `unit_price >= 0` (0184); the form's reader let "-10" through, so the preview showed a total (a negative one) for a
+   * form Save could not store, and Save came back as an error page with the typed form gone. Now the reader refuses it
+   * by the table's own rule, no stricter and no looser: Save answers 422 with the field named and every typed value
+   * kept, nothing is written, and the preview says the line cannot be worked out — never a figure. A price of zero is
+   * still a price (the table takes it); a quantity of zero is still refused, in the words it always was.
+   */
+  it('F-5 · a price or a quantity below zero: 422 with the field named and the values kept, no row, and no figure in the preview', async () => {
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const base = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '' };
+    const before = await counts();
+    for (const [line, said] of [
+      [{ label0: 'Remise sur sacs', quantity0: '1', price0: '-10', account0: k.sales, tax0: k.tax }, 'Line 1: the price cannot be below zero.'],
+      [{ label0: 'Remise sur sacs', quantity0: '-3', price0: '12.50', account0: k.sales, tax0: k.tax }, 'Line 1: the quantity must be above zero.'],
+      // on the second line, so the line is named by its number; the first line is a good one
+      [{ label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax, label1: 'Livraison', quantity1: '1', price1: '-0.01', account1: k.sales, tax1: '' }, 'Line 2: the price cannot be below zero.'],
+    ] as const) {
+      const saved = await post('/app/books/invoices', { ...base, ...line });
+      expect(saved.statusCode, said).toBe(422);
+      expect(saved.body).toContain(said);
+      // every typed value is back in its box
+      for (const [name, value] of Object.entries(line)) if (/^(label|quantity|price)\d$/.test(name)) expect(saved.body, name).toMatch(new RegExp(`name="${name}"[^>]*value="${value.replace(/[.]/g, '\\.')}"`));
+      expect(await counts(), 'nothing is written').toEqual(before);
+      const shown = await post('/app/books/invoices/preview', { ...base, ...line });
+      expect(shown.statusCode).toBe(200);
+      expect(shown.body).toContain('cannot be worked out yet');
+      expect(shown.body, 'never a figure').not.toMatch(/\d/);
+      expect(await counts()).toEqual(before);
+    }
+    // the same on a draft saved over
+    const good = await post('/app/books/invoices', { ...base, label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(good.statusCode).toBe(303);
+    const id = String(good.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+    const afterGood = await counts();
+    const over = await post(`/app/books/invoices/${id}/edit`, { ...base, label0: 'Sacs', quantity0: '2', price0: '-45', account0: k.sales, tax0: k.tax });
+    expect(over.statusCode).toBe(422);
+    expect(over.body).toContain('Line 1: the price cannot be below zero.');
+    expect((await as((q) => q(`select unit_price::text as p from invoice_lines where invoice_id = $1`, [id]))).rows[0].p).toBe('45.0000');
+    expect(await counts()).toEqual(afterGood);
+
+    // THE TABLE'S OWN LINE, no stricter: a price of zero is saved and totalled; no looser: a quantity of zero is refused as it was
+    const free = { ...base, label0: 'Echantillon offert', quantity0: '1', price0: '0', account0: k.sales, tax0: k.tax };
+    expect((await post('/app/books/invoices/preview', free)).body).toMatch(/0\.00/);
+    expect((await post('/app/books/invoices', free)).statusCode).toBe(303);
+    const none = await post('/app/books/invoices', { ...base, label0: 'Sacs', quantity0: '0', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(none.statusCode).toBe(422);
+    expect(none.body).toContain('Line 1: not an amount above zero.');
+    // and the words exist in every language the owner reads
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantity', 'books.invoice.problem.price'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
+  });
 });

@@ -3311,10 +3311,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (due && (!iso.test(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
     const currency = values['currency'] ?? c.bookCurrency;
     if (!(CURRENCIES as readonly string[]).includes(currency)) problems.push(t(locale, 'books.entry.problem.date'));
-    const figure = (raw: string | undefined, n: number, zeroOk: boolean): Decimal | null => {
+    /* A figure below zero is refused HERE, by the rule the table itself holds (0184: quantity > 0, unit_price >= 0), with
+       the field named — it used to reach the table and come back as an error page (the UI correction's fix round, F-5).
+       `price` says which box this is: a price may be zero, a quantity may not. */
+    const figure = (raw: string | undefined, n: number, price: boolean): Decimal | null => {
       const r = readTypedAmount((raw ?? '').trim());
       if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return null; }
-      if (r === null || (!zeroOk && r === '0')) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
+      if (r !== null && r.startsWith('-')) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
+      if (r === null || (!price && r === '0')) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
       return r;
     };
     const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
