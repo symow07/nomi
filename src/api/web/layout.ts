@@ -1882,7 +1882,7 @@ const STYLE_PAGES = `
   .reqs .q { color:var(--color-ink); }
   .gap { border:0; border-radius:var(--radius-card); padding:14px; margin-bottom:var(--space-12); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .ki-q { font-size:var(--font-size-small); margin-bottom:var(--space-8); }
-  .ki-meta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
+  .ki-meta { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); align-items:center; margin-bottom:var(--space-12); }
   .gacts { display:flex; gap:var(--space-8); }
   .pill.reason { background:var(--color-needs-wash); color:var(--color-needs); }
   .pill.taught { background:var(--color-ok-wash); color:var(--color-ok); }
