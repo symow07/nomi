@@ -69,7 +69,8 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .draft .top .as { display:inline-flex; align-items:center; gap:var(--space-8); }
 .conversation-workspace .draft textarea { background:var(--color-surface); color:var(--color-ink); }
 .conversation-workspace .draft .btn, .conversation-workspace .replyform .btn { background:var(--color-ink); color:var(--color-surface); border-color:var(--color-ink); }
-.conversation-workspace .draft .acts-more .btn, .conversation-workspace .draft .acts .btn:not(:first-child) { background:transparent; color:var(--color-ink); border-color:var(--color-border); }
+.conversation-workspace .draft .acts-more .btn, .conversation-workspace .draft .acts .btn:not(:first-child) { background:transparent; color:var(--color-ink); border-color:var(--color-control-line); }
+.conversation-workspace .draft .acts-more .btn:not(:disabled):hover, .conversation-workspace .draft .acts .btn:not(:first-child):not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
 .conversation-tools { display:none; min-width:0; padding:var(--space-16); background:var(--color-paper); border-inline-start:1px solid var(--color-border); }
 .conversation-workspace[data-tool-open] > .conversation-tools, .conversation-workspace:has(#customer:target) > .conversation-tools { display:block; }
 .conversation-tools .panel { display:block; position:static; width:auto; height:auto; border:0; padding:0; background:none; box-shadow:none; }

@@ -96,7 +96,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-q { margin:var(--space-16) 0 var(--space-8) !important; font-size:var(--font-size-display) !important; font-weight:400 !important; line-height:1.25 !important; }
 .sp-form { margin:0; }
 .sp-reply { display:block; inline-size:100%; margin:0 0 var(--space-12); padding:var(--space-12); font:inherit; font-size:var(--font-size-small); line-height:1.55; color:var(--color-ink);
-  background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); resize:vertical; field-sizing:content; }
+  background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); resize:vertical; field-sizing:content; }
 .sp-reply:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .sp-acts { display:flex; flex-wrap:wrap; gap:var(--space-8); }
 .sp-window { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -152,7 +152,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-tabn { font-size:var(--font-size-caption); font-weight:400; font-variant-numeric:lining-nums tabular-nums; }
 .si-tools { display:grid; gap:var(--space-8); padding:var(--space-16) var(--space-20) var(--space-8); border-block-end:1px solid var(--color-border); }
 .si-search { display:flex; gap:var(--space-8); margin:0; }
-.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 var(--space-12); box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); }
+.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 var(--space-12); box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); }
 .split .si-search input[type="search"]:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .si-filters { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:0 var(--space-16); }
 .si-fils { display:flex; align-items:center; gap:var(--space-4); min-inline-size:0; overflow-x:auto; scrollbar-width:none; }

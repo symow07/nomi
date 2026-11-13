@@ -513,8 +513,11 @@ ${STAGGER}
   .ask-acts [data-ask-yes] { flex:1 1 auto; }
   .ask-acts [data-ask-no] { flex:none; }
   /* Phase 6 — a form on its way: its button says so, and does not take a second press. */
-  .btn[aria-busy="true"] { cursor:progress; }
-  .btn[aria-busy="true"]::after { content:"…"; margin-inline-start:var(--space-4); }
+  /* The UI correction's fix round (2026-11-13) — the dots take NO room: they sit in the button's own end padding, so
+     the button keeps its width while it waits and nothing beside it moves. */
+  .btn[aria-busy="true"] { cursor:progress; position:relative; }
+  .btn[aria-busy="true"]::after { content:"…"; position:absolute; inset-block:0; inset-inline-end:2px; display:flex; align-items:center;
+    font-size:0.8em; line-height:1; pointer-events:none; }
   /* Undo, inside the notice that says what was done. */
   .flash.has-undo { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .flash .undo { margin:0; }
@@ -752,7 +755,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      hairline edge; a CONSEQUENTIAL act (.danger: remove, stop, close) is white with a heavy ink edge and weight —
      never a fill, never red. */
   .btn.send { background:var(--color-brand); border-color:transparent; color:var(--color-surface); font-weight:600; }
-  .btn:not(.send):not(.ghost):not(:disabled):hover { background:var(--color-sand); }
+  .btn:not(.send):not(.ghost):not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
   .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
   .btn.send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
@@ -1256,6 +1259,17 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .is-focus { outline:2px solid var(--color-brand); outline-offset:2px; }
   .btn:disabled, .btn.is-disabled { background:var(--color-paper); border-color:var(--color-border);
     color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
+  /* The UI correction's fix round (2026-11-13) — on every signed-in page a button that cannot be pressed READS as one,
+     whatever its area's sheet says about a fill: no fill (the sand of a recess), a separator's faint edge, its word
+     in the secondary ink (5.8:1 on the sand, so it can still be read) and the cursor that says no. Not by opacity:
+     a faded label drops under AA. It outranks every area's own button rule on purpose, hence the one use of the
+     priority flag for a state. Hover changes nothing on it. */
+  .owner-shell .btn:disabled, .owner-shell .btn.is-disabled { background:var(--color-sand) !important; border-color:var(--color-border) !important;
+    color:var(--color-ink-secondary) !important; box-shadow:none !important; cursor:not-allowed !important; }
+  /* And a button that CAN be pressed answers the pointer: the fill lifts to the secondary ink (its white word 6.5:1 on it),
+     a quiet button takes the sand and the ink's edge (above). Stated here once for every area's fill. */
+  .owner-shell .btn.send:not(:disabled):not(.is-disabled):hover, .owner-shell .btn.send.is-hover { background:var(--color-ink-secondary);
+    border-color:transparent; }
   /* The identity system — the needs act goes quiet too when it cannot be pressed (its fill outranked the
      rule above and stayed deep). It keeps its dot, in the quiet ink. */
   .btn.send.needs:disabled, .btn.send.needs.is-disabled { background:var(--color-paper); border-color:var(--color-border);

@@ -35,7 +35,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ask-history li{margin-bottom:var(--space-16);overflow-wrap:anywhere;}
 .ask-history a{min-height:44px;display:flex;align-items:center;}
 .ask-form{display:flex;flex-direction:column;gap:var(--space-12);margin-block:var(--space-24);}
-.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control);}
+.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
 .ask-form .btn{align-self:flex-start;}
 .ask-line .msg{max-width:100%;margin-block:var(--space-24);}
 .ask-line .bubble{max-width:100%;}
