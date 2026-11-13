@@ -70,21 +70,22 @@ running app (Chromium emulation; no physical phone). `fix2-*` images are the "af
 
 - **The stuck Send row covered the reply.** Before: the row hid 54 of the box's 131 px at the top of the page on
   390×844, left 29 px readable at the newest message on 320×568, and hid 54 of 77 px at 200 % zoom (82 % at worst).
-  Now what the reply is, why it waits, the reply and its two answers are one block that rests whole above the tab bar,
-  as a chat's writing box does; the head and the thread scroll above it. After: 0 px of the box under the row at every
-  scroll position at all three sizes; Send under the bar at 0 of 49, 0 of 94 and 0 of 69 positions (320 and 200 % had
-  11 each); at the newest message nothing is under the block at any of the three; the desk is unchanged.
+  Now nothing is stuck over anything. What the reply is, why it waits, the reply and its two answers are one block in
+  its own place under the thread; where the head, the thread and that block are taller than the screen, the thread
+  gives the room (its own scroll region, opened on its newest message, as on a desk), so Send ends above the tab bar
+  at the top of the page. After: 0 px of the reply, the head or the thread under any control at every scroll position
+  at 390×844, 320×568 and 200 % zoom; at 390×844 Send is above the bar at the top (712–758, bar 775), at the newest
+  message and at 0 of 46 scroll positions; the desk is unchanged.
   [390 top](fix2-f1-conversation-390-top.png) · [390 newest](fix2-f1-conversation-390-latest.png) ·
   [390 typing](fix2-f1-conversation-390-typing.png) · [390 Arabic](fix2-f1-conversation-390-latest-ar.png) ·
   [320 top](fix2-f1-conversation-320-top.png) · [320 newest](fix2-f1-conversation-320-latest.png) ·
   [200 % top](fix2-f1-conversation-zoom200-top.png) · [200 % newest](fix2-f1-conversation-zoom200-latest.png) ·
   [desk](fix2-conversation-desktop.png).
-  **Still open:** the block rests over whatever of the page is behind it, as a chat's writing box does, and the page
-  scrolls to show it. At the very top of the page that can be the end of the head or of the thread: at 320×568 and
-  at 200 % zoom the head is taller than the room above the block, so its lower rows and the first message are under
-  the block until the page is scrolled 100–190 px; at 390×844 in Arabic the newest message's time line is. Landing on
-  the newest message (as the Inbox's rows do) shows the message, the block and nothing under it at all three sizes.
-  Tapping the box scrolls the page to the block's own place (the browser's doing).
+  **Known:** at 320×568 and at 200 % zoom the head alone leaves less room than the reply needs, so the page there is
+  the plain page: at the top the reply is below the screen (not shown, not under the bar), at the newest message it
+  is whole with Send above the bar, and while scrolling it comes up from behind the bar as all content does (Send
+  for about 110 px of scroll). The thread's measure is the page script's; without script every phone gets the plain
+  page.
 - **A control's edge under 3:1.** Hand to me and No reply needed, Today's reply box, the Inbox's search field and Ask
   Nomi's question box were 1.27:1 (1.22:1); each is the control edge now (3.5:1 on white, 3.3:1 on the canvas). A
   sweep by computed style over 47 signed-in pages at 1440 and 390 found 5 before and 0 after.
