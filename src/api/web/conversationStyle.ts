@@ -42,7 +42,7 @@ export const CONVERSATION_CSS = `
   .conversation-workspace form.approve { block-size:clamp(232px, 44dvh, 340px); }
   /* The card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
      with the page: on a phone the card does not rise in. */
-  .conversation-workspace #approve { animation-name:none; }
+  .conversation-workspace #approve { animation:none; }
   .conversation-workspace form.approve { position:fixed; z-index:3; inset-inline:0; inset-block-end:calc(69px + env(safe-area-inset-bottom)); box-sizing:border-box;
     padding:var(--space-8) var(--space-16) 64px; background:var(--color-surface); border-block-start:1px solid var(--color-border); }
   .conversation-workspace form.approve textarea { flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed; resize:none; }

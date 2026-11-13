@@ -89,7 +89,7 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     const quiet = band.slice(band.lastIndexOf('.conversation-workspace #approve .acts-more .btn {'));
     expect(quiet).toContain('position:fixed'); expect(quiet).toContain('inset-block-end:calc(77px + env(safe-area-inset-bottom));');
     // a transformed card would carry what is fixed inside it: the entrance is off where the band is
-    expect(rule(band, '.conversation-workspace #approve')).toContain('animation-name:none');
+    expect(rule(band, '.conversation-workspace #approve')).toBe(' animation:none; ');
     // a short screen has no band: nothing in the plain phone block is fixed
     expect(phone).not.toMatch(/position:\s*fixed/);
   });
