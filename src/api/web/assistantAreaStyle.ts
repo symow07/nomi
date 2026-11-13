@@ -22,6 +22,9 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-doors .caption{display:block;color:var(--color-ink-secondary);font-weight:400;margin-top:var(--space-8);}
 .aa-overview h2{font-size:var(--font-size-title);}
 .aa-overview blockquote{margin-inline:0;margin-block:var(--space-24) var(--space-8);}
+/* N-1 (the third fix round) — the overview quotes the same customers' words Knowledge does, and holds them the same way (F29): the column may shrink, an unbroken address breaks, a long message folds with the whole of it one press away. */
+.aa-overview,.aa-overview section,.aa-overview blockquote{min-width:0;max-width:100%;}
+.aa-overview blockquote{overflow-wrap:anywhere;word-break:break-word;}
 .aa-overview .stop-here{margin-top:var(--space-32);padding-top:var(--space-24);border-top:1px solid var(--color-border);}
 .aa-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-16);padding-block:var(--space-16);}
 .aa-pager a{min-height:44px;display:flex;align-items:center;}
