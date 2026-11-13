@@ -168,15 +168,17 @@ no physical phone.
   after its typing step, and the page keeps typed words for the tab; reloaded with the longer reply, the thread could
   no longer give enough room and the page fell back to the plain page, where Send passed behind the bar (reproduced:
   4 positions with the kept words, 0 without). There is no such fallback now.
-- **A quantity that rounds to nothing, a figure too large.** Before: a quantity of 0.00001 and a price of
+- **More decimals than an invoice keeps, a figure too large.** Before: a quantity of 0.00001 and a price of
   1000000000000000 each showed a total and Save answered an error page. The invoice's table keeps quantities and
-  prices to four decimals and fourteen digits before the point, and a line's net to sixteen. The form now reads each
-  figure at that scale and refuses what the table would refuse, naming the field: "Line 1: the quantity is too
-  small. The smallest an invoice holds is 0.0001." / "Line 1: the price is too large for an invoice." (also a
-  quantity too large, a line whose quantity times price is too large, a label over 200 characters). Every typed value
-  is kept, nothing is written, and the total reads "cannot be worked out yet". What the table rounds and keeps is
-  still saved, as the table keeps it, and the total shown is the total stored.
-  [too small, sent back](fix3-r2-small-quantity-422.png) · [before saving](fix3-r2-small-quantity-preview.png) ·
+  prices to four decimals and fourteen digits before the point, and a line's net to sixteen; given a longer figure
+  it would round it. A typed figure is never changed for the owner without a word: the form refuses a figure with
+  more than four decimals, naming the field — "Line 1: the quantity has more than four decimals. An invoice keeps
+  four." — and one too large ("Line 1: the price is too large for an invoice."; also a quantity too large, a line
+  whose quantity times price is too large, a label over 200 characters). Every typed value is kept, nothing is
+  written, and the total reads "cannot be worked out yet". A figure that fits is saved exactly as typed, and the
+  total shown is the total stored.
+  [0.00001, sent back](fix3-r2-small-quantity-422.png) · [before saving](fix3-r2-small-quantity-preview.png) ·
+  [1.23456, sent back](fix3-r2-long-price-422.png) · [before saving](fix3-r2-long-price-preview.png) ·
   [too large, sent back](fix3-r2-large-price-422.png) · [before saving](fix3-r2-large-price-preview.png).
 - **The Assistant overview overflowed sideways** by 2,123 px at 1440 and 2,637 px at 390 from the long e-mail
   Knowledge was fixed for (the same quote, a different page; the same on `84cb4580`). It is held the same way now:

@@ -3314,21 +3314,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     /* A figure the table would refuse is refused HERE, by the table's own rules, with the field named — it used to reach
        the table and come back as an error page (the UI correction's fix rounds, F-5 and R-2). The table is 0184's
        invoice_lines: quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0, net numeric(18,2). A numeric(18,4)
-       column ROUNDS what it is given to four decimals (half away from zero) and holds fourteen digits before the
-       point; so the figure is read at that scale first — exactly the value the column would store — and the rules are
-       asked of that value: no stricter (a price of -0.00001 is the column's 0) and no looser (a quantity of 0.00001
-       is the column's 0, and refused). What goes on to the total and to Save is the value at the column's scale, so
-       the preview is what is stored. `price` says which box this is: a price may be zero, a quantity may not. */
+       column keeps four decimals and fourteen digits before the point, and would ROUND a longer figure: a typed figure
+       is never changed without the owner being told (t1r's ruling, 2026-11-13), so a figure with more decimals than
+       the column keeps is refused, and one that fits is saved exactly as typed. `price` says which box this is: a
+       price may be zero, a quantity may not. */
     const COLUMN_LIMIT = decimal('100000000000000'), NET_LIMIT = decimal('10000000000000000');
     const figure = (raw: string | undefined, n: number, price: boolean): Decimal | null => {
       const r = readTypedAmount((raw ?? '').trim());
       if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return null; }
       if (r === null || (!price && signOf(r) === 0)) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
-      const stored = roundDecimal(r, 4);
-      if (signOf(stored) < 0) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
-      if (!price && signOf(stored) === 0) { problems.push(t(locale, 'books.invoice.problem.quantitySmall', { n })); return null; }
-      if (compareDecimal(stored, COLUMN_LIMIT) >= 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceLarge' : 'books.invoice.problem.quantityLarge', { n })); return null; }
-      return signOf(stored) === 0 ? decimal('0') : stored;
+      if (signOf(r) < 0) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
+      if (compareDecimal(roundDecimal(r, 4), r) !== 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceDecimals' : 'books.invoice.problem.quantityDecimals', { n })); return null; }
+      if (compareDecimal(r, COLUMN_LIMIT) >= 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceLarge' : 'books.invoice.problem.quantityLarge', { n })); return null; }
+      return r;
     };
     const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
     for (let i = 0; i < formLines(values, INVOICE_FORM_LINES, 'label'); i++) {

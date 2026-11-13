@@ -277,28 +277,32 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
 
   /**
    * R-2 (the UI correction's third fix round, 2026-11-13) — THE COLUMNS' OWN SCALE AND SIZE. 0184's invoice_lines holds
-   * quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0 and net numeric(18,2). A numeric(18,4) column rounds what
-   * it is given to four decimals and takes fourteen digits before the point, so a quantity of 0.00001 IS zero to the
-   * table, and a price of 1000000000000000 does not fit: both showed a total in the preview and came back from Save as
-   * an error page. The form now reads each figure at the column's scale and asks the table's rules of THAT value: Save
-   * answers 422 with the field named and every typed value kept, nothing is written, and the preview shows no figure.
-   * No stricter either: what the column would round and keep is saved, and the preview is what is stored.
+   * quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0 and net numeric(18,2). A numeric(18,4) column keeps four
+   * decimals and fourteen digits before the point: a quantity of 0.00001 is zero to the table, and a price of
+   * 1000000000000000 does not fit — both showed a total in the preview and came back from Save as an error page.
+   * The column would ROUND a longer figure, and a typed figure is never changed silently (t1r's ruling): a figure with
+   * more than four decimals is refused, with the field named; one that fits is saved exactly as typed. Save answers 422
+   * with every typed value kept, nothing is written, and the preview shows no figure.
    */
-  it('R-2 · a quantity that rounds to nothing, a figure too large for its column: 422, field named, values kept, no row, no figure in the preview', async () => {
+  it('R-2 · more decimals than the column keeps, a figure too large for it: 422, field named, values kept, no row, no figure in the preview', async () => {
     const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
     const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
       (select count(*) from journal_entries)::int as e`))).rows[0];
     const base = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '' };
     const before = await counts();
-    const small = 'Line 1: the quantity is too small. The smallest an invoice holds is 0.0001.';
+    const qDec = 'Line 1: the quantity has more than four decimals. An invoice keeps four.';
+    const pDec = 'Line 1: the price has more than four decimals. An invoice keeps four.';
     for (const [line, said] of [
       // the tester's two cases
-      [{ label0: 'Sacs', quantity0: '0.00001', price0: '45', account0: k.sales, tax0: k.tax }, small],
+      [{ label0: 'Sacs', quantity0: '0.00001', price0: '45', account0: k.sales, tax0: k.tax }, qDec],
       [{ label0: 'Sacs', quantity0: '1', price0: '1000000000000000', account0: k.sales, tax0: k.tax }, 'Line 1: the price is too large for an invoice.'],
-      // the edges of the same rules: just under half of the last decimal; the first figure that does not fit; one that rounds up to it
-      [{ label0: 'Sacs', quantity0: '0.00004', price0: '45', account0: k.sales, tax0: k.tax }, small],
+      // never rounded for her: each of these the column would have changed (to 0.0001, to 0, to 1.2346)
+      [{ label0: 'Sacs', quantity0: '0.00005', price0: '20000', account0: k.sales, tax0: k.tax }, qDec],
+      [{ label0: 'Sacs', quantity0: '1000000', price0: '-0.00001', account0: k.sales, tax0: '' }, 'Line 1: the price cannot be below zero.'],
+      [{ label0: 'Sacs', quantity0: '3', price0: '1.23456', account0: k.sales, tax0: k.tax }, pDec],
+      [{ label0: 'Sacs', quantity0: '1', price0: '99999999999999.99995', account0: k.sales, tax0: k.tax }, pDec],
+      // the first figure that does not fit, in each box
       [{ label0: 'Sacs', quantity0: '1', price0: '100000000000000', account0: k.sales, tax0: k.tax }, 'Line 1: the price is too large for an invoice.'],
-      [{ label0: 'Sacs', quantity0: '1', price0: '99999999999999.99995', account0: k.sales, tax0: k.tax }, 'Line 1: the price is too large for an invoice.'],
       [{ label0: 'Sacs', quantity0: '100000000000000', price0: '1', account0: k.sales, tax0: k.tax }, 'Line 1: the quantity is too large for an invoice.'],
       // each figure fits its column, their product does not fit the net's (numeric(18,2)); on the second line
       [{ label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax, label1: 'Lot', quantity1: '99999999999999', price1: '99999999999999', account1: k.sales, tax1: '' }, 'Line 2: the quantity times the price is too large for an invoice.'],
@@ -334,17 +338,18 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     const afterGood = await counts();
     const over = await post(`/app/books/invoices/${gid}/edit`, { ...base, label0: 'Sacs', quantity0: '0.00001', price0: '45', account0: k.sales, tax0: k.tax });
     expect(over.statusCode).toBe(422);
-    expect(over.body).toContain(small);
+    expect(over.body).toContain(qDec);
     expect((await as((q) => q(`select quantity::text as q from invoice_lines where invoice_id = $1`, [gid]))).rows[0].q).toBe('2.0000');
     expect(await counts()).toEqual(afterGood);
 
-    // NO STRICTER: what the column rounds and keeps is saved as the column keeps it, and the preview is what is stored
+    // A FIGURE THAT FITS IS SAVED EXACTLY AS TYPED, and the preview is what is stored
     const { renderInvoiceTotal } = await import('../../src/api/web/booksInvoices.js');
     const dec = (x: string) => x as import('../../src/core/types/decimal.js').Decimal;
     for (const [line, q, p] of [
-      [{ label0: 'Fil', quantity0: '0.00005', price0: '20000', account0: k.sales, tax0: k.tax }, '0.0001', '20000.0000'],     // rounds UP to the smallest quantity
-      [{ label0: 'Fil', quantity0: '3', price0: '1.23456', account0: k.sales, tax0: k.tax }, '3.0000', '1.2346'],              // a fifth decimal, rounded as the column rounds
-      [{ label0: 'Fil', quantity0: '1000000', price0: '-0.00001', account0: k.sales, tax0: '' }, '1000000.0000', '0.0000'],    // below zero only past the column's scale: the column's zero
+      [{ label0: 'Fil', quantity0: '3', price0: '1.2345', account0: k.sales, tax0: k.tax }, '3.0000', '1.2345'],               // four decimals, kept
+      [{ label0: 'Fil', quantity0: '1', price0: '0', account0: k.sales, tax0: k.tax }, '1.0000', '0.0000'],                    // a price of zero
+      [{ label0: 'Fil', quantity0: '0.0001', price0: '20000', account0: k.sales, tax0: k.tax }, '0.0001', '20000.0000'],        // the least quantity the column holds
+      [{ label0: 'Fil', quantity0: '2.50000', price0: '4', account0: k.sales, tax0: '' }, '2.5000', '4.0000'],                 // zeros past the fourth decimal change nothing
       [{ label0: 'Fil', quantity0: '99999999999999.9999', price0: '100', account0: k.sales, tax0: '' }, '99999999999999.9999', '100.0000'], // the largest quantity, a net just inside its column
     ] as const) {
       const shown = await post('/app/books/invoices/preview', { ...base, ...line });
@@ -356,6 +361,6 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
       expect(shown.body).toBe(`<div data-total-body>${renderInvoiceTotal('en', { net: dec(row.net), tax: dec(row.tax), total: dec(row.total), currency: 'MAD' })}</div>`);
     }
     const { t } = await import('../../src/core/owner/i18n/messages.js');
-    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantitySmall', 'books.invoice.problem.quantityLarge', 'books.invoice.problem.priceLarge', 'books.invoice.problem.lineLarge'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantityDecimals', 'books.invoice.problem.priceDecimals', 'books.invoice.problem.quantityLarge', 'books.invoice.problem.priceLarge', 'books.invoice.problem.lineLarge'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
   });
 });
