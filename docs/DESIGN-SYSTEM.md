@@ -21,7 +21,8 @@ The approved eight-area implementation covers Today, Inbox, Customers, Products,
 
 **The UI correction (the owner, 2026-11-13) supersedes the warm paper below it in history.** Block 1 moved the signed-in
 app to this theme; the public pages (website, legal, customer documents, web chat) keep their previous tokens
-(`PUBLIC_TOKENS`) until their own block. Evidence: [Block 1](design/ui-correction/block1/README.md).
+(`PUBLIC_TOKENS`) until their own block. The sign-in pages (sign in, access code, sign up, forgotten password) are not
+among them: they share the app's tokens and took this theme with it. Evidence: [Block 1](design/ui-correction/block1/README.md).
 
 | Role | Value or rule |
 |---|---|

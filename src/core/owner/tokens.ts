@@ -361,9 +361,14 @@ export const DESIGN_TOKENS = {
 
 /**
  * THE PUBLIC PAGES KEEP THE THEME THEY HAD (2026-11-13). The UI correction's Block 1 changes the signed-in app; the
- * website, the legal pages, the customer's documents, the web chat and the door are Block 8's (audit F42, F43; F45 is
- * deferred by the owner to the later site redesign), and the site is held byte for byte by `site-bytes.test.ts`.
- * So `publicDocument()` and the door emit these — the values of 84cb4580, unchanged — until that block moves them.
+ * website, the legal pages, the customer's documents and the web chat are Block 8's (audit F42, F43; F45 is deferred
+ * by the owner to the later site redesign), and the site is held byte for byte by `site-bytes.test.ts`.
+ * So `publicDocument()` emits these — the values of 84cb4580, unchanged — until that block moves them.
+ *
+ * NOT THE DOOR. The sign-in pages (`/login`, `/login?with=code`, `/signup`, `/login/forgot`) draw from DESIGN_TOKENS
+ * and so took Block 1's canvas, field edge and corners with the signed-in app (and the installable app's manifest its
+ * background). An earlier note here said the door kept these values; it did not, and the supervisor accepted the new
+ * tokens there on 2026-11-13 as the target direction. Their layout and words are still Block 8's (F42, F43).
  */
 export const PUBLIC_TOKENS = {
   ...DESIGN_TOKENS,

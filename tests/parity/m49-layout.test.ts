@@ -232,10 +232,15 @@ describe('M49 · colour once or twice per screen', () => {
     expect(rogue, `a link spends the assistant's colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 
-  // The identity system (2026-10-04) — the primary act's fill is the brand magenta.
-  it('the SEND button is the brand fill; every other button is outlined', async () => {
+  // The identity system (2026-10-04) made the primary act's fill the brand magenta. THE UI CORRECTION (the owner,
+  // 2026-11-13) keeps the rule's shape — one fill, read from the brand VARIABLE — and changes what the variable holds
+  // where the owner works: on every signed-in page the owner theme sets `--color-brand` to the ink, so Send is the
+  // INK fill there (white on it 17.9:1) and the magenta is no longer a button.
+  it('the SEND button is the one fill, drawn from the brand variable, which is the INK on every signed-in page; every other button is outlined', async () => {
     const css = await shellCss();
     expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-brand\)/);
+    const { SPLIT_CSS } = await import('../../src/api/web/splitStyle.js');
+    expect(SPLIT_CSS, 'the owner theme makes the brand variable the ink').toMatch(/\.owner-shell \{[^}]*--color-brand:var\(--color-ink\)/);
     // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look (F05, F06): a secondary button's edge is a 1 px control line (3.5:1 on white),
     // not a 1.5 px stone frame; it is still outlined on the surface, never filled.
     expect(css).toMatch(/\.btn \{[^}]*border:1px solid var\(--color-control-line\)[^}]*background:var\(--color-surface\)/);

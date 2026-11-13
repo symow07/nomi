@@ -2650,7 +2650,7 @@ export function renderConversationDetail(
    * scroll region, then what the owner does about its newest message, held under it. Every card and control that
    * was here is still here, in CC-25's order: the transcript, then the reply for approval, then the rest.
    */
-  const more = viewer.isOwner ? `<details class="conv-more"><summary>${esc(t(locale, 'nav.more'))}</summary><div class="conv-more-menu">
+  const more = viewer.isOwner ? `<details class="conv-more"><summary>${esc(t(locale, 'conv.more'))}</summary><div class="conv-more-menu">
     ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
