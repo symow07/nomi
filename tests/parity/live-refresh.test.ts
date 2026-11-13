@@ -118,7 +118,13 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // The owner's four changes (2026-10-08): the field closer and softer, the pool drawn as the glow made thin,
     // and a talking page that opens at its end — 44,947 measured; 44,000 became 46,000, deliberately.
     // Area 2 adds the optional conversation panel, scroll restoration and stale-request-safe reply insertion (about 7 KB) to the same deferred script.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(54_000);
+    // The UI correction's fix round (2026-11-13, F21): a select's choice written out under it when its box is too narrow
+    // to show it whole (the Advanced entry's account, party and tax code) — 54,888 measured; 54,000 became 55,500, deliberately.
+    // The same round, F12 on a phone: the thread measured so it gives the room the reply's block needs above the tab bar
+    // (nothing stuck over anything; the supervisor's order of 2026-11-13) — 55,896 measured; 55,500 became 56,500, deliberately.
+    // The third fix round (2026-11-13): the thread's measure is gone again — on a phone the tab bar is a row of the screen and
+    // the reply's answers a band of their own, by the stylesheet alone — 54,888 measured; 56,500 went back to 55,500.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(55_500);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

@@ -1,0 +1,194 @@
+# UI correction — Block 1: the direction, on four pages
+
+Block 1 of the UI/UX correction (the owner's direction of 2026-11-13): the shared foundations and the four priority
+findings (F12, F18, F21, F29). Later blocks carry the system through every other page. The findings table and the
+every-page inventory are kept in the owner's private notes, not in this repository.
+
+All images are a local instance with synthetic data only (the demo workspace plus `tools/split-preview.mjs seed`, and
+three synthetic customer messages for Knowledge). No provider was contacted for them; nothing was sent. English owner
+UI. Desktop is 1440×900, phone is 390×844 (browser emulation, not a physical phone). "before" is `84cb4580`; "after" is
+this branch. `SPLIT_TODAY` changes nothing since the redesign (no renderer reads it), so both flag states draw these
+same pages; the instance ran with it off.
+
+| Page | Desktop | Phone |
+|---|---|---|
+| Inbox | [before](inbox-desktop-before.png) · [after](inbox-desktop-after.png) | [before](inbox-phone-before.png) · [after](inbox-phone-after.png) |
+| Conversation, a reply waiting (F12) | [before](conversation-desktop-before.png) · [after](conversation-desktop-after.png) | [before](conversation-phone-before.png) · [after](conversation-phone-after.png) · [after, landing on the newest message as the Inbox's rows do](conversation-phone-latest-after.png) |
+| Books home | [before](books-home-desktop-before.png) · [after](books-home-desktop-after.png) | [before](books-home-phone-before.png) · [after](books-home-phone-after.png) |
+| New invoice (F18) | [before](invoice-new-desktop-before.png) · [after](invoice-new-desktop-after.png) · whole page [before](invoice-new-desktop-full-before.png) · [after](invoice-new-desktop-full-after.png) · [a saved draft's edit form](invoice-edit-desktop-after.png) | [before](invoice-new-phone-before.png) · [after](invoice-new-phone-after.png) · whole page [before](invoice-new-phone-full-before.png) · [after](invoice-new-phone-full-after.png) |
+| Advanced entry (F21) | [before](entry-new-desktop-before.png) · [after](entry-new-desktop-after.png) · [after, an account chosen](entry-new-chosen-desktop-after.png) | [before](entry-new-phone-before.png) · [after](entry-new-phone-after.png) |
+| Knowledge, a long message (F29) | [before](knowledge-desktop-before.png) · [after](knowledge-desktop-after.png) · whole page [before](knowledge-desktop-full-before.png) · [after](knowledge-desktop-full-after.png) | [before](knowledge-phone-before.png) · [after](knowledge-phone-after.png) · whole page [before](knowledge-phone-full-before.png) · [after](knowledge-phone-full-after.png) |
+
+## Measured
+
+| | Before | After |
+|---|---|---|
+| Knowledge, page wider than the window (1440 / 390) | 5,639 px / 6,153 px | 0 / 0 |
+| New invoice, page height (1440 / 390) | 4,151 px / 5,623 px | 1,001 px / 1,428 px |
+| Conversation, the draft's box from the top (1440) | 643 px | 435 px; Send at 519 px; the page itself no longer scrolls |
+| Conversation on a phone, landing on the newest message | — | draft 449–580 px, Send and Hand to me 588–634 px, above the tab bar (775 px) |
+| Advanced entry, narrowest account / currency select (1440) | 40–68 px (the audit's measure) | 179 px / 74 px, no scrolling; from 1280 px down the table scrolls inside its own frame |
+| Advanced entry on a phone | a 1,234 px table in a 389 px form | one labelled group per line, 346 px fields, no sideways scroll; the page is long (5,433 px for eight lines) |
+
+## The foundation
+
+- Canvas `#FAFAF9`, surfaces `#FFFFFF`, ink `#171717`, secondary ink `#5E5E5A`, separators `#E4E4E1`, a quiet recess
+  `#F1F1EF`, a control's edge `#8A8A86`. Contrast (WCAG): ink on surface 17.9:1, on canvas 17.2:1, on the recess 15.9:1;
+  secondary ink 6.5:1, 6.2:1 and 5.8:1; a control's edge 3.5:1 on surface and 3.3:1 on canvas; the accent `#9A0F5E`
+  8.1:1 and 7.7:1; the green `#3F6B5C` 6.0:1 (`tests/parity/warmth-pass.test.ts`
+  and `palette.test.ts` compute them).
+- Magenta is the seal, the small dot before what waits, and the rail's count. Links, chosen tabs, where you are, focus
+  rings, selections, fields and the assistant's draft are ink and neutral.
+- One sans (the vendored Noto set, per-language order unchanged) for titles, names and what people say. One page-title
+  role: 26 px semibold, 24 px on a phone. Figures are tabular on every signed-in page.
+- Buttons: the primary act is the one ink fill; a secondary is white with a 1 px edge; a consequential act has a heavy
+  ink edge and weight. No red.
+- Corners: control 8, card 12, panel 16. Rail icons 20 px in a 48 px target.
+- The public pages (website, legal, customer documents, web chat) keep their previous tokens until their own block.
+  The sign-in pages (sign in, access code, sign up, forgotten password) are not among them: they share the app's
+  tokens and took the new canvas, field edge and corners with it (see the second fix round).
+
+## The fix round (same day)
+
+- **The invoice's total while it is filled** ([after](invoice-new-total-desktop-after.png)): the form asks a preview route as its
+  lines change (400 ms after the last change, one question at a time) and shows Before tax, Tax and Total with the
+  currency. The route reads the form exactly as Save does and answers from the one function Save uses for a line's
+  figures; it writes nothing. A form Save would send back for its lines reads "cannot be worked out yet". Without
+  script the form reads as before. `tests/integration/books-invoice-pages.test.ts` holds the preview equal to what the
+  database stores after the same form is saved (tax, several lines, a tax that rounds).
+- **Send on a phone**: Send and Hand to me rest just above the tab bar while any part of the reply is on the screen.
+  390×844: [top of the page](conversation-phone-390-top-after.png) Send 721–767, [newest message](conversation-phone-390-latest-after.png)
+  597–643, bar at 775; no scroll position puts them under the bar. 320×568: [newest message](conversation-phone-320-latest-after.png)
+  445–491, bar at 499; at the [top of the page](conversation-phone-320-top-after.png) the reply is still below the screen.
+  While scrolling at 320 px the reply's head emerges from behind the bar for about 120 px, as all content does.
+- `node tools/pre-pilot.mjs --scripted`: 14 of 14 on `84cb4580` and 14 of 14 on this branch.
+
+## The second fix round (after an independent test of `44835003`)
+
+Seven failures were found by the tester and fixed here; each line gives the measure before and after, taken in the
+running app (Chromium emulation; no physical phone). `fix2-*` images are the "after".
+
+- **The stuck Send row covered the reply.** Before: the row hid 54 of the box's 131 px at the top of the page on
+  390×844, left 29 px readable at the newest message on 320×568, and hid 54 of 77 px at 200 % zoom (82 % at worst).
+  Now nothing is stuck over anything. What the reply is, why it waits, the reply and its two answers are one block in
+  its own place under the thread; where the head, the thread and that block are taller than the screen, the thread
+  gives the room (its own scroll region, opened on its newest message, as on a desk), so Send ends above the tab bar
+  at the top of the page. After: 0 px of the reply, the head or the thread under any control at every scroll position
+  at 390×844, 320×568 and 200 % zoom; at 390×844 Send is above the bar at the top (712–758, bar 775), at the newest
+  message and at 0 of 46 scroll positions; the desk is unchanged.
+  [390 top](fix2-f1-conversation-390-top.png) · [390 newest](fix2-f1-conversation-390-latest.png) ·
+  [390 typing](fix2-f1-conversation-390-typing.png) · [390 Arabic](fix2-f1-conversation-390-latest-ar.png) ·
+  [320 top](fix2-f1-conversation-320-top.png) · [320 newest](fix2-f1-conversation-320-latest.png) ·
+  [200 % top](fix2-f1-conversation-zoom200-top.png) · [200 % newest](fix2-f1-conversation-zoom200-latest.png) ·
+  [desk](fix2-conversation-desktop.png).
+  **Known:** at 320×568 and at 200 % zoom the head alone leaves less room than the reply needs, so the page there is
+  the plain page: at the top the reply is below the screen (not shown, not under the bar), at the newest message it
+  is whole with Send above the bar, and while scrolling it comes up from behind the bar as all content does (Send
+  for about 110 px of scroll). The thread's measure is the page script's; without script every phone gets the plain
+  page.
+- **A control's edge under 3:1.** Hand to me and No reply needed, Today's reply box, the Inbox's search field and Ask
+  Nomi's question box were 1.27:1 (1.22:1); each is the control edge now (3.5:1 on white, 3.3:1 on the canvas). A
+  sweep by computed style over 47 signed-in pages at 1440 and 390 found 5 before and 0 after.
+  [Today](fix2-f2-today-reply-box.png) · [Inbox](fix2-f2-inbox-search.png) · [Ask Nomi](fix2-f2-ask-box.png).
+- **Disabled looked enabled.** A button that cannot be pressed is the recess's sand with a faint edge, its word in the
+  secondary ink (5.8:1 — readable, not faded by opacity) and the not-allowed cursor, on every signed-in page.
+  [The invoice form with no customer](fix2-f3-invoice-no-customer-desktop.png) · [its Save](fix2-f3-save-disabled.png).
+- **A waiting button grew.** Send 90 → 106 px and Save the draft 140 → 157 px while a request was held; now 90 → 90
+  and 140 → 140 (the dots sit in the button's own padding), one request for three presses.
+  [Send, waiting](fix2-f4-pending-send.png).
+- **A price or quantity below zero.** Before: the total read `$-10.00` and Save answered an error page. After: the
+  total "cannot be worked out yet", Save comes back with "Line 1: the price cannot be below zero." and every typed
+  value kept, nothing written. The form refuses exactly what the table refuses (a quantity must be above zero; a
+  price may be zero). [the form sent back](fix2-f5-negative-422.png) · [before saving](fix2-f5-negative-preview.png).
+- **The Advanced entry's account name was cut** ("6330 · Clients et comp" in 140–155 px of room; a seven-figure
+  amount clipped in 58–63 px). Each line is now a labelled group at every width, the account on its own line; a
+  choice still wider than its box is written out in full under it. After, English and Arabic, at 1440 / 1280 / 1024 /
+  820 / 390 / 320 / 200 %: account room 906 / 746 / 698 / 494 / 320 / 250 / 650 px, amounts 114–308 px of room for
+  101 px of figures, page overflow 0, nothing scrolling sideways.
+  English [1440](fix2-f6-entry-en-1440.png) · [1280](fix2-f6-entry-en-1280.png) · [1024](fix2-f6-entry-en-1024.png) ·
+  [820](fix2-f6-entry-en-820.png) · [390](fix2-f6-entry-en-390.png) · [320](fix2-f6-entry-en-320.png) ·
+  [200 %](fix2-f6-entry-en-zoom200.png); Arabic [1440](fix2-f6-entry-ar-1440.png) · [820](fix2-f6-entry-ar-820.png) ·
+  [390](fix2-f6-entry-ar-390.png) · [320](fix2-f6-entry-ar-320.png).
+- **The sign-in pages.** These notes said they kept their tokens; they did not. They take the app's new tokens, and
+  that is accepted as the direction. Checked at 1440×900 and 390×844 in English and Arabic (sign in, access code,
+  sign up, forgotten password, and a wrong code): no text under AA, no control edge under 3:1, every focus stop
+  ringed at 2 px (7.1:1 at least), no sideways overflow.
+  [sign in](fix2-f7-door-en-1440-login.png) · [access code](fix2-f7-door-en-1440-login-with-code.png) ·
+  [a wrong code](fix2-f7-door-en-1440-login-with-code-wrong-code.png) · [sign up](fix2-f7-door-en-1440-signup.png) ·
+  [forgotten password](fix2-f7-door-en-1440-login-forgot.png) · phone [sign in](fix2-f7-door-en-390-login.png) ·
+  [sign up](fix2-f7-door-en-390-signup.png) · Arabic [sign in](fix2-f7-door-ar-1440-login.png) ·
+  [phone](fix2-f7-door-ar-390-login.png) · [a wrong code](fix2-f7-door-ar-390-login-with-code-wrong-code.png) ·
+  [sign up](fix2-f7-door-ar-390-signup.png) · [forgotten password](fix2-f7-door-ar-390-login-forgot.png).
+  The website and the four legal pages are byte for byte what `84cb4580` serves, in five languages (25 of 25).
+- Also: buttons answer the pointer ([Send](fix2-hover-send.png), [Hand to me](fix2-hover-hand-to-me.png)); the
+  conversation head's "More" is in the owner's language ([Arabic](fix2-more-ar-390.png)).
+
+## The third fix round (after a second independent test of `b21fcbd8`)
+
+Two failures were left and two new findings were placed here. `fix3-*` images are the "after". Chromium emulation;
+no physical phone.
+
+- **On a phone no control rests under the tab bar and no control covers content — by construction.** The second
+  round's layout depended on the conversation: with the thread giving the room, Send and Hand to me still rested
+  23 of 48 px under the bar at the newest message on 320×568 in Arabic, and No reply needed rested under it in
+  several states. The thread's measure (and its script) is gone. Now, on a conversation at 720 px wide or less:
+  1. **The tab bar is a row of the screen, not a layer over the page.** The screen is a column: the page's own scroll
+     region, then the bar. The region ends where the bar begins, so nothing can be under the bar — in any state, any
+     language, any size, with script or without (the stylesheet alone does it).
+  2. **A reply waiting has its box and its three answers in a band of a set height between the region and the bar.**
+     The region ends where the band begins, so the band is over nothing. The band's height is set by the stylesheet
+     and the reply's box takes what the answers leave (it scrolls inside itself), so Send, Hand to me and No reply
+     needed are whole at every moment, whatever the reply's length, the language or what is typed.
+  3. Nothing is sticky. A screen under 400 px tall has no band: everything is in the region, in the page's order.
+
+  `tests/parity/conversation-phone.test.ts` reads these rules themselves. Measured after, ten states (a reply waiting
+  on two channels, waiting for a person in English and Arabic, no reply waiting, handed over, answered, the order
+  card, a deletion request, an expired reply) at 390×844, 320×568 and 200 % of 1440×900, at the top and at the
+  newest message, in English, Arabic, Spanish, French and Chinese, with script and without: **666 measures, 1,746
+  scroll positions inside them, 0 with a control under the bar, 0 with anything drawn over text or a control, 0 with
+  an answer not whole.** The figures are the same in every language: 390×844 box 444–655, Send and Hand to me
+  663–711, No reply needed 719–767, bar 775; 320×568 box 258–379, 387–435, 443–491, bar 499; 200 % box 210–317, the
+  three answers 325–373, bar 381. The earlier tester's own script on the same build: nothing covered in 30 of 30
+  states; Arabic 320×568 at the newest message Send 387–435 (was 474–522 with the bar at 499). The desk is unchanged
+  (1440×900: box 435–511, Send 519–565, No reply needed 573–619).
+  [390 top](fix3-r1-draft-en-390x844-top.png) · [390 newest](fix3-r1-draft-en-390x844-latest.png) ·
+  [390 typing](fix3-r1-draft-en-390x844-typing.png) · [390 Arabic](fix3-r1-draft-ar-390x844-latest.png) ·
+  [320 top](fix3-r1-draft-en-320x568-top.png) · [320 newest](fix3-r1-draft-en-320x568-latest.png) ·
+  [320 Arabic](fix3-r1-draft-ar-320x568-latest.png) · [200 %](fix3-r1-draft-en-zoom200-latest.png) ·
+  [200 % Arabic](fix3-r1-draft-ar-zoom200-latest.png) · [handed over](fix3-r1-handed-en-390x844-latest.png) ·
+  [the order card, 320](fix3-r1-order-en-320x568-latest.png) · [a deletion request](fix3-r1-deletion-en-390x844-latest.png) ·
+  [an expired reply](fix3-r1-expired-en-390x844-latest.png) · [no reply waiting](fix3-r1-noDraft-en-390x844-latest.png).
+  **Known, and not the same thing:** the region scrolls, so where it comes to rest its lower edge can cut a line or a
+  control that is not in the band, as the edge of any scrolling page does (handed over at 390×844: "Send the photo"
+  is half shown at the newest message). It is under nothing; one scroll shows it. Only a reply waiting has a band.
+  On a small phone the band takes half the screen (320×568: 250 of 499 px above the bar). After the three answers the
+  keyboard's next stop is in the region above them (the page's order is unchanged; the band is drawn last).
+  This section replaces the second round's "Known" for 320×568 and 200 %.
+- **The scroll count the tester could not explain** (Send cut by the bar at 4 of 52 positions at 390×844): its loop ran
+  after its typing step, and the page keeps typed words for the tab; reloaded with the longer reply, the thread could
+  no longer give enough room and the page fell back to the plain page, where Send passed behind the bar (reproduced:
+  4 positions with the kept words, 0 without). There is no such fallback now.
+- **More decimals than an invoice keeps, a figure too large.** Before: a quantity of 0.00001 and a price of
+  1000000000000000 each showed a total and Save answered an error page. The invoice's table keeps quantities and
+  prices to four decimals and fourteen digits before the point, and a line's net to sixteen; given a longer figure
+  it would round it. A typed figure is never changed for the owner without a word: the form refuses a figure with
+  more than four decimals, naming the field — "Line 1: the quantity has more than four decimals. An invoice keeps
+  four." — and one too large ("Line 1: the price is too large for an invoice."; also a quantity too large, a line
+  whose quantity times price is too large, a label over 200 characters). Every typed value is kept, nothing is
+  written, and the total reads "cannot be worked out yet". A figure that fits is saved exactly as typed, and the
+  total shown is the total stored.
+  [0.00001, sent back](fix3-r2-small-quantity-422.png) · [before saving](fix3-r2-small-quantity-preview.png) ·
+  [1.23456, sent back](fix3-r2-long-price-422.png) · [before saving](fix3-r2-long-price-preview.png) ·
+  [too large, sent back](fix3-r2-large-price-422.png) · [before saving](fix3-r2-large-price-preview.png).
+- **The Assistant overview overflowed sideways** by 2,123 px at 1440 and 2,637 px at 390 from the long e-mail
+  Knowledge was fixed for (the same quote, a different page; the same on `84cb4580`). It is held the same way now:
+  0 at 1440, 820, 390 and 320 in five languages, the whole message one press away.
+  [1440](fix3-n1-assistant-1440.png) · [the whole message, open](fix3-n1-assistant-1440-open.png) · [390](fix3-n1-assistant-390.png).
+- **Knowledge overflowed by 16 px at 320 in French** (a reason and a date that did not wrap): 0 in five languages.
+  [French, 320](fix3-n2-knowledge-fr-320.png).
+
+## Not done here
+
+- Phone keyboard and touch behaviour on a physical device.
+- The Advanced entry's long phone page and its mid-width table scroll: with the accounting tables, in the Books block.
+- Every other page: its own block.

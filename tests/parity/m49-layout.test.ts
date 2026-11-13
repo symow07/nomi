@@ -179,10 +179,12 @@ describe('M49 · the two voices are on the right axis', () => {
     expect(conversation).not.toMatch(/font-family:\s*var\(--font-voice\)/);
     const customers = await readFile(new URL('customersStyle.ts', WEB_DIR), 'utf8');
     const customerSerif = [...customers.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map(m => m[1]!.trim());
-    expect(customerSerif).toEqual(['.ca-heading h1']);
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: one sans for the working app, titles and names included.
+    // The serif left these two page titles; no rule in either sheet may bring it back.
+    expect(customerSerif).toEqual([]);
     const products = await readFile(new URL('productsStyle.ts', WEB_DIR), 'utf8');
     const productSerif = [...products.matchAll(/([^{}\n]+)\{[^{}]*font-family:var\(--font-voice\)/g)].map(m => m[1]!.trim());
-    expect(productSerif).toEqual(['.product-area h1.page']);
+    expect(productSerif).toEqual([]);
   });
 
   it('and on the Split Today sheet it is on headings and big numbers alone, never running text', async () => {
@@ -230,11 +232,18 @@ describe('M49 · colour once or twice per screen', () => {
     expect(rogue, `a link spends the assistant's colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 
-  // The identity system (2026-10-04) — the primary act's fill is the brand magenta.
-  it('the SEND button is the brand fill; every other button is outlined', async () => {
+  // The identity system (2026-10-04) made the primary act's fill the brand magenta. THE UI CORRECTION (the owner,
+  // 2026-11-13) keeps the rule's shape — one fill, read from the brand VARIABLE — and changes what the variable holds
+  // where the owner works: on every signed-in page the owner theme sets `--color-brand` to the ink, so Send is the
+  // INK fill there (white on it 17.9:1) and the magenta is no longer a button.
+  it('the SEND button is the one fill, drawn from the brand variable, which is the INK on every signed-in page; every other button is outlined', async () => {
     const css = await shellCss();
     expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-brand\)/);
-    expect(css).toMatch(/\.btn \{[^}]*border:1\.5px solid var\(--color-ink-secondary\)[^}]*background:var\(--color-surface\)/);
+    const { SPLIT_CSS } = await import('../../src/api/web/splitStyle.js');
+    expect(SPLIT_CSS, 'the owner theme makes the brand variable the ink').toMatch(/\.owner-shell \{[^}]*--color-brand:var\(--color-ink\)/);
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look (F05, F06): a secondary button's edge is a 1 px control line (3.5:1 on white),
+    // not a 1.5 px stone frame; it is still outlined on the surface, never filled.
+    expect(css).toMatch(/\.btn \{[^}]*border:1px solid var\(--color-control-line\)[^}]*background:var\(--color-surface\)/);
   });
 });
 
@@ -320,6 +329,10 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
       // The fix wave (w4-public-07) — the site's button: a label that wraps sits in the middle of its box.
       ['site.ts  .site-go', 'a button\'s own label, centred in its button when it takes two lines'],
+      // The UI correction's third fix round (R-1) — a phone's three answers share a band of a set height: each is 48 px
+      // whatever its words, so a label that takes two lines (French, Arabic at 320 px) sits in the middle of its button.
+      ['conversationStyle.ts  .conversation-workspace form.approve .acts .btn', 'Send and Hand to me in the phone\'s answer band: a two-line label, centred in its button'],
+      ['conversationStyle.ts  .conversation-workspace #approve .acts-more .btn', 'No reply needed in the same band, the same way'],
       // Phase 9 of the warmth run — the month on a phone: seven narrow columns, each day a face over its signal.
       ['layout.ts  .mo thead th', 'the weekday over its narrow column, on a phone where the week fits the screen'],
       ['layout.ts  .mo td.today .cal-now', 'today\'s word under its date, centred in the day\'s narrow cell on a phone'],

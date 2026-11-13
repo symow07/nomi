@@ -377,6 +377,7 @@ const flashReason = (res: { headers: Record<string, unknown> }): string => {
  */
 const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "takes the conversation's own id and recomputes the panel from its records: it draws the panel (JSON only when Accept asks for it) and keeps nothing — no thread, no ledger line — so there is no write to walk"],
+  "POST /app/books/invoices/preview": ["200, nothing written", "the invoice form's total while it is filled (F18): it reads the form as Save does — the tax codes and accounts it names are looked up in the caller's own workspace only, so another workspace's id is 'not one of yours' and yields the 'not yet' sentence — answers a fragment and keeps nothing: there is no write to walk"],
   "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/settings/business/shopify/connect": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],

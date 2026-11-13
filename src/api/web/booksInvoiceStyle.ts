@@ -56,6 +56,35 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bd-line-facts dt{font-size:var(--font-size-small);}
 .bd-line-facts dd{margin:0;}
 .bd-editor-form>.btn{align-self:flex-start;}
+/* THE UI CORRECTION (2026-11-13, audit F18) — the editor in its task's order: customer, one item, the rest on request, the total by Save. */
+.book-doc-editor{max-width:var(--measure-column);}
+.book-doc-editor .lede{margin-block-end:var(--space-24);}
+.bd-customer{margin-block-end:var(--space-32);}
+.bd-customer>h2,.bd-edit-lines>h2{font-size:var(--font-size-title);margin:0 0 var(--space-12);}
+.bd-customer>.pq select{width:100%;max-width:var(--measure-form);}
+.bd-customer .sr,.bd-edit-line .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.bd-optional{min-width:0;}
+.bd-optional>summary{display:inline-flex;align-items:center;gap:var(--space-4);min-height:44px;cursor:pointer;font-size:var(--font-size-small);color:var(--color-ink-secondary);}
+.bd-optional[open]>summary{color:var(--color-ink);font-weight:600;}
+.bd-add-customer>.pform{margin-top:var(--space-8);padding:var(--space-16);border:1px solid var(--color-border);border-radius:var(--radius-card);max-width:var(--measure-form);}
+.book-doc-editor .bd-editor-form{gap:var(--space-24);}
+.bd-edit-line{grid-template-columns:minmax(0,3fr) minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr);gap:var(--space-12) var(--space-16);padding:var(--space-16) 0 var(--space-8);margin:0;}
+.bd-edit-line .bd-line-description{grid-column:auto;}
+.bd-edit-line .bd-line-account{grid-column:1/-1;}
+.bd-edit-line .bd-line-account>.pq{max-width:var(--measure-form);margin-block:var(--space-4) var(--space-12);}
+.bd-edit-line input[name^="quantity"],.bd-edit-line input[name^="price"]{text-align:end;font-variant-numeric:tabular-nums;}
+.bd-add-item>summary{display:inline-flex;list-style:none;cursor:pointer;margin-block:var(--space-8);border-radius:var(--radius-control);}
+.bd-add-item>summary::-webkit-details-marker,.bd-add-item>summary::before{display:none;}
+.bd-add-item>summary .btn::before{content:"+";margin-inline-end:var(--space-8);font-weight:400;}
+.bd-add-item[open]>summary{display:none;}
+.bd-header-fields{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}
+.bd-header-fields>legend{margin-bottom:var(--space-12);}
+.bd-header-fields>.pq{max-width:var(--measure-form);}
+.bd-more-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-16);margin-block:var(--space-4) var(--space-8);}
+.bd-save{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-16) var(--space-24);padding-block:var(--space-16);border-top:1px solid var(--color-border);}
+.bd-save .bd-editor-total{margin:0;flex:1 1 280px;max-width:var(--measure-form);min-height:3lh;}
+.bd-save .bd-editor-total>*,.bd-save .bd-editor-total [data-total-body]>*{margin:0;}
+.bd-save .btn{flex:none;}
 @media(max-width:600px){
  .bd-filters{align-items:stretch;}.bd-filters label{flex-basis:100%;}.bd-filters .btn{flex:1;}
  .bd-invoice-row{grid-template-columns:minmax(0,1fr);gap:var(--space-16);}
@@ -71,6 +100,10 @@ export const BOOKS_INVOICE_CSS = String.raw`
  .bd-lines td:first-child::before{display:none;}
  .bd-totals{max-width:100%;}.bd-totals .row{gap:var(--space-12);}
  .bd-header-fields,.bd-edit-line{grid-template-columns:minmax(0,1fr);}
+ .bd-edit-line{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+ .bd-edit-line .bd-line-description,.bd-edit-line>label:nth-of-type(4){grid-column:1/-1;}
+ .bd-more-fields{grid-template-columns:minmax(0,1fr);}
+ .bd-save .btn{flex:1 1 100%;}
  .bd-editor-form>.btn{align-self:stretch;}
 }
 /* Statement evidence stays beside its available match on wide screens. */

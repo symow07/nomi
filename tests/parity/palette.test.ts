@@ -45,7 +45,9 @@ async function sources(dir: URL): Promise<{ f: string; src: string }[]> {
 }
 
 describe('the palette', () => {
-  it('is five warm neutrals and one warm tone, three magentas and the three states — nothing else', () => {
+  // THE UI CORRECTION (the owner, 2026-11-13; audit F02) supersedes the warm paper: the neutrals are neutral, the surface is
+  // white, and one key joined them (`controlLine`, a field's edge). The magentas, the seal's colours and the ink are unchanged.
+  it('is the neutrals and one quiet recess, a control line, the magentas and the three states — nothing else', () => {
     expect(Object.keys(C).sort()).toEqual([
       // The warmth run (2026-10-03): the wash under the assistant's own words.
       // The warmth pass (2026-10-04): waiting is the deep magenta, `needs`, with its own wash.
@@ -61,13 +63,16 @@ describe('the palette', () => {
       'coin',
       // The favicon (2026-11-04): the cream disc behind that coin, so it reads on a dark tab bar. Not a magenta.
       'coinGround',
+      // The UI correction (2026-11-13): a field's or a quiet button's edge, 3:1 or better on white (a separator need not be).
+      'controlLine',
     ].sort());
     expect(C['ink']).toBe('#171717');
-    expect(C['inkSecondary']).toBe('#625D57');
-    expect(C['border']).toBe('#DED7CF');
-    expect(C['paper']).toBe('#F7F3EE');
-    expect(C['surface']).toBe('#FFFDFA');
-    expect(C['sand']).toBe('#EDE7DF');
+    expect(C['inkSecondary']).toBe('#5E5E5A');
+    expect(C['border']).toBe('#E4E4E1');
+    expect(C['paper']).toBe('#FAFAF9');
+    expect(C['surface']).toBe('#FFFFFF');
+    expect(C['sand']).toBe('#F1F1EF');
+    expect(C['controlLine']).toBe('#8A8A86');
     expect(C['needs']).toBe('#9A0F5E');
     expect(C['assistant']).toBe('#171717');
     expect(C['brand']).toBe('#9A0F5E');

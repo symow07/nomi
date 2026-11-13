@@ -146,4 +146,221 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     await expect(admin.query(`update parties set registry_number = 'ABC' where id = $1`, [party.id])).rejects.toThrow(/parties_registry_shape/);
     await expect(admin.query(`update parties set siret = '55210055400099', tax_number = 'FR11999999999' where id = $1`, [party.id])).rejects.toThrow(/parties_siret_shape|parties_vat_matches_registry/);
   });
+
+  /**
+   * F18 (the UI correction, 2026-11-13) — THE TOTAL WHILE THE FORM IS FILLED. The preview route answers what Save would
+   * store, from the books' own per-line figures (`invoiceLineFigures`, the one function `writeInvoiceLines` uses), and
+   * writes nothing. Held here: the preview of a form EQUALS what the database holds after that same form is saved
+   * (tax, several lines, figures that round), and the form is the owner's: the accountant and a stranger get nothing.
+   */
+  it('F18 · the total preview equals what Save stores for the same lines, writes nothing, and is the owner\'s alone', async () => {
+    const { renderInvoiceTotal } = await import('../../src/api/web/booksInvoices.js');
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const cases: Record<string, string>[] = [
+      // one line, taxed
+      { label0: 'Sacs en toile', quantity0: '100', price0: '45', account0: k.sales, tax0: k.tax },
+      // several lines: a taxed one whose tax rounds (3 × 33.33 at 20 %), an untaxed one, a fractional quantity with a typed thousands mark
+      { label0: 'Trousse', quantity0: '3', price0: '33.33', account0: k.sales, tax0: k.tax,
+        label1: 'Livraison', quantity1: '7', price1: '0.19', account1: k.sales, tax1: '',
+        label2: 'Sur mesure', quantity2: '1.5', price2: '1,250.55', account2: k.sales, tax2: k.tax },
+      // a line left empty between two filled ones is left out by both
+      { label0: 'A', quantity0: '2', price0: '9.99', account0: k.sales, tax0: k.tax, label2: 'C', quantity2: '1', price2: '0.01', account2: k.sales, tax2: k.tax },
+    ];
+    for (const lines of cases) {
+      const form = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '', ...lines };
+      const before = await counts();
+      const shown = await post('/app/books/invoices/preview', form);
+      expect(shown.statusCode).toBe(200);
+      expect(shown.headers['cache-control']).toBe('no-store');
+      expect(await counts(), 'the preview writes nothing').toEqual(before);
+      // …then the same form, saved: the figures the database holds for it
+      const saved = await post('/app/books/invoices', form);
+      expect(saved.statusCode).toBe(303);
+      const id = String(saved.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+      const stored = (await as((q) => q(`select coalesce(sum(net), 0)::text as net, coalesce(sum(tax), 0)::text as tax, invoice_total($1)::text as total, count(*)::int as n
+        from invoice_lines where invoice_id = $1`, [id]))).rows[0];
+      expect(stored.n).toBe(Object.keys(lines).filter((x) => x.startsWith('label')).length);
+      const dec = (x: string) => x as import('../../src/core/types/decimal.js').Decimal;
+      expect(shown.body).toBe(`<div data-total-body>${renderInvoiceTotal('en', { net: dec(stored.net), tax: dec(stored.tax), total: dec(stored.total), currency: 'MAD' })}</div>`);
+      expect(shown.body).toContain('MAD');
+      // and the saved draft's edit form shows those same figures beside Save
+      expect((await get(`/app/books/invoices/${id}/edit`)).body).toContain(renderInvoiceTotal('en', { net: dec(stored.net), tax: dec(stored.tax), total: dec(stored.total), currency: 'MAD' }, 'booksDocs.totalSaved'));
+    }
+    // the rounding case, in figures: 99.99 + 1.33 + 1,875.83 before tax; 20.00 + 375.17 of tax
+    const again = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[1]! });
+    expect(again.body).toMatch(/1,977\.15[\s\S]*395\.17[\s\S]*2,372\.32/);
+
+    // NOT YET, said plainly, never a figure: nothing typed; a quantity that is not one; a line with no label
+    for (const partial of [{}, { label0: 'Sacs', quantity0: 'abc', price0: '45', account0: k.sales }, { quantity0: '2', price0: '45', account0: k.sales }]) {
+      const r = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...partial });
+      expect(r.statusCode).toBe(200);
+      expect(r.body).toContain('cannot be worked out yet');
+      expect(r.body).not.toMatch(/\d/);
+    }
+    // the customer and the date are Save's to check: they do not hold the total back
+    expect((await post('/app/books/invoices/preview', { party: '', issueDate: '', currency: 'MAD', ...cases[0]! })).body).toContain('5,400.00');
+
+    // the form names the route, and stands without the script: the sentence, in the place the total is drawn
+    const page = (await get('/app/books/invoices/new')).body;
+    expect(page).toContain('data-total="/app/books/invoices/preview"');
+    expect(page).toMatch(/data-total-out aria-live="polite"><p class="caption muted">The total, with tax, is worked out when you save the draft/);
+
+    // the owner's alone, like the form: the accountant is refused as on Save, a stranger gets nothing, and neither wrote anything
+    const before = await counts();
+    const refused = await post('/app/books/invoices/preview', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[0]! }, accountant);
+    const refusedSave = await post('/app/books/invoices', { party, issueDate: '2026-06-02', currency: 'MAD', ...cases[0]! }, accountant);
+    expect(refused.statusCode).toBe(refusedSave.statusCode);
+    expect(refused.statusCode).not.toBe(200);
+    expect(refused.body).not.toContain('5,400.00');
+    const stranger = await app.inject({ method: 'POST', url: '/app/books/invoices/preview', payload: new URLSearchParams({ ...cases[0]! }).toString(), headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    expect(stranger.statusCode).not.toBe(200);
+    expect(stranger.body).not.toContain('5,400.00');
+    expect(await counts()).toEqual(before);
+  });
+
+  /**
+   * F-5 (the UI correction's fix round, 2026-11-13) — A FIGURE BELOW ZERO. The table holds `quantity > 0` and
+   * `unit_price >= 0` (0184); the form's reader let "-10" through, so the preview showed a total (a negative one) for a
+   * form Save could not store, and Save came back as an error page with the typed form gone. Now the reader refuses it
+   * by the table's own rule, no stricter and no looser: Save answers 422 with the field named and every typed value
+   * kept, nothing is written, and the preview says the line cannot be worked out — never a figure. A price of zero is
+   * still a price (the table takes it); a quantity of zero is still refused, in the words it always was.
+   */
+  it('F-5 · a price or a quantity below zero: 422 with the field named and the values kept, no row, and no figure in the preview', async () => {
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const base = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '' };
+    const before = await counts();
+    for (const [line, said] of [
+      [{ label0: 'Remise sur sacs', quantity0: '1', price0: '-10', account0: k.sales, tax0: k.tax }, 'Line 1: the price cannot be below zero.'],
+      [{ label0: 'Remise sur sacs', quantity0: '-3', price0: '12.50', account0: k.sales, tax0: k.tax }, 'Line 1: the quantity must be above zero.'],
+      // on the second line, so the line is named by its number; the first line is a good one
+      [{ label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax, label1: 'Livraison', quantity1: '1', price1: '-0.01', account1: k.sales, tax1: '' }, 'Line 2: the price cannot be below zero.'],
+    ] as const) {
+      const saved = await post('/app/books/invoices', { ...base, ...line });
+      expect(saved.statusCode, said).toBe(422);
+      expect(saved.body).toContain(said);
+      // every typed value is back in its box
+      for (const [name, value] of Object.entries(line)) if (/^(label|quantity|price)\d$/.test(name)) expect(saved.body, name).toMatch(new RegExp(`name="${name}"[^>]*value="${value.replace(/[.]/g, '\\.')}"`));
+      expect(await counts(), 'nothing is written').toEqual(before);
+      const shown = await post('/app/books/invoices/preview', { ...base, ...line });
+      expect(shown.statusCode).toBe(200);
+      expect(shown.body).toContain('cannot be worked out yet');
+      expect(shown.body, 'never a figure').not.toMatch(/\d/);
+      expect(await counts()).toEqual(before);
+    }
+    // the same on a draft saved over
+    const good = await post('/app/books/invoices', { ...base, label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(good.statusCode).toBe(303);
+    const id = String(good.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+    const afterGood = await counts();
+    const over = await post(`/app/books/invoices/${id}/edit`, { ...base, label0: 'Sacs', quantity0: '2', price0: '-45', account0: k.sales, tax0: k.tax });
+    expect(over.statusCode).toBe(422);
+    expect(over.body).toContain('Line 1: the price cannot be below zero.');
+    expect((await as((q) => q(`select unit_price::text as p from invoice_lines where invoice_id = $1`, [id]))).rows[0].p).toBe('45.0000');
+    expect(await counts()).toEqual(afterGood);
+
+    // THE TABLE'S OWN LINE, no stricter: a price of zero is saved and totalled; no looser: a quantity of zero is refused as it was
+    const free = { ...base, label0: 'Echantillon offert', quantity0: '1', price0: '0', account0: k.sales, tax0: k.tax };
+    expect((await post('/app/books/invoices/preview', free)).body).toMatch(/0\.00/);
+    expect((await post('/app/books/invoices', free)).statusCode).toBe(303);
+    const none = await post('/app/books/invoices', { ...base, label0: 'Sacs', quantity0: '0', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(none.statusCode).toBe(422);
+    expect(none.body).toContain('Line 1: not an amount above zero.');
+    // and the words exist in every language the owner reads
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantity', 'books.invoice.problem.price'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
+  });
+
+  /**
+   * R-2 (the UI correction's third fix round, 2026-11-13) — THE COLUMNS' OWN SCALE AND SIZE. 0184's invoice_lines holds
+   * quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0 and net numeric(18,2). A numeric(18,4) column keeps four
+   * decimals and fourteen digits before the point: a quantity of 0.00001 is zero to the table, and a price of
+   * 1000000000000000 does not fit — both showed a total in the preview and came back from Save as an error page.
+   * The column would ROUND a longer figure, and a typed figure is never changed silently (t1r's ruling): a figure with
+   * more than four decimals is refused, with the field named; one that fits is saved exactly as typed. Save answers 422
+   * with every typed value kept, nothing is written, and the preview shows no figure.
+   */
+  it('R-2 · more decimals than the column keeps, a figure too large for it: 422, field named, values kept, no row, no figure in the preview', async () => {
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const base = { party, issueDate: '2026-06-02', dueDate: '', currency: 'MAD', label: '' };
+    const before = await counts();
+    const qDec = 'Line 1: the quantity has more than four decimals. An invoice keeps four.';
+    const pDec = 'Line 1: the price has more than four decimals. An invoice keeps four.';
+    for (const [line, said] of [
+      // the tester's two cases
+      [{ label0: 'Sacs', quantity0: '0.00001', price0: '45', account0: k.sales, tax0: k.tax }, qDec],
+      [{ label0: 'Sacs', quantity0: '1', price0: '1000000000000000', account0: k.sales, tax0: k.tax }, 'Line 1: the price is too large for an invoice.'],
+      // never rounded for her: each of these the column would have changed (to 0.0001, to 0, to 1.2346)
+      [{ label0: 'Sacs', quantity0: '0.00005', price0: '20000', account0: k.sales, tax0: k.tax }, qDec],
+      [{ label0: 'Sacs', quantity0: '1000000', price0: '-0.00001', account0: k.sales, tax0: '' }, 'Line 1: the price cannot be below zero.'],
+      [{ label0: 'Sacs', quantity0: '3', price0: '1.23456', account0: k.sales, tax0: k.tax }, pDec],
+      [{ label0: 'Sacs', quantity0: '1', price0: '99999999999999.99995', account0: k.sales, tax0: k.tax }, pDec],
+      // the first figure that does not fit, in each box
+      [{ label0: 'Sacs', quantity0: '1', price0: '100000000000000', account0: k.sales, tax0: k.tax }, 'Line 1: the price is too large for an invoice.'],
+      [{ label0: 'Sacs', quantity0: '100000000000000', price0: '1', account0: k.sales, tax0: k.tax }, 'Line 1: the quantity is too large for an invoice.'],
+      // each figure fits its column, their product does not fit the net's (numeric(18,2)); on the second line
+      [{ label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax, label1: 'Lot', quantity1: '99999999999999', price1: '99999999999999', account1: k.sales, tax1: '' }, 'Line 2: the quantity times the price is too large for an invoice.'],
+    ] as const) {
+      const saved = await post('/app/books/invoices', { ...base, ...line });
+      expect(saved.statusCode, said).toBe(422);
+      expect(saved.body).toContain(said);
+      for (const [name, value] of Object.entries(line)) if (/^(label|quantity|price)\d$/.test(name)) expect(saved.body, name).toMatch(new RegExp(`name="${name}"[^>]*value="${value.replace(/[.]/g, '\\.')}"`));
+      expect(await counts(), 'nothing is written').toEqual(before);
+      const shown = await post('/app/books/invoices/preview', { ...base, ...line });
+      expect(shown.statusCode).toBe(200);
+      expect(shown.body).toContain('cannot be worked out yet');
+      expect(shown.body, 'never a figure').not.toMatch(/\d/);
+      expect(await counts()).toEqual(before);
+    }
+    // 0184's two length checks (the boxes stop at 200; a form sent another way is told so, not answered with an error page)
+    const long = 'x'.repeat(201);
+    for (const [form, said] of [
+      [{ ...base, label0: long, quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax }, 'Line 1: the label is longer than 200 characters.'],
+      [{ ...base, label: long, label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax }, 'The label of the invoice is longer than 200 characters.'],
+    ] as const) {
+      const saved = await post('/app/books/invoices', form);
+      expect(saved.statusCode, said).toBe(422);
+      expect(saved.body).toContain(said);
+      expect(saved.body).toContain(`value="${long}"`);
+      expect(await counts()).toEqual(before);
+    }
+    expect((await post('/app/books/invoices', { ...base, label: 'y'.repeat(200), label0: 'z'.repeat(200), quantity0: '1', price0: '1', account0: k.sales, tax0: '' })).statusCode, '200 characters fit').toBe(303);
+    // the same on a draft saved over: the draft keeps what it had
+    const good = await post('/app/books/invoices', { ...base, label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(good.statusCode).toBe(303);
+    const gid = String(good.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+    const afterGood = await counts();
+    const over = await post(`/app/books/invoices/${gid}/edit`, { ...base, label0: 'Sacs', quantity0: '0.00001', price0: '45', account0: k.sales, tax0: k.tax });
+    expect(over.statusCode).toBe(422);
+    expect(over.body).toContain(qDec);
+    expect((await as((q) => q(`select quantity::text as q from invoice_lines where invoice_id = $1`, [gid]))).rows[0].q).toBe('2.0000');
+    expect(await counts()).toEqual(afterGood);
+
+    // A FIGURE THAT FITS IS SAVED EXACTLY AS TYPED, and the preview is what is stored
+    const { renderInvoiceTotal } = await import('../../src/api/web/booksInvoices.js');
+    const dec = (x: string) => x as import('../../src/core/types/decimal.js').Decimal;
+    for (const [line, q, p] of [
+      [{ label0: 'Fil', quantity0: '3', price0: '1.2345', account0: k.sales, tax0: k.tax }, '3.0000', '1.2345'],               // four decimals, kept
+      [{ label0: 'Fil', quantity0: '1', price0: '0', account0: k.sales, tax0: k.tax }, '1.0000', '0.0000'],                    // a price of zero
+      [{ label0: 'Fil', quantity0: '0.0001', price0: '20000', account0: k.sales, tax0: k.tax }, '0.0001', '20000.0000'],        // the least quantity the column holds
+      [{ label0: 'Fil', quantity0: '2.50000', price0: '4', account0: k.sales, tax0: '' }, '2.5000', '4.0000'],                 // zeros past the fourth decimal change nothing
+      [{ label0: 'Fil', quantity0: '99999999999999.9999', price0: '100', account0: k.sales, tax0: '' }, '99999999999999.9999', '100.0000'], // the largest quantity, a net just inside its column
+    ] as const) {
+      const shown = await post('/app/books/invoices/preview', { ...base, ...line });
+      const saved = await post('/app/books/invoices', { ...base, ...line });
+      expect(saved.statusCode, JSON.stringify(line)).toBe(303);
+      const id = String(saved.headers['location']).split('/').pop()!.split(/[?#]/)[0]!;
+      const row = (await as((q2) => q2(`select quantity::text as q, unit_price::text as p, net::text as net, tax::text as tax, invoice_total($1)::text as total from invoice_lines where invoice_id = $1`, [id]))).rows[0];
+      expect([row.q, row.p]).toEqual([q, p]);
+      expect(shown.body).toBe(`<div data-total-body>${renderInvoiceTotal('en', { net: dec(row.net), tax: dec(row.tax), total: dec(row.total), currency: 'MAD' })}</div>`);
+    }
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantityDecimals', 'books.invoice.problem.priceDecimals', 'books.invoice.problem.quantityLarge', 'books.invoice.problem.priceLarge', 'books.invoice.problem.lineLarge'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
+  });
 });

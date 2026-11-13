@@ -66,7 +66,9 @@ describe('the rail\'s count', () => {
 
   it('uses magenta figures on a neutral rail in the shared owner theme', () => {
     const rule = ruleOf('.owner-shell nav.side .navcount');
-    expect(rule).toContain('color:var(--color-accent)');
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: the accent role is ink now, so the count names the accent as a mark
+    // (`cue`: the brand magenta, declared at the root) itself.
+    expect(rule).toContain('color:var(--color-cue)');
     expect(rule).toContain('background:transparent');
     expect(CSS).not.toMatch(/navcount::before/);
   });

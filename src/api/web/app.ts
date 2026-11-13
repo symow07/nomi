@@ -44,7 +44,7 @@ import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
-import { signOf, type Decimal } from '../../core/types/decimal.js';
+import { compareDecimal, decimal, mulDecimal, roundDecimal, signOf, type Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { markConversationOpened } from '../../db/conversationOpened.js';
@@ -82,6 +82,7 @@ import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
+import { savedTotalOf, renderInvoiceTotal } from './booksInvoices.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -363,7 +364,7 @@ import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.
 import { renderPaper, renderSpending, renderSpendingDraft, type PaperChoices } from './booksPapers.js';
 import { draftFromReading, keepReading, paperOf } from '../../db/booksDocuments.js';
 import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
-import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
+import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
 import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
@@ -3293,12 +3294,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewInvoice(locale, await invoiceChoices(bid), {}, [], booksToday(), null, invoiceContext(req))}` }));
   });
   /** A new invoice's draft, or (0216 (a)) a draft saved over. */
-  const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    const bid = bidOf(s); if (!bid) return reply.callNotFound();
-    const editing = (req.params as { id?: string }).id ?? null;
-    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
-    const locale = localeOf(req);
+  /**
+   * The invoice form as posted, read ONCE for both of its uses: Save (below) and the total's preview (F18). The same
+   * checks in the same order, so a form the preview can total is a form Save's own checks accept, line for line.
+   */
+  const readInvoiceForm = async (req: FastifyRequest, bid: BusinessId, locale: Locale) => {
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries((req.body ?? {}) as Record<string, unknown>)) if (typeof v === 'string') values[k] = v.slice(0, 300);
     const c = await invoiceChoices(bid);
@@ -3311,10 +3311,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (due && (!iso.test(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
     const currency = values['currency'] ?? c.bookCurrency;
     if (!(CURRENCIES as readonly string[]).includes(currency)) problems.push(t(locale, 'books.entry.problem.date'));
-    const figure = (raw: string | undefined, n: number, zeroOk: boolean): Decimal | null => {
+    /* A figure the table would refuse is refused HERE, by the table's own rules, with the field named — it used to reach
+       the table and come back as an error page (the UI correction's fix rounds, F-5 and R-2). The table is 0184's
+       invoice_lines: quantity numeric(18,4) > 0, unit_price numeric(18,4) >= 0, net numeric(18,2). A numeric(18,4)
+       column keeps four decimals and fourteen digits before the point, and would ROUND a longer figure: a typed figure
+       is never changed without the owner being told (t1r's ruling, 2026-11-13), so a figure with more decimals than
+       the column keeps is refused, and one that fits is saved exactly as typed. `price` says which box this is: a
+       price may be zero, a quantity may not. */
+    const COLUMN_LIMIT = decimal('100000000000000'), NET_LIMIT = decimal('10000000000000000');
+    const figure = (raw: string | undefined, n: number, price: boolean): Decimal | null => {
       const r = readTypedAmount((raw ?? '').trim());
       if (r === 'ambiguous') { problems.push(t(locale, 'books.entry.problem.ambiguous', { n })); return null; }
-      if (r === null || (!zeroOk && r === '0')) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
+      if (r === null || (!price && signOf(r) === 0)) { problems.push(t(locale, 'books.entry.problem.amount', { n })); return null; }
+      if (signOf(r) < 0) { problems.push(t(locale, price ? 'books.invoice.problem.price' : 'books.invoice.problem.quantity', { n })); return null; }
+      if (compareDecimal(roundDecimal(r, 4), r) !== 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceDecimals' : 'books.invoice.problem.quantityDecimals', { n })); return null; }
+      if (compareDecimal(r, COLUMN_LIMIT) >= 0) { problems.push(t(locale, price ? 'books.invoice.problem.priceLarge' : 'books.invoice.problem.quantityLarge', { n })); return null; }
       return r;
     };
     const lines: { label: string; quantity: Decimal; unitPrice: Decimal; accountId: string; taxCodeId: string | null }[] = [];
@@ -3323,13 +3334,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const label = (values[`label${i}`] ?? '').trim();
       if (!label && !(values[`quantity${i}`] ?? '').trim() && !(values[`price${i}`] ?? '').trim()) continue;
       if (!label) { problems.push(t(locale, 'books.invoice.problem.lineLabel', { n })); continue; }
+      // 0184: a line's label is 1 to 200 characters (the box stops at 200; a form sent another way is told so).
+      if ([...label].length > 200) { problems.push(t(locale, 'books.invoice.problem.labelLong', { n })); continue; }
       const quantity = figure(values[`quantity${i}`], n, false); const unitPrice = figure(values[`price${i}`], n, true);
       const account = values[`account${i}`]; const tax = values[`tax${i}`] || null;
       if (!has(c.accounts, account) || (tax && !has(c.taxCodes, tax))) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
       if (quantity === null || unitPrice === null) continue;
+      // The line's net is numeric(18,2): sixteen digits before the point, after its own rounding to the cent.
+      if (compareDecimal(roundDecimal(mulDecimal(quantity, unitPrice), 2), NET_LIMIT) >= 0) { problems.push(t(locale, 'books.invoice.problem.lineLarge', { n })); continue; }
       lines.push({ label, quantity, unitPrice, accountId: account!, taxCodeId: tax });
     }
     if (problems.length === 0 && lines.length === 0) problems.push(t(locale, 'books.invoice.problem.noLines'));
+    // 0184: the invoice's own label is 200 characters at most.
+    if ([...(values['label'] ?? '').trim()].length > 200) problems.push(t(locale, 'books.invoice.problem.noteLong'));
+    return { values, c, problems, lines, due, currency };
+  };
+  const saveInvoice = async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const editing = (req.params as { id?: string }).id ?? null;
+    if (editing !== null && !/^[0-9a-f-]{36}$/i.test(editing)) return reply.callNotFound();
+    const locale = localeOf(req);
+    const { values, c, problems, lines, due, currency } = await readInvoiceForm(req, bid, locale);
     const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, editing ? 'books.draft.editTitle' : 'books.invoices.new'), active: 'settings', bodyHtml: renderNewInvoice(locale, c, values, list, booksToday(), editing, invoiceContext(req)) }));
     if (problems.length > 0) return again(problems);
@@ -3339,16 +3365,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return editing ? flashTo(reply, invoiceDestination(req,`/app/books/invoices/${out.id}`), 'books.flash.draftSaved') : reply.redirect(invoiceDestination(req,`/app/books/invoices/${out.id}`), 303);
   };
   app.post('/app/books/invoices', saveInvoice);
+  /**
+   * F18 — THE TOTAL WHILE THE FORM IS FILLED. Reads the form exactly as Save does and answers what Save would store for
+   * its lines (`previewInvoiceTotals`: the books' own per-line figures), as a fragment the page puts beside Save.
+   * It writes nothing. The same role as Save (`BOOKS_ROUTES`: post). A form Save's checks would send back is "not yet",
+   * never a guessed figure; the customer and the dates are Save's to check and do not hold a total back.
+   */
+  app.post('/app/books/invoices/preview', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = await readInvoiceForm(req, bid, locale);
+    const lineTrouble = f.lines.length === 0 || f.problems.some((p) => p !== t(locale, 'books.invoice.problem.customer') && p !== t(locale, 'books.entry.problem.date') && p !== t(locale, 'books.invoice.problem.due'));
+    const currencyOk = (CURRENCIES as readonly string[]).includes(f.currency);
+    reply.header('cache-control', 'no-store').type('text/html; charset=utf-8');
+    // Wrapped so the page's script takes exactly this element out of the answer and nothing else.
+    const body = (inner: string) => `<div data-total-body>${inner}</div>`;
+    if (lineTrouble || !currencyOk) return reply.send(body(renderInvoiceTotal(locale, null)));
+    const sums = await withTenantTx(deps.db, bid, (tx) => previewInvoiceTotals(tx, bid, f.lines));
+    return reply.send(body(renderInvoiceTotal(locale, { ...sums, currency: f.currency })));
+  });
   app.post('/app/books/invoices/:id/edit', saveInvoice);
   app.get('/app/books/invoices/:id/edit', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
-    const v = await withTenantTx(deps.db, bid, (tx) => draftInvoiceForm(tx, bid, id));
+    // F18 — the draft's figures as the books last saved them, shown beside Save (read, never worked out here).
+    const [v, saved] = await withTenantTx(deps.db, bid, async (tx) => [await draftInvoiceForm(tx, bid, id), await loadInvoice(tx, bid, id, booksToday())] as const);
     if (!v) return reply.callNotFound();
+    const savedTotal = saved ? savedTotalOf(saved) : undefined;
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.draft.editTitle'), active: 'settings',
-      bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], booksToday(), id, invoiceContext(req)) }));
+      bodyHtml: renderNewInvoice(locale, await invoiceChoices(bid), v, [], booksToday(), id, { ...invoiceContext(req), ...(savedTotal ? { savedTotal } : {}) }) }));
   });
   app.get('/app/books/invoices/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

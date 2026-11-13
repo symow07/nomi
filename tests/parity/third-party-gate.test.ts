@@ -85,6 +85,7 @@ describe('D7 · the reader sees every request a page makes, and only those', () 
       ['<a data-card href>', `<a data-card href="${OFF}/card">x</a>`],
       ['[data-live]', `<div data-live="${OFF}/live"></div>`],
       ['[data-orb]', `<form data-orb="${OFF}/orb.js"></form>`],
+      ['[data-total]', `<form data-total="${OFF}/preview"></form>`],
       ['style attribute url()', `<div style="background:url('${OFF}.png')"></div>`],
       ['<style> url()', `<style>.a { background:url(${OFF}.png) }</style>`],
       ['<style> @import', `<style>@import "${OFF}.css";</style>`],
@@ -322,6 +323,7 @@ describe('D7 · the owner\'s pages and every file Nomi serves ask no host off th
       'src',                                    // form[data-orb]
       'target.pathname + target.search',          // same-origin conversation Ask Nomi fragment, never the URL origin
       'form.action',                            // server-rendered form[data-copilot-use], read-only reply validation
+      'form.getAttribute(\'data-total\')',      // form[data-total]: the invoice form's own total preview (F18), an address the reader checks
       '\'/sw.js\'',                             // the phone's worker, Nomi's own
     ]);
     const sinks = /\b(fetch|import|register|sendBeacon|importScripts|WebSocket|EventSource|Worker|SharedWorker|XMLHttpRequest)\s*\(/g;

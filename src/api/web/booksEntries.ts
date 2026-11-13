@@ -133,26 +133,26 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${values[name] === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
   const currencies = (name: string) => CURRENCIES.map((cur) => `<option${(values[name] ?? c.bookCurrency) === cur ? ' selected' : ''}>${cur}</option>`).join('');
   const line = (i: number) => `<tr>
-      <td><select name="account${i}" aria-label="${esc(t(locale, 'books.entry.account'))} ${i + 1}">${options(c.accounts, `account${i}`, true)}</select></td>
-      <td><select name="party${i}" aria-label="${esc(t(locale, 'books.entry.party'))} ${i + 1}">${options(c.parties, `party${i}`, true)}</select></td>
-      <td><select name="tax${i}" aria-label="${esc(t(locale, 'books.entry.tax'))} ${i + 1}">${options(c.taxCodes, `tax${i}`, true)}</select></td>
-      <td><select name="currency${i}" aria-label="${esc(t(locale, 'books.entry.currency'))} ${i + 1}">${currencies(`currency${i}`)}</select></td>
-      <td><input name="debit${i}" inputmode="decimal" value="${v(`debit${i}`)}" aria-label="${esc(t(locale, 'books.entry.debit'))} ${i + 1}" /></td>
-      <td><input name="credit${i}" inputmode="decimal" value="${v(`credit${i}`)}" aria-label="${esc(t(locale, 'books.entry.credit'))} ${i + 1}" /></td>
-      <td><input name="label${i}" value="${v(`label${i}`)}" aria-label="${esc(t(locale, 'books.entry.lineLabel'))} ${i + 1}" /></td>
-      <td><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td>
+      <td class="el-account" data-label="${esc(t(locale, 'books.entry.account'))}"><select name="account${i}" data-echo aria-label="${esc(t(locale, 'books.entry.account'))} ${i + 1}">${options(c.accounts, `account${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
+      <td class="el-party" data-label="${esc(t(locale, 'books.entry.party'))}"><select name="party${i}" data-echo aria-label="${esc(t(locale, 'books.entry.party'))} ${i + 1}">${options(c.parties, `party${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
+      <td class="el-tax" data-label="${esc(t(locale, 'books.entry.tax'))}"><select name="tax${i}" data-echo aria-label="${esc(t(locale, 'books.entry.tax'))} ${i + 1}">${options(c.taxCodes, `tax${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
+      <td class="el-currency" data-label="${esc(t(locale, 'books.entry.currency'))}"><select name="currency${i}" aria-label="${esc(t(locale, 'books.entry.currency'))} ${i + 1}">${currencies(`currency${i}`)}</select></td>
+      <td class="el-amount" data-label="${esc(t(locale, 'books.entry.debit'))}"><input name="debit${i}" inputmode="decimal" value="${v(`debit${i}`)}" aria-label="${esc(t(locale, 'books.entry.debit'))} ${i + 1}" /></td>
+      <td class="el-amount" data-label="${esc(t(locale, 'books.entry.credit'))}"><input name="credit${i}" inputmode="decimal" value="${v(`credit${i}`)}" aria-label="${esc(t(locale, 'books.entry.credit'))} ${i + 1}" /></td>
+      <td class="el-label" data-label="${esc(t(locale, 'books.entry.lineLabel'))}"><input name="label${i}" value="${v(`label${i}`)}" aria-label="${esc(t(locale, 'books.entry.lineLabel'))} ${i + 1}" /></td>
+      <td class="el-fx" data-label="${esc(t(locale, 'books.entry.fx'))}"><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td>
       ${customInputs(locale, c.fields ?? [], 'line', lineCustom(i), values, { bare: true, n: i + 1 })}</tr>`;
   return `<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.entries.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entry.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" action="${editing ? `/app/books/entries/${esc(editing)}/edit` : '/app/books/entries'}" class="pform">${returnHref?`<input type="hidden" name="from" value="${esc(returnHref)}">`:''}
-      <label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span><select name="journal" required>${options(c.journals, 'journal', false)}</select></label>
+    <form method="post" action="${editing ? `/app/books/entries/${esc(editing)}/edit` : '/app/books/entries'}" class="pform entry-form">${returnHref?`<input type="hidden" name="from" value="${esc(returnHref)}">`:''}
+      <div class="entry-head"><label class="pq"><span>${esc(t(locale, 'books.entry.journal'))}</span><select name="journal" required>${options(c.journals, 'journal', false)}</select></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="date" value="${values['date'] ? v('date') : esc(today)}" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" required maxlength="200" /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.document'))}</span><input name="documentRef" value="${v('documentRef')}" maxlength="80" /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.documentDate'))}</span><input type="date" name="documentDate" value="${v('documentDate')}" /></label>
-      ${customInputs(locale, c.fields ?? [], 'entry', ENTRY_CUSTOM, values)}
-      <div class="imp-table"><table>
+      ${customInputs(locale, c.fields ?? [], 'entry', ENTRY_CUSTOM, values)}</div>
+      ${/* Audit F21, and its fix round — each line is a labelled group at every width: the account on its own line, then who and what, then the figures. A select marked data-echo has its choice written out under it when the box is too narrow to show it whole (the page's script; without it the open list still shows every name in full). */ ''}<div class="imp-table entry-lines" role="region" tabindex="0" aria-label="${esc(t(locale, 'books.entries.new'))}"><table>
         <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.currency'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>

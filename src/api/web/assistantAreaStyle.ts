@@ -22,6 +22,9 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-doors .caption{display:block;color:var(--color-ink-secondary);font-weight:400;margin-top:var(--space-8);}
 .aa-overview h2{font-size:var(--font-size-title);}
 .aa-overview blockquote{margin-inline:0;margin-block:var(--space-24) var(--space-8);}
+/* N-1 (the third fix round) — the overview quotes the same customers' words Knowledge does, and holds them the same way (F29): the column may shrink, an unbroken address breaks, a long message folds with the whole of it one press away. */
+.aa-overview,.aa-overview section,.aa-overview blockquote{min-width:0;max-width:100%;}
+.aa-overview blockquote{overflow-wrap:anywhere;word-break:break-word;}
 .aa-overview .stop-here{margin-top:var(--space-32);padding-top:var(--space-24);border-top:1px solid var(--color-border);}
 .aa-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-16);padding-block:var(--space-16);}
 .aa-pager a{min-height:44px;display:flex;align-items:center;}
@@ -35,7 +38,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ask-history li{margin-bottom:var(--space-16);overflow-wrap:anywhere;}
 .ask-history a{min-height:44px;display:flex;align-items:center;}
 .ask-form{display:flex;flex-direction:column;gap:var(--space-12);margin-block:var(--space-24);}
-.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control);}
+.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
 .ask-form .btn{align-self:flex-start;}
 .ask-line .msg{max-width:100%;margin-block:var(--space-24);}
 .ask-line .bubble{max-width:100%;}
@@ -76,6 +79,23 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-area .kc{white-space:pre-wrap;overflow-wrap:anywhere;margin-block:var(--space-16);}
 .assistant-area .gap{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .assistant-area .ki-q{font-size:var(--font-size-base);}
+/* THE UI CORRECTION (2026-11-13, audit F29) — nothing a customer wrote can widen the page: every column here may shrink,
+   an unbroken address breaks where it must, and a long message folds to its first lines with the whole of it in place. */
+.assistant-area .aa-content,.assistant-knowledge,.assistant-knowledge .block,.assistant-area .gap,.assistant-area .ki-q,.assistant-area .reqs li,.assistant-area .reqs .q{min-width:0;max-width:100%;}
+.assistant-area .src-text,.assistant-area .ki-q,.assistant-area .reqs .q,.assistant-area .ki-acts li{overflow-wrap:anywhere;word-break:break-word;}
+.assistant-area .reqs li{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-4) var(--space-12);padding-block:var(--space-8);border-block-end:1px solid var(--color-border);}
+.assistant-area .reqs .q{flex:1 1 20ch;}
+.src-long{min-width:0;}
+.src-long>summary{display:block;cursor:pointer;list-style:none;border-radius:var(--radius-control);}
+.src-long>summary::-webkit-details-marker,.src-long>summary::before{display:none;}
+.src-long .src-more{display:inline-flex;align-items:center;min-height:44px;font-size:var(--font-size-small);font-weight:600;color:var(--color-ink);text-decoration:underline;text-underline-offset:3px;}
+.src-long .src-more::after{content:"";inline-size:0.45em;block-size:0.45em;margin-inline-start:var(--space-8);border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);}
+.src-long[open] .src-more::after{transform:rotate(-135deg) translateY(-2px);}
+.src-long[open] .src-preview{display:none;}
+.src-long .src-full{display:block;white-space:pre-wrap;padding:var(--space-12) var(--space-16);background:var(--color-sand);border-radius:var(--radius-control);max-block-size:50dvh;overflow-y:auto;}
+/* Teach and Set aside, and Teach and Try it: two acts, never touching. */
+.assistant-area .gacts{flex-wrap:wrap;gap:var(--space-8) var(--space-24);}
+.assistant-area .gap>form.given-dismiss{display:block;margin-block-start:var(--space-16);}
 .reading-review form.pform{max-width:100%;}
 .reading-review .reading-line{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-24);padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .reading-review .reading-line label{grid-column:2;grid-row:1;align-items:start;background:var(--color-assistant-wash);padding:var(--space-16);min-height:44px;}
