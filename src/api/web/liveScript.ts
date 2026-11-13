@@ -507,6 +507,23 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     box.addEventListener('click', function (e) { if (e.target === box) shut(); });
   }
 
+  /* F21: a select marked data-echo has its choice written out under it when the words are wider than its box. */
+  function echoes() {
+    var all = doc.querySelectorAll('select[data-echo]'), pen;
+    function say(s) {
+      var out = s.parentNode.querySelector('[data-echo-out]'), o = s.options[s.selectedIndex], w = o && o.value ? o.text.trim() : '', cs = getComputedStyle(s);
+      if (!out) return;
+      try {
+        pen = pen || doc.createElement('canvas').getContext('2d'); pen.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        out.textContent = w && pen.measureText(w).width > s.clientWidth - 40 ? w : '';
+      } catch (e) {}
+    }
+    function each() { for (var i = 0; i < all.length; i++) say(all[i]); }
+    if (!all.length) return;
+    doc.addEventListener('change', function (e) { if (e.target.matches && e.target.matches('select[data-echo]')) say(e.target); });
+    window.addEventListener('resize', each); each();
+  }
+
   /* F18: a form that names where its total is worked out (data-total) asks as its fields change: a moment after the
      last change, one question at a time, the newest state asked again when one was in the air. The answer is the
      page's own fragment, put where the form shows its total. Without this the form reads as it was drawn. */
@@ -1013,6 +1030,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   asking();
   sending();
   totals();
+  echoes();
   orbs();
   cards();
   faces();
