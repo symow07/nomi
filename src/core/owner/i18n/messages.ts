@@ -13,6 +13,12 @@ import { REDESIGN_EN } from './redesign.js';
 
 const EN = {
   ...REDESIGN_EN,
+  'savedReplies.search': 'Search replies',
+  'savedReplies.clearSearch': 'Clear search',
+  'savedReplies.noMatch': 'No replies match this search.',
+  'savedReplies.saveScope': 'These words are saved for everyone who replies in this workspace. Saving sends nothing.',
+  'savedReplies.archivedScope': 'This reply stays archived when you save.',
+
   // Block 3: record sections, retaining the existing commands and value basis.
   'record.stage': 'This conversation',
   'record.valueBasis': 'Order value, not money received.',
@@ -5739,6 +5745,12 @@ export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'savedReplies.search': '搜索回复',
+  'savedReplies.clearSearch': '清除搜索',
+  'savedReplies.noMatch': '没有找到匹配的回复。',
+  'savedReplies.saveScope': '这些内容会保存为工作区内所有回复人员可用的常用回复。保存不会发送消息。',
+  'savedReplies.archivedScope': '保存后，此回复仍保持归档状态。',
+
   // Block 3: record sections, retaining the existing commands and value basis.
   'record.stage': '本次对话',
   'record.valueBasis': '订单金额，不代表已收款。',
@@ -11375,6 +11387,12 @@ const ZH: Record<MessageKey, string> = {
 
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'savedReplies.search': 'بحث في الردود',
+  'savedReplies.clearSearch': 'مسح البحث',
+  'savedReplies.noMatch': 'لا توجد ردود تطابق هذا البحث.',
+  'savedReplies.saveScope': 'تُحفظ هذه الكلمات لكل من يرد في مساحة العمل هذه. لا تُرسل أي رسالة عند الحفظ.',
+  'savedReplies.archivedScope': 'يبقى هذا الرد في الأرشيف بعد الحفظ.',
+
   // Block 3: record sections, retaining the existing commands and value basis.
   'record.stage': 'هذه المحادثة',
   'record.valueBasis': 'قيمة الطلبات، وليست مبالغ مستلمة.',
@@ -17013,6 +17031,12 @@ const AR: Record<MessageKey, string> = {
  */
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'savedReplies.search': 'Buscar respuestas',
+  'savedReplies.clearSearch': 'Borrar búsqueda',
+  'savedReplies.noMatch': 'Ninguna respuesta coincide con esta búsqueda.',
+  'savedReplies.saveScope': 'Estas palabras se guardan para todas las personas que responden en este espacio. Guardar no envía nada.',
+  'savedReplies.archivedScope': 'Esta respuesta sigue archivada al guardar.',
+
   // Block 3: record sections, retaining the existing commands and value basis.
   'record.stage': 'Esta conversación',
   'record.valueBasis': 'Valor de pedidos, no dinero recibido.',
@@ -22591,6 +22615,12 @@ const ES: Record<MessageKey, string> = {
  */
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'savedReplies.search': 'Rechercher des réponses',
+  'savedReplies.clearSearch': 'Effacer la recherche',
+  'savedReplies.noMatch': 'Aucune réponse ne correspond à cette recherche.',
+  'savedReplies.saveScope': 'Ces mots sont enregistrés pour toutes les personnes qui répondent dans cet espace. Enregistrer ne transmet aucun message.',
+  'savedReplies.archivedScope': 'Cette réponse reste archivée après enregistrement.',
+
   // Block 3: record sections, retaining the existing commands and value basis.
   'record.stage': 'Cette conversation',
   'record.valueBasis': 'Valeur des commandes, pas des encaissements.',

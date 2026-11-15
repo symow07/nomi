@@ -105,6 +105,17 @@ export const INBOX_LIST_CSS = `
 .saved-archive { margin-block-start:var(--space-24); }
 .saved-reply-state { margin:0; }
 .saved-replies-page .btn { min-block-size:44px; }
+.saved-search { display:flex; align-items:end; flex-wrap:wrap; gap:var(--space-12); margin-block:0 var(--space-24); }
+.saved-search label { display:grid; gap:var(--space-8); flex:1 1 16rem; min-inline-size:0; font-size:var(--font-size-small); }
+.saved-search input { inline-size:100%; min-block-size:44px; font-size:var(--font-size-base); }
+.saved-search>a, .saved-editor-actions>a { display:inline-flex; align-items:center; min-block-size:44px; }
+.saved-reply-focus { max-inline-size:var(--measure-prose); }
+.saved-reply-focus .saved-reply-editor { margin-block-start:0; padding-block-start:var(--space-16); max-inline-size:none; }
+.saved-reply-focus .saved-reply-form { inline-size:100%; max-inline-size:none; gap:var(--space-16); }
+.saved-reply-focus .saved-reply-form .pq, .saved-reply-focus .saved-reply-form input { max-inline-size:100%; inline-size:100%; }
+.saved-scope { margin-block:0 var(--space-24); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+.saved-editor-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12) var(--space-24); margin-block-start:var(--space-24); padding-block-start:var(--space-16); border-block-start:1px solid var(--color-border); }
+.saved-editor-actions .saved-reply-state { margin-inline-start:auto; }
 @media (max-width: 1000px) {
   .il-workspace { grid-template-columns:minmax(0, 1fr); gap:var(--space-16); }
   .il-menu { border:0; padding:0; }
