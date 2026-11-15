@@ -6,7 +6,7 @@ import { COPILOT_SCRIPT } from '../../src/api/web/copilotScript.js';
 class Element {
   attrs: Record<string,string>; children: Element[] = []; parent: Element | null = null; form: Element | null = null;
   value = ''; textContent = ''; hidden = false; isConnected = true; action = ''; name = '';
-  selectionStart = 0; selectionEnd = 0; selectionDirection = 'none'; events: string[] = []; focused = false;
+  scrollTop = 0; scrollLeft = 0; selectionStart = 0; selectionEnd = 0; selectionDirection = 'none'; events: string[] = []; focused = false;
   constructor(attrs: Record<string,string> = {}, readonly tag = 'div') { this.attrs = attrs; }
   add(...children: Element[]) { children.forEach((c) => { this.children.push(c); c.parent = this; }); return this; }
   getAttribute(k:string) { return this.attrs[k] ?? null; }
@@ -16,6 +16,7 @@ class Element {
   contains(c:Element):boolean { return c === this || this.children.some(x => x.contains(c)); }
   matches(s:string):boolean {
     if (s.includes(',')) return s.split(',').some(x => this.matches(x.trim()));
+    if (s[0] === '.') return (this.attrs['class'] || '').split(' ').includes(s.slice(1));
     if (s[0] === '#') return this.attrs['id'] === s.slice(1);
     const m = /^(\w+)?\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(s);
     return !!m && (!m[1] || this.tag === m[1]) && this.hasAttribute(m[2]!) && (m[3] === undefined || this.getAttribute(m[2]!) === m[3]);
@@ -40,7 +41,8 @@ function fixture(phone = false, delayAsk = false) {
   const tabs = ['customer','ask'].map(x => new Element({'data-tool-tab':x}));
   const panes = ['customer','ask'].map(x => new Element({'data-tool-content':x}));
   const tools = new Element({'data-conversation-tools':'','data-copilot-url':'/app/inbox/c1/copilot'}).add(close,...tabs,...panes,slot,status);
-  root.add(ask,customer,form,tools);
+  const thread = new Element({class:'conv-thread'}), acts = new Element({class:'conv-acts'});
+  thread.scrollTop=-80; acts.scrollTop=24; root.add(ask,customer,form,tools,thread,acts);
   const doc = new Element().add(root) as Element & {addEventListener:Function;importNode:Function};
   doc.addEventListener=(kind:string,handler:(e:any)=>void)=>{(handlers[kind]??=[]).push(handler);};doc.importNode=(x:Element)=>x;
   const calls:{url:string;options:any}[]=[];
@@ -52,14 +54,14 @@ function fixture(phone = false, delayAsk = false) {
     if (delayAsk && options.method === 'POST') return new Promise(() => {});
     return Promise.resolve({ok:true,text:()=>Promise.resolve('panel')});
   };
-  const scrolls: number[][] = [];
+  const scrolls: number[][] = [], timers: (()=>void)[] = [];
   const window = {fetch,addEventListener:doc.addEventListener,scrollX:0,scrollY:420,matchMedia:()=>({matches:phone}),scrollTo(x:number,y:number){scrolls.push([x,y]);this.scrollY=y;}};
-  runInNewContext(COPILOT_SCRIPT,{document:doc,window,fetch,location:{pathname:'/app/inbox/c1',search:'',hash:'',href:'https://nomi.test/app/inbox/c1'},history:{pushState(){},replaceState(){}},URL,URLSearchParams,
+  runInNewContext(COPILOT_SCRIPT,{document:doc,window,fetch,location:{pathname:'/app/inbox/c1',search:'',hash:'',href:'https://nomi.test/app/inbox/c1'},history:{pushState(){},replaceState(){}},setTimeout:(fn:()=>void)=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},URL,URLSearchParams,
     FormData:class { [Symbol.iterator]() {return [['revision','r1'],['q','draft a reply']][Symbol.iterator]();} },
     DOMParser:class {parseFromString(){return new Element().add(panel);}},Event:class {constructor(readonly type:string){}}});
   const fire=(kind:string,target:Element,extra:Record<string,unknown>={})=>{const e={target,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...extra};handlers[kind]?.forEach(h=>h(e));return e;};
   const use = new Element({'data-copilot-use':''},'form'); use.action='/app/inbox/c1/copilot/reply'; tools.add(use);
-  return {scrolls,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
+  return {scrolls,timers,thread,acts,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
 }
 describe('context panel keeps owner work',()=>{
   it('opening uses only GET, tabs never replace the composer, Escape returns focus and selection',async()=>{
@@ -74,6 +76,15 @@ describe('context panel keeps owner work',()=>{
     const f=fixture(true);f.fire('click',f.customer);expect(f.scrolls.at(-1)).toEqual([0,0]);
     f.fire('click',f.close);expect(f.scrolls.at(-1)).toEqual([0,420]);
     expect(f.box.value).toBe('my exact words');expect([f.box.selectionStart,f.box.selectionEnd]).toEqual([3,7]);
+  });
+  it('native Back restores reading and focus after the browser restores the fragment', () => {
+    // B2-V02: popstate precedes the browser's #latest scroll/focus reset. Restoring only inside popstate loses both.
+    const f=fixture();f.fire('click',f.ask);
+    f.fire('popstate',f.root,{state:null});
+    f.thread.scrollTop=-140;f.acts.scrollTop=0;f.ask.focused=false;
+    f.timers.splice(0).forEach(fn=>fn());
+    expect(f.thread.scrollTop).toBe(-80);expect(f.acts.scrollTop).toBe(24);
+    expect(f.ask.focused).toBe(true);expect(f.box.value).toBe('my exact words');
   });
   it('keeps the latest caret when the owner edits while a desktop pane is open',()=>{
     const f=fixture();f.fire('click',f.customer);f.box.value+=' typed';f.box.setSelectionRange(19,19);

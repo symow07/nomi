@@ -9,7 +9,7 @@ export const COPILOT_SCRIPT = String.raw`
   var cid = root.getAttribute('data-conversation');
   var slot = tools.querySelector('[data-copilot-slot]');
   var status = tools.querySelector('[data-tool-status]');
-  var opener = null, viewScroll = null, loaded = false, pending = 0, useGeneration = 0, using = false;
+  var opener = null, viewScroll = null, readingScroll = [], loaded = false, pending = 0, useGeneration = 0, using = false;
   /* On a phone the page's own region scrolls, not the window: the reading place is kept there too. */
   var region = doc.querySelector('.content');
   var home = location.pathname + location.search + location.hash;
@@ -39,21 +39,24 @@ export const COPILOT_SCRIPT = String.raw`
     });
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', String(el.getAttribute('data-open-tool') === which)); });
   }
+  function restorePlace(restore) {
+    if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
+    if (viewScroll && region) region.scrollTop = viewScroll[2];
+    readingScroll.forEach(function (saved) { saved[0].scrollTop = saved[1]; saved[0].scrollLeft = saved[2]; });
+    if (restore !== false) focus(opener);
+  }
   function close(restore) {
     invalidateUse();
     root.removeAttribute('data-tool-open');
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', 'false'); });
-    if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
-    if (viewScroll && region) region.scrollTop = viewScroll[2];
-    if (restore !== false) {
-      focus(opener);
-    }
+    restorePlace(restore);
   }
   function open(which, link, remember) {
     var already = root.hasAttribute('data-tool-open');
     if (!already && remember !== false) {
       opener = link;
-      viewScroll = window.matchMedia && window.matchMedia('(max-width:1099px)').matches ? [window.scrollX, window.scrollY, region ? region.scrollTop : 0] : null;
+      viewScroll = [window.scrollX, window.scrollY, region ? region.scrollTop : 0];
+      readingScroll = Array.from(root.querySelectorAll('.conv-thread, .conv-acts, .listpane')).map(function (el) { return [el, el.scrollTop, el.scrollLeft]; });
       home = location.pathname + location.search + location.hash;
     }
     setTab(which);
@@ -109,7 +112,12 @@ export const COPILOT_SCRIPT = String.raw`
   });
   window.addEventListener('popstate', function (e) {
     if (e.state && (e.state.nomiTool === 'ask' || e.state.nomiTool === 'customer')) open(e.state.nomiTool, null, false);
-    else close();
+    else {
+      close(false);
+      /* B2-V02: the browser restores #latest AFTER popstate, including its own focus/scroll reset.
+         Restore in the next event-loop turn, once that native history traversal is complete. */
+      setTimeout(function () { if (!root.hasAttribute('data-tool-open')) restorePlace(); }, 0);
+    }
   });
   doc.addEventListener('submit', function (e) {
     var form = e.target;
