@@ -1,0 +1,46 @@
+{
+  "base_commit": "84cb458021977a88959c485e9249acbf2e45778e",
+  "source_sha256": "db70d55c9b65cf93783e79891d9bbd1a3bb36ac42c16c4c131c8b67a34576009",
+  "moves": [
+    {
+      "label": "Schema-version history",
+      "start": 14373,
+      "end": 17515,
+      "destination": "docs/team/history.md",
+      "characters": 3138,
+      "bytes": 3142,
+      "sha256": "1458fee3b9f563aef2132266b5b2be76632e591160726c38f49cf37a5f9e7a7c",
+      "replacement": "Schema-version history: `docs/team/history.md`\n"
+    },
+    {
+      "label": "Recent PRs, newest first",
+      "start": 19155,
+      "end": 38315,
+      "destination": "docs/team/prs.md",
+      "characters": 18818,
+      "bytes": 19160,
+      "sha256": "7c7502f50b88c5f0f6123785002fe86a1b154f767efb3195b4f5ef6dcf0dc2f9",
+      "replacement": "Recent PRs: `docs/team/prs.md`\n\n"
+    },
+    {
+      "label": "Section 5: all numbered rules",
+      "start": 38315,
+      "end": 230375,
+      "destination": "docs/team/rules.md",
+      "characters": 190253,
+      "bytes": 192060,
+      "sha256": "6fab5bb6c91f504763987b6f72400922f97de5d147bee78f99e5f65491f4370a",
+      "replacement": "## 5 · Open rules in force right now\n\nEvery rule below is in force; read its full text in docs/team/rules.md before working in its area.\n\n1. **The disclosure gate is PER LANGUAGE** — `docs/team/rules.md`\n2. **The assistant's name must be confirmed** — `docs/team/rules.md`\n3. **Any message sent without approval** — `docs/team/rules.md`\n4. **She never claims to be human** — `docs/team/rules.md`\n5. **Owner-facing copy never says \"AI\" / 机器人 / 系统 / 模型** — `docs/team/rules.md`\n6. **Nobody is gendered in copy** — `docs/team/rules.md`\n7. **Names come from the `assistants` table** — `docs/team/rules.md`\n8. **The outreach area is per workspace, OFF by default** — `docs/team/rules.md`\n9. **Every page draws from `workspaceFacts`** — `docs/team/rules.md`\n10. **The backup alert never depends on WhatsApp** — `docs/team/rules.md`\n11. **Money and going live are the owner's** — `docs/team/rules.md`\n12. **nomidoes.com is served by this app** — `docs/team/rules.md`\n13. **The owner's Stop binds the assistant on every channel** — `docs/team/rules.md`\n14. **The owner's words survive a refusal** — `docs/team/rules.md`\n15. **A buyer's data can be deleted, and /data-deletion says exactly how** — `docs/team/rules.md`\n16. **The conversation page always shows the newest messages** — `docs/team/rules.md`\n17. **Errors are reported and the app has a heartbeat** — `docs/team/rules.md`\n18. **A buyer who asks in chat for their data to be deleted** — `docs/team/rules.md`\n19. **\"Wants a person\", in two layers** — `docs/team/rules.md`\n20. **Buyers is ONE list** — `docs/team/rules.md`\n21. **A page left open says when something new arrived** — `docs/team/rules.md`\n22. **A workspace that exists gets a login from the operator, never from SQL** — `docs/team/rules.md`\n23. **An order waits for the owner's tap, in every mode** — `docs/team/rules.md`\n24. **A product may have no minimum order, and nothing pretends it has** — `docs/team/rules.md`\n25. **The design foundation** — `docs/team/rules.md`\n26. **The calendar is a week, and the owner's own dates are on it** — `docs/team/rules.md`\n27. **What a reply promised is on the calendar, from the words that left** — `docs/team/rules.md`\n28. **Small truths from the build order** — `docs/team/rules.md`\n29. **Every paid call is on the ledger, on the UTC day** — `docs/team/rules.md`\n30. **A product is found by its names, and only a findable product is \"ready\"** — `docs/team/rules.md`\n31. **The analyser sees the last six messages** — `docs/team/rules.md`\n32. **A forgotten password: \"e-mail me a link\"** — `docs/team/rules.md`\n33. **`CREDENTIAL_KEY` can be rotated without a token lost** — `docs/team/rules.md`\n34. **The inbound queue is shared fairly between workspaces** — `docs/team/rules.md`\n35. **A send ceiling per workspace, and Meta's error rate for the operator** — `docs/team/rules.md`\n36. **\"Your accounts\" on Channels, read live; the help page says what to check** — `docs/team/rules.md`\n37. **Today is by time** — `docs/team/rules.md`\n38. **Right to left, by design: every value on an owner page is isolated** — `docs/team/rules.md`\n39. **Names, People, Setup, the door and the live line** — `docs/team/rules.md`\n40. **Practice is per workspace: a copy that can reach nobody** — `docs/team/rules.md`\n41. **One time zone per workspace, chosen at sign-up** — `docs/team/rules.md`\n42. **One currency per workspace, no conversion** — `docs/team/rules.md`\n43. **The positioning rewrite** — `docs/team/rules.md`\n44. **An import is a kept list the owner checks row by row** — `docs/team/rules.md`\n45. **\"Prices go to me\"** — `docs/team/rules.md`\n46. **Ask about three of these** — `docs/team/rules.md`\n47. **Store import** — `docs/team/rules.md`\n48. **How a business sells** — `docs/team/rules.md`\n49. **How you sell** — `docs/team/rules.md`\n50. **Alerts about a customer go by e-mail too** — `docs/team/rules.md`\n51. **A reply the owner types in Instagram's or Messenger's own app** — `docs/team/rules.md`\n52. **Alerts on the phone; a reply that waited too long; the channel's own name** — `docs/team/rules.md`\n53. **\"Nomi and Meta\" on Channels** — `docs/team/rules.md`\n54. **A stranger signs up** — `docs/team/rules.md`\n55. **A workspace is born with what the cohort needs** — `docs/team/rules.md`\n56. **The day's allowance is held to BEFORE the model** — `docs/team/rules.md`\n57. **Sending alone is earned in a workspace that signed itself up** — `docs/team/rules.md`\n58. **\"Ready for customers\"; the installation's facts are the operator's** — `docs/team/rules.md`\n59. **The operator's controls** — `docs/team/rules.md`\n60. **The cohort's funnel, read from what is on record** — `docs/team/rules.md`\n61. **A draft the owner may not be able to read** — `docs/team/rules.md`\n62. **Opening the first cohort** — `docs/team/rules.md`\n63. **The ramp: sending alone is earned in two rungs** — `docs/team/rules.md`\n64. **The first quote of each product waits for the owner** — `docs/team/rules.md`\n65. **The gate reads the customer's language by fixed rules** — `docs/team/rules.md`\n66. **Supervision after promotion** — `docs/team/rules.md`\n67. **The es / fr / pt packs** — `docs/team/rules.md`\n68. **Claims by product category** — `docs/team/rules.md`\n69. **A product's options, and stock goes to the owner** — `docs/team/rules.md`\n70. **Mail strangers cause leaves by a dedicated sender, under daily caps** — `docs/team/rules.md`\n71. **The installation has a daily spend ceiling; past it the beta waits** — `docs/team/rules.md`\n72. **The sign-up's own guards before open mode** — `docs/team/rules.md`\n73. **The operator approves each workspace's first connection** — `docs/team/rules.md`\n74. **A workspace that never connected a channel goes after 90 days** — `docs/team/rules.md`\n75. **Billing** — `docs/team/rules.md`\n76. **The site's button follows sign-up as it stands** — `docs/team/rules.md`\n77. **Lists the parser cannot read, and the pages of her own site** — `docs/team/rules.md`\n78. **A shared post or a story reply** — `docs/team/rules.md`\n79. **The owner's pages in Spanish** — `docs/team/rules.md`\n80. **A business connects its OWN WhatsApp number** — `docs/team/rules.md`\n81. **The guided path, with videos** — `docs/team/rules.md`\n82. **The send path** — `docs/team/rules.md`\n83. **Audit batch 3** — `docs/team/rules.md`\n84. **A stop never waits for ever** — `docs/team/rules.md`\n85. **The Split Today design, and the serif** — `docs/team/rules.md`\n86. **Who needs you, and a cut name** — `docs/team/rules.md`\n84. **Nothing of the writer's JSON reaches a customer** — `docs/team/rules.md`\n87. **The OpenAI format under the one client** — `docs/team/rules.md`\n88. **The page is \"Inbox\", in the Split look** — `docs/team/rules.md`\n89. **The fallback, at Anthropic's own address** — `docs/team/rules.md`\n90. **The assistant says \"I\", and promises only what happens** — `docs/team/rules.md`\n91. **A payment lands in a bank or cash account the owner names** — `docs/team/rules.md`\n92. **Block 1 of the finishing roadmap, the items without a migration** — `docs/team/rules.md`\n93. **Block 1's records** — `docs/team/rules.md`\n94. **The books' country packs: Morocco, the United Kingdom, the United States** — `docs/team/rules.md`\n95. **Invoices that go out** — `docs/team/rules.md`\n96. **Spending: bills, categories, recurring costs** — `docs/team/rules.md`\n97. **The Books home is wired to the rows behind it** — `docs/team/rules.md`\n98. **Reports in the owner's words** — `docs/team/rules.md`\n99. **The assistant's voice, chosen once** — `docs/team/rules.md`\n100. **Procedures** — `docs/team/rules.md`\n101. **Before it goes live — \"did teaching break anything?\"** — `docs/team/rules.md`\n102. **The hand-off that carries context** — `docs/team/rules.md`\n\n"
+    },
+    {
+      "label": "D shipped: orientation",
+      "start": 234043,
+      "end": 234530,
+      "destination": "docs/team/history.md",
+      "characters": 486,
+      "bytes": 487,
+      "sha256": "8433732c99b6ec1d775bc56bb712ebf611bc088a3c1e89e13d5d68f543930c24",
+      "replacement": "D deployment orientation: `docs/team/history.md`\n\n"
+    }
+  ]
+}
