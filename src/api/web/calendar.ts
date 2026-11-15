@@ -566,7 +566,7 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
         ${buyers.length ? `<label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
           <select name="who">
             <option value="">${esc(t(locale, 'calendar.buyer.all'))}</option>
-            ${buyers.map((b) => `<option value="${esc(b.id)}"${b.id === v.buyer?.id ? ' selected' : ''}>${esc(buyerLabel(locale, b))}</option>`).join('')}
+            ${buyers.map((b) => `<option value="${esc(b.id)}"${b.id === v.buyer?.id ? ' selected' : ''}>${esc(show.isolate(locale, buyerLabel(locale, b)))}</option>`).join('')}
           </select></label>` : ''}
         <button class="btn" type="submit">${esc(t(locale, 'calendar.buyer.show'))}</button>
       </form>`;

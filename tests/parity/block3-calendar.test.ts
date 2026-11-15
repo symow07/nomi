@@ -37,6 +37,14 @@ describe('Block 3 F40 — connected calendar context', () => {
     });
   });
 
+  it('isolates each Arabic customer option value, since an option cannot contain bdi markup', () => {
+    const html=withZone('Asia/Shanghai',()=>renderCalendar(view,'ar',{now}));
+    const option=html.match(new RegExp('<option value="'+buyer.id+'"[^>]*>([^<]+)</option>'));
+    expect(option).not.toBeNull();
+    expect(option![1]).toMatch(/^\u2068.*\u2069$/);
+    expect(option![1]).toContain(buyer.name);
+  });
+
   it('does not add duplicate controls or a mark key to an empty month', () => {
     const html = withZone('Asia/Shanghai', () => renderCalendar({ ...view, entries: [] }, 'en', { now }));
     expect(html).toContain('class="cal-context"');
