@@ -29,7 +29,6 @@ const args = process.argv.slice(2);
 const write = args.includes('--yes');
 const url = process.env['MIGRATE_DATABASE_URL'];
 const isMain = process.argv[1] && new URL(import.meta.url).pathname.endsWith(process.argv[1].split('/').pop());
-if (isMain && !url) { console.error('MIGRATE_DATABASE_URL is not set.\n\n  MIGRATE_DATABASE_URL=<admin url> node tools/backfill-zones.mjs [--yes]\n'); process.exit(2); }
 
 /** The plan for one workspace, from its row alone. */
 export function planFor(row) {
@@ -47,16 +46,22 @@ export function planFor(row) {
   };
 }
 
+// The tool never ends itself with process.exit(): on a pipe, stdout is written asynchronously, and exiting at once
+// drops whatever the pipe had not yet taken — past 64 KiB the list lost its tail and its summary (CI, 2026-11-15, 510
+// workspaces). Every path — no address, no connection, a refusal, a failure, done — sets process.exitCode and returns,
+// and Node exits when stdout and stderr have drained.
 if (isMain) await main();
 async function main() {
+if (!url) { console.error('MIGRATE_DATABASE_URL is not set.\n\n  MIGRATE_DATABASE_URL=<admin url> node tools/backfill-zones.mjs [--yes]\n'); process.exitCode = 2; return; }
 const client = toolClient(url, { replyTimeoutMs: 60_000 });
-await client.connect().catch((e) => { console.error(`\n✗  ${e.message}\n`); process.exit(1); });
+try { await client.connect(); } catch (e) { console.error(`\n✗  ${e.message}\n`); process.exitCode = 1; return; }
 try {
   const role = (await client.query('select rolsuper or rolbypassrls as sees_all from pg_roles where rolname = current_user')).rows[0];
   if (!role?.sees_all) {
     console.error('\n✗  Refusing: this role is filtered by row security, so it would see no workspace and write nothing true.\n'
       + '   Run it with the admin role (MIGRATE_DATABASE_URL). Nothing was written.\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const rows = (await client.query(`
     select b.id::text as id, b.name, b.country, b.timezone, b.currency,
@@ -79,7 +84,7 @@ try {
   }
   const changes = plans.filter((p) => p.zone || p.currency);
   console.log(`\n${changes.length} would change; ${plans.filter((p) => p.flagged).length} flagged for the owner; ${plans.length - changes.length - plans.filter((p) => p.flagged && !p.currency).length} already right.`);
-  if (!write) { console.log('\nDry run: nothing was written. Add --yes to write it.'); process.exit(0); }
+  if (!write) { console.log('\nDry run: nothing was written. Add --yes to write it.'); return; }
   await client.query('begin');
   for (const p of changes) {
     if (p.zone) await client.query(`update businesses set timezone = $2 where id = $1::uuid and timezone = 'Asia/Shanghai'`, [p.id, p.zone]);
@@ -90,7 +95,7 @@ try {
 } catch (e) {
   await client.query('rollback').catch(() => undefined);
   console.error(`\n✗  ${e.message}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await client.end().catch(() => undefined);
 }
