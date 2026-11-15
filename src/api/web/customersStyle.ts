@@ -113,7 +113,7 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .order-progress{display:flex;flex-wrap:wrap;list-style:none;padding:0;margin-block:0 var(--space-24);gap:var(--space-16);}
 .order-progress li{border-inline-start:2px solid var(--color-border);padding-inline-start:var(--space-12);}
 .order-progress li[aria-current="step"]{border-color:var(--color-ink);}
-.order-progress time{display:block;font-size:var(--font-size-small);color:var(--color-muted);}
+.order-progress time{display:block;font-size:var(--font-size-small);color:var(--color-ink-secondary);}
 .customer-orders .ca-heading{margin-block-end:var(--space-16);}
 .customer-orders .ca-filters{gap:var(--space-12);margin-block-end:var(--space-16);}
 .customer-orders .ca-order{padding-block:var(--space-12);gap:var(--space-4) var(--space-24);}

@@ -1,6 +1,6 @@
 {
   "baseline": "c4983f7eaf71d4451dfa73242ec93454fa86cafb",
-  "after": "visual-freeze source hashes below; evidence commit contains the final corrections",
+  "after": "70b34c16378f9f430941ba8c12028e38f366ab90 (original visual freeze; later corrections have their own manifest)",
   "sourceSha256": {
     "src/api/web/app.ts": "3c5451c66c6ba2d1d4b2f5fbe58d29f8ad24d31298b93fd350b3741f6265b16c",
     "src/api/web/calendar.ts": "c4e9b632edf7a793b2fcecc83cae47b2add1b22128ab5b90a4e3c443c09d46ab",

@@ -39,3 +39,7 @@ Solid conversation edges, dashed owner-added edges, promised-date source/column 
 The focused tests passed before this evidence freeze. Two existing design pins changed with reasons written in the tests: the permanent saved-reply editor expectation, and the calendar legend's old below-content position. No other pin was loosened.
 
 **Verification at this freeze:** full check/trust/build/isolated integration and scripted pre-pilot are next in the supervisor-granted quiet slot. Independent verification and owner review remain separate and pending. Their results will be appended against the exact tested revision.
+
+## Corrections after the first full run
+
+The original capture revision is `70b34c16`. Its full four exposed product token/icon/radius/waiting-marker defects and two obsolete test assumptions. [The correction supplement](check-corrections/README.md) records the causes, named pin changes, three-repeat O2 evidence and **54 additional images**, all opened whole. Its source hashes keep the later visuals separate from the original 460 images. The customer overview's order reference remains only inside Products and price; that is explicitly open for design review. A fresh full four and pre-pilot follow on the correction commit.

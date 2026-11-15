@@ -78,7 +78,7 @@ export const CUSTOMER_TOOLS_CSS = `
 .seq-overview { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 .tool-sequence .sts { margin:0; padding:0; list-style:none; max-inline-size:var(--measure-prose); }
 .tool-sequence .st { position:relative; margin:0; padding-block:var(--space-16); padding-inline:var(--space-24) 0; border-block-end:0; border-inline-start:2px solid var(--color-border); }
-.tool-sequence .st::before { content:""; position:absolute; inset-inline-start:-5px; inset-block-start:24px; inline-size:8px; block-size:8px; border-radius:50%; background:var(--color-ink-secondary); }
+.tool-sequence .st::before { content:""; position:absolute; inset-inline-start:-5px; inset-block-start:24px; inline-size:8px; block-size:8px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); }
 .tool-sequence .st-h { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-16); }
 .tool-sequence .st-s { margin-block:var(--space-8); font-weight:600; }
 .tool-sequence .st-b { margin:0; white-space:pre-wrap; }

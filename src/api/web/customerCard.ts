@@ -53,7 +53,7 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
     <div class="pc-top">${face({ clientId: c.clientId, name: c.name, photo: c.photo }, 'xl')}
       <h1 class="pc-name" id="pc-name"><bdi>${esc(name)}</bdi></h1>
       <p class="pc-meta">${where ? `<span>${esc(where)}</span>` : ''}<span>${esc(wrote)}</span></p>
-      <div class="record-state">${opts.stage ? `<span>${esc(t(locale, 'record.stage'))}: <b>${esc(t(locale, `split.stage.${opts.stage.stage}`))}</b></span>` : ''}${c.waiting ? `<span class="ca-wait">${esc(t(locale, 'inbox.filter.pending'))}</span>` : ''}${c.value.regular ? `<span>${esc(t(locale, 'pcard.regular'))}</span>` : ''}</div>
+      <div class="record-state">${opts.stage ? `<span>${esc(t(locale, 'record.stage'))}: <b>${esc(t(locale, `split.stage.${opts.stage.stage}`))}</b></span>` : ''}${c.waiting ? `<span class="pc-wait">${esc(t(locale, 'inbox.filter.pending'))}</span>` : ''}${c.value.regular ? `<span>${esc(t(locale, 'pcard.regular'))}</span>` : ''}</div>
     </div>
     ${c.conversationId && c.conversationId !== openedFrom ? deeper(conversationUrl(c.conversationId), t(locale, 'pcard.open'), 'pc-open') : ''}
     <div class="record-summary"><section class="pc-things">${things}</section>
