@@ -13,6 +13,8 @@ const US = `b1290000-0000-4000-8000-${RUN}0002`;     // several zones: flagged, 
 const PRICED = `b1290000-0000-4000-8000-${RUN}0003`; // Emirates with a price: zone only
 const SELF = `b1290000-0000-4000-8000-${RUN}0004`;   // signed itself up: never touched
 const PRODUCT = `b1290000-0000-4000-8001-${RUN}0003`;
+const FILLER = `b1290000-0000-4000-8002-${RUN}`;       // + four hex digits: rows that make the list longer than a pipe holds
+const FILLERS = 700;                                   // ≈ 150 bytes a line: ≈ 100 KiB, past a pipe's 64 KiB
 
 type Run = { code: number | null; out: string; err: string };
 const tool = (args: string[], url = MIGRATE_URL): Run => {
@@ -35,7 +37,7 @@ d('Block 1 #9 · the zone and currency backfill for the workspaces made before s
   });
   afterAll(async () => {
     await admin.query(`delete from products where business_id = any($1::uuid[])`, [[MA, US, PRICED, SELF]]);
-    await admin.query(`delete from businesses where id = any($1::uuid[])`, [[MA, US, PRICED, SELF]]);
+    await admin.query(`delete from businesses where id = any($1::uuid[]) or id::text like $2`, [[MA, US, PRICED, SELF], `${FILLER}%`]);
     await admin.end();
   });
 
@@ -48,7 +50,29 @@ d('Block 1 #9 · the zone and currency backfill for the workspaces made before s
     expect(r.out).toMatch(new RegExp(`${PRICED}.*zone → Asia/Dubai; currency kept \\(has prices\\)`));
     expect(r.out).not.toContain(SELF);
     expect(r.out).not.toContain('7dc89f42-852e-465a-920f-8af170dc83cd');
+    expect(r.out).toContain('Dry run: nothing was written.');   // the list reached its end
     expect(await rowOf(MA)).toEqual({ timezone: 'Asia/Shanghai', currency: 'USD' });
+  });
+
+  // CI, 2026-11-15: with 510 workspaces in its database the list passed 64 KiB, and the tool's process.exit() right after
+  // printing dropped what the pipe had not yet taken — the tail (this file's own rows, made last) and the summary. A
+  // reader that waits a second before reading fills the pipe every time, so this fails without the fix, not by chance.
+  it('the whole list reaches a reader that is slow to read, however long it is', async () => {
+    await admin.query(
+      `insert into businesses (id, name, country, timezone, currency, created_at)
+       select ($1 || lpad(to_hex(g), 4, '0'))::uuid, 'Zones filler ' || $2 || ' ' || lpad(g::text, 4, '0') || ' padded to the column', 'US', 'Asia/Shanghai', 'USD', timestamptz '2000-01-01' + g * interval '1 second'
+         from generate_series(1, $3::int) g`, [FILLER, RUN, FILLERS]);
+    try {
+      const r = spawnSync('sh', ['-c', `"${process.execPath}" tools/backfill-zones.mjs | (sleep 1; cat)`],
+        { cwd: ROOT, encoding: 'utf8', timeout: 120_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, MIGRATE_DATABASE_URL: MIGRATE_URL ?? '' } });
+      expect(r.status, r.stderr).toBe(0);
+      expect(Buffer.byteLength(r.stdout)).toBeGreaterThan(64 * 1024);
+      expect(r.stdout.match(new RegExp(`${FILLER}[0-9a-f]{4}`, 'g'))?.length).toBe(FILLERS);
+      expect(r.stdout).toMatch(new RegExp(`${MA}.*zone → Africa/Casablanca; currency USD → MAD`));
+      expect(r.stdout).toContain('Dry run: nothing was written.');
+    } finally {
+      await admin.query(`delete from businesses where id::text like $1`, [`${FILLER}%`]);
+    }
   });
 
   it('--yes writes exactly that, once; a second run finds nothing left to change', async () => {

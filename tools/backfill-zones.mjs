@@ -47,6 +47,9 @@ export function planFor(row) {
   };
 }
 
+// main() never calls process.exit() once it has printed: on a pipe, stdout is written asynchronously, and exiting at once
+// drops whatever the pipe had not yet taken — past 64 KiB the list lost its tail and its summary (CI, 2026-11-15, 510
+// workspaces). It sets process.exitCode and returns, and Node exits when stdout has drained.
 if (isMain) await main();
 async function main() {
 const client = toolClient(url, { replyTimeoutMs: 60_000 });
@@ -56,7 +59,8 @@ try {
   if (!role?.sees_all) {
     console.error('\n✗  Refusing: this role is filtered by row security, so it would see no workspace and write nothing true.\n'
       + '   Run it with the admin role (MIGRATE_DATABASE_URL). Nothing was written.\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const rows = (await client.query(`
     select b.id::text as id, b.name, b.country, b.timezone, b.currency,
@@ -79,7 +83,7 @@ try {
   }
   const changes = plans.filter((p) => p.zone || p.currency);
   console.log(`\n${changes.length} would change; ${plans.filter((p) => p.flagged).length} flagged for the owner; ${plans.length - changes.length - plans.filter((p) => p.flagged && !p.currency).length} already right.`);
-  if (!write) { console.log('\nDry run: nothing was written. Add --yes to write it.'); process.exit(0); }
+  if (!write) { console.log('\nDry run: nothing was written. Add --yes to write it.'); return; }
   await client.query('begin');
   for (const p of changes) {
     if (p.zone) await client.query(`update businesses set timezone = $2 where id = $1::uuid and timezone = 'Asia/Shanghai'`, [p.id, p.zone]);
@@ -90,7 +94,7 @@ try {
 } catch (e) {
   await client.query('rollback').catch(() => undefined);
   console.error(`\n✗  ${e.message}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await client.end().catch(() => undefined);
 }
