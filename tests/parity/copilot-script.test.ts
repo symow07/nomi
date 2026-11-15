@@ -66,7 +66,7 @@ function fixture(phone = false, delayAsk = false, failPanel = false) {
     DOMParser:class {parseFromString(){return new Element().add(panel);}},Event:class {constructor(readonly type:string){}}});
   const fire=(kind:string,target:Element,extra:Record<string,unknown>={})=>{const e={target,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...extra};handlers[kind]?.forEach(h=>h(e));return e;};
   const use = new Element({'data-copilot-use':''},'form'); use.action='/app/inbox/c1/copilot/reply'; tools.add(use);
-  return {scrolls,timers,thread,acts,retry,recovery,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
+  return {window,scrolls,timers,thread,acts,retry,recovery,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
 }
 describe('context panel keeps owner work',()=>{
   it('holds the existing desktop decision-region height while the pane narrows it', () => {
@@ -103,6 +103,20 @@ describe('context panel keeps owner work',()=>{
     f.thread.scrollTop=-140;f.acts.scrollTop=0;f.ask.focused=false;
     f.timers.splice(0).forEach(fn=>fn());
     expect(f.thread.scrollTop).toBe(-80);expect(f.acts.scrollTop).toBe(24);
+    expect(f.ask.focused).toBe(true);expect(f.box.value).toBe('my exact words');
+  });
+  it('settles the restored conversation layout before restoring its reading position', () => {
+    // B2-V02, round 3: Chromium can still have a fragment layout pending after popstate.
+    // A scroll request against the old pane layout is discarded; reading the restored
+    // box settles that layout before the saved reading position is applied.
+    const f=fixture(true);f.fire('click',f.ask);
+    let pendingLayout=true;
+    f.root.getBoundingClientRect=()=>{pendingLayout=false;return {height:358,top:610.5};};
+    const scrollTo=f.window.scrollTo.bind(f.window);
+    f.window.scrollTo=(x,y)=>{if (!pendingLayout) scrollTo(x,y);};
+    f.fire('popstate',f.root,{state:null});
+    f.timers.splice(0).forEach(fn=>fn());
+    expect(f.window.scrollY).toBe(420);
     expect(f.ask.focused).toBe(true);expect(f.box.value).toBe('my exact words');
   });
   it('keeps the latest caret when the owner edits while a desktop pane is open',()=>{
