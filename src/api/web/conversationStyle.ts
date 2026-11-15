@@ -26,9 +26,9 @@ const contextSized = (name: string, sel: string, context: string, actions: strin
 
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
-.conversation-workspace {
+.conversation-workspace { --font-voice:var(--font-family);
   --conversation-acts-height:initial; /* Runtime reading geometry; the CSS fallbacks apply until the pane opens. */
-  --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
+  display:block; min-width:0; background:var(--color-surface); }
 .conversation-workspace > .conv { min-width:0; padding:var(--space-16); background:var(--color-surface); }
 .conversation-workspace > .listpane { display:none; }
 /* F44: a conversation is routine work, opened many times a day. Its answers are there when the page is: the card a reply
@@ -67,7 +67,7 @@ export const CONVERSATION_CSS = `
 @media (max-width:720px) {
   ${PAGE} { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
   ${PAGE} > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:${BAR}; }
-  ${PAGE} > .content { transition-property:none; order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
+  ${PAGE} > .content { transition:none; order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
   /* A door lands on the newest message near the top of the region here (a quarter down elsewhere): the room under it
      is for what was drafted and why it waits. */
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
@@ -255,13 +255,13 @@ export const CONVERSATION_CSS = `
    every descendant, including the opener. Closing during that transition returns focus briefly, then loses it
    to BODY. This replacement and all its descendants must become visible immediately before focus returns. */
 @media (min-width:1100px) and (max-width:1299px) and (prefers-reduced-motion:reduce) {
-  .conversation-workspace > .conv, .conversation-workspace > .conv * { transition-property:none; }
+  .conversation-workspace > .conv, .conversation-workspace > .conv * { transition:none; }
 }
 @media (min-width:1300px) {
   /* The pane's close replaces its opener; no visible button jumps to the narrower column's far edge.
      Include the label and icon: reduced-motion's global 1 ms duration otherwise leaves those descendants
      visible for successive frames after their button has hidden, including in loading/error states. */
-  .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition-property:none; }
+  .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition:none; }
   .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
   .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
 

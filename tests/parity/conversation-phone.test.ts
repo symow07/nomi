@@ -67,7 +67,7 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(region).toContain('padding-block-end:0');
     // Opening the replacement pane removes its band reservation immediately, including reduced motion.
     // An inherited 1 ms margin transition clipped the loading line for the first rendered frame.
-    expect(region).toContain('transition-property:none');
+    expect(region).toContain('transition:none');
   });
 
   it('nothing on a phone is sticky, and no script measures the page for it', () => {
