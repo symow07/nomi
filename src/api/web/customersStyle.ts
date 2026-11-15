@@ -90,12 +90,14 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .record-value-basis{font-size:var(--font-size-small);}
 .record-value-basis .ca-basis{margin-block:var(--space-8);}
 .owner-shell .customer-record .record-overview .pc-open{background:transparent;color:var(--color-ink);border:0;padding:0;min-block-size:44px;box-shadow:none;}
+.customer-record .record-overview .pc-open .go{color:inherit;}
 .customer-record .ca-orders-door{margin-block:0 var(--space-8);gap:var(--space-8);}
 .customer-record .ca-conversations{margin:0;}
 .customer-record .ca-selected{border:0;padding-block-start:var(--space-16);}
 .customer-record .ca-selected>h2{font-size:var(--font-size-small);margin:0;}
 .record-channel{font-size:var(--font-size-small);margin-block:var(--space-4) var(--space-12);overflow-wrap:anywhere;}
 .order-record .ord-head{margin-block-end:var(--space-16);}
+.order-record .ord-head>.face-link{flex:none;}
 .order-overview{padding-block:0 var(--space-16);}
 .order-record .stated-now{font-size:var(--font-size-base);margin-block:0 var(--space-16);}
 .order-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-12) var(--space-24);}
@@ -103,6 +105,7 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .order-facts .flabel{font-size:var(--font-size-small);}
 .order-facts .fval{overflow-wrap:anywhere;}
 .order-record .record-section{max-inline-size:100%;}
+.order-overview>.order-editor{margin-block-end:var(--space-12);border-block-end:1px solid var(--color-border);}
 .order-editor .pform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-16);max-inline-size:var(--measure-prose);}
 .order-editor .pform .fld:first-of-type{grid-column:1/-1;}
 .order-editor .pform .btn{justify-self:start;}
@@ -121,10 +124,15 @@ main:has(.customer-area){max-width:var(--measure-column);}
  .ca-order{grid-template-columns:minmax(0,1fr);}
  .ca-order-facts{grid-column:1;grid-row:auto;}
 }
-@media(max-width:600px){
- .ca-nav{display:none;}.ca-chooser{display:block;margin-bottom:var(--space-24);}
+@media(max-width:720px){
+ .ca-nav{display:none;}.ca-chooser{display:block;margin-bottom:var(--space-8);}
  .ca-chooser summary{min-height:44px;display:flex;align-items:center;cursor:pointer;}
  .ca-chooser nav a{display:flex;align-items:center;min-height:44px;}
+ .order-record .ord-head,.order-record .stated-now{margin-block-end:var(--space-8);}
+ .order-overview>.order-editor:not([open]){padding-block:0;margin-block-end:var(--space-8);}
+ .order-overview .order-facts{margin-block-start:var(--space-8);}
+}
+@media(max-width:600px){
  .ca-heading h1{font-size:var(--font-size-display);}
  .ca-filters{align-items:stretch;gap:var(--space-12);}
  .ca-filters label{width:100%;}.ca-search{flex-basis:100%;}
@@ -141,6 +149,10 @@ main:has(.customer-area){max-width:var(--measure-column);}
  .ca-pager{gap:var(--space-8);}
  .record-summary{grid-template-columns:minmax(0,1fr);gap:var(--space-12);}
  .customer-record .record-overview .pc-name{font-size:var(--font-size-display);}
+ /* Stage and waiting state use the full row, keeping the product in view even
+    when a complete Arabic name fills three lines beside the avatar. */
+ .customer-record .record-overview .pc-top>.face{grid-row:1/3;}
+ .customer-record .record-overview .record-state{grid-column:1/-1;}
  .order-record .ord-head{gap:var(--space-12);}
  .order-record .ord-head .face{width:44px;height:44px;}
  .order-editor .pform{grid-template-columns:minmax(0,1fr);}

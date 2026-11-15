@@ -16,6 +16,9 @@ export const CUSTOMER_TOOLS_CSS = `
 .customer-tools .scard { border:0; border-block-end:1px solid var(--color-border); background:transparent; border-radius:0; }
 .customer-tools .srow { padding-inline:0; }
 .customer-tools .sform, .customer-tools .sqform, .customer-tools .wform { max-inline-size:var(--measure-form); }
+/* Stopped / archived labels carry the state; fading their whole rows made the
+   names, counts and still-available doors fail text contrast. */
+.customer-tools .ct.gone, .customer-tools .sq.gone, .customer-tools .en.gone { opacity:1; }
 .customer-tool-doors { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-24); margin-block:var(--space-16) var(--space-24); }
 .customer-tool-doors .deeper { display:inline-flex; align-items:center; min-block-size:44px; margin:0; }
 .tool-contacts .search { margin-block:var(--space-24); }
@@ -50,7 +53,9 @@ export const CUSTOMER_TOOLS_CSS = `
 .tool-contacts > .block, .tool-sequences > .block, .tool-sequence > .block, .tool-find > .block, .tool-write > .block, .tool-suppress > .block { padding-block:var(--space-12); }
 .tool-contacts > .block > .note { margin-block:0 var(--space-8); }
 .contacts-toolbar { display:flex; align-items:start; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
-.tool-contacts .contacts-toolbar .search { flex:1 1 300px; margin:0; }
+/* A flex item must shrink before translated Search / Clear controls wrap. */
+.tool-contacts .contacts-toolbar .search { flex:1 1 300px; min-inline-size:0; max-inline-size:100%; flex-wrap:wrap; margin:0; }
+.tool-contacts .contacts-toolbar .search input { min-inline-size:0; flex:1 1 120px; }
 .tool-contacts .contacts-toolbar .act-fold { margin:0; }
 .contacts-toolbar .act-fold[open] { flex-basis:100%; }
 .tool-contacts .customer-tool-doors { flex-direction:row; gap:0 var(--space-24); margin-block:var(--space-4) var(--space-12); }

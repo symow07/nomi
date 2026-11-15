@@ -1,0 +1,7633 @@
+{
+  "states-final.json": [
+    {
+      "name": "profile-native",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "privacy-fragment",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "urgent-privacy-role",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "order-update-history",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "reply-editor",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "reply-search-all-texts",
+      "tag": "owner-en-js-320",
+      "pass": true,
+      "details": [
+        {
+          "q": "Delivery arrangements",
+          "n": 1
+        },
+        {
+          "q": "يرجى",
+          "n": 12
+        },
+        {
+          "q": "确认地址",
+          "n": 12
+        },
+        {
+          "q": "dirección",
+          "n": 12
+        },
+        {
+          "q": "l’adresse",
+          "n": 12
+        },
+        {
+          "q": "Old opening hours",
+          "n": 1
+        },
+        {
+          "q": "no-result-unique",
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "sequence-native-editors",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-approved",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-archived",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-full",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "contacts-safeguards",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "composer-gates",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "directory-no-key",
+      "tag": "owner-en-js-320",
+      "pass": true
+    },
+    {
+      "name": "calendar-legacy",
+      "tag": "owner-en-js-320",
+      "pass": true,
+      "details": [
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201"
+      ]
+    },
+    {
+      "name": "keyboard-scroll",
+      "tag": "owner-en-js-320",
+      "pass": true,
+      "details": {
+        "seen": 27
+      }
+    },
+    {
+      "name": "profile-native",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "privacy-fragment",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "urgent-privacy-role",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "order-update-history",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "reply-editor",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "reply-search-all-texts",
+      "tag": "owner-en-noscript-320",
+      "pass": true,
+      "details": [
+        {
+          "q": "Delivery arrangements",
+          "n": 1
+        },
+        {
+          "q": "يرجى",
+          "n": 12
+        },
+        {
+          "q": "确认地址",
+          "n": 12
+        },
+        {
+          "q": "dirección",
+          "n": 12
+        },
+        {
+          "q": "l’adresse",
+          "n": 12
+        },
+        {
+          "q": "Old opening hours",
+          "n": 1
+        },
+        {
+          "q": "no-result-unique",
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "sequence-native-editors",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-approved",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-archived",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-full",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "contacts-safeguards",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "composer-gates",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "directory-no-key",
+      "tag": "owner-en-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "calendar-legacy",
+      "tag": "owner-en-noscript-320",
+      "pass": true,
+      "details": [
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201"
+      ]
+    },
+    {
+      "name": "keyboard-scroll",
+      "tag": "owner-en-noscript-320",
+      "pass": true,
+      "details": {
+        "seen": 27
+      }
+    },
+    {
+      "name": "profile-native",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "privacy-fragment",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "urgent-privacy-role",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "order-update-history",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "reply-editor",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "reply-search-all-texts",
+      "tag": "staff-ar-js-320",
+      "pass": true,
+      "details": [
+        {
+          "q": "Delivery arrangements",
+          "n": 1
+        },
+        {
+          "q": "يرجى",
+          "n": 12
+        },
+        {
+          "q": "确认地址",
+          "n": 12
+        },
+        {
+          "q": "dirección",
+          "n": 12
+        },
+        {
+          "q": "l’adresse",
+          "n": 12
+        },
+        {
+          "q": "Old opening hours",
+          "n": 1
+        },
+        {
+          "q": "no-result-unique",
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "sequence-native-editors",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-approved",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-archived",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-full",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "contacts-safeguards",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "composer-gates",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "directory-no-key",
+      "tag": "staff-ar-js-320",
+      "pass": true
+    },
+    {
+      "name": "calendar-legacy",
+      "tag": "staff-ar-js-320",
+      "pass": true,
+      "details": [
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201"
+      ]
+    },
+    {
+      "name": "keyboard-scroll",
+      "tag": "staff-ar-js-320",
+      "pass": true,
+      "details": {
+        "seen": 27
+      }
+    },
+    {
+      "name": "profile-native",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "privacy-fragment",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "urgent-privacy-role",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "order-update-history",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "reply-editor",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "reply-search-all-texts",
+      "tag": "staff-ar-noscript-320",
+      "pass": true,
+      "details": [
+        {
+          "q": "Delivery arrangements",
+          "n": 1
+        },
+        {
+          "q": "يرجى",
+          "n": 12
+        },
+        {
+          "q": "确认地址",
+          "n": 12
+        },
+        {
+          "q": "dirección",
+          "n": 12
+        },
+        {
+          "q": "l’adresse",
+          "n": 12
+        },
+        {
+          "q": "Old opening hours",
+          "n": 1
+        },
+        {
+          "q": "no-result-unique",
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "sequence-native-editors",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-approved",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-archived",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "sequence-full",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "contacts-safeguards",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "composer-gates",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "directory-no-key",
+      "tag": "staff-ar-noscript-320",
+      "pass": true
+    },
+    {
+      "name": "calendar-legacy",
+      "tag": "staff-ar-noscript-320",
+      "pass": true,
+      "details": [
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?category=promised&who=de3b3000-0000-4000-8000-000000000201",
+        "/app/calendar?month=2026-11&day=2026-11-15&category=promised&who=de3b3000-0000-4000-8000-000000000201"
+      ]
+    },
+    {
+      "name": "keyboard-scroll",
+      "tag": "staff-ar-noscript-320",
+      "pass": true,
+      "details": {
+        "seen": 27
+      }
+    }
+  ],
+  "flows-corrected.json": [
+    {
+      "name": "saved-reply-create-edit-archive-restore",
+      "tag": "owner-en-js-390",
+      "pass": true,
+      "details": {
+        "allCommands": true,
+        "nativeFormAssociation": true
+      }
+    },
+    {
+      "name": "invalid-reply-return",
+      "tag": "owner-en-js-390",
+      "pass": true,
+      "details": {
+        "retainsUnsavedWords": false,
+        "knownLimitation": "Existing invalid POST loses unsaved fields; not changed by this UI block."
+      }
+    },
+    {
+      "name": "proforma-download",
+      "tag": "owner-en-js-390",
+      "pass": true,
+      "details": {
+        "filename": "proforma-SYN-2026-001.txt",
+        "textMatchesPage": true,
+        "bytes": 231
+      }
+    },
+    {
+      "name": "saved-reply-create-edit-archive-restore",
+      "tag": "owner-en-noscript-390",
+      "pass": true,
+      "details": {
+        "allCommands": true,
+        "nativeFormAssociation": true
+      }
+    },
+    {
+      "name": "invalid-reply-return",
+      "tag": "owner-en-noscript-390",
+      "pass": true,
+      "details": {
+        "retainsUnsavedWords": false,
+        "knownLimitation": "Existing invalid POST loses unsaved fields; not changed by this UI block."
+      }
+    },
+    {
+      "name": "proforma-download",
+      "tag": "owner-en-noscript-390",
+      "pass": true,
+      "details": {
+        "filename": "proforma-SYN-2026-001.txt",
+        "textMatchesPage": true,
+        "bytes": 231
+      }
+    },
+    {
+      "name": "directory-configured-and-unreadable",
+      "tag": "owner-en-js-390",
+      "pass": true,
+      "details": {
+        "syntheticStubOnly": true,
+        "configuredClosed": true,
+        "unreadableOpen": true
+      }
+    },
+    {
+      "name": "outreach-off",
+      "tag": "owner-en-js-390",
+      "pass": true,
+      "details": [
+        {
+          "path": "/app/customers/outreach",
+          "status": 404
+        },
+        {
+          "path": "/app/customers/outreach/find",
+          "status": 404
+        },
+        {
+          "path": "/app/customers/outreach/write?channel=email&identity=sam%40example.test",
+          "status": 404
+        },
+        {
+          "path": "/app/customers/outreach/sequences",
+          "status": 404
+        },
+        {
+          "path": "/app/customers/outreach/sequences/21501386-6820-46e9-8381-ef6fc72d22bd",
+          "status": 404
+        },
+        {
+          "path": "/app/contacts",
+          "status": 404
+        },
+        {
+          "path": "/app/prospects",
+          "status": 404
+        },
+        {
+          "path": "/app/sequences",
+          "status": 404
+        }
+      ]
+    }
+  ],
+  "calendar-final.json": [
+    {
+      "lang": "en",
+      "width": 1440,
+      "weeks": [
+        127.5,
+        127.5,
+        349.015625,
+        159.671875,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 more",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 350.375,
+      "gridTop": 350.375,
+      "scroll": {
+        "client": 571,
+        "full": 571
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    },
+    {
+      "lang": "en",
+      "width": 320,
+      "weeks": [
+        127.5,
+        127.5,
+        216.5,
+        127.5,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 more",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 490.171875,
+      "gridTop": 2950.34375,
+      "scroll": {
+        "client": 288,
+        "full": 371
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    },
+    {
+      "lang": "en",
+      "width": 720,
+      "weeks": [
+        127.5,
+        127.5,
+        197,
+        127.5,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 more",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 310.984375,
+      "gridTop": 1816.21875,
+      "scroll": {
+        "client": 688,
+        "full": 688
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    },
+    {
+      "lang": "ar",
+      "width": 1440,
+      "weeks": [
+        127.5,
+        127.5,
+        349.015625,
+        159.671875,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 أخرى",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 363.9375,
+      "gridTop": 363.9375,
+      "scroll": {
+        "client": 571,
+        "full": 571
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    },
+    {
+      "lang": "ar",
+      "width": 320,
+      "weeks": [
+        127.5,
+        127.5,
+        218,
+        127.5,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 أخرى",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 476,
+      "gridTop": 2917.140625,
+      "scroll": {
+        "client": 288,
+        "full": 371
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    },
+    {
+      "lang": "ar",
+      "width": 720,
+      "weeks": [
+        127.5,
+        127.5,
+        197,
+        127.5,
+        127.5,
+        127.5
+      ],
+      "columnsAligned": true,
+      "today": "date",
+      "selection": "true",
+      "selectedDay": "/app/calendar?month=2026-11&day=2026-11-15",
+      "count": "+8 أخرى",
+      "shown": 2,
+      "names": [
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "Alexandra Margaret Rowan-Lindqvist",
+        "عبد الرحمن بن محمد الحسيني للتجارة والتوزيع",
+        "Sample person 04",
+        "Sam Rowan"
+      ],
+      "edges": [
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:58c12afa-32f2-4bbf-a372-69a29bc402ec",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f35f07b1-2dec-429f-9e25-e9e14754c661",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:3d6946c2-9488-4e30-9c2a-f1f5e56b2953",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:f87be46f-a57b-49ba-8d6d-dc444b1a80a8",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:7e93de02-204c-4a5e-ab3e-2377084d9094",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:0445411f-5391-4d2a-9d31-7a2f5661be90",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid",
+          "cat": "promised",
+          "src": "promised_dates:9cef0c9d-c0e1-4e3d-82b3-b28b84711e28",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "promised",
+          "src": "promised_dates:d8159279-4894-42cf-a9ee-3f2d02678b11",
+          "col": "due_on"
+        },
+        {
+          "class": "dl-row dashed done",
+          "cat": "yours",
+          "src": "calendar_entries:eb61d697-3be9-408e-b4d9-9379057837b1",
+          "col": "starts_at"
+        },
+        {
+          "class": "dl-row solid done",
+          "cat": "orders",
+          "src": "order_updates:b5855c50-f061-4682-84dd-774fa898c5f3",
+          "col": "at"
+        }
+      ],
+      "listTop": 320,
+      "gridTop": 1894.890625,
+      "scroll": {
+        "client": 688,
+        "full": 688
+      },
+      "moreSelectsAll10": true,
+      "filtersKept": true,
+      "script": false
+    }
+  ],
+  "quality-final.json": [
+    {
+      "name": "customer",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 939.15625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1861.09375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1527.625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 911.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1494.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1968.15625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2354.671875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 3802.25,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "en",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1103.234375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 966.78125,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1845.03125,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1568,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1531.1875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1981.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2365.078125,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 3941.4375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "ar",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1148.59375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 939.15625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1861.09375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1527.625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 911.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1494.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1968.15625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2381.859375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 3802.25,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "es",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1131.234375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 939.15625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1902.6875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1527.625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 911.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1494.71875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1940.96875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2327.484375,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 3802.25,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "fr",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1124.03125,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 956.671875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1792.796875,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1545.078125,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1494.890625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "zh",
+      "width": 1440,
+      "small": [
+        {
+          "tag": "A",
+          "cls": "mo-more",
+          "name": "+8 项",
+          "w": 39.046875,
+          "h": 44
+        }
+      ],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1948.90625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "zh",
+      "width": 1440,
+      "small": [
+        {
+          "tag": "A",
+          "cls": "mo-more",
+          "name": "+8 项",
+          "w": 39.046875,
+          "h": 44
+        }
+      ],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2324.5,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 3894.140625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 900,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1134.515625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "customer",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "customer-privacy",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "order",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "orders",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-new",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "reply-edit",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contacts",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "suppress",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "write",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "find",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequences",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    }
+  ],
+  "quality-last.json": [
+    {
+      "name": "calendar",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 1948.90625,
+      "barTop": 0,
+      "overflow": false
+    },
+    {
+      "name": "calendar-day",
+      "lang": "zh",
+      "width": 1440,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 2324.5,
+      "barTop": 0,
+      "overflow": false
+    }
+  ],
+  "quality-expanded.json": [
+    {
+      "name": "profile",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "en",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "en",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "ar",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "ar",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "es",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "es",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "fr",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "fr",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "zh",
+      "width": 320,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 499,
+      "barTop": 499,
+      "overflow": false
+    },
+    {
+      "name": "profile",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "privacy",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "update",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "history",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "document",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "calendar-tools",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-edit",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-add",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "sequence-retire",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-add",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "contact-more",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    },
+    {
+      "name": "replies-archive",
+      "lang": "zh",
+      "width": 720,
+      "small": [],
+      "low": [],
+      "horizontal": [],
+      "barOverlap": false,
+      "regionBottom": 381,
+      "barTop": 381,
+      "overflow": false
+    }
+  ],
+  "final-layout-final.json": [
+    {
+      "name": "customer",
+      "lang": "en",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 398.359375,
+        "bottom": 445.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 330.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 202.953125,
+        "top": 338.359375,
+        "bottom": 382.359375,
+        "w": 186.953125
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "en",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 398.359375,
+        "bottom": 445.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 330.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 202.953125,
+        "top": 338.359375,
+        "bottom": 382.359375,
+        "w": 186.953125
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "en",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 148,
+        "top": 329.578125,
+        "bottom": 405.578125,
+        "w": 132
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 239.1875,
+        "bottom": 259.578125,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 304,
+        "top": 268.578125,
+        "bottom": 312.578125,
+        "w": 288
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "en",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 227.3125,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 211.3125,
+          "min": "0px"
+        },
+        {
+          "name": "Find",
+          "x": 235.3125,
+          "right": 304,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 68.6875,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "en",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 236.796875,
+        "bottom": 339.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 227.3125,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 211.3125,
+          "min": "0px"
+        },
+        {
+          "name": "Find",
+          "x": 235.3125,
+          "right": 304,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 68.6875,
+          "min": "auto"
+        },
+        {
+          "name": "Clear the search",
+          "x": 16,
+          "right": 129.796875,
+          "top": 295.984375,
+          "bottom": 339.984375,
+          "w": 113.796875,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "en",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 202.953125,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 186.953125
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "en",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 202.953125,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 186.953125
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "en",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 299.1875,
+        "bottom": 351.1875,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 208.796875,
+        "bottom": 229.1875,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 238.1875,
+        "bottom": 282.1875,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "en",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 464.40625,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 448.40625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 387.71875,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 371.71875,
+          "min": "0px"
+        },
+        {
+          "name": "Find",
+          "x": 395.71875,
+          "right": 464.40625,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 68.6875,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "en",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 464.40625,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 448.40625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 265.921875,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 249.921875,
+          "min": "0px"
+        },
+        {
+          "name": "Find",
+          "x": 273.921875,
+          "right": 342.609375,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 68.6875,
+          "min": "auto"
+        },
+        {
+          "name": "Clear the search",
+          "x": 350.609375,
+          "right": 464.40625,
+          "top": 240.390625,
+          "bottom": 284.390625,
+          "w": 113.796875,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 426.5625,
+        "bottom": 479.15625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 332.3125,
+        "bottom": 358.5625,
+        "w": 288
+      },
+      "primary": {
+        "x": 204.25,
+        "right": 304,
+        "top": 366.5625,
+        "bottom": 410.5625,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "ar",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 426.5625,
+        "bottom": 479.15625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 332.3125,
+        "bottom": 358.5625,
+        "w": 288
+      },
+      "primary": {
+        "x": 204.25,
+        "right": 304,
+        "top": 366.5625,
+        "bottom": 410.5625,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 172,
+        "right": 304,
+        "top": 388.578125,
+        "bottom": 471.328125,
+        "w": 132
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 293.9375,
+        "bottom": 318.578125,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 304,
+        "top": 327.578125,
+        "bottom": 371.578125,
+        "w": 288
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 92.5,
+          "right": 304,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 211.5,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 16,
+          "right": 84.5,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "ar",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 173.328125,
+          "right": 304,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 130.671875,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 96.828125,
+          "right": 165.328125,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        },
+        {
+          "name": "مسح البحث",
+          "x": 16,
+          "right": 88.828125,
+          "top": 250.875,
+          "bottom": 294.875,
+          "w": 72.828125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 324.9375,
+        "bottom": 377.53125,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 632,
+        "top": 226.6875,
+        "bottom": 252.9375,
+        "w": 616
+      },
+      "primary": {
+        "x": 604.25,
+        "right": 704,
+        "top": 264.9375,
+        "bottom": 308.9375,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 324.9375,
+        "bottom": 377.53125,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 632,
+        "top": 226.6875,
+        "bottom": 252.9375,
+        "w": 616
+      },
+      "primary": {
+        "x": 604.25,
+        "right": 704,
+        "top": 264.9375,
+        "bottom": 308.9375,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 324.765625,
+        "bottom": 381.265625,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 230.125,
+        "bottom": 254.765625,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 263.765625,
+        "bottom": 307.765625,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 251.34375,
+        "right": 704,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 452.65625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 327.84375,
+          "right": 704,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 376.15625,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 251.34375,
+          "right": 319.84375,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 251.34375,
+        "right": 704,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 452.65625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 408.671875,
+          "right": 704,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 295.328125,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 332.171875,
+          "right": 400.671875,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        },
+        {
+          "name": "مسح البحث",
+          "x": 251.34375,
+          "right": 324.171875,
+          "top": 250.875,
+          "bottom": 294.875,
+          "w": 72.828125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "es",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 398.359375,
+        "bottom": 445.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 330.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 190.1875,
+        "top": 338.359375,
+        "bottom": 382.359375,
+        "w": 174.1875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "es",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 426.359375,
+        "bottom": 473.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 358.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 190.1875,
+        "top": 366.359375,
+        "bottom": 410.359375,
+        "w": 174.1875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "es",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 148,
+        "top": 329.578125,
+        "bottom": 405.578125,
+        "w": 132
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 239.1875,
+        "bottom": 259.578125,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 304,
+        "top": 268.578125,
+        "bottom": 312.578125,
+        "w": 288
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "es",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 209.1875,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 193.1875,
+          "min": "0px"
+        },
+        {
+          "name": "Buscar",
+          "x": 217.1875,
+          "right": 304,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 86.8125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "es",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 236.796875,
+        "bottom": 339.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 209.1875,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 193.1875,
+          "min": "0px"
+        },
+        {
+          "name": "Buscar",
+          "x": 217.1875,
+          "right": 304,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 86.8125,
+          "min": "auto"
+        },
+        {
+          "name": "Borrar la búsqueda",
+          "x": 16,
+          "right": 151.890625,
+          "top": 295.984375,
+          "bottom": 339.984375,
+          "w": 135.890625,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "es",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 190.1875,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 174.1875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "es",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 190.1875,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 174.1875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "es",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 299.1875,
+        "bottom": 351.1875,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 208.796875,
+        "bottom": 229.1875,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 238.1875,
+        "bottom": 282.1875,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "es",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 405.4375,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 389.4375
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 310.625,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 294.625,
+          "min": "0px"
+        },
+        {
+          "name": "Buscar",
+          "x": 318.625,
+          "right": 405.4375,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 86.8125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "es",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 405.4375,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 389.4375
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 166.734375,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 150.734375,
+          "min": "0px"
+        },
+        {
+          "name": "Buscar",
+          "x": 174.734375,
+          "right": 261.546875,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 86.8125,
+          "min": "auto"
+        },
+        {
+          "name": "Borrar la búsqueda",
+          "x": 269.546875,
+          "right": 405.4375,
+          "top": 240.390625,
+          "bottom": 284.390625,
+          "w": 135.890625,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "fr",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 398.359375,
+        "bottom": 445.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 330.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 198.875,
+        "top": 338.359375,
+        "bottom": 382.359375,
+        "w": 182.875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "fr",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 426.359375,
+        "bottom": 473.140625,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 306.359375,
+        "bottom": 358.359375,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 198.875,
+        "top": 366.359375,
+        "bottom": 410.359375,
+        "w": 182.875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "fr",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 148,
+        "top": 329.578125,
+        "bottom": 405.578125,
+        "w": 132
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 239.1875,
+        "bottom": 259.578125,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 304,
+        "top": 268.578125,
+        "bottom": 312.578125,
+        "w": 288
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "fr",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 260.796875,
+        "bottom": 311.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 192.6875,
+          "top": 260.796875,
+          "bottom": 311.984375,
+          "w": 176.6875,
+          "min": "0px"
+        },
+        {
+          "name": "Chercher",
+          "x": 200.6875,
+          "right": 304,
+          "top": 260.796875,
+          "bottom": 311.984375,
+          "w": 103.3125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "fr",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 260.796875,
+        "bottom": 363.984375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 192.6875,
+          "top": 260.796875,
+          "bottom": 311.984375,
+          "w": 176.6875,
+          "min": "0px"
+        },
+        {
+          "name": "Chercher",
+          "x": 200.6875,
+          "right": 304,
+          "top": 260.796875,
+          "bottom": 311.984375,
+          "w": 103.3125,
+          "min": "auto"
+        },
+        {
+          "name": "Effacer la recherche",
+          "x": 16,
+          "right": 155.125,
+          "top": 319.984375,
+          "bottom": 363.984375,
+          "w": 139.125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "fr",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 198.875,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 182.875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "fr",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 311.984375,
+        "bottom": 358.765625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 215.984375,
+        "bottom": 239.984375,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 198.875,
+        "top": 251.984375,
+        "bottom": 295.984375,
+        "w": 182.875
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "fr",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 305.5625,
+        "bottom": 357.5625,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 215.171875,
+        "bottom": 235.5625,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 244.5625,
+        "bottom": 288.5625,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "fr",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 386.625,
+        "top": 236.796875,
+        "bottom": 287.984375,
+        "w": 370.625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 275.3125,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 259.3125,
+          "min": "0px"
+        },
+        {
+          "name": "Chercher",
+          "x": 283.3125,
+          "right": 386.625,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 103.3125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "fr",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 386.625,
+        "top": 236.796875,
+        "bottom": 339.984375,
+        "w": 370.625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 275.3125,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 259.3125,
+          "min": "0px"
+        },
+        {
+          "name": "Chercher",
+          "x": 283.3125,
+          "right": 386.625,
+          "top": 236.796875,
+          "bottom": 287.984375,
+          "w": 103.3125,
+          "min": "auto"
+        },
+        {
+          "name": "Effacer la recherche",
+          "x": 16,
+          "right": 155.125,
+          "top": 295.984375,
+          "bottom": 339.984375,
+          "w": 139.125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "zh",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 415.875,
+        "bottom": 466.3125,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 322.375,
+        "bottom": 347.875,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 96,
+        "top": 355.875,
+        "bottom": 399.875,
+        "w": 80
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "zh",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 304,
+        "top": 415.875,
+        "bottom": 466.3125,
+        "w": 288
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 322.375,
+        "bottom": 347.875,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 96,
+        "top": 355.875,
+        "bottom": 399.875,
+        "w": 80
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "zh",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": {
+        "x": 16,
+        "right": 148,
+        "top": 344.203125,
+        "bottom": 399.203125,
+        "w": 132
+      },
+      "stage": {
+        "x": 16,
+        "right": 304,
+        "top": 251.265625,
+        "bottom": 274.203125,
+        "w": 288
+      },
+      "primary": {
+        "x": 16,
+        "right": 304,
+        "top": 283.203125,
+        "bottom": 327.203125,
+        "w": 288
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "zh",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 242.59375,
+        "bottom": 295.484375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 228,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 212,
+          "min": "0px"
+        },
+        {
+          "name": "搜索",
+          "x": 236,
+          "right": 304,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 68,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "zh",
+      "width": 320,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 320,
+        "top": 0,
+        "bottom": 499,
+        "w": 320
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 304,
+        "top": 242.59375,
+        "bottom": 295.484375,
+        "w": 288
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 160,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 144,
+          "min": "0px"
+        },
+        {
+          "name": "搜索",
+          "x": 168,
+          "right": 236,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 68,
+          "min": "auto"
+        },
+        {
+          "name": "清除搜索",
+          "x": 244,
+          "right": 304,
+          "top": 247.03125,
+          "bottom": 291.03125,
+          "w": 60,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "customer",
+      "lang": "zh",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 320.1875,
+        "bottom": 370.625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 222.6875,
+        "bottom": 248.1875,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 96,
+        "top": 260.1875,
+        "bottom": 304.1875,
+        "w": 80
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "zh",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 320.1875,
+        "bottom": 370.625,
+        "w": 332
+      },
+      "stage": {
+        "x": 88,
+        "right": 704,
+        "top": 222.6875,
+        "bottom": 248.1875,
+        "w": 616
+      },
+      "primary": {
+        "x": 16,
+        "right": 96,
+        "top": 260.1875,
+        "bottom": 304.1875,
+        "w": 80
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "zh",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 16,
+        "right": 348,
+        "top": 303.03125,
+        "bottom": 358.03125,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 210.09375,
+        "bottom": 233.03125,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 242.03125,
+        "bottom": 286.03125,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "zh",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 521,
+        "top": 242.59375,
+        "bottom": 295.484375,
+        "w": 505
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 445,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 429,
+          "min": "0px"
+        },
+        {
+          "name": "搜索",
+          "x": 453,
+          "right": 521,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 68,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "zh",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 16,
+        "right": 521,
+        "top": 242.59375,
+        "bottom": 295.484375,
+        "w": 505
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 16,
+          "right": 377,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 361,
+          "min": "0px"
+        },
+        {
+          "name": "搜索",
+          "x": 385,
+          "right": 453,
+          "top": 242.59375,
+          "bottom": 295.484375,
+          "w": 68,
+          "min": "auto"
+        },
+        {
+          "name": "清除搜索",
+          "x": 461,
+          "right": 521,
+          "top": 247.03125,
+          "bottom": 291.03125,
+          "w": 60,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    }
+  ],
+  "final-layout-freeze.json": [
+    {
+      "name": "customer",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 324.9375,
+        "bottom": 377.53125,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 632,
+        "top": 226.6875,
+        "bottom": 252.9375,
+        "w": 616
+      },
+      "primary": {
+        "x": 604.25,
+        "right": 704,
+        "top": 264.9375,
+        "bottom": 308.9375,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "urgent",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 324.9375,
+        "bottom": 377.53125,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 632,
+        "top": 226.6875,
+        "bottom": 252.9375,
+        "w": 616
+      },
+      "primary": {
+        "x": 604.25,
+        "right": 704,
+        "top": 264.9375,
+        "bottom": 308.9375,
+        "w": 99.75
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "order",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": {
+        "x": 372,
+        "right": 704,
+        "top": 316.765625,
+        "bottom": 373.265625,
+        "w": 332
+      },
+      "stage": {
+        "x": 16,
+        "right": 704,
+        "top": 230.125,
+        "bottom": 254.765625,
+        "w": 688
+      },
+      "primary": {
+        "x": 16,
+        "right": 704,
+        "top": 263.765625,
+        "bottom": 307.765625,
+        "w": 688
+      },
+      "search": null,
+      "controls": [],
+      "clipped": []
+    },
+    {
+      "name": "contacts",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 251.34375,
+        "right": 704,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 452.65625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 327.84375,
+          "right": 704,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 376.15625,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 251.34375,
+          "right": 319.84375,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    },
+    {
+      "name": "contacts-query",
+      "lang": "ar",
+      "width": 720,
+      "mode": "current",
+      "region": {
+        "x": 0,
+        "right": 720,
+        "top": 0,
+        "bottom": 381,
+        "w": 720
+      },
+      "product": null,
+      "stage": null,
+      "primary": null,
+      "search": {
+        "x": 251.34375,
+        "right": 704,
+        "top": 246,
+        "bottom": 299.75,
+        "w": 452.65625
+      },
+      "controls": [
+        {
+          "name": "q",
+          "x": 408.671875,
+          "right": 704,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 295.328125,
+          "min": "0px"
+        },
+        {
+          "name": "بحث",
+          "x": 332.171875,
+          "right": 400.671875,
+          "top": 246,
+          "bottom": 299.75,
+          "w": 68.5,
+          "min": "auto"
+        },
+        {
+          "name": "مسح البحث",
+          "x": 251.34375,
+          "right": 324.171875,
+          "top": 250.875,
+          "bottom": 294.875,
+          "w": 72.828125,
+          "min": "auto"
+        }
+      ],
+      "clipped": []
+    }
+  ]
+}

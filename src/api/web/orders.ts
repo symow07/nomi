@@ -314,7 +314,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
     ? `<div class="empty">${esc(t(locale, 'order.history.empty'))}</div>`
     : `<ul class="rows">${rows.join('')}</ul>`;
   // Show recorded changes only. A later state never implies that an unrecorded earlier stage happened.
-  const progression = [...(confirmation ? [confirmation] : []), ...v.history.toReversed()].slice(-3);
+  const progression = [...(confirmation ? [confirmation] : []), ...[...v.history].reverse()].slice(-3);
   const trail = progression.length > 1 ? `<ol class="order-progress" aria-label="${esc(t(locale, 'order.history.title'))}">${progression.map((u, i) => `<li${i === progression.length - 1 ? ' aria-current="step"' : ''}><span>${esc(stateName(u.state))}</span><time datetime="${esc(u.at.toISOString())}">${esc(show.date(locale, u.at))}</time></li>`).join('')}</ol>` : '';
 
   const text = proformaText(v);
@@ -348,8 +348,6 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
     <section class="order-overview">
       ${latest ? `<p class="stated-now">${esc(stateName(latest.state))}${latest.at ? ` <span class="muted">${
         esc(t(locale, 'order.since', { date: confirmedNow ? show.dateYear(locale, latest.at) : show.date(locale, latest.at) }))}</span>` : ''}</p>` : ''}
-      <div class="facts order-facts">${facts}</div>
-    </section>
     <details class="record-section order-editor" id="order-update"${flash ? ' open' : ''}>
       <summary>${esc(t(locale, 'order.update.title'))}</summary>
       <p class="muted">${esc(t(locale, 'order.update.intro', { name }))}</p>
@@ -364,6 +362,8 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
         <button class="btn send" type="submit">${esc(t(locale, 'order.update.save'))}</button>
       </form>
     </details>
+      <div class="facts order-facts">${facts}</div>
+    </section>
     <details class="record-section order-history" id="order-history">
       <summary>${esc(t(locale, 'order.history.title'))}</summary>
       ${trail}

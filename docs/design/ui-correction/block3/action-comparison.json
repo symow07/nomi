@@ -1,0 +1,28 @@
+[
+  {
+    "role": "owner",
+    "baselineUnique": 334,
+    "headUnique": 338,
+    "lost": [],
+    "added": [
+      "BUTTON Search replies type=submit @ GET /app/inbox/replies",
+      "FIELD input name=q type=search max=200 @ GET /app/inbox/replies",
+      "FORM GET /app/inbox/replies",
+      "LINK Cancel -> /app/inbox/replies"
+    ],
+    "note": "F16 list/new treated as one flow; #new-reply door replaced by new=1; decorative order arrow ignored."
+  },
+  {
+    "role": "staff",
+    "baselineUnique": 314,
+    "headUnique": 318,
+    "lost": [],
+    "added": [
+      "BUTTON Search replies type=submit @ GET /app/inbox/replies",
+      "FIELD input name=q type=search max=200 @ GET /app/inbox/replies",
+      "FORM GET /app/inbox/replies",
+      "LINK Cancel -> /app/inbox/replies"
+    ],
+    "note": "F16 list/new treated as one flow; #new-reply door replaced by new=1; decorative order arrow ignored."
+  }
+]
