@@ -1,6 +1,6 @@
 # Block 2 · fix round 2 capture checkpoint
 
-60 whole viewport images, opened and inspected by the frontend: 50 after and 10 before. All customer, conversation and order data are synthetic. Source commits and image hashes are listed individually in [images.csv](images.csv). Captures made immediately before an item commit use that commit when its source is identical to the captured build.
+74 whole viewport images, opened and inspected by the frontend: 64 after and 10 before. The final owner-copy update replaces six order views and adds fourteen views; see [owner-copy/README.md](owner-copy/README.md). All customer, conversation and order data are synthetic. Source commits and image hashes are listed individually in [images.csv](images.csv). Captures made immediately before an item commit use that commit when its source is identical to the captured build.
 
 ## What changed
 
@@ -13,11 +13,13 @@
 ## Reading the images
 
 - `f13-{en,ar}-{320,390,1280,1440}-{closed,loading,error,open}.png`: all 32 final pane states at source `e51f28a7`.
-- `arrival-final-{en,ar,fr}-{phone320,zoom200eq}-{draft,order}.png`: all 12 final arrival examples at source `d198eefa`; four matched baseline phone examples are included.
+- `arrival-final-{en,ar,fr}-{phone320,zoom200eq}-{draft,order}.png`: 12 arrival examples: reply source `d198eefa`, order source `6c81b12b` after the owner copy decision; four matched baseline phone examples are included. Final arrival positions were re-measured in the full R-1 matrix at `6c81b12b`.
 - `n1-{en,ar,es,fr,zh}-320.png`: five complete phone tab bars. The matched French baseline is `design-before-fr-phone320-inbox.png`.
 - `n2-before-fr-1440.png` and `n2-after-fr-1440.png`: date and chevron spacing.
 - `design-before-{en,ar}-1440-{closed,open}.png`: matched pane baseline.
 
 The review checks the entire viewport, including the return control, labels, draft, warning/figure context, action band and tab bar. Content at a scroll region's edge remains scrollable; these viewport images do not claim that every page section fits at once. The inherited English strings/RTL gaps on Arabic pages remain open. The pane's short loading/error background and 1280 px content indentation remain deferred design items. No physical phone keyboard or touch behavior is claimed.
 
-This is a capture checkpoint, not the independent verification report. The full R-1 sweep, action inventory, full four, pre-pilot and subsequent merge were pending the supervisor's quiet slot when these images were frozen. The order hints' wording, owner ruling (a), inherited Arabic gaps, Knowledge French at 280 px and deferred polish remain OPEN.
+This is a capture record, not independent acceptance. Final builder R-1 at `6c81b12b` passes 1,760 arrivals, 4,400 scroll samples and 34,324 reachability targets; all 80 contextual arrivals pass. Fresh Back 80/80 and Escape 40/40 also pass. Full-suite and merge results belong to the final handoff. The owner approved the order hints and accepted ruling(a), the script-off tall reply box, on 2026-11-16. Inherited Arabic gaps, Knowledge French at 280, deferred polish and physical-phone coverage remain OPEN.
+
+The final builder inventory compares 560 cases per build against `c4983f7e`: all 43,310 original entries retained, zero missing. The 440 additions are the explicit retry button and full-page recovery link across conversation cases. Existing form commands, fields, confirmation prompts and placeholders are unchanged.
