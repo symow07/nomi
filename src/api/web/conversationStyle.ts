@@ -1,3 +1,18 @@
+/** A phone's conversation: the screen's column, the tab bar's set height, and the band's parts (see the sheet's own note). */
+const PAGE = '.owner-shell .layout:has(.conversation-workspace)';
+const BAR = 'calc(69px + env(safe-area-inset-bottom))';
+/** The screen's column while the named band is on it: the conversation shown (no tool pane over it) and that band drawn. */
+const shown = (band: string, more = ''): string =>
+  `.owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) .conv-acts[data-band="${band}"]${more}):not(:has(#customer:target))`;
+const ACTS = '.conversation-workspace .conv-acts';
+const APPROVE = `${ACTS}[data-band="approve"] form.approve`;
+const QUIET = `${ACTS}[data-band="approve"] #approve .acts-more .btn`;
+const REPLY = `${ACTS}[data-band="reply"] .replyform .answer`;
+const ORDER = `${ACTS}[data-band="order"] #order .answer`;
+const TAKE = `${ACTS}[data-band="take"] .takeover > form.answer`;
+const BAND = [APPROVE, REPLY, ORDER, TAKE];
+const ANSWERS = [`${APPROVE} .acts .btn`, QUIET, `${REPLY} .btn`, `${ORDER} .btn`, `${TAKE} .btn`];
+
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
 .conversation-workspace { --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
@@ -24,41 +39,58 @@ export const CONVERSATION_CSS = `
    1. On a conversation the tab bar is a ROW of the screen, not a layer over the page. The screen is a column — the
       page's own scroll region, then the bar — so the region ends where the bar begins and nothing can be under the
       bar, in any state, language or size, with script or without.
-   2. A reply waiting has its box and its three answers (Send, Hand to me, No reply needed) in a BAND of a fixed
-      height between the region and the bar. The region ends where the band begins, so the band is over nothing; the
-      band's height is set here and the box takes what the answers leave (it scrolls inside itself), so the answers
-      are whole at every moment whatever the reply's length, the language or what is typed.
+   2. The answers the page's state asks of the owner stand in a BAND of a set height between the region and the bar,
+      in EVERY state (Block 2): a waiting reply's box and its three answers (Send, Hand to me, No reply needed); an
+      order's two (Confirm the order, Hand to me); the owner's own reply and its Send; or "Hand to me" alone. The page
+      names which (data-band, from what it drew: one at most); the band's height is set here ONCE, on the screen's
+      column (--band), and read twice — by the region, which gives up exactly that room, and by the band. So the
+      band is over nothing, and its answers are whole at every moment whatever the reply's length, the language or
+      what is typed (a box in it takes what the answers leave and scrolls inside itself).
    Nothing is sticky. A screen under 400 px tall has no band: everything is in the region, in the page's order. */
 @media (max-width:720px) {
-  .owner-shell .layout:has(.conversation-workspace) { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
-  .owner-shell .layout:has(.conversation-workspace) > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:calc(69px + env(safe-area-inset-bottom)); }
-  .owner-shell .layout:has(.conversation-workspace) > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
+  ${PAGE} { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
+  ${PAGE} > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:${BAR}; }
+  ${PAGE} > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
   /* A door lands on the newest message near the top of the region here (a quarter down elsewhere): the room under it
      is for what was drafted and why it waits. */
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
 }
 @media (max-width:720px) and (min-height:400px) {
-  .owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) form.approve):not(:has(#customer:target)) > .content { margin-block-end:clamp(232px, 44dvh, 340px); }
-  .conversation-workspace form.approve { block-size:clamp(232px, 44dvh, 340px); }
-  /* The card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
-     with the page: on a phone the card does not rise in. */
-  .conversation-workspace #approve { animation:none; }
-  .conversation-workspace form.approve { position:fixed; z-index:3; inset-inline:0; inset-block-end:calc(69px + env(safe-area-inset-bottom)); box-sizing:border-box;
-    padding:var(--space-8) var(--space-16) 64px; background:var(--color-surface); border-block-start:1px solid var(--color-border); }
-  .conversation-workspace form.approve textarea { flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed; resize:none; }
-  .conversation-workspace form.approve > p { flex:none; margin:0; font-size:var(--font-size-caption); }
-  .conversation-workspace form.approve .acts { flex:none; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-8); }
-  .conversation-workspace form.approve .acts .btn, .conversation-workspace #approve .acts-more .btn { box-sizing:border-box; block-size:48px; min-block-size:0; min-inline-size:0; padding:var(--space-4) var(--space-8);
+  ${PAGE} { --band:0px; }
+  ${shown('take')} { --band:64px; }
+  ${shown('reply')} { --band:clamp(168px, 30dvh, 260px); }
+  ${shown('approve')} { --band:clamp(232px, 40dvh, 340px); }
+  /* A note in the band (the owner's kept words, why a reply waits) takes its room from the band, not from the box. */
+  ${shown('approve', ' form.approve > p')} { --band:clamp(288px, 46dvh, 380px); }
+  ${shown('order')} { --band:64px; }
+  ${PAGE} > .content { margin-block-end:var(--band); }
+  /* A card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
+     with the page: on a phone a card that holds the band does not rise in. */
+  .conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card { animation:none; }
+  ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; block-size:var(--band); margin:0;
+    padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+  /* A waiting reply: the box, two answers under it, and the third in the band's last row (its own form, set there). */
+  ${APPROVE} { padding-block-end:64px; }
+  ${APPROVE} textarea, ${REPLY} textarea { flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed; resize:none; }
+  ${APPROVE} > p { flex:none; margin:0; font-size:var(--font-size-caption); }
+  ${APPROVE} .acts { flex:none; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-8); }
+  ${ANSWERS.join(', ')} { box-sizing:border-box; inline-size:100%; block-size:48px; min-block-size:0; min-inline-size:0; padding:var(--space-4) var(--space-8);
     justify-content:center; text-align:center; white-space:normal; line-height:1.2; overflow:hidden; }
-  .conversation-workspace #approve .acts-more .btn { position:fixed; z-index:4; inset-inline:var(--space-16); inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
+  ${QUIET} { position:fixed; z-index:4; inset-inline:var(--space-16); inline-size:auto; inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
+  /* The owner's own reply: the box, then Send. */
+  ${REPLY} { align-items:stretch; }
+  ${REPLY} .btn { flex:none; }
+  /* An order's two answers side by side; "Hand to me" alone takes the row. */
+  ${ORDER}, ${TAKE} { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:var(--space-8); }
+  ${ORDER} > form { display:block; margin:0; }
 }
-/* Wide enough for the three answers in one row. */
+/* Wide enough for a waiting reply's three answers in one row. */
 @media (min-width:481px) and (max-width:720px) and (min-height:400px) {
-  .owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) form.approve):not(:has(#customer:target)) > .content { margin-block-end:clamp(168px, 40dvh, 300px); }
-  .conversation-workspace form.approve { block-size:clamp(168px, 40dvh, 300px); }
-  .conversation-workspace form.approve { padding-block-end:var(--space-8); }
-  .conversation-workspace form.approve .acts { padding-inline-end:calc((100vw - 24px) / 3); }
-  .conversation-workspace #approve .acts-more .btn { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
+  ${shown('approve')} { --band:clamp(168px, 40dvh, 300px); }
+  ${shown('approve', ' form.approve > p')} { --band:clamp(224px, 46dvh, 340px); }
+  ${APPROVE} { padding-block-end:var(--space-8); }
+  ${APPROVE} .acts { padding-inline-end:calc((100vw - 24px) / 3); }
+  ${QUIET} { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
 }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
 @media (min-width:1100px) { .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); } }
@@ -79,6 +111,13 @@ export const CONVERSATION_CSS = `
 .conv-more[open] > summary, .conv-more > summary:hover { color:var(--color-ink); background:var(--color-sand); }
 .conv-more-menu { position:absolute; inset-inline-end:0; inset-block-start:calc(100% + var(--space-4)); z-index:4; min-inline-size:240px; padding:var(--space-8);
   background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); }
+/* A phone (N-3): the menu is as wide as the head's row and opens under "More", wherever in the row "More" came to
+   rest — hung from the button's own edge it ran off a 320 px screen by more than half. */
+@media (max-width:720px) {
+  .conversation-workspace .conv-top .dhead { position:relative; }
+  .conversation-workspace .conv-more { position:static; }
+  .conversation-workspace .conv-more-menu { inset-inline:0; inset-block-start:auto; min-inline-size:0; margin-block-start:var(--space-4); }
+}
 .conv-more-menu form.testing { display:flex; flex-direction:column; align-items:stretch; gap:var(--space-4); margin:0; }
 .conv-more-menu .btn { justify-content:flex-start; inline-size:100%; color:var(--color-ink); }
 /* The thread: the page's own heading is the region's name, so it is kept for a reader and not drawn. */
@@ -93,6 +132,11 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .draft textarea { background:var(--color-surface); color:var(--color-ink); }
 .conversation-workspace .draft .btn, .conversation-workspace .replyform .btn { background:var(--color-ink); color:var(--color-surface); border-color:var(--color-ink); }
 .conversation-workspace .draft .acts-more .btn, .conversation-workspace .draft .acts .btn:not(:first-child) { background:transparent; color:var(--color-ink); border-color:var(--color-control-line); }
+/* One fill a card: confirming the order is the order card's act (it was drawn as a quiet button beside "Hand to me");
+   "Suggest a reply" fills the box and sends nothing, so it is a quiet button beside the reply's own Send. */
+.conversation-workspace #order .answer > form:first-child .btn { background:var(--color-ink); color:var(--color-surface); border-color:var(--color-ink); }
+.conversation-workspace .replyform .reply-tools .btn { background:transparent; color:var(--color-ink); border:1px solid var(--color-control-line); }
+.conversation-workspace .replyform .reply-tools .btn:not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
 .conversation-workspace .draft .acts-more .btn:not(:disabled):hover, .conversation-workspace .draft .acts .btn:not(:first-child):not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
 .conversation-tools { display:none; min-width:0; padding:var(--space-16); background:var(--color-paper); border-inline-start:1px solid var(--color-border); }
 .conversation-workspace[data-tool-open] > .conversation-tools, .conversation-workspace:has(#customer:target) > .conversation-tools { display:block; }

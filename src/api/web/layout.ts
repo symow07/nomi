@@ -1169,6 +1169,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
      page that used them differently, so a name has one meaning again. */
   .editform { display:flex; flex-direction:column; gap:var(--space-8); }
   .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
+  .replyform .reply-tools { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); }
+  .replyform .answer { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
+  .replyform .answer textarea { align-self:stretch; }
   /* Phase 9 (V1-238, V1-263) — the hand-over card reads down: whose it is, why, then what to do.
      In a row its state floated mid-card beside a stray label, with an empty band above. */
   .takeover { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }

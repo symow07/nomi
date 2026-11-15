@@ -1611,7 +1611,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed">${esc(willSend)}</div>
-      <div class="acts">
+      <div class="acts answer">
         <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
           <button class="${NEEDS_ACT}" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
@@ -1633,7 +1633,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is
@@ -1698,10 +1698,12 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${handToForm}
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
-          ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
-          ${/* Block 3 PR 4 — the words the assistant would write now, put in the box after what is typed; nothing is sent. */ ''}<button class="btn ghost" type="submit" formaction="/app/conversations/${encodeURIComponent(d.conversationId)}/copilot/suggest" formnovalidate>${esc(t(locale, 'copilot.suggest'))}</button>
-          ${savedReplyPick(d, locale)}
-          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          ${/* The UI correction, Block 2 — what fills the box comes first, then the box and its Send together (`answer`): on a
+               phone the two are the band above the tab bar, and at every size the keyboard's order is the order drawn.
+               Block 3 PR 4 — the words the assistant would write now, put in the box after what is typed; nothing is sent. */ ''}<div class="reply-tools"><button class="btn ghost" type="submit" formaction="/app/conversations/${encodeURIComponent(d.conversationId)}/copilot/suggest" formnovalidate>${esc(t(locale, 'copilot.suggest'))}</button>
+          ${savedReplyPick(d, locale)}</div>
+          <div class="answer">${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button></div>
         </form>
         ${photoForm(d, locale)}
         ${viewer.isOwner ? productCardForm(d, locale) : ''}
@@ -2731,11 +2733,22 @@ export function renderConversationDetail(
     <div class="conv-thread" role="region" tabindex="0" aria-label="${esc(t(locale, 'inbox.detail.log'))}"><div class="conv-thread-in">
     ${log}
     </div></div>
-    <div class="conv-acts">
+    <div class="conv-acts"${bandOf(acts)}>
     ${flashHtml}
     ${acts}
     </div>`;
 }
+
+/**
+ * The UI correction, Block 2 — which of the page's answers stand in a phone's band above the tab bar (conversationStyle.ts):
+ * the order's two, else the waiting reply's three, else the owner's own reply and its Send, else "Hand to me". Named from
+ * what was actually drawn, so the stylesheet never makes a band of something that is not on the page. One at most.
+ */
+export const bandOf = (acts: string): string => {
+  const band = acts.includes('<div class="acts answer">') ? 'order' : acts.includes(' class="approve">') ? 'approve'
+    : acts.includes('<div class="answer">') ? 'reply' : acts.includes(' class="inline answer">') ? 'take' : null;
+  return band ? ` data-band="${band}"` : '';
+};
 
 /**
  * 0226 — the issued invoice made from the order, beside the proforma row: a door to its page, and — where the workspace
