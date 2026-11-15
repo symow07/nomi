@@ -520,7 +520,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
       view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim(), opts.checklist?.currency ?? 'USD')}
     ${opts.checklist ? renderPracticeChecklist(opts.checklist, locale) : ''}`;
 
-  const reset = `<form method="post" action="/app/sandbox/reset" class="inline"><button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+  const reset = `<form method="post" action="/app/sandbox/reset" class="inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
         data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>`;
   return `
     ${banner}

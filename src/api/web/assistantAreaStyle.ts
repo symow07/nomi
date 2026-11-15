@@ -10,6 +10,10 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-content>h1.page{margin-top:0;}
 .assistant-area .btn,.assistant-area summary{min-height:44px;}
 .assistant-area .btn{color:var(--color-surface);background:var(--color-ink);border-color:var(--color-ink);}
+/* Block 2: Practice shares the conversation card's action hierarchy. */
+.assistant-practice #approve .btn:not(.send),.assistant-practice .takeover .btn:not(.send),.assistant-practice .sbx-log-h .btn{color:var(--color-ink);background:var(--color-surface);border-color:var(--color-control-line);}
+.assistant-practice .sbx-log-h .btn.danger{border-color:var(--color-ink);border-width:2px;}
+.assistant-practice #approve .btn:not(.send):not(:disabled):hover,.assistant-practice .takeover .btn:not(.send):not(:disabled):hover,.assistant-practice .sbx-log-h .btn:not(:disabled):hover{background:var(--color-sand);border-color:var(--color-ink);}
 .assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
 .assistant-area .pform{min-width:0;}
 .assistant-area .pcheck{min-height:44px;}
