@@ -167,6 +167,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var t = e.target;
       var tag = t && t.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') typing = t.getAttribute('data-keep') || '';
+      /* A box part-hidden when focused, whole above the tab bar. */
+      if (tag === 'TEXTAREA' && t.scrollIntoView) t.scrollIntoView({ block: 'nearest' });
     });
     doc.addEventListener('submit', function (e) {
       var form = e.target;
