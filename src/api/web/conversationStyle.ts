@@ -18,7 +18,9 @@ const sized = (name: string, sel: string, size: string, more = ''): string =>
 
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
-.conversation-workspace { --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
+.conversation-workspace {
+  --conversation-acts-height:initial; /* Runtime reading geometry; the CSS fallbacks apply until the pane opens. */
+  --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
 .conversation-workspace > .conv { min-width:0; padding:var(--space-16); background:var(--color-surface); }
 .conversation-workspace > .listpane { display:none; }
 /* F44: a conversation is routine work, opened many times a day. Its answers are there when the page is: the card a reply
