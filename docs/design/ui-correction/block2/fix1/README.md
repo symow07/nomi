@@ -1,14 +1,14 @@
 # Block 2 fix round 1 — matched builder evidence
 
 Before: `73a4cd39` (Block 1 CI fix merged, before this fix round).
-After: `f18fc5bf` (items 1–7 implemented). Captured 2026-11-15.
+After: `0f63e9b4` for 56 views; `75d6d183` for the eight Inbox views and four extra French Inbox views. These include the final tab-spacing, French-copy and search-width fixes. Captured 2026-11-15.
 The baseline copy matched all 651 tracked source files at its stated commit.
 Both local apps used the same synthetic fixture, including the same Today draft.
 No message, order, or question was submitted during these captures.
 
-There are 64 before/after pairs and two additional one-column Today views.
-Each of the 130 retained images was opened whole during builder review.
-[manifest.json](manifest.json) records dimensions and SHA-256 for every image.
+There are 64 before/after pairs, two additional one-column Today views (from `f18fc5bf`),
+and four French Inbox views. Each of the 134 retained images was opened whole during builder review.
+[manifest.json](manifest.json) records capture heads, dimensions and SHA-256 for every image.
 This set records visual changes. The final five-language, script-on/off R-1 sweep
 passed 666 measures with zero failures; [24 final band images and scope](../fix1-bands/README.md)
 include the waiting-reply state. The full four, pre-pilot, and independent verification
@@ -106,3 +106,9 @@ in both directions; neither case had horizontal overflow.
 The earlier [F13 pane set](../fix1-pane/README.md) records closed/loading/open/error
 at 1440, 1280, 390 and 320 from `22bd0cb9`, before the final polish commit. Its source
 head is intentionally distinguished from this set.
+
+## French search width
+
+The final 20-case check covers all five locales at 1440, 390, 320 and the 200% layout equivalent. Search placeholders fit, tabs are complete, and horizontal overflow is zero. The 320 px French case exposed the search form’s automatic grid minimum; `min-inline-size: 0` fixes the 13 px overflow.
+
+[1440](after/fr/inbox-fr-1440.png) · [390](after/fr/inbox-fr-390.png) · [320](after/fr/inbox-fr-320.png) · [200%](after/fr/inbox-fr-zoom200.png).

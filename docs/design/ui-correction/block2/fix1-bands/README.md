@@ -1,6 +1,6 @@
 # Block 2 fix round 1 — final conversation bands
 
-Captured 2026-11-15 at `3365c063`, with unchanged product source from `f18fc5bf`.
+Captured 2026-11-15 at `75d6d183`, after the final tab-spacing, French-copy and search-width corrections.
 Synthetic local fixture; no customer message or order submitted. All 24 retained
 images were opened whole. [manifest.json](manifest.json) records dimensions and
 SHA-256. These are builder evidence; independent verification remains with tester.

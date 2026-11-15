@@ -1,6 +1,6 @@
 {
-  "capture_head": "3365c06362a3d00eea8228cdf248929c622463d2",
-  "product_source_head": "f18fc5bf1345fae6dac518021282cd135022795d",
+  "capture_head": "75d6d18312e0fad82bcd78955b093542455554c7",
+  "product_source_head": "75d6d18312e0fad82bcd78955b093542455554c7",
   "measures": 666,
   "failures": 0,
   "base_cases": 600,
@@ -23,6 +23,6 @@
     "on",
     "off"
   ],
-  "raw_log_sha256": "a40b9892e172e9bddad6abf53964989cc81435a52394a2482760adc3f83fcd34",
+  "raw_log_sha256": "e6648bc85027ba55d81d925c2772bfec8f39c5f71ad98a0f4e1b1d90f9809587",
   "independent_verification": "pending"
 }

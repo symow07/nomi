@@ -38,15 +38,6 @@
     "added": []
   },
   {
-    "page": "inbox",
-    "language": "en",
-    "size": "1440",
-    "before": 39,
-    "after": 39,
-    "removed": [],
-    "added": []
-  },
-  {
     "page": "ask",
     "language": "en",
     "size": "1440",
@@ -90,15 +81,6 @@
     "size": "390",
     "before": 48,
     "after": 48,
-    "removed": [],
-    "added": []
-  },
-  {
-    "page": "inbox",
-    "language": "en",
-    "size": "390",
-    "before": 39,
-    "after": 39,
     "removed": [],
     "added": []
   },
@@ -150,15 +132,6 @@
     "added": []
   },
   {
-    "page": "inbox",
-    "language": "en",
-    "size": "320",
-    "before": 39,
-    "after": 39,
-    "removed": [],
-    "added": []
-  },
-  {
     "page": "ask",
     "language": "en",
     "size": "320",
@@ -206,15 +179,6 @@
     "added": []
   },
   {
-    "page": "inbox",
-    "language": "en",
-    "size": "zoom200",
-    "before": 39,
-    "after": 39,
-    "removed": [],
-    "added": []
-  },
-  {
     "page": "ask",
     "language": "en",
     "size": "zoom200",
@@ -224,6 +188,42 @@
     "added": []
   },
   {
+    "page": "inbox",
+    "language": "en",
+    "size": "1440",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "390",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "320",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "zoom200",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
     "page": "practice",
     "language": "ar",
     "size": "1440",
@@ -258,15 +258,6 @@
     "size": "1440",
     "before": 48,
     "after": 48,
-    "removed": [],
-    "added": []
-  },
-  {
-    "page": "inbox",
-    "language": "ar",
-    "size": "1440",
-    "before": 39,
-    "after": 39,
     "removed": [],
     "added": []
   },
@@ -318,15 +309,6 @@
     "added": []
   },
   {
-    "page": "inbox",
-    "language": "ar",
-    "size": "390",
-    "before": 39,
-    "after": 39,
-    "removed": [],
-    "added": []
-  },
-  {
     "page": "ask",
     "language": "ar",
     "size": "390",
@@ -370,15 +352,6 @@
     "size": "320",
     "before": 48,
     "after": 48,
-    "removed": [],
-    "added": []
-  },
-  {
-    "page": "inbox",
-    "language": "ar",
-    "size": "320",
-    "before": 39,
-    "after": 39,
     "removed": [],
     "added": []
   },
@@ -430,20 +403,47 @@
     "added": []
   },
   {
-    "page": "inbox",
+    "page": "ask",
     "language": "ar",
     "size": "zoom200",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "1440",
     "before": 39,
     "after": 39,
     "removed": [],
     "added": []
   },
   {
-    "page": "ask",
+    "page": "inbox",
+    "language": "ar",
+    "size": "390",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "320",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
     "language": "ar",
     "size": "zoom200",
-    "before": 19,
-    "after": 19,
+    "before": 39,
+    "after": 39,
     "removed": [],
     "added": []
   }
