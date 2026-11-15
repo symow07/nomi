@@ -375,14 +375,38 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .gs-heading .deeper { margin:0; }
 .gs-help { max-inline-size:70ch; margin-block-start:var(--space-12); }
 .readiness-section { margin-block-start:var(--space-40); }
-.calendar-page .cal-date-choice { display:grid; grid-template-columns:minmax(0, 220px) auto; align-items:end; gap:var(--space-8) var(--space-12); max-inline-size:400px; margin-block:var(--space-16) var(--space-24); }
+.calendar-page .cal-context { display:grid; gap:var(--space-12) var(--space-24); padding-block:var(--space-8) var(--space-16); border-block-end:1px solid var(--color-border); }
+.cal-context .cal-period { margin:0; align-items:start; }
+.cal-context-actions { display:flex; flex-wrap:wrap; align-items:end; gap:var(--space-8) var(--space-24); min-inline-size:0; }
+.calendar-page .cal-date-choice { display:grid; grid-template-columns:minmax(0, 220px) auto; align-items:end; gap:var(--space-4) var(--space-12); max-inline-size:400px; margin:0; }
+.cal-context .cal-tools { margin:0; }
+.cal-context .cal-tools[open] { flex-basis:100%; }
+.cal-context .cal-tools-in { max-inline-size:none; margin-block-end:0; }
+.cal-context .cal-legend { margin:0; gap:var(--space-4) var(--space-12); }
+.cal-context .cal-chosen, .cal-context .cal-legend { grid-column:1 / -1; }
 .cal-date-choice label { grid-column:1 / -1; font-size:var(--font-size-small); }
 .cal-date-choice input { min-block-size:44px; }
 .calendar-page .cal-grid { margin:0; border:0; padding:0; }
 .calendar-page .cal-grid-label { font-size:var(--font-size-base); min-block-size:44px; }
+/* F40: equal week tracks preserve every full name; the existing three-item cap
+   and +N door bound crowded days. On narrow screens the grid scrolls inside its
+   shaded frame so each customer's door stays 44px; the agenda still comes first. */
+.calendar-page .mo { min-inline-size:336px; }
+.calendar-page .mo tbody { display:grid; grid-auto-rows:1fr; }
+.calendar-page .mo tr { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); }
+.calendar-page .mo th { width:auto; min-inline-size:0; }
+.calendar-page .mo td { height:auto; min-block-size:7.5em; min-inline-size:0; }
+.calendar-page .mo-e .face-link { min-inline-size:44px; min-block-size:44px; justify-content:center; }
+.calendar-page .mo-d { min-block-size:44px; }
+.calendar-page .mo-more { min-block-size:44px; }
+.calendar-page .dl-who { inline-size:44px; block-size:44px; }
+.calendar-page .dl-who .face-link { min-inline-size:44px; min-block-size:44px; justify-content:center; }
+.calendar-page .cal-rm .btn { min-block-size:44px; }
 .sp-from .mark { vertical-align:middle; margin-inline-end:var(--space-4); }
 .sp-acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin-block-start:var(--space-12); }
 @media (min-width:1200px) {
+  .calendar-page .cal-context { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+  .cal-context .cal-period { flex-direction:column; justify-content:start; }
   .calendar-page .cal-grid { grid-column:1; grid-row:1; }
   .calendar-page .cal-list { grid-column:2; grid-row:1; }
   .calendar-page .cal-grid-label { display:none; }

@@ -576,9 +576,8 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
  * What the page's marks mean, drawn with the marks themselves: where a date
  * came from (its edge), the assistant's hand (its mark), owed (●) and done (✓).
  * Phase 9 (V1-200, inbox-calendar-new-14, missed-16) — the edge drawn as a
- * small square-cornered swatch, not a pill that read as a switch. Phase 9 of
- * the warmth run (w4-customers-14) — under the dates it explains, and only the
- * marks the screen shows.
+ * small square-cornered swatch, not a pill that read as a switch. Block 3 F40
+ * keeps this key beside the date controls, showing only the marks in view.
  */
 function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): string {
   const item = (mark: string, key: MessageKey, params: Record<string, string> = {}): string =>
@@ -752,12 +751,14 @@ export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPa
       <button class="btn" type="submit">${esc(t(locale, 'area1.calendar.showDay'))}</button>
     </form>`;
   return `<div class="calendar-page"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>
-    ${move}
-    ${dateChoice}
-    ${shownLine}
-    ${fold}
+    <div class="cal-context">
+      ${move}
+      <div class="cal-context-actions">${dateChoice}${fold}</div>
+      ${shownLine}
+      ${held ? legend(locale, shown, now) : ''}
+    </div>
     <div class="cal-screen">
-      <div class="cal-list" id="cal-list">${list}${held ? legend(locale, shown, now) : ''}</div>
+      <div class="cal-list" id="cal-list">${list}</div>
       <details class="cal-grid" open><summary class="cal-grid-label">${esc(t(locale, 'area1.calendar.month'))}</summary>${monthGrid(locale, v, ask, now)}</details>
     </div></div>`;
 }

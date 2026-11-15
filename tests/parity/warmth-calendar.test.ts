@@ -370,7 +370,7 @@ describe('a crowded day says "+N more" instead of stretching', () => {
 });
 
 describe('the chrome folds away', () => {
-  it('choosing one kind or one customer, and adding a date are in ONE closed fold under the month\'s name; what the marks mean is under the list', () => {
+  it('choosing one kind or one customer, and adding a date are in ONE closed fold; the mark key stays with the month context', () => {
     for (const l of LOCALES) for (const q of [{}, { month: '2026-10', day: TODAY }]) {
       const html = draw(l, q);
       const open = html.indexOf('<details class="cal-tools">');
@@ -378,7 +378,10 @@ describe('the chrome folds away', () => {
       expect(open, l).toBeGreaterThan(html.indexOf('<div class="cal-period">'));
       expect(open, l).toBeLessThan(html.indexOf('<div class="cal-screen">'));
       expect(html.match(/<details class="cal-tools"/g), l).toHaveLength(1);
-      expect(html.indexOf('<p class="cal-legend small">'), l).toBeGreaterThan(html.indexOf('<div class="cal-list"'));
+      // F40: the legend formerly followed a potentially long agenda. Keep its
+      // existing mark semantics beside the month/date/filter context instead.
+      expect(html.indexOf('<p class="cal-legend small">'), l).toBeGreaterThan(html.indexOf('<div class="cal-context">'));
+      expect(html.indexOf('<p class="cal-legend small">'), l).toBeLessThan(html.indexOf('<div class="cal-screen">'));
       for (const part of ['<form method="get" action="/app/calendar" class="pform cal-filter">',
         '<form method="post" action="/app/calendar/entries" class="pform">', '<p class="muted cal-lede">']) {
         const i = html.indexOf(part);
