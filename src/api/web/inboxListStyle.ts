@@ -25,6 +25,8 @@ export const INBOX_LIST_CSS = `
 .il-menu .si-doors { display:grid; gap:var(--space-4); margin-block-start:var(--space-24); padding-block-start:var(--space-16); border-block-start:1px solid var(--color-border); }
 .il-menu .si-doors .deeper { display:flex; min-block-size:44px; align-items:center; margin:0; }
 .il-page .si-tools { padding:var(--space-16); }
+/* The search form is a grid item: it must shrink before a longer translated button widens the page. */
+.il-page .si-search { min-inline-size:0; }
 .il-page .si-search input { flex:1; min-inline-size:0; min-block-size:44px; margin:0; font-size:var(--font-size-base); }
 .il-page .si-search .sp-btn { min-block-size:44px; }
 .il-filter { margin:0; }
