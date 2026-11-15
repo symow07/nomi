@@ -13,6 +13,8 @@ import { REDESIGN_EN } from './redesign.js';
 
 const EN = {
   ...REDESIGN_EN,
+  'inbox.tools.retry': 'Try again',
+  'inbox.tools.fullPage': 'Open the full page',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Today',
   'split.sales': 'Sales',
@@ -5731,6 +5733,8 @@ export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'inbox.tools.retry': '重试',
+  'inbox.tools.fullPage': '打开完整页面',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': '今天',
   'split.sales': '销售',
@@ -11359,6 +11363,8 @@ const ZH: Record<MessageKey, string> = {
 
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'inbox.tools.retry': 'إعادة المحاولة',
+  'inbox.tools.fullPage': 'فتح الصفحة كاملة',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'اليوم',
   'split.sales': 'المبيعات',
@@ -16989,6 +16995,8 @@ const AR: Record<MessageKey, string> = {
  */
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'inbox.tools.retry': 'Intentar de nuevo',
+  'inbox.tools.fullPage': 'Abrir la página completa',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Hoy',
   'split.sales': 'Ventas',
@@ -22559,6 +22567,8 @@ const ES: Record<MessageKey, string> = {
  */
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'inbox.tools.retry': 'Réessayer',
+  'inbox.tools.fullPage': 'Ouvrir la page complète',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': "Aujourd'hui",
   'split.sales': 'Ventes',

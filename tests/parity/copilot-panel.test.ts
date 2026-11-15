@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderCopilotPanel } from '../../src/api/web/copilotPanel.js';
+import { renderCopilotPanel, renderConversationTools } from '../../src/api/web/copilotPanel.js';
 import type { CopilotPanelView } from '../../src/api/web/conversationAdvisor.js';
 const view: CopilotPanelView = {
   conversationId:'c1',customerId:'customer',customerName:'Maya <shop>',revision:'revision',allowance:'available',asked:'Offer 5% off',intent:'draft_reply',
@@ -8,6 +8,12 @@ const view: CopilotPanelView = {
   history:{threadHref:'/app/advisor/c/thread',consent:true,processor:'Existing provider notice'},
 };
 describe('grounded panel presentation',()=>{
+  it('draws the conversation return as a door and supplies both promised error recovery controls', () => {
+    const html=renderConversationTools('', 'c1', 'en');
+    expect(html).toContain('class="back" href="#latest" data-close-tool');
+    expect(html).toContain('data-retry-tool');expect(html).toContain('>Try again</button>');
+    expect(html).toContain('class="deeper" href="/app/inbox/c1/copilot"');expect(html).toContain('Open the full page');
+  });
   it('keeps answer, inspectable values and proposed customer words separate, escaped and sourced',()=>{
     const html=renderCopilotPanel('en',view);
     expect(html).toContain('<details class="cp-fact"');

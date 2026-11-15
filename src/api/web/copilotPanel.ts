@@ -1,14 +1,14 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
 import type { CopilotPanelView } from './conversationAdvisor.js';
-import { esc, conversationUrl } from './layout.js';
+import { esc, conversationUrl, back, deeper } from './layout.js';
 import { t } from './say.js';
 
 /** One optional pane shared by customer facts and contextual questions. */
 export function renderConversationTools(customer: string, conversationId: string, locale: Locale): string {
   const href = `/app/inbox/${encodeURIComponent(conversationId)}/copilot`;
   return `<aside class="conversation-tools" id="conversation-tools" data-conversation-tools data-copilot-url="${href}" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
-    <header class="ct-head"><a href="#latest" data-close-tool>${esc(t(locale, 'inbox.tools.close'))}</a>
+    <header class="ct-head">${back('#latest', t(locale, 'inbox.tools.close'), 'data-close-tool')}
       <nav class="ct-tabs" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
         <a href="#customer" data-tool-tab="customer">${esc(t(locale, 'inbox.tools.customer'))}</a>
         <a href="${href}" data-tool-tab="ask">${markSmall(16, null)}${esc(t(locale, 'inbox.tools.ask'))}</a>
@@ -18,6 +18,10 @@ export function renderConversationTools(customer: string, conversationId: string
       data-loading="${esc(t(locale, 'inbox.tools.loading'))}" data-busy="${esc(t(locale, 'inbox.tools.busy'))}"
       data-failed="${esc(t(locale, 'inbox.tools.failed'))}" data-stale="${esc(t(locale, 'inbox.tools.stale'))}"
       data-no-composer="${esc(t(locale, 'inbox.tools.noComposer'))}" data-used="${esc(t(locale, 'inbox.tools.used'))}" dir="auto"></p>
+    <div class="ct-recovery" data-tool-recovery hidden>
+      <button class="btn" type="button" data-retry-tool>${esc(t(locale, 'inbox.tools.retry'))}</button>
+      ${deeper(href, t(locale, 'inbox.tools.fullPage'))}
+    </div>
     <div data-tool-content="customer">${customer}</div>
     <div data-tool-content="ask" hidden><div data-copilot-slot></div></div>
   </aside>`;

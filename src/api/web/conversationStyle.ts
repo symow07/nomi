@@ -153,6 +153,9 @@ export const CONVERSATION_CSS = `
 .ct-tabs a { display:inline-flex; gap:var(--space-8); align-items:center; min-height:44px; text-decoration:none; color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
 .ct-tabs a[aria-current] { color:var(--color-accent); border-block-end-color:var(--color-accent); }
 .ct-status:empty { display:none; }
+.ct-recovery { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin-block-end:var(--space-16); }
+.ct-recovery[hidden] { display:none; }
+.ct-recovery .deeper { margin:0; }
 .ct-status, .cp-intro, .cp-allowance, .cp-history { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 .copilot-panel { max-width:68ch; margin-inline:auto; overflow-wrap:anywhere; }
 .cp-head h2 { font-size:var(--font-size-title); margin:0; }
@@ -210,6 +213,11 @@ export const CONVERSATION_CSS = `
   .conversation-workspace > .conv, .conversation-workspace > .conv * { transition-property:none; }
 }
 @media (min-width:1300px) {
+  /* The pane's close replaces its opener; no visible button jumps to the narrower column's far edge. */
+  .conversation-workspace [data-open-tool="ask"] { transition-property:none; }
+  .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
+  .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
+
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
   .conversation-workspace > .conversation-tools { grid-column:3; }
 }
