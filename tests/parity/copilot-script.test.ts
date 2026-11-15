@@ -4,9 +4,12 @@ import { COPILOT_SCRIPT } from '../../src/api/web/copilotScript.js';
 
 /** A DOM stand-in exercises the actual shipped script, including asynchronous validation. */
 class Element {
+  styleValues: Record<string,string> = {};
+  style = {setProperty:(k:string,v:string)=>{this.styleValues[k]=v;},removeProperty:(k:string)=>{delete this.styleValues[k];}};
+  getBoundingClientRect() { return {height:358,top:610.5}; }
   attrs: Record<string,string>; children: Element[] = []; parent: Element | null = null; form: Element | null = null;
   value = ''; textContent = ''; hidden = false; isConnected = true; action = ''; name = '';
-  selectionStart = 0; selectionEnd = 0; selectionDirection = 'none'; events: string[] = []; focused = false;
+  scrollTop = 0; scrollLeft = 0; selectionStart = 0; selectionEnd = 0; selectionDirection = 'none'; events: string[] = []; focused = false;
   constructor(attrs: Record<string,string> = {}, readonly tag = 'div') { this.attrs = attrs; }
   add(...children: Element[]) { children.forEach((c) => { this.children.push(c); c.parent = this; }); return this; }
   getAttribute(k:string) { return this.attrs[k] ?? null; }
@@ -16,6 +19,7 @@ class Element {
   contains(c:Element):boolean { return c === this || this.children.some(x => x.contains(c)); }
   matches(s:string):boolean {
     if (s.includes(',')) return s.split(',').some(x => this.matches(x.trim()));
+    if (s[0] === '.') return (this.attrs['class'] || '').split(' ').includes(s.slice(1));
     if (s[0] === '#') return this.attrs['id'] === s.slice(1);
     const m = /^(\w+)?\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(s);
     return !!m && (!m[1] || this.tag === m[1]) && this.hasAttribute(m[2]!) && (m[3] === undefined || this.getAttribute(m[2]!) === m[3]);
@@ -29,18 +33,20 @@ class Element {
   replaceChildren(c:Element) { this.children=[];this.add(c); }
 }
 const flush = async () => { for (let i=0;i<12;i++) await Promise.resolve(); };
-function fixture(phone = false, delayAsk = false) {
+function fixture(phone = false, delayAsk = false, failPanel = false) {
   const handlers:Record<string,((e:any)=>void)[]> = {};
   const root = new Element({'data-conversation':'c1'});
   const ask = new Element({'data-open-tool':'ask'}), customer = new Element({'data-open-tool':'customer'});
   const form = new Element({},'form'), id = new Element({name:'draftId'},'input'); id.value='actual-draft';
   const box = new Element({'data-keep':'c1:edit'},'textarea'); box.value='my exact words';box.setSelectionRange(3,7);box.form=form; form.add(id,box);
   const slot = new Element({'data-copilot-slot':''}), status = new Element({'data-tool-status':'','data-stale':'stale','data-used':'used','data-no-composer':'take over','data-failed':'failed','data-busy':'Working on your question…'});
-  const close = new Element({'data-close-tool':''});
+  const close = new Element({'data-close-tool':''}), retry = new Element({'data-retry-tool':''});
+  const recovery = new Element({'data-tool-recovery':''}).add(retry);recovery.hidden=true;
   const tabs = ['customer','ask'].map(x => new Element({'data-tool-tab':x}));
   const panes = ['customer','ask'].map(x => new Element({'data-tool-content':x}));
-  const tools = new Element({'data-conversation-tools':'','data-copilot-url':'/app/inbox/c1/copilot'}).add(close,...tabs,...panes,slot,status);
-  root.add(ask,customer,form,tools);
+  const tools = new Element({'data-conversation-tools':'','data-copilot-url':'/app/inbox/c1/copilot'}).add(close,...tabs,...panes,slot,status,recovery);
+  const thread = new Element({class:'conv-thread'}), acts = new Element({class:'conv-acts'});
+  thread.scrollTop=-80; acts.scrollTop=24; root.add(ask,customer,form,tools,thread,acts);
   const doc = new Element().add(root) as Element & {addEventListener:Function;importNode:Function};
   doc.addEventListener=(kind:string,handler:(e:any)=>void)=>{(handlers[kind]??=[]).push(handler);};doc.importNode=(x:Element)=>x;
   const calls:{url:string;options:any}[]=[];
@@ -50,18 +56,33 @@ function fixture(phone = false, delayAsk = false) {
     calls.push({url,options});
     if (url.endsWith('/reply')) return new Promise(resolve => {resolveReply=(answer)=>resolve({json:()=>Promise.resolve(answer)});});
     if (delayAsk && options.method === 'POST') return new Promise(() => {});
+    if (failPanel) { failPanel=false;return Promise.resolve({ok:false}); }
     return Promise.resolve({ok:true,text:()=>Promise.resolve('panel')});
   };
-  const scrolls: number[][] = [];
-  const window = {fetch,addEventListener:doc.addEventListener,scrollX:0,scrollY:420,matchMedia:()=>({matches:phone}),scrollTo(x:number,y:number){scrolls.push([x,y]);this.scrollY=y;}};
-  runInNewContext(COPILOT_SCRIPT,{document:doc,window,fetch,location:{pathname:'/app/inbox/c1',search:'',hash:'',href:'https://nomi.test/app/inbox/c1'},history:{pushState(){},replaceState(){}},URL,URLSearchParams,
+  const scrolls: number[][] = [], timers: (()=>void)[] = [];
+  const window = {fetch,addEventListener:doc.addEventListener,scrollX:0,scrollY:420,matchMedia:(q:string)=>({matches:q.includes('min-width')?!phone:phone}),scrollTo(x:number,y:number){scrolls.push([x,y]);this.scrollY=y;}};
+  runInNewContext(COPILOT_SCRIPT,{document:doc,window,fetch,location:{pathname:'/app/inbox/c1',search:'',hash:'',href:'https://nomi.test/app/inbox/c1'},history:{pushState(){},replaceState(){}},setTimeout:(fn:()=>void)=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},URL,URLSearchParams,
     FormData:class { [Symbol.iterator]() {return [['revision','r1'],['q','draft a reply']][Symbol.iterator]();} },
     DOMParser:class {parseFromString(){return new Element().add(panel);}},Event:class {constructor(readonly type:string){}}});
   const fire=(kind:string,target:Element,extra:Record<string,unknown>={})=>{const e={target,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...extra};handlers[kind]?.forEach(h=>h(e));return e;};
   const use = new Element({'data-copilot-use':''},'form'); use.action='/app/inbox/c1/copilot/reply'; tools.add(use);
-  return {scrolls,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
+  return {scrolls,timers,thread,acts,retry,recovery,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
 }
 describe('context panel keeps owner work',()=>{
+  it('holds the existing desktop decision-region height while the pane narrows it', () => {
+    const f=fixture();f.fire('click',f.ask);
+    expect(f.root.styleValues['--conversation-acts-height']).toBe('358px');
+    f.fire('click',f.close);expect(f.root.styleValues['--conversation-acts-height']).toBeUndefined();
+    const phone=fixture(true);phone.fire('click',phone.ask);expect(phone.root.styleValues['--conversation-acts-height']).toBeUndefined();
+  });
+  it('offers explicit recovery after an opening failure and hides it after a successful retry', async () => {
+    const f=fixture(false,false,true);f.fire('click',f.ask);await flush();
+    expect(f.status.textContent).toBe('failed');expect(f.recovery.hidden).toBe(false);
+    expect(f.calls).toHaveLength(1);f.fire('click',f.retry);await flush();
+    expect(f.calls).toHaveLength(2);expect(f.calls[1]?.options.method).toBe('GET');
+    expect(f.recovery.hidden).toBe(true);expect(f.status.textContent).toBe('');
+    expect(f.box.value).toBe('my exact words');
+  });
   it('opening uses only GET, tabs never replace the composer, Escape returns focus and selection',async()=>{
     const f=fixture();f.fire('click',f.ask);await flush();
     expect(f.calls.map(c=>c.options.method)).toEqual(['GET']);
@@ -74,6 +95,15 @@ describe('context panel keeps owner work',()=>{
     const f=fixture(true);f.fire('click',f.customer);expect(f.scrolls.at(-1)).toEqual([0,0]);
     f.fire('click',f.close);expect(f.scrolls.at(-1)).toEqual([0,420]);
     expect(f.box.value).toBe('my exact words');expect([f.box.selectionStart,f.box.selectionEnd]).toEqual([3,7]);
+  });
+  it('native Back restores reading and focus after the browser restores the fragment', () => {
+    // B2-V02: popstate precedes the browser's #latest scroll/focus reset. Restoring only inside popstate loses both.
+    const f=fixture();f.fire('click',f.ask);
+    f.fire('popstate',f.root,{state:null});
+    f.thread.scrollTop=-140;f.acts.scrollTop=0;f.ask.focused=false;
+    f.timers.splice(0).forEach(fn=>fn());
+    expect(f.thread.scrollTop).toBe(-80);expect(f.acts.scrollTop).toBe(24);
+    expect(f.ask.focused).toBe(true);expect(f.box.value).toBe('my exact words');
   });
   it('keeps the latest caret when the owner edits while a desktop pane is open',()=>{
     const f=fixture();f.fire('click',f.customer);f.box.value+=' typed';f.box.setSelectionRange(19,19);

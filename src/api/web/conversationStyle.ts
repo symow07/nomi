@@ -10,15 +10,25 @@ const QUIET = `${ACTS}[data-band="approve"] #approve .acts-more .btn`;
 const REPLY = `${ACTS}[data-band="reply"] .replyform .answer`;
 const ORDER = `${ACTS}[data-band="order"] #order .answer`;
 const TAKE = `${ACTS}[data-band="take"] .takeover > form.answer`;
+const WARNINGS = `${ACTS}[data-band="approve"] .approval-warnings`;
+const KEPT_WARNINGS = `${ACTS}[data-band="approve"]:has(form.approve > p) .approval-warnings`;
+const ORDER_FACTS = `${ACTS}[data-band="order"] .order-facts`;
+const APPROVAL_HEIGHT = { phone: 'clamp(232px, 40dvh, 340px)', kept: 'clamp(288px, 46dvh, 380px)', wide: 'clamp(168px, 40dvh, 300px)', wideKept: 'clamp(224px, 46dvh, 340px)' };
 const BAND = [APPROVE, REPLY, ORDER, TAKE];
 const ANSWERS = [`${APPROVE} .acts .btn`, QUIET, `${REPLY} > .btn`, `${ORDER} .btn`, `${TAKE} .btn`];
 /** One band's height, written twice from one figure: the room the region gives up while it is drawn, and its own. */
 const sized = (name: string, sel: string, size: string, more = ''): string =>
   `${shown(name, more)} > .content { margin-block-end:${size}; }\n  ${sel} { block-size:${size}; }`;
 
+/** Context touches the action band; the scroll region gives up their sum, with no script or overlay. */
+const contextSized = (name: string, sel: string, context: string, actions: string, more = '', requires = ''): string =>
+  `${shown(name, more)}${requires ? `:has(${requires})` : ''} > .content { margin-block-end:calc(${actions} + ${context}); }\n  ${sel} { block-size:${context}; inset-block-end:calc(${BAR} + ${actions}); }`;
+
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
-.conversation-workspace { --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
+.conversation-workspace { --font-voice:var(--font-family);
+  --conversation-acts-height:initial; /* Runtime reading geometry; the CSS fallbacks apply until the pane opens. */
+  display:block; min-width:0; background:var(--color-surface); }
 .conversation-workspace > .conv { min-width:0; padding:var(--space-16); background:var(--color-surface); }
 .conversation-workspace > .listpane { display:none; }
 /* F44: a conversation is routine work, opened many times a day. Its answers are there when the page is: the card a reply
@@ -57,7 +67,7 @@ export const CONVERSATION_CSS = `
 @media (max-width:720px) {
   ${PAGE} { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
   ${PAGE} > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:${BAR}; }
-  ${PAGE} > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
+  ${PAGE} > .content { transition:none; order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
   /* A door lands on the newest message near the top of the region here (a quarter down elsewhere): the room under it
      is for what was drafted and why it waits. */
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
@@ -65,9 +75,9 @@ export const CONVERSATION_CSS = `
 @media (max-width:720px) and (min-height:400px) {
   ${sized('take', TAKE, '64px')}
   ${sized('reply', REPLY, 'clamp(168px, 30dvh, 260px)')}
-  ${sized('approve', APPROVE, 'clamp(232px, 40dvh, 340px)')}
+  ${sized('approve', APPROVE, APPROVAL_HEIGHT.phone)}
   /* A note in the band (the owner's kept words, why a reply waits) takes its room from the band, not from the box. */
-  ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(288px, 46dvh, 380px)', ' form.approve > p')}
+  ${sized('approve', `${APPROVE}:has(> p)`, APPROVAL_HEIGHT.kept, ' form.approve > p')}
   ${sized('order', ORDER, '104px')}
   ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; margin:0;
     padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
@@ -88,11 +98,46 @@ export const CONVERSATION_CSS = `
 }
 /* Wide enough for a waiting reply's three answers in one row. */
 @media (min-width:481px) and (max-width:720px) and (min-height:400px) {
-  ${sized('approve', APPROVE, 'clamp(168px, 40dvh, 300px)')}
-  ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(224px, 46dvh, 340px)', ' form.approve > p')}
+  ${sized('approve', APPROVE, APPROVAL_HEIGHT.wide)}
+  ${sized('approve', `${APPROVE}:has(> p)`, APPROVAL_HEIGHT.wideKept, ' form.approve > p')}
   ${APPROVE} { padding-block-end:var(--space-8); }
   ${APPROVE} .acts { padding-inline-end:calc((100vw - 24px) / 3); }
   ${QUIET} { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
+}
+/* B2-V01: the two warning lines and the four order figures stay with the action they qualify, including
+   script-off/plain arrivals. These are the original nodes, in their original reading/disclosure order. The
+   context is the band's upper part, and the scroll region reserves both parts; no duplicate act or figure. */
+.approval-warnings { display:contents; }
+.order-extra { margin-block-start:0; }
+.order-facts:has(+ .order-extra) > .row:last-child { border-block-end:1px solid var(--color-border); }
+@media (max-width:720px) and (min-height:400px) {
+  ${contextSized('approve', WARNINGS, '96px', APPROVAL_HEIGHT.phone, ' .approval-warnings')}
+  ${contextSized('approve', KEPT_WARNINGS, '96px', APPROVAL_HEIGHT.kept, ' form.approve > p', '.approval-warnings')}
+  ${contextSized('order', ORDER_FACTS, '184px', '104px')}
+  ${WARNINGS}, ${ORDER_FACTS} { position:fixed; z-index:3; inset-inline:0; box-sizing:border-box; max-inline-size:none; margin:0;
+    padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
+  ${WARNINGS} { display:flex; flex-direction:column; justify-content:center; gap:var(--space-4); }
+  ${WARNINGS} .check { display:block; margin:0; font-size:var(--font-size-caption); line-height:1.4; }
+  ${ORDER_FACTS} { display:flex; flex-direction:column; justify-content:center; }
+  ${ORDER_FACTS} .row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--space-8); padding-block:var(--space-4); font-size:var(--font-size-small); line-height:1.4; }
+  ${ORDER_FACTS} .row > bdi { text-align:end; min-inline-size:0; overflow-wrap:anywhere; }
+  ${ORDER_FACTS} > .row:last-child { border-block-end:0; }
+}
+@media (min-width:481px) and (max-width:720px) and (min-height:400px) {
+  ${contextSized('approve', WARNINGS, '64px', APPROVAL_HEIGHT.wide, ' .approval-warnings')}
+  ${contextSized('approve', KEPT_WARNINGS, '64px', APPROVAL_HEIGHT.wideKept, ' form.approve > p', '.approval-warnings')}
+  ${contextSized('order', ORDER_FACTS, '128px', '104px')}
+  ${ORDER_FACTS} { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-content:center; gap:var(--space-4) var(--space-24); }
+}
+/* A narrow, very short screen cannot hold warnings, an editable box and three whole answers plus a reading
+   region. Keep that complete decision in the existing scroll region, still above the tab bar. */
+@media (max-width:480px) and (min-height:400px) and (max-height:519px) {
+  ${shown('approve', ' .approval-warnings')} > .content, ${shown('approve', ' form.approve > p')}:has(.approval-warnings) > .content { margin-block-end:0; }
+  ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve, ${WARNINGS}, ${KEPT_WARNINGS},
+  ${ACTS}[data-band="approve"]:has(.approval-warnings) #approve .acts-more .btn { position:static; block-size:auto; inline-size:auto; }
+  ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve { padding:0; }
+  ${WARNINGS} { padding:0; border:0; }
+  ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve textarea { flex:none; min-block-size:96px; resize:vertical; }
 }
 .order-action-note { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink-secondary); }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
@@ -153,6 +198,9 @@ export const CONVERSATION_CSS = `
 .ct-tabs a { display:inline-flex; gap:var(--space-8); align-items:center; min-height:44px; text-decoration:none; color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
 .ct-tabs a[aria-current] { color:var(--color-accent); border-block-end-color:var(--color-accent); }
 .ct-status:empty { display:none; }
+.ct-recovery { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin-block-end:var(--space-16); }
+.ct-recovery[hidden] { display:none; }
+.ct-recovery .deeper { margin:0; }
 .ct-status, .cp-intro, .cp-allowance, .cp-history { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 .copilot-panel { max-width:68ch; margin-inline:auto; overflow-wrap:anywhere; }
 .cp-head h2 { font-size:var(--font-size-title); margin:0; }
@@ -203,7 +251,20 @@ export const CONVERSATION_CSS = `
   .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { visibility:hidden; }
   .conversation-workspace > .conversation-tools { grid-column:2; block-size:100dvh; border-inline-start:0; background:var(--color-surface); padding-inline:var(--space-24); }
 }
+/* B2-V03: the global reduced-motion duration otherwise gives inherited visibility a 1 ms transition on
+   every descendant, including the opener. Closing during that transition returns focus briefly, then loses it
+   to BODY. This replacement and all its descendants must become visible immediately before focus returns. */
+@media (min-width:1100px) and (max-width:1299px) and (prefers-reduced-motion:reduce) {
+  .conversation-workspace > .conv, .conversation-workspace > .conv * { transition:none; }
+}
 @media (min-width:1300px) {
+  /* The pane's close replaces its opener; no visible button jumps to the narrower column's far edge.
+     Include the label and icon: reduced-motion's global 1 ms duration otherwise leaves those descendants
+     visible for successive frames after their button has hidden, including in loading/error states. */
+  .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition:none; }
+  .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
+  .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
+
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
   .conversation-workspace > .conversation-tools { grid-column:3; }
 }

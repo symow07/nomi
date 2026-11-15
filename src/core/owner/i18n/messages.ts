@@ -27,6 +27,8 @@ const EN = {
   'record.activity': 'Activity',
   'record.privacy': 'Contact and privacy',
 
+  'inbox.tools.retry': 'Try again',
+  'inbox.tools.fullPage': 'Open the full page',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Today',
   'split.sales': 'Sales',
@@ -3066,8 +3068,8 @@ const EN = {
   'order.card.willSend': "What they will be sent",
   'order.action.confirm': "Confirm the order",
   'order.action.stepIn': 'Hand to me',
-  'order.action.setAsideHint': 'The order is set aside',
-  'order.action.keepWaitingHint': 'The order keeps waiting for you',
+  'order.action.setAsideHint': 'Sets the order aside. Nothing is sent.',
+  'order.action.keepWaitingHint': 'The order keeps waiting for you.',
   'order.action.stepIn.note': "Sets the order aside and gives you the conversation. Nothing is sent.",
   'order.flash.confirmed': "Order confirmed. They are being sent the confirmation.",
   'order.flash.confirmedNotLive': "Order recorded. Nothing was sent: sending is not switched on here yet.",
@@ -5761,6 +5763,8 @@ const ZH: Record<MessageKey, string> = {
   'record.activity': '动态',
   'record.privacy': '联系与隐私',
 
+  'inbox.tools.retry': '重试',
+  'inbox.tools.fullPage': '打开完整页面',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': '今天',
   'split.sales': '销售',
@@ -8761,8 +8765,8 @@ const ZH: Record<MessageKey, string> = {
   'order.card.willSend': "将发给对方的消息",
   'order.action.confirm': "确认订单",
   'order.action.stepIn': '交给我',
-  'order.action.setAsideHint': '订单将被搁置',
-  'order.action.keepWaitingHint': '订单仍在等待你处理',
+  'order.action.setAsideHint': '搁置订单。不会发送任何内容。',
+  'order.action.keepWaitingHint': '订单仍在等待你处理。',
   'order.action.stepIn.note': "先放下这个订单，对话交给你。不会发出任何消息。",
   'order.flash.confirmed': "订单已确认，正在把确认消息发给对方。",
   'order.flash.confirmedNotLive': "订单已记下。这里还没开通发送，所以没有发出任何东西。",
@@ -11405,6 +11409,8 @@ const AR: Record<MessageKey, string> = {
   'record.activity': 'النشاط',
   'record.privacy': 'التواصل والخصوصية',
 
+  'inbox.tools.retry': 'إعادة المحاولة',
+  'inbox.tools.fullPage': 'فتح الصفحة كاملة',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'اليوم',
   'split.sales': 'المبيعات',
@@ -14403,8 +14409,8 @@ const AR: Record<MessageKey, string> = {
   'order.card.willSend': "الرسالة التي ستُرسَل",
   'order.action.confirm': "تأكيد الطلب",
   'order.action.stepIn': 'التحويل إليّ',
-  'order.action.setAsideHint': 'يُترَك الطلب جانبًا',
-  'order.action.keepWaitingHint': 'يبقى الطلب بانتظارك',
+  'order.action.setAsideHint': 'يُترَك الطلب جانبًا. لا يُرسل شيء.',
+  'order.action.keepWaitingHint': 'يبقى الطلب بانتظارك.',
   'order.action.stepIn.note': "يُترَك الطلب جانبًا وتُسنَد المحادثة إليك. لا يُرسَل شيء.",
   'order.flash.confirmed': "تم تأكيد الطلب، وتُرسَل رسالة التأكيد الآن.",
   'order.flash.confirmedNotLive': "تم تسجيل الطلب. لم يُرسَل شيء لأن الإرسال غير مفعَّل هنا بعد.",
@@ -17051,6 +17057,8 @@ const ES: Record<MessageKey, string> = {
   'record.activity': 'Actividad',
   'record.privacy': 'Contacto y privacidad',
 
+  'inbox.tools.retry': 'Intentar de nuevo',
+  'inbox.tools.fullPage': 'Abrir la página completa',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Hoy',
   'split.sales': 'Ventas',
@@ -20031,8 +20039,8 @@ const ES: Record<MessageKey, string> = {
   'order.card.willSend': 'Lo que se le enviará',
   'order.action.confirm': 'Confirmar el pedido',
   'order.action.stepIn': 'Pásamelo',
-  'order.action.setAsideHint': 'El pedido se deja de lado',
-  'order.action.keepWaitingHint': 'El pedido sigue esperando tu decisión',
+  'order.action.setAsideHint': 'Deja el pedido de lado. No se envía nada.',
+  'order.action.keepWaitingHint': 'El pedido sigue esperándote.',
   'order.action.stepIn.note': 'Deja el pedido a un lado y te da la conversación. No se envía nada.',
   'order.flash.confirmed': 'Pedido confirmado. Se le está enviando la confirmación.',
   'order.flash.confirmedNotLive': 'Pedido registrado. No se envió nada: el envío aún no está activado aquí.',
@@ -22637,6 +22645,8 @@ const FR: Record<MessageKey, string> = {
   'record.activity': 'Activité',
   'record.privacy': 'Contact et confidentialité',
 
+  'inbox.tools.retry': 'Réessayer',
+  'inbox.tools.fullPage': 'Ouvrir la page complète',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': "Aujourd'hui",
   'split.sales': 'Ventes',
@@ -23675,7 +23685,8 @@ const FR: Record<MessageKey, string> = {
   'data.deletion.title': "Fermer cet espace",
   'data.deletion.lead': "Fermer efface définitivement tout ce que contient cet espace — clients et conversations, produits, commandes, tout ce que vous avez enseigné, tous les accès.",
   'data.deletion.now': "C’est immédiat, dès que vous confirmez, et tout le monde est déconnecté. Téléchargez d’abord ce que vous voulez garder.",
-  'nav.books': "Comptabilité",
+  // N1: the five phone tabs cannot fit the full Comptabilité at 320 px without cutting words.
+  'nav.books': "Comptes",
   'nav.toBooks': "Comptabilité",
   'nav.toSales': "Ventes",
   'books.home.title': "Comptabilité",
@@ -25617,8 +25628,8 @@ const FR: Record<MessageKey, string> = {
   'order.card.willSend': 'Ce que le client recevra',
   'order.action.confirm': 'Confirmer la commande',
   'order.action.stepIn': 'Me le passer',
-  'order.action.setAsideHint': 'La commande est mise de côté',
-  'order.action.keepWaitingHint': 'La commande attend toujours votre décision',
+  'order.action.setAsideHint': 'Met la commande de côté. N’envoie rien.',
+  'order.action.keepWaitingHint': 'La commande vous attend toujours.',
   'order.action.stepIn.note': 'Met la commande de côté et vous confie la conversation. Rien n’est envoyé.',
   'order.flash.confirmed': 'Commande confirmée. La confirmation est en cours d’envoi au client.',
   'order.flash.confirmedNotLive': 'Commande enregistrée. Rien n’a été envoyé : l’envoi n’est pas encore activé ici.',

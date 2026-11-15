@@ -174,7 +174,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-group + .si-group { border-block-start:1px solid var(--color-border); }
 .si-group > .sp-cap { margin:0; padding-block:var(--space-12) var(--space-4); font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); }
 .si-group > h2.sp-cap + .sp-rows li:first-child .sp-row { border-block-start:0; }
-.si-row { position:relative; grid-template-columns:8px 36px minmax(0, 1fr) 28px 96px 88px 40px 16px; }
+/* N2: Today is longer in some languages; its own content width ends before the chevron. */
+.si-row { position:relative; grid-template-columns:8px 36px minmax(0, 1fr) 28px 96px 88px max-content 16px; }
 .si-row .si-face { position:relative; z-index:1; display:block; line-height:0; border-radius:50%; }
 .si-row:hover .sp-rname { text-decoration:underline; }
 .si-dot { display:flex; align-items:center; justify-content:center; }
@@ -435,13 +436,13 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
     padding:var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom)); gap:0; background:var(--color-surface); border-inline-end:0; border-block-end:0; border-block-start:1px solid var(--color-border); overflow:visible; animation:none; }
   .owner-shell nav.side .brand, .owner-shell nav.side a.nav-desktop, .owner-shell nav.side .sp-me { display:none; }
   .owner-shell nav.side .navgroup, .owner-shell nav.side .navfoot { display:contents; }
-  .owner-shell nav.side a.navlink, .owner-shell nav.side .nav-more > summary { display:flex; flex:1 1 auto; flex-direction:column; justify-content:center; align-items:center;
-    min-inline-size:44px; min-block-size:60px; padding:var(--space-4) 2px; gap:var(--space-4); font-size:var(--font-size-caption); border:0; animation:none; background:transparent; }
+  .owner-shell nav.side a.navlink, .owner-shell nav.side .nav-more > summary { display:flex; flex:1 0 auto; flex-direction:column; justify-content:center; align-items:center;
+    min-inline-size:44px; min-block-size:60px; padding:var(--space-4) 0; gap:var(--space-4); font-size:var(--font-size-caption); border:0; animation:none; background:transparent; }
   .owner-shell nav.side a.nav-desktop { display:none; }
   .owner-shell nav.side .navcount { inset-block-start:0; inset-inline-start:calc(50% + 5px); background:var(--color-surface); }
-  /* Give each label its own word width before sharing the remaining room; long translations may wrap. */
-  .owner-shell nav.side .nl-text { white-space:normal; overflow:visible; text-overflow:clip; text-align:center; line-height:1.15; overflow-wrap:anywhere; }
-  .owner-shell nav.side .nav-more { position:relative; display:block; flex:1 1 auto; min-inline-size:44px; }
+  /* N1: give every whole word its intrinsic width before sharing spare room. No mid-word breaks or smaller type. */
+  .owner-shell nav.side .nl-text { flex:none; max-inline-size:none; white-space:normal; overflow:visible; text-overflow:clip; text-align:center; line-height:1.15; overflow-wrap:normal; word-break:normal; }
+  .owner-shell nav.side .nav-more { position:relative; display:block; flex:1 0 auto; min-inline-size:44px; }
   .owner-shell nav.side .nav-more > summary { cursor:pointer; list-style:none; }
   .owner-shell .nav-more > summary::-webkit-details-marker { display:none; }
   .owner-shell .nav-more > summary::before { display:none; }

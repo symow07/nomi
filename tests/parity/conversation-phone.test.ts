@@ -65,6 +65,9 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(region).toContain('order:1'); expect(region).toContain('flex:1 1 0'); expect(region).toContain('min-block-size:0'); expect(region).toContain('overflow-y:auto');
     // the room the shell leaves under a page for its floating bar is not wanted where the bar floats over nothing
     expect(region).toContain('padding-block-end:0');
+    // Opening the replacement pane removes its band reservation immediately, including reduced motion.
+    // An inherited 1 ms margin transition clipped the loading line for the first rendered frame.
+    expect(region).toContain('transition:none');
   });
 
   it('nothing on a phone is sticky, and no script measures the page for it', () => {
@@ -143,6 +146,26 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(twice(band, 'take', TAKE)).toBe('64px');
     // (the last rule of that name: the first is the tail of the four bands' shared rule)
     expect(band.slice(band.lastIndexOf(`${ORDER}, ${TAKE} {`))).toContain('grid-auto-columns:minmax(0,1fr)');
+  });
+
+  it('B2-V01 reserves the warning/figure context as well as the unchanged action band', () => {
+    // Arrival failed despite the earlier base-band pins: its Send/Confirm was whole, but what qualified it
+    // was clipped in the region. Keep those pins and also pin the context's position and matching reservation.
+    for (const [cond, warnings, actions, kept, facts] of [
+      ['(max-width:720px) and (min-height:400px)', '96px', 'clamp(232px, 40dvh, 340px)', 'clamp(288px, 46dvh, 380px)', '184px'],
+      ['(min-width:481px) and (max-width:720px) and (min-height:400px)', '64px', 'clamp(168px, 40dvh, 300px)', 'clamp(224px, 46dvh, 340px)', '128px'],
+    ]) {
+      const body = blocks.filter(b => b.cond === cond).at(-1)!.body;
+      for (const [size, more, sel] of [
+        [actions, ' .approval-warnings', `${ACTS}[data-band="approve"] .approval-warnings`],
+        [kept, ' form.approve > p', `${ACTS}[data-band="approve"]:has(form.approve > p) .approval-warnings`],
+      ]) {
+        expect(rule(body, `${shown('approve', more)}${size === kept ? ':has(.approval-warnings)' : ''} > .content`)).toContain(`margin-block-end:calc(${size} + ${warnings});`);
+        expect(rule(body, sel!)).toContain(`block-size:${warnings}; inset-block-end:calc(${BAR} + ${size});`);
+      }
+      expect(rule(body, `${shown('order')} > .content`)).toContain(`margin-block-end:calc(104px + ${facts});`);
+      expect(rule(body, `${ACTS}[data-band="order"] .order-facts`)).toContain(`block-size:${facts}; inset-block-end:calc(${BAR} + 104px);`);
+    }
   });
 
   it('the page names the band from what it drew: one at most, the order first', () => {
