@@ -172,7 +172,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-group + .si-group { border-block-start:1px solid var(--color-border); }
 .si-group > .sp-cap { margin:0; padding-block:var(--space-12) var(--space-4); font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); }
 .si-group > h2.sp-cap + .sp-rows li:first-child .sp-row { border-block-start:0; }
-.si-row { position:relative; grid-template-columns:8px 36px minmax(0, 1fr) 28px 96px 88px 40px 16px; }
+/* N2: Today is longer in some languages; its own content width ends before the chevron. */
+.si-row { position:relative; grid-template-columns:8px 36px minmax(0, 1fr) 28px 96px 88px max-content 16px; }
 .si-row .si-face { position:relative; z-index:1; display:block; line-height:0; border-radius:50%; }
 .si-row:hover .sp-rname { text-decoration:underline; }
 .si-dot { display:flex; align-items:center; justify-content:center; }
