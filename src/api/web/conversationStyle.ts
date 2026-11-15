@@ -67,7 +67,7 @@ export const CONVERSATION_CSS = `
 @media (max-width:720px) {
   ${PAGE} { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
   ${PAGE} > nav.side { position:relative; order:2; flex:none; box-sizing:border-box; block-size:${BAR}; }
-  ${PAGE} > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
+  ${PAGE} > .content { transition-property:none; order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:0; scroll-padding-block-end:var(--space-16); }
   /* A door lands on the newest message near the top of the region here (a quarter down elsewhere): the room under it
      is for what was drafted and why it waits. */
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }

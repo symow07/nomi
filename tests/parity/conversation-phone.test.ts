@@ -65,6 +65,9 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(region).toContain('order:1'); expect(region).toContain('flex:1 1 0'); expect(region).toContain('min-block-size:0'); expect(region).toContain('overflow-y:auto');
     // the room the shell leaves under a page for its floating bar is not wanted where the bar floats over nothing
     expect(region).toContain('padding-block-end:0');
+    // Opening the replacement pane removes its band reservation immediately, including reduced motion.
+    // An inherited 1 ms margin transition clipped the loading line for the first rendered frame.
+    expect(region).toContain('transition-property:none');
   });
 
   it('nothing on a phone is sticky, and no script measures the page for it', () => {
