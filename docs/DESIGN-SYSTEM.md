@@ -19,22 +19,31 @@ The approved eight-area implementation covers Today, Inbox, Customers, Products,
 
 ## Theme
 
+**The UI correction (the owner, 2026-11-13) supersedes the warm paper below it in history.** Block 1 moved the signed-in
+app to this theme; the public pages (website, legal, customer documents, web chat) keep their previous tokens
+(`PUBLIC_TOKENS`) until their own block. The sign-in pages (sign in, access code, sign up, forgotten password) are not
+among them: they share the app's tokens and took this theme with it. Evidence: [Block 1](design/ui-correction/block1/README.md).
+
 | Role | Value or rule |
 |---|---|
-| Page | Paper `#F7F3EE` |
-| Surface | `#FFFDFA`; flat and separated by thin neutral borders |
-| Text and primary actions | Black; filled primary buttons have white labels |
-| Secondary actions | Black text and a neutral border |
-| Magenta | `#9A0F5E`: links, active navigation/tabs, selected rows, counts and waiting dots |
-| AI output | A faint magenta surface, the supplied seal and clear attribution |
-| Green | Quiet confirmation of paid or done |
-| Warning/refusal | Explicit words and an icon near the relevant action; color alone carries no condition |
+| Page | Neutral off-white `#FAFAF9` |
+| Surface | White `#FFFFFF`; flat, separated by thin neutral lines `#E4E4E1` |
+| Text and primary actions | Ink `#171717`; the one filled button on a task, with a white label |
+| Secondary text | `#5E5E5A` |
+| Secondary actions | Ink text, white ground, a 1 px control edge `#8A8A86` (also every field's edge) |
+| Consequential actions | White ground, a heavy ink edge and weight; set apart by wording and place; never red |
+| Magenta | `#9A0F5E`, sparse: the seal, the dot before what waits, the rail's count. Not links, tabs, selections, fields or panels |
+| Where you are, links, focus | Ink: a quiet tile and weight for the rail, an underline for a link, a 2 px ink ring for focus |
+| AI output | A neutral surface, the seal as its cue, clear attribution |
+| Green | `#3F6B5C`: quiet confirmation of paid or done, with its tick and word |
+| Type | One sans (vendored Noto, a per-language order) for everything, titles and names included; page title 26 px semibold (24 on a phone); body 17; tabular figures |
+| Corners | Control 8, card 12, panel 16 |
 
 No decorative header wash, gradients, shadow cards, ornamental banners or large glowing identity graphics. A necessary operational notice stays beside the affected task and states what happened and what the owner can do. Charts present data; they are not decoration.
 
 Preserve the supplied Nomi seal artwork. Use the existing mark helpers rather than redrawing it. Thin line icons aid recognition; every navigation item and meaningful action still has a label. Customer photographs are round, with an initial when no photograph exists. Product thumbnails use actual catalogue photographs; an absent photograph must not look like a failed download.
 
-Use locally served fonts. The restrained serif is for Today, document, website and legal-page headings; readable sans-serif is for navigation, messages, labels, forms and running text. Aim for 16–17 px body text, clear heading hierarchy, stable numeric alignment and at least 44 px touch targets. Reuse spacing, radius and typography tokens. Keyboard focus must remain visible on paper and surface backgrounds. Respect reduced motion.
+Use locally served fonts. The working app is set in one sans throughout; a serif remains only on the public pages and paper documents until their block decides. Aim for 16–17 px body text, clear heading hierarchy, stable numeric alignment and at least 44 px touch targets. Reuse spacing, radius and typography tokens. Keyboard focus must remain visible on paper and surface backgrounds. Respect reduced motion.
 
 The token source is `src/core/owner/tokens.ts`. The shared shell and base rules live in `src/api/web/layout.ts`; the Today/Inbox rules also use `src/api/web/splitStyle.ts`. Existing internal names and flags are implementation details, not a separate visual contract.
 

@@ -132,13 +132,30 @@ export async function draftInvoice(tx: Tx, businessId: string, by: string, input
   }
 }
 
+/**
+ * ONE LINE'S FIGURES, the one place they are worked out: the net is quantity × unit price to the cent, the tax the net at the
+ * tax code's rate to the cent. Save writes exactly these (`writeInvoiceLines`), and the form's total preview reads them
+ * (`previewInvoiceTotals`) — so what the owner is shown while typing is what Save will store, by construction.
+ */
+async function invoiceLineFigures(tx: Tx, businessId: string, l: InvoiceInput['lines'][number]): Promise<{ net: Decimal; tax: Decimal }> {
+  const rate = l.taxCodeId === null ? '0' : ((await sql<{ r: string }>`select rate::text as r from tax_codes where id = ${l.taxCodeId}::uuid and business_id = ${businessId}::uuid`
+    .execute(tx)).rows[0]?.r ?? '0');
+  const net = roundDecimal(mulDecimal(l.quantity, l.unitPrice), 2);
+  const tax = roundDecimal(divDecimal(mulDecimal(net, d(rate)), d('100'), 6), 2);
+  return { net, tax };
+}
+
+/** F18 — what Save would store for these lines, written nowhere: each line through `invoiceLineFigures`, summed as `invoice_total` sums them. */
+export async function previewInvoiceTotals(tx: Tx, businessId: string, lines: InvoiceInput['lines']): Promise<{ net: Decimal; tax: Decimal; total: Decimal }> {
+  let net = d('0'), tax = d('0');
+  for (const l of lines) { const f = await invoiceLineFigures(tx, businessId, l); net = addDecimal(net, f.net); tax = addDecimal(tax, f.tax); }
+  return { net, tax, total: addDecimal(net, tax) };
+}
+
 async function writeInvoiceLines(tx: Tx, businessId: string, id: string, lines: InvoiceInput['lines']): Promise<void> {
   let n = 0;
   for (const l of lines) {
-    const rate = l.taxCodeId === null ? '0' : ((await sql<{ r: string }>`select rate::text as r from tax_codes where id = ${l.taxCodeId}::uuid and business_id = ${businessId}::uuid`
-      .execute(tx)).rows[0]?.r ?? '0');
-    const net = roundDecimal(mulDecimal(l.quantity, l.unitPrice), 2);
-    const tax = roundDecimal(divDecimal(mulDecimal(net, d(rate)), d('100'), 6), 2);
+    const { net, tax } = await invoiceLineFigures(tx, businessId, l);
     await sql`insert into invoice_lines (business_id, invoice_id, line_no, label, quantity, unit_price, account_id, tax_code_id, net, tax)
       values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.label}, ${l.quantity}::numeric, ${l.unitPrice}::numeric, ${l.accountId}::uuid,
               ${l.taxCodeId}::uuid, ${net}::numeric, ${tax}::numeric)`.execute(tx);

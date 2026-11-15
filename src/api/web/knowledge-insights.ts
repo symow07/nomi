@@ -200,6 +200,19 @@ export function renderUsageFact(f: UsageFact | undefined, locale: Locale, now: D
 
 // ── ops overview renderer (pure, localized, escaped) ─────────────────────────
 
+/**
+ * THE UI CORRECTION (2026-11-13, audit F29) — a customer's own words on a Knowledge page. A long message (an e-mail
+ * with its footer, a pasted address) is shown as its first lines with the whole message one press away, in place:
+ * nothing is cut from what is kept, and the page never grows wider than its column for it.
+ */
+export const SOURCE_PREVIEW = 180;
+export function sourceText(locale: Locale, text: string): string {
+  const chars = Array.from(text);
+  if (chars.length <= SOURCE_PREVIEW + 40) return `<bdi dir="auto" class="src-text">${esc(text)}</bdi>`;
+  return `<details class="src-long"><summary><bdi dir="auto" class="src-text src-preview">${esc(chars.slice(0, SOURCE_PREVIEW).join('').trimEnd())}…</bdi>
+      <span class="src-more">${esc(t(locale, 'assistantKnowledge.wholeMessage'))}</span></summary><bdi dir="auto" class="src-text src-full">${esc(text)}</bdi></details>`;
+}
+
 const reasonLabel = (l: Locale, r: GapReason) => t(l, `knowledge.gap.reason.${r}` as MessageKey);
 
 /**
@@ -219,7 +232,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date,
     // practice transcript now rather than preceding it.
     const testHref = `/app/assistant/practice?ask=${encodeURIComponent(g.question)}#compose`;
     return `<div class="gap">
-      <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
+      <div class="ki-q">${sourceText(locale, g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
         <span class="muted">${esc(show.when(locale, g.lastAt, now))}</span></div>
       <div class="gacts">${deeper(esc(teachHref), t(locale, 'knowledge.gap.teach'))}
@@ -263,7 +276,7 @@ export function renderKnowledgePeriod(ops: KnowledgeOps, locale: Locale, now: Da
     </div>` : '';
   const asked = ops.report.commonRequests.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.commonRequests'))}</h3>
       <ul class="reqs">${ops.report.commonRequests.map((q) =>
-        `<li><span class="q">${esc(q.question)}</span> <span class="muted">×${q.count}</span></li>`).join('')}</ul>` : '';
+        `<li><span class="q">${sourceText(locale, q.question)}</span> <span class="muted">×${q.count}</span></li>`).join('')}</ul>` : '';
   const activity = ops.activity.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.activity'))}</h3><ul class="ki-acts">${ops.activity.map((a) =>
       `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
         <span>${esc(a.label)}</span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`).join('')}</ul>` : '';

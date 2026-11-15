@@ -7,7 +7,7 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .ca-nav a[aria-current="page"]{color:var(--color-accent);border-bottom-color:var(--color-accent);}
 .ca-chooser{display:none;}
 .ca-heading{margin-block-end:var(--space-24);}
-.ca-heading h1{margin:0 0 var(--space-12);font-family:var(--font-voice);font-size:var(--font-size-overview-title);font-weight:400;line-height:var(--line-height-tight);}
+.ca-heading h1{margin:0 0 var(--space-12);font-family:var(--font-family);font-size:var(--font-size-overview-title);font-weight:600;line-height:var(--line-height-tight);}
 .ca-heading p,.ca-scope,.ca-basis{max-width:var(--measure-prose);line-height:var(--line-height);}
 .ca-filters{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-16);margin-block-end:var(--space-24);}
 .ca-filters label{display:grid;gap:var(--space-8);font-size:var(--font-size-small);min-width:0;}

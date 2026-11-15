@@ -28,7 +28,9 @@ const SRC = walk('src').map((f) => ({ f, s: readFileSync(join(ROOT, f), 'utf8') 
 
 describe('V1 · type — decision 1', () => {
   it('the shared scale includes overview headings and keeps the body at 17', () => {
-    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 15, 17, 20, 26, 34, 36, 40, 44]);
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: the overview title, its phone size and the overview figure came down from
+    // 44 / 36 / 40 (a display serif that competed with the work) to 26 / 24 / 32. The six-step scale and the 17 px body stay.
+    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 15, 17, 20, 24, 26, 26, 32, 34]);
     expect(DESIGN_TOKENS.font.sizePx.base).toBe(17);
   });
 

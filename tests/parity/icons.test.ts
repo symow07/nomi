@@ -333,8 +333,10 @@ describe('the rail, in Solar\'s Linear set', () => {
   });
 
   it('the active entry: the white pill, its word in weight, its icon in the ONE variable for it — a deep line', () => {
-    expect(DESIGN_TOKENS.colorRole.navActive).toBe('needs');
-    expect(cssVariables()).toContain('--color-nav-active: var(--color-needs);');
+    // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: where you are is said by the tile and the weight, its icon in the INK —
+    // never by magenta. Still ONE variable for the job, so a later change is one line.
+    expect(DESIGN_TOKENS.colorRole.navActive).toBe('ink');
+    expect(cssVariables()).toContain('--color-nav-active: var(--color-ink);');
     const pill = bodyOf('nav.side a.navlink.active');
     expect(pill).toContain('background: var(--color-surface)');
     expect(pill).toContain('box-shadow: var(--shadow-lift1)');

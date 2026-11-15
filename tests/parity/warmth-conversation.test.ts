@@ -373,7 +373,10 @@ describe('the stylesheet — a wash and a label, never a magenta frame', () => {
   });
 
   it('the draft card rises in once, over the normal duration, and only for a reader who did not ask for less motion', () => {
-    const animated = rules.filter((r) => /#approve\b/.test(r.sel) && /animation:/.test(r.body));
+    // The UI correction's third fix round (R-1): on a phone the card does not rise in — its box and answers are fixed in a band
+    // above the tab bar, and a card with an entrance in force would carry them with the page — so one rule there says
+    // `animation:none`. That rule moves nothing; the rules that animate the card are still exactly one.
+    const animated = rules.filter((r) => /#approve\b/.test(r.sel) && /animation:/.test(r.body) && !/animation:\s*none\b/.test(r.body));
     expect(animated).toHaveLength(1);
     expect(animated[0]!.body).toContain('nomi-rise var(--motion-normal) var(--motion-ease)');
     const noPref = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n {2}\}/.exec(css)?.[1] ?? '';

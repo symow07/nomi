@@ -377,6 +377,7 @@ const flashReason = (res: { headers: Record<string, unknown> }): string => {
  */
 const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "takes the conversation's own id and recomputes the panel from its records: it draws the panel (JSON only when Accept asks for it) and keeps nothing — no thread, no ledger line — so there is no write to walk"],
+  "POST /app/books/invoices/preview": ["200, nothing written", "the invoice form's total while it is filled (F18): it reads the form as Save does — the tax codes and accounts it names are looked up in the caller's own workspace only, so another workspace's id is 'not one of yours' and yields the 'not yet' sentence — answers a fragment and keeps nothing: there is no write to walk"],
   "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/settings/business/shopify/connect": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
@@ -560,7 +561,21 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     }
     return out;
   };
-  /** All of W's rows as one hash, in one round trip: did a call write anything of W's? */
+  /**
+   * What a signed-in request writes WHATEVER its route: the session gate reads the person's liveness again once its
+   * minute in the cache is over, and stamps `people.last_seen_at` as it does (src/api/web/liveness.ts, A4 — "last seen",
+   * by design). That is the gate's write, not the route's. Counted, the call on which C's minute happens to end reads as
+   * "reached" whatever it did — a refused call included. A reach pass shorter than a minute never meets it (locally, C
+   * was stamped once, at its first page); CI's slower pass did: `POST /app/payments/stripe/connect`, which refuses
+   * every call there (no Stripe Connect configured), read as reached (run 43698483581, 2026-11-15). So the hash that
+   * judges a call leaves out that column — and only it: every other column of `people` still counts (the check before
+   * the reach pass), and B's snapshot keeps every column of every row.
+   */
+  const GATE_STAMPS: Readonly<Record<string, readonly string[]>> = { people: ['last_seen_at'] };
+  const judgedRow = (table: string) => GATE_STAMPS[table]
+    ? `(to_jsonb(x) - array[${GATE_STAMPS[table]!.map((c) => `'${c}'`).join(', ')}]::text[])::text`
+    : 'x::text';
+  /** All of W's rows as one hash, in one round trip: did a call write anything of W's (the gate's stamp aside)? */
   let stateSql = '';
   const stateOf = async (w: string): Promise<string> => (await admin.query(stateSql, [w])).rows[0].h as string;
 
@@ -885,7 +900,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await ensureQueueSchema();
     for (const ns of [NS_A, NS_B, NS_C]) await admin.query(demoSeedSql(ns));
     scopes = await readScopes();
-    stateSql = `select md5(array_to_string(array[${scopes.map((s) => `(select md5(coalesce(string_agg(x::text, '|' order by x::text), '')) from ${s.table} x where ${s.where})`).join(', ')}], ',')) as h`;
+    stateSql = `select md5(array_to_string(array[${scopes.map((s) => `(select md5(coalesce(string_agg(${judgedRow(s.table)}, '|' order by ${judgedRow(s.table)}), '')) from ${s.table} x where ${s.where})`).join(', ')}], ',')) as h`;
     const seededA = await seedWorkspace(NS_A, A, A_MARK);
     const seededB = await seedWorkspace(NS_B, B, MARK);
     const seededC = await seedWorkspace(NS_C, C, C_MARK);
@@ -1164,6 +1179,20 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     before = await snapshot(B);
     bBlobs = new Set([...bBlobs, ...await blobsOf(B)]);
     pass = 'reach';
+    // The gate's stamp, and only it, is left out of the judging hash: moving C's last_seen_at leaves C's state as it
+    // was; moving any other column of the same rows does not. Tried in a transaction that is rolled back, here, where
+    // C has its people.
+    await admin.query('begin');
+    try {
+      expect((await admin.query(`select count(*)::int as n from people where business_id = $1`, [C])).rows[0].n).toBeGreaterThan(0);
+      const st0 = await stateOf(C);
+      await admin.query(`update people set last_seen_at = coalesce(last_seen_at, now()) + interval '1 hour' where business_id = $1`, [C]);
+      expect(await stateOf(C), 'the gate\'s last_seen_at stamp moves the judging hash').toBe(st0);
+      await admin.query(`update people set name = name || '.' where business_id = $1`, [C]);
+      expect(await stateOf(C), 'a change to people other than the stamp no longer moves the judging hash').not.toBe(st0);
+    } finally {
+      await admin.query('rollback');
+    }
     const outcome = (method: string, res: { statusCode: number; headers: Record<string, unknown> }, changed: boolean): string => {
       if (res.statusCode >= 500) return `${res.statusCode}`;
       const notice = flashKeys(res);

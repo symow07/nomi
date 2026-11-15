@@ -6,7 +6,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pa-nav a{display:flex;align-items:center;min-height:44px;padding-block:var(--space-12);color:var(--color-ink);text-decoration:none;border-bottom:2px solid transparent;}
 .pa-nav a[aria-current="page"]{color:var(--color-accent);border-bottom-color:var(--color-accent);}
 .pa-chooser{display:none;}
-.product-area h1.page{font-family:var(--font-voice);font-size:var(--font-size-overview-title);font-weight:400;line-height:var(--line-height-tight);margin-bottom:var(--space-24);overflow-wrap:anywhere;}
+.product-area h1.page{font-family:var(--font-family);font-size:var(--font-size-overview-title);font-weight:600;line-height:var(--line-height-tight);margin-bottom:var(--space-24);overflow-wrap:anywhere;}
 .product-area .block,.product-area .fblock{margin-block:var(--space-32);}
 .product-area h2{font-size:var(--font-size-title);line-height:var(--line-height-tight);margin-bottom:var(--space-16);}
 .product-area p{line-height:var(--line-height);}

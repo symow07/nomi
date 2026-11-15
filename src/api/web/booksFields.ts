@@ -59,7 +59,7 @@ export function customInputs(locale: Locale, fields: readonly BooksField[], appl
         `<option${values[name] === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>`
       : `<input name="${esc(name)}" value="${v}" aria-label="${esc(label)}"${f.required ? ' required' : ''}${
         f.kind === 'date' ? ' type="date"' : f.kind === 'number' ? ' inputmode="decimal" dir="ltr"' : ' maxlength="500"'} />`;
-    return o.bare ? `<td>${input}</td>` : `<label class="pq"><span><bdi>${esc(f.label)}</bdi></span>${input}</label>`;
+    return o.bare ? `<td data-label="${esc(f.label)}">${input}</td>` : `<label class="pq"><span><bdi>${esc(f.label)}</bdi></span>${input}</label>`;
   }).join('');
 }
 

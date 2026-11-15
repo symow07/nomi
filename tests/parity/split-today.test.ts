@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SPLIT_CSS } from '../../src/api/web/splitStyle.js';
-import { SPLIT_TOKENS } from '../../src/core/owner/tokens.js';
+import { SPLIT_TOKENS, DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { inkWashDataUri } from '../../src/core/owner/brand.js';
 
 /**
@@ -16,13 +16,16 @@ describe('the Split Today sheet', () => {
     expect(SPLIT_CSS).toContain('--shadow-lift1:none');
   });
 
-  it('Send uses black while navigation selections use magenta', () => {
+  // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: a selection is ink on a quiet tile, not magenta.
+  it('Send uses black, and where you are is ink on a quiet tile', () => {
     expect(SPLIT_CSS).toContain('.sp-btn.sp-send { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }');
-    expect(SPLIT_CSS).toContain('.owner-shell nav.side a.navlink.active { color:var(--color-accent);');
+    expect(SPLIT_CSS).toContain('.owner-shell nav.side a.navlink.active { color:var(--color-ink); background:var(--color-sand);');
+    expect(DESIGN_TOKENS.colorRole.accent).toBe('ink');
   });
 
   it('wine is the mark and the dot on a row that needs you, and nothing else', () => {
-    expect(SPLIT_CSS).toContain('.owner-shell .mark { --color-brand:var(--color-accent); }');
+    // The seal keeps its own magenta ink: the accent role is ink since the UI correction, so the mark names `cue` (the brand, declared at the root).
+    expect(SPLIT_CSS).toContain('.owner-shell .mark { --color-brand:var(--color-cue); }');
     expect(SPLIT_CSS).not.toContain('--color-coin');
   });
 
@@ -37,8 +40,10 @@ describe('the Split Today sheet', () => {
     expect(SPLIT_CSS).not.toMatch(/\bsp-t(?:line|area|dot)[^{}]*\{[^}]*(?:transform|scale)/);
   });
 
-  it('keeps the wash rose, and the tokens it is drawn from', () => {
-    expect(SPLIT_TOKENS.color).toMatchObject({ washInk: '#9C4F52', washHalo: '#B8767A' });
+  // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: no rose header wash. The wash's two tokens are neutral greys; the picture is still
+  // drawn from them and never from magenta.
+  it('keeps the wash neutral, and the tokens it is drawn from', () => {
+    expect(SPLIT_TOKENS.color).toMatchObject({ washInk: '#5E5E5A', washHalo: '#8A8A86' });
     const doc = atob(inkWashDataUri().split('base64,')[1]!);
     expect(doc).toContain(SPLIT_TOKENS.color.washInk);
     expect(doc).toContain(SPLIT_TOKENS.color.washHalo);
@@ -46,7 +51,8 @@ describe('the Split Today sheet', () => {
   });
 
   it('holds the brief\'s colours exactly', () => {
-    expect(SPLIT_TOKENS.color).toMatchObject({ jade: '#3F6B5C', ochre: '#9A0F5E', wine: '#5A0A2E', magenta: '#9A0F5E' });
+    // `ochre` (a legacy name: overdue, emphasis) is the ink since the UI correction; green, wine and the one magenta are unchanged.
+    expect(SPLIT_TOKENS.color).toMatchObject({ jade: '#3F6B5C', ochre: '#171717', wine: '#5A0A2E', magenta: '#9A0F5E' });
   });
 
   it('draws no watermark and no repeating pattern: the one picture is the wash, once', () => {

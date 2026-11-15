@@ -154,6 +154,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'GET', url: '/app/books/invoices/:id', action: 'see' },
   { method: 'GET', url: '/app/books/invoices/new', action: 'post' },
   { method: 'POST', url: '/app/books/invoices', action: 'post' },
+  // F18 — the form's total while it is filled: the same role as saving it; it writes nothing.
+  { method: 'POST', url: '/app/books/invoices/preview', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/issue', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/discard', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/payments', action: 'post' },

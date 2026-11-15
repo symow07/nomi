@@ -1,33 +1,25 @@
-import { SPLIT_FACES_CSS } from './type.js';
-
 /**
  * Shared owner theme and overview layouts. Every signed-in shell links this
  * sheet. `.split` scopes the full-width Today/Inbox layout; `.owner-shell`
  * makes their navigation and palette consistent with all existing pages.
  */
 
-const serif = {
-  en: '"Newsreader Variable", "Noto Serif SC", "Noto Naskh Arabic Variable", Georgia, serif',
-  zh: '"Noto Serif SC", "Newsreader Variable", "Noto Naskh Arabic Variable", serif',
-  ar: '"Noto Naskh Arabic Variable", "Newsreader Variable", "Noto Serif SC", serif',
-};
 /** The page gutter centres the overview while retaining room for the rail. */
 const GUT = `max(var(--space-24), calc((100% - 1240px) / 2))`;
 
-export const SPLIT_CSS = `${SPLIT_FACES_CSS}
+export const SPLIT_CSS = `
 /* Rule 38 / 86: the English words isolate direction without changing page alignment. */
 .owner-shell bdi[lang="en"] { text-align:match-parent; }
 
 .split {
-  --font-voice:${serif.en};
+  /* The UI correction (2026-11-13, audit F01): one sans for the working app, titles and names included. */
+  --font-voice:var(--font-family);
   --color-brand:var(--color-ink);
   --color-assistant:var(--color-ink);
   --color-ok-wash:var(--color-surface); --color-warn:var(--color-ink); --color-warn-wash:var(--color-surface);
   --shadow-lift1:none; --shadow-lift2:none; --shadow-lift3:none;
   background:var(--color-paper);
 }
-html[lang="zh"] .split { --font-voice:${serif.zh}; }
-html[lang="ar"] .split { --font-voice:${serif.ar}; }
 
 /* A customer with no photo: a neutral initial, one colour for everyone. */
 .split .face { background:var(--color-sand); color:var(--color-ink-secondary); }
@@ -49,7 +41,7 @@ html:has(body.split) { scroll-padding-block-end:96px; }
 .sp-head { isolation:isolate; }
 .sp-panels { position:relative; }
 .sp-headmark { display:none; }
-.split h1.page { margin:0; font-family:var(--font-voice); font-size:var(--font-size-overview-title); font-weight:400; line-height:1.1; letter-spacing:-0.01em; color:var(--color-ink); }
+.split h1.page { margin:0; font-family:var(--font-family); font-size:var(--font-size-overview-title); font-weight:600; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); color:var(--color-ink); }
 html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:0; line-height:1.3; }
 .sp-sub { margin:var(--space-4) 0 0; font-size:var(--font-size-small); color:var(--color-ink); }
 .sp-new { flex:none; margin:0; }
@@ -82,7 +74,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 /* Primary actions, including Send, are black. Secondary actions are outlined. */
 .sp-btn { display:inline-flex; align-items:center; justify-content:center; min-block-size:44px; padding:0 var(--space-20); cursor:pointer;
   font:inherit; font-size:var(--font-size-small); font-weight:500; color:var(--color-ink); background:var(--color-surface);
-  border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); }
+  border:1px solid var(--color-control-line); border-radius:var(--radius-control); }
 .sp-btn:hover { background:var(--color-sand); }
 .sp-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
 .sp-btn.sp-send { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }
@@ -104,7 +96,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-q { margin:var(--space-16) 0 var(--space-8) !important; font-size:var(--font-size-display) !important; font-weight:400 !important; line-height:1.25 !important; }
 .sp-form { margin:0; }
 .sp-reply { display:block; inline-size:100%; margin:0 0 var(--space-12); padding:var(--space-12); font:inherit; font-size:var(--font-size-small); line-height:1.55; color:var(--color-ink);
-  background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); resize:vertical; field-sizing:content; }
+  background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); resize:vertical; field-sizing:content; }
 .sp-reply:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .sp-acts { display:flex; flex-wrap:wrap; gap:var(--space-8); }
 .sp-window { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -160,7 +152,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-tabn { font-size:var(--font-size-caption); font-weight:400; font-variant-numeric:lining-nums tabular-nums; }
 .si-tools { display:grid; gap:var(--space-8); padding:var(--space-16) var(--space-20) var(--space-8); border-block-end:1px solid var(--color-border); }
 .si-search { display:flex; gap:var(--space-8); margin:0; }
-.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 var(--space-12); box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); }
+.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 var(--space-12); box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); }
 .split .si-search input[type="search"]:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .si-filters { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:0 var(--space-16); }
 .si-fils { display:flex; align-items:center; gap:var(--space-4); min-inline-size:0; overflow-x:auto; scrollbar-width:none; }
@@ -286,13 +278,23 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 }
 
 /* Shared owner shell: every area keeps the same rail and paper. */
+/* The UI correction (2026-11-13): the voice is the one sans on every signed-in page (the per-script order comes from
+   html[lang], so Chinese and Arabic keep their own face first); figures are tabular wherever they are drawn. */
+html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabular-nums; }
 .owner-shell { --color-brand:var(--color-ink); --color-needs-wash:var(--color-assistant-wash);
   --color-warn:var(--color-ink); --color-warn-wash:var(--color-surface);
   --shadow-lift1:none; --shadow-lift2:none; caret-color:var(--color-ink); scrollbar-color:var(--color-ink-secondary) var(--color-paper); }
 .owner-shell ::selection { color:var(--color-surface); background:var(--color-accent); }
-.owner-shell :focus-visible { outline:2px solid var(--color-ink); outline-offset:3px; }
-.owner-shell .mark { --color-brand:var(--color-accent); }
-.owner-shell .row-dot, .owner-shell .si-dot .row-dot { background:var(--color-accent); }
+/* THE UI CORRECTION (2026-11-13, audit F02) — what waits is said in INK, in weight, with the accent as the dot alone:
+   every line the shell colours as "needs" reads in the ink here, and the dot before it keeps the accent. */
+.owner-shell .pill.warn, .owner-shell .pill.reason, .owner-shell .chip.draft, .owner-shell .tw-need, .owner-shell .pc-wait, .owner-shell .ir-wait,
+.owner-shell .is-needs .cr-why, .owner-shell .is-needs .cr-mark, .owner-shell .draft .held-why, .owner-shell .sig-waiting { color:var(--color-ink); }
+.owner-shell .pill.warn::before, .owner-shell .pill.reason::before, .owner-shell .chip.draft::before, .owner-shell .tw-need::before, .owner-shell .pc-wait::before,
+.owner-shell .ir-wait::before, .owner-shell .sig-waiting::before { color:var(--color-cue); }
+.owner-shell :focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+/* The seal keeps its own ink: the one place the brand magenta is drawn large. */
+.owner-shell .mark { --color-brand:var(--color-cue); }
+.owner-shell .row-dot, .owner-shell .si-dot .row-dot { color:var(--color-cue); background:currentColor; }
 .owner-shell .wk-scroll { background-image:none; }
 .owner-shell .adv-bar { background:var(--color-paper); }
 .owner-shell .td-row { mask-image:none; -webkit-mask-image:none; }
@@ -304,10 +306,12 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .owner-shell nav.side .navgroup { display:flex; flex-direction:column; gap:var(--space-4); }
 .owner-shell nav.side .navfoot { margin-block-start:auto; padding-block-start:var(--space-32); }
 .owner-shell nav.side a.navlink { min-height:48px; padding:10px var(--space-12); gap:var(--space-12); border-radius:var(--radius-control); font-size:var(--font-size-small); color:var(--color-ink); }
-.owner-shell nav.side a.navlink.active { color:var(--color-accent); background:transparent; box-shadow:none; font-weight:600; }
+/* Where you are: a quiet tile and weight, never a colour alone. */
+.owner-shell nav.side a.navlink.active { color:var(--color-ink); background:var(--color-sand); box-shadow:none; font-weight:600; }
 .owner-shell nav.side a.navlink.active .ni { color:inherit; }
-.owner-shell nav.side .ni { inline-size:22px; block-size:22px; flex:none; }
-.owner-shell nav.side .navcount { color:var(--color-accent); background:transparent; }
+/* Audit F03: a 20 px working icon in a 48 px target. */
+.owner-shell nav.side .ni { inline-size:20px; block-size:20px; flex:none; }
+.owner-shell nav.side .navcount { color:var(--color-cue); background:transparent; }
 .owner-shell nav.side .navlink:hover { background:var(--color-sand); }
 .owner-shell .nav-more { display:none; }
 .owner-shell .face { background:var(--color-sand); color:var(--color-ink-secondary); }
@@ -320,8 +324,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .owner-shell .sp-tline { stroke:var(--color-ink); }
 .owner-shell .sp-tarea, .owner-shell .sp-tdot { fill:var(--color-ink); }
 .owner-shell .sp-chip.is-waiting { color:var(--color-ink); background:transparent; }
-.owner-shell .sp-stages li.is-waiting .sp-dot, .owner-shell .si-dot { color:var(--color-accent); }
-.owner-shell .sp-stages li.is-waiting .sp-dot { border-color:var(--color-accent); }
+.owner-shell .sp-stages li.is-waiting .sp-dot, .owner-shell .si-dot { color:var(--color-cue); }
+.owner-shell .sp-stages li.is-waiting .sp-dot { border-color:currentColor; }
 .owner-shell .si-tab.on, .owner-shell .si-fil.on { color:var(--color-accent); border-color:var(--color-accent); }
 .owner-shell .sp-phonedoor { display:none; }
 .area-nav { padding:var(--space-12) var(--space-32) 0; border-block-end:1px solid var(--color-border); }

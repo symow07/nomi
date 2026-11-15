@@ -116,7 +116,9 @@ export const DESIGN_TOKENS = {
      *   caption, time     caption 13, regular, in the secondary ink
      *   a large figure    display 26, light (Today's three, the card's two)
      */
-    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 44, overviewPhone: 36, overviewMoney: 40 },
+    // THE UI CORRECTION (2026-11-13, audit F01): a page title is `display` (26), semibold, on every route; the three
+    // overview sizes came down with it (they were 44 / 36 / 40, a serif display that competed with the work).
+    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 26, overviewPhone: 24, overviewMoney: 32 },
     /**
      * Set from `html[lang]`; the shell writes the locale there on every page.
      * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
@@ -158,29 +160,41 @@ export const DESIGN_TOKENS = {
     weightFloor: { min: 400, cjkAtOrBelowPx: 15, lightFromPx: 20 },
   },
   /**
-   * Approved owner theme (2026-11-05): warm paper, black text and actions,
-   * one magenta for links, selections and attention counts; quiet green for
-   * paid/done. Warnings keep their words and shapes in ink. The seal retains
-   * its supplied artwork colours. Legacy semantic names remain compatible.
+   * THE UI CORRECTION (the owner's direction, 2026-11-13; audit F02). It supersedes the warm paper of 2026-11-05:
+   * a lighter NEUTRAL off-white canvas, white working surfaces, near-black for text and for the primary act, neutral
+   * separators. Magenta is a sparse tertiary accent: the seal's ink, the small dot before something that waits
+   * (`needs`), the rail's one count. It is no longer a link colour, a field or panel wash, a selection, or a button.
+   * Success stays the quiet green, with its tick and its word; there is no red.
+   *
+   * Measured (WCAG 2.x relative luminance; `tests/parity/warmth-pass.test.ts` holds each pair to its floor):
+   *   ink #171717 on surface #FFFFFF 17.9:1 · on paper #FAFAF9 17.2:1 · on sand #F1F1EF 15.9:1
+   *   inkSecondary #5E5E5A on surface 6.5:1 · on paper 6.2:1 · on sand 5.8:1
+   *   surface #FFFFFF on ink (the primary button's label) 17.9:1
+   *   ok #3F6B5C on surface 6.0:1 · brand #9A0F5E on surface 8.1:1, on paper 7.7:1 (a dot, the seal, the count)
+   *   controlLine #8A8A86 on surface 3.5:1, on paper 3.3:1 (a field's edge: 3:1 is the floor for a control's boundary)
    */
   color: {
     ok: '#3F6B5C',
     brand: '#9A0F5E',
+    // What waits for the owner keeps the accent — as the small DOT before its words. The words themselves are ink on
+    // every signed-in page (the owner theme, splitStyle.ts), so the accent is a mark and never a line of pink text.
     needs: '#9A0F5E',
-    needsWash: '#F9EAF2',
+    needsWash: '#F1F1EF',
     warn: '#171717',
     assistant: '#171717',
-    assistantWash: '#F9EAF2',
+    assistantWash: '#F1F1EF',
     ink: '#171717',
-    inkSecondary: '#625D57',
-    surface: '#FFFDFA',
-    paper: '#F7F3EE',
-    sand: '#EDE7DF',
-    border: '#DED7CF',
-    okWash: '#FFFDFA',
-    okLine: '#DED7CF',
-    warnWash: '#FFFDFA',
-    warnLine: '#DED7CF',
+    inkSecondary: '#5E5E5A',
+    surface: '#FFFFFF',
+    paper: '#FAFAF9',
+    sand: '#F1F1EF',
+    border: '#E4E4E1',
+    // A field's or a quiet button's edge: darker than a separator, because a control's boundary must be seen (3:1).
+    controlLine: '#8A8A86',
+    okWash: '#FFFFFF',
+    okLine: '#E4E4E1',
+    warnWash: '#FFFFFF',
+    warnLine: '#E4E4E1',
     orbGlow: '#9A0F5E',
     // Seal artwork and favicon retain their supplied colours.
     coin: '#5A0A2E',
@@ -199,7 +213,10 @@ export const DESIGN_TOKENS = {
    *              and it never sits on the filled icon. To draw it in the
    *              brand shade instead, write 'brand'.
    */
-  colorRole: { navActive: 'needs', accent: 'needs' } as const,
+  // THE UI CORRECTION (2026-11-13): where you are, a link's line, a chosen tab and a ticked control are INK, not magenta.
+  // `cue` is the accent as a MARK: the seal's ink, the dot before what waits, the rail's count. It is declared at the
+  // root, so it stays the brand magenta where the owner theme turns the brand variable itself to ink.
+  colorRole: { navActive: 'ink', accent: 'ink', cue: 'brand' } as const,
   spacingPx: [4, 8, 12, 16, 20, 24, 32, 40, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
    * M49 — THE MEASURES. Three, and every width in the product is one of them.
@@ -232,7 +249,8 @@ export const DESIGN_TOKENS = {
    * (w4-whole-17) held the app to it: a button beside a field shares its corner,
    * and a band above a list shares the list's.
    */
-  radiusPx: { control: 12, card: 16, panel: 20, chip: 999 },
+  // THE UI CORRECTION (2026-11-13, audit F05): fewer, tighter corners. A control 8, a card 12, a panel 16.
+  radiusPx: { control: 8, card: 12, panel: 16, chip: 999 },
   /**
    * THE WARMTH RUN — customers' faces. A customer the channel gives no photo
    * of (e-mail, WhatsApp) is a coloured initial: one of these eight, chosen by
@@ -341,6 +359,47 @@ export const DESIGN_TOKENS = {
   },
 } as const;
 
+/**
+ * THE PUBLIC PAGES KEEP THE THEME THEY HAD (2026-11-13). The UI correction's Block 1 changes the signed-in app; the
+ * website, the legal pages, the customer's documents and the web chat are Block 8's (audit F42, F43; F45 is deferred
+ * by the owner to the later site redesign), and the site is held byte for byte by `site-bytes.test.ts`.
+ * So `publicDocument()` emits these — the values of 84cb4580, unchanged — until that block moves them.
+ *
+ * NOT THE DOOR. The sign-in pages (`/login`, `/login?with=code`, `/signup`, `/login/forgot`) draw from DESIGN_TOKENS
+ * and so took Block 1's canvas, field edge and corners with the signed-in app (and the installable app's manifest its
+ * background). An earlier note here said the door kept these values; it did not, and the supervisor accepted the new
+ * tokens there on 2026-11-13 as the target direction. Their layout and words are still Block 8's (F42, F43).
+ */
+export const PUBLIC_TOKENS = {
+  ...DESIGN_TOKENS,
+  font: { ...DESIGN_TOKENS.font, sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 44, overviewPhone: 36, overviewMoney: 40 } },
+  color: {
+    ok: '#3F6B5C',
+    brand: '#9A0F5E',
+    needs: '#9A0F5E',
+    needsWash: '#F9EAF2',
+    warn: '#171717',
+    assistant: '#171717',
+    assistantWash: '#F9EAF2',
+    ink: '#171717',
+    inkSecondary: '#625D57',
+    surface: '#FFFDFA',
+    paper: '#F7F3EE',
+    sand: '#EDE7DF',
+    border: '#DED7CF',
+    okWash: '#FFFDFA',
+    okLine: '#DED7CF',
+    warnWash: '#FFFDFA',
+    warnLine: '#DED7CF',
+    orbGlow: '#9A0F5E',
+    // Seal artwork and favicon retain their supplied colours.
+    coin: '#5A0A2E',
+    coinGround: '#F5F1EA',
+  },
+  colorRole: { navActive: 'needs', accent: 'needs' },
+  radiusPx: { control: 12, card: 16, panel: 20, chip: 999 },
+} as const;
+
 /*
  * M7's `MOTION_SPECS` (approveTap, quoteReveal, sendFlight, statusChange) and
  * `REDUCED_MOTION_RULE` were RETIRED with the motion pass (2026-10-04): they
@@ -354,18 +413,19 @@ export const DESIGN_TOKENS = {
 export const SPLIT_TOKENS = {
   color: {
     jade: '#3F6B5C',
-    jadeWash: '#FFFDFA',
-    ochre: '#9A0F5E',
+    jadeWash: '#FFFFFF',
+    // Legacy names: what was ochre, then magenta, is ink since the UI correction (2026-11-13). `magenta` is the accent dot.
+    ochre: '#171717',
     ochreText: '#171717',
-    ochreWash: '#FFFDFA',
+    ochreWash: '#FFFFFF',
     wine: '#5A0A2E',
     magenta: '#9A0F5E',
     onSend: '#FFFFFF',
-    neutral: '#EDE7DF',
-    washInk: '#9C4F52',
-    washHalo: '#B8767A',
+    neutral: '#F1F1EF',
+    washInk: '#5E5E5A',
+    washHalo: '#8A8A86',
   },
-  size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 40, title: 44, titlePhone: 36, moneyPhone: 34 },
-  radius: { panel: 14, control: 10, thumb: 8, chip: 999 },
+  size: { caption: 13, small: 15, base: 17, name: 20, question: 26, money: 32, title: 26, titlePhone: 24, moneyPhone: 28 },
+  radius: { panel: 12, control: 8, thumb: 8, chip: 999 },
   space: { 4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 32: 32 },
 } as const;

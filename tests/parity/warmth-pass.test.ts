@@ -98,7 +98,8 @@ describe('three magentas with three jobs — the contrast, computed', () => {
   it('one magenta serves selection and brand artwork; actions use the owner ink override', () => {
     expect(C.brand).toBe(C.needs);
     expect(ruleOf('.owner-shell')).toContain('--color-brand:var(--color-ink)');
-    expect(ruleOf('.owner-shell .mark')).toContain('--color-brand:var(--color-accent)');
+    // The UI correction (2026-11-13): the accent role is ink, so the seal names the magenta it keeps (`cue`).
+    expect(ruleOf('.owner-shell .mark')).toContain('--color-brand:var(--color-cue)');
   });
 
   it('the deep one is not the ink: a hue the ink does not have, and lighter by at least 10 L*', () => {
@@ -224,20 +225,34 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
   });
 });
 
-describe('warm neutrals', () => {
-  it('a soft warm off-white page, a warmer white card a step lighter, a warm near-black ink — never pure white or black', () => {
+/**
+ * THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look. The owner asked for "a lighter, neutral off-white
+ * background with white working surfaces" and to "avoid the current yellow/beige cast". So what is pinned now is
+ * NEUTRALITY: almost no chroma in the page, the separators and the secondary ink; a white surface a step above the
+ * canvas; a near-black ink that is still never pure black. The contrast checks below are unchanged.
+ */
+describe('neutral surfaces (they were warm until 2026-11-13)', () => {
+  it('a neutral off-white page, a white surface a step lighter, a near-black ink — no beige cast, never pure black', () => {
     const paper = lab(C.paper), surface = lab(C.surface), ink = lab(C.ink);
-    // warm: a CIELAB hue on the yellow-red side (60–100), and soft: a little chroma, not cream
-    for (const [n, x] of [['paper', paper], ['surface', surface], ['stone', lab(C.inkSecondary)], ['rule', lab(C.border)]] as const) {
-      expect(x.h, n).toBeGreaterThanOrEqual(55);
-      expect(x.h, n).toBeLessThanOrEqual(100);
-      expect(x.C, n).toBeGreaterThan(1);
-      expect(x.C, n).toBeLessThan(8);
+    for (const [n, x] of [['paper', paper], ['surface', surface], ['stone', lab(C.inkSecondary)], ['rule', lab(C.border)], ['sand', lab(C.sand)], ['control line', lab(C.controlLine)]] as const) {
+      expect(x.C, n).toBeLessThan(3);   // the warm paper #F7F3EE measured 2.9 and read beige beside white; these sit near 1
     }
-    expect(surface.L - paper.L).toBeGreaterThanOrEqual(2);
-    expect(surface.L).toBeGreaterThanOrEqual(99);
+    expect(lab('#F7F3EE').C).toBeGreaterThan(paper.C * 2);
+    expect(C.surface.toUpperCase()).toBe('#FFFFFF');
+    expect(surface.L - paper.L).toBeGreaterThanOrEqual(1);
+    expect(paper.L).toBeGreaterThanOrEqual(97);
     expect(ink.L).toBeLessThanOrEqual(15);
-    for (const v of [C.paper, C.surface, C.ink]) expect(['#FFFFFF', '#000000']).not.toContain(v.toUpperCase());
+    expect(C.ink.toUpperCase()).not.toBe('#000000');
+    // What must be read or found: text pairs AA (4.5:1) or better, a control's edge 3:1 or better.
+    for (const ground of [C.surface, C.paper, C.sand]) {
+      expect(ratio(C.ink, ground), `ink on ${ground}`).toBeGreaterThanOrEqual(12);
+      expect(ratio(C.inkSecondary, ground), `secondary on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(C.ok, ground), `ok on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(C.needs, ground), `the accent on ${ground}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(ratio(C.surface, C.ink), 'the primary button\'s label').toBeGreaterThanOrEqual(12);
+    expect(ratio(C.controlLine, C.surface), 'a field\'s edge').toBeGreaterThanOrEqual(3);
+    expect(ratio(C.controlLine, C.paper), 'a field\'s edge on the canvas').toBeGreaterThanOrEqual(3);
   });
 
   it('light only, said in one place: no dark palette half-made', () => {
@@ -258,9 +273,10 @@ describe('the one warm supporting tone: sand, for quiet surfaces only', () => {
     '.ctx', '.pill.muted', '.pill.wait', '.sbx-banner', '.chip.badge'];
 
   it('a warm tone, not magenta, a step below the paper; ink, stone and the deep magenta read on it', () => {
+    // The UI correction (2026-11-13): sand is a NEUTRAL recess now (its hue is no longer held to the warm side);
+    // it is still a step below the canvas, still not magenta, and everything read on it still passes.
     const sand = lab(C.sand);
-    expect(sand.h).toBeGreaterThanOrEqual(60);
-    expect(sand.h).toBeLessThanOrEqual(100);
+    expect(sand.C).toBeLessThan(3);
     expect(lab(C.paper).L - sand.L).toBeGreaterThanOrEqual(3);
     for (const m of [C.needs, C.assistant]) expect(hueGap(sand.h, lab(m).h)).toBeGreaterThanOrEqual(60);
     expect(ratio(C.ink, C.sand)).toBeGreaterThanOrEqual(12);
