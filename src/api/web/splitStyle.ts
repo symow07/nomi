@@ -475,9 +475,10 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .calendar-page .cal-list { order:0; }
   .calendar-page .cal-grid { order:1; inline-size:100%; }
   .calendar-page .cal-grid-label { display:flex; align-items:center; }
-  .calendar-page .cal-date-choice { align-items:stretch; }
-  .cal-date-choice label { flex:1; min-inline-size:0; }
-  .cal-date-choice input { inline-size:100%; min-inline-size:0; }
+  /* Keep the whole native date ahead of its picker; the button wraps when both cannot fit. */
+  .calendar-page .cal-date-choice { display:flex; flex-wrap:wrap; align-items:stretch; inline-size:100%; }
+  .cal-date-choice label { flex:0 0 100%; min-inline-size:0; }
+  .cal-date-choice input { flex:1 1 10em; inline-size:100%; min-inline-size:0; }
   /* A tab bar takes its own row, including wrapped translations and safe area.
      Records scroll above it; no control is painted underneath it, even midway
      through a long page or with JavaScript unavailable. */
