@@ -45,6 +45,43 @@ export const CUSTOMER_TOOLS_CSS = `
 .tool-sequence .st { margin-block:var(--space-24); padding-block-end:var(--space-24); border-block-end:1px solid var(--color-border); }
 .tool-sequence .st-b, .tool-sequence .st-s { overflow-wrap:anywhere; }
 .tool-sequence .ens .en { padding-block:var(--space-16); }
+/* Block 3 F41: browse first; edit one saved e-mail or add one deliberately.
+   All consequential commands keep their original forms, fields and warnings. */
+.tool-contacts > .block, .tool-sequences > .block, .tool-sequence > .block, .tool-find > .block, .tool-write > .block, .tool-suppress > .block { padding-block:var(--space-12); }
+.tool-contacts > .block > .note { margin-block:0 var(--space-8); }
+.contacts-toolbar { display:flex; align-items:start; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
+.tool-contacts .contacts-toolbar .search { flex:1 1 300px; margin:0; }
+.tool-contacts .contacts-toolbar .act-fold { margin:0; }
+.contacts-toolbar .act-fold[open] { flex-basis:100%; }
+.tool-contacts .customer-tool-doors { flex-direction:row; gap:0 var(--space-24); margin-block:var(--space-4) var(--space-12); }
+.tool-contacts .ctgroup { margin-block:var(--space-16); }
+.tool-contacts .ctgroup-h { font-size:var(--font-size-base); }
+.tool-contacts .ct { padding-block:var(--space-12); }
+.tool-contacts .ct-a { margin-block-start:var(--space-4); }
+.tool-contacts .ct-consent { display:block; }
+.tool-contacts .ct-consent .note { margin:0 0 var(--space-8); max-inline-size:var(--measure-prose); }
+.contacts-about { margin-block-start:var(--space-16); border-block-start:1px solid var(--color-border); }
+.contacts-about summary { font-size:var(--font-size-small); }
+.outreach-recipient { display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-8); margin:0; font-size:var(--font-size-small); }
+.outreach-recipient bdi { overflow-wrap:anywhere; }
+.tool-write .wform { max-inline-size:var(--measure-prose); }
+.tool-write .write-scope { font-size:var(--font-size-small); margin:0; }
+.tool-write .wact { margin-block-start:var(--space-8); }
+.seq-new, .seq-add, .seq-retire, .prospect-connection { margin-block:var(--space-12); border-block-start:1px solid var(--color-border); }
+.seq-new > summary, .seq-add > summary { font-weight:600; }
+.seq-new .sform, .seq-add .sqform, .seq-edit .sqform { padding-block:var(--space-12); }
+.seq-overview { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+.tool-sequence .sts { margin:0; padding:0; list-style:none; max-inline-size:var(--measure-prose); }
+.tool-sequence .st { position:relative; margin:0; padding-block:var(--space-16); padding-inline:var(--space-24) 0; border-block-end:0; border-inline-start:2px solid var(--color-border); }
+.tool-sequence .st::before { content:""; position:absolute; inset-inline-start:-5px; inset-block-start:24px; inline-size:8px; block-size:8px; border-radius:50%; background:var(--color-ink-secondary); }
+.tool-sequence .st-h { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-16); }
+.tool-sequence .st-s { margin-block:var(--space-8); font-weight:600; }
+.tool-sequence .st-b { margin:0; white-space:pre-wrap; }
+.tool-sequence .sqform { max-inline-size:none; }
+.tool-sequence .seq-approval { max-inline-size:var(--measure-prose); }
+.tool-sequence .seq-approval p { margin-block:0 var(--space-8); }
+.tool-sequence .en-a a { display:inline-flex; min-block-size:44px; align-items:center; }
+.prospect-connection > p { max-inline-size:var(--measure-prose); }
 .tool-labels .row { align-items:start; gap:var(--space-16); padding-block:var(--space-16); }
 .tool-labels .row > span:first-child { flex:1; min-inline-size:0; }
 .tool-labels .row form { gap:var(--space-8); }

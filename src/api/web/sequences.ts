@@ -152,20 +152,20 @@ export function renderSequenceList(
     <h1 class="page">${esc(t(locale, 'seq.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
-      <p class="muted">${esc(t(locale, 'seq.intro'))}</p>
       ${/* Phase 9 (V1-564) — what they need before anyone can be sent one: e-mail, and someone who may be written to first. */ ''}<p class="note">${esc(t(locale, 'seq.needs'))}</p>
       ${/* The warmth run (-20) — the way to Contacts is the "‹ Contacts" above; a second door to it said the same twice. */ ''}${opts.ready === 0 ? `<p class="muted">${esc(t(locale, 'seq.noneReady'))}</p>` : ''}
       ${/* Phase 9 (new-14) — the empty list says what will be here and where to start. */ ''}${list.length === 0 ? `<div class="empty whole">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
     </section>
-    <section class="block" id="new">
-      <h2>${esc(t(locale, 'seq.new.title'))}</h2>
+    <details class="seq-new" id="new">
+      <summary>${esc(t(locale, 'seq.new.title'))}</summary>
+      <p class="muted">${esc(t(locale, 'seq.intro'))}</p>
       ${/* Phase 9 (V1-565) — a card of rows, the act at its end. */ ''}<form method="post" action="/app/sequences" class="sform">
         ${rowsCard(null, [
           fieldRow({ label: t(locale, 'seq.new.name'), forId: 'sq-name', control: '<input id="sq-name" name="name" required maxlength="120" />' }),
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'seq.new.button'))}</button>`),
         ])}
       </form>
-    </section></div>`;
+    </details></div>`;
 }
 
 /**
@@ -243,24 +243,26 @@ export function renderSequenceDetail(
   const steps = d.steps.map((s) => `<li class="st">
       <div class="st-h"><span class="st-n">${esc(t(locale, 'seq.step.label', { n: String(s.position) }))}</span>
         <span class="muted st-w">${esc(whenLine(locale, s.position, s.delayDays))}</span></div>
+      <div class="st-s" dir="auto">${esc(s.subject)}</div><div class="st-b" dir="auto">${esc(s.body)}</div>
       ${draft
-        ? `<form method="post" action="/app/sequences/${id}/steps/${s.position}" class="sqform">
+        ? `<details class="seq-edit" name="sequence-editor"><summary>${esc(t(locale, 'seq.step.edit'))}</summary>
+          <form method="post" action="/app/sequences/${id}/steps/${s.position}" class="sqform">
             ${stepFields(locale, s)}
-            <button class="btn" type="submit">${esc(t(locale, 'seq.step.save'))}</button></form>`
-        : `<div class="st-s" dir="auto">${esc(s.subject)}</div><div class="st-b" dir="auto">${esc(s.body)}</div>`}
+            <button class="btn" type="submit">${esc(t(locale, 'seq.step.save'))}</button></form></details>`
+        : ''}
     </li>`).join('');
 
   const addForm = draft && d.steps.length < MAX_STEPS ? `
-    <section class="block">
-      <h2>${esc(t(locale, d.steps.length === 0 ? 'seq.step.addFirst' : 'seq.step.add'))}</h2>
+    <details class="seq-add" name="sequence-editor">
+      <summary>${esc(t(locale, d.steps.length === 0 ? 'seq.step.addFirst' : 'seq.step.add'))}</summary>
       <form method="post" action="/app/sequences/${id}/steps" class="sqform">
         ${stepFields(locale, null)}
         <button class="btn send" type="submit">${esc(t(locale, 'seq.step.addButton'))}</button>
       </form>
-    </section>` : '';
+    </details>` : '';
 
   const approval = !draft || d.steps.length === 0 ? '' : viewer.isOwner ? `
-    <section class="block">
+    <section class="block seq-approval">
       <p class="muted">${esc(t(locale, 'seq.approve.hint'))}</p>
       <form method="post" action="/app/sequences/${id}/approve" class="inline">
         <input type="hidden" name="fingerprint" value="${esc(stepsFingerprint(d.steps))}" />
@@ -293,16 +295,23 @@ export function renderSequenceDetail(
     ? `<section class="block"><ul class="ens">${d.enrollments.map((e) => enrollmentLine(locale, e, d.id)).join('')}</ul></section>` : '';
 
   const archive = d.state === 'archived' || !viewer.isOwner ? '' : `
-    <section class="block">
+    <details class="seq-retire"><summary>${esc(t(locale, 'seq.archive.button'))}</summary>
       <p class="muted">${esc(t(locale, 'seq.archive.hint'))}</p>
       <form method="post" action="/app/sequences/${id}/archive" class="inline">
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'seq.archive.confirm'))}">${esc(t(locale, 'seq.archive.button'))}</button>
       </form>
-    </section>`;
+    </details>`;
+
+  const live = d.enrollments.filter((e) => e.stoppedAt === null && e.completedAt === null);
+  const overview = `<div class="seq-overview"><span>${esc(t(locale, 'contacts.channel.email'))}</span>
+    <span>${esc(t(locale, 'seq.list.counts', { steps: String(d.steps.length), live: String(live.length),
+      finished: String(d.enrollments.filter((e) => e.completedAt !== null).length), stopped: String(d.enrollments.filter((e) => e.stoppedAt !== null).length) }))}</span>
+    ${live.some((e) => e.awaitingConfirmationSince !== null) ? `<span class="pill wait">${esc(t(locale, 'seq.list.awaiting', { count: String(live.filter((e) => e.awaitingConfirmationSince !== null).length) }))}</span>` : ''}</div>`;
 
   return `<div class="customer-tools tool-sequence">${back('/app/customers/outreach/sequences', t(locale, 'seq.title'))}
     <h1 class="page"><bdi>${esc(d.name)}</bdi> ${statePill(locale, d.state)}</h1>
+    ${overview}
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, draft ? 'seq.draft.hint' : 'seq.frozen.hint'))}</p>

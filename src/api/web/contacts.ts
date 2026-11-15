@@ -292,7 +292,8 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
      * opens its own question, not a door drawn like "Find customers ›".
      */
     const actions = stopped ? '' : `
-      ${!decision.ok ? `<form method="post" action="/app/contacts/consent" class="inline">${hidden}
+      ${!decision.ok ? `<form method="post" action="/app/contacts/consent" class="inline ct-consent">${hidden}
+        <p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>` : ''}
       ${g === 'can' ? deeper(`/app/customers/outreach/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
         t(locale, 'contacts.write.button')) : ''}
@@ -370,10 +371,6 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       : `${groups}${pager}`;
 
   const canFirst = all.filter((x) => x.g === 'can').length;
-  // The hint explains a button. If no row offers that button, the hint is
-  // explaining something she cannot see.
-  const canAttest = all.some((x) => x.g !== 'stopped' && !mayContact({ consent: x.c.consent, suppression: x.c.suppression }).ok);
-
   // Phase 9 (V1-544) — adding someone opens above the list, not 71 rows down.
   const add = `<details class="act-fold" id="add"><summary class="btn">${esc(t(locale, 'contacts.add.title'))}</summary>
       <form method="post" action="/app/contacts" class="sform">
@@ -395,14 +392,12 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
     <h1 class="page">${esc(t(locale, 'customers.followups'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
-      <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
       ${v.contacts.length ? `<p class="note">${esc(t(locale, 'contacts.summary', { can: show.count(locale, canFirst), total: show.count(locale, all.length) }))}</p>` : ''}
+      <div class="contacts-toolbar">${search}${add}</div>
       <div class="customer-tool-doors">${deeper('/app/customers/outreach/sequences', t(locale, 'seq.title'))}
       ${deeper('/app/customers/outreach/find', t(locale, 'prospects.title'))}</div>
-      ${add}
-      ${search}
-      ${canAttest ? `<p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>` : ''}
       ${list}
+      <details class="contacts-about"><summary>${esc(t(locale, 'contacts.about'))}</summary><p class="muted">${esc(t(locale, 'contacts.intro'))}</p></details>
     </section></div>`;
 }
 
@@ -432,6 +427,7 @@ export function renderSuppressConfirm(
 ): string {
   const name = who.displayName ?? shown(who);
   return `<div class="customer-tools tool-suppress"><h1 class="page">${esc(t(locale, 'contacts.suppress.title', { who: name }))}</h1>
+    <p class="outreach-recipient">${esc(t(locale, `contacts.channel.${who.channel}` as MessageKey))} · <bdi>${esc(shown(who))}</bdi></p>
     <section class="block">
       <p>${esc(t(locale, 'contacts.suppress.hint'))}</p>
       <form method="post" action="/app/contacts/suppress" class="confirm">
@@ -471,9 +467,9 @@ export function renderWriteFirst(
   const name = who.displayName ?? shown(who);
   const draft = opts.draft ?? { subject: '', body: '' };
   return `<div class="customer-tools tool-write"><h1 class="page">${esc(t(locale, 'contacts.write.title', { who: name }))}</h1>
+    <p class="outreach-recipient">${esc(t(locale, `contacts.channel.${who.channel}` as MessageKey))} · <bdi>${esc(shown(who))}</bdi></p>
     ${flashBanner(opts.flash ?? null)}
     <section class="block">
-      <p class="muted">${esc(t(locale, 'contacts.write.hint'))}</p>
       <form method="post" action="/app/contacts/write" class="wform">
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
@@ -481,6 +477,7 @@ export function renderWriteFirst(
           <input name="subject" dir="auto" required maxlength="200" value="${esc(draft.subject)}" /></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'contacts.write.body'))}</span>
           <textarea name="body" dir="auto" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
+        <p class="muted write-scope">${esc(t(locale, 'contacts.write.hint'))}</p>
         <div class="wact">
           <button class="btn send" type="submit">${esc(t(locale, 'contacts.write.send'))}</button>
           ${back('/app/customers/outreach', t(locale, 'contacts.write.cancel'))}
