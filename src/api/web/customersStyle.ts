@@ -79,6 +79,7 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .customer-record .record-overview .pc-top{column-gap:var(--space-16);}
 .customer-record .record-overview .pc-top>.face{width:56px;height:56px;}
 .customer-record .record-overview .pc-meta{margin-block:var(--space-4);font-size:var(--font-size-small);}
+.record-latest-order{gap:var(--space-8);font-size:var(--font-size-small);display:flex;align-items:center;min-block-size:44px;overflow-wrap:anywhere;margin-block-start:var(--space-8);}
 .record-state{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-4) var(--space-16);font-size:var(--font-size-small);}
 .record-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:var(--space-24);padding-block:var(--space-8);}
 .customer-record .record-overview .pc-facts{border:0;padding:0;margin:0;gap:var(--space-24);}

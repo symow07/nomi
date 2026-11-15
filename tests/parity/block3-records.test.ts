@@ -19,6 +19,22 @@ describe('Block 3 F15 — compact records retain their scoped work',()=>{
   expect(html).toContain('This conversation: <b>Price given</b>');
   expect(html).not.toContain('This conversation: <b>Order</b>');
  });
+ it('shows the latest order in the overview and keeps the generic door only for several orders of any status',()=>{
+  for(const locale of ['en','ar','zh','es','fr'] as const)for(const count of [0,1,2]){
+   // The two-order case is one shipped and one cancelled: standing/value count stays one.
+   const latest=count?{id:'latest-order',reference:'SYN-ORDER-001',status:'shipped',qty:10,total:null,count}:null;
+   const card={...selection.card,value:{...value,orders:count?1:0}};
+   const html=renderCustomerRecord({...selection,card},{...file,context:{...file.context,order:latest}},locale,now);
+   const overview=html.split('</article>')[0]!;
+   expect(overview.includes('class="record-latest-order"'),`${locale}/${count}`).toBe(count>0);
+   expect(html.includes('class="ca-orders-door"'),`${locale}/${count}`).toBe(count>1);
+   if(count){
+    expect(overview).toContain('href="/app/orders/latest-order"');
+    expect(overview).toContain(locale==='ar'?'\u2068SYN-ORDER-001\u2069':'SYN-ORDER-001');
+    expect(overview.indexOf('record-latest-order')).toBeLessThan(overview.indexOf('class="pc-facts"'));
+   }
+  }
+ });
  it('keeps profile editing closed on arrival, with all fields and commands available without script',()=>{
   const html=renderCustomerRecord(selection,file,'en',now);
   expect(html).toMatch(/<details\b[^>]*id="record-profile"[^>]*>/);
@@ -26,7 +42,8 @@ describe('Block 3 F15 — compact records retain their scoped work',()=>{
   expect(html).toContain(`action="/app/conversations/${conversationId}/name"`);
   expect(html).toContain('name="name" maxlength="80"');
   expect(html).toContain('id="record-activity"');
-  expect(html).toContain(`/app/customers/orders?client=${clientId}`);
+  // Owner decision 2026-11-16: the generic Orders door is kept only for several orders.
+  expect(html).not.toContain('class="ca-orders-door"');
   expect(html).toContain('other currencies');
   expect(html).toContain('without a recorded amount');
   expect(html.match(/<h1\b/g)).toHaveLength(1);

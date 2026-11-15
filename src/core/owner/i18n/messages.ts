@@ -13,6 +13,7 @@ import { REDESIGN_EN } from './redesign.js';
 
 const EN = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Latest order {reference} · {state}',
   'savedReplies.search': 'Search replies',
   'savedReplies.clearSearch': 'Clear search',
   'savedReplies.noMatch': 'No replies match this search.',
@@ -5749,6 +5750,7 @@ export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
   'savedReplies.clearSearch': '清除搜索',
   'savedReplies.noMatch': '没有找到匹配的回复。',
@@ -11395,6 +11397,7 @@ const ZH: Record<MessageKey, string> = {
 
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
   'savedReplies.clearSearch': 'مسح البحث',
   'savedReplies.noMatch': 'لا توجد ردود تطابق هذا البحث.',
@@ -17043,6 +17046,7 @@ const AR: Record<MessageKey, string> = {
  */
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
   'savedReplies.clearSearch': 'Borrar búsqueda',
   'savedReplies.noMatch': 'Ninguna respuesta coincide con esta búsqueda.',
@@ -22631,6 +22635,7 @@ const ES: Record<MessageKey, string> = {
  */
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',
   'savedReplies.clearSearch': 'Effacer la recherche',
   'savedReplies.noMatch': 'Aucune réponse ne correspond à cette recherche.',
