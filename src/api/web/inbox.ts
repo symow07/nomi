@@ -1636,7 +1636,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send needs' : ''}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="${d.ownership !== 'WAITING_HUMAN' ? 'btn' : NEEDS_ACT}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is

@@ -24904,7 +24904,7 @@ const FR: Record<MessageKey, string> = {
   'buyers.empty.calm': 'Aucun client ne vous attend pour l’instant.',
   'buyers.tabs': 'Clients à afficher',
   'buyers.search.label': 'Trouver un client',
-  'buyers.search.placeholder': 'Chercher un client',
+  'buyers.search.placeholder': 'Rechercher',
   'buyers.search.go': 'Chercher',
   'buyers.search.clear': 'Effacer la recherche',
   'buyers.search.found': 'Résultats pour « {q} » : {n}',

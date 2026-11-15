@@ -507,7 +507,8 @@ describe('conversation-missed-11, V1-291, V1-298 · three headings, three names;
   it('the transcript is "Conversation", Start over sits with it, outlined and asking first; the banner opens with words', () => {
     for (const l of LOCALES) {
       const html = renderSandbox(practiceView(), l, { flash: null, settings });
-      expect(html, l).toContain(`<div class="dhead spread sbx-log-h"><h2>${esc(t(l, 'inbox.detail.log'))}</h2><form method="post" action="/app/sandbox/reset" class="inline"><button class="btn" type="submit"`);
+      // Block 2 fix 1, defect 1: reset is consequential, with the shared danger edge; it remains outlined and confirms first.
+      expect(html, l).toContain(`<div class="dhead spread sbx-log-h"><h2>${esc(t(l, 'inbox.detail.log'))}</h2><form method="post" action="/app/sandbox/reset" class="inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"`);
       expect(html, l).not.toContain(`<h2>${esc(t(l, 'nav.sandbox'))}</h2>`);
       expect(html, l).not.toContain('btn ghost');
       expect(html, l).not.toContain('🧪');
