@@ -642,6 +642,13 @@ export function renderCustomerFile(
         ${deeper(conversationUrl(f.conversationId), t(locale, 'conv.needCardCta'), 'next')}</div>`
     : '';
 
+  if (opts.embedded) return `<p class="record-channel">${esc(channelName(locale, f.channel))}${f.address ? ` <bdi dir="ltr">${esc(f.channel === 'whatsapp' && /^\d+$/.test(f.address) ? `+${f.address}` : f.address)}</bdi>` : ''}</p>
+    ${flashBanner(flash)}${actLink}
+    <details class="record-section" id="record-profile"><summary>${esc(t(locale, 'record.profileEdit'))}</summary>${profile}</details>
+    <details class="record-section" id="record-activity"><summary>${esc(t(locale, 'record.activity'))}</summary><p class="ca-scope">${esc(t(locale,'customers.scope'))}</p><p class="ca-scope">${esc(t(locale,'customers.recentHistory'))}</p>${timeline}</details>
+    ${context ? `<details class="record-section" id="record-prices"><summary>${esc(t(locale, 'conv.ctx.title'))}</summary>${context}</details>` : ''}
+    <details class="record-section" id="record-privacy"${f.deletionAsk || f.deletion?.state === 'open' || f.optOut ? ' open' : ''}><summary>${esc(t(locale, 'record.privacy'))}</summary>${optOutSection(f, locale, viewer, opts.returnHref)}${copySection(f, locale, viewer)}${deletionSection(f, locale, viewer, now)}</details>`;
+
   // A — back to Buyers, where every buyer is listed now (Customers was the same list).
   return `
     ${opts.embedded ? '' : `<div class="dhead">

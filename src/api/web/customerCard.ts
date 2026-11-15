@@ -1,6 +1,7 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { CustomerValue } from '../../db/customerValue.js';
 import type { CustomerCard } from '../../db/customerCard.js';
+import type { StageFacts } from '../../db/customerStage.js';
 import { t } from './say.js';
 import { esc, conversationUrl, deeper } from './layout.js';
 import { face } from './faces.js';
@@ -32,7 +33,7 @@ import * as show from './values.js';
  *   - the door is the graphite primary action (w4-customers-26), its words
  *     inside its own padding.
  */
-export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null, opts: { readonly fullRecordHref?: string; readonly overview?: boolean } = {}): string {
+export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null, opts: { readonly fullRecordHref?: string; readonly overview?: boolean; readonly stage?: StageFacts | null } = {}): string {
   const name = c.name ?? t(locale, 'common.buyer');
   const where = c.channels.length > 0
     ? t(locale, 'pcard.on', { channels: c.channels.map((ch) => channelName(locale, ch)).join(' · ') }) : '';
@@ -48,6 +49,20 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
       ? `<h2 class="pc-h">${esc(t(locale, 'pcard.askedAbout'))}</h2><ul class="pc-list">${c.askedAbout.map(item).join('')}</ul>`
       : `<p class="pc-none">${esc(t(locale, 'pcard.nothingYet'))}</p>`;
   const spent = c.value.spent ? show.money(locale, c.value.spent) : t(locale, opts.overview ? (c.value.orders ? 'customers.noAmount' : 'customers.noOrders') : 'pcard.nothingSpent');
+  if (opts.overview) return `<article class="pcard record-overview" data-card-body aria-labelledby="pc-name">
+    <div class="pc-top">${face({ clientId: c.clientId, name: c.name, photo: c.photo }, 'xl')}
+      <h1 class="pc-name" id="pc-name"><bdi>${esc(name)}</bdi></h1>
+      <p class="pc-meta">${where ? `<span>${esc(where)}</span>` : ''}<span>${esc(wrote)}</span></p>
+      <div class="record-state">${opts.stage ? `<span>${esc(t(locale, 'record.stage'))}: <b>${esc(t(locale, `split.stage.${opts.stage.stage}`))}</b></span>` : ''}${c.waiting ? `<span class="ca-wait">${esc(t(locale, 'inbox.filter.pending'))}</span>` : ''}${c.value.regular ? `<span>${esc(t(locale, 'pcard.regular'))}</span>` : ''}</div>
+    </div>
+    ${c.conversationId && c.conversationId !== openedFrom ? deeper(conversationUrl(c.conversationId), t(locale, 'pcard.open'), 'pc-open') : ''}
+    <div class="record-summary"><section class="pc-things">${things}</section>
+      <dl class="pc-facts"><div><dt>${esc(t(locale, 'customers.orderValue'))}</dt><dd>${esc(spent)}</dd></div><div><dt>${esc(t(locale, 'customers.standingOrders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div></dl>
+    </div>
+    <p class="ca-basis">${esc(t(locale, 'record.valueBasis'))}</p>${customerValueNote(c.value, locale)}
+    <details class="record-value-basis"><summary>${esc(t(locale, 'record.valueDetails'))}</summary><p class="ca-basis">${esc(t(locale, 'customers.valueBasis'))}</p></details>
+    ${opts.fullRecordHref ? `<a class="pc-full" href="${esc(opts.fullRecordHref)}">${esc(t(locale,'customers.fullRecord'))}</a>` : ''}
+  </article>`;
   return `<article class="pcard" data-card-body aria-labelledby="pc-name">
     <div class="pc-top">
       ${face({ clientId: c.clientId, name: c.name, photo: c.photo }, 'xl')}

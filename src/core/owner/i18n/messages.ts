@@ -13,6 +13,14 @@ import { REDESIGN_EN } from './redesign.js';
 
 const EN = {
   ...REDESIGN_EN,
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'This conversation',
+  'record.valueBasis': 'Order value, not money received.',
+  'record.valueDetails': 'What this value includes',
+  'record.profileEdit': 'Edit profile',
+  'record.activity': 'Activity',
+  'record.privacy': 'Contact and privacy',
+
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Today',
   'split.sales': 'Sales',
@@ -5731,6 +5739,14 @@ export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': '本次对话',
+  'record.valueBasis': '订单金额，不代表已收款。',
+  'record.valueDetails': '金额包含哪些订单',
+  'record.profileEdit': '编辑资料',
+  'record.activity': '动态',
+  'record.privacy': '联系与隐私',
+
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': '今天',
   'split.sales': '销售',
@@ -11359,6 +11375,14 @@ const ZH: Record<MessageKey, string> = {
 
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'هذه المحادثة',
+  'record.valueBasis': 'قيمة الطلبات، وليست مبالغ مستلمة.',
+  'record.valueDetails': 'ما تشمله هذه القيمة',
+  'record.profileEdit': 'تعديل البيانات',
+  'record.activity': 'النشاط',
+  'record.privacy': 'التواصل والخصوصية',
+
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'اليوم',
   'split.sales': 'المبيعات',
@@ -16989,6 +17013,14 @@ const AR: Record<MessageKey, string> = {
  */
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'Esta conversación',
+  'record.valueBasis': 'Valor de pedidos, no dinero recibido.',
+  'record.valueDetails': 'Qué incluye este valor',
+  'record.profileEdit': 'Editar perfil',
+  'record.activity': 'Actividad',
+  'record.privacy': 'Contacto y privacidad',
+
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': 'Hoy',
   'split.sales': 'Ventas',
@@ -22559,6 +22591,14 @@ const ES: Record<MessageKey, string> = {
  */
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'Cette conversation',
+  'record.valueBasis': 'Valeur des commandes, pas des encaissements.',
+  'record.valueDetails': 'Ce que comprend ce montant',
+  'record.profileEdit': 'Modifier le profil',
+  'record.activity': 'Activité',
+  'record.privacy': 'Contact et confidentialité',
+
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
   'split.title': "Aujourd'hui",
   'split.sales': 'Ventes',

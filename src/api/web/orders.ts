@@ -313,10 +313,13 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
   const history = rows.length === 0
     ? `<div class="empty">${esc(t(locale, 'order.history.empty'))}</div>`
     : `<ul class="rows">${rows.join('')}</ul>`;
+  // Show recorded changes only. A later state never implies that an unrecorded earlier stage happened.
+  const progression = [...(confirmation ? [confirmation] : []), ...v.history.toReversed()].slice(-3);
+  const trail = progression.length > 1 ? `<ol class="order-progress" aria-label="${esc(t(locale, 'order.history.title'))}">${progression.map((u, i) => `<li${i === progression.length - 1 ? ' aria-current="step"' : ''}><span>${esc(stateName(u.state))}</span><time datetime="${esc(u.at.toISOString())}">${esc(show.date(locale, u.at))}</time></li>`).join('')}</ol>` : '';
 
   const text = proformaText(v);
   const proforma = text
-    ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
+    ? `<details class="record-section order-document" id="order-document"><summary>${esc(t(locale, 'order.invoice.title'))}</summary>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}${locale === 'en' ? '' : ` ${esc(t(locale, 'order.invoice.english'))}`}</p>
         ${/* Phase 9 (V1-188) — a way to take it: the same text, as a file. The warmth run's phase 9 (w4-customers-12) — it
              says it saves a file, and carries a file's mark (the download icon), not a door's chevron. */ ''}<a class="deeper" href="/app/orders/${esc(encodeURIComponent(v.orderId))}/proforma.txt" download>${esc(t(locale, 'order.invoice.download'))}<span class="go" aria-hidden="true">${icon('download', 'gi')}</span></a>
@@ -328,27 +331,27 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
         ${v.sampleCredit?.kind === 'mismatch'
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
               amount: show.money(locale, v.sampleCredit.amount) }))}</p>`
-          : ''}</section>`
+          : ''}</details>`
     // Audit B14 — a shop, a brand or an agency has no terms page and no delivery term: nothing says its proforma lacks one.
     : unitPrice && total && tradesForExport(v.sellerKind)
-      ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
+      ? `<details class="record-section order-document" id="order-document"><summary>${esc(t(locale, 'order.invoice.title'))}</summary>
           ${/* V1-537 — confirmed under payment terms with no delivery term: a proforma needs one, so the page says which is missing. */ ''}<p class="muted">${esc(t(locale, v.paymentTerms && !v.incoterm ? 'order.invoice.noIncoterm' : 'order.invoice.noTerms'))}</p>
-          ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`
+          ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</details>`
       : '';
 
-  return `<div class="dhead">${back(opts.returnHref ? customerReturnHref(opts.returnHref) : conversationUrl(v.conversationId), t(locale, opts.returnHref ? 'customers.ordersBack' : 'order.back'))}</div>
+  return `<div class="order-record"><div class="dhead">${back(opts.returnHref ? customerReturnHref(opts.returnHref) : conversationUrl(v.conversationId), t(locale, opts.returnHref ? 'customers.ordersBack' : 'order.back'))}</div>
     ${/* Phase 9 (V1-184) — the page says what it is; the reference alone read as a code. The warmth run's phase 9 —
          whose order it is, with their face (the one customer page that had none, w4-customers-10); the reference is a row below. */ ''}<div class="ord-head">${v.clientId
       ? faceLink({ clientId: v.clientId, name: v.buyer, photo: v.photo ?? null }, { size: 'l', label: t(locale, 'buyers.row.card', { who: v.buyer ?? t(locale, 'common.buyer') }) })
       : ''}<h1 class="page">${orderHeading(locale, v)}</h1></div>
     ${flashBanner(flash)}
-    <section class="block">
+    <section class="order-overview">
       ${latest ? `<p class="stated-now">${esc(stateName(latest.state))}${latest.at ? ` <span class="muted">${
         esc(t(locale, 'order.since', { date: confirmedNow ? show.dateYear(locale, latest.at) : show.date(locale, latest.at) }))}</span>` : ''}</p>` : ''}
-      <div class="facts">${facts}</div>
+      <div class="facts order-facts">${facts}</div>
     </section>
-    <section class="block">
-      <h2>${esc(t(locale, 'order.update.title'))}</h2>
+    <details class="record-section order-editor" id="order-update"${flash ? ' open' : ''}>
+      <summary>${esc(t(locale, 'order.update.title'))}</summary>
       <p class="muted">${esc(t(locale, 'order.update.intro', { name }))}</p>
       <form method="post" action="/app/orders/${esc(v.orderId)}/update" class="pform">${opts.returnHref ? `<input type="hidden" name="from" value="${esc(customerReturnHref(opts.returnHref))}">` : ''}
         <label class="fld"><span class="muted">${esc(t(locale, 'order.update.state'))}</span>
@@ -360,12 +363,13 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
           <input name="note" maxlength="200" placeholder="${esc(t(locale, 'order.update.note.placeholder'))}" /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'order.update.save'))}</button>
       </form>
-    </section>
-    <section class="block">
-      <h2>${esc(t(locale, 'order.history.title'))}</h2>
+    </details>
+    <details class="record-section order-history" id="order-history">
+      <summary>${esc(t(locale, 'order.history.title'))}</summary>
+      ${trail}
       ${history}
-    </section>
-    ${proforma}`;
+    </details>
+    ${proforma}</div>`;
 }
 
 /** The order's heading and its tab: whose order it is, the customer's name isolated ("Order from Khalid Mansoor"). */
