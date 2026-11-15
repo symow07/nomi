@@ -217,6 +217,7 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
     '.settings-area .scard': 'focused settings fields on a flat page',
     '.settings-area .card': 'settings sections separated by rules',
     '.il-main.sp-sheet': 'one flat Inbox list surface',
+    '.sp-panel > .sp-sheet': 'Today\'s panel: its parts ruled apart under its heading, no box round them (audit F05, Block 2)',
     '.customer-record .pcard': 'customer overview composed into the flat full record',
     '.customer-record .pc-facts>div': 'facts within the overview, not nested cards',
     '.customer-tools .scard': 'existing tool fields on the same flat page',

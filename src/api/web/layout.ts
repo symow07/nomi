@@ -3037,7 +3037,7 @@ export const isBooksPath = (path: string): boolean => {
 };
 
 /** The area menu is a row on desktop and a native, keyboard-safe chooser on phones. */
-function areaNavigation(locale: Locale, path: string, active: string): string {
+function areaNavigation(locale: Locale, path: string, active: string, bodyHtml = ''): string {
   if (viewerRole() === 'accountant' || hubFor(path, active) !== 'home') return '';
   const url = path.split(/[?#]/)[0] ?? path;
   const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
@@ -3048,7 +3048,11 @@ function areaNavigation(locale: Locale, path: string, active: string): string {
   ];
   const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;
   const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${wordsHtml(locale, s.label)}</a>`).join('');
-  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"><summary>${wordsHtml(locale, current.label)}${GO}</summary><div>${links}</div></details></nav>`;
+  // The UI correction, Block 2 (audit F04): on a phone the chooser is the page's title where the page IS the section
+  // (its one h1 says what the chooser says) — drawn once, not as a row and then a heading. The h1 stays for a reader.
+  const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(bodyHtml)?.[1]?.replace(/<[^>]+>/g, '').trim();
+  const titled = h1 !== undefined && h1 === esc(t(locale, current.label)) ? ' data-titled' : '';
+  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"${titled}><summary>${wordsHtml(locale, current.label)}${GO}</summary><div>${links}</div></details></nav>`;
 }
 
 /** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
@@ -3108,7 +3112,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    ${areaNavigation(locale, input.path, input.active)}
+    ${areaNavigation(locale, input.path, input.active, input.bodyHtml)}
     ${helpDoor(locale, input.path)}
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>

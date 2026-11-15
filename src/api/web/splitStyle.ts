@@ -46,7 +46,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-sub { margin:var(--space-4) 0 0; font-size:var(--font-size-small); color:var(--color-ink); }
 .sp-new { flex:none; margin:0; }
 .sp-panels { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:var(--space-24); padding-inline:${GUT}; align-items:start; }
-.sp-panels.is-one { grid-template-columns:minmax(0, 720px); }
+.sp-panels.is-one { grid-template-columns:minmax(0, 840px); }
 .sp-start { padding-inline:${GUT}; }
 .sp-setup { padding:var(--space-24) ${GUT} 0; }
 @media (max-width: 1100px) { .sp-panels { grid-template-columns:minmax(0, 1fr); } }
@@ -64,9 +64,13 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-cap { margin:0 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
 .sp-card h3.sp-cap { margin-block-end:var(--space-16); font-family:inherit; font-size:var(--font-size-small); font-weight:500; line-height:1.4; color:var(--color-ink-secondary); }
 .sp-phead h3.sp-cap { margin:0; }
-/* One flat sheet per panel: its parts are ruled apart, never boxed apart. */
+/* Today: a panel's parts are ruled apart on the page, under its heading — no box around them (audit F05: the box round
+   the whole panel was a container round containers; a card is kept for the one decision waiting, an independent unit).
+   The Inbox's list keeps its sheet: one white working surface. */
 .sp-sheet { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); min-inline-size:0; }
+.sp-panel > .sp-sheet { background:transparent; border:0; border-radius:0; border-block-start:1px solid var(--color-border); }
 .sp-sheet > .sp-card { background:transparent; border:0; border-radius:0; border-block-start:1px solid var(--color-border); padding-block:var(--space-16); }
+.sp-panel > .sp-sheet > .sp-card { padding-inline:0; }
 .sp-sheet > .sp-card:first-child { border-block-start:0; }
 .sp-sheet > .sp-decide { padding-block-start:var(--space-20); }
 .sp-sheet > .sp-door { padding-block:var(--space-12); }
@@ -85,6 +89,8 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 /* The decision card */
 .sp-who { display:flex; align-items:center; gap:var(--space-16); min-inline-size:0; }
 .sp-who .face { inline-size:72px; block-size:72px; font-size:var(--font-size-display); }
+/* The face (or the door round it) never gives up its width to the name: at 320 px it shrank under "5,000 pcs". */
+.sp-who > .face, .sp-who > a { flex:none; }
 .sp-who-t { min-inline-size:0; }
 .sp-name { display:block; font-family:var(--font-voice); font-size:var(--font-size-title); font-weight:500; line-height:1.3; color:var(--color-ink); text-decoration:none; overflow-wrap:anywhere; }
 .sp-name:hover { text-decoration:underline; }
@@ -328,13 +334,20 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .owner-shell .sp-stages li.is-waiting .sp-dot { border-color:currentColor; }
 .owner-shell .si-tab.on, .owner-shell .si-fil.on { color:var(--color-accent); border-color:var(--color-accent); }
 .owner-shell .sp-phonedoor { display:none; }
-.area-nav { padding:var(--space-12) var(--space-32) 0; border-block-end:1px solid var(--color-border); }
-.area-links { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-24); }
+.area-nav { padding:var(--space-12) 0 0; border-block-end:1px solid var(--color-border); }
+/* Audit F04: the section tabs start where the page's own title starts — the page's column (main's measure and padding),
+   or Today's gutter where the page is drawn wide — at every width. */
+.area-links { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-24); box-sizing:border-box; max-inline-size:var(--measure-column); margin-inline:auto; padding-inline:var(--space-32); }
+.content:has(> main.wide) > .area-nav .area-links { max-inline-size:none; margin-inline:0; padding-inline:${GUT}; }
 .area-nav a { display:flex; align-items:center; min-block-size:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
 .area-nav a[aria-current] { color:var(--color-accent); font-weight:600; border-block-end-color:var(--color-accent); }
 .area-chooser { display:none; }
 .sp-priority { padding:0 ${GUT} 32px; }
-.sp-priority .sp-decide { max-inline-size:840px; }
+/* Audit F04: one measure for Today's column — the decision, who else waits and the panel under them line up. */
+.sp-priority .sp-decide, .sp-priority .sp-attention, .sp-priority .sp-notices { max-inline-size:840px; }
+.sp-priority .sp-decide + .sp-attention { margin-block-start:var(--space-24); }
+/* With one panel the head ends where the column ends: "New message" stands over the column, not at the screen's edge. */
+@media (min-width:721px) { .sp:has(> .sp-panels.is-one) > .sp-head { box-sizing:content-box; max-inline-size:840px; } }
 .sp-priority .sp-reply { background:var(--color-assistant-wash); }
 .results-page, .setup-page { max-inline-size:960px; }
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
@@ -394,6 +407,18 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .area-chooser > summary::before, .area-chooser > summary::-webkit-details-marker { display:none; }
   .area-chooser > div { display:flex; flex-direction:column; padding-block-end:var(--space-8); }
   .area-nav a { min-block-size:48px; border:0; }
+  /* Audit F04: where the page IS the section, the chooser is its title — drawn once, the h1 kept for a reader. */
+  .area-nav:has(> .area-chooser[data-titled]) { border-block-end:0; }
+  .area-chooser[data-titled] > summary { justify-content:flex-start; gap:var(--space-8); font-size:var(--font-size-overview-phone); font-weight:600; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); color:var(--color-ink); }
+  html[lang="ar"] .area-chooser[data-titled] > summary, html[lang="zh"] .area-chooser[data-titled] > summary { letter-spacing:0; line-height:1.3; }
+  .area-chooser[data-titled] > summary .gi { inline-size:20px; block-size:20px; transform:rotate(90deg); color:var(--color-ink-secondary); }
+  .area-chooser[data-titled][open] > summary .gi { transform:rotate(-90deg); }
+  .content:has(> .area-nav > .area-chooser[data-titled]) > main h1 { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headmark { display:none; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head { grid-template-columns:minmax(0, 1fr) auto; padding-block-start:var(--space-4); }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > :not(h1) { grid-column:1; grid-row:1; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > .live { grid-column:1 / -1; grid-row:2; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new { grid-column:2; }
   .sp-priority { padding:0 var(--space-12) var(--space-24); }
   .calendar-page .cal-screen { display:flex; flex-direction:column; }
   .calendar-page .cal-list { order:0; }
