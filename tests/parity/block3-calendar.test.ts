@@ -46,6 +46,15 @@ describe('Block 3 F40 — connected calendar context', () => {
     expect(option![1]).toContain(buyer.name);
   });
 
+  it('explains the overdue cross only when it is drawn, beside the still-owed dot', () => {
+    for (const locale of LOCALES) for (const overdue of [false, true]) {
+      const html = withZone('Asia/Shanghai', () => renderCalendar({ ...view, entries: [{ ...entry, detail: { ...entry.detail, overdue } }] }, locale, { now }));
+      const legend = html.match(/<p class="cal-legend small">([\s\S]*?)<\/p>/)![1]!;
+      expect(legend).toContain('s-waiting');
+      expect(legend.includes('s-failed')).toBe(overdue);
+    }
+  });
+
   it('does not add duplicate controls or a mark key to an empty month', () => {
     const html = withZone('Asia/Shanghai', () => renderCalendar({ ...view, entries: [] }, 'en', { now }));
     expect(html).toContain('class="cal-context"');

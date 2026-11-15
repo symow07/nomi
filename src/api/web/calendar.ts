@@ -587,6 +587,7 @@ function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): s
     entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
     entries.some(byHand) ? item(agentMark(16, 'am as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
     entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
+    entries.some((e) => isOwed(e, now) && e.detail.overdue) ? item(signalMark('failed'), 'calendar.legend.overdue') : '',
     entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
   ].filter(Boolean);
   return items.length ? `<p class="cal-legend small">${items.join('')}</p>` : '';
