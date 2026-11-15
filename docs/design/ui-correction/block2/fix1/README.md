@@ -9,9 +9,10 @@ No message, order, or question was submitted during these captures.
 There are 64 before/after pairs and two additional one-column Today views.
 Each of the 130 retained images was opened whole during builder review.
 [manifest.json](manifest.json) records dimensions and SHA-256 for every image.
-This set records visual changes; the full five-language, script-on/off R-1 sweep,
-final full four, pre-pilot, and independent verification remain pending.
-The waiting-reply conversation band will receive its final state coverage with R-1.
+This set records visual changes. The final five-language, script-on/off R-1 sweep
+passed 666 measures with zero failures; [24 final band images and scope](../fix1-bands/README.md)
+include the waiting-reply state. The full four, pre-pilot, and independent verification
+remain pending at this evidence checkpoint.
 
 ## Reading the images
 
