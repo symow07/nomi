@@ -23607,7 +23607,8 @@ const FR: Record<MessageKey, string> = {
   'data.deletion.title': "Fermer cet espace",
   'data.deletion.lead': "Fermer efface définitivement tout ce que contient cet espace — clients et conversations, produits, commandes, tout ce que vous avez enseigné, tous les accès.",
   'data.deletion.now': "C’est immédiat, dès que vous confirmez, et tout le monde est déconnecté. Téléchargez d’abord ce que vous voulez garder.",
-  'nav.books': "Comptabilité",
+  // N1: the five phone tabs cannot fit the full Comptabilité at 320 px without cutting words.
+  'nav.books': "Comptes",
   'nav.toBooks': "Comptabilité",
   'nav.toSales': "Ventes",
   'books.home.title': "Comptabilité",
