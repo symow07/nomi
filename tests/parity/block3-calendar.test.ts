@@ -32,6 +32,7 @@ describe('Block 3 F40 — connected calendar context', () => {
       expect(html.indexOf('class="cal-list"')).toBeLessThan(html.indexOf('class="cal-grid"'));
       expect(html).toContain(`/app/calendar/promises/${entry.source.id}/kept`);
       expect(html).toContain(`href="/app/customers/${buyer.id}"`);
+      expect(html).toContain('aria-label="أحمد Chen" title="أحمد Chen"');
       expect(html).toContain('<span class="mo-n"><bdi>أحمد Chen</bdi></span>');
       expect(html).toContain('data-src="promised_dates:33333333-3333-4333-8333-333333333333" data-col="due_on"');
     });

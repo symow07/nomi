@@ -392,8 +392,8 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .calendar-page .cal-grid { margin:0; border:0; padding:0; }
 .calendar-page .cal-grid-label { font-size:var(--font-size-base); min-block-size:44px; }
 /* F40: a week grows only for its own names. Equal fractional tracks made one
-   crowded day stretch all six weeks. The owner's "cuts no name" decision and
-   existing three-item cap / +N door remain; crowded weeks are taller by design.
+   crowded day stretch all six weeks. The 2026-11-16 owner decision caps grid
+   names at two lines; the three-item cap / +N door and whole agenda names remain.
    On narrow screens this grid scrolls inside its shaded frame. */
 .calendar-page .mo { min-inline-size:371px; }
 .calendar-page .mo tbody { display:block; }

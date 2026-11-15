@@ -467,7 +467,7 @@ function monthItem(locale: Locale, e: CalendarEntry, now: Date): string {
   const kind = `<span class="sr"> · ${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
   const attrs = `class="mo-e ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}"`;
   // The face opens the card; the name, like the rest of the day, chooses the day.
-  if (e.buyer) return `<span ${attrs}>${faceLink(faceOf(e.buyer), { size: 'xs', label: nameOf(locale, e) })}${name}${kind}</span>`;
+  if (e.buyer) return `<span ${attrs}>${faceLink(faceOf(e.buyer), { size: 'xs', label: nameOf(locale, e), title: nameOf(locale, e) })}${name}${kind}</span>`;
   const mark = e.identity ? face(addressFace(e), 'xs') : kindIcon(e);
   return `<span ${attrs} title="${esc(sentenceText(locale, e))}">${mark}${name}${kind}</span>`;
 }

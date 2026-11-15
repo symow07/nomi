@@ -208,15 +208,20 @@ describe('phase 7 · a chosen day as one list in time order', () => {
   });
 });
 
-describe('phase 7 · on a phone the month scrolls visibly, and no name is cut', () => {
-  it('a name wraps — never an ellipsis — in the month and in the lists; the month\'s frame is rounded and shaded at an edge with more', async () => {
+describe('calendar names: the grid is capped; agenda names remain whole', () => {
+  it('caps grid names at two lines without breaking words, and keeps the agenda whole', async () => {
     expect(draw(week(), 'en', { ask: ask(), now: NOW })).toContain('<div class="wk-scroll"><table class="mo">');
     const { shell } = await import('../../src/api/web/layout.js');
     const { linkedCss } = await import('./linked-css.js');
     const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).replace(/\/\*[\s\S]*?\*\//g, '');
     const rule = (sel: string) => new RegExp(`(?:^|\\s)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
-    for (const sel of ['.mo-n', '.dl-say', '.mo-e', '.dl-body']) expect(rule(sel), sel).not.toMatch(/ellipsis|nowrap|overflow:hidden/);
-    expect(rule('.mo-n')).toContain('overflow-wrap:break-word');
+    // Owner decision 2026-11-16: grid names may use two lines plus ellipsis;
+    // the earlier no-cut rule still holds for the agenda.
+    for (const sel of ['.dl-say', '.mo-e', '.dl-body']) expect(rule(sel), sel).not.toMatch(/ellipsis|nowrap|overflow:hidden/);
+    expect(rule('.mo-n')).toContain('-webkit-line-clamp:2');
+    expect(rule('.mo-n')).toContain('overflow-wrap:normal');
+    expect(rule('.mo-n')).toContain('word-break:normal');
+    expect(rule('.mo-n')).toContain('text-wrap:balance');
     expect(rule('.dl-say')).toContain('overflow-wrap:break-word');
     expect(rule('.wk-scroll')).toContain('background-attachment:local, local, scroll, scroll');
     expect(rule('.wk-scroll')).toContain('border-radius:var(--radius-panel)');
