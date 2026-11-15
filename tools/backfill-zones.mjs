@@ -29,7 +29,6 @@ const args = process.argv.slice(2);
 const write = args.includes('--yes');
 const url = process.env['MIGRATE_DATABASE_URL'];
 const isMain = process.argv[1] && new URL(import.meta.url).pathname.endsWith(process.argv[1].split('/').pop());
-if (isMain && !url) { console.error('MIGRATE_DATABASE_URL is not set.\n\n  MIGRATE_DATABASE_URL=<admin url> node tools/backfill-zones.mjs [--yes]\n'); process.exit(2); }
 
 /** The plan for one workspace, from its row alone. */
 export function planFor(row) {
@@ -47,13 +46,15 @@ export function planFor(row) {
   };
 }
 
-// main() never calls process.exit() once it has printed: on a pipe, stdout is written asynchronously, and exiting at once
+// The tool never ends itself with process.exit(): on a pipe, stdout is written asynchronously, and exiting at once
 // drops whatever the pipe had not yet taken — past 64 KiB the list lost its tail and its summary (CI, 2026-11-15, 510
-// workspaces). It sets process.exitCode and returns, and Node exits when stdout has drained.
+// workspaces). Every path — no address, no connection, a refusal, a failure, done — sets process.exitCode and returns,
+// and Node exits when stdout and stderr have drained.
 if (isMain) await main();
 async function main() {
+if (!url) { console.error('MIGRATE_DATABASE_URL is not set.\n\n  MIGRATE_DATABASE_URL=<admin url> node tools/backfill-zones.mjs [--yes]\n'); process.exitCode = 2; return; }
 const client = toolClient(url, { replyTimeoutMs: 60_000 });
-await client.connect().catch((e) => { console.error(`\n✗  ${e.message}\n`); process.exit(1); });
+try { await client.connect(); } catch (e) { console.error(`\n✗  ${e.message}\n`); process.exitCode = 1; return; }
 try {
   const role = (await client.query('select rolsuper or rolbypassrls as sees_all from pg_roles where rolname = current_user')).rows[0];
   if (!role?.sees_all) {

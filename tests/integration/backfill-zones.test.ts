@@ -63,11 +63,14 @@ d('Block 1 #9 · the zone and currency backfill for the workspaces made before s
        select ($1 || lpad(to_hex(g), 4, '0'))::uuid, 'Zones filler ' || $2 || ' ' || lpad(g::text, 4, '0') || ' padded to the column', 'US', 'Asia/Shanghai', 'USD', timestamptz '2000-01-01' + g * interval '1 second'
          from generate_series(1, $3::int) g`, [FILLER, RUN, FILLERS]);
     try {
-      const r = spawnSync('sh', ['-c', `"${process.execPath}" tools/backfill-zones.mjs | (sleep 1; cat)`],
+      // bash, for PIPESTATUS: the status asserted is the TOOL's own, not the reader's (a pipeline's status is its last command's).
+      const r = spawnSync('bash', ['-c', `"${process.execPath}" tools/backfill-zones.mjs | (sleep 1; cat); exit "\${PIPESTATUS[0]}"`],
         { cwd: ROOT, encoding: 'utf8', timeout: 120_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, MIGRATE_DATABASE_URL: MIGRATE_URL ?? '' } });
       expect(r.status, r.stderr).toBe(0);
       expect(Buffer.byteLength(r.stdout)).toBeGreaterThan(64 * 1024);
-      expect(r.stdout.match(new RegExp(`${FILLER}[0-9a-f]{4}`, 'g'))?.length).toBe(FILLERS);
+      const listed = r.stdout.match(new RegExp(`${FILLER}[0-9a-f]{4}`, 'g')) ?? [];
+      expect(listed.length).toBe(FILLERS);
+      expect(new Set(listed).size).toBe(FILLERS);   // 700 distinct workspaces, each listed exactly once
       expect(r.stdout).toMatch(new RegExp(`${MA}.*zone → Africa/Casablanca; currency USD → MAD`));
       expect(r.stdout).toContain('Dry run: nothing was written.');
     } finally {
