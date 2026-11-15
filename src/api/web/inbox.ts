@@ -1609,7 +1609,9 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
       <blockquote class="unsure-q" dir="auto">${esc(p.said)}</blockquote>` : ''}
-      <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      ${/* B2-V01: keep the four decision figures together; a phone reserves their own band above Confirm.
+           Optional contact/terms rows stay in the same document order below them. */ ''}<ul class="rows order-facts">${fields.slice(0, 4).map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      ${fields.length > 4 ? `<ul class="rows order-extra">${fields.slice(4).map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>` : ''}
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed">${esc(willSend)}</div>
@@ -2201,10 +2203,11 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   // The fix wave (w4-conversation-02) — both, when both: a claim you never confirmed was left
   // off the line whenever a figure had no source, and the owner had to open the fold to learn it.
   const check = (words: string) => `<span class="c check"><span aria-hidden="true">${UNSURE[locale]}</span> ${esc(words)}</span>`;
+  const warnings = (unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : '')
+    + (unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : '');
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
-        unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : ''}${
-        unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : ''}</summary>${
+        warnings ? `<span class="approval-warnings">${warnings}</span>` : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
 

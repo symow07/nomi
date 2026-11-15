@@ -178,7 +178,9 @@ describe('the card, drawn', () => {
     // The fix wave (w4-conversation-01) — "check this" is a question mark in ink, not the magenta ○ of waiting.
     expect(c).toContain('<span class="mk check" aria-hidden="true">?</span><span><bdi>29</bdi></span><span>no source found <bdi class="muted">Today only: $29.</bdi></span>');
     // Phase 9 (V1-222) — which figure, on the line itself.
-    expect(c).toMatch(/<span class="c check"><span aria-hidden="true">\?<\/span> No source for 29<\/span><\/summary>/);
+    // B2-V01 groups the original warning nodes for the phone band; the exact warning still belongs to the
+    // native summary and is visible without opening its evidence. Only the new grouping span changes this pin.
+    expect(c).toMatch(/<span class="approval-warnings"><span class="c check"><span aria-hidden="true">\?<\/span> No source for 29<\/span><\/span><\/summary>/);
     expect(c).toContain('a second, separate reading differed on the product');
   });
 
