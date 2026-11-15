@@ -1119,7 +1119,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
-  .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); }
+  .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
   .msg-long > summary::-webkit-details-marker, .msg-long > summary::before { display:none; }
   .msg-opening, .msg-whole { display:block; white-space:pre-wrap; overflow-wrap:anywhere; }
   .msg-toggle { display:inline-flex; align-items:center; min-height:44px; font-family:var(--font-family); font-size:var(--font-size-small); font-weight:600;
