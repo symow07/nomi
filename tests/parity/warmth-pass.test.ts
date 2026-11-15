@@ -185,7 +185,7 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
   it('Reply in a conversation handed to the reader — ink when a colleague holds it', () => {
     const mine = renderConversationDetail(draft({ pendingDraft: null, ownership: 'OWNER_CONTROLLED', heldBy: OWNER.id, people: [OWNER, CHEN] }),
       'en', NOW, null, { id: OWNER.id, isOwner: true });
-    expect(mine).toMatch(/<button class="btn send needs" type="submit">[^<]+<\/button>\s*<\/form>/);
+    expect(mine).toMatch(/<button class="btn send needs" type="submit">[^<]+<\/button><\/div>\s*<\/form>/);
     const theirs = renderConversationDetail(draft({ pendingDraft: null, ownership: 'OWNER_CONTROLLED', heldBy: CHEN.id, people: [OWNER, CHEN] }),
       'en', NOW, null, { id: OWNER.id, isOwner: true });
     expect(needsButtons(theirs)).toEqual([]);

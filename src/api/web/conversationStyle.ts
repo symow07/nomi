@@ -11,7 +11,10 @@ const REPLY = `${ACTS}[data-band="reply"] .replyform .answer`;
 const ORDER = `${ACTS}[data-band="order"] #order .answer`;
 const TAKE = `${ACTS}[data-band="take"] .takeover > form.answer`;
 const BAND = [APPROVE, REPLY, ORDER, TAKE];
-const ANSWERS = [`${APPROVE} .acts .btn`, QUIET, `${REPLY} .btn`, `${ORDER} .btn`, `${TAKE} .btn`];
+const ANSWERS = [`${APPROVE} .acts .btn`, QUIET, `${REPLY} > .btn`, `${ORDER} .btn`, `${TAKE} .btn`];
+/** One band's height, written twice from one figure: the room the region gives up while it is drawn, and its own. */
+const sized = (name: string, sel: string, size: string, more = ''): string =>
+  `${shown(name, more)} > .content { margin-block-end:${size}; }\n  ${sel} { block-size:${size}; }`;
 
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
@@ -42,8 +45,8 @@ export const CONVERSATION_CSS = `
    2. The answers the page's state asks of the owner stand in a BAND of a set height between the region and the bar,
       in EVERY state (Block 2): a waiting reply's box and its three answers (Send, Hand to me, No reply needed); an
       order's two (Confirm the order, Hand to me); the owner's own reply and its Send; or "Hand to me" alone. The page
-      names which (data-band, from what it drew: one at most); the band's height is set here ONCE, on the screen's
-      column (--band), and read twice — by the region, which gives up exactly that room, and by the band. So the
+      names which (data-band, from what it drew: one at most); each band's height is ONE figure here, written twice —
+      as the room the region gives up while that band is drawn, and as the band's own height. So the
       band is over nothing, and its answers are whole at every moment whatever the reply's length, the language or
       what is typed (a box in it takes what the answers leave and scrolls inside itself).
    Nothing is sticky. A screen under 400 px tall has no band: everything is in the region, in the page's order. */
@@ -56,18 +59,16 @@ export const CONVERSATION_CSS = `
   .conversation-workspace:has(.draft-dock) #latest { scroll-margin-top:var(--space-16); }
 }
 @media (max-width:720px) and (min-height:400px) {
-  ${PAGE} { --band:0px; }
-  ${shown('take')} { --band:64px; }
-  ${shown('reply')} { --band:clamp(168px, 30dvh, 260px); }
-  ${shown('approve')} { --band:clamp(232px, 40dvh, 340px); }
+  ${sized('take', TAKE, '64px')}
+  ${sized('reply', REPLY, 'clamp(168px, 30dvh, 260px)')}
+  ${sized('approve', APPROVE, 'clamp(232px, 40dvh, 340px)')}
   /* A note in the band (the owner's kept words, why a reply waits) takes its room from the band, not from the box. */
-  ${shown('approve', ' form.approve > p')} { --band:clamp(288px, 46dvh, 380px); }
-  ${shown('order')} { --band:64px; }
-  ${PAGE} > .content { margin-block-end:var(--band); }
+  ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(288px, 46dvh, 380px)', ' form.approve > p')}
+  ${sized('order', ORDER, '64px')}
   /* A card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
      with the page: on a phone a card that holds the band does not rise in. */
   .conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card { animation:none; }
-  ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; block-size:var(--band); margin:0;
+  ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; margin:0;
     padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
   /* A waiting reply: the box, two answers under it, and the third in the band's last row (its own form, set there). */
   ${APPROVE} { padding-block-end:64px; }
@@ -79,15 +80,15 @@ export const CONVERSATION_CSS = `
   ${QUIET} { position:fixed; z-index:4; inset-inline:var(--space-16); inline-size:auto; inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
   /* The owner's own reply: the box, then Send. */
   ${REPLY} { align-items:stretch; }
-  ${REPLY} .btn { flex:none; }
+  ${REPLY} > .btn { flex:none; }
   /* An order's two answers side by side; "Hand to me" alone takes the row. */
   ${ORDER}, ${TAKE} { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:var(--space-8); }
   ${ORDER} > form { display:block; margin:0; }
 }
 /* Wide enough for a waiting reply's three answers in one row. */
 @media (min-width:481px) and (max-width:720px) and (min-height:400px) {
-  ${shown('approve')} { --band:clamp(168px, 40dvh, 300px); }
-  ${shown('approve', ' form.approve > p')} { --band:clamp(224px, 46dvh, 340px); }
+  ${sized('approve', APPROVE, 'clamp(168px, 40dvh, 300px)')}
+  ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(224px, 46dvh, 340px)', ' form.approve > p')}
   ${APPROVE} { padding-block-end:var(--space-8); }
   ${APPROVE} .acts { padding-inline-end:calc((100vw - 24px) / 3); }
   ${QUIET} { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
@@ -154,7 +155,7 @@ export const CONVERSATION_CSS = `
 .cp-head p { margin-block:var(--space-8) var(--space-16); }
 .cp-prompts { display:flex; flex-direction:column; align-items:stretch; gap:var(--space-8); margin-block:var(--space-16); }
 .cp-prompts form { margin:0; }
-/* A prompt is a control and is drawn as one: the quiet button's edge, its words at the start. */
+/* A suggested question is a control and is drawn as one: the quiet button's edge, its words at the start. */
 .cp-prompts .btn.cp-prompt { width:100%; min-block-size:44px; text-align:start; justify-content:start; font-weight:400; background:var(--color-surface); color:var(--color-ink); border:1px solid var(--color-control-line); }
 .cp-prompts .btn.cp-prompt:not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
 .cp-head p { font-size:var(--font-size-small); color:var(--color-ink-secondary); }

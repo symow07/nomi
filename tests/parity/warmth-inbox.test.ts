@@ -95,7 +95,9 @@ describe('phase 4 · one customer, one row', () => {
         expect(h, l).toContain('<span class="face face-s t');
       }
     }
-    expect(CSS).toContain('.il-page .si-row, .il-compact-list .si-row { min-block-size:80px; }');
+    // the Inbox's own page keeps its 80 px row; the list beside a conversation is two lines a customer (F11, Block 2)
+    expect(CSS).toContain('.il-page .si-row { min-block-size:80px; }');
+    expect(CSS).toMatch(/\.il-compact-list \.si-row \{[^}]*grid-template-areas:"dot face name day" "dot face line line";[^}]*min-block-size:60px;/);
   });
 
   it('the list is read a customer at a time: one conversation each, the one that needs the owner most, else their newest', async () => {

@@ -43,7 +43,7 @@ describe('S1 · a saved reply never sends', () => {
   it('the reply form\'s second button puts it in the box: same form (what was typed goes with it), no validation of an empty box', () => {
     const pick = INBOX.slice(INBOX.indexOf('function savedReplyPick'), INBOX.indexOf('function photoForm'));
     expect(pick).toContain('formaction="/app/inbox/${encodeURIComponent(d.conversationId)}/saved-reply" formnovalidate');
-    expect(INBOX).toMatch(/<form method="post" action="\/app\/inbox\/\$\{cid\}\/reply" class="replyform">[\s\S]*?\$\{savedReplyPick\(d, locale\)\}\s*<button[^\n]*takeover\.action\.reply[^\n]*\n\s*<\/form>/);
+    expect(INBOX).toMatch(/<form method="post" action="\/app\/inbox\/\$\{cid\}\/reply" class="replyform">[\s\S]*?\$\{savedReplyPick\(d, locale\)\}(?:(?!<\/form>)[\s\S])*?<button[^\n]*takeover\.action\.reply[^\n]*\n\s*<\/form>/);
   });
 
   it('the route only keeps the words in the box — it calls no send, enqueues nothing', () => {

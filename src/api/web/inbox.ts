@@ -1282,8 +1282,8 @@ export const LONG_MESSAGE = { chars: 480, lines: 10, address: 72 } as const;
 const QUOTED_FROM = [
   /^>/, /^-{2,} ?(?:original message|forwarded message|message d'origine|mensaje original)\b/i, /^-- ?$/, /^_{8,}$/,
   /^on .{4,160} wrote:$/i, /^le .{4,160} a écrit ?:$/i, /^el .{4,160} escribió:$/i, /^em .{4,160} escreveu:$/i,
-  /^.{0,120}(?:写道|寫道)[:：]$/, /^(?:في|بتاريخ) .{4,160} كتب.{0,60}[:：]$/,
-  /^(?:from|sent|de|envoyé|enviado|发件人|من) ?[:：] .+@.+/i,
+  /^.{0,120}(?:写道|寫道)[:\uFF1A]$/, /^(?:في|بتاريخ) .{4,160} كتب.{0,60}[:\uFF1A]$/,
+  /^(?:from|sent|de|envoyé|enviado|发件人|من) ?[:\uFF1A] .+@.+/i,
 ] as const;
 const LONG_ADDRESS = /\bhttps?:\/\/[^\s<>"']+/gi;
 const shortAddress = (url: string): string => {
