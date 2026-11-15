@@ -62,7 +62,7 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
     <div class="record-summary"><section class="pc-things">${things}${latestOrder}</section>
       <dl class="pc-facts"><div><dt>${esc(t(locale, 'customers.orderValue'))}</dt><dd>${esc(spent)}</dd></div><div><dt>${esc(t(locale, 'customers.standingOrders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div></dl>
     </div>
-    <p class="ca-basis">${esc(t(locale, 'record.valueBasis'))}</p>${customerValueNote(c.value, locale)}
+    ${c.value.orders > 0 ? `<p class="ca-basis">${esc(t(locale, 'record.valueBasis'))}</p>` : ''}${customerValueNote(c.value, locale)}
     <details class="record-value-basis"><summary>${esc(t(locale, 'record.valueDetails'))}</summary><p class="ca-basis">${esc(t(locale, 'customers.valueBasis'))}</p></details>
     ${opts.fullRecordHref ? `<a class="pc-full" href="${esc(opts.fullRecordHref)}">${esc(t(locale,'customers.fullRecord'))}</a>` : ''}
   </article>`;

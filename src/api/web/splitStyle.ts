@@ -473,6 +473,10 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .sp-priority { padding:0 var(--space-12) var(--space-24); }
   .calendar-page .cal-screen { display:flex; flex-direction:column; }
   .calendar-page .cal-list { order:0; }
+  .calendar-page .cal-move { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--space-4); font-size:var(--font-size-small); }
+  .calendar-page .cal-move > a { margin:0; min-inline-size:0; white-space:normal; }
+  .calendar-page .cal-move > a:last-child { justify-self:end; }
+  .calendar-page .cal-move .cal-today { padding-inline:var(--space-8); }
   .calendar-page .cal-grid { order:1; inline-size:100%; }
   .calendar-page .cal-grid-label { display:flex; align-items:center; }
   /* Keep the whole native date ahead of its picker; the button wraps when both cannot fit. */

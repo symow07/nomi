@@ -634,7 +634,7 @@ export function renderCustomerFile(
     } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(show.money(locale, ctx.order.total))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${esc(formatList(locale, ctx.corrections.map((c) => capabilityName(locale, c))))}</div></div>` : '',
   ].filter(Boolean).join('');
-  const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
+  const context = ctxParts ? `<div class="block">${opts.embedded ? '' : `<h2>${esc(t(locale, 'conv.ctx.title'))}</h2>`}${ctxParts}</div>` : '';
 
   // Decision 4 — it goes somewhere, so it is a door, not a button.
   const actLink = f.needsOwner

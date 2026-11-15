@@ -32,7 +32,7 @@ export function renderSavedReplies(locale: Locale, rows: readonly SavedReply[], 
   if (opts.create) return `<div class="saved-replies-page saved-reply-focus">${back('/app/inbox/replies', t(locale, 'savedReplies.title'))}<header class="saved-replies-header"><h1 class="page">${esc(t(locale, 'savedReplies.add'))}</h1></header><section class="saved-reply-editor" id="new-reply"><p class="saved-scope">${esc(t(locale, 'savedReplies.saveScope'))}</p>${form(locale, '/app/replies', null)}${actions(locale, 'savedReplies.add')}</section></div>`;
   const query = (opts.query ?? '').trim().slice(0, 200);
   const needle = query.toLocaleLowerCase(locale);
-  const matched = rows.filter((r) => [r.title, ...Object.values(r.texts)].some((text) => text?.toLocaleLowerCase(locale).includes(needle)));
+  const matched = rows.filter((r) => [r.title, ...Object.values(r.texts)].some((text) => text?.toLocaleLowerCase(locale).includes(needle))).sort((a, b) => a.title.localeCompare(b.title, locale, { numeric: true }));
   const inUse = matched.filter((r) => !r.archived);
   const archived = matched.filter((r) => r.archived);
   const row = (r: SavedReply) => {
@@ -40,7 +40,7 @@ export function renderSavedReplies(locale: Locale, rows: readonly SavedReply[], 
     const excerpt = Array.from(preview).slice(0, 150).join('');
     return `<li><a class="saved-reply-row" href="/app/inbox/replies/${esc(r.id)}">
       <span class="saved-reply-copy"><bdi class="saved-reply-title">${esc(r.title)}</bdi><span class="saved-reply-preview" dir="auto">${esc(excerpt)}${excerpt.length < preview.length ? '…' : ''}</span></span>
-      <span class="saved-reply-languages">${SAVED_REPLY_LANGUAGES.filter((l) => r.texts[l]).map((l) => esc(langName(locale, l))).join(' · ')}</span>${GO}</a></li>`;
+      <span class="saved-reply-languages">${SAVED_REPLY_LANGUAGES.every((l) => r.texts[l]) ? esc(t(locale, 'savedReplies.allLanguages')) : SAVED_REPLY_LANGUAGES.filter((l) => r.texts[l]).map((l) => esc(langName(locale, l))).join(' · ')}</span>${GO}</a></li>`;
   };
   return `<div class="saved-replies-page">${back('/app/inbox', t(locale, 'nav.inbox'))}
     <header class="saved-replies-header"><h1 class="page">${esc(t(locale, 'savedReplies.title'))}</h1><span id="new-reply">${deeper('/app/inbox/replies?new=1', t(locale, 'savedReplies.add'))}</span></header>

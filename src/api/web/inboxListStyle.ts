@@ -98,7 +98,8 @@ export const INBOX_LIST_CSS = `
 .saved-reply-form input, .saved-reply-form textarea { font-size:var(--font-size-base); }
 .saved-reply-form input { min-block-size:44px; }
 .saved-languages { min-inline-size:0; margin:0; padding:0; border:0; }
-.saved-languages legend { font-weight:600; margin-block-end:var(--space-8); }
+.saved-languages legend { padding-inline:0; font-weight:600; margin-block-end:var(--space-8); }
+.saved-languages > .caption { font-size:var(--font-size-small); }
 .saved-language { border-block-end:1px solid var(--color-border); }
 .saved-language > summary, .saved-archive > summary { min-block-size:44px; padding-block:var(--space-8); }
 .saved-language textarea { margin-block:var(--space-8) var(--space-16); inline-size:100%; }

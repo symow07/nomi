@@ -1987,7 +1987,7 @@ const STYLE_PAGES = `
   .cal-sw.dashed { border-style:dashed; }
   .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
   .cal-rm { margin:var(--space-4) 0 0; }
-  .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
+  .cal-rm .btn { min-height:44px; padding:0; font-size:var(--font-size-small); color:var(--color-ink); }
   /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
   .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-brand); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
