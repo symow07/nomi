@@ -258,8 +258,10 @@ export const CONVERSATION_CSS = `
   .conversation-workspace > .conv, .conversation-workspace > .conv * { transition-property:none; }
 }
 @media (min-width:1300px) {
-  /* The pane's close replaces its opener; no visible button jumps to the narrower column's far edge. */
-  .conversation-workspace [data-open-tool="ask"] { transition-property:none; }
+  /* The pane's close replaces its opener; no visible button jumps to the narrower column's far edge.
+     Include the label and icon: reduced-motion's global 1 ms duration otherwise leaves those descendants
+     visible for successive frames after their button has hidden, including in loading/error states. */
+  .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition-property:none; }
   .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
   .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
 
