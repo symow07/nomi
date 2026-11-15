@@ -126,8 +126,9 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     const quiet = rule(band, QUIET);
     expect(quiet).toContain('position:fixed'); expect(quiet).toContain('inset-block-end:calc(77px + env(safe-area-inset-bottom));');
     expect(band.slice(band.indexOf(`${APPROVE} { padding-block-end`))).toMatch(/^[^{]+\{ padding-block-end:64px; \}/);
-    // a transformed card would carry what is fixed inside it: the entrance is off where a band is
-    expect(rule(band, '.conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card')).toBe(' animation:none; ');
+    // a transformed card would carry what is fixed inside it: the entrance is off, at every width (F44: routine work)
+    let bare = CONVERSATION_CSS; for (const b of blocks) bare = bare.replace(b.body, '');
+    expect(rule(bare, '.conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card')).toBe(' animation:none; ');
     // a short screen has no band: nothing in the plain phone block is fixed
     expect(phone).not.toMatch(/position:\s*fixed/);
   });

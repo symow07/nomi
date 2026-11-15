@@ -21,6 +21,10 @@ export const CONVERSATION_CSS = `
 .conversation-workspace { --font-voice:var(--font-family); display:block; min-width:0; background:var(--color-surface); }
 .conversation-workspace > .conv { min-width:0; padding:var(--space-16); background:var(--color-surface); }
 .conversation-workspace > .listpane { display:none; }
+/* F44: a conversation is routine work, opened many times a day. Its answers are there when the page is: the card a reply
+   waits in does not rise in again on every arrival (the page's own transition carries it), so Send is never hidden for
+   its delay. And on a phone an entrance would leave a transform on the card, which carries the band fixed inside it. */
+.conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card { animation:none; }
 .conversation-workspace .catchup { border:0; border-block-end:1px solid var(--color-border); border-radius:0; background:none; padding:0 0 var(--space-16); }
 .conversation-workspace .catchup h1.who { font-size:var(--font-size-title); }
 /* THE UI CORRECTION (2026-11-13, audit F12) — the compact head. One row: the way back, the live line, the two tools
@@ -65,9 +69,6 @@ export const CONVERSATION_CSS = `
   /* A note in the band (the owner's kept words, why a reply waits) takes its room from the band, not from the box. */
   ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(288px, 46dvh, 380px)', ' form.approve > p')}
   ${sized('order', ORDER, '64px')}
-  /* A card's entrance would leave a transform in force on it, and a transformed box carries what is fixed inside it
-     with the page: on a phone a card that holds the band does not rise in. */
-  .conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card { animation:none; }
   ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; margin:0;
     padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
   /* A waiting reply: the box, two answers under it, and the third in the band's last row (its own form, set there). */
