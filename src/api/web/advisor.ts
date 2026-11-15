@@ -182,7 +182,7 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
   const earlier=(history.earlier??[]).filter(r=>r.id!==thread);
   const question=exchange?.answer.kind==='failed'?exchange.asked:'';
   return `<div class="ask-page"><h1 class="page">${esc(name)}</h1>${flashBanner(history.flash??null)}
-    <p class="lede">${esc(t(locale,'assistantAsk.intro'))}</p>
+    <p class="lede" dir="auto">${esc(t(locale,'assistantAsk.intro'))}</p>
     <div class="ask-workspace"><div class="ask-conversation">
     ${atRest?`<p dir="auto">${esc(greeting)}</p><details class="ask-examples"><summary>${esc(t(locale,'assistantAsk.examples'))}</summary><ul>${EXAMPLES.map(k=>`<li>${esc(t(locale,k))}</li>`).join('')}</ul></details>`:''}
     <div class="timeline ask-line">${history.unreadable?bubble('advisor',`<p>${words(t(locale,'advisor.thread.unreadable'))}</p>`,name,exchange===null):''}

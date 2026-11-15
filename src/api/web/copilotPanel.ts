@@ -17,7 +17,7 @@ export function renderConversationTools(customer: string, conversationId: string
     ${/* Audit F13 — ONE line says the pane is opening, working, or could not answer: this one, above what it speaks of. The slot starts empty. */ ''}<p class="ct-status" data-tool-status role="status" aria-live="polite"
       data-loading="${esc(t(locale, 'inbox.tools.loading'))}" data-busy="${esc(t(locale, 'inbox.tools.busy'))}"
       data-failed="${esc(t(locale, 'inbox.tools.failed'))}" data-stale="${esc(t(locale, 'inbox.tools.stale'))}"
-      data-no-composer="${esc(t(locale, 'inbox.tools.noComposer'))}" data-used="${esc(t(locale, 'inbox.tools.used'))}"></p>
+      data-no-composer="${esc(t(locale, 'inbox.tools.noComposer'))}" data-used="${esc(t(locale, 'inbox.tools.used'))}" dir="auto"></p>
     <div data-tool-content="customer">${customer}</div>
     <div data-tool-content="ask" hidden><div data-copilot-slot></div></div>
   </aside>`;
@@ -41,33 +41,33 @@ export function renderCopilotPanel(locale: Locale, view: CopilotPanelView): stri
     });
     return `<details class="cp-fact" id="cp-fact-${i}"><summary>${esc(f.label)} <bdi>${esc(f.value)}</bdi></summary>
       ${f.calculation ? `<p dir="auto">${esc(f.calculation)}</p>` : ''}
-      ${links.length ? `<ul>${links.map((s) => `<li>${s}</li>`).join('')}</ul>` : `<p>${esc(t(locale, 'inbox.tools.unsupported'))}</p>`}</details>`;
+      ${links.length ? `<ul>${links.map((s) => `<li>${s}</li>`).join('')}</ul>` : `<p dir="auto">${esc(t(locale, 'inbox.tools.unsupported'))}</p>`}</details>`;
   };
   const reply = view.answer?.reply;
   return `<section class="copilot-panel" data-copilot-panel data-conversation-id="${esc(view.conversationId)}" data-revision="${esc(view.revision)}" aria-labelledby="copilot-title">
     <a class="cp-back" href="${conversationUrl(view.conversationId)}">${esc(t(locale, 'inbox.tools.close'))}</a>
     <header class="cp-head"><h2 id="copilot-title" tabindex="-1">${markSmall(24, null)} ${esc(t(locale, 'inbox.tools.ask'))}</h2>
-      <p>${esc(t(locale, 'inbox.tools.context', { customer: '\u0000' })).replace('\u0000', `<bdi>${esc(view.customerName ?? t(locale, 'common.buyer'))}</bdi>`)}</p>
+      <p dir="auto">${esc(t(locale, 'inbox.tools.context', { customer: '\u0000' })).replace('\u0000', `<bdi>${esc(view.customerName ?? t(locale, 'common.buyer'))}</bdi>`)}</p>
     </header>
-    <p class="cp-intro">${esc(t(locale, 'inbox.tools.intro'))}</p>
+    <p class="cp-intro" dir="auto">${esc(t(locale, 'inbox.tools.intro'))}</p>
     <div class="cp-prompts">${prompts.map(([intent, key]) => `<form method="post" action="${base}" data-copilot-ask><input type="hidden" name="intent" value="${intent}" /><input type="hidden" name="q" value="${esc(t(locale, key))}" /><button class="btn cp-prompt" type="submit"${disabled ? ' disabled' : ''}>${esc(t(locale, key))}</button></form>`).join('')}</div>
     <form method="post" action="${base}" class="cp-question" data-copilot-ask>
       <label for="copilot-question">${esc(t(locale, 'inbox.tools.question'))}</label>
       <textarea id="copilot-question" name="q" maxlength="1000" rows="3" required dir="auto" placeholder="${esc(t(locale, 'inbox.tools.placeholder'))}"${disabled ? ' disabled' : ''}>${esc(view.asked)}</textarea>
       <button class="btn" type="submit"${disabled ? ' disabled' : ''}>${esc(t(locale, 'inbox.tools.submit'))}</button>
-      ${/* Audit F13 — what a question costs is said beside the button that spends it, not above everything. */ ''}<p class="cp-allowance" role="status">${esc(t(locale, `inbox.tools.allowance.${view.allowance}`))}</p>
+      ${/* Audit F13 — what a question costs is said beside the button that spends it, not above everything. */ ''}<p class="cp-allowance" role="status" dir="auto">${esc(t(locale, `inbox.tools.allowance.${view.allowance}`))}</p>
     </form>
     ${view.answer ? `<section class="cp-answer" aria-label="${esc(t(locale, 'inbox.tools.answer'))}"><div class="cp-attribution">${markSmall(16, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></div><p dir="auto">${esc(view.answer.text)}</p></section>
       ${view.answer.facts.length ? `<section class="cp-sources"><h3>${esc(t(locale, 'inbox.tools.sources'))}</h3>${view.answer.facts.map(fact).join('')}</section>` : ''}` : ''}
     ${reply ? `<section class="cp-suggestion"><h3>${esc(t(locale, 'inbox.tools.suggestion'))}</h3><blockquote dir="auto">${esc(reply.text)}</blockquote>
-      <p>${esc(t(locale, 'inbox.tools.useHint'))}</p><form method="post" action="${base}/reply" data-copilot-use>
+      <p dir="auto">${esc(t(locale, 'inbox.tools.useHint'))}</p><form method="post" action="${base}/reply" data-copilot-use>
         <input type="hidden" name="q" value="${esc(view.asked)}" /><input type="hidden" name="intent" value="draft_reply" />
         <input type="hidden" name="revision" value="${esc(reply.revision)}" />
         <button class="btn" type="submit" data-use-reply hidden>${esc(t(locale, 'inbox.tools.use'))}</button>
-      </form><noscript><p>${esc(t(locale, 'inbox.tools.copyHint'))}</p></noscript></section>` : ''}
+      </form><noscript><p dir="auto">${esc(t(locale, 'inbox.tools.copyHint'))}</p></noscript></section>` : ''}
     <footer class="cp-history">${view.history.threadHref && sourceHref(view.history.threadHref) ? `<a href="${esc(view.history.threadHref)}">${esc(t(locale, 'inbox.tools.history'))}</a>` : ''}
-      ${view.history.consent ? `<section class="cp-consent"><h3>${esc(t(locale, 'advisor.memory.title'))}</h3><p>${esc(t(locale, 'advisor.memory.ask'))}</p><p>${esc(t(locale, 'advisor.memory.what', { processor: view.history.processor }))} ${esc(t(locale, 'advisor.memory.off'))}</p><form method="post" action="/app/advisor/consent"><button class="btn" type="submit" name="choice" value="allow">${esc(t(locale, 'advisor.memory.allow'))}</button><button class="btn ghost" type="submit" name="choice" value="notnow">${esc(t(locale, 'advisor.memory.notNow'))}</button></form><a href="/privacy#advisor">${esc(t(locale, 'advisor.memory.more'))}</a></section>` : ''}
-      ${view.history.keeping ? '' : `<p>${esc(t(locale, 'inbox.tools.noHistory'))}</p>`}
-      ${view.history.processor ? `<p>${esc(view.history.processor)}</p>` : ''}</footer>
+      ${view.history.consent ? `<section class="cp-consent"><h3>${esc(t(locale, 'advisor.memory.title'))}</h3><p dir="auto">${esc(t(locale, 'advisor.memory.ask'))}</p><p dir="auto">${esc(t(locale, 'advisor.memory.what', { processor: view.history.processor }))} ${esc(t(locale, 'advisor.memory.off'))}</p><form method="post" action="/app/advisor/consent"><button class="btn" type="submit" name="choice" value="allow">${esc(t(locale, 'advisor.memory.allow'))}</button><button class="btn ghost" type="submit" name="choice" value="notnow">${esc(t(locale, 'advisor.memory.notNow'))}</button></form><a href="/privacy#advisor">${esc(t(locale, 'advisor.memory.more'))}</a></section>` : ''}
+      ${view.history.keeping ? '' : `<p dir="auto">${esc(t(locale, 'inbox.tools.noHistory'))}</p>`}
+      ${view.history.processor ? `<p dir="auto">${esc(view.history.processor)}</p>` : ''}</footer>
   </section>`;
 }
