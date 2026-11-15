@@ -203,6 +203,12 @@ export const CONVERSATION_CSS = `
   .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { visibility:hidden; }
   .conversation-workspace > .conversation-tools { grid-column:2; block-size:100dvh; border-inline-start:0; background:var(--color-surface); padding-inline:var(--space-24); }
 }
+/* B2-V03: the global reduced-motion duration otherwise gives inherited visibility a 1 ms transition on
+   every descendant, including the opener. Closing during that transition returns focus briefly, then loses it
+   to BODY. This replacement and all its descendants must become visible immediately before focus returns. */
+@media (min-width:1100px) and (max-width:1299px) and (prefers-reduced-motion:reduce) {
+  .conversation-workspace > .conv, .conversation-workspace > .conv * { transition-property:none; }
+}
 @media (min-width:1300px) {
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
   .conversation-workspace > .conversation-tools { grid-column:3; }
