@@ -44,6 +44,8 @@ export const COPILOT_SCRIPT = String.raw`
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', String(el.getAttribute('data-open-tool') === which)); });
   }
   function restorePlace(restore) {
+    /* Settle the restored pane and pending fragment layout before applying its saved scroll. */
+    if (viewScroll) root.getBoundingClientRect();
     if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
     if (viewScroll && region) region.scrollTop = viewScroll[2];
     readingScroll.forEach(function (saved) { saved[0].scrollTop = saved[1]; saved[0].scrollLeft = saved[2]; });
