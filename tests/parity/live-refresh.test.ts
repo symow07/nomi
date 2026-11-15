@@ -124,7 +124,9 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // (nothing stuck over anything; the supervisor's order of 2026-11-13) — 55,896 measured; 55,500 became 56,500, deliberately.
     // The third fix round (2026-11-13): the thread's measure is gone again — on a phone the tab bar is a row of the screen and
     // the reply's answers a band of their own, by the stylesheet alone — 54,888 measured; 56,500 went back to 55,500.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(55_500);
+    // Block 2 fix round 1: the requested close control at the end of a long message adds 619 characters,
+    // including its native-summary fallback and focus return. 55,948 measured; keep a 56,200-character ceiling.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(56_200);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

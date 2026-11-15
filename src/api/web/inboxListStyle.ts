@@ -19,7 +19,7 @@ export const INBOX_LIST_CSS = `
 .il-view-form { display:none; grid-template-columns:minmax(0, 1fr) auto; align-items:end; gap:var(--space-8); margin:0; }
 .il-view-form label { display:grid; gap:var(--space-8); min-inline-size:0; margin:0; }
 .il-view-form label > span { font-size:var(--font-size-small); }
-.il-view-form select { inline-size:100%; min-inline-size:0; min-block-size:44px; margin:0; color:var(--color-ink); background:var(--color-surface); }
+.il-view-form select { inline-size:100%; min-inline-size:0; min-block-size:44px; block-size:44px; padding-block:0; margin:0; color:var(--color-ink); background:var(--color-surface); }
 .il-view-form .sp-btn { min-block-size:44px; margin:0; }
 .il-views.is-compact .il-view-form { display:grid; }
 .il-menu .si-doors { display:grid; gap:var(--space-4); margin-block-start:var(--space-24); padding-block-start:var(--space-16); border-block-start:1px solid var(--color-border); }
@@ -55,7 +55,7 @@ export const INBOX_LIST_CSS = `
    and their last words on the second, each cut at its own end. The dot before a row is the state; the row open now
    is a quiet tile with an ink edge, never a block of colour, and never bold (bold is "not opened yet"). The stage,
    the product's picture and the figure stay on the Inbox itself and in the conversation's own head. */
-.listpane.il-compact-list .lp-h { margin:0 var(--space-12) var(--space-8); }
+.listpane.il-compact-list .lp-h { display:flex; align-items:center; min-block-size:44px; margin:0 var(--space-12) var(--space-8); }
 .listpane.il-compact-list .il-view-form { margin:0 var(--space-12) var(--space-8); align-items:center; }
 .listpane.il-compact-list .il-view-form label > span { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .listpane.il-compact-list .il-view-form select { font-size:var(--font-size-small); padding-block:0; }
@@ -108,15 +108,15 @@ export const INBOX_LIST_CSS = `
   .il-menu { border:0; padding:0; }
   .il-views .si-tabs { display:none; }
   .il-view-form { display:grid; }
-  .il-menu .si-doors { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); margin-block-start:var(--space-12); padding:0; border:0; }
+  .il-menu .si-doors { display:flex; flex-wrap:wrap; gap:0 var(--space-16); margin-block-start:var(--space-12); padding:0; border:0; }
 }
 @media (max-width: 720px) {
   .il-page { padding:var(--space-16) var(--space-12) var(--space-24); }
-  /* Audit F04: a compact head — the title and the business on one row, then the view and its button on one row. The
+  /* Audit F04: a compact head — the business below the title, then the view and its button on one row. The
      view's label is kept for a reader; the select itself says which view is shown. */
   .il-header { align-items:baseline; gap:var(--space-4) var(--space-12); margin-block-end:var(--space-12); padding-inline-end:calc(44px + var(--space-8)); }
   .il-header h1 { flex:none; font-size:var(--font-size-display); }
-  .il-business { display:block; flex:1 1 auto; min-inline-size:0; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow-wrap:anywhere; }
+  .il-business { display:block; flex:1 1 100%; min-inline-size:0; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow-wrap:anywhere; }
   .il-page .il-view-form { align-items:center; }
   .il-page .il-view-form label > span { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   .il-page .si-tools { padding:var(--space-12); }

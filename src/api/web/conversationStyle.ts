@@ -78,7 +78,7 @@ export const CONVERSATION_CSS = `
   ${APPROVE} .acts { flex:none; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-8); }
   ${ANSWERS.join(', ')} { box-sizing:border-box; inline-size:100%; block-size:48px; min-block-size:0; min-inline-size:0; padding:var(--space-4) var(--space-8);
     justify-content:center; text-align:center; white-space:normal; line-height:1.2; overflow:hidden; }
-  ${QUIET} { position:fixed; z-index:4; inset-inline:var(--space-16); inline-size:auto; inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
+  ${QUIET} { position:fixed; z-index:4; inset-inline-start:var(--space-16); inset-inline-end:auto; inline-size:calc((100vw - 40px) / 2); inset-block-end:calc(77px + env(safe-area-inset-bottom)); }
   /* The owner's own reply: the box, then Send. */
   ${REPLY} { align-items:stretch; }
   ${REPLY} > .btn { flex:none; }
@@ -111,6 +111,7 @@ export const CONVERSATION_CSS = `
 .conv-more > summary { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; padding-inline:var(--space-8); cursor:pointer; list-style:none;
   font-size:var(--font-size-small); color:var(--color-ink-secondary); border-radius:var(--radius-control); }
 .conv-more > summary::-webkit-details-marker { display:none; }
+.conv-more > summary::before { order:1; }
 .conv-more[open] > summary, .conv-more > summary:hover { color:var(--color-ink); background:var(--color-sand); }
 .conv-more-menu { position:absolute; inset-inline-end:0; inset-block-start:calc(100% + var(--space-4)); z-index:4; min-inline-size:240px; padding:var(--space-8);
   background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); }
@@ -127,6 +128,7 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .conv-thread { padding-block:var(--space-8); outline-offset:-2px; }
 .conversation-workspace .conv-thread .block > h2 { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .conversation-workspace .conv-thread .block { margin:0; }
+@media (max-width:1099px) { .conversation-workspace .conv-acts > .takeover:first-child { margin-block-start:0; padding-block-start:var(--space-8); } }
 .conversation-workspace .conv-acts > .draft:first-child, .conversation-workspace .conv-acts > .flash + .draft { padding-block-start:var(--space-16); }
 .conversation-workspace .conversation-actions .file-door { display:inline-flex; }
 .conversation-actions .btn, .cp-head h2, .cp-attribution { display:flex; align-items:center; gap:var(--space-8); }

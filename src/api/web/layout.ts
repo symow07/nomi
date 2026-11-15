@@ -758,7 +758,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .btn:not(.send):not(.ghost):not(:disabled):hover { background:var(--color-sand); border-color:var(--color-ink); }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
   .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
-  .btn.send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
+  .btn.send.needs::before, .sp-btn.sp-send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
   .btn.danger { border-color:var(--color-warn); border-width:1.5px; color:var(--color-warn); font-weight:600; }
   .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
   .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
@@ -1120,6 +1120,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
   .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
+  .msg-close { display:block; margin-block-start:var(--space-8); min-block-size:44px; padding:var(--space-8) 0; border:0; background:transparent; color:var(--color-ink); font:inherit; font-size:var(--font-size-small); text-decoration:underline; cursor:pointer; }
+  .msg-close[hidden] { display:none; }
   .msg-long > summary::-webkit-details-marker, .msg-long > summary::before { display:none; }
   .msg-opening, .msg-whole { display:block; white-space:pre-wrap; overflow-wrap:anywhere; }
   .msg-toggle { display:inline-flex; align-items:center; min-height:44px; font-family:var(--font-family); font-size:var(--font-size-small); font-weight:600;

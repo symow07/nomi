@@ -1280,6 +1280,8 @@ export const bubbleClass = (s: Speaker): string => (s === 'assistant' ? 'bubble 
 export const LONG_MESSAGE = { chars: 480, lines: 10, address: 72 } as const;
 /** Where an e-mail stops being this message: a quoted line, the "wrote:" line above one, a forwarded header, a signature's rule. */
 const QUOTED_FROM = [
+  /^(?:(?:kind|best|warm) regards|regards|sincerely|cordialement|bien cordialement|saludos|atentamente)[,!.]?$/i,
+  /^(?:此致|此致敬礼|敬上)[，。！]?$/, /^(?:مع (?:أطيب |خالص )?التحيات|مع تحياتي)[،,.]?$/,
   /^>/, /^-{2,} ?(?:original message|forwarded message|message d'origine|mensaje original)\b/i, /^-- ?$/, /^_{8,}$/,
   /^on .{4,160} wrote:$/i, /^le .{4,160} a écrit ?:$/i, /^el .{4,160} escribió:$/i, /^em .{4,160} escreveu:$/i,
   /^.{0,120}(?:写道|寫道)[:\uFF1A]$/, /^(?:في|بتاريخ) .{4,160} كتب.{0,60}[:\uFF1A]$/,
@@ -1315,7 +1317,7 @@ export function messageBubble(locale: Locale, text: string, cls: string): string
   if (opening === null) return `<div dir="auto" class="${cls}">${esc(text)}</div>`;
   return `<div class="${cls} long"><details class="msg-long"><summary><span dir="auto" class="msg-opening">${esc(opening)}${opening.endsWith('…') ? '' : '…'}</span>`
     + `<span class="msg-toggle"><span class="mt-more">${esc(t(locale, 'conv.message.whole'))}</span><span class="mt-less">${esc(t(locale, 'conv.message.less'))}</span></span></summary>`
-    + `<div dir="auto" class="msg-whole">${esc(text)}</div></details></div>`;
+    + `<div dir="auto" class="msg-whole">${esc(text)}</div><button type="button" class="msg-close" data-message-close hidden>${esc(t(locale, 'conv.message.less'))}</button></details></div>`;
 }
 
 /**
@@ -1634,7 +1636,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send needs' : ''}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is

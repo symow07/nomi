@@ -1025,6 +1025,17 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* The native summary still opens/closes without script; this second close is at the end of the full text. */
+  doc.querySelectorAll('[data-message-close]').forEach(function (button) { button.hidden = false; });
+  doc.addEventListener('click', function (e) {
+    var button = e.target && e.target.closest ? e.target.closest('[data-message-close]') : null;
+    if (!button) return;
+    var fold = button.closest('details.msg-long');
+    if (!fold) return;
+    fold.open = false;
+    var summary = fold.querySelector('summary');
+    if (summary) { summary.focus(); summary.scrollIntoView({ block: 'nearest' }); }
+  });
   navigationMenus();
   toToday();
   keepWords();

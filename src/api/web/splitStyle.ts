@@ -227,6 +227,14 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-door .ni { inline-size:22px; block-size:22px; flex:none; }
 .sp-phonedoor { display:none; }
 
+/* Block 2 review: a section has one heading role; the doors keep a 44 px row rhythm. */
+.sp-also > .sp-cap { font-size:var(--font-size-title); font-weight:500; color:var(--color-ink); }
+.sp-also .doors { gap:0; }
+.sp-also .doors .deeper { margin:0; min-block-size:44px; display:flex; align-items:center; }
+.sp .sp-chip:not(.is-waiting):not(.is-order), .il-page .sp-chip:not(.is-waiting):not(.is-order) { padding-inline:0; background:transparent; border:0; border-radius:0; }
+@media (min-width:721px) {
+  .content:has(.sp > .sp-panels.is-one) > .help-door { inset-inline-start:min(calc(100% - 60px), calc(${GUT} + 840px - 44px)); inset-inline-end:auto; }
+}
 /* A phone: Sales first, Books below, the tab bar at the foot */
 @media (max-width: 720px) {
   .split nav.side { position:fixed; inset-block:auto 0; inset-inline:0; z-index:5; padding:var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
@@ -380,6 +388,9 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .calendar-page .cal-grid-label { display:none; }
 }
 @media (max-width:720px) {
+  .content:has(.sp, .il-page) > .help-door { inset-block-start:var(--space-8); }
+  /* Focus brings the reply plus the following answer row above the layer tab bar. */
+  .sp-decide textarea { scroll-margin-block-end:calc(152px + env(safe-area-inset-bottom)); }
   html:has(body.owner-shell) { scroll-padding-block-end:100px; }
   .owner-shell .layout { display:block; }
   .owner-shell .content { padding-block-end:88px; }
@@ -397,7 +408,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .owner-shell nav.side .nav-more > summary { cursor:pointer; list-style:none; }
   .owner-shell .nav-more > summary::-webkit-details-marker { display:none; }
   .owner-shell .nav-more > summary::before { display:none; }
-  .owner-shell .nav-more > summary.active { color:var(--color-accent); font-weight:600; }
+  .owner-shell nav.side .nav-more > summary.active { color:var(--color-accent); font-weight:600; background:var(--color-sand); border-radius:var(--radius-control); }
   .owner-shell .nav-more-menu { position:absolute; inset-block-end:calc(100% + 8px); inset-inline-end:0; min-inline-size:220px; padding:var(--space-8);
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-control); }
   .owner-shell .nav-more-menu a { display:flex; gap:var(--space-12); align-items:center; min-block-size:48px; padding:var(--space-8); font-size:var(--font-size-base); }
@@ -418,8 +429,8 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .content:has(> .area-nav > .area-chooser[data-titled]) > main h1 { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headmark { display:none; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head { grid-template-columns:minmax(0, 1fr) auto; padding-block-start:var(--space-4); }
-  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > :not(h1) { grid-column:1; grid-row:1; }
-  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > .live { grid-column:1 / -1; grid-row:2; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > :not(h1) { grid-column:1 / -1; grid-row:2; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > .live { grid-column:1 / -1; grid-row:3; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new { grid-column:2; }
   .sp-priority { padding:0 var(--space-12) var(--space-24); }
   .calendar-page .cal-screen { display:flex; flex-direction:column; }

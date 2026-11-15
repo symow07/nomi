@@ -6,7 +6,7 @@
  *   2. on a phone, where the page IS the section, the chooser is its title — drawn once; the page's one h1 is kept for a
  *      reader (never removed) and is hidden only where the chooser is shown; a page whose h1 says something else keeps
  *      both;
- *   3. the Inbox's phone head: the title and the business on one row, the view's label kept for a reader;
+ *   3. the Inbox's phone head: the business below the title, the view's label kept for a reader;
  *   4. Today's panels are ruled apart, not boxed; Today's column has one measure.
  */
 import { describe, expect, it } from 'vitest';
@@ -62,10 +62,10 @@ describe('F04 · the shell\'s heads', () => {
     expect(ASSISTANT_AREA_CSS.replace(phone, '')).not.toContain('data-titled');
   });
 
-  it('the Inbox on a phone: the title and the business on one row; the view\'s label kept for a reader', () => {
+  it('the Inbox on a phone: the business below the title; the view\'s label kept for a reader', () => {
     const phone = media(INBOX_LIST_CSS, '(max-width: 720px)');
     expect(phone).toMatch(/\.il-header \{ align-items:baseline;/);
-    expect(phone).toMatch(/\.il-business \{ display:block; flex:1 1 auto;/);
+    expect(phone).toMatch(/\.il-business \{ display:block; flex:1 1 100%;/);
     expect(phone).toContain(`.il-page .il-view-form label > span { ${SR} }`);
   });
 });

@@ -25,7 +25,8 @@ describe('F14 · a long message is its opening, and whole one press away', () =>
   it('the opening stops where the signature or the quoted history begins', () => {
     const opening = messageOpening(EMAIL)!;
     expect(opening).toContain('600 of the canvas tote bags');
-    expect(opening.endsWith('Adam')).toBe(true);
+    expect(opening).not.toContain('Kind regards');
+    expect(opening).not.toContain('Adam');
     for (const held of ['Purchasing', 'confidential', 'wrote:', 'Which colour']) expect(opening, held).not.toContain(held);
   });
 
@@ -40,6 +41,12 @@ describe('F14 · a long message is its opening, and whole one press away', () =>
     const opening = messageOpening(text)!;
     expect(opening.split('\n')[0]).toBe(text.split('\n')[0]);
     expect(opening.split('\n').length).toBeLessThanOrEqual(2);
+  });
+
+  it.each(['Kind regards,', 'Best regards,', 'Cordialement,', 'Saludos,', '此致', 'مع أطيب التحيات،'])('leaves the sign-off %s in the full original only', signoff => {
+    const text = `Please send the sizes.\n\n${signoff}\nName\n${'Signature information. '.repeat(20)}`;
+    expect(messageOpening(text)).toBe('Please send the sizes.');
+    expect(messageBubble('en', text, 'bubble')).toContain(`<div dir="auto" class="msg-whole">${text}</div>`);
   });
 
   it('a message with no history but very long is cut at a word, within the limit', () => {
@@ -67,9 +74,9 @@ describe('F14 · a long message is its opening, and whole one press away', () =>
     const text = `${EMAIL}\n<script>alert(1)</script> & more`;
     const html = messageBubble('en', text, 'bubble by-as');
     expect(html.startsWith('<div class="bubble by-as long"><details class="msg-long"><summary>')).toBe(true);
-    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt; &amp; more</div></details></div>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt; &amp; more</div><button type="button"');
     expect(html).not.toContain('<script>');
-    expect(html).toContain('The whole message');
+    expect(html).toContain('Show the whole message');
     expect(html).toContain('Show less');
     // Rule 86: the element that holds the words is the isolate; no <bdi> inside an auto-direction box.
     expect(html).not.toMatch(/dir="auto"[^>]*><bdi/);
@@ -82,7 +89,7 @@ describe('F14 · a long message is its opening, and whole one press away', () =>
 
   it('says the press in each of the five languages', () => {
     const text = 'a'.repeat(900);
-    for (const [locale, whole, less] of [['en', 'The whole message', 'Show less'], ['zh', '完整消息', '收起'], ['ar', 'الرسالة كاملة', 'عرض أقل'], ['es', 'El mensaje completo', 'Mostrar menos'], ['fr', 'Le message entier', 'Afficher moins']] as const) {
+    for (const [locale, whole, less] of [['en', 'Show the whole message', 'Show less'], ['zh', '显示完整消息', '收起'], ['ar', 'عرض الرسالة كاملة', 'عرض أقل'], ['es', 'Mostrar el mensaje completo', 'Mostrar menos'], ['fr', 'Afficher le message entier', 'Afficher moins']] as const) {
       const html = messageBubble(locale, text, 'bubble');
       expect(html, locale).toContain(`<span class="mt-more">${whole}</span>`);
       expect(html, locale).toContain(`<span class="mt-less">${less}</span>`);
