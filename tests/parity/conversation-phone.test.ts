@@ -137,8 +137,9 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     // the reply's band holds a box of 96 px or more above its 48 px Send: 8 + box + 8 + 48 + 8
     const reply = twice(band, 'reply', REPLY);
     expect(Number(/clamp\((\d+)px/.exec(reply)![1]) - (8 + 8 + 48 + 8)).toBeGreaterThanOrEqual(96);
-    // one row of 48 px answers and 8 px each side: 64
-    expect(twice(band, 'order', ORDER)).toBe('64px');
+    // The order's 48 px answers also reserve room for the two-line consequence note.
+    expect(twice(band, 'order', ORDER)).toBe('104px');
+    // Takeover in other states still has one 48 px row and 8 px each side.
     expect(twice(band, 'take', TAKE)).toBe('64px');
     // (the last rule of that name: the first is the tail of the four bands' shared rule)
     expect(band.slice(band.lastIndexOf(`${ORDER}, ${TAKE} {`))).toContain('grid-auto-columns:minmax(0,1fr)');

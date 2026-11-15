@@ -68,7 +68,7 @@ export const CONVERSATION_CSS = `
   ${sized('approve', APPROVE, 'clamp(232px, 40dvh, 340px)')}
   /* A note in the band (the owner's kept words, why a reply waits) takes its room from the band, not from the box. */
   ${sized('approve', `${APPROVE}:has(> p)`, 'clamp(288px, 46dvh, 380px)', ' form.approve > p')}
-  ${sized('order', ORDER, '64px')}
+  ${sized('order', ORDER, '104px')}
   ${BAND.join(', ')} { position:fixed; z-index:3; inset-inline:0; inset-block-end:${BAR}; box-sizing:border-box; margin:0;
     padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border); }
   /* A waiting reply: the box, two answers under it, and the third in the band's last row (its own form, set there). */
@@ -94,6 +94,7 @@ export const CONVERSATION_CSS = `
   ${APPROVE} .acts { padding-inline-end:calc((100vw - 24px) / 3); }
   ${QUIET} { inset-inline:auto var(--space-16); inline-size:calc((100vw - 48px) / 3); }
 }
+.order-action-note { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink-secondary); }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
 @media (min-width:1100px) { .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); } }
 .conversation-workspace .conversation-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:0; margin-inline-start:auto; }

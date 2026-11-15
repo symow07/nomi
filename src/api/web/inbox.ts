@@ -1618,7 +1618,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
         </form>
         <form method="post" action="${esc(to.stepIn)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
-          <button class="btn" type="submit">${esc(t(locale, 'order.action.stepIn'))}</button>
+          <button class="btn" type="submit" aria-describedby="order-set-aside-note">${esc(t(locale, 'order.action.stepIn'))}</button>
+          <p id="order-set-aside-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.setAsideHint'))}</p>
         </form>
       </div>
       <p class="muted revoke-note">${esc(t(locale, 'order.action.stepIn.note'))}</p>
@@ -1633,7 +1634,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is
