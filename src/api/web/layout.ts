@@ -439,6 +439,8 @@ ${STAGGER}
     ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
+    /* The record disclosure margin must settle immediately, not animate through the global 1ms duration. */
+    .record-section>summary { transition-property:none; }
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }

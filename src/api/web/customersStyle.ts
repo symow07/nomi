@@ -71,8 +71,6 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .record-section>summary,.record-value-basis>summary{min-block-size:44px;cursor:pointer;align-content:center;overflow-wrap:anywhere;}
 .record-section>summary{font-size:var(--font-size-base);font-weight:600;}
 .record-section[open]>summary{margin-block-end:var(--space-12);}
-/* Reduced motion must not animate the opening margin through the global 1ms duration. */
-@media(prefers-reduced-motion:reduce){.record-section>summary{transition-property:none;}}
 .record-section>.block{border:0;margin:0;padding-block:var(--space-16);}
 .record-section .pform,.record-section .name-form{max-inline-size:var(--measure-form);}
 .record-section input,.record-section select,.record-section textarea{min-inline-size:0;max-inline-size:100%;}
