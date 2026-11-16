@@ -1,0 +1,1197 @@
+[
+  {
+    "file": "before/calendar-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "722e5593999a546f5ecb1b14ac17de302d4d41f463a0693579efc58b6e7969af"
+  },
+  {
+    "file": "before/calendar-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "5485ac8b5650b415e167f8cb1fc1d36454d3fee65a3b3e26eb00b540860a9fb6"
+  },
+  {
+    "file": "before/calendar-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "867027beaffc1e92bcfacb110101c2390316fe6cae67b73f28fcd598561f877c"
+  },
+  {
+    "file": "before/calendar-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "77b97753d549c78c6359688d3b6362a5b1c739d5ba83559032cef5b805b29390"
+  },
+  {
+    "file": "before/calendar-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "d4f89b4290fa3b3d5f69960c2b3561c8f24f9e373deaafe818d43ff1193622b9"
+  },
+  {
+    "file": "before/calendar-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "3bb38c2346ac032f8d9132fc14b837957bf00d9ae914b08c8431b24065568999"
+  },
+  {
+    "file": "before/contacts-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "ceee7a5a173feaa426966dd0e18e99dc9ccb54b66dc6bbbea57c9873c7327818"
+  },
+  {
+    "file": "before/contacts-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "84604c0a3dfce02af388abe3e96951c842d87ac39ece6d8a09b87815292ca339"
+  },
+  {
+    "file": "before/contacts-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "09773acb586b1382a6ea8a12a5196764602d673c17708f2240344ab1df61be4c"
+  },
+  {
+    "file": "before/contacts-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "ee879b5e3e7de03b96ce01e295c259c7449ef05e74a814c9055b3dff4860435b"
+  },
+  {
+    "file": "before/contacts-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "061c165b8c474fb4c56da3fda7b303b63b2c77a590224e2cae153cb24080c06b"
+  },
+  {
+    "file": "before/contacts-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "15707157dcb2ad7bbb7a44e03aaf61cef492ac045ba541d0b74e2e45559553a4"
+  },
+  {
+    "file": "before/customer-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "dfcf9316cb4e5a2b8180b8a93d83e0de1f6b29c6202b51c7c729a1bc8f5b7c23"
+  },
+  {
+    "file": "before/customer-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "6e6d59939d049c719084b6c8e065ba22be9f47c004485338210bf4f67e550a64"
+  },
+  {
+    "file": "before/customer-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "3bbfb47deb1a86fb0d743b7627335ccb75b8ab2958b1f7a671e92677fcf08b7b"
+  },
+  {
+    "file": "before/customer-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "63bcb5cb0391a5846e4d8dba06d43a1076661766d2f21d9bf68ee6a9d0aaa4b6"
+  },
+  {
+    "file": "before/customer-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "8ded937b9d451b4e8a2b7bdd27171a6ad29dedc7e81b2b710b4cb3c207f72c75"
+  },
+  {
+    "file": "before/customer-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "b769375786572a2b5b534cf0e142d76193c24cc29c4f2a4098ae3bacdcf072ba"
+  },
+  {
+    "file": "before/customer-privacy-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "627851e080ff1de96c53ee23d5399d3ea436edd4b922ccb0d3f207270f56849f"
+  },
+  {
+    "file": "before/customer-privacy-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "faba546722482edee2545eb54ce21e6ced46dac7c2b9fd17e9d64ded5a7b9050"
+  },
+  {
+    "file": "before/customer-privacy-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "fa9fec5dab078ec459c5b56542013f80db621e822d07849d3c0e8f0e0e54382c"
+  },
+  {
+    "file": "before/customer-privacy-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "88a3e0213c7cb8a3d6f6c665d1875d8ebe4ecaedac0adf591317578a48db97fe"
+  },
+  {
+    "file": "before/customer-privacy-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "977655f7b63366e0bbb1d06fa32c546e48707c458ceb2f901346cb17f54775da"
+  },
+  {
+    "file": "before/customer-privacy-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "3bf514c1a6bb883a3be92c9d343b2e4385b0b959b0c95eb94a553ea35a7ba27c"
+  },
+  {
+    "file": "before/find-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "fc034ec4af8267762a136f28e276877cf0a60118af2d3a580ea9f5d3b1fcc856"
+  },
+  {
+    "file": "before/find-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "a4a3015fb02f63ac7800ac4017b05161ddd775b93af6f7c18efd088176afc01c"
+  },
+  {
+    "file": "before/find-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "4b8327b470198dfa86ebf70819273c07a74bdfed82024136968bd40556f14e0c"
+  },
+  {
+    "file": "before/find-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "35cce80e4b49dfb5a1d2a246011145c6c51fa8d44ccd6aca74cbdefecd71bd52"
+  },
+  {
+    "file": "before/find-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "25b8dd758250a764713d7c4b62f0d869106806b5a3d34698a8f048410329eda2"
+  },
+  {
+    "file": "before/find-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "4d7fc708ede76e9170c013472eac558eeafd0d206003c5a195b3f8510e81a8aa"
+  },
+  {
+    "file": "before/order-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "f5eefbcfd0a3309c18f27a4bee8a5978f47882762948ed2245823d79e8e12beb"
+  },
+  {
+    "file": "before/order-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "d7910a6144f576a4c8d4e3ba63fbc6a15ff7cf24c6956b80dd6e6dfdd787db74"
+  },
+  {
+    "file": "before/order-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "1c8ddfa57d3117bea14792f8d92faa674a3772d205434cb512e25b0ee4a44998"
+  },
+  {
+    "file": "before/order-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "9e3e470fd027794215354e45687cb15f5035f410851d272da58a3983326f32f2"
+  },
+  {
+    "file": "before/order-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "cb0fe98c9d047258cea9bc74b3af76f067ac58699c3ae2ae48dc83338ab694aa"
+  },
+  {
+    "file": "before/order-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "175520c44a410e2d329e31931c4d2348159dbc56839596fe8b891ad2ca54973f"
+  },
+  {
+    "file": "before/orders-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "0b6c3215c5e36033a4ecf1c2634f7f2c417f62203a9af48144df010eda071d95"
+  },
+  {
+    "file": "before/orders-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "b9431f60d232909a9443116e218a0ee5e20a163aeb9b75113d6870ef630e4d78"
+  },
+  {
+    "file": "before/orders-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "521cdd9af34ccc345afba73847f00339037d8cc94d5a6635b8bdcf3d3bb10d4d"
+  },
+  {
+    "file": "before/orders-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "96a3e63d0f0fc9943b829981e5d75f7556bea243a72c2c68410e539412ff3259"
+  },
+  {
+    "file": "before/orders-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "9a8da6067580373d91dda615f5e350be5a88ed1a8944126388f1b506743f67ac"
+  },
+  {
+    "file": "before/orders-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "e5ec7d8292e9515fb281b3dae85706140acd9b6d053377cb0557fec6680c5158"
+  },
+  {
+    "file": "before/replies-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "ab78d200fbb24c31c245606155e543fe95ed26705bb6705dccea828272620486"
+  },
+  {
+    "file": "before/replies-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "aabaa971e7e38a16ff3d8e1d902e22b9341388661f2edd5f5178b3d9688369e1"
+  },
+  {
+    "file": "before/replies-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "e89ac1d7bccb39e4c0e81ce963118f1c652cf372baeb6033c3645b7167527e59"
+  },
+  {
+    "file": "before/replies-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "70b0c2b59337801bea03e4f1dcb82195ba31755ad6855261730bd93a76bb741e"
+  },
+  {
+    "file": "before/replies-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "f33265ca2c5c90d04a954fe563bf013cfb87c694d11f03d177e4a75cf77226e5"
+  },
+  {
+    "file": "before/replies-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "d32f3ea7bbe54b90cea542d9d97894ca39f690a30f690ebc2d020ed6f411f464"
+  },
+  {
+    "file": "before/reply-edit-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "886bede216b259bf8bf5644627973ab1e724505fe89dcaa9b70066756d8fdfa1"
+  },
+  {
+    "file": "before/reply-edit-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "60ade285d5b9af1e1d871a2b9fbc62ae129c2ff17605de9ff81373145fb91587"
+  },
+  {
+    "file": "before/reply-edit-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "d1369bcf2c949f294e27479d29c21cd84f2749c6954eb59ef390af8f3802e8d8"
+  },
+  {
+    "file": "before/reply-edit-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "78f73bfe4bc0ab062d410517bb103bd7e469a4ac17c5e14b5bd16515f5c4f086"
+  },
+  {
+    "file": "before/reply-edit-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "c16d248221d9e220fb1f09f1ac77475f4ef6f51fe7e70023485209c266dcfac7"
+  },
+  {
+    "file": "before/reply-edit-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "23d26b4d9a03a34a95119443e13b8a03ec5b8d107cf6501407dbc35d7336e625"
+  },
+  {
+    "file": "before/sequence-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "a8b770da120eeeefaeec2cd0007ec9f38080c9dba50973114eeec6a479aaadf3"
+  },
+  {
+    "file": "before/sequence-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "ca04fc3b8613ff671724d5777e3cba0d954ef40ecb6601b8c6f795132044591b"
+  },
+  {
+    "file": "before/sequence-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "8ef355f1aea53df6aaee9f9e835933b88daca8718942e8fc9c560ffc126db135"
+  },
+  {
+    "file": "before/sequence-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "88eab6983d987cbcd923dc637c6dff257acad15ab36e0eda3c0b0d3a2824645b"
+  },
+  {
+    "file": "before/sequence-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "8c19fb80470b08198926dbff1a1818a7ebc09d7c4cce96d2c119bf49512ab3cd"
+  },
+  {
+    "file": "before/sequence-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "322ad1ba84b80944a8a27c55b0913497a2faf2bdbeda5b2db589813aee93b39e"
+  },
+  {
+    "file": "before/sequences-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "9353fc9efbc5afed9a54fab84cf55aa619e855f1f5d64d1274c8439b10fbae48"
+  },
+  {
+    "file": "before/sequences-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "0225f36ba15d29708aba0cdbbd5085519da9005f2c8537dfebb8342ee602b59d"
+  },
+  {
+    "file": "before/sequences-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "1c3a42522451e7f30890730448a98c76e4d1aecf97cdee7e97104013a0e18196"
+  },
+  {
+    "file": "before/sequences-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "7d4346ac47b919783e89b0b7ccb8674bbc93a18d337c93e473daef92924f8f4e"
+  },
+  {
+    "file": "before/sequences-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "6e4e7ffe56d1ef1abfe943b6d4553242b0f48ab1cbb8460de190b93c956675ca"
+  },
+  {
+    "file": "before/sequences-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "613523be5af5c81a42024896f655f2e474805c6191e75d86cb7eb422fdf53414"
+  },
+  {
+    "file": "before/write-ar-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "730a2874b137d8ab5e73af2e93fdafc4d1e9bd9e5e04c143113ddf82c40a3f0b"
+  },
+  {
+    "file": "before/write-ar-320.png",
+    "revision": "3c7c268a",
+    "sha256": "2e6aab6fb32933fb1ef65cae8fd0697760f1457f1020bc33a18de83c542e0cb7"
+  },
+  {
+    "file": "before/write-ar-390.png",
+    "revision": "3c7c268a",
+    "sha256": "ee0fa5dfb0721f5e31454b9fb9ebbb5a9664b90e9f2c15faf556ee92af42d6de"
+  },
+  {
+    "file": "before/write-en-1440.png",
+    "revision": "3c7c268a",
+    "sha256": "89eabfbc7f42d98c4c37d9daf7921e31c058faa9921c569a27c919e61eb8ae21"
+  },
+  {
+    "file": "before/write-en-320.png",
+    "revision": "3c7c268a",
+    "sha256": "9c223705af46f8973f1d2467b256212f8d91ae008202d3b9d2da323ddc1665f8"
+  },
+  {
+    "file": "before/write-en-390.png",
+    "revision": "3c7c268a",
+    "sha256": "4dedc613bdf1d2bdcbe9682a37e7a433055b506da3122bab5893ddfe14cf1014"
+  },
+  {
+    "file": "after/calendar-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "98d6fa3761a2037a171714541ddebdaa23e76b00cda064e55c5b0ba4e0d74269"
+  },
+  {
+    "file": "after/calendar-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "10a80de6494ed42a50027b7673864d7164027a2682f9724a586a7ea94c06c489"
+  },
+  {
+    "file": "after/calendar-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "713f9b5e3f604d92a71d1d125840c27eeae1d7aad3fee979c697c85e40fa4ff1"
+  },
+  {
+    "file": "after/calendar-ar-980.png",
+    "revision": "b06c6fca",
+    "sha256": "b21eb9ea4a602bebe30b5bf5b5fb6b7df8d826b7ca6b9e34f11f906245a35c94"
+  },
+  {
+    "file": "after/calendar-ar-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "c9271cf46a66bf6e94d2989aaf5decabbef9760cc1c6d7dbb87bbe2f3f058846"
+  },
+  {
+    "file": "after/calendar-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "92ad93826e96e9db4f12a960aaaafe56adae661cf4876dd00a0bcb0eac057ca0"
+  },
+  {
+    "file": "after/calendar-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "ee91cfabddf45011466bd770d2e1a178a64dbbd70b198ec367381fcc05698dff"
+  },
+  {
+    "file": "after/calendar-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "2fda266022693f02af46be34634bb7d06e9f5e73f043064847500b729867c6ec"
+  },
+  {
+    "file": "after/calendar-en-980.png",
+    "revision": "b06c6fca",
+    "sha256": "672a1b03ce06ad156504bfe62f4262c8f779efd447e04db697caa79c6178e560"
+  },
+  {
+    "file": "after/calendar-en-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "7f8f32f4dcf2a98479c9d0e6a701c096196753070ac24ce2cefd2ab5e33f31d2"
+  },
+  {
+    "file": "after/calendar-es-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "a105ee766155223ca05b148c7da45d2a25b352d206d13000295a0892a93c1ea4"
+  },
+  {
+    "file": "after/calendar-es-320.png",
+    "revision": "b06c6fca",
+    "sha256": "3e4013883f888396c52b6c8f1251218b90622302246e1b66334b6559684341df"
+  },
+  {
+    "file": "after/calendar-es-390.png",
+    "revision": "b06c6fca",
+    "sha256": "7247b4ba388bb5ec7d2b7fdeb1b83bc74bea14b1acc1a7ffdd61f52fce2cd210"
+  },
+  {
+    "file": "after/calendar-fr-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "2c25cef70f4af725492b6092caa13853cbc10330a5de077941f1614d02dfda89"
+  },
+  {
+    "file": "after/calendar-fr-320.png",
+    "revision": "b06c6fca",
+    "sha256": "0dc9924b48b54ae97a99d6fbc42242f8d55bbaa4c1c17c95a0dc03d1024a6d0e"
+  },
+  {
+    "file": "after/calendar-fr-390.png",
+    "revision": "b06c6fca",
+    "sha256": "384f7936527350ffac0d2e4bca98b3cf993da324e7cb6733d76e5601059e0bdb"
+  },
+  {
+    "file": "after/calendar-zh-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "8fb2d2e8999299c0f6f908d43718a9b3a96ffe978e42a13557f6cded54832f30"
+  },
+  {
+    "file": "after/calendar-zh-320.png",
+    "revision": "b06c6fca",
+    "sha256": "fa7b7aa569628b61151e2b3511e97c2b735cf60288b75c5774f9c500362fe725"
+  },
+  {
+    "file": "after/calendar-zh-390.png",
+    "revision": "b06c6fca",
+    "sha256": "488ced248713cb2a83fdb4672bef88ebff955ef4210d6fc1400486c4d844b0ff"
+  },
+  {
+    "file": "after/contacts-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "73e5f0fbd39c37c698ea1488b68451eb5d1b1b3bfc34db586f4872ba1f198731"
+  },
+  {
+    "file": "after/contacts-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "6a0c437fee5813f6666da4e03667ca8ee7648bdc6ce697fa8fbf055c0e04aead"
+  },
+  {
+    "file": "after/contacts-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "bef5eb9c8a940e3f5a0905164df725637e1c3ea688ca2a954077bef2dcf32e6b"
+  },
+  {
+    "file": "after/contacts-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "4e69075ec306262285e61757c26b260909cf72601c8d2d56b04daf8ad27d4d8c"
+  },
+  {
+    "file": "after/contacts-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "0d2e0a46947cb07f4613b32c7af5159046542df8681b277e4df66abe570f6c9a"
+  },
+  {
+    "file": "after/contacts-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "09319b1467754af8535927bb4aa4fea7dc01cb5097846a3b9248dd80167baae0"
+  },
+  {
+    "file": "after/customer-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "dd165fda95d75de36d36b6094510706f474386ffe47482676a48a2df891e92f7"
+  },
+  {
+    "file": "after/customer-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "76b7351d035640cf29be461a99c932dce563a1bbd2216a8831d59d258e130ac6"
+  },
+  {
+    "file": "after/customer-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "69744ad044f5982d02c1fcef7d95006acc85511af3d6aea2528873f3b5357222"
+  },
+  {
+    "file": "after/customer-ar-980.png",
+    "revision": "b06c6fca",
+    "sha256": "9b4a99612157d782b7375b1ab81ffa17368c2247b0d88819ad52a0d49208a05c"
+  },
+  {
+    "file": "after/customer-ar-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "55f47e099a786d44cf6b74808cbf816e50fef5283f5a3503ecd1b9b01fb6ebfb"
+  },
+  {
+    "file": "after/customer-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "16be1adcda3335ec64571f970d3ecd560e1bcb972f60ee577cba7cce3465d339"
+  },
+  {
+    "file": "after/customer-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "4899ab2e4bb89696f85ba610c6330c39d99fc8324733d2fd43e1ae746eeb343d"
+  },
+  {
+    "file": "after/customer-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "856ae56c2289439def429711d8420f769159b114355e5808ffdc2ff0065eb077"
+  },
+  {
+    "file": "after/customer-en-980.png",
+    "revision": "b06c6fca",
+    "sha256": "d3c3d87c35d937aee8921685c6598440e1ca946bf1e951a812cba6f87c93383b"
+  },
+  {
+    "file": "after/customer-en-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "cc4fd802d665ac98dfd7bb028b32f51120ad407cf9ed8cc216fee5f5927eac1f"
+  },
+  {
+    "file": "after/customer-es-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "95ceb47f8306445d427268923f36b6c6e3404783d7cabc65d9d52a6589441741"
+  },
+  {
+    "file": "after/customer-es-320.png",
+    "revision": "b06c6fca",
+    "sha256": "8c436921c213c71f7969d399adf6b5b978dffefaf35f9a150e5d927a6b3bd6da"
+  },
+  {
+    "file": "after/customer-es-390.png",
+    "revision": "b06c6fca",
+    "sha256": "ce72f6b27aa5c38fffbd86649a64b5950849c9eb1daa0915739e10fe7a9925b7"
+  },
+  {
+    "file": "after/customer-fr-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "310ac1845a32a9a60b1c8e202c10370753edb5bab488e478edb2661d34ded469"
+  },
+  {
+    "file": "after/customer-fr-320.png",
+    "revision": "b06c6fca",
+    "sha256": "021c44c5ffb1adafe955d5f343802fe4b7f6c322f69a8319984336e8fff6a50b"
+  },
+  {
+    "file": "after/customer-fr-390.png",
+    "revision": "b06c6fca",
+    "sha256": "c80da2a126405a3a11573df7bee79c505561d490a4a4dbf4db038e10a96ed41d"
+  },
+  {
+    "file": "after/customer-privacy-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "520f398ee9e12b293c7b859d3ddf7082d104364bf173d5ce81159979dd939385"
+  },
+  {
+    "file": "after/customer-privacy-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "faba546722482edee2545eb54ce21e6ced46dac7c2b9fd17e9d64ded5a7b9050"
+  },
+  {
+    "file": "after/customer-privacy-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "53822237c03f13ae47e0206f85da18d48599e43f8ea6cfdb7882b5b02a800da9"
+  },
+  {
+    "file": "after/customer-privacy-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "cc0188a79417f86d51984f6a2e1ac5442434d11fb93c32e2bd756a85b822e257"
+  },
+  {
+    "file": "after/customer-privacy-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "b7238af5db2178cfac15008277f8dd1de28f1300256e9878e40b43e9e33510e6"
+  },
+  {
+    "file": "after/customer-privacy-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "3da12dd16e54e1b6ce87e421de2804b6495d2be2398ae46cf9ef6941f5742d20"
+  },
+  {
+    "file": "after/customer-zh-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "975c8b94658ce4186bed18ad1ce8a45ef4a506a8bf5b81595b9bd8032c1eab34"
+  },
+  {
+    "file": "after/customer-zh-320.png",
+    "revision": "b06c6fca",
+    "sha256": "99d89c3a5f5821a4977989bdc16fac19111bb35993f81c60cf8cf277818adb42"
+  },
+  {
+    "file": "after/customer-zh-390.png",
+    "revision": "b06c6fca",
+    "sha256": "ab99dae0a8da009a570da84c51cee80f6c41bde0562cb4887b3323cbd19f5134"
+  },
+  {
+    "file": "after/find-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "c650417d37fb3b907d032f6f226abb8c3ac85a4e65413f121fc8f73ee0a4aa1c"
+  },
+  {
+    "file": "after/find-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "a4a3015fb02f63ac7800ac4017b05161ddd775b93af6f7c18efd088176afc01c"
+  },
+  {
+    "file": "after/find-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "4b8327b470198dfa86ebf70819273c07a74bdfed82024136968bd40556f14e0c"
+  },
+  {
+    "file": "after/find-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "001fb4d414465a27465d254f0c90c5752fc8e707ecccfbf766a8f251d6eb12df"
+  },
+  {
+    "file": "after/find-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "25b8dd758250a764713d7c4b62f0d869106806b5a3d34698a8f048410329eda2"
+  },
+  {
+    "file": "after/find-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "4d7fc708ede76e9170c013472eac558eeafd0d206003c5a195b3f8510e81a8aa"
+  },
+  {
+    "file": "after/order-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "f5eefbcfd0a3309c18f27a4bee8a5978f47882762948ed2245823d79e8e12beb"
+  },
+  {
+    "file": "after/order-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "e90477cf992ff8841627f97b6f387840aa9d97983f25c1e9be7e72c4653f98e8"
+  },
+  {
+    "file": "after/order-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "a0c5214b906f55ce5943dd5ece8a86311c098d34f8cb7aec7ad7303ea3f5cc47"
+  },
+  {
+    "file": "after/order-ar-980.png",
+    "revision": "b06c6fca",
+    "sha256": "cf128363f69ce02901276ede8db21ace15b4d56e060161e7feb4013cbcb3592b"
+  },
+  {
+    "file": "after/order-ar-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "1c72d4ee49fc797a745c04bc8df45489446aaf9a34ba57e71ac5e4f08d5e5f55"
+  },
+  {
+    "file": "after/order-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "9e3e470fd027794215354e45687cb15f5035f410851d272da58a3983326f32f2"
+  },
+  {
+    "file": "after/order-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "1c0560fb272fe7a9631e1751fc18556da17e273c536ba513ad9a79987278c023"
+  },
+  {
+    "file": "after/order-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "9b1426d2f6cfd0b932cd82b2300d97fa3b0efee3ddeac129407cc235b6d84d65"
+  },
+  {
+    "file": "after/order-en-980.png",
+    "revision": "b06c6fca",
+    "sha256": "a369688f636bf5321b72635d97e9474bd5a577565fcb650a6f3133894a2dad58"
+  },
+  {
+    "file": "after/order-en-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "26a46545883fdb428580ca10ef35962d6190c9934d645f26c0fcde5957d71631"
+  },
+  {
+    "file": "after/orders-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "2e68b411781abdf3e9ddcf6a3a13b8ebcd8bdf6a238de92d1f305561854cb49d"
+  },
+  {
+    "file": "after/orders-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "b9431f60d232909a9443116e218a0ee5e20a163aeb9b75113d6870ef630e4d78"
+  },
+  {
+    "file": "after/orders-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "78b947eec90b5ffd4e1ddb95b3875600925b8c218d52e6c96da22e6df86d4fd7"
+  },
+  {
+    "file": "after/orders-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "c339940e54ae3da7243d0fa667fd24aff257820ab58290c69c2269fac9d33b72"
+  },
+  {
+    "file": "after/orders-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "5a94844aa6ae8c27a67e25989e735a48b91dd0f384419960c53df0f915f5edc2"
+  },
+  {
+    "file": "after/orders-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "ef5f672997896cf0a19aa9df64446d3c99b94d1c68a26aa37f6ff33e4a23560c"
+  },
+  {
+    "file": "after/replies-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "1c6ec70dd41c60bcbb05d1060706de031cb446ca88abd9353d308004886e0ecc"
+  },
+  {
+    "file": "after/replies-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "aabaa971e7e38a16ff3d8e1d902e22b9341388661f2edd5f5178b3d9688369e1"
+  },
+  {
+    "file": "after/replies-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "389907e81e4fbca4fff04eb03e27735d9d92f6ebc7387889b09824e0d4be35ff"
+  },
+  {
+    "file": "after/replies-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "b0b24ad9c7f1809d022a5d8f6dc3f7dfc2572c9337b6e22975395d127f5742b6"
+  },
+  {
+    "file": "after/replies-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "f33265ca2c5c90d04a954fe563bf013cfb87c694d11f03d177e4a75cf77226e5"
+  },
+  {
+    "file": "after/replies-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "d846753aed636eb8acee0c5f620d7b5163aa5400a678fa8d1f9ceedcfe4aeda5"
+  },
+  {
+    "file": "after/replies-es-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "63d22b8aa29bea866e2430dc302e1d3154797d87a97786d5d35a498d0854b8b2"
+  },
+  {
+    "file": "after/replies-es-320.png",
+    "revision": "b06c6fca",
+    "sha256": "234341682af1f36e70bcad5b4c209646958da08df17279ef8b11fc8eafb42905"
+  },
+  {
+    "file": "after/replies-es-390.png",
+    "revision": "b06c6fca",
+    "sha256": "3ab961b0272afd678d2a885f4b5028733065a1ebc4f184fb20149c8b1b0c1c74"
+  },
+  {
+    "file": "after/replies-fr-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "dcbb4389fdc4b5997d6f4d1f35df7b8e6c881fcc04ae6d1e4136704b3ffb9a42"
+  },
+  {
+    "file": "after/replies-fr-320.png",
+    "revision": "b06c6fca",
+    "sha256": "5f5760f07792d4795327fbcbb5c5dced43a901a02e0fbac26988dd0d74d9cc9c"
+  },
+  {
+    "file": "after/replies-fr-390.png",
+    "revision": "b06c6fca",
+    "sha256": "154cae9537f19b6a65cd4746a3eff0722555af1bef320882472098253ba26e3a"
+  },
+  {
+    "file": "after/replies-zh-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "a61d725f21e6995b4258307b41da018c25a084e55658c974a52c3be27ad86dd8"
+  },
+  {
+    "file": "after/replies-zh-320.png",
+    "revision": "b06c6fca",
+    "sha256": "931a8ae678e1f7b512317eae8c57c8bab5830a37a612e3378205879fe09c8391"
+  },
+  {
+    "file": "after/replies-zh-390.png",
+    "revision": "b06c6fca",
+    "sha256": "a2064ddff4cb94d1207038b72963749de77b1dd47bf390b8cf46ca25b8316da5"
+  },
+  {
+    "file": "after/reply-edit-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "030cbcd8d2643e8d1b96962e8c11d94ac7ab134297826a76e4813f4524f79975"
+  },
+  {
+    "file": "after/reply-edit-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "58b856646c61c8b04b5a130b6bb31425b8ac11ef6b449f6b367d8677bffc8a4c"
+  },
+  {
+    "file": "after/reply-edit-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "78cf5e3ce511099555b3c8f28dc9b137855f57862fe29cd99a78ffbc28997629"
+  },
+  {
+    "file": "after/reply-edit-ar-980.png",
+    "revision": "b06c6fca",
+    "sha256": "f766b16121f9dbafce63358362d75d5b0a6d280ea9f46d4ec9576f3b5112abb7"
+  },
+  {
+    "file": "after/reply-edit-ar-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "75b8402f4ae0a0e6fd477243d16ed64e6aa41f17ab49b4fc84da79cc4a75319d"
+  },
+  {
+    "file": "after/reply-edit-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "9a149b9999fbe5bbecef20c90552a1d2c371ca2d53394d05be86e3aa4bc94be9"
+  },
+  {
+    "file": "after/reply-edit-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "7ff01eb9c2b2ac1f6c3cbe1e5502f2fec85532627ebf4cde97950ae26be4ecc2"
+  },
+  {
+    "file": "after/reply-edit-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "b7110cb3e604a247d05c6620085a14d2f08c18410a7880020e9be6db56e1d2ed"
+  },
+  {
+    "file": "after/reply-edit-en-980.png",
+    "revision": "b06c6fca",
+    "sha256": "25950d140f8a06efce7011b00c86f25ef7981b6d14a7a71e2a2dad550c5cf5f0"
+  },
+  {
+    "file": "after/reply-edit-en-zoom200.png",
+    "revision": "b06c6fca",
+    "sha256": "e6e05d09761bb2a2d75f93688ac09a8191ee3bfd19d719e1a4bed6bbc36800e5"
+  },
+  {
+    "file": "after/sequence-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "24b9a958ffea1329d0cbfbd0d509d6c6e9470a3c13fd6510e847230644b028fa"
+  },
+  {
+    "file": "after/sequence-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "01d9e5d723c953d8c75bfe08c0b126e07c21ffb7de511d9d530462ecd785246b"
+  },
+  {
+    "file": "after/sequence-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "90c44023e1c47276bf1990b71633aed1b1f8e6e40dfcee2d7a19a86d6e581091"
+  },
+  {
+    "file": "after/sequence-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "6364b6740d951281e0def8b38ae7a5315f5896488256fa6f78662550140282b3"
+  },
+  {
+    "file": "after/sequence-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "8c19fb80470b08198926dbff1a1818a7ebc09d7c4cce96d2c119bf49512ab3cd"
+  },
+  {
+    "file": "after/sequence-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "9d7a83b7932de29a201a9b9bf503ecb5729252595407022e581591e13f7fe65f"
+  },
+  {
+    "file": "after/sequences-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "771d111db0f011d73fc93019882306cfbaed36faf2052db0b7ec3b5d3dbe6673"
+  },
+  {
+    "file": "after/sequences-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "b96d81e755975a4ba616bbbcc894747a31fcb262fee0da1acafa388467c5b46d"
+  },
+  {
+    "file": "after/sequences-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "1956b8a4da292a7f5f16ea2050dcdbf23112a97100fe81f5f8ab684f7dfb5ae8"
+  },
+  {
+    "file": "after/sequences-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "ae3bbded377be45888ff7ed8f00a58f9432f2df05ff081c98a6dc1567af821f4"
+  },
+  {
+    "file": "after/sequences-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "5cad5d2a3428b94fb16093b333495a477187f85d40c936c1f9b9ebe5b29e9473"
+  },
+  {
+    "file": "after/sequences-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "8fe15981c48f5f5879c448ee4ed810ca983a1b7204897c33dde8ebb2e38f34d8"
+  },
+  {
+    "file": "after/write-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "dc3d92c60d6e733f55c24055b531e57318b45d9612ca88c0c571ad7a734df931"
+  },
+  {
+    "file": "after/write-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "26fe83883030488b4af4caf067d0ac6c527f81bb2a8bce3be536f0965b0882c7"
+  },
+  {
+    "file": "after/write-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "c218b0438a869228245ad271972b1b0c99827610ad9f07c369449ff169b92c9c"
+  },
+  {
+    "file": "after/write-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "048a4f0b3c9c1c2ace07248ca7b35f1fd28eab0c2a7f2d8609ab11205e3db6b2"
+  },
+  {
+    "file": "after/write-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "5db4c76d43f2c60044a2026dbfce97f6d9661bdd39864f01fea644230d896bd8"
+  },
+  {
+    "file": "after/write-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "a67b9d30e56df680a05f2154b5e0b26d8e3269b310ee9325259b4e6700f6996c"
+  },
+  {
+    "file": "details/final-details-contacts-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "73e5f0fbd39c37c698ea1488b68451eb5d1b1b3bfc34db586f4872ba1f198731"
+  },
+  {
+    "file": "details/final-details-contacts-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "a41d773cf00beb3dd2b9ec958fc6120cf229e5f03d8d8fbe0643e23cc28e9bf0"
+  },
+  {
+    "file": "details/final-details-contacts-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "cc58eee424ba6a64d49d9aee67c8767e7b016b49010baf932e27b60acc919bfa"
+  },
+  {
+    "file": "details/final-details-contacts-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "4e69075ec306262285e61757c26b260909cf72601c8d2d56b04daf8ad27d4d8c"
+  },
+  {
+    "file": "details/final-details-contacts-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "0d2e0a46947cb07f4613b32c7af5159046542df8681b277e4df66abe570f6c9a"
+  },
+  {
+    "file": "details/final-details-contacts-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "09319b1467754af8535927bb4aa4fea7dc01cb5097846a3b9248dd80167baae0"
+  },
+  {
+    "file": "details/final-details-customer-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "d35bcfd61f7ae669dbf25e9ba5f1611581c4e5bff74287b90a3723b3eb1857ef"
+  },
+  {
+    "file": "details/final-details-customer-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "fc9d45bf9cb97ac565f4a859fbdbef5476ec074565724b884bc04220e73b8897"
+  },
+  {
+    "file": "details/final-details-customer-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "5e4cc277d1e5337351ffe7284edfcb489f7bf7d1ad3ecf843a09257fde169a63"
+  },
+  {
+    "file": "details/final-details-customer-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "02dcf22a24ff3632f3e458a21ef1ef2236453eac9563f4cd00883353d4a96f67"
+  },
+  {
+    "file": "details/final-details-customer-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "e69b239cfa54cb31ae275345f9d20ccb18a2abaabacd6a4617d06342fec06da0"
+  },
+  {
+    "file": "details/final-details-customer-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "f66e137992ead587799b2a59d886c44142c67852c9d98837ccaf6946c4875008"
+  },
+  {
+    "file": "details/final-details-customer-latest-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "dd165fda95d75de36d36b6094510706f474386ffe47482676a48a2df891e92f7"
+  },
+  {
+    "file": "details/final-details-customer-latest-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "8a699c98cef52ae3f9358b287eda8f69508e491ac1d0d8a3be3eb435739d2943"
+  },
+  {
+    "file": "details/final-details-customer-latest-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "69744ad044f5982d02c1fcef7d95006acc85511af3d6aea2528873f3b5357222"
+  },
+  {
+    "file": "details/final-details-customer-latest-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "16be1adcda3335ec64571f970d3ecd560e1bcb972f60ee577cba7cce3465d339"
+  },
+  {
+    "file": "details/final-details-customer-latest-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "355ef51fae65ac88389bd98c45c2cbf72e0ddeecbfd23f2d2ed58eaf38d6d25d"
+  },
+  {
+    "file": "details/final-details-customer-latest-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "856ae56c2289439def429711d8420f769159b114355e5808ffdc2ff0065eb077"
+  },
+  {
+    "file": "details/final-details-find-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "c650417d37fb3b907d032f6f226abb8c3ac85a4e65413f121fc8f73ee0a4aa1c"
+  },
+  {
+    "file": "details/final-details-find-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "d08fe073ce91500cefea54c129fd0a5f4bb787e3b23f843185b19ca3c1d0f81f"
+  },
+  {
+    "file": "details/final-details-find-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "d3c106c08b8714c75538a0a6386f884f76bc4005b43dcbed0f416ed874e7bec1"
+  },
+  {
+    "file": "details/final-details-find-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "001fb4d414465a27465d254f0c90c5752fc8e707ecccfbf766a8f251d6eb12df"
+  },
+  {
+    "file": "details/final-details-find-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "ada333eda6ef401a04ba59d79db50f8853e064ba95d7bfd66f58004b442754f2"
+  },
+  {
+    "file": "details/final-details-find-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "d80f5f1172b37c0d5ee28c4c5fe576c0551d6a0e3fccd2195fa3aa54bcae8277"
+  },
+  {
+    "file": "details/final-details-order-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "8d72f83e4df3d3ee000d0f4554861554094a496f00f9cc899b2e3105455a385a"
+  },
+  {
+    "file": "details/final-details-order-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "a0c784b111ce81db69987830a8519760c740d7c65ba293b02cfc56be2506e90e"
+  },
+  {
+    "file": "details/final-details-order-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "adea3192bd6e554c00b92df69ef7dfaec804dd9ba4436caf46258b46eda5016a"
+  },
+  {
+    "file": "details/final-details-order-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "0b4ba9a988513412b3a779037b09b8c538e1c624e168a49a74e68fe0819ca11f"
+  },
+  {
+    "file": "details/final-details-order-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "c663810b3e6057e3734f70978dc6b1f13975f99867d1ccc1aaf7b74026fe1e58"
+  },
+  {
+    "file": "details/final-details-order-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "41d628511f0e99cb9bf3ed912ab3d0a2507332030fbcd1c39b15d12bbf90dea8"
+  },
+  {
+    "file": "details/final-details-orders-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "2e68b411781abdf3e9ddcf6a3a13b8ebcd8bdf6a238de92d1f305561854cb49d"
+  },
+  {
+    "file": "details/final-details-orders-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "1d710161a4d172d272cbb50748fb37cc72568c2b9d35020230884067bdeb828a"
+  },
+  {
+    "file": "details/final-details-orders-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "78b947eec90b5ffd4e1ddb95b3875600925b8c218d52e6c96da22e6df86d4fd7"
+  },
+  {
+    "file": "details/final-details-orders-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "c339940e54ae3da7243d0fa667fd24aff257820ab58290c69c2269fac9d33b72"
+  },
+  {
+    "file": "details/final-details-orders-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "6d99d685056530b9c50147944dea3cb67d6b6c3f896ecda26c3c307c24b392b6"
+  },
+  {
+    "file": "details/final-details-orders-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "ef5f672997896cf0a19aa9df64446d3c99b94d1c68a26aa37f6ff33e4a23560c"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "4a91ae356cd82fcb896cfaf3130d56b54bc5fdef77f809c42a9985bd58f9ab33"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "5bfcd7ca2615f408c82c68318173a6af8d5337cf49285fa1c9dbb73200590fd6"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "a9422955203c7cb6738bd9d33b0beee6e8979f9fb4ad0634d31725d85f3a3fc0"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "9217213f2c6b678b1706fd3783e89b45fe95c0a7168b974a83140cee894d950f"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "271a8ec263d1f809a9d65ee6b6e393b9587011053970f2e6501a4ad271600e0f"
+  },
+  {
+    "file": "details/final-details-reply-edit-detail-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "64d23855c32d52dcc4eb378c7cbd3364e6f93ae5a26dae49a9b6b3484f8c1dfe"
+  },
+  {
+    "file": "details/final-item2-calendar-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "98d6fa3761a2037a171714541ddebdaa23e76b00cda064e55c5b0ba4e0d74269"
+  },
+  {
+    "file": "details/final-item2-calendar-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "92ad93826e96e9db4f12a960aaaafe56adae661cf4876dd00a0bcb0eac057ca0"
+  },
+  {
+    "file": "details/final-item2-calendar-fr-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "2c25cef70f4af725492b6092caa13853cbc10330a5de077941f1614d02dfda89"
+  },
+  {
+    "file": "details/final-item2-calendar-zh-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "8fb2d2e8999299c0f6f908d43718a9b3a96ffe978e42a13557f6cded54832f30"
+  },
+  {
+    "file": "details/final-item3-calendar-ar-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "98d6fa3761a2037a171714541ddebdaa23e76b00cda064e55c5b0ba4e0d74269"
+  },
+  {
+    "file": "details/final-item3-calendar-ar-320.png",
+    "revision": "b06c6fca",
+    "sha256": "e989d858598ec94f6bc9e44d1c68cf7c913d379d60166434b34d474cc59bf10b"
+  },
+  {
+    "file": "details/final-item3-calendar-ar-390.png",
+    "revision": "b06c6fca",
+    "sha256": "2ee04065144b63e2a375dde36cffe40de05c897fbb4567337116812f91260ab5"
+  },
+  {
+    "file": "details/final-item3-calendar-en-1440.png",
+    "revision": "b06c6fca",
+    "sha256": "92ad93826e96e9db4f12a960aaaafe56adae661cf4876dd00a0bcb0eac057ca0"
+  },
+  {
+    "file": "details/final-item3-calendar-en-320.png",
+    "revision": "b06c6fca",
+    "sha256": "acc01a0c6c579c57e3571d545a856bcd951f6999e82b1aeed6ea9500707e06c8"
+  },
+  {
+    "file": "details/final-item3-calendar-en-390.png",
+    "revision": "b06c6fca",
+    "sha256": "836ce7eed470291d5453fb9adb3eca6ea7d07b8710d8889a6f6e8d464fa1818f"
+  }
+]

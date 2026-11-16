@@ -1,0 +1,16 @@
+{
+  "baseline": "3c7c268a",
+  "head": "b06c6fca",
+  "cases_per_revision": 300,
+  "entries_before": 14070,
+  "entries_after": 14050,
+  "changed_cases": 60,
+  "unexpected_changes": [],
+  "forms_fields_buttons_disclosures": "unchanged across all cases",
+  "intentional_changes": {
+    "one_order": 20,
+    "zero_order": 20,
+    "reply_labels_same_destinations": 20
+  },
+  "limits": "DOM contracts, not execution of every business action"
+}

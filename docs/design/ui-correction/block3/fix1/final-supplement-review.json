@@ -1,0 +1,119 @@
+{
+  "identical_reviewed": [
+    {
+      "file": "final-details-contacts-detail-ar-1440.png",
+      "identical_to": "contacts-ar-1440.png"
+    },
+    {
+      "file": "final-details-contacts-detail-en-1440.png",
+      "identical_to": "contacts-en-1440.png"
+    },
+    {
+      "file": "final-details-contacts-detail-en-320.png",
+      "identical_to": "contacts-en-320.png"
+    },
+    {
+      "file": "final-details-contacts-detail-en-390.png",
+      "identical_to": "contacts-en-390.png"
+    },
+    {
+      "file": "final-details-customer-latest-ar-1440.png",
+      "identical_to": "customer-ar-1440.png"
+    },
+    {
+      "file": "final-details-customer-latest-ar-390.png",
+      "identical_to": "customer-ar-390.png"
+    },
+    {
+      "file": "final-details-customer-latest-en-1440.png",
+      "identical_to": "customer-en-1440.png"
+    },
+    {
+      "file": "final-details-customer-latest-en-390.png",
+      "identical_to": "customer-en-390.png"
+    },
+    {
+      "file": "final-details-find-detail-ar-1440.png",
+      "identical_to": "find-ar-1440.png"
+    },
+    {
+      "file": "final-details-find-detail-en-1440.png",
+      "identical_to": "find-en-1440.png"
+    },
+    {
+      "file": "final-details-orders-detail-ar-1440.png",
+      "identical_to": "orders-ar-1440.png"
+    },
+    {
+      "file": "final-details-orders-detail-ar-390.png",
+      "identical_to": "orders-ar-390.png"
+    },
+    {
+      "file": "final-details-orders-detail-en-1440.png",
+      "identical_to": "orders-en-1440.png"
+    },
+    {
+      "file": "final-details-orders-detail-en-390.png",
+      "identical_to": "orders-en-390.png"
+    },
+    {
+      "file": "final-item2-calendar-ar-1440.png",
+      "identical_to": "calendar-ar-1440.png"
+    },
+    {
+      "file": "final-item2-calendar-en-1440.png",
+      "identical_to": "calendar-en-1440.png"
+    },
+    {
+      "file": "final-item2-calendar-fr-1440.png",
+      "identical_to": "calendar-fr-1440.png"
+    },
+    {
+      "file": "final-item2-calendar-zh-1440.png",
+      "identical_to": "calendar-zh-1440.png"
+    },
+    {
+      "file": "final-item3-calendar-ar-1440.png",
+      "identical_to": "calendar-ar-1440.png"
+    },
+    {
+      "file": "final-item3-calendar-en-1440.png",
+      "identical_to": "calendar-en-1440.png"
+    }
+  ],
+  "reviewed": [
+    "final-details-contacts-detail-ar-320.png",
+    "final-details-contacts-detail-ar-390.png",
+    "final-details-customer-detail-ar-1440.png",
+    "final-details-customer-detail-ar-320.png",
+    "final-details-customer-detail-ar-390.png",
+    "final-details-customer-detail-en-1440.png",
+    "final-details-customer-detail-en-320.png",
+    "final-details-customer-detail-en-390.png",
+    "final-details-customer-latest-ar-320.png",
+    "final-details-customer-latest-en-320.png",
+    "final-details-find-detail-ar-320.png",
+    "final-details-find-detail-ar-390.png",
+    "final-details-find-detail-en-320.png",
+    "final-details-find-detail-en-390.png",
+    "final-details-order-detail-ar-1440.png",
+    "final-details-order-detail-ar-320.png",
+    "final-details-order-detail-ar-390.png",
+    "final-details-order-detail-en-1440.png",
+    "final-details-order-detail-en-320.png",
+    "final-details-order-detail-en-390.png",
+    "final-details-orders-detail-ar-320.png",
+    "final-details-orders-detail-en-320.png",
+    "final-details-reply-edit-detail-ar-1440.png",
+    "final-details-reply-edit-detail-ar-320.png",
+    "final-details-reply-edit-detail-ar-390.png",
+    "final-details-reply-edit-detail-en-1440.png",
+    "final-details-reply-edit-detail-en-320.png",
+    "final-details-reply-edit-detail-en-390.png",
+    "final-item3-calendar-ar-320.png",
+    "final-item3-calendar-ar-390.png",
+    "final-item3-calendar-en-320.png",
+    "final-item3-calendar-en-390.png"
+  ],
+  "pending": []
+}
