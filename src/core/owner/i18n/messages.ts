@@ -13,6 +13,21 @@ import { REDESIGN_EN } from './redesign.js';
 
 const EN = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Latest order {reference} · {state}',
+  'savedReplies.search': 'Search replies',
+  'savedReplies.clearSearch': 'Clear search',
+  'savedReplies.noMatch': 'No replies match this search.',
+  'savedReplies.saveScope': 'These words are saved for everyone who replies in this workspace. Saving sends nothing.',
+  'savedReplies.archivedScope': 'This reply stays archived when you save.',
+
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'This conversation',
+  'record.valueBasis': 'Order value, not money received.',
+  'record.valueDetails': 'What this value includes',
+  'record.profileEdit': 'Edit profile',
+  'record.activity': 'Activity',
+  'record.privacy': 'Contact and privacy',
+
   'inbox.tools.retry': 'Try again',
   'inbox.tools.fullPage': 'Open the full page',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
@@ -1275,6 +1290,7 @@ const EN = {
   'savedReplies.add': 'Add a saved reply',
   'savedReplies.archivedTitle': 'Archived',
   'savedReplies.titleField': 'Title',
+  'savedReplies.allLanguages': '5 languages',
   'savedReplies.textsHint': "Write it in one language or in several. In a conversation, the customer's language is used when the reply has it.",
   'savedReplies.lang.en': 'English',
   'savedReplies.lang.zh': 'Chinese',
@@ -4799,6 +4815,7 @@ const EN = {
   'feedback.action.draft_resolved': 'Reviewed a reply',
   // M38 — who she may write to, and how we know.
   'contacts.title': 'Contacts',
+  'contacts.about': 'About these contacts',
   'contacts.intro': 'Everyone here either wrote to you first, or you added them. Anyone who asked you to stop is at the bottom, and stays there.',
   'contacts.summary': 'Can be written to first: {can} of {total}.',
   'contacts.search.label': 'Find a contact',
@@ -4902,6 +4919,7 @@ const EN = {
   'calendar.legend.dashed': 'Added by you',
   'calendar.legend.assistant': 'By {name}',
   'calendar.legend.owed': 'Still owed',
+  'calendar.legend.overdue': 'Overdue',
   'calendar.legend.done': 'Done',
   'calendar.add': 'Add a date',
   'calendar.add.what': 'What',
@@ -5125,6 +5143,7 @@ const EN = {
   'seq.step.when.first': 'Goes after someone is added — days to wait: {days}',
   'seq.step.when.next': 'Goes after the one before, if they have not answered — days to wait: {days}',
   'seq.step.delayDays': 'Days to wait first',
+  'seq.step.edit': 'Edit this e-mail',
   'seq.step.save': 'Save this e-mail',
   'seq.step.addFirst': 'The first e-mail',
   'seq.step.add': 'Add a follow-up',
@@ -5733,6 +5752,21 @@ export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': '最新订单 {reference} · {state}',
+  'savedReplies.search': '搜索回复',
+  'savedReplies.clearSearch': '清除搜索',
+  'savedReplies.noMatch': '没有找到匹配的回复。',
+  'savedReplies.saveScope': '这些内容会保存为工作区内所有回复人员可用的常用回复。保存不会发送消息。',
+  'savedReplies.archivedScope': '保存后，此回复仍保持归档状态。',
+
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': '本次对话',
+  'record.valueBasis': '订单金额，不代表已收款。',
+  'record.valueDetails': '金额包含哪些订单',
+  'record.profileEdit': '编辑资料',
+  'record.activity': '动态',
+  'record.privacy': '联系与隐私',
+
   'inbox.tools.retry': '重试',
   'inbox.tools.fullPage': '打开完整页面',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
@@ -6987,6 +7021,7 @@ const ZH: Record<MessageKey, string> = {
   'savedReplies.add': '添加常用回复',
   'savedReplies.archivedTitle': '已归档',
   'savedReplies.titleField': '标题',
+  'savedReplies.allLanguages': '5 种语言',
   'savedReplies.textsHint': '可以用一种语言写，也可以用几种语言。在对话里，如果有客户的语言，就用客户的语言。',
   'savedReplies.lang.en': '英语',
   'savedReplies.lang.zh': '中文',
@@ -10444,6 +10479,7 @@ const ZH: Record<MessageKey, string> = {
   'feedback.action.draft_resolved': '处理了回复',
   // M38
   'contacts.title': '联系人',
+  'contacts.about': '关于这些联系人',
   'contacts.intro': '这里的人，要么先来找过你，要么是你自己加进来的。请你别再联系的人排在最后，而且一直留在那儿。',
   'contacts.summary': '可以先去联系的：{total} 人中 {can} 人。',
   'contacts.search.label': '找联系人',
@@ -10543,6 +10579,7 @@ const ZH: Record<MessageKey, string> = {
   'calendar.legend.dashed': '你添加的',
   'calendar.legend.assistant': '由{name}完成',
   'calendar.legend.owed': '还没办',
+  'calendar.legend.overdue': '已逾期',
   'calendar.legend.done': '已完成',
   'calendar.add': '添加日期',
   'calendar.add.what': '事项',
@@ -10764,6 +10801,7 @@ const ZH: Record<MessageKey, string> = {
   'seq.step.when.first': '加进来后发——等待天数：{days}',
   'seq.step.when.next': '上一封之后、对方没回就发——等待天数：{days}',
   'seq.step.delayDays': '先等几天',
+  'seq.step.edit': '编辑这封邮件',
   'seq.step.save': '存下这封',
   'seq.step.addFirst': '第一封邮件',
   'seq.step.add': '加一封跟进',
@@ -11363,6 +11401,21 @@ const ZH: Record<MessageKey, string> = {
 
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'أحدث طلب {reference} · {state}',
+  'savedReplies.search': 'بحث في الردود',
+  'savedReplies.clearSearch': 'مسح البحث',
+  'savedReplies.noMatch': 'لا توجد ردود تطابق هذا البحث.',
+  'savedReplies.saveScope': 'تُحفظ هذه الكلمات لكل من يرد في مساحة العمل هذه. لا تُرسل أي رسالة عند الحفظ.',
+  'savedReplies.archivedScope': 'يبقى هذا الرد في الأرشيف بعد الحفظ.',
+
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'هذه المحادثة',
+  'record.valueBasis': 'قيمة الطلبات، وليست مبالغ مستلمة.',
+  'record.valueDetails': 'ما تشمله هذه القيمة',
+  'record.profileEdit': 'تعديل البيانات',
+  'record.activity': 'النشاط',
+  'record.privacy': 'التواصل والخصوصية',
+
   'inbox.tools.retry': 'إعادة المحاولة',
   'inbox.tools.fullPage': 'فتح الصفحة كاملة',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
@@ -12615,6 +12668,7 @@ const AR: Record<MessageKey, string> = {
   'savedReplies.add': 'إضافة رد محفوظ',
   'savedReplies.archivedTitle': 'المؤرشفة',
   'savedReplies.titleField': 'العنوان',
+  'savedReplies.allLanguages': '5 لغات',
   'savedReplies.textsHint': 'يمكن كتابته بلغة واحدة أو بعدة لغات. في المحادثة تُستعمل لغة العميل إن وُجدت في الرد.',
   'savedReplies.lang.en': 'الإنجليزية',
   'savedReplies.lang.zh': 'الصينية',
@@ -16070,6 +16124,7 @@ const AR: Record<MessageKey, string> = {
   'feedback.action.draft_resolved': 'مراجعة ردّ',
   // M38
   'contacts.title': 'جهات الاتصال',
+  'contacts.about': 'عن جهات الاتصال هذه',
   'contacts.intro': 'في هذه القائمة جهات الاتصال التي بدأت المراسلة أولًا، والتي أُضيفت يدويًا. وتبقى جهات الاتصال التي طلبت إيقاف المراسلة في الأسفل دائمًا.',
   'contacts.summary': 'المراسلة أولًا ممكنة مع: {can} من {total}.',
   'contacts.search.label': 'البحث عن جهة اتصال',
@@ -16169,6 +16224,7 @@ const AR: Record<MessageKey, string> = {
   'calendar.legend.dashed': 'أُضيف يدويًا',
   'calendar.legend.assistant': 'من {name}',
   'calendar.legend.owed': 'لم يُنجَز بعد',
+  'calendar.legend.overdue': 'فات موعده',
   'calendar.legend.done': 'مُنجَز',
   'calendar.add': 'إضافة موعد',
   'calendar.add.what': 'الموعد',
@@ -16390,6 +16446,7 @@ const AR: Record<MessageKey, string> = {
   'seq.step.when.first': 'تُرسل بعد إضافة الشخص — أيام الانتظار: {days}',
   'seq.step.when.next': 'تُرسل بعد السابقة إن لم يصل رد — أيام الانتظار: {days}',
   'seq.step.delayDays': 'أيام الانتظار أولًا',
+  'seq.step.edit': 'تعديل هذه الرسالة',
   'seq.step.save': 'حفظ هذه الرسالة',
   'seq.step.addFirst': 'الرسالة الأولى',
   'seq.step.add': 'إضافة رسالة متابعة',
@@ -16995,6 +17052,21 @@ const AR: Record<MessageKey, string> = {
  */
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Último pedido {reference} · {state}',
+  'savedReplies.search': 'Buscar respuestas',
+  'savedReplies.clearSearch': 'Borrar búsqueda',
+  'savedReplies.noMatch': 'Ninguna respuesta coincide con esta búsqueda.',
+  'savedReplies.saveScope': 'Estas palabras se guardan para todas las personas que responden en este espacio. Guardar no envía nada.',
+  'savedReplies.archivedScope': 'Esta respuesta sigue archivada al guardar.',
+
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'Esta conversación',
+  'record.valueBasis': 'Valor de pedidos, no dinero recibido.',
+  'record.valueDetails': 'Qué incluye este valor',
+  'record.profileEdit': 'Editar perfil',
+  'record.activity': 'Actividad',
+  'record.privacy': 'Contacto y privacidad',
+
   'inbox.tools.retry': 'Intentar de nuevo',
   'inbox.tools.fullPage': 'Abrir la página completa',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
@@ -18239,6 +18311,7 @@ const ES: Record<MessageKey, string> = {
   'savedReplies.add': 'Añadir una respuesta guardada',
   'savedReplies.archivedTitle': 'Archivadas',
   'savedReplies.titleField': 'Título',
+  'savedReplies.allLanguages': '5 idiomas',
   'savedReplies.textsHint': 'Escríbela en un idioma o en varios. En una conversación se usa el idioma del cliente cuando la respuesta lo tiene.',
   'savedReplies.lang.en': 'Inglés',
   'savedReplies.lang.zh': 'Chino',
@@ -21646,6 +21719,7 @@ const ES: Record<MessageKey, string> = {
   'feedback.action.resume_ai': 'Devolviste la conversación a {name}',
   'feedback.action.draft_resolved': 'Revisaste una respuesta',
   'contacts.title': 'Contactos',
+  'contacts.about': 'Sobre estos contactos',
   'contacts.intro': 'Aquí aparece cada persona que te escribió primero, o que añadiste tú. Quien te pidió que dejaras de escribirle aparece al final, y ahí se queda.',
   'contacts.summary': 'Se les puede escribir primero: {can} de {total}.',
   'contacts.search.label': 'Buscar un contacto',
@@ -21743,6 +21817,7 @@ const ES: Record<MessageKey, string> = {
   'calendar.legend.dashed': 'Lo añadiste tú',
   'calendar.legend.assistant': 'Por {name}',
   'calendar.legend.owed': 'Pendiente',
+  'calendar.legend.overdue': 'Con retraso',
   'calendar.legend.done': 'Hecho',
   'calendar.add': 'Añadir una fecha',
   'calendar.add.what': 'Qué',
@@ -21964,6 +22039,7 @@ const ES: Record<MessageKey, string> = {
   'seq.step.when.first': 'Sale después de que se añade a alguien — días de espera: {days}',
   'seq.step.when.next': 'Sale después del anterior, si la persona no ha respondido — días de espera: {days}',
   'seq.step.delayDays': 'Días que esperar antes',
+  'seq.step.edit': 'Editar este correo',
   'seq.step.save': 'Guardar este correo',
   'seq.step.addFirst': 'El primer correo',
   'seq.step.add': 'Añadir un seguimiento',
@@ -22567,6 +22643,21 @@ const ES: Record<MessageKey, string> = {
  */
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
+  'record.latestOrder': 'Dernière commande {reference} · {state}',
+  'savedReplies.search': 'Rechercher des réponses',
+  'savedReplies.clearSearch': 'Effacer la recherche',
+  'savedReplies.noMatch': 'Aucune réponse ne correspond à cette recherche.',
+  'savedReplies.saveScope': 'Ces mots sont enregistrés pour toutes les personnes qui répondent dans cet espace. Enregistrer ne transmet aucun message.',
+  'savedReplies.archivedScope': 'Cette réponse reste archivée après enregistrement.',
+
+  // Block 3: record sections, retaining the existing commands and value basis.
+  'record.stage': 'Cette conversation',
+  'record.valueBasis': 'Valeur des commandes, pas des encaissements.',
+  'record.valueDetails': 'Ce que comprend ce montant',
+  'record.profileEdit': 'Modifier le profil',
+  'record.activity': 'Activité',
+  'record.privacy': 'Contact et confidentialité',
+
   'inbox.tools.retry': 'Réessayer',
   'inbox.tools.fullPage': 'Ouvrir la page complète',
   // The Split Today preview (2026-11-04; docs/DESIGN-SYSTEM.md).
@@ -23812,6 +23903,7 @@ const FR: Record<MessageKey, string> = {
   'savedReplies.add': 'Ajouter une réponse enregistrée',
   'savedReplies.archivedTitle': 'Archivées',
   'savedReplies.titleField': 'Titre',
+  'savedReplies.allLanguages': '5 langues',
   'savedReplies.textsHint': 'Écrivez-la dans une langue ou dans plusieurs. Dans une conversation, la langue du client est utilisée quand la réponse l’a.',
   'savedReplies.lang.en': 'Anglais',
   'savedReplies.lang.zh': 'Chinois',
@@ -27219,6 +27311,7 @@ const FR: Record<MessageKey, string> = {
   'feedback.action.resume_ai': 'Main rendue à {name}',
   'feedback.action.draft_resolved': 'Réponse examinée',
   'contacts.title': 'Vos contacts',
+  'contacts.about': 'À propos de ces contacts',
   'contacts.intro': 'Figurent ici les personnes qui vous ont écrit en premier, et celles que vous avez ajoutées. Toute personne qui vous a demandé d’arrêter apparaît en bas, et y reste.',
   'contacts.summary': 'Peuvent recevoir un premier message : {can} sur {total}.',
   'contacts.search.label': 'Trouver un contact',
@@ -27316,6 +27409,7 @@ const FR: Record<MessageKey, string> = {
   'calendar.legend.dashed': 'Votre ajout',
   'calendar.legend.assistant': 'Par {name}',
   'calendar.legend.owed': 'En attente',
+  'calendar.legend.overdue': 'En retard',
   'calendar.legend.done': 'Fait',
   'calendar.add': 'Ajouter une date',
   'calendar.add.what': 'Quoi',
@@ -27537,6 +27631,7 @@ const FR: Record<MessageKey, string> = {
   'seq.step.when.first': 'Part après l’ajout de quelqu’un — jours d’attente : {days}',
   'seq.step.when.next': 'Part après le précédent, faute de réponse — jours d’attente : {days}',
   'seq.step.delayDays': 'Jours d’attente avant l’envoi',
+  'seq.step.edit': 'Modifier cet e-mail',
   'seq.step.save': 'Enregistrer cet e-mail',
   'seq.step.addFirst': 'Le premier e-mail',
   'seq.step.add': 'Ajouter une relance',

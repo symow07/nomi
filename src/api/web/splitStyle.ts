@@ -6,6 +6,8 @@
 
 /** The page gutter centres the overview while retaining room for the rail. */
 const GUT = `max(var(--space-24), calc((100% - 1240px) / 2))`;
+/** Block 3 uses the same separate scrolling region / tab row as the conversation. */
+const RECORD_PAGE = '.owner-shell .layout:has(main :is(.customer-record, .order-record, .customer-orders, .saved-replies-page, .calendar-page, .customer-tools:is(.tool-contacts, .tool-sequences, .tool-sequence, .tool-find, .tool-write, .tool-suppress)))';
 
 export const SPLIT_CSS = `
 /* Rule 38 / 86: the English words isolate direction without changing page alignment. */
@@ -376,14 +378,49 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .gs-heading .deeper { margin:0; }
 .gs-help { max-inline-size:70ch; margin-block-start:var(--space-12); }
 .readiness-section { margin-block-start:var(--space-40); }
-.calendar-page .cal-date-choice { display:grid; grid-template-columns:minmax(0, 220px) auto; align-items:end; gap:var(--space-8) var(--space-12); max-inline-size:400px; margin-block:var(--space-16) var(--space-24); }
+.calendar-page .cal-context { display:grid; gap:var(--space-12) var(--space-24); padding-block:var(--space-8) var(--space-16); border-block-end:1px solid var(--color-border); }
+.cal-context .cal-period { margin:0; align-items:start; }
+.cal-context-actions { display:flex; flex-wrap:wrap; align-items:end; gap:var(--space-8) var(--space-24); min-inline-size:0; }
+.calendar-page .cal-date-choice { display:grid; grid-template-columns:minmax(0, 220px) auto; align-items:end; gap:var(--space-4) var(--space-12); max-inline-size:400px; margin:0; }
+.cal-context .cal-tools { margin:0; }
+.cal-context .cal-tools[open] { flex-basis:100%; }
+.cal-context .cal-tools-in { max-inline-size:none; margin-block-end:0; }
+.cal-context .cal-legend { margin:0; gap:var(--space-4) var(--space-12); }
+.cal-context .cal-chosen, .cal-context .cal-legend { grid-column:1 / -1; }
 .cal-date-choice label { grid-column:1 / -1; font-size:var(--font-size-small); }
 .cal-date-choice input { min-block-size:44px; }
 .calendar-page .cal-grid { margin:0; border:0; padding:0; }
 .calendar-page .cal-grid-label { font-size:var(--font-size-base); min-block-size:44px; }
+/* F40: a week grows only for its own names. Equal fractional tracks made one
+   crowded day stretch all six weeks. The 2026-11-16 owner decision caps grid
+   names at two lines; the three-item cap / +N door and whole agenda names remain.
+   On narrow screens this grid scrolls inside its shaded frame. */
+.calendar-page .mo { min-inline-size:371px; }
+.calendar-page .mo tbody { display:block; }
+.calendar-page .mo tr { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); }
+.calendar-page .mo th { width:auto; min-inline-size:0; }
+.calendar-page .mo td { height:auto; min-block-size:7.5em; min-inline-size:0; }
+.calendar-page .mo-e .face-link { min-inline-size:44px; min-block-size:44px; justify-content:center; }
+.calendar-page .mo-d { min-inline-size:44px; min-block-size:44px; }
+.calendar-page .mo-more { min-inline-size:44px; min-block-size:44px; }
+.calendar-page .dl-who { inline-size:44px; block-size:44px; }
+.calendar-page .dl-who .face-link { min-inline-size:44px; min-block-size:44px; justify-content:center; }
+.calendar-page .cal-rm .btn { min-inline-size:44px; min-block-size:44px; }
+.calendar-page .dl-row.done .face, .calendar-page .mo-e.done .face { opacity:1; }
+/* The date and action have their own lines: translated buttons cannot squeeze
+   a full customer name into the space left between three fixed-width columns. */
+.calendar-page .dl-row { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:var(--space-8) var(--space-12); }
+.calendar-page .dl-hour { grid-column:2; inline-size:auto; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); }
+.calendar-page .dl-who { grid-column:1; grid-row:1 / span 2; }
+.calendar-page .dl-go { grid-column:2; min-block-size:44px; }
+.calendar-page .dl-row > .cal-rm { grid-column:2; justify-self:start; }
+.calendar-page .dl-go:has(> .cal-rm) { flex-wrap:wrap; }
+.calendar-page .dl-go > .cal-rm { flex-basis:100%; }
 .sp-from .mark { vertical-align:middle; margin-inline-end:var(--space-4); }
 .sp-acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin-block-start:var(--space-12); }
 @media (min-width:1200px) {
+  .calendar-page .cal-context { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+  .cal-context .cal-period { flex-direction:column; justify-content:start; }
   .calendar-page .cal-grid { grid-column:1; grid-row:1; }
   .calendar-page .cal-list { grid-column:2; grid-row:1; }
   .calendar-page .cal-grid-label { display:none; }
@@ -436,11 +473,25 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .sp-priority { padding:0 var(--space-12) var(--space-24); }
   .calendar-page .cal-screen { display:flex; flex-direction:column; }
   .calendar-page .cal-list { order:0; }
+  .calendar-page .cal-move { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--space-4); font-size:var(--font-size-small); }
+  .calendar-page .cal-move > a { margin:0; min-inline-size:0; white-space:normal; }
+  .calendar-page .cal-move > a:last-child { justify-self:end; }
+  .calendar-page .cal-move .cal-today { padding-inline:var(--space-8); }
   .calendar-page .cal-grid { order:1; inline-size:100%; }
   .calendar-page .cal-grid-label { display:flex; align-items:center; }
-  .calendar-page .cal-date-choice { align-items:stretch; }
-  .cal-date-choice label { flex:1; min-inline-size:0; }
-  .cal-date-choice input { inline-size:100%; min-inline-size:0; }
+  /* Keep the whole native date ahead of its picker; the button wraps when both cannot fit. */
+  .calendar-page .cal-date-choice { display:flex; flex-wrap:wrap; align-items:stretch; inline-size:100%; }
+  .cal-date-choice label { flex:0 0 100%; min-inline-size:0; }
+  .cal-date-choice input { flex:1 1 10em; inline-size:100%; min-inline-size:0; }
+  /* A tab bar takes its own row, including wrapped translations and safe area.
+     Records scroll above it; no control is painted underneath it, even midway
+     through a long page or with JavaScript unavailable. */
+  ${RECORD_PAGE} { display:flex; flex-direction:column; block-size:100vh; block-size:100dvh; }
+  ${RECORD_PAGE} > nav.side { position:relative; order:2; flex:none; }
+  ${RECORD_PAGE} > .content { order:1; flex:1 1 0; min-block-size:0; overflow-y:auto; padding-block-end:var(--space-16); scroll-padding-block:var(--space-16); }
+  /* Native keyboard focus scrolls a textarea's caret into view. Give it enough
+     margin to reveal the field as well, including when scripts are unavailable. */
+  ${RECORD_PAGE} .content :is(input, textarea, select, button, a, summary) { scroll-margin-block:120px; }
   .sp-acts-more { align-items:flex-start; }
   .results-sections { grid-template-columns:minmax(0, 1fr); gap:var(--space-32); }
   .gs-heading { align-items:flex-start; }

@@ -439,6 +439,8 @@ ${STAGGER}
     ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
+    /* The record disclosure margin must settle immediately, not animate through the global 1ms duration. */
+    .record-section>summary { transition-property:none; }
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }
@@ -1987,7 +1989,7 @@ const STYLE_PAGES = `
   .cal-sw.dashed { border-style:dashed; }
   .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
   .cal-rm { margin:var(--space-4) 0 0; }
-  .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
+  .cal-rm .btn { min-height:44px; padding:0; font-size:var(--font-size-small); color:var(--color-ink); }
   /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
   .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-brand); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
@@ -2101,7 +2103,7 @@ const STYLE_PAGES = `
   .mo-e > .face { pointer-events:none; }
   .mo-e { display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-4); font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink); }
   .mo-e .face-link { align-items:center; gap:var(--space-4); }
-  .mo-n { min-width:0; overflow-wrap:break-word; }
+  .mo-n { min-width:0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal; word-break:normal; hyphens:none; text-wrap:balance; }
   .mo-e .kind-icon { flex:none; inline-size:24px; block-size:24px; padding:3px; border-radius:var(--radius-chip); background:var(--color-sand); color:var(--color-ink); }
   .mo-e.done { color:var(--color-ink-secondary); }
   .mo-more { display:inline-flex; align-items:center; min-height:24px; margin-top:var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }

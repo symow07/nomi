@@ -5,6 +5,7 @@ import { loadCustomerCard, type CustomerCard } from './customerCard.js';
 import { sql, type RawBuilder } from 'kysely';
 import { needsOwnerFor, searchOf } from './buyersList.js';
 import { faceVersions } from './faces.js';
+import { stageFacts, type StageFacts } from './customerStage.js';
 import { customerIdShape, literalLike, readCustomerKeyset, type CustomerPage, type CustomerPageOptions } from './customerPaging.js';
 export type { CustomerPage, CustomerPageOptions } from './customerPaging.js';
 
@@ -17,7 +18,7 @@ export type CustomerDirectoryRow = {
 export type CustomersQuery = CustomerPageOptions & { readonly businessId: BusinessId; readonly viewerId?: string; readonly q?: string; readonly label?: string };
 export type CustomersPage = CustomerPage<CustomerDirectoryRow> & { readonly q: string; readonly label: string | null };
 export type CustomerConversation = { readonly id: string; readonly channel: string; readonly active: boolean; readonly lastContactAt: Date | null; readonly waiting: boolean };
-export type CustomerSelection = { readonly card: CustomerCard; readonly conversationId: string | null; readonly conversations: CustomerPage<CustomerConversation> };
+export type CustomerSelection = { readonly card: CustomerCard; readonly conversationId: string | null; readonly conversations: CustomerPage<CustomerConversation>; readonly stage?: StageFacts | null };
 
 /** Alias cl is a tenant client, never a contact/prospect. Closed and never-contacted clients remain customers. */
 export const realCustomer = sql<boolean>`(not exists (select 1 from conversations c where c.business_id = cl.business_id and c.client_id = cl.id)
@@ -86,6 +87,9 @@ export async function readCustomerSelection(tx: Tx, o: CustomerPageOptions & { r
       (select max(m.sent_at) from messages m where m.conversation_id = c.id) as order_at
     from conversations c where c.business_id = ${o.businessId}::uuid and c.client_id = ${o.clientId}::uuid and not c.owner_testing`,
   ['customer-conversations',o.businessId,authorised.id,o.viewerId ?? null],o);
-  return {card,conversationId:o.conversationId?.toLowerCase() ?? card.conversationId,conversations:{...page,
+  const conversationId = o.conversationId?.toLowerCase() ?? card.conversationId;
+  // F15: the same recorded stage as Inbox/Today, scoped to the already validated selection.
+  const stage = conversationId ? (await stageFacts(tx, [conversationId])).get(conversationId) ?? null : null;
+  return {card,conversationId,stage,conversations:{...page,
     rows:page.rows.map((r) => ({id:r.id,channel:r.channel,active:r.active,lastContactAt:r.order_at,waiting:r.waiting}))}};
 }

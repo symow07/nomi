@@ -215,6 +215,25 @@ d('Area 3 customer reads: actual customers, authorised selection, recorded order
     expect(old?.context.order?.id).toBe(testOrder);
   });
 
+  it('counts all customer orders beside the latest order without changing standing or selected-conversation counts', async () => {
+    const { loadCustomerFile } = await import('../../src/api/web/conversations.js');
+    const client=uuid(), first=uuid(), second=uuid();
+    await tx(async t=>{
+      await sql`insert into clients(id,business_id,display_name) values(${client}::uuid,${B}::uuid,'Order count fixture')`.execute(t);
+      for(const conv of [first,second])await sql`insert into conversations(id,business_id,client_id,channel) values(${conv}::uuid,${B}::uuid,${client}::uuid,'email')`.execute(t);
+    });
+    const scope={realOnly:true,expectedClientId:client};
+    expect((await loadCustomerFile(db,B,first,scope))?.context.order).toBeNull();
+    for(const [index,status] of ['shipped','cancelled'].entries()){
+      await tx(async t=>{await sql`insert into orders(id,business_id,client_id,conversation_id,product_id,order_reference,quantity,unit,currency,total_value_usd,status,created_at)
+        values(${uuid()}::uuid,${B}::uuid,${client}::uuid,${index===0?first:second}::uuid,${product}::uuid,${'COUNT-'+index},1,'pcs','USD',10,${status},${index===0?'2026-11-01':'2026-11-02'}::timestamptz)`.execute(t);});
+      const page=await loadCustomerFile(db,B,first,scope);
+      expect(page?.context.order).toMatchObject({count:index+1,status,reference:'COUNT-'+index});
+      expect(page?.customer?.value.orders).toBe(1);
+      expect(page?.profile.orderCount).toBe(1);
+    }
+  });
+
   it('valid upper-case IDs keep canonical identity and the same customer totals', async () => {
     const p = await tx((t) => readCustomerSelection(t,{businessId:business(B),clientId:mixed.toUpperCase(),conversationId:realChat.toUpperCase()}));
     expect(p?.card.clientId).toBe(mixed); expect(p?.conversationId).toBe(realChat);

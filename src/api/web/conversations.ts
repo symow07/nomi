@@ -119,7 +119,7 @@ export type CustomerFile = {
     readonly products: readonly { readonly sku: string | null; readonly name: string | null; readonly nameZh: string | null }[];
     readonly latestQuote: { readonly qty: number; readonly unitPrice: Money; readonly total: Money } | null;
     /** G4 — `id` so the profile can open the order; optional for fixtures. */
-    readonly order: { readonly id?: string; readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
+    readonly order: { readonly id?: string; readonly count?: number; readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
     readonly corrections: readonly string[];   // capability codes
   };
   /**
@@ -210,8 +210,8 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     // G4 — the buyer's latest order, wherever it was confirmed: confirming
     // closes a conversation, so the order he asks about later lives in an
     // earlier one.
-    const orderRow = (await sql<{ id: string; status: string; order_reference: string; quantity: number; total_value_usd: string | null; currency: string }>`
-      select o.id::text as id, o.status, o.order_reference, o.quantity, o.total_value_usd, o.currency from orders o
+    const orderRow = (await sql<{ id: string; count: number; status: string; order_reference: string; quantity: number; total_value_usd: string | null; currency: string }>`
+      select o.id::text as id, count(*) over ()::int as count, o.status, o.order_reference, o.quantity, o.total_value_usd, o.currency from orders o
        where o.client_id = ${head.client_id}::uuid
          ${scope.realOnly ? sql`and not exists (select 1 from conversations tc where tc.id = o.conversation_id and tc.owner_testing)` : sql``}
        order by o.created_at desc${scope.realOnly ? sql`,o.id desc` : sql``} limit 1`.execute(tx)).rows[0];
@@ -303,7 +303,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
           ? { qty: latestQuoteRow.quantity, unitPrice: latestQuoteUnit, total: latestQuoteTotal }
           : null,
         order: orderRow
-          ? { id: orderRow.id, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity,
+          ? { id: orderRow.id, count: orderRow.count, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity,
               // G18 — his order in the currency it was taken in.
               total: orderRow.total_value_usd !== null ? moneyFromRow(orderRow.total_value_usd, orderRow.currency) : null }
           : null,
@@ -634,13 +634,20 @@ export function renderCustomerFile(
     } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(show.money(locale, ctx.order.total))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${esc(formatList(locale, ctx.corrections.map((c) => capabilityName(locale, c))))}</div></div>` : '',
   ].filter(Boolean).join('');
-  const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
+  const context = ctxParts ? `<div class="block">${opts.embedded ? '' : `<h2>${esc(t(locale, 'conv.ctx.title'))}</h2>`}${ctxParts}</div>` : '';
 
   // Decision 4 — it goes somewhere, so it is a door, not a button.
   const actLink = f.needsOwner
     ? `<div class="card need-card"><span>${esc(t(locale, 'conv.needCard'))}</span>
         ${deeper(conversationUrl(f.conversationId), t(locale, 'conv.needCardCta'), 'next')}</div>`
     : '';
+
+  if (opts.embedded) return `<p class="record-channel">${esc(channelName(locale, f.channel))}${f.address ? ` <bdi dir="ltr">${esc(f.channel === 'whatsapp' && /^\d+$/.test(f.address) ? `+${f.address}` : f.address)}</bdi>` : ''}</p>
+    ${flashBanner(flash)}${actLink}
+    <details class="record-section" id="record-profile"><summary>${esc(t(locale, 'record.profileEdit'))}</summary>${profile}</details>
+    <details class="record-section" id="record-activity"><summary>${esc(t(locale, 'record.activity'))}</summary><p class="ca-scope">${esc(t(locale,'customers.scope'))}</p><p class="ca-scope">${esc(t(locale,'customers.recentHistory'))}</p>${timeline}</details>
+    ${context ? `<details class="record-section" id="record-prices"><summary>${esc(t(locale, 'conv.ctx.title'))}</summary>${context}</details>` : ''}
+    <details class="record-section" id="record-privacy"${f.deletionAsk || f.deletion?.state === 'open' || f.optOut ? ' open' : ''}><summary>${esc(t(locale, 'record.privacy'))}</summary>${optOutSection(f, locale, viewer, opts.returnHref)}${copySection(f, locale, viewer)}${deletionSection(f, locale, viewer, now)}</details>`;
 
   // A — back to Buyers, where every buyer is listed now (Customers was the same list).
   return `

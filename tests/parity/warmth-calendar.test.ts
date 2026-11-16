@@ -314,7 +314,7 @@ describe('every date carries a face and a sentence, never a bare dot', () => {
       for (const [, src, body] of items) {
         const x = DATES.find((d) => `${d.source.table}:${d.source.id}` === src)!;
         expect(body, `${l}/${x.kind}`).toContain(`<span class="mo-n"><bdi>${nameOf(x)}</bdi></span>`);
-        if (x.buyer) expect(body, `${l}/${x.kind}`).toMatch(new RegExp(`^<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="[^"]+"><span class="face face-xs `));
+        if (x.buyer) expect(body, `${l}/${x.kind}`).toMatch(new RegExp(`^<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="[^"]+" title="[^"]+"><span class="face face-xs `));
         else expect(body, `${l}/${x.kind}`).toMatch(/^<svg class="kind-icon/);
       }
       // a drawn mark is an empty span by design (marks.ts); what is held is no empty dot or chip that is not one
@@ -359,7 +359,9 @@ describe('a crowded day says "+N more" instead of stretching', () => {
       // chosen, the crowded day's list holds all six
       expect(rowsOf(listOf(draw(l, { month: '2026-10', day }, { entries: crowd(6) }))), l).toHaveLength(6);
     }
-    expect(rule('.mo-n')).toContain('overflow-wrap:break-word');
+    // Owner decision 2026-11-16 supersedes the grid-only no-cut pin; agenda names stay whole.
+    expect(rule('.mo-n')).toContain('-webkit-line-clamp:2');
+    expect(rule('.mo-n')).toContain('overflow-wrap:normal');
   });
 
   it('what is owed shows first in a crowded day: the glance says what the owner owes', () => {
@@ -370,7 +372,7 @@ describe('a crowded day says "+N more" instead of stretching', () => {
 });
 
 describe('the chrome folds away', () => {
-  it('choosing one kind or one customer, and adding a date are in ONE closed fold under the month\'s name; what the marks mean is under the list', () => {
+  it('choosing one kind or one customer, and adding a date are in ONE closed fold; the mark key stays with the month context', () => {
     for (const l of LOCALES) for (const q of [{}, { month: '2026-10', day: TODAY }]) {
       const html = draw(l, q);
       const open = html.indexOf('<details class="cal-tools">');
@@ -378,7 +380,10 @@ describe('the chrome folds away', () => {
       expect(open, l).toBeGreaterThan(html.indexOf('<div class="cal-period">'));
       expect(open, l).toBeLessThan(html.indexOf('<div class="cal-screen">'));
       expect(html.match(/<details class="cal-tools"/g), l).toHaveLength(1);
-      expect(html.indexOf('<p class="cal-legend small">'), l).toBeGreaterThan(html.indexOf('<div class="cal-list"'));
+      // F40: the legend formerly followed a potentially long agenda. Keep its
+      // existing mark semantics beside the month/date/filter context instead.
+      expect(html.indexOf('<p class="cal-legend small">'), l).toBeGreaterThan(html.indexOf('<div class="cal-context">'));
+      expect(html.indexOf('<p class="cal-legend small">'), l).toBeLessThan(html.indexOf('<div class="cal-screen">'));
       for (const part of ['<form method="get" action="/app/calendar" class="pform cal-filter">',
         '<form method="post" action="/app/calendar/entries" class="pform">', '<p class="muted cal-lede">']) {
         const i = html.indexOf(part);

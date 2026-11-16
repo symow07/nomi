@@ -56,7 +56,10 @@ describe('S1 · a saved reply never sends', () => {
     const row = { id: '00000000-0000-4000-8000-000000000001', title: 'Prices', texts: { en: 'Prices attached.', ar: 'الأسعار مرفقة.' }, archived: false, updatedAt: '2026-10-22T09:00:00Z' };
     for (const l of LOCALES) {
       const list = renderSavedReplies(l, [row, { ...row, id: '00000000-0000-4000-8000-000000000002', title: 'Old', archived: true }]);
-      expect(list, l).toContain('action="/app/replies"');
+      // F16: creation is a focused GET state, so browsing no longer carries a permanent editor.
+      // The same POST command and all five language fields remain in that state.
+      expect(list, l).not.toContain('action="/app/replies"');
+      expect(renderSavedReplies(l, [], { create: true }), l).toContain('action="/app/replies"');
       expect(list, l).not.toMatch(/action="\/app\/inbox\/[0-9a-f-]{36}\/(reply|act|saved-reply)/);
       const one = renderSavedReply(l, row);
       expect(one, l).toContain('data-confirm=');

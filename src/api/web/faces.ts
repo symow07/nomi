@@ -107,8 +107,9 @@ export function faceLink(who: FaceOf, opts: {
   /** What the link says to a screen reader when `after` does not say it. */
   readonly label?: string;
   readonly className?: string;
+  readonly title?: string;
 } = {}): string {
   const label = opts.label ? ` aria-label="${esc(opts.label)}"` : '';
-  return `<a class="face-link${opts.className ? ` ${esc(opts.className)}` : ''}" href="${cardHref(who.clientId)}" data-card${label}>`
+  return `<a class="face-link${opts.className ? ` ${esc(opts.className)}` : ''}" href="${cardHref(who.clientId)}" data-card${label}${opts.title ? ` title="${esc(opts.title)}"` : ''}>`
     + `${face(who, opts.size ?? 'm')}${opts.after ?? ''}</a>`;
 }

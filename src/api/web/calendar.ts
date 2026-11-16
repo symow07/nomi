@@ -467,7 +467,7 @@ function monthItem(locale: Locale, e: CalendarEntry, now: Date): string {
   const kind = `<span class="sr"> · ${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
   const attrs = `class="mo-e ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}"`;
   // The face opens the card; the name, like the rest of the day, chooses the day.
-  if (e.buyer) return `<span ${attrs}>${faceLink(faceOf(e.buyer), { size: 'xs', label: nameOf(locale, e) })}${name}${kind}</span>`;
+  if (e.buyer) return `<span ${attrs}>${faceLink(faceOf(e.buyer), { size: 'xs', label: nameOf(locale, e), title: nameOf(locale, e) })}${name}${kind}</span>`;
   const mark = e.identity ? face(addressFace(e), 'xs') : kindIcon(e);
   return `<span ${attrs} title="${esc(sentenceText(locale, e))}">${mark}${name}${kind}</span>`;
 }
@@ -566,7 +566,7 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
         ${buyers.length ? `<label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
           <select name="who">
             <option value="">${esc(t(locale, 'calendar.buyer.all'))}</option>
-            ${buyers.map((b) => `<option value="${esc(b.id)}"${b.id === v.buyer?.id ? ' selected' : ''}>${esc(buyerLabel(locale, b))}</option>`).join('')}
+            ${buyers.map((b) => `<option value="${esc(b.id)}"${b.id === v.buyer?.id ? ' selected' : ''}>${esc(show.isolate(locale, buyerLabel(locale, b)))}</option>`).join('')}
           </select></label>` : ''}
         <button class="btn" type="submit">${esc(t(locale, 'calendar.buyer.show'))}</button>
       </form>`;
@@ -576,9 +576,8 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
  * What the page's marks mean, drawn with the marks themselves: where a date
  * came from (its edge), the assistant's hand (its mark), owed (●) and done (✓).
  * Phase 9 (V1-200, inbox-calendar-new-14, missed-16) — the edge drawn as a
- * small square-cornered swatch, not a pill that read as a switch. Phase 9 of
- * the warmth run (w4-customers-14) — under the dates it explains, and only the
- * marks the screen shows.
+ * small square-cornered swatch, not a pill that read as a switch. Block 3 F40
+ * keeps this key beside the date controls, showing only the marks in view.
  */
 function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): string {
   const item = (mark: string, key: MessageKey, params: Record<string, string> = {}): string =>
@@ -588,6 +587,7 @@ function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): s
     entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
     entries.some(byHand) ? item(agentMark(16, 'am as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
     entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
+    entries.some((e) => isOwed(e, now) && e.detail.overdue) ? item(signalMark('failed'), 'calendar.legend.overdue') : '',
     entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
   ].filter(Boolean);
   return items.length ? `<p class="cal-legend small">${items.join('')}</p>` : '';
@@ -752,12 +752,14 @@ export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPa
       <button class="btn" type="submit">${esc(t(locale, 'area1.calendar.showDay'))}</button>
     </form>`;
   return `<div class="calendar-page"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>
-    ${move}
-    ${dateChoice}
-    ${shownLine}
-    ${fold}
+    <div class="cal-context">
+      ${move}
+      <div class="cal-context-actions">${dateChoice}${fold}</div>
+      ${shownLine}
+      ${held ? legend(locale, shown, now) : ''}
+    </div>
     <div class="cal-screen">
-      <div class="cal-list" id="cal-list">${list}${held ? legend(locale, shown, now) : ''}</div>
+      <div class="cal-list" id="cal-list">${list}</div>
       <details class="cal-grid" open><summary class="cal-grid-label">${esc(t(locale, 'area1.calendar.month'))}</summary>${monthGrid(locale, v, ask, now)}</details>
     </div></div>`;
 }

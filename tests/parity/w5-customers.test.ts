@@ -216,13 +216,17 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
     expect(CSS).toContain('html[lang="zh"] .dl-say { word-break:keep-all; overflow-wrap:anywhere; }');
   });
 
-  it('w4-customers-14 · the marks are explained under the dates — only those the page shows — not at the foot of the fold', () => {
+  it('w4-customers-14 · the marks are explained in the month context — only those the page shows — outside the fold', () => {
     for (const l of LOCALES) {
       const h = withAssistantName('Lily', () => draw(l, [price('q1', 'review', 'Aisha Bello')]));
       const fold = /<details class="cal-tools"[\s\S]*?<\/details>/.exec(h)![0];
       expect(fold, l).not.toContain('cal-legend');
       const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(h)![1]!;
-      expect(h.indexOf('cal-legend'), l).toBeGreaterThan(h.indexOf('data-src="quotes:q1"'));
+      // F40 keeps the existing mark key beside the month/date/filter context,
+      // above a potentially long agenda. Its former below-entry position is
+      // obsolete; its visibility and shown-mark semantics remain pinned here.
+      expect(h.indexOf('cal-legend'), l).toBeGreaterThan(h.indexOf('<div class="cal-context">'));
+      expect(h.indexOf('cal-legend'), l).toBeLessThan(h.indexOf('<div class="cal-screen">'));
       expect(legend, l).toContain(shown(l, 'calendar.legend.owed'));
       expect(legend, l).not.toContain(shown(l, 'calendar.legend.done'));
       expect(legend, l).not.toContain('cal-sw dashed');

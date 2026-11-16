@@ -131,6 +131,30 @@ d('S1 · saved replies, through every owner-reply guard (requires DATABASE_URL +
       .rejects.toThrow(/saved_replies_texts_check|check constraint/);
   });
 
+  it('F16: search and focused creation are read-only GET states for owner and staff', async () => {
+    const before = await count();
+    for (const who of [owner, staff]) {
+      const list = await page('/app/inbox/replies?q=Shipping', who);
+      expect(list).toContain('Lead time');
+      expect(list).not.toContain('>Prices</bdi>');
+      expect(list).not.toContain('action="/app/replies"');
+      expect(await page('/app/inbox/replies?q=jointe', who)).toContain('>Prices</bdi>');
+      const create = await page('/app/inbox/replies?new=1', who);
+      expect(create).toContain('action="/app/replies"');
+      expect(create).toContain('form="saved-reply-form"');
+      expect(create).not.toContain('class="saved-reply-rows"');
+      for (const language of ['en', 'zh', 'ar', 'es', 'fr']) expect(create).toContain(`name="text_${language}"`);
+    }
+    const refused = await post('/app/replies', { title: 'Missing words' });
+    expect(refused.headers.location).toBe('/app/replies?new=1#new-reply');
+    const accountantPage = await app.inject({ method: 'GET', url: '/app/inbox/replies?new=1', headers: { cookie: accountant } });
+    expect(accountantPage.headers.location).toBe('/app/books');
+    const stranger = await app.inject({ method: 'GET', url: '/app/inbox/replies?new=1' });
+    expect(stranger.headers.location).toBe('/login');
+    expect(await count()).toBe(before);
+    expect(drove).toEqual([]);
+  });
+
   it('INSERT: in the box, after what was typed, in the buyer\'s language — and nothing is sent', async () => {
     await post(`/app/inbox/${open}/takeover`);
     const html = await page(`/app/inbox/${open}`);

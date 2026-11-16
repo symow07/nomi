@@ -93,15 +93,28 @@ d('O2: a long order reference on the customer summary never widens the page', ()
         expect(await page.evaluate<string>("document.documentElement.dir || 'ltr'"), where).toBe(locale === 'ar' ? 'rtl' : 'ltr');
         const link = page.locator(`.cx a[href="/app/orders/${c.order}"]`);
         expect(await link.count(), where).toBe(1);
-        type Reading = { vw: number; sw: number; bodySW: number; text: string; rects: { l: number; r: number }[]; boxes: string[] };
+        // F15 puts the selected conversation's prices/order in a native
+        // disclosure, and Block 3 gives short screens their own content scroll
+        // region above the tab row. Open it as a person does: measuring a closed
+        // disclosure or only document.scrollWidth misses a clipped reference.
+        // Three unchanged runs at 70b34c16 proved the old negative control
+        // deterministic: the bad rule reached x=465–467 while the document
+        // stayed 360px. Keep that control against the actual scroll region.
+        await page.locator('#record-prices > summary').click();
+        await link.scrollIntoViewIfNeeded();
+        expect(await link.isVisible(), where).toBe(true);
+        type Reading = { vw: number; sw: number; bodySW: number; region: { l: number; r: number; width: number; sw: number }; text: string; rects: { l: number; r: number }[]; boxes: string[] };
         // A string, read in the page (the typecheck has no DOM): the link's lines, the page's widths, and every element's
         // box, to compare one layout with another. The isolates (U+2066..U+2069) are left out of the text.
         const measure = () => page.evaluate<Reading>(`(() => {
           const a = document.querySelector('.cx a[href="/app/orders/${c.order}"]');
+          const region = document.querySelector('.content');
+          const regionBox = region.getBoundingClientRect();
           const rects = [...a.getClientRects()].map((r) => ({ l: Math.round(r.left), r: Math.round(r.right) }));
           const boxes = [...document.querySelectorAll('body *')].map((e) => { const r = e.getBoundingClientRect();
             return e.tagName.toLowerCase() + '.' + (e.getAttribute('class') || '') + ' ' + [r.x, r.y, r.width, r.height].map(Math.round).join(','); });
           return { vw: window.innerWidth, sw: document.documentElement.scrollWidth, bodySW: document.body.scrollWidth,
+            region: { l: Math.round(regionBox.left), r: Math.round(regionBox.right), width: region.clientWidth, sw: region.scrollWidth },
             text: (a.textContent || '').replace(/[\\u2066-\\u2069]/g, ''), rects, boxes };
         })()`);
         // The faces are the product's own (Noto, served by the app) and the prose measure is in `ch`: on an Arabic
@@ -121,16 +134,20 @@ d('O2: a long order reference on the customer summary never widens the page', ()
         }
         await page.addStyleTag({ content: WITHOUT_RULE });
         const withoutRule = await measure();
-        results.push({ where, withRule: { ...withRule, boxes: withRule.boxes.length }, withoutRule: { sw: withoutRule.sw, rects: withoutRule.rects } });
+        results.push({ where, withRule: { ...withRule, boxes: withRule.boxes.length }, withoutRule: { sw: withoutRule.sw, region: withoutRule.region, rects: withoutRule.rects } });
         expect(offOrigin, where).toEqual([]);
         expect(withRule.text, `${where}: the reference whole`).toBe(c.ref);
         expect(withRule.sw, `${where}: no sideways scroll`).toBe(width);
         expect(withRule.bodySW, `${where}: no sideways scroll (body)`).toBe(width);
+        expect(withRule.region.sw, `${where}: no sideways scroll (content region)`).toBe(withRule.region.width);
+        expect(withRule.rects.length, `${where}: the visible reference has lines`).toBeGreaterThan(0);
         for (const r of withRule.rects) {
           expect(r.l, `${where}: inside the viewport`).toBeGreaterThanOrEqual(0);
           expect(r.r, `${where}: inside the viewport`).toBeLessThanOrEqual(width);
+          expect(r.l, `${where}: inside the content region`).toBeGreaterThanOrEqual(withRule.region.l);
+          expect(r.r, `${where}: inside the content region`).toBeLessThanOrEqual(withRule.region.r);
         }
-        if (width < 1440) expect(withoutRule.sw, `${where}: without the rule the page scrolls sideways (the test sees what it guards)`).toBeGreaterThan(width);
+        if (width < 1440) expect(withoutRule.region.sw, `${where}: without the rule the content scrolls sideways (the test sees what it guards)`).toBeGreaterThan(withoutRule.region.width);
         else {
           expect(withoutRule.sw, `${where}: no sideways scroll at 1440 either way`).toBe(1440);
           if (c.ref.length === 37) {

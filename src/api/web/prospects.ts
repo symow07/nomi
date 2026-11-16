@@ -113,8 +113,8 @@ function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
       ${status.kind === 'stored' ? `<form method="post" action="/app/prospects/key/remove" class="inline">
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'prospects.key.removeConfirm'))}">${esc(t(locale, 'prospects.key.remove'))}</button></form>` : ''}`;
-  return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
-    <p class="muted">${esc(state)}</p>${status.kind === 'none' ? apollo : ''}${controls}</section>`;
+  return `<details class="prospect-connection"${status.kind === 'stored' && status.readable ? '' : ' open'}><summary>${esc(t(locale, 'prospects.key.title'))}</summary>
+    <p class="muted">${esc(state)}</p>${status.kind === 'none' ? apollo : ''}${controls}</details>`;
 }
 
 export function renderProspects(

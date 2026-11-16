@@ -91,9 +91,11 @@ describe('Saved replies layout keeps the actual edit contract', () => {
   it('lists canonical edit doors and keeps creation on the existing authorised POST', () => {
     const html = renderSavedReplies('en', [reply]);
     expect(html).toContain(`href="/app/inbox/replies/${CID}"`);
-    expect(html).toContain('action="/app/replies"');
+    // F16 replaces the permanent create form with a focused GET state. The POST and legacy anchor stay reachable.
+    expect(html).not.toContain('action="/app/replies"');
     expect(html).toContain('id="new-reply"');
-    expect(html).toContain('href="#new-reply"');
+    expect(html).toContain('href="/app/inbox/replies?new=1"');
+    expect(renderSavedReplies('en', [], { create: true })).toContain('action="/app/replies"');
   });
   it('keeps archived replies editable and offers only the existing restore action', () => {
     const html = renderSavedReply('en', { ...reply, archived: true });

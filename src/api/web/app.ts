@@ -5413,8 +5413,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
     const locale = localeOf(req);
     const rows = await withTenantTx(deps.db, bid.value, (tx) => listSavedReplies(tx, bid.value, { archived: true }));
+    const query = req.query as { q?: unknown; new?: unknown };
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'savedReplies.title'), active: 'inbox',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReplies(locale, rows)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderSavedReplies(locale, rows, { query: typeof query.q === 'string' ? query.q : '', create: query.new === '1' })}` }));
   });
   app.post('/app/replies', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -5422,7 +5423,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const f = savedForm(req);
     const out = await withTenantTx(deps.db, bid.value, (tx) => addSavedReply(tx, bid.value, personOf(s).id, f.title, f.texts));
     return out.kind === 'added' ? flashTo(reply, '/app/replies', 'savedReplies.flash.added')
-      : flashTo(reply, '/app/replies#new-reply', 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
+      : flashTo(reply, '/app/replies?new=1#new-reply', 'savedReplies.flash.refused', { why: savedWhy(localeOf(req), out.reason) });
   });
   app.get('/app/inbox/replies/:id', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
