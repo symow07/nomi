@@ -147,7 +147,7 @@ import {
 import {
   loadProductList, loadProductPage, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, removeProductTier, renderPhotoRefusal, type PhotoRefusal,
-  PRODUCT_EDIT_GROUPS, productEditGroup, type ProductEditField,
+  PRODUCT_EDIT_GROUPS, productEditGroup, type ProductEditField, addMethodOf,
 } from './products.js';
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
@@ -6155,7 +6155,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     productArea(renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
       await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
-      deps.pdfReadable === true), locale, 'add', personOf(s))));
+      deps.pdfReadable === true, null, new Date(), addMethodOf((req.query as { method?: string } | undefined)?.method)), locale, 'add', personOf(s))));
   /** K5 — "prices go to me", on or off. Money is the owner's (rule 11). */
   app.post('/app/products/prices-to-me', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products/add');

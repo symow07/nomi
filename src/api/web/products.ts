@@ -7,6 +7,7 @@ import { type Decimal, compareDecimal, decimal, roundDecimal, signOf } from '../
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { currencyOf } from '../../db/currency.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { importSteps } from './importSteps.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
@@ -951,6 +952,11 @@ const EXAMPLE_PRICES: Readonly<Record<Currency, readonly [string, string, string
   GBP: ['£1.05', '£2.60', '£34.90'],
 };
 
+/** F27 — the add page's four ways in. */
+export type AddMethod = 'paste' | 'photo' | 'store' | 'file';
+export const addMethodOf = (raw: unknown): AddMethod | null =>
+  raw === 'paste' || raw === 'photo' || raw === 'store' || raw === 'file' ? raw : null;
+
 export function renderAddForm(
   locale: Locale, viewer: Viewer = OWNER_VIEW, currency: Currency = 'USD',
   /** K1 — a list she started and did not finish checking. */
@@ -963,6 +969,8 @@ export function renderAddForm(
   /** Phase 6 — a form on this page that came to nothing: its sentence goes under it, the page is the same. */
   refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | { readonly shopify: ShopifyFormProps } | null = null,
   now: Date = new Date(),
+  /** F27 (Block 4) — the way in asked for (`?method=`); a refusal opens its own way whatever was asked. */
+  method: AddMethod | null = null,
 ): string {
   // Phase 9 (V1-328) — the way back to the list, above the title, as on a product's page.
   const backLink = back('/app/products', t(locale, 'product.detail.back'));
@@ -976,12 +984,22 @@ export function renderAddForm(
   // the keyboard and pushed the list waiting to be checked out of sight.
   // V1-324 — the first way has a heading like the other four; V1-328 — and is
   // the box's label.
+  // F27 (Block 4) — one way in is open at a time: the four ways are one chooser (`details name`), each its own
+  // form, all in the page so nothing needs a script; a refusal, or `?method=`, opens its own way.
+  const opened: AddMethod | null = refused
+    ? ('photo' in refused ? 'photo' : 'store' in refused ? refused.store.form : 'store')
+    : method;
+  // The way's id sits inside it, first after its title: an older link to `#paste` (no `?method=`) reaches a closed
+  // way, and the browser opens a closed group to show what a link points into — script or none.
+  const way = (id: AddMethod) => `class="pa-method" name="pa-method" data-way="${id}"${opened === id ? ' open' : ''}`;
   return `<section class="product-add">${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+    ${importSteps(locale, 'upload', false)}
     ${flashBanner(flash)}
     ${renderOpenImport(locale, open, now)}
-    <nav class="pa-methods" aria-label="${esc(t(locale, 'products.methods'))}"><a href="#paste">${esc(t(locale, 'product.add.pasteTitle'))}</a><a href="#photo">${esc(t(locale, 'product.add.photoTitle'))}</a><a href="#store">${esc(t(locale, 'import.store.title'))}</a><a href="#file">${esc(t(locale, 'import.file.title'))}</a></nav>
-    <div class="block" id="paste">
-      <h2 id="paste-h">${esc(t(locale, 'product.add.pasteTitle'))}</h2>
+    <p class="pa-choose-h" id="pa-choose">${esc(t(locale, 'product.add.choose'))}</p>
+    <div class="pa-methods" role="group" aria-labelledby="pa-choose">
+    <details ${way('paste')}>
+      <summary><h2 id="paste-h">${esc(t(locale, 'product.add.pasteTitle'))}</h2></summary><span class="pa-at" id="paste"></span>
       <p>${esc(t(locale, 'product.add.intro'))}</p>
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
         esc(t(locale, `product.add.example${i}` as MessageKey, { price: EXAMPLE_PRICES[currency][i - 1]! }))).join('<br>')}</p>
@@ -990,9 +1008,9 @@ export function renderAddForm(
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
       <p class="caption muted">${esc(t(locale, 'product.add.note', { tag: t(locale, 'product.status.needsConfirm') }))}</p>
-    </div>
-    <div class="block" id="photo">
-      <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
+    </details>
+    <details ${way('photo')}>
+      <summary><h2>${esc(t(locale, 'product.add.photoTitle'))}</h2></summary><span class="pa-at" id="photo"></span>
       <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
       <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
         ${/* w4-products-knowledge-12 — a question asked of the owner reads at the size of every other label on the page. */ ''}<fieldset class="choices hand"><legend>${esc(t(locale, 'import.hand.q'))}</legend>
@@ -1006,8 +1024,9 @@ export function renderAddForm(
         <button class="btn" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="caption muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
+    </details>
+    ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null, refused && 'shopify' in refused ? refused.shopify : undefined, opened)}
     </div>
-    ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null, refused && 'shopify' in refused ? refused.shopify : undefined)}
     ${renderPricesToMe(locale, pricesToOwner)}</section>`;
 }
 
@@ -1414,6 +1433,6 @@ export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?:
   return `<div class="perr-block" id="photo-err">
       <p class="perr" role="alert">${esc(t(locale, key as MessageKey, params))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-      ${deeper(paste ? '/app/products/add#paste' : '/app/products/add#photo', t(locale, paste ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
+      ${deeper(paste ? '/app/products/add?method=paste#paste' : '/app/products/add?method=photo#photo', t(locale, paste ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;
 }

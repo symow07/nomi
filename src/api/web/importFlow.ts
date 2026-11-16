@@ -27,6 +27,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 import { esc, back } from './layout.js';
+import { importSteps } from './importSteps.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitChoices, perUnit, type ImportResult } from './products.js';
 import { currencySymbol } from '../../core/types/money.js';
@@ -598,6 +599,8 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
   return `
     <div class="imp-row${need ? ' need' : ''}${r.removed ? ' out' : ''}${r.confidence && m.imp.kind !== 'photo' ? ' is-read' : ''}" id="row-${esc(r.key)}">
       ${r.confidence && m.imp.kind !== 'photo' ? `<p class="import-reading">${markSmall(16, null)}${esc(t(locale, 'productImport.reading'))}</p>` : ''}
+      ${/* F27 (Block 4) — the line as written stands first, beside what was read from it and the way to correct it. */ ''}${asking ? '' : `<p class="rev-src imp-src muted">${then(locale, esc(t(locale, 'product.review.fromLine')), `<bdi>${esc(r.line)}</bdi>`)}</p>`}
+      <div class="imp-read">
       <div class="imp-h">
         ${summary}
         ${r.removed ? `<span class="pill">${esc(t(locale, 'import.row.removed'))}</span>` : ''}
@@ -621,7 +624,7 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
         <span class="muted small">${esc(t(locale, 'import.row.namesHint'))}</span>
         <label class="pcheck"><input type="checkbox" name="remove:${esc(r.key)}"${r.removed ? ' checked' : ''} /> ${esc(t(locale, 'import.row.remove'))}</label>
       </details>
-      ${asking ? '' : `<span class="rev-src muted">${then(locale, esc(t(locale, 'product.review.fromLine')), `<bdi>${esc(r.line)}</bdi>`)}</span>`}
+      </div>
     </div>`;
 }
 
@@ -715,6 +718,7 @@ export function renderImportReview(
   // Phase 9 (V1-344) — the way back to the add page, above the title.
   return `<section class="product-import"><header>${back('/app/products/add', t(locale, 'product.teach'))}
     <h1 class="page">${esc(t(locale, 'import.title'))}</h1>
+    ${importSteps(locale, 'review', imp.kind === 'file' || imp.kind === 'store')}
     <p>${esc(t(locale, 'productImport.reviewIntro'))}</p>
     ${photos || paste ? `<a class="import-source-door" href="#import-source">${esc(t(locale, 'productImport.original'))}</a>` : ''}</header>
     ${flashBanner(opts.flash ?? null)}
@@ -782,7 +786,7 @@ export function renderFloors(m: ReviewModel, locale: Locale): string {
       <span><b dir="auto">${esc(p.name)}</b> <span class="muted">${esc(t(locale, 'import.floors.row', {
         list: show.money(locale, p.price!), floor: show.money(locale, { amount: floor, currency: p.price!.currency }) }))}</span></span></label>`;
   }).join('');
-  return `<section class="product-import product-import-floors"><header>${back(base(imp.id), t(locale, 'import.floors.back'))}<h1 class="page">${esc(t(locale, 'import.floors.title'))}</h1><p>${esc(t(locale, 'productImport.floorsIntro'))}</p></header>
+  return `<section class="product-import product-import-floors"><header>${back(base(imp.id), t(locale, 'import.floors.back'))}<h1 class="page">${esc(t(locale, 'import.floors.title'))}</h1>${importSteps(locale, 'confirm', imp.kind === 'file' || imp.kind === 'store')}<p>${esc(t(locale, 'productImport.floorsIntro'))}</p></header>
     <div class="block">
       <p>${esc(t(locale, 'import.floors.intro', { name: assistantName(locale), pct: show.percent(locale, pct) }))}</p>
       <p class="muted">${esc(t(locale, 'import.floors.caveat'))}</p>

@@ -145,7 +145,9 @@ describe('M37 · an unreadable page is refused WHOLE', () => {
         const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
         expect(visible, `${locale} ${reason}`).toContain(t(locale, `product.photo.refused.${reason}` as MessageKey));
         // the way out is on the page, and it is a link she can tap — within the add page now (phase 6)
-        expect(html, `${locale} ${reason}`).toMatch(/href="\/app\/products\/add#(?:paste|photo)"/);
+        // F27 (Block 4, supervisor approved 2026-11-16) — the add page opens one way in at a time; the door carries ?method= so it
+        // opens the way it names without script. Same door, same way out; only the expected href changed.
+        expect(html, `${locale} ${reason}`).toMatch(/href="\/app\/products\/add\?method=(paste|photo)#\1"/);
         expect(visible).toContain(t(locale, reason === 'not_configured'
           ? 'product.photo.pasteInstead' : 'product.photo.retake'));
       }
