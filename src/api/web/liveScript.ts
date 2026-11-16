@@ -167,6 +167,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var t = e.target;
       var tag = t && t.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') typing = t.getAttribute('data-keep') || '';
+      /* A box part-hidden when focused, whole above the tab bar. */
+      if (tag === 'TEXTAREA' && t.scrollIntoView) t.scrollIntoView({ block: 'nearest' });
     });
     doc.addEventListener('submit', function (e) {
       var form = e.target;
@@ -1023,6 +1025,17 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* The native summary still opens/closes without script; this second close is at the end of the full text. */
+  doc.querySelectorAll('[data-message-close]').forEach(function (button) { button.hidden = false; });
+  doc.addEventListener('click', function (e) {
+    var button = e.target && e.target.closest ? e.target.closest('[data-message-close]') : null;
+    if (!button) return;
+    var fold = button.closest('details.msg-long');
+    if (!fold) return;
+    fold.open = false;
+    var summary = fold.querySelector('summary');
+    if (summary) { summary.focus(); summary.scrollIntoView({ block: 'nearest' }); }
+  });
   navigationMenus();
   toToday();
   keepWords();

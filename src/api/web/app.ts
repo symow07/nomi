@@ -3305,10 +3305,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const problems: string[] = [];
     const has = (rows: readonly { id: string }[], id: string | undefined) => !!id && rows.some((r) => r.id === id);
     if (!has(c.parties, values['party'])) problems.push(t(locale, 'books.invoice.problem.customer'));
-    const iso = /^\d{4}-\d{2}-\d{2}$/;
-    if (!iso.test(values['issueDate'] ?? '')) problems.push(t(locale, 'books.entry.problem.date'));
+    /* A day that is on the calendar: the shape alone let 2026-13-45 through to the table, which refused it as an error
+       page (the UI correction, Block 2's list). The day is read back from the date it names. */
+    const iso = (day: string): boolean => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+      if (!m) return false;
+      const at = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      return at.getUTCFullYear() === Number(m[1]) && at.getUTCMonth() === Number(m[2]) - 1 && at.getUTCDate() === Number(m[3]);
+    };
+    if (!iso(values['issueDate'] ?? '')) problems.push(t(locale, 'books.entry.problem.date'));
     const due = (values['dueDate'] ?? '').trim();
-    if (due && (!iso.test(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
+    if (due && (!iso(due) || due < (values['issueDate'] ?? ''))) problems.push(t(locale, 'books.invoice.problem.due'));
     const currency = values['currency'] ?? c.bookCurrency;
     if (!(CURRENCIES as readonly string[]).includes(currency)) problems.push(t(locale, 'books.entry.problem.date'));
     /* A figure the table would refuse is refused HERE, by the table's own rules, with the field named — it used to reach

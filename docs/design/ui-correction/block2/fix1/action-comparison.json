@@ -1,0 +1,450 @@
+[
+  {
+    "page": "practice",
+    "language": "en",
+    "size": "1440",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "en",
+    "size": "1440",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"Show less\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "en",
+    "size": "1440",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "en",
+    "size": "1440",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "en",
+    "size": "1440",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "en",
+    "size": "390",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "en",
+    "size": "390",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"Show less\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "en",
+    "size": "390",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "en",
+    "size": "390",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "en",
+    "size": "390",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "en",
+    "size": "320",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "en",
+    "size": "320",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"Show less\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "en",
+    "size": "320",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "en",
+    "size": "320",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "en",
+    "size": "320",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "en",
+    "size": "zoom200",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "en",
+    "size": "zoom200",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"Show less\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "en",
+    "size": "zoom200",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "en",
+    "size": "zoom200",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "en",
+    "size": "zoom200",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "1440",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "390",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "320",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "en",
+    "size": "zoom200",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "ar",
+    "size": "1440",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "ar",
+    "size": "1440",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"عرض أقل\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "ar",
+    "size": "1440",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "ar",
+    "size": "1440",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "ar",
+    "size": "1440",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "ar",
+    "size": "390",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "ar",
+    "size": "390",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"عرض أقل\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "ar",
+    "size": "390",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "ar",
+    "size": "390",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "ar",
+    "size": "390",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "ar",
+    "size": "320",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "ar",
+    "size": "320",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"عرض أقل\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "ar",
+    "size": "320",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "ar",
+    "size": "320",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "ar",
+    "size": "320",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "practice",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 45,
+    "after": 45,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "mail",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 67,
+    "after": 68,
+    "removed": [],
+    "added": [
+      "BUTTON \"عرض أقل\" type=button @ NO FORM"
+    ]
+  },
+  {
+    "page": "order",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 75,
+    "after": 75,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "today",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 48,
+    "after": 48,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "ask",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 19,
+    "after": 19,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "1440",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "390",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "320",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  },
+  {
+    "page": "inbox",
+    "language": "ar",
+    "size": "zoom200",
+    "before": 39,
+    "after": 39,
+    "removed": [],
+    "added": []
+  }
+]

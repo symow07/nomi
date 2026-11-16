@@ -5,7 +5,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Db } from '../../db/client.js';
 import type { AdvisorModel } from '../../llm/ports.js';
 import { messages } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { t, businessName } from './say.js';
 import { esc, deeper, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
@@ -181,8 +181,9 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
   const person=(who.name??'').trim(),greeting=person?t(locale,'advisor.greeting',{name:person}):t(locale,'advisor.greeting.plain');
   const earlier=(history.earlier??[]).filter(r=>r.id!==thread);
   const question=exchange?.answer.kind==='failed'?exchange.asked:'';
-  return `<div class="ask-page"><h1 class="page">${esc(name)}</h1>${flashBanner(history.flash??null)}
-    <p class="lede">${esc(t(locale,'assistantAsk.intro'))}</p>
+  const business=businessName();
+  return `<div class="ask-page"><h1 class="page">${esc(name)}</h1>${business ? `<p class="ask-business"><bdi>${esc(business)}</bdi></p>` : ''}${flashBanner(history.flash??null)}
+    <p class="lede" dir="auto">${esc(t(locale,'assistantAsk.intro'))}</p>
     <div class="ask-workspace"><div class="ask-conversation">
     ${atRest?`<p dir="auto">${esc(greeting)}</p><details class="ask-examples"><summary>${esc(t(locale,'assistantAsk.examples'))}</summary><ul>${EXAMPLES.map(k=>`<li>${esc(t(locale,k))}</li>`).join('')}</ul></details>`:''}
     <div class="timeline ask-line">${history.unreadable?bubble('advisor',`<p>${words(t(locale,'advisor.thread.unreadable'))}</p>`,name,exchange===null):''}

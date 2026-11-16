@@ -309,7 +309,19 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
     expect(orbAt).toBeGreaterThan(0);
     expect(orbEnd).toBeGreaterThan(orbAt);
     const outsideOrb = LIVE_SCRIPT.slice(0, orbAt) + LIVE_SCRIPT.slice(orbEnd);
-    for (const moving of ['.style', 'animate(', 'transition', 'requestAnimationFrame']) expect(outsideOrb, moving).not.toContain(moving);
+    // Block 2 F13 (owner correction): opening the adjacent pane must keep the unsent draft's position.
+    // Two synchronous writes reserve/release the existing region height; they create no animation. The
+    // measured before/after draft edge is identical in all five locales. Permit only this exact property
+    // and measured value; every other style write and every animation mechanism remains forbidden.
+    let outsideReservation = outsideOrb;
+    for (const operation of [
+      "root.style.removeProperty('--conversation-acts-height');",
+      "root.style.setProperty('--conversation-acts-height', acts.getBoundingClientRect().height + 'px');",
+    ]) {
+      expect(outsideReservation).toContain(operation);
+      outsideReservation = outsideReservation.replace(operation, '');
+    }
+    for (const moving of ['.style', 'animate(', 'transition', 'requestAnimationFrame']) expect(outsideReservation, moving).not.toContain(moving);
     expect(LIVE_SCRIPT.slice(orbAt, orbEnd).match(/requestAnimationFrame/g)).toHaveLength(3);
   });
 

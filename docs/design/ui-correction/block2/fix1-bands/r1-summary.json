@@ -1,0 +1,28 @@
+{
+  "capture_head": "75d6d18312e0fad82bcd78955b093542455554c7",
+  "product_source_head": "75d6d18312e0fad82bcd78955b093542455554c7",
+  "measures": 666,
+  "failures": 0,
+  "base_cases": 600,
+  "scroll_sweeps": 60,
+  "scroll_positions": 1781,
+  "typing_cases": 6,
+  "locales": [
+    "en",
+    "ar",
+    "es",
+    "fr",
+    "zh"
+  ],
+  "sizes": [
+    "390x844",
+    "320x568",
+    "720x450 at DSF2"
+  ],
+  "script_modes": [
+    "on",
+    "off"
+  ],
+  "raw_log_sha256": "e6648bc85027ba55d81d925c2772bfec8f39c5f71ad98a0f4e1b1d90f9809587",
+  "independent_verification": "pending"
+}

@@ -9,9 +9,15 @@ export const COPILOT_SCRIPT = String.raw`
   var cid = root.getAttribute('data-conversation');
   var slot = tools.querySelector('[data-copilot-slot]');
   var status = tools.querySelector('[data-tool-status]');
-  var opener = null, viewScroll = null, loaded = false, pending = 0, useGeneration = 0, using = false;
+  var recovery = tools.querySelector('[data-tool-recovery]'), retryRequest = null;
+  var opener = null, viewScroll = null, readingScroll = [], loaded = false, pending = 0, useGeneration = 0, using = false;
+  /* On a phone the page's own region scrolls, not the window: the reading place is kept there too. */
+  var region = doc.querySelector('.content');
   var home = location.pathname + location.search + location.hash;
-  function say(key) { status.textContent = key ? status.getAttribute('data-' + key) || '' : ''; }
+  function say(key) {
+    status.textContent = key ? status.getAttribute('data-' + key) || '' : '';
+    if (recovery) recovery.hidden = key !== 'failed';
+  }
   function invalidateUse() {
     ++useGeneration;
     /* A newer panel request owns its own status until it settles. */
@@ -37,24 +43,42 @@ export const COPILOT_SCRIPT = String.raw`
     });
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', String(el.getAttribute('data-open-tool') === which)); });
   }
+  function restorePlace(restore) {
+    /* Settle the restored pane and pending fragment layout before applying its saved scroll. */
+    if (viewScroll) root.getBoundingClientRect();
+    if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
+    if (viewScroll && region) region.scrollTop = viewScroll[2];
+    readingScroll.forEach(function (saved) { saved[0].scrollTop = saved[1]; saved[0].scrollLeft = saved[2]; });
+    if (restore !== false) focus(opener);
+  }
   function close(restore) {
     invalidateUse();
     root.removeAttribute('data-tool-open');
+    root.style.removeProperty('--conversation-acts-height');
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', 'false'); });
-    if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
-    if (restore !== false) {
-      focus(opener);
-    }
+    restorePlace(restore);
   }
   function open(which, link, remember) {
-    var already = root.hasAttribute('data-tool-open');
+    var already = root.hasAttribute('data-tool-open'), draftTop = null;
     if (!already && remember !== false) {
       opener = link;
-      viewScroll = window.matchMedia && window.matchMedia('(max-width:1099px)').matches ? [window.scrollX, window.scrollY] : null;
+      viewScroll = [window.scrollX, window.scrollY, region ? region.scrollTop : 0];
+      readingScroll = Array.from(root.querySelectorAll('.conv-thread, .conv-acts, .listpane')).map(function (el) { return [el, el.scrollTop, el.scrollLeft]; });
       home = location.pathname + location.search + location.hash;
+      /* F13: keep the decision's existing height while its width changes. Extra wrapped context scrolls inside
+         that same region, so opening the neighbouring pane does not lift the owner's unsent draft. */
+      var acts = root.querySelector('.conv-acts');
+      if (acts && window.matchMedia && window.matchMedia('(min-width:1300px)').matches) {
+        root.style.setProperty('--conversation-acts-height', acts.getBoundingClientRect().height + 'px');
+        var box = composer();
+        if (box) draftTop = box.getBoundingClientRect().top;
+      }
     }
     setTab(which);
-    if (window.matchMedia && window.matchMedia('(max-width:1099px)').matches && window.scrollTo) window.scrollTo(0, 0);
+    /* A translated attribution can gain a line at the narrower width. Keep the same draft edge inside the
+       held region; its contextual lines remain reachable just above it, and close restores the original scroll. */
+    if (draftTop !== null && acts && box) acts.scrollTop += box.getBoundingClientRect().top - draftTop;
+    if (window.matchMedia && window.matchMedia('(max-width:1099px)').matches && window.scrollTo) { window.scrollTo(0, 0); if (region) region.scrollTop = 0; }
     if (remember !== false) {
       try { history[already ? 'replaceState' : 'pushState']({ nomiTool: which }, '', '#nomi-' + which); } catch (_) {}
     }
@@ -62,6 +86,7 @@ export const COPILOT_SCRIPT = String.raw`
     else focus(tools.querySelector(which === 'ask' ? '#copilot-title' : '[data-close-tool]'));
   }
   function loadPanel(url, body) {
+    retryRequest = [url, body];
     invalidateUse();
     var turn = ++pending;
     say(body ? 'busy' : 'loading');
@@ -92,9 +117,13 @@ export const COPILOT_SCRIPT = String.raw`
     return data;
   }
   doc.addEventListener('click', function (e) {
-    var a = e.target && e.target.closest ? e.target.closest('[data-open-tool], [data-tool-tab], [data-close-tool]') : null;
+    var a = e.target && e.target.closest ? e.target.closest('[data-open-tool], [data-tool-tab], [data-close-tool], [data-retry-tool]') : null;
     if (!a || !root.contains(a) || e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
+    if (a.hasAttribute('data-retry-tool')) {
+      if (retryRequest) loadPanel(retryRequest[0], retryRequest[1]);
+      return;
+    }
     if (a.hasAttribute('data-close-tool')) {
       close(); try { history.replaceState(null, '', home); } catch (_) {} return;
     }
@@ -106,7 +135,12 @@ export const COPILOT_SCRIPT = String.raw`
   });
   window.addEventListener('popstate', function (e) {
     if (e.state && (e.state.nomiTool === 'ask' || e.state.nomiTool === 'customer')) open(e.state.nomiTool, null, false);
-    else close();
+    else {
+      close(false);
+      /* B2-V02: the browser restores #latest AFTER popstate, including its own focus/scroll reset.
+         Restore in the next event-loop turn, once that native history traversal is complete. */
+      setTimeout(function () { if (!root.hasAttribute('data-tool-open')) restorePlace(); }, 0);
+    }
   });
   doc.addEventListener('submit', function (e) {
     var form = e.target;

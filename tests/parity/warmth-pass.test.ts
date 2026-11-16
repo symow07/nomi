@@ -185,16 +185,16 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
   it('Reply in a conversation handed to the reader — ink when a colleague holds it', () => {
     const mine = renderConversationDetail(draft({ pendingDraft: null, ownership: 'OWNER_CONTROLLED', heldBy: OWNER.id, people: [OWNER, CHEN] }),
       'en', NOW, null, { id: OWNER.id, isOwner: true });
-    expect(mine).toMatch(/<button class="btn send needs" type="submit">[^<]+<\/button>\s*<\/form>/);
+    expect(mine).toMatch(/<button class="btn send needs" type="submit">[^<]+<\/button><\/div>\s*<\/form>/);
     const theirs = renderConversationDetail(draft({ pendingDraft: null, ownership: 'OWNER_CONTROLLED', heldBy: CHEN.id, people: [OWNER, CHEN] }),
       'en', NOW, null, { id: OWNER.id, isOwner: true });
     expect(needsButtons(theirs)).toEqual([]);
   });
 
-  it('nothing waiting, nothing deep: the assistant\'s conversation, a person waiting to be asked to take it', () => {
-    for (const ownership of ['AI', 'WAITING_HUMAN'] as const) {
-      expect(needsButtons(renderConversationDetail(draft({ pendingDraft: null, ownership }), 'en', NOW, null, OWNER_VIEW)), ownership).toEqual([]);
-    }
+  it('only a conversation waiting for the owner marks Hand to me as its needs action', () => {
+    // Block 2 fix 1, approved polish: WAITING_HUMAN answers Needs you, just as Send does; AI still has no needs act.
+    expect(needsButtons(renderConversationDetail(draft({ pendingDraft: null, ownership: 'AI' }), 'en', NOW, null, OWNER_VIEW))).toEqual([]);
+    expect(needsButtons(renderConversationDetail(draft({ pendingDraft: null, ownership: 'WAITING_HUMAN' }), 'en', NOW, null, OWNER_VIEW))).toEqual(['Hand to me']);
   });
 
   it('Practice rehearses the same three cards, drawn the same way', () => {
@@ -210,13 +210,16 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
     const where: string[] = [];
     for (const f of readdirSync(WEB).filter((x) => x.endsWith('.ts'))) {
       const src = readFileSync(join(WEB, f), 'utf8');
-      // a literal class list naming the variant is ad hoc; the renderers take NEEDS_ACT
-      if (/class="[^"$]*\bneeds\b[^"]*"/.test(src)) where.push(`${f}: a literal "needs" class`);
+      // Block 2 fix 1: Today's existing sp-btn Send also answers a waiting customer. Its exact class list uses
+      // the same needs-dot rule; other literal variants remain forbidden and ordinary Save/Add stay dot-free.
+      const literalNeeds = [...src.matchAll(/class="([^"$]*\bneeds\b[^"]*)"/g)].map((m) => m[1]);
+      if (f === 'splitToday.ts') expect(literalNeeds).toEqual(['sp-btn sp-send needs']);
+      else if (literalNeeds.length) where.push(`${f}: a literal "needs" class`);
       const n = src.match(/\$\{(?:[^}]*\? [^}]*: )?NEEDS_ACT\}/g)?.length ?? 0;
       if (n) where.push(`${f}: ${n}`);
     }
-    // the draft's Send, the order's Confirm, the held conversation's Reply; Practice's Reply; the gallery shows it
-    expect(where.sort()).toEqual(['components.ts: 1', 'inbox.ts: 3', 'sandbox.ts: 1']);
+    // the draft's Send, order's Confirm, held Reply and waiting Hand to me; Practice's Reply; gallery
+    expect(where.sort()).toEqual(['components.ts: 1', 'inbox.ts: 4', 'sandbox.ts: 1']);
   });
 
   it('the component gallery shows the variant beside the ordinary primary act', () => {

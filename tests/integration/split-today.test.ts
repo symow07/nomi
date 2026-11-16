@@ -35,6 +35,16 @@ type Tx = import('../../src/db/client.js').Tx;
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
 const daysAgo = (n: number): string => iso(new Date(Date.now() - n * 86_400_000));
 
+function expectSingleDecisionSend(html: string): void {
+  // Block 2 fix round 1, approved polish 14: Today's Send has the existing
+  // needs dot. Pin that exact treatment and count every Send button, so adding
+  // the class cannot hide a second Send from the original one-command check.
+  const sends = html.match(/<button\b[^>]*\bvalue="send"[^>]*>/g) ?? [];
+  expect(sends).toHaveLength(1);
+  expect(sends[0]).toContain('class="sp-btn sp-send needs"');
+  expect(sends[0]).toContain('name="command"');
+}
+
 d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () => {
   let db: Db;
   let app: import('fastify').FastifyInstance;
@@ -152,7 +162,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
   it('Today uses the approved layout even when the old preview flag is off', async () => {
     const html = await today(plainCookie, plain);
     expect(html).toContain('class="owner-shell split"');
-    expect(html.match(/class="sp-btn sp-send"/g)).toHaveLength(1);
+    expectSingleDecisionSend(html);
     expect(html).toContain(`action="/app/inbox/${aisha}/act"`);
     expect(sheetLinks(html).some((h) => h.includes('/split.'))).toBe(true);
   });
@@ -169,7 +179,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
 
   it('keeps every safety: one Send, one magenta, Hand to me, the source checks, the notice', async () => {
     const html = await today();
-    expect(html.match(/class="sp-btn sp-send"/g)).toHaveLength(1);
+    expectSingleDecisionSend(html);
     expect(html).toContain('Hand to me');
     expect(html).toContain(`formaction="/app/inbox/${aisha}/takeover"`);
     expect(html).toContain(`action="/app/inbox/${aisha}/act"`);
@@ -183,7 +193,7 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     await off.close();
     expect(html).toContain('class="muted notlive"');
     expect(html).toContain('Sending is not switched on here yet');
-    expect(html.match(/class="sp-btn sp-send"/g)).toHaveLength(1);
+    expectSingleDecisionSend(html);
   });
 
   it('counts real rows: a conversation marked as the owner testing counts for nothing', async () => {

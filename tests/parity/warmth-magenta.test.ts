@@ -217,11 +217,16 @@ describe('rounded for warmth: one rule for corners (w4-whole-17; the warmth pass
     '.settings-area .scard': 'focused settings fields on a flat page',
     '.settings-area .card': 'settings sections separated by rules',
     '.il-main.sp-sheet': 'one flat Inbox list surface',
+    '.sp-panel > .sp-sheet': 'Today\'s panel: its parts ruled apart under its heading, no box round them (audit F05, Block 2)',
     '.customer-record .pcard': 'customer overview composed into the flat full record',
     '.customer-record .pc-facts>div': 'facts within the overview, not nested cards',
     '.customer-tools .scard': 'existing tool fields on the same flat page',
     '.conversation-workspace .catchup': 'conversation header separated by a hairline',
     '.conversation-workspace .draft': 'approval section separated by a hairline',
+    // Block 2 fix 1, approved polish: quiet stages are plain facts; Practice dividers are straight, not half-card arcs.
+    '.sp .sp-chip:not(.is-waiting):not(.is-order)': 'Today quiet stage text without a surrounding chip',
+    '.il-page .sp-chip:not(.is-waiting):not(.is-order)': 'Inbox quiet stage text without a surrounding chip',
+    '.assistant-practice .card': 'Practice section divided by a straight rule',
   };
 
   it('every corner is one of the four, or named above with its reason', () => {

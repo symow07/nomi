@@ -107,7 +107,7 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
       ${p.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
       <textarea id="reply" class="sp-reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
       <div class="sp-acts">
-        <button class="sp-btn sp-send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
+        <button class="sp-btn sp-send needs" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
         <label class="sp-btn" for="reply">${esc(t(locale, 'split.edit'))}</label>
         <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
       </div>

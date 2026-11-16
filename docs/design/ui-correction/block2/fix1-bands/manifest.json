@@ -1,0 +1,174 @@
+{
+  "capture_head": "75d6d18312e0fad82bcd78955b093542455554c7",
+  "product_source_head": "75d6d18312e0fad82bcd78955b093542455554c7",
+  "images": [
+    {
+      "file": "draft-en-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "414144144925611ed1de3d563e371ccdd6771b28f2bea56c684dfafd4a18ff5a",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-en-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "b9c16be14cb33f11fb60dc77b3434d49606c7363a5dbbeeebe509d09db7980b0",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-en-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c24792384b45a4fd0f23c637299b9ed552f7a711afef4c1891c986b5857d3ba2",
+      "opened_whole": true
+    },
+    {
+      "file": "order-en-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "eb78fb91ea80a3a21246ddbebca1e101ff881b38c6221f551bad2480b7373f20",
+      "opened_whole": true
+    },
+    {
+      "file": "draft-en-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "96a086e0e851e4f39a33fe63015774162d79fbb8ea893f1ab205fcd853d95bef",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-en-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "30db7e49cdaac7334468a46b7cabc82d1c33bd9b1c6f13930abe2ab02b8097f0",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-en-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "27e15430c1427a98d6055d0ba4ac1feaa43e99509304c12247a78afa97a0bfa7",
+      "opened_whole": true
+    },
+    {
+      "file": "order-en-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "7f5849b92edd53b6537f9581a79a29071c9e82276ea51ac0e3e2a55e8b2c5774",
+      "opened_whole": true
+    },
+    {
+      "file": "draft-en-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "5bf62bd767fbaab58693b855c199b68a545c6f3479d8f63a4d9e9196743e4021",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-en-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "5f3e4bf1687c8257d90821410bf29bc4dd9d67af999aa4fe31595d00f84de084",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-en-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "e58e2ddd0a57af1467bd1b94202f80166f60a6f79f37c91c6c471d883bc4a569",
+      "opened_whole": true
+    },
+    {
+      "file": "order-en-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "644e89ad9443b7c82de2b634678c56c19b699e29d48bdd49d37e312a094cd4c3",
+      "opened_whole": true
+    },
+    {
+      "file": "draft-ar-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "cc21995a55357f323c8c14cb2579692a831b959f4f37ee9f0c3ea759b7dd66c1",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-ar-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "04086fac409a4722bff678bd04a2cffb8d4e6ade66e4a0525e2047ca8cffe4a3",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-ar-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "64bd05acef58079938953baadc5c8d69ab454d68774ee1334dedc8a3e36790a3",
+      "opened_whole": true
+    },
+    {
+      "file": "order-ar-390x844-latest.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "070febebe28199dd2db769e7985c1a17e5ef40953c0e5ff3739d4f002dc8f5cd",
+      "opened_whole": true
+    },
+    {
+      "file": "draft-ar-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "29d1747bdd3925500e3006fd0e9a8b73c4e467eabddb51627447ee787406d94b",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-ar-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "d28c24c9965615ee5f160f8d2e854fd740e63bfc0cc72cfdc23cb0d672840ea3",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-ar-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "a6c061adf6f2ef8133310ed32422c1ce6c4a7b832d80b184f9dfd5f15a6c52a8",
+      "opened_whole": true
+    },
+    {
+      "file": "order-ar-320x568-latest.png",
+      "width": 320,
+      "height": 568,
+      "sha256": "7da54cca159654c79fbf1b3f6b76ca2187d8f2b700a40a720d7178545b974b67",
+      "opened_whole": true
+    },
+    {
+      "file": "draft-ar-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "9d8ae1774eea89ff9e53b800cd126ca593a2a468a9f3802f0937e38fad7e05b8",
+      "opened_whole": true
+    },
+    {
+      "file": "waiting-ar-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "7db27d73c743e83e8ac501f78edc0097061583716d50c01310c2cdc8267ec23d",
+      "opened_whole": true
+    },
+    {
+      "file": "handed-ar-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "f140b88d8d0b39d6708db6390b295739617d0f0f14de583ef52f7939621ff7df",
+      "opened_whole": true
+    },
+    {
+      "file": "order-ar-zoom200-latest.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "67156303e6d8bab0c3688455b12988b6882460cb1f4dd06064f74779289be014",
+      "opened_whole": true
+    }
+  ]
+}

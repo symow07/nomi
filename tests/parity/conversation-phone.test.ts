@@ -5,9 +5,12 @@
  *   1. on a conversation the tab bar is a ROW of the screen (a column: the page's scroll region, then the bar), so the
  *      region ends where the bar begins — nothing can be under the bar, in any state, language or size, with script or
  *      without (the stylesheet alone does it);
- *   2. a reply waiting has its box and its three answers in a band of a FIXED height between the region and the bar:
- *      the region ends where the band begins (the same figure, twice), the box takes what the answers leave, and the
- *      answers' heights are set — so they are whole whatever the reply, the language or what is typed;
+ *   2. the answers the page's state asks for stand in a band of a SET height between the region and the bar, in every
+ *      state (Block 2): a waiting reply's box and three answers, an order's two, the owner's own reply and its Send, or
+ *      "Hand to me" alone. The page names which (`data-band`, from what it drew); each band's height is one figure,
+ *      written twice — as the room the region gives up while it is drawn and as the band's own — so the region ends
+ *      where the band begins, a box in the band takes what the answers leave, and the answers' heights are set: they
+ *      are whole whatever the reply, the language or what is typed;
  *   3. nothing on a phone is sticky, and the page's script measures nothing for it.
  *
  * The two earlier rounds measured one conversation and failed on another; this reads the rules themselves.
@@ -15,6 +18,7 @@
 import { describe, expect, it } from 'vitest';
 import { CONVERSATION_CSS } from '../../src/api/web/conversationStyle.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
+import { bandOf } from '../../src/api/web/inbox.js';
 
 /** The top-level `@media` blocks of the sheet, by their condition. */
 function mediaBlocks(css: string): { cond: string; body: string }[] {
@@ -39,7 +43,15 @@ const band = blocks.find((b) => b.cond === '(max-width:720px) and (min-height:40
 const wide = blocks.find((b) => b.cond === '(min-width:481px) and (max-width:720px) and (min-height:400px)')!.body;
 const BAR = 'calc(69px + env(safe-area-inset-bottom))';
 const PAGE = '.owner-shell .layout:has(.conversation-workspace)';
-const WAITING = '.owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) form.approve):not(:has(#customer:target))';
+/** The screen's column while the named band is on it (the conversation shown, that band drawn). */
+const shown = (name: string, more = ''): string =>
+  `.owner-shell .layout:has(.conversation-workspace:not([data-tool-open]) .conv-acts[data-band="${name}"]${more}):not(:has(#customer:target))`;
+const ACTS = '.conversation-workspace .conv-acts';
+const APPROVE = `${ACTS}[data-band="approve"] form.approve`;
+const QUIET = `${ACTS}[data-band="approve"] #approve .acts-more .btn`;
+const REPLY = `${ACTS}[data-band="reply"] .replyform .answer`;
+const ORDER = `${ACTS}[data-band="order"] #order .answer`;
+const TAKE = `${ACTS}[data-band="take"] .takeover > form.answer`;
 
 describe('R-1 · a conversation on a phone: the bar is a row, the answers a band, nothing over anything', () => {
   it('the screen is a column — the scroll region, then the bar — so the region ends where the bar begins', () => {
@@ -53,6 +65,9 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(region).toContain('order:1'); expect(region).toContain('flex:1 1 0'); expect(region).toContain('min-block-size:0'); expect(region).toContain('overflow-y:auto');
     // the room the shell leaves under a page for its floating bar is not wanted where the bar floats over nothing
     expect(region).toContain('padding-block-end:0');
+    // Opening the replacement pane removes its band reservation immediately, including reduced motion.
+    // An inherited 1 ms margin transition clipped the loading line for the first rendered frame.
+    expect(region).toContain('transition:none');
   });
 
   it('nothing on a phone is sticky, and no script measures the page for it', () => {
@@ -65,32 +80,101 @@ describe('R-1 · a conversation on a phone: the bar is a row, the answers a band
     expect(LIVE_SCRIPT).not.toContain('draft-dock');
   });
 
-  for (const [name, body, clamp, under] of [['a narrow phone: two answers, then the third under them', band, 'clamp(232px, 44dvh, 340px)', 64], ['wider: the three answers in one row', wide, 'clamp(168px, 40dvh, 300px)', 8]] as const) {
-    it(`${name} — the region ends where the band begins, and the band's height is set`, () => {
-      // the same figure, twice: the room the region gives up, and the band's own height
-      expect(rule(body, `${WAITING} > .content`)).toBe(` margin-block-end:${clamp}; `);
-      expect(rule(body, '.conversation-workspace form.approve')).toContain(`block-size:${clamp};`);
+  /** The one figure a band's height is, read from both places it is written: the room the region gives up, and its own. */
+  const twice = (body: string, name: string, sel: string, more = ''): string => {
+    const room = rule(body, `${shown(name, more)} > .content`).trim();
+    const own = rule(body, sel).trim();
+    expect(room, `${name}${more}: the region's room`).toMatch(/^margin-block-end:([^;]+);$/);
+    const figure = /^margin-block-end:([^;]+);$/.exec(room)![1]!;
+    expect(own, `${name}${more}: the band's own height is the same figure`).toBe(`block-size:${figure};`);
+    return figure;
+  };
+
+  it('one figure a band, written twice: the region ends where the band begins', () => {
+    // a band only where the page names one: no rule gives the region room otherwise
+    expect(band).not.toMatch(/\.owner-shell \.layout:has\(\.conversation-workspace\) > \.content \{[^}]*margin-block-end/);
+    for (const [name, sel] of [['approve', APPROVE], ['reply', REPLY], ['order', ORDER], ['take', TAKE]] as const) twice(band, name, sel);
+    // every band stands on the bar, at the screen's full width, over nothing
+    const all = rule(band, [APPROVE, REPLY, ORDER, TAKE].join(', '));
+    expect(all).toContain('position:fixed'); expect(all).toContain('box-sizing:border-box');
+    expect(all).toContain(`inset-block-end:${BAR};`); expect(all).toContain('inset-inline:0');
+    // the tool pane and the customer's facts take the conversation's place on a phone: no band while either is open
+    expect(shown('approve')).toContain(':not([data-tool-open])'); expect(shown('approve')).toContain(':not(:has(#customer:target))');
+    // no custom property carries it: the figure is in the rule itself
+    expect(CONVERSATION_CSS).not.toContain('--band');
+  });
+
+  for (const [name, body, clamp, noted, under] of [
+    ['a narrow phone: two answers, then the third under them', band, 'clamp(232px, 40dvh, 340px)', 'clamp(288px, 46dvh, 380px)', 64],
+    ['wider: the three answers in one row', wide, 'clamp(168px, 40dvh, 300px)', 'clamp(224px, 46dvh, 340px)', 8]] as const) {
+    it(`a reply waiting, ${name} — the band's height is set, and holds the answers and a box`, () => {
+      expect(twice(body, 'approve', APPROVE)).toBe(clamp);
       // the smallest band still holds the answers and a box of 96 px or more: 8 above the box, 8 under it, the answers' 48
       const least = Number(/clamp\((\d+)px/.exec(clamp)![1]);
       expect(least - (8 + 8 + 48 + under)).toBeGreaterThanOrEqual(96);
       // and the smallest screen that has a band (400 px tall) keeps a scroll region above it and the bar
       expect(400 - 69 - least).toBeGreaterThanOrEqual(96);
+      // a note in the band (kept words, why it waits) is given its own room: the band is 56 px taller with one
+      expect(twice(body, 'approve', `${APPROVE}:has(> p)`, ' form.approve > p')).toBe(noted);
+      expect(Number(/clamp\((\d+)px/.exec(noted)![1]) - least).toBe(56);
     });
   }
 
-  it('the band stands on the bar; its box takes what the answers leave; the answers are 48 px, whole', () => {
-    const form = band.slice(band.indexOf('.conversation-workspace form.approve { position:fixed'));
-    expect(form).toContain(`inset-block-end:${BAR};`);
-    expect(form).toContain('inset-inline:0');
-    expect(rule(band, '.conversation-workspace form.approve textarea')).toContain('flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed;');
-    expect(rule(band, '.conversation-workspace form.approve .acts')).toContain('flex:none');
-    expect(rule(band, '.conversation-workspace form.approve .acts .btn, .conversation-workspace #approve .acts-more .btn')).toContain('block-size:48px; min-block-size:0;');
+  it('a reply waiting: the box takes what the answers leave; the answers are 48 px, whole', () => {
+    expect(rule(band, `${APPROVE} textarea, ${REPLY} textarea`)).toContain('flex:1 1 0; block-size:auto; min-block-size:0; max-block-size:none; field-sizing:fixed;');
+    expect(rule(band, `${APPROVE} .acts`)).toContain('flex:none');
+    const answers = rule(band, [`${APPROVE} .acts .btn`, QUIET, `${REPLY} > .btn`, `${ORDER} .btn`, `${TAKE} .btn`].join(', '));
+    expect(answers).toContain('block-size:48px; min-block-size:0;'); expect(answers).toContain('white-space:normal');
     // "No reply needed" is its own form after the block: it is set in the band's last row, 8 px above the bar (69 + 8)
-    const quiet = band.slice(band.lastIndexOf('.conversation-workspace #approve .acts-more .btn {'));
+    const quiet = rule(band, QUIET);
     expect(quiet).toContain('position:fixed'); expect(quiet).toContain('inset-block-end:calc(77px + env(safe-area-inset-bottom));');
-    // a transformed card would carry what is fixed inside it: the entrance is off where the band is
-    expect(rule(band, '.conversation-workspace #approve')).toBe(' animation:none; ');
+    expect(band.slice(band.indexOf(`${APPROVE} { padding-block-end`))).toMatch(/^[^{]+\{ padding-block-end:64px; \}/);
+    // a transformed card would carry what is fixed inside it: the entrance is off, at every width (F44: routine work)
+    let bare = CONVERSATION_CSS; for (const b of blocks) bare = bare.replace(b.body, '');
+    expect(rule(bare, '.conversation-workspace #approve, .conversation-workspace #order, .conversation-workspace .conv-acts[data-band] > .card')).toBe(' animation:none; ');
     // a short screen has no band: nothing in the plain phone block is fixed
     expect(phone).not.toMatch(/position:\s*fixed/);
+  });
+
+  it('the other states: the owner\'s own reply (a box and Send), an order\'s two answers, "Hand to me" alone', () => {
+    // the reply's band holds a box of 96 px or more above its 48 px Send: 8 + box + 8 + 48 + 8
+    const reply = twice(band, 'reply', REPLY);
+    expect(Number(/clamp\((\d+)px/.exec(reply)![1]) - (8 + 8 + 48 + 8)).toBeGreaterThanOrEqual(96);
+    // The order's 48 px answers also reserve room for the two-line consequence note.
+    expect(twice(band, 'order', ORDER)).toBe('104px');
+    // Takeover in other states still has one 48 px row and 8 px each side.
+    expect(twice(band, 'take', TAKE)).toBe('64px');
+    // (the last rule of that name: the first is the tail of the four bands' shared rule)
+    expect(band.slice(band.lastIndexOf(`${ORDER}, ${TAKE} {`))).toContain('grid-auto-columns:minmax(0,1fr)');
+  });
+
+  it('B2-V01 reserves the warning/figure context as well as the unchanged action band', () => {
+    // Arrival failed despite the earlier base-band pins: its Send/Confirm was whole, but what qualified it
+    // was clipped in the region. Keep those pins and also pin the context's position and matching reservation.
+    for (const [cond, warnings, actions, kept, facts] of [
+      ['(max-width:720px) and (min-height:400px)', '96px', 'clamp(232px, 40dvh, 340px)', 'clamp(288px, 46dvh, 380px)', '184px'],
+      ['(min-width:481px) and (max-width:720px) and (min-height:400px)', '64px', 'clamp(168px, 40dvh, 300px)', 'clamp(224px, 46dvh, 340px)', '128px'],
+    ]) {
+      const body = blocks.filter(b => b.cond === cond).at(-1)!.body;
+      for (const [size, more, sel] of [
+        [actions, ' .approval-warnings', `${ACTS}[data-band="approve"] .approval-warnings`],
+        [kept, ' form.approve > p', `${ACTS}[data-band="approve"]:has(form.approve > p) .approval-warnings`],
+      ]) {
+        expect(rule(body, `${shown('approve', more)}${size === kept ? ':has(.approval-warnings)' : ''} > .content`)).toContain(`margin-block-end:calc(${size} + ${warnings});`);
+        expect(rule(body, sel!)).toContain(`block-size:${warnings}; inset-block-end:calc(${BAR} + ${size});`);
+      }
+      expect(rule(body, `${shown('order')} > .content`)).toContain(`margin-block-end:calc(104px + ${facts});`);
+      expect(rule(body, `${ACTS}[data-band="order"] .order-facts`)).toContain(`block-size:${facts}; inset-block-end:calc(${BAR} + 104px);`);
+    }
+  });
+
+  it('the page names the band from what it drew: one at most, the order first', () => {
+    const order = '<div class="acts answer">', approve = '<form method="post" action="/x" class="approve">', reply = '<div class="answer">', take = '<form method="post" action="/x" class="inline answer">';
+    expect(bandOf('')).toBe('');
+    expect(bandOf('<div class="card">nothing to answer</div>')).toBe('');
+    expect(bandOf(take)).toBe(' data-band="take"');
+    expect(bandOf(reply + take)).toBe(' data-band="reply"');
+    expect(bandOf(approve + take)).toBe(' data-band="approve"');
+    expect(bandOf(order + approve + reply + take)).toBe(' data-band="order"');
   });
 });

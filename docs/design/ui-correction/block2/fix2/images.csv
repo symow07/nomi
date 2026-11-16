@@ -1,0 +1,75 @@
+image,item,phase,source_commit,sha256,review
+f13-ar-1280-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,a08a14741f4a9b76de07e19d901995cb87dc57642c1d8c748db538d76fade7e7,Opened whole by frontend; see README for limits
+f13-ar-1280-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,1489597480f3f45f320355ff2c8346d8dd2e0ac0c6b18a4d8a41320d2c9a3cec,Opened whole by frontend; see README for limits
+f13-ar-1280-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,d51de741fa713b7016c1cf49ec58be1df887b841371c30a0390e9aa5c3450d85,Opened whole by frontend; see README for limits
+f13-ar-1280-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,3296dc8bdb210b65a6fca916b545256f3d2da391d59abbddb5e8e6c0444b68e5,Opened whole by frontend; see README for limits
+f13-ar-1440-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,abd24ec3a11d623bf8fedaf9da9ec7ea9b55c5d709b7cf822f4b3008ba43dea7,Opened whole by frontend; see README for limits
+f13-ar-1440-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,a73d587b28cd78545c64bac18ab17cce455796f3b5abcbc4a86f07f370c77762,Opened whole by frontend; see README for limits
+f13-ar-1440-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,ef0689341826247bcce14456aafaefdcfcdb8fbf6b9f9dece9e5dda284096d14,Opened whole by frontend; see README for limits
+f13-ar-1440-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,7f42d0ad42d907fa7afb3a97e17e9b9f5426759e698a1ef6799e52b1c5772591,Opened whole by frontend; see README for limits
+f13-ar-320-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,f09207a50fa22a6f20789097128f3c136bb22c103ba90a4c475357ac54774884,Opened whole by frontend; see README for limits
+f13-ar-320-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,6640dec4267c351a857663ad5e59620f76927e2a2de8fef46430c3a63f23433f,Opened whole by frontend; see README for limits
+f13-ar-320-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,3ac19ec4e1998db71608621986521553d0d102e928c9c73e2394a2a747c01ba7,Opened whole by frontend; see README for limits
+f13-ar-320-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,7ea9233f37afc4cf9e1c3694fd7ef8f649b864e561331ab9838441cbaa9106fc,Opened whole by frontend; see README for limits
+f13-ar-390-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,386206f7b1abada225d9c9cd3a52a8f89a73e24d449c9d470c6ffd4a937f5f2d,Opened whole by frontend; see README for limits
+f13-ar-390-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,c539fbde383727b914e4ab21530263ef500a32115374ce1fb4ac55b1054c4991,Opened whole by frontend; see README for limits
+f13-ar-390-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,405fa313500bb650bef0b4c22d64a2c1e573a8fb190eadd2158a4af2233a52e9,Opened whole by frontend; see README for limits
+f13-ar-390-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,e22071a0514717ced431bcbefec10250872e7de38cd1c6c7c113bbb42e24c5a2,Opened whole by frontend; see README for limits
+f13-en-1280-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,4a453c53537174ce4afe37b1ae8117bb8e2e7993bc2666ceb11f1bc683b7f63e,Opened whole by frontend; see README for limits
+f13-en-1280-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,3d161d14fcaccde060e2ffe53ee75fbb1962f8be89ec40465b4dd960d2320b9e,Opened whole by frontend; see README for limits
+f13-en-1280-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,bcbfaa0a44d7fe4fa33e98eaa6398e93ac7af7d50e7c4e30539ed5da5afa8f92,Opened whole by frontend; see README for limits
+f13-en-1280-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,2e56b03f5681b6d30772240c9fd73bd1486f69e06aba0e068259299f8da4f75e,Opened whole by frontend; see README for limits
+f13-en-1440-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,adafe1643da8c2be2fa01f94d4309ea066336696ba78754cd3c73fc3e7e3d69d,Opened whole by frontend; see README for limits
+f13-en-1440-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,493236454caf723c8973eec0c204c32aad25822336a0429aa59163c4a7e1f7ed,Opened whole by frontend; see README for limits
+f13-en-1440-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,2e28da1dc0e4ce5de2c296dfdc34aaf420cadec54a17b1ca6190f2d1400f7eca,Opened whole by frontend; see README for limits
+f13-en-1440-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,9bd3c4146262d07cde9af7d9a034fe8e8dfc2c628f76f2d1a06a59821733a8a0,Opened whole by frontend; see README for limits
+f13-en-320-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,d120faf6bdd2e8e558e12d2a368369b79f588b5bfe38e087015aeab8744dcaca,Opened whole by frontend; see README for limits
+f13-en-320-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,1c74f030ebd93d0fb6993b3d2ab7a49b641fbe47afed985beded1424d2811a72,Opened whole by frontend; see README for limits
+f13-en-320-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,0b9d0c4cf321fe85ce62e71c487d6333e36e76336367b1d24e6dbc1c78014a34,Opened whole by frontend; see README for limits
+f13-en-320-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,6d4c72b7ea454c2c568333a2bd4b724306e1ebe3a855149c0d84e2235000c8bd,Opened whole by frontend; see README for limits
+f13-en-390-closed.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,19b5405ee4f1df6e8525868e85b3f6a1e435a933e11617d70b3422130139c5ba,Opened whole by frontend; see README for limits
+f13-en-390-error.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,1ba1da6ad63eba76478176b367fa214f32f1e7d806914c5244a85a6d92078f11,Opened whole by frontend; see README for limits
+f13-en-390-loading.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,155a209a05dff24c317d8722f7a829053d3568ab5cb6488b5cfe141f48ac439a,Opened whole by frontend; see README for limits
+f13-en-390-open.png,F13,after,e51f28a7428a68859eb564ffc7f299ca2b9a3612,e4ebe869a7916fa08b729eb43edf7f0e69dd090fca80e798aa778d23a23a0ae7,Opened whole by frontend; see README for limits
+arrival-final-ar-phone320-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,613ff1ff0865c4d7917e0321d20856814903eed6abb8afe0e8bb2ed174eaa183,Opened whole by frontend; see README for limits
+arrival-final-ar-phone320-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,87810bc8164d66157ef8fb3b7e47f533a3867aaec2a710f584233d49d7f414ea,Opened whole by frontend; see README for limits
+arrival-final-ar-zoom200eq-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,8d4e8f9b41c41c901f1d511bf5b85850920c9a4f0b512401f1675bf1d100ceee,Opened whole by frontend; see README for limits
+arrival-final-ar-zoom200eq-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,18986c0a9efa02187e36f1c1d5542a817654f57ff399159f2c575cc71f8a67bf,Opened whole by frontend; see README for limits
+arrival-final-en-phone320-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,6f33f4af4dfea3abc2efa17794e864004456620d07099e9220d4891b344fe6f9,Opened whole by frontend; see README for limits
+arrival-final-en-phone320-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,dac1a05c3f83ac76600ad3e886036fc1cb6a46e0fe8feb17d4499e969e081310,Opened whole by frontend; see README for limits
+arrival-final-en-zoom200eq-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,6208a99bd0cf9685482e4eaeacd250637d0495c6b9e10fca799092abe4223333,Opened whole by frontend; see README for limits
+arrival-final-en-zoom200eq-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,d37b58a4482737516bea114d9436ce3e9341c5affe2863bb0c759759827f8528,Opened whole by frontend; see README for limits
+arrival-final-fr-phone320-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,3551b908691835b18cb27262eef135343ff54e41ffe41c4bcb9b6a6ccaa10099,Opened whole by frontend; see README for limits
+arrival-final-fr-phone320-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,9895a78f62f84c5a9ceac4d331b423a2fee5d396bb119d2037c941c83828b4d1,Opened whole by frontend; see README for limits
+arrival-final-fr-zoom200eq-draft.png,B2-V01,after,d198eefafce60152870961ad5d4c893a2627aee3,fa6cb6ca5a851916b9c527e71c757d14087eaa8fc82e1b0af339c225cde5ea20,Opened whole by frontend; see README for limits
+arrival-final-fr-zoom200eq-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,b3bdfbd0ed2283654f8563c786790e6e8c0717e585bba31ab66db3cfeb7e4f59,Opened whole by frontend; see README for limits
+n1-ar-320.png,N1,after,b879605d1e554894f6e838bfe21dd8095234fa47,3439571206ba055fe35f47036e4599d05106c0fccf40b52d5b1146a84ce73838,Opened whole by frontend; see README for limits
+n1-en-320.png,N1,after,b879605d1e554894f6e838bfe21dd8095234fa47,fc755a887640e814d6d5b89284ee3953e3e9a637e9059b03d99ba482aa8f3bb3,Opened whole by frontend; see README for limits
+n1-es-320.png,N1,after,b879605d1e554894f6e838bfe21dd8095234fa47,ea01736c65e920139e460f3f671b98e31b7813dd8c18d1df4c6c20da697d8d54,Opened whole by frontend; see README for limits
+n1-fr-320.png,N1,after,b879605d1e554894f6e838bfe21dd8095234fa47,34098521cbd7a1ed7593db158a562692f7bc885b2618cb2232777c26fd336bb4,Opened whole by frontend; see README for limits
+n1-zh-320.png,N1,after,b879605d1e554894f6e838bfe21dd8095234fa47,e653b5d95fdcc955a80746b87e3b17343bbe9600209d719e953a3c9b014f86bb,Opened whole by frontend; see README for limits
+n2-after-fr-1440.png,N2,after,0b4b22801da559392d87f517d3eafdf60febecd4,f03ee88b10d7fe37a95ed32a669395908bc3baa505ee0dd7cee691c4f914d8b1,Opened whole by frontend; see README for limits
+design-before-fr-phone320-inbox.png,N1,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,0262ab30e45c016196aebfa072b9d04fb20eb9eb5d9f4afd488304887372a70e,Opened whole by frontend; see README for limits
+n2-before-fr-1440.png,N2,before,b879605d1e554894f6e838bfe21dd8095234fa47,7684b6f5b42eab70afcfa8b3d1a5b60c78ad3cbc7fd7501a3bfa39372e2c4912,Opened whole by frontend; see README for limits
+design-before-en-1440-closed.png,F13,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,9df35e8c748b338ba02d3f2cd717bd72e282952b99f3d827a09f68cc9acb26bf,Opened whole by frontend; see README for limits
+design-before-en-1440-open.png,F13,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,9a75ce32a867caec654b7f8c8f400e48525d4f5cee839ae2932555f90073ebba,Opened whole by frontend; see README for limits
+design-before-ar-1440-closed.png,F13,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,abd24ec3a11d623bf8fedaf9da9ec7ea9b55c5d709b7cf822f4b3008ba43dea7,Opened whole by frontend; see README for limits
+design-before-ar-1440-open.png,F13,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,c61ce29f42db3a6d1d945b8c3f014687204104b552c2b13685a0a7a31379dfc6,Opened whole by frontend; see README for limits
+arrival-before-en-phone320-draft.png,B2-V01,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,1ad7e77952a74a8e65d3cdcba2096e22a44a2b50abab8e5940dd6fe7df7444b7,Opened whole by frontend; see README for limits
+arrival-before-en-phone320-order.png,B2-V01,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,a4fd2d6cd1aa2e9ab650815f1868ae16732ebbb1c909369222e761739dd101de,Opened whole by frontend; see README for limits
+arrival-before-fr-phone320-draft.png,B2-V01,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,8fa81534340a716d910762886e29457213299d6c2438c7e456005bd63c870055,Opened whole by frontend; see README for limits
+arrival-before-fr-phone320-order.png,B2-V01,before,c4983f7eaf71d4451dfa73242ec93454fa86cafb,a11c1809a38be446dbcb3ce0d1dede483eb0e14cb39928bf438917d7f8358c4e,Opened whole by frontend; see README for limits
+owner-copy/item7-en-phone320-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,5af5e8ed6e7fcc3a2f982f0c257fcd1b9031d06b0eef910480e838cb1c3974b2,Opened whole by frontend; see README for limits
+owner-copy/item7-en-zoom200eq-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,f0433a6e1f45bb08d1973ac2cf95663462e46f76c24585089ef33e224efaa17f,Opened whole by frontend; see README for limits
+owner-copy/item7-ar-phone320-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,f2d326dcb53b9b1f292dab7daff1010e598f99fa0959999e39379b90ed155ecf,Opened whole by frontend; see README for limits
+owner-copy/item7-ar-zoom200eq-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,58af39f5a53d0430078af5d14ecd08b400521873bab6df214a7d9c53e9b19bd1,Opened whole by frontend; see README for limits
+owner-copy/item7-es-phone320-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,8822768321a42437418764f0fb3940c07f3d47b4004efa98c9f55195d475a5b0,Opened whole by frontend; see README for limits
+owner-copy/item7-es-phone320-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,efc099ef6784a7afd0967856228b38501f96bf5fd166703b754c0cf0b7b9aecd,Opened whole by frontend; see README for limits
+owner-copy/item7-es-zoom200eq-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,cf3e1681a6a092c45b60ed72db497b03cf1996253a59b91904029a2d5abf86a1,Opened whole by frontend; see README for limits
+owner-copy/item7-es-zoom200eq-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,383996d44c1baafc81304508708356095bb95682f8df376c9e79ec24a0ca2c94,Opened whole by frontend; see README for limits
+owner-copy/item7-fr-phone320-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,7023413fd0f206e6d33059b03bdf70884979730c2b26daa450f147affd7fe087,Opened whole by frontend; see README for limits
+owner-copy/item7-fr-zoom200eq-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,7f2504b47ed2733b04ee176be3847a4fca496e57c87110a4cac507c96d985d44,Opened whole by frontend; see README for limits
+owner-copy/item7-zh-phone320-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,2a0e38e2bfe0c5a18557410ee138fc898f0ebdc8222f4a610196fbb2cc2fcdfe,Opened whole by frontend; see README for limits
+owner-copy/item7-zh-phone320-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,5e0d0694e1b2699c7415a7901188f9b8bc827afa4665a8aa73e51a4a32737907,Opened whole by frontend; see README for limits
+owner-copy/item7-zh-zoom200eq-order.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,6565660338a38615f95b27a25121e0906ba64ce2cf64145ccb643fad16856ff1,Opened whole by frontend; see README for limits
+owner-copy/item7-zh-zoom200eq-takeover.png,B2-V01 / owner item7,after,6c81b12b7b49dfebf6ff9ccf3b47d58fb35e8142,254c5921a54e6cd8bc901e1d922d94e65154ddab6ea066e1d2371b8a443f198f,Opened whole by frontend; see README for limits

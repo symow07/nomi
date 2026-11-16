@@ -1269,6 +1269,58 @@ export const speakerOf = (m: { readonly direction: 'inbound' | 'outbound'; reado
 export const bubbleClass = (s: Speaker): string => (s === 'assistant' ? 'bubble by-as' : 'bubble');
 
 /**
+ * THE UI CORRECTION (2026-11-13, audit F14) — a long message in the thread. An e-mail brings its sender's footer, the
+ * history it quotes and addresses hundreds of characters long, and on a phone they put the reply two screens below
+ * the customer's own words. Such a message is shown as its opening — up to where the quoted history or the signature
+ * begins, a few lines at most, a very long address shortened to where it leads — with the whole message one press
+ * away, in place, and closed again by the same press. NOTHING is cut from what is kept: opened, the bubble holds the
+ * message exactly as it arrived. An address is never made a link: what a stranger sends is read, not followed (the
+ * rule the shared-post card keeps, CH7a). A message of ordinary length is drawn exactly as before.
+ */
+export const LONG_MESSAGE = { chars: 480, lines: 10, address: 72 } as const;
+/** Where an e-mail stops being this message: a quoted line, the "wrote:" line above one, a forwarded header, a signature's rule. */
+const QUOTED_FROM = [
+  /^(?:(?:kind|best|warm) regards|regards|sincerely|cordialement|bien cordialement|saludos|atentamente)[,!.]?$/i,
+  /^(?:此致|此致敬礼|敬上)[，。！]?$/, /^(?:مع (?:أطيب |خالص )?التحيات|مع تحياتي)[،,.]?$/,
+  /^>/, /^-{2,} ?(?:original message|forwarded message|message d'origine|mensaje original)\b/i, /^-- ?$/, /^_{8,}$/,
+  /^on .{4,160} wrote:$/i, /^le .{4,160} a écrit ?:$/i, /^el .{4,160} escribió:$/i, /^em .{4,160} escreveu:$/i,
+  /^.{0,120}(?:写道|寫道)[:\uFF1A]$/, /^(?:في|بتاريخ) .{4,160} كتب.{0,60}[:\uFF1A]$/,
+  /^(?:from|sent|de|envoyé|enviado|发件人|من) ?[:\uFF1A] .+@.+/i,
+] as const;
+const LONG_ADDRESS = /\bhttps?:\/\/[^\s<>"']+/gi;
+const shortAddress = (url: string): string => {
+  if (Array.from(url).length <= LONG_MESSAGE.address) return url;
+  const m = /^https?:\/\/([^\/?#]+)/i.exec(url);
+  return m ? `${m[1]}/…` : url;
+};
+/** The opening of a long message, or null when the message is drawn whole. */
+export function messageOpening(text: string): string | null {
+  const lines = text.split('\n');
+  const quoted = lines.findIndex((l, i) => i > 0 && QUOTED_FROM.some((r) => r.test(l.trim())) && lines.slice(0, i).some((b) => b.trim() !== ''));
+  // An address is shortened before the opening is measured: three hundred characters of it are not the message's words.
+  let head = (quoted > 0 ? lines.slice(0, quoted) : lines).slice(0, LONG_MESSAGE.lines).join('\n').replace(LONG_ADDRESS, shortAddress);
+  const chars = Array.from(head);
+  if (chars.length > LONG_MESSAGE.chars) {
+    const cut = chars.slice(0, LONG_MESSAGE.chars).join('');
+    const space = Math.max(cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
+    head = space > LONG_MESSAGE.chars / 2 ? cut.slice(0, space) : cut;
+  }
+  const opening = head.trimEnd();
+  // Nothing worth a press is held back: a line or two, or an address a little over the line.
+  const held = Array.from(text.trimEnd()).length - Array.from(opening).length;
+  const heldLines = text.trimEnd().split('\n').length - opening.split('\n').length;
+  return opening !== '' && (held > 120 || heldLines >= 4) ? opening : null;
+}
+/** A typed line in its bubble: whole, or — a long one — its opening with the whole message one press away. */
+export function messageBubble(locale: Locale, text: string, cls: string): string {
+  const opening = messageOpening(text);
+  if (opening === null) return `<div dir="auto" class="${cls}">${esc(text)}</div>`;
+  return `<div class="${cls} long"><details class="msg-long"><summary><span dir="auto" class="msg-opening">${esc(opening)}${opening.endsWith('…') ? '' : '…'}</span>`
+    + `<span class="msg-toggle"><span class="mt-more">${esc(t(locale, 'conv.message.whole'))}</span><span class="mt-less">${esc(t(locale, 'conv.message.less'))}</span></span></summary>`
+    + `<div dir="auto" class="msg-whole">${esc(text)}</div><button type="button" class="msg-close" data-message-close hidden>${esc(t(locale, 'conv.message.less'))}</button></details></div>`;
+}
+
+/**
  * Why a customer needs the owner, in the Buyers row's own words (its badge):
  * an order waiting, a deletion asked, the stored reason they were handed over
  * (never inferred), a reply to review, or a conversation the owner holds.
@@ -1557,18 +1609,21 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
       <blockquote class="unsure-q" dir="auto">${esc(p.said)}</blockquote>` : ''}
-      <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      ${/* B2-V01: keep the four decision figures together; a phone reserves their own band above Confirm.
+           Optional contact/terms rows stay in the same document order below them. */ ''}<ul class="rows order-facts">${fields.slice(0, 4).map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      ${fields.length > 4 ? `<ul class="rows order-extra">${fields.slice(4).map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>` : ''}
       ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed">${esc(willSend)}</div>
-      <div class="acts">
+      <div class="acts answer">
         <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
           <button class="${NEEDS_ACT}" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
         </form>
         <form method="post" action="${esc(to.stepIn)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
-          <button class="btn" type="submit">${esc(t(locale, 'order.action.stepIn'))}</button>
+          <button class="btn" type="submit" aria-describedby="order-set-aside-note">${esc(t(locale, 'order.action.stepIn'))}</button>
+          <p id="order-set-aside-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.setAsideHint'))}</p>
         </form>
       </div>
       <p class="muted revoke-note">${esc(t(locale, 'order.action.stepIn.note'))}</p>
@@ -1583,7 +1638,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="${d.ownership !== 'WAITING_HUMAN' ? 'btn' : NEEDS_ACT}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is
@@ -1648,10 +1703,12 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${handToForm}
         ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
-          ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
-          ${/* Block 3 PR 4 — the words the assistant would write now, put in the box after what is typed; nothing is sent. */ ''}<button class="btn ghost" type="submit" formaction="/app/conversations/${encodeURIComponent(d.conversationId)}/copilot/suggest" formnovalidate>${esc(t(locale, 'copilot.suggest'))}</button>
-          ${savedReplyPick(d, locale)}
-          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          ${/* The UI correction, Block 2 — what fills the box comes first, then the box and its Send together (`answer`): on a
+               phone the two are the band above the tab bar, and at every size the keyboard's order is the order drawn.
+               Block 3 PR 4 — the words the assistant would write now, put in the box after what is typed; nothing is sent. */ ''}<div class="reply-tools"><button class="btn ghost" type="submit" formaction="/app/conversations/${encodeURIComponent(d.conversationId)}/copilot/suggest" formnovalidate>${esc(t(locale, 'copilot.suggest'))}</button>
+          ${savedReplyPick(d, locale)}</div>
+          <div class="answer">${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-copilot-holder="${esc(d.heldBy ?? 'owner')}" data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
+          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button></div>
         </form>
         ${photoForm(d, locale)}
         ${viewer.isOwner ? productCardForm(d, locale) : ''}
@@ -2146,10 +2203,11 @@ export function approvalChecks(d: ConversationDetail, p: NonNullable<Conversatio
   // The fix wave (w4-conversation-02) — both, when both: a claim you never confirmed was left
   // off the line whenever a figure had no source, and the owner had to open the fold to learn it.
   const check = (words: string) => `<span class="c check"><span aria-hidden="true">${UNSURE[locale]}</span> ${esc(words)}</span>`;
+  const warnings = (unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : '')
+    + (unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : '');
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
-        unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : ''}${
-        unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : ''}</summary>${
+        warnings ? `<span class="approval-warnings">${warnings}</span>` : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
 
@@ -2366,7 +2424,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : m.photo ? `<div class="bubble sent-photo"><img src="${esc(m.photo)}" alt="${esc(t(locale, 'photo.sent.alt'))}" loading="lazy" /></div>`
-            : `<div dir="auto" class="${bubbleClass(speakerOf(m))}">${esc(m.text)}</div>`}
+            : messageBubble(locale, m.text, bubbleClass(speakerOf(m)))}
           ${m.unconfirmed ? `<p class="note muted" role="note">${esc(t(locale, 'conv.senderUnconfirmed'))}</p>` : ''}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
@@ -2681,11 +2739,22 @@ export function renderConversationDetail(
     <div class="conv-thread" role="region" tabindex="0" aria-label="${esc(t(locale, 'inbox.detail.log'))}"><div class="conv-thread-in">
     ${log}
     </div></div>
-    <div class="conv-acts">
+    <div class="conv-acts"${bandOf(acts)}>
     ${flashHtml}
     ${acts}
     </div>`;
 }
+
+/**
+ * The UI correction, Block 2 — which of the page's answers stand in a phone's band above the tab bar (conversationStyle.ts):
+ * the order's two, else the waiting reply's three, else the owner's own reply and its Send, else "Hand to me". Named from
+ * what was actually drawn, so the stylesheet never makes a band of something that is not on the page. One at most.
+ */
+export const bandOf = (acts: string): string => {
+  const band = acts.includes('<div class="acts answer">') ? 'order' : acts.includes(' class="approve">') ? 'approve'
+    : acts.includes('<div class="answer">') ? 'reply' : acts.includes(' class="inline answer">') ? 'take' : null;
+  return band ? ` data-band="${band}"` : '';
+};
 
 /**
  * 0226 — the issued invoice made from the order, beside the proforma row: a door to its page, and — where the workspace

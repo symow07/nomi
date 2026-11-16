@@ -190,6 +190,23 @@ describe('0080 · the card the owner decides on', () => {
   });
   const NOW = new Date('2026-09-29T10:00:00Z');
 
+  it('distinguishes setting the order aside from taking over while it stays pending, without losing either command', () => {
+    for (const locale of LOCALES) {
+      const html = renderConversationDetail(detail(), locale, NOW, null, OWNER_VIEW);
+      const stepIn = /<form[^>]*action="\/app\/inbox\/conv-1\/order\/step-in"[^>]*>([\s\S]*?)<\/form>/.exec(html)![1]!;
+      const take = /<form[^>]*action="\/app\/inbox\/conv-1\/takeover"[^>]*>([\s\S]*?)<\/form>/.exec(html)![1]!;
+      expect(stepIn).toContain('name="proposalId"');
+      expect(stepIn).toContain(esc(t(locale, 'order.action.stepIn')));
+      expect(take).toContain(esc(t(locale, 'takeover.action.take')));
+      expect(stepIn).toContain('aria-describedby="order-set-aside-note"');
+      expect(take).toContain('aria-describedby="order-keep-waiting-note"');
+      expect(stepIn).toMatch(/id="order-set-aside-note"[^>]*>[^<]+<\/p>/);
+      expect(take).toMatch(/id="order-keep-waiting-note"[^>]*>[^<]+<\/p>/);
+      const ordinary = renderConversationDetail(detail({ orderProposal: null }), locale, NOW, null, OWNER_VIEW);
+      expect(ordinary).not.toContain('order-keep-waiting-note');
+    }
+  });
+
   it('says exactly what they said yes to, that nothing was sent, and what they will be sent', () => {
     for (const locale of LOCALES) {
       const html = renderConversationDetail(detail(), locale, NOW, null, OWNER_VIEW);
@@ -205,7 +222,7 @@ describe('0080 · the card the owner decides on', () => {
   it('two answers, each a button in a form that posts: confirm, or step in', () => {
     const html = renderConversationDetail(detail(), 'en', NOW, null, OWNER_VIEW);
     expect(html).toMatch(/<form method="post" action="\/app\/inbox\/conv-1\/order\/confirm"[^>]*>\s*<input type="hidden" name="proposalId" value="f0000000-0000-0000-0000-000000000001" \/>\s*<button class="btn send needs" type="submit">Confirm the order<\/button>/);
-    expect(html).toMatch(/<form method="post" action="\/app\/inbox\/conv-1\/order\/step-in"[^>]*>\s*<input type="hidden" name="proposalId"[^>]*\/>\s*<button class="btn" type="submit">Hand to me<\/button>/);
+    expect(html).toMatch(/<form method="post" action="\/app\/inbox\/conv-1\/order\/step-in"[^>]*>\s*<input type="hidden" name="proposalId"[^>]*\/>\s*<button class="btn" type="submit"[^>]*>Hand to me<\/button>/);
   });
 
   it('first of the things to do: above the draft card, and only while one waits', () => {

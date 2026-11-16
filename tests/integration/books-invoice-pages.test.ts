@@ -1,3 +1,4 @@
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -273,6 +274,32 @@ d('C2 · invoices through the routes (requires DATABASE_URL + MIGRATE_DATABASE_U
     // and the words exist in every language the owner reads
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) for (const key of ['books.invoice.problem.quantity', 'books.invoice.problem.price'] as const) expect(t(l, key, { n: 1 }), `${l} ${key}`).not.toBe(key);
+  });
+
+  /**
+   * THE UI CORRECTION, BLOCK 2 — A DAY THAT IS NOT ON THE CALENDAR. The form's reader checked the date's shape only, so
+   * 2026-13-45 reached the table and came back as an error page. Now it is refused there, like every other field: 422,
+   * the field named, the typed values kept, nothing written, and the preview still answers.
+   */
+  it('an impossible date: 2026-13-45, 2026-02-30 or a due day 2026-04-31 is refused, named, kept, and nothing is written', async () => {
+    const party = (await as((q) => q(`select id::text as id from parties where code = 'C001'`))).rows[0].id as string;
+    const counts = async () => (await as((q) => q(`select (select count(*) from invoices)::int as i, (select count(*) from invoice_lines)::int as l,
+      (select count(*) from journal_entries)::int as e`))).rows[0];
+    const line = { label0: 'Sacs', quantity0: '2', price0: '45', account0: k.sales, tax0: k.tax };
+    const before = await counts();
+    for (const [dates, said] of [
+      [{ issueDate: '2026-13-45', dueDate: '' }, 'The date is not a day.'],
+      [{ issueDate: '2026-02-30', dueDate: '' }, 'The date is not a day.'],
+      [{ issueDate: '2026-03-02', dueDate: '2026-04-31' }, t('en', 'books.invoice.problem.due')],
+    ] as const) {
+      const saved = await post('/app/books/invoices', { party, currency: 'MAD', label: '', ...dates, ...line });
+      expect(saved.statusCode, dates.issueDate).toBe(422);
+      expect(saved.body).toContain(said);
+      for (const [name, value] of Object.entries(dates)) if (value) expect(saved.body, name).toMatch(new RegExp(`name="${name}"[^>]*value="${value}"`));
+      expect(await counts(), 'nothing is written').toEqual(before);
+      // the preview answers as before: the dates are Save's to check
+      expect((await post('/app/books/invoices/preview', { party, currency: 'MAD', label: '', ...dates, ...line })).statusCode).toBe(200);
+    }
   });
 
   /**
