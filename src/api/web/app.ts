@@ -147,6 +147,7 @@ import {
 import {
   loadProductList, loadProductPage, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, removeProductTier, renderPhotoRefusal, type PhotoRefusal,
+  PRODUCT_EDIT_GROUPS, productEditGroup, type ProductEditField,
 } from './products.js';
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
@@ -6535,36 +6536,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
     // The warmth run, phase 9 (V1-305) — the larger orders' prices, one box each ("tier:2000").
-    const tiers = Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
+    // F26 (Block 4) — the page edits a product in groups, each its own form: a group's form changes only
+    // the fields it drew (`group=details|pricing`), and every field it did not draw stays as it is — an
+    // absent box is "not on this form", not "off". A post with no group (an older page) is read as before.
+    const group = productEditGroup(b['group']);
+    const drew = (f: ProductEditField): boolean => group === null || (PRODUCT_EDIT_GROUPS[group] as readonly ProductEditField[]).includes(f);
+    const tiers = !drew('tiers') ? {} : Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
+    const field = (f: ProductEditField): string | null => (drew(f) ? b[f] ?? null : null);
     const edit = {
       tiers: Object.keys(tiers).length ? tiers : null,
-      price: b['price'] ?? null,
-      moq: b['moq'] ?? null,
-      unit: b['unit'] ?? null,
-      isActive: b['isActive'] === 'on',
-      name: b['name'] ?? null,
-      nameZh: b['nameZh'] ?? null,
-      customerNames: b['customerNames'] ?? null,
-      leadTime: b['leadTime'] ?? null,
-      options: b['options'] ?? null,
+      price: field('price'),
+      moq: field('moq'),
+      unit: field('unit'),
+      ...(drew('isActive') ? { isActive: b['isActive'] === 'on' } : {}),
+      name: field('name'),
+      nameZh: field('nameZh'),
+      customerNames: field('customerNames'),
+      leadTime: field('leadTime'),
+      options: field('options'),
     };
     // 0230 — a price moved: before it goes live, the saved cases about this product run against it, when there are any.
-    if (/^[0-9a-f-]{36}$/i.test(id) && (b['price'] !== undefined || Object.keys(tiers).length > 0)) {
-      const staged = await checkFirst(s, { kind: 'price', productId: id, edit }, String(b['name'] ?? '').trim().slice(0, 200) || id.slice(0, 8), await productWordsOf(s, id));
+    if (/^[0-9a-f-]{36}$/i.test(id) && (edit.price !== null || Object.keys(tiers).length > 0)) {
+      const label = String(b['name'] ?? '').trim().slice(0, 200) || (await productNameOf(s, id)) || id.slice(0, 8);
+      const staged = await checkFirst(s, { kind: 'price', productId: id, edit }, label, await productWordsOf(s, id));
       if (staged) return flashTo(reply, `${CHECKS}/${staged}`, 'cases.flash.started', { n: 0 });
     }
-    const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
-      tiers: Object.keys(tiers).length ? tiers : null,
-      price: b['price'] ?? null,
-      moq: b['moq'] ?? null,
-      unit: b['unit'] ?? null,
-      isActive: b['isActive'] === 'on',
-      name: b['name'] ?? null,
-      nameZh: b['nameZh'] ?? null,
-      customerNames: b['customerNames'] ?? null,
-      leadTime: b['leadTime'] ?? null,
-      options: b['options'] ?? null,
-    });
+    const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, edit);
     const locale = localeOf(req);
     if (!r.ok) {
       const d = await loadProductDetail(deps.db, s.businessId, id);
@@ -6575,7 +6572,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }));
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
         title: productName(locale, d) ?? d.name, active: 'products',
-        bodyHtml: productArea(renderProductDetail(d, locale, null, r.errors, {...b,isActive:b['isActive']??''}, personOf(s), new Date(),
+        bodyHtml: productArea(renderProductDetail(d, locale, null, r.errors, drew('isActive') ? {...b,isActive:b['isActive']??''} : {...b}, personOf(s), new Date(),
           {...(productFrom(req) === undefined ? {} : {returnHref:productFrom(req)!})}), locale, 'all', personOf(s)),
       }));
     }
@@ -9282,6 +9279,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (id) await deps.kickCaseCheck(s.businessId, id);
     return id;
+  };
+  /** F26 — the product's own name, for a staged check's line when the form that moved the price did not draw it. */
+  const productNameOf = async (s: OwnerSession, productId: string): Promise<string | null> => {
+    const bid = parseBusinessId(s.businessId); if (!bid.ok || !UUID.test(productId)) return null;
+    return withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string }>`
+      select name from products where business_id = ${bid.value} and id = ${productId}::uuid`.execute(tx)).rows[0]?.name ?? null);
   };
   const productWordsOf = async (s: OwnerSession, productId: string): Promise<string[]> => {
     // Read before the route has checked the id: anything that is not one names no product (a cast would throw).

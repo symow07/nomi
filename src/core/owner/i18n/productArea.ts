@@ -8,4 +8,7 @@ export const PRODUCT_AREA_EN = {
  'products.identity':'Name and options', 'products.pricing':'Price and availability',
  'products.optional':'Quantity and timing', 'products.optionalHelp':'Use these when you sell by quantity or promise a time to prepare an order.',
  'products.methods':'Choose how to add products',
+ 'product.history.none':'No quotes for it yet.', 'product.head.floorNone':'Not stated',
+ 'product.change.details':'Change the details', 'product.change.prices':'Change the prices',
+ 'product.save.details':'Save the details', 'product.save.prices':'Save the prices',
 } as const;

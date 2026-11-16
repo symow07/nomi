@@ -278,6 +278,8 @@ export type ProductDetail = {
   readonly source?: { readonly line: string; readonly importId: string | null; readonly photo: number | null } | null;
   /** VAR (0111) — its options: sizes, colours, shades… with no price or stock of their own. */
   readonly options?: readonly ProductOption[];
+  /** F26 (Block 4) — the lowest price it is sold at: its own, or the answer for everything (own: false); none stated. */
+  readonly floor?: { readonly price: Money; readonly own: boolean } | null;
 };
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
@@ -346,8 +348,19 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       currency: await currencyOf(tx, bid.value),
       source: p.source_line === null ? null : { line: p.source_line, importId: p.source_import_id, photo: p.photo },
       options: optionsOf(p.options),
+      floor: await floorOf(tx, bid.value, productId),
     };
   });
+}
+
+/** F26 — its own floor, else the business-wide one, read in the caller's tenant transaction. */
+async function floorOf(tx: Tx, bid: BusinessId, productId: string): Promise<{ price: Money; own: boolean } | null> {
+  const r = (await sql<{ floor: string; currency: string; own: boolean }>`
+    select floor_price_usd as floor, currency, product_id is not null as own from pricing_policy
+     where business_id = ${bid} and (product_id = ${productId} or product_id is null)
+     order by product_id nulls last limit 1`.execute(tx)).rows[0];
+  const price = r ? moneyFromRow(r.floor, r.currency) : null;
+  return r && price ? { price, own: r.own } : null;
 }
 
 /** ── Teach flow: paste → parse (reuse M6) → review → confirm → available ─── */
@@ -734,13 +747,16 @@ export function renderProductDetail(
     `<option value="${esc(c)}"${c === unitNow ? ' selected' : ''}>${esc(unitLabel(locale, c))}</option>`).join('')}</select>`;
   // Phase 9 (V1-312) — a name in Chinese only where there is one, or the page is in Chinese.
   const zhField = locale === 'zh' || d.nameZh !== null || (draft['nameZh'] ?? '') !== '';
-  const editForm = !viewer.isOwner ? `<div class="block">
-    <h2>${esc(t(locale, 'product.edit.title'))}</h2>
-    ${ownerDecides(locale)}
-  </div>` : `<div class="block">
-    <h2>${esc(t(locale, 'product.edit.title'))}</h2>
-    <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform product-edit">
-      ${fromField}<fieldset class="pa-fields"><legend>${esc(t(locale, 'products.identity'))}</legend>
+  // F26 (Block 4) — each group is changed on purpose: its form opens from its own section, names its group
+  // (the route reads only the fields that group draws) and has one Save. A refused save opens its group again.
+  const pid = encodeURIComponent(d.id);
+  const opens = (g: ProductEditGroup): boolean => draft['group'] === g
+    || (PRODUCT_EDIT_GROUPS[g] as readonly ProductEditField[]).some((f) => !!errors[f]);
+  const groupField = (g: ProductEditGroup): string => `${fromField}<input type="hidden" name="group" value="${g}" />`;
+  const detailsForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('details') ? ' open' : ''}>
+      <summary>${esc(t(locale, 'product.change.details'))}</summary>
+      <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="details">
+      ${groupField('details')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.identity'))}</legend>
       <label class="pq"><span>${esc(t(locale, 'product.edit.name'))}</span>
         <input name="name" dir="auto" value="${val('name', d.name)}" />${ferr('name')}</label>
       ${zhField ? `<label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
@@ -751,7 +767,12 @@ export function renderProductDetail(
       <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
         <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
         <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
-      </fieldset><fieldset class="pa-fields"><legend>${esc(t(locale, 'products.pricing'))}</legend>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.details'))}</button>
+    </form></details>`;
+  const pricingForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('pricing') ? ' open' : ''}>
+      <summary>${esc(t(locale, 'product.change.prices'))}</summary>
+      <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="pricing">
+      ${groupField('pricing')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.pricing'))}</legend>
       <label class="pq"><span>${esc(priceLabel)}</span>
         <input name="price" inputmode="decimal"
                value="${val('price', entry ? String(entry.unitPrice.amount) : '')}" />${ferr('price')}</label>
@@ -769,21 +790,20 @@ export function renderProductDetail(
       <label class="pcheck"><input type="checkbox" name="isActive" ${activeNow ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
       <span class="caption muted">${esc(t(locale, 'product.edit.active.hint'))}</span>
-      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
-    </form>
-  </div>`;
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.prices'))}</button>
+    </form></details>`;
 
   // Phase 9 (V1-314) — the prices are read, not pressed: hairline rows, not boxes.
   // 0224 (Block 1 #6) — every band after the first can be taken off by the owner; it asks first, and says what happens.
   const firstQty = d.tiers[0]?.minQty ?? null;
   const takeOff = (tr: (typeof d.tiers)[number]): string => viewer.isOwner && firstQty !== null && tr.minQty > firstQty
-    ? ` <form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/tiers/remove" class="inline tier-remove">${fromField}<input type="hidden" name="minQty" value="${tr.minQty}" />
+    ? ` <form method="post" action="/app/products/${esc(pid)}/tiers/remove" class="inline tier-remove">${fromField}<input type="hidden" name="minQty" value="${tr.minQty}" />
         <button class="btn ghost danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'product.tier.remove.confirm', { qty: show.quantityOf(locale, tr.minQty, d.unit) }))}">${esc(t(locale, 'product.tier.remove.button'))}</button></form>`
     : '';
-  const tiers = d.tiers.length
-    ? `<div class="block" id="prices"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><ul class="rows">${d.tiers.map((tr) =>
-        `<li class="row"><span>${esc(tierLabel(tr))}</span><b>${iso(perUnit(locale, tr.unitPrice, d.unit))}</b>${takeOff(tr)}</li>`).join('')}</ul></div>`
-    : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
+  const tierRows = d.tiers.length
+    ? `<ul class="rows pd-tiers">${d.tiers.map((tr) =>
+        `<li class="row"><span>${esc(tierLabel(tr))}</span><b>${iso(perUnit(locale, tr.unitPrice, d.unit))}</b>${takeOff(tr)}</li>`).join('')}</ul>`
+    : `<p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p>`;
 
   // Phase 9 (V1-313) — the names already on record stand above the box that adds more.
   // Phase 9 (V1-313) — and one of the names customers use can be taken off
@@ -792,21 +812,21 @@ export function renderProductDetail(
   const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
   const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
   const removeName = viewer.isOwner && removable.length
-    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="pform alias-remove">${fromField}
+    ? `<details class="pd-change"><summary>${esc(t(locale, 'product.alias.remove.label'))}</summary><form method="post" action="/app/products/${esc(pid)}/names/remove" class="pform alias-remove">${fromField}
         <label class="pq"><span>${esc(t(locale, 'product.alias.remove.label'))}</span>
         <select name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select></label>
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form>`
+          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form></details>`
     : '';
   // 2026-10-14 (the owner) — a name in each language the owner chose or a buyer wrote in, or those buyers cannot find it.
   const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('')
     // On PR 344 — a language only on the default list: a suggestion, not a warning.
     + (d.namesSuggested ?? []).map((l) => `<p class="caption muted">${esc(t(locale, 'product.detail.nameSuggested', { language: languageCalled(locale, l) }))}</p>`).join('');
   const aliases = d.aliases.length
-    ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>${noName}<div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
+    ? `<div class="pd-group" id="names"><h3>${esc(t(locale, 'product.detail.aliasesTitle'))}</h3>${noName}<div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
         <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p>${removeName}</div>`
     // T3 — found by no name: said, with what makes it findable.
-    : `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
+    : `<div class="pd-group" id="names"><h3>${esc(t(locale, 'product.detail.aliasesTitle'))}</h3>
         <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p>${noName}</div>`;
 
   // D7 (2026-10-07) — only a photo Nomi serves is drawn: an address from the root
@@ -820,25 +840,27 @@ export function renderProductDetail(
   const shown = [...new Set([...(d.photo ? [`/media/${encodeURIComponent(d.photo.token)}`] : []), ...d.images.filter((url) => mayLoad(url, '/app/products/:id'))])];
   // Phase 2d (0152) — the owner keeps the product's photo here, to send in a chat: one, replaced or removed here.
   // Staff see the photos and no form (Phase 4: the catalogue is the owner's).
-  const pid = encodeURIComponent(d.id);
-  const photoForms = viewer.isOwner ? `<p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
+  // F26 — the first photo stands beside the name; Save and Remove are two groups apart, never side by side.
+  const photoForms = viewer.isOwner ? `<details class="pd-change">
+      <summary>${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</summary>
+      <p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
       <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">${fromField}
         <label class="fld"><span class="muted">${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</span>
           <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
         <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button>
       </form>
-      ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline">${fromField}
+      ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline pd-apart">${fromField}
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'product.photo.removeConfirm'))}">${esc(t(locale, 'product.photo.remove'))}</button></form>` : ''}` : '';
-  const images = shown.length || viewer.isOwner
-    ? `<div class="block" id="photo"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2>${shown.length
-        ? `<div class="imgs">${shown.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div>`
-        : `<p class="muted">${esc(t(locale, 'product.photo.none'))}</p>`}${photoForms}</div>`
+          data-confirm="${esc(t(locale, 'product.photo.removeConfirm'))}">${esc(t(locale, 'product.photo.remove'))}</button></form>` : ''}</details>` : '';
+  const more = shown.slice(1);
+  const images = more.length || viewer.isOwner
+    ? `<div class="pd-group" id="photo"><h3>${esc(t(locale, 'product.detail.imagesTitle'))}</h3>${more.length
+        ? `<div class="imgs">${more.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div>` : ''}${photoForms}</div>`
     : '';
 
   // Phase 9 (V1-306) — each quote says when, for whom, and opens the conversation it was worked out in.
   const quotes = d.recentQuotes.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2><ul class="rows">${d.recentQuotes.map((q) => {
+    ? `<ul class="rows">${d.recentQuotes.map((q) => {
         const facts = [
           ...(q.at ? [show.day(locale, q.at, now)] : []),
           ...(q.customer ? [q.customer] : []),
@@ -849,38 +871,65 @@ export function renderProductDetail(
         return `<li class="row">${q.conversationId
           ? `<a class="deeper" href="${conversationUrl(q.conversationId)}"><span>${facts}</span>${GO}</a>`
           : `<span class="muted">${facts}</span>`}</li>`;
-      }).join('')}</ul></div>`
-    : '';
+      }).join('')}</ul>`
+    : `<p class="muted">${esc(t(locale, 'product.history.none'))}</p>`;
 
   // Phase 9 (V1-308) — only what the owner set and the assistant uses: the
   // category ("bags", a raw value from the demo's seed) and "Customizable: No"
   // (a default nobody stated) are no longer shown — no page writes either, and
   // nothing a customer is told reads them.
   // V1-311 — each fact is called what its field is called.
-  const details = [
-    d.moq === null && !sellsByQuantity(d.businessKind) ? '' : `<div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>`,
-    d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(tn(locale, 'product.detail.leadTimeDays', d.leadTimeDays))}</div>` : '',
-    d.source ? `<div><span class="muted">${esc(t(locale, 'product.detail.fromList'))}</span> <bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
-      ? ` <a href="/app/products/import/${encodeURIComponent(d.source.importId)}/photo/${d.source.photo}">${esc(t(locale, 'product.detail.fromPhoto', { n: d.source.photo }))}</a>` : ''}</div>` : '',
+  const fact = (label: string, value: string): string => `<div><span class="muted">${esc(label)}</span> ${value}</div>`;
+  const orderFacts = [
+    d.moq === null && !sellsByQuantity(d.businessKind) ? '' : fact(t(locale, 'product.list.moq'), esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))),
+    d.leadTimeDays !== null ? fact(t(locale, 'product.detail.leadTime'), esc(tn(locale, 'product.detail.leadTimeDays', d.leadTimeDays))) : '',
   ].filter(Boolean).join('');
-  const info = details ? `<div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2><div class="info">${details}</div></div>` : '';
+  const optionLines = formatOptions(d.options ?? [], '\n').split('\n').filter(Boolean);
+  const detailFacts = [
+    optionLines.length ? fact(t(locale, 'product.edit.options'), optionLines.map((l) => `<bdi>${esc(l)}</bdi>`).join('<br />')) : '',
+    d.source ? fact(t(locale, 'product.detail.fromList'), `<bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
+      ? ` <a href="/app/products/import/${encodeURIComponent(d.source.importId)}/photo/${d.source.photo}">${esc(t(locale, 'product.detail.fromPhoto', { n: d.source.photo }))}</a>` : ''}`) : '',
+  ].filter(Boolean).join('');
+
+  // F26 — what is compared at a glance: the price, and (for the owner, whose limits they are) the lowest price.
+  const first = d.tiers[0];
+  const floorFigure = !viewer.isOwner ? '' : `<div><dt>${esc(t(locale, 'data.export.rule.floor'))}</dt><dd>${d.floor
+    ? `<b>${iso(perUnit(locale, d.floor.price, d.unit))}</b>${d.floor.own ? '' : `<span class="caption muted">${esc(t(locale, 'prices.inherited.title'))}</span>`}`
+    : `<span class="muted">${esc(t(locale, 'product.head.floorNone'))}</span>`}</dd></div>`;
+  const head = `<header class="pd-head">
+    ${back(esc(returnHref), t(locale, 'product.detail.back'))}
+    <h1 class="page"><bdi>${esc(title)}</bdi></h1>
+    <div class="pd-photo">${shown[0] ? `<img src="${esc(shown[0])}" alt="${esc(title)}" />` : `<span class="caption muted">${esc(t(locale, 'product.photo.none'))}</span>`}</div>
+    <div class="pd-id">
+      ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
+      ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
+      <dl class="pd-figures">
+        <div><dt>${esc(t(locale, 'data.export.col.price'))}</dt><dd>${first
+          ? `<b>${iso(perUnit(locale, first.unitPrice, d.unit))}</b><span class="caption muted">${esc(tierLabel(first))}</span>`
+          : `<span class="muted">${esc(t(locale, 'product.detail.noPrice'))}</span>`}</dd></div>
+        ${floorFigure}
+      </dl>
+    </div>
+  </header>`;
 
   // Phase 9 (V1-315, V1-376) — the product's other pages, one door each.
-  const doors = `<div class="block"><div class="doors">
-      ${deeper(`/app/assistant/knowledge/products/${encodeURIComponent(d.id)}`, t(locale, 'product.detail.knowledgeDoor', { name }))}
-      ${viewer.isOwner ? deeper(`/app/products/price-limits?product=${encodeURIComponent(d.id)}#p-${encodeURIComponent(d.id)}`, t(locale, 'product.detail.limitsDoor')) : ''}
-    </div></div>`;
+  const limitsDoor = viewer.isOwner ? `<div class="doors">${deeper(`/app/products/price-limits?product=${pid}#p-${pid}`, t(locale, 'product.detail.limitsDoor'))}</div>` : '';
+  const knowledgeDoor = `<div class="doors">${deeper(`/app/assistant/knowledge/products/${pid}`, t(locale, 'product.detail.knowledgeDoor', { name }))}</div>`;
+  const ownerNote = viewer.isOwner ? '' : ownerDecides(locale);
 
   // Phase 9 (V1-310, V1-320) — the product's name is the page's title, the same
   // size as every other page's, and the tab's; the back link stands above it.
   // V1-319, new-04 — being found by photo is a quiet note, never louder than the name.
+  // F26 — a header (photo, name, price, lowest price), then Details, Pricing and History.
   return `<article class="product-detail">
     ${flashBanner(flash)}
-    ${back(esc(returnHref), t(locale, 'product.detail.back'))}
-    <h1 class="page"><bdi>${esc(title)}</bdi></h1>
-    ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
-    ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
-    ${tiers}${info}${images}${aliases}${editForm}${doors}${quotes}</article>`;
+    ${head}
+    <section class="block pd-section" id="details" aria-labelledby="pd-details"><h2 id="pd-details">${esc(t(locale, 'product.detail.infoTitle'))}</h2>
+      ${detailFacts ? `<div class="info">${detailFacts}</div>` : ''}${aliases}${images}${detailsForm}${ownerNote}</section>
+    <section class="block pd-section" id="prices" aria-labelledby="pd-prices"><h2 id="pd-prices">${esc(t(locale, 'product.detail.priceTitle'))}</h2>
+      ${tierRows}${orderFacts ? `<div class="info">${orderFacts}</div>` : ''}${pricingForm}${limitsDoor}</section>
+    <section class="block pd-section" id="history" aria-labelledby="pd-history"><h2 id="pd-history">${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>
+      ${quotes}${knowledgeDoor}</section></article>`;
 }
 
 /**
@@ -1040,6 +1089,18 @@ export type ProductEdit = {
 };
 
 export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime' | 'options' | 'tiers';
+/**
+ * F26 (Block 4) — the product page's two edit groups, each its own form and Save. A form names its group in
+ * `group`; the route reads only the fields that group draws, and every other field stays as it is.
+ */
+export const PRODUCT_EDIT_GROUPS = {
+  details: ['name', 'nameZh', 'customerNames', 'options'],
+  pricing: ['price', 'unit', 'tiers', 'moq', 'leadTime', 'isActive'],
+} as const satisfies Record<string, readonly ProductEditField[]>;
+export type ProductEditGroup = keyof typeof PRODUCT_EDIT_GROUPS;
+/** A posted group, or null: a form with no group (a page drawn before the groups) is read whole, as it always was. */
+export const productEditGroup = (raw: unknown): ProductEditGroup | null =>
+  raw === 'details' || raw === 'pricing' ? raw : null;
 
 /**
  * The warmth run, phase 9 (V1-305) — what the boxes for larger orders change.
