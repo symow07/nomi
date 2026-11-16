@@ -651,7 +651,10 @@ describe('Your price limits', () => {
     expect(en).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
     expect(en).toContain(`<h2>${t('en', 'prices.default.title')}</h2>`);
     expect(en).not.toContain('class="sub3">For everything');
-    expect(en).toContain('<div class="pr-name"><b><bdi>Canvas Tote Bag</bdi></b>');
+    // F28 (Block 4, supervisor approved 2026-11-16): the rows became a table — the name is the row's header cell,
+    // still in ink and read first; only the markup around it changed.
+    expect(en).toContain('scope="row" class="pr-name">');
+    expect(en).toContain('class="pr-id"><b><bdi>Canvas Tote Bag</bdi></b>');
     expect(en).toContain('href="/app/products/price-limits?product=a1#p-a1">Change these limits' + GO + '</a>');
     expect(en).not.toContain('class="blink"');
   });
@@ -679,11 +682,19 @@ describe('Your price limits', () => {
 
   it('missed-13 — opening a product lands on its row; its form can be closed; the page has one filled Save (new-14)', () => {
     const en = page('en', view(), { productId: 'a1' });
-    expect(en).toContain('<li class="row lines" id="p-a1">');
+    // F28 (Block 4, supervisor approved 2026-11-16): the product's row is a table row, and its form sits in the
+    // full-width row right under it — so the Save must come before the next product's row (or the table's end), and
+    // the form names its product (heading + aria-labelledby), so a screen reader reaching Save knows what it saves.
+    expect(en).toContain('<tr class="pr-row has-form" id="p-a1">');
     expect(en).toContain('<a class="deeper" href="/app/products/price-limits#p-a1">Close without saving</a>');
     expect(en.match(/class="btn send"/g)).toHaveLength(1);
     const opened = en.slice(en.indexOf('id="p-a1"'));
-    expect(opened.indexOf('class="btn send"')).toBeLessThan(opened.indexOf('</li>'));
+    const rowEnd = Math.min(...[opened.indexOf('class="pr-row', 10), opened.indexOf('</tbody>')].filter((i) => i > 0));
+    expect(opened.indexOf('class="btn send"')).toBeLessThan(rowEnd);
+    const form = opened.slice(opened.indexOf('<form'), opened.indexOf('</form>'));
+    expect(form).toContain('aria-labelledby="pf-a1"');
+    expect(form).toMatch(new RegExp(`<h3 class="sub3" id="pf-a1">${t('en', 'prices.forProduct', { product: 'Canvas Tote Bag' })}</h3>`));
+    expect(form.indexOf('id="pf-a1"')).toBeLessThan(form.indexOf('class="btn send"'));
     // Nothing opened: the answer for everything carries the one fill.
     expect(page('en', view({ products: [{ ...own('a3', 'Lamp', '3.5'), own: null }] })).match(/class="btn send"/g)).toHaveLength(1);
   });
