@@ -103,7 +103,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pr-table tr{border-bottom:1px solid var(--color-border);}
 .pr-table thead th{font-size:var(--font-size-small);font-weight:600;color:var(--color-ink-secondary);vertical-align:bottom;line-height:var(--line-height);white-space:normal;}
 .pr-table .num{text-align:end;white-space:nowrap;width:1px;}
-.pr-table thead .num{min-width:7rem;}
+.pr-table thead .num{min-width:7rem;white-space:normal;}
 .pr-table td.num .caption{display:block;white-space:normal;max-width:12rem;margin-inline-start:auto;}
 .pr-table .pr-name{font-weight:400;min-width:14rem;}
 .pr-who{display:flex;align-items:center;gap:var(--space-12);}
