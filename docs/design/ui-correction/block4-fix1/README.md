@@ -1,6 +1,6 @@
 # Block 4 fix1 — price and floor on the first screen at 200 %
 
-Base: `ee30979e` (main after #473). Fix: `c2633226` on `ui-block4-fix1`. All data is the synthetic demo workspace.
+Base: `ee30979e` (main after #473). Fix: `c2633226` (product page) and the catalogue's link targets, on `ui-block4-fix1`. All data is the synthetic demo workspace.
 
 **The owner's decision (2026-11-18):** at 200 % of 1440×900 the product page's price and lowest price must be on the
 first screen in every language. Measured strictly here: a figure counts only if its whole block (label, figure and
@@ -35,15 +35,21 @@ No type size changed, nothing hidden, nothing specific to a language. The tabs a
   **40/40**; a fixture whose name (and Chinese name) takes two lines at 200 % 20/40 → **40/40**. Staff see no
   lowest price, as before. Rows for 200 % and 320 below.
 - **Matched screenshots:** 151 before (`before/`, main's build) and 151 after (`after/`), same names; every after image
-  was looked at whole. [Measurements](measurements.md): 147 shots, all 200, no horizontal overflow, **none taller**
-  than before.
+  was looked at whole. [Measurements](measurements.md): 147 shots, all 200, no horizontal overflow; none taller
+  than before except the catalogue (its links' 44 px, below).
 - **Nothing lost:** forms, fields, buttons and links of 10 product-area pages (the catalogue included), owner and
   staff, against main: 20/20 identical.
 - **Guarantees** (44 px targets, overflow, contrast, rule 38, reduced motion, under the bar): 15 product-area pages
   (the catalogue and the fixture included) × 5 languages × 1440, 200 %, 390, 320 × owner and staff = 600 views: 0
   non-200, 0 overflow, 0 low contrast, 0 rule 38, 0 motion, 0 under the bar. **Small targets: 520, all on the
   WhatsApp catalogue page**, its "Open product" links (23 px; 36 in Arabic) — the same at main (unchanged by this
-  fix; that page was not in Block 4's sweep). Reported as an open finding, not waived.
+  fix; that page was not in Block 4's sweep).
+- **Fixed on this branch (t1r's ruling (a)):** the catalogue's own stylesheet gives each item's product link a 44 px
+  height (`.wc-item>p>a[href]`). Catalogue re-swept, 5 languages × 1440, 200 %, 390, 320 × owner and staff = 40 views:
+  every check 0, small targets included. Nothing lost against main: 20/20 identical. The catalogue page is about 200 px
+  taller (1440: 6214 → 6416), its 13 links each 21 px taller — the cost of the 44 px rule.
+- **Open, left as it is:** "Open product" (and the rest of the catalogue's words) is English on every language's page;
+  the code marks it `lang="en"` on purpose.
 
 The fixture (`Organic Cotton Canvas Tote Bag with Inner Zip Pocket 38x40cm`, Chinese name
 有机棉帆布手提袋，内侧带拉链口袋，三十八乘四十厘米, price 1.25, lowest price 0.95) was added through the app's own add page,

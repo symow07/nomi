@@ -13,4 +13,6 @@ export const WA_CATALOGUE_CSS=String.raw`
 [dir="rtl"] .wa-catalogue .wc-words:dir(ltr),[dir="rtl"] .wc-check bdi:dir(ltr),
 [dir="ltr"] .wc-check bdi:dir(rtl){text-align:end;}
 .wa-catalogue form>.btn{margin-block:var(--space-16);}
+/* Block 4 fix1: each item's link to its product is a 44 px target (it stands alone on its line). */
+.wc-item>p>a[href]{display:inline-flex;align-items:center;min-height:44px;}
 `;
