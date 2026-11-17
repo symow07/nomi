@@ -77,7 +77,9 @@ describe('phase 6 · errors under their field, on the same page, with what was t
     const html = renderAddForm('en', undefined, 'USD', null, null, false, false, { photo: renderPhotoRefusal('unreadable', 'en') });
     expect(html).toContain('aria-invalid="true" aria-describedby="photo-err" autofocus');
     expect(html).toContain(`<p class="perr" role="alert">${t('en', 'product.photo.refused.unreadable')}</p>`);
-    expect(html).toContain('href="/app/products/add#photo"');
+    // F27 (Block 4, supervisor approved 2026-11-16) — the add page opens one way in at a time; the door carries ?method= so it
+    // opens the way it names without script. Same door, same way out; only the expected href changed.
+    expect(html).toContain('href="/app/products/add?method=photo#photo"');
   });
 
   it('a page of the site that came to nothing: on Knowledge, the reason under the address, what was typed kept', () => {

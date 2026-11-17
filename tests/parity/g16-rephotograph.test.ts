@@ -181,7 +181,9 @@ describe('G16 · each upload failure says what it is', () => {
       for (const r of reasons) {
         const html = renderPhotoRefusal(r, locale);
         expect(html).toContain(esc(t(locale, `product.photo.refused.${r}`)));
-        expect(html).toMatch(/href="\/app\/products\/add#(?:paste|photo)"/);
+        // F27 (Block 4, supervisor approved 2026-11-16) — the add page opens one way in at a time; the door carries ?method= so it
+        // opens the way it names without script. Same door, same way out; only the expected href changed.
+        expect(html).toMatch(/href="\/app\/products\/add\?method=(paste|photo)#\1"/);
       }
     }
   });

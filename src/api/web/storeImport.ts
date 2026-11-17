@@ -13,6 +13,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { esc, back, deeper } from './layout.js';
+import { importSteps } from './importSteps.js';
 import { shape } from './marks.js';
 import type { ShopifyForm, ShopifyRefusal } from '../../core/onboard/setupMinutes.js';
 import * as show from './values.js';
@@ -192,23 +193,27 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
     `<select name="${name}">${opts.optional ? `<option value="">${esc(t(locale, 'import.columns.none'))}</option>` : ''}${table.header.map((h, i) =>
       opts.only && !opts.only.has(i) ? '' : `<option value="${i}"${value === i ? ' selected' : ''}>${esc(h || `#${i + 1}`)}</option>`).join('')}</select>`;
   const sample = table.rows.slice(0, 3).map((r) => `<tr>${table.header.map((_, i) => `<td dir="auto">${esc((r[i] ?? '').slice(0, 40))}</td>`).join('')}</tr>`).join('');
-  return `<section class="product-import product-import-columns"><header>${back('/app/products/add', t(locale, 'product.teach'))}<h1 class="page">${esc(t(locale, 'import.columns.title'))}</h1><p>${esc(t(locale, 'productImport.columnsIntro'))}</p></header>
+  return `<section class="product-import product-import-columns"><header>${back('/app/products/add', t(locale, 'product.teach'))}<h1 class="page">${esc(t(locale, 'import.columns.title'))}</h1>${importSteps(locale, 'map', true)}<p>${esc(t(locale, 'productImport.columnsIntro'))}</p></header>
     <div class="block">
       <p>${esc(t(locale, preset ? `import.columns.preset.${preset}` as MessageKey : 'import.columns.intro', { n: table.rows.length }))}</p>
       ${problem ? `<p class="perr" role="alert">${esc(t(locale, `import.columns.problem.${problem}` as MessageKey, { currency }))}</p>` : ''}
+      <div class="imp-map"><div class="imp-map-src">
       <h2 id="import-preview-title">${esc(t(locale, 'productImport.preview'))}</h2><p id="import-preview-hint" class="muted">${esc(t(locale, 'productImport.previewHint'))}</p>
-      <div class="imp-table" role="region" aria-labelledby="import-preview-title" aria-describedby="import-preview-hint" tabindex="0"><table><thead><tr>${table.header.map((h) => `<th dir="auto">${esc(h)}</th>`).join('')}</tr></thead><tbody>${sample}</tbody></table></div>
+      <div class="imp-table" role="region" aria-labelledby="import-preview-title" aria-describedby="import-preview-hint" tabindex="0"><table><thead><tr>${table.header.map((h) => `<th dir="auto">${esc(h)}</th>`).join('')}</tr></thead><tbody>${sample}</tbody></table></div></div>
       <form method="post" action="${base(id)}/columns" class="imp-cols">
         <label>${esc(t(locale, 'import.columns.name'))} ${select('name', m.name, { optional: false })}</label>
         <label>${esc(t(locale, 'import.columns.price'))} ${select('price', m.price, { optional: false, only: prices })}</label>
         <p class="muted small">${esc(t(locale, 'import.columns.priceHint'))}</p>
+        ${/* F27 (Block 4) — the optional columns on demand: open when the owner already chose one, or something was refused. */ ''}<details class="imp-optional"${chosen && (chosen.sku !== null || chosen.group !== null || chosen.options.some((x) => x !== null)) || problem ? ' open' : ''}>
+        <summary>${esc(t(locale, 'import.columns.more'))}</summary>
         <label>${esc(t(locale, 'import.columns.sku'))} ${select('sku', m.sku, { optional: true })}</label>
         ${[0, 1, 2].map((n) => `<label>${esc(t(locale, 'import.columns.option', { n: n + 1 }))} ${select(`option${n + 1}`, m.options[n] ?? null, { optional: true })}</label>`).join('')}
         <label>${esc(t(locale, 'import.columns.group'))} ${select('group', m.group, { optional: true })}</label>
         <p class="muted small">${esc(t(locale, 'import.columns.groupHint'))}</p>
+        </details>
         ${m.currency === null ? `<label class="pcheck"><input type="checkbox" name="currency" /> ${esc(t(locale, 'import.columns.currency', { currency }))}</label>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'import.columns.apply'))}</button>
-      </form>
+      </form></div>
     </div></section>`;
 }
 
@@ -297,7 +302,8 @@ export function renderShopifyCredentials(locale: Locale, currency: string, props
     </form></details>`;
 }
 
-export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null, shopify?: ShopifyFormProps): string {
+export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null, shopify?: ShopifyFormProps,
+  /** F27 — the way open in the add page's chooser. */ opened: string | null = null): string {
   if (!refused && shopify?.form.refusal === 'password_protected') {
     refused = { form: 'store', reason: 'password_protected', address: safeShopifyAddress(shopify.form.address), currencyConfirmed: shopify.currencyConfirmed ?? false };
   }
@@ -307,8 +313,9 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
     form: { address: refused?.address ?? '', token: '', client_id: '', client_secret: '', refusal: on('store') && refused?.reason === 'password_protected' ? 'password_protected' : null },
     currencyConfirmed: refused?.currencyConfirmed ?? false,
   };
-  return `<div class="block" id="store">
-      <h2>${esc(t(locale, 'import.store.title'))}</h2>
+  const way = (id: 'store' | 'file') => `class="pa-method" name="pa-method" data-way="${id}"${opened === id ? ' open' : ''}`;
+  return `<details ${way('store')}>
+      <summary><h2>${esc(t(locale, 'import.store.title'))}</h2></summary><span class="pa-at" id="store"></span>
       <p>${esc(t(locale, 'import.store.intro'))}</p>
       <form method="post" action="/app/products/add/store">
         <label class="pq"><span>${esc(t(locale, 'import.store.address'))}</span> <input type="text" name="address" inputmode="url" autocomplete="url" placeholder="myshop.com" dir="ltr" required${
@@ -319,9 +326,9 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
         <button class="btn" type="submit">${esc(t(locale, 'import.store.read'))}</button>
       </form>
       ${renderShopifyCredentials(locale, currency, credentials)}
-    </div>
-    <div class="block" id="file">
-      <h2>${esc(t(locale, 'import.file.title'))}</h2>
+    </details>
+    <details ${way('file')}>
+      <summary><h2>${esc(t(locale, 'import.file.title'))}</h2></summary><span class="pa-at" id="file"></span>
       <p>${esc(t(locale, 'import.file.intro'))}</p>
       <form method="post" action="/app/products/add/file" enctype="multipart/form-data">
         ${filePick(locale, `<input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required${
@@ -329,7 +336,7 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
         ${on('file') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'file-err') : ''}
         <button class="btn" type="submit">${esc(t(locale, 'import.file.read'))}</button>
       </form>
-    </div>`;
+    </details>`;
 }
 
 /** A store or a file that came to nothing: why, under the field it concerns (phase 6). */

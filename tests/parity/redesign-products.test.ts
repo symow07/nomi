@@ -20,7 +20,10 @@ describe('Products area presentation',()=>{
   expect(html).toContain('href="/app/products/add"');
   const limited=productArea('<h1>Products</h1>','en','all',staff);
   expect(limited).not.toContain('/app/products/add');expect(limited).not.toContain('/app/products/price-limits');
-  expect(productArea('', 'fr', 'all')).toContain('All products');
+  // Block 4 (supervisor approved 2026-11-18): the product area is now translated, so this pin held the English
+  // fallback; French reads French. The WhatsApp catalogue keeps its lang="en" label as before.
+  expect(productArea('', 'fr', 'all')).toContain('Tous les produits');
+  expect(productArea('', 'fr', 'all')).not.toContain('All products');
  });
  it('keeps search, page and row anchor through the product record',()=>{
   const html=renderProductList([item],'en',null,OWNER_VIEW,null,{page:{items:[item],q:'canvas',total:121,page:3,pageSize:50,next:null,prev:'/app/products?q=canvas&page=2'},returnHref:source});
@@ -52,14 +55,23 @@ describe('Products area presentation',()=>{
   }
   expect(renderProductDetail(detail,'en',null,{}, {},OWNER_VIEW,new Date(),{returnHref:'https://evil.test/'})).not.toContain('evil.test');
  });
- it('keeps optional controls in the same form and retains a refused unchecked offering',()=>{
+ // F26 (Block 4, supervisor approved 2026-11-16) — this pin held ONE edit form for every field. The product page now
+ // saves one group at a time (Details, Pricing), each its own form and Save, and the route reads only what a form
+ // drew (tests/integration/block4-product-groups.test.ts a–e). What it protected is kept: the optional controls stay
+ // in the same form as the price, and a refused save keeps what was typed, an unchecked offering included.
+ it('keeps optional controls in the same form as the price and retains a refused unchecked offering',()=>{
   const html=renderProductDetail(detail,'en',null,{price:'not_a_number'},{price:'oops',isActive:'',moq:'',leadTime:'9'},OWNER_VIEW);
-  const form=html.match(/<form[^>]+action="[^"]+\/edit"[^>]*>[\s\S]*?<\/form>/)?.[0]??'';
-  for(const name of ['name','customerNames','options','price','moq','unit','leadTime','isActive'])expect(form).toContain(`name="${name}"`);
-  expect(form).toContain('name="leadTime" inputmode="numeric" value="9"');
-  expect(form).toContain('value="oops"');
-  expect(form).not.toMatch(/name="isActive"\s+checked/);
-  expect(form).toContain('class="product-optional" open');
+  const forms=[...html.matchAll(/<form[^>]+action="[^"]+\/edit"[^>]*>[\s\S]*?<\/form>/g)].map(m=>m[0]);
+  expect(forms).toHaveLength(2);
+  const pricing=forms.find(f=>f.includes('name="group" value="pricing"'))??'',details=forms.find(f=>f.includes('name="group" value="details"'))??'';
+  for(const name of ['price','moq','unit','leadTime','isActive'])expect(pricing).toContain(`name="${name}"`);
+  for(const name of ['name','customerNames','options'])expect(details).toContain(`name="${name}"`);
+  for(const name of ['name','customerNames','options'])expect(pricing).not.toContain(`name="${name}"`);
+  for(const name of ['price','moq','unit','leadTime','isActive'])expect(details).not.toContain(`name="${name}"`);
+  expect(pricing).toContain('name="leadTime" inputmode="numeric" value="9"');
+  expect(pricing).toContain('value="oops"');
+  expect(pricing).not.toMatch(/name="isActive"\s+checked/);
+  expect(pricing).toContain('class="product-optional" open');
  });
  it('keeps staff read-only and separate import POST boundaries',()=>{
   expect(renderProductDetail(detail,'en',null,{}, {},staff)).not.toContain('<form');

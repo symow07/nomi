@@ -43,6 +43,8 @@ export type ProductRules = {
   /** Whether the business-wide default would apply in their absence. */
   readonly inheritsDefault: boolean;
   readonly isActive: boolean;
+  /** F28 (Block 4) — the photo Nomi serves for it, for the row's thumbnail; none. */
+  readonly photoToken?: string | null;
 };
 
 export type PriceRulesView = {
@@ -97,7 +99,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
     const rows = (await sql<{
       product_id: string | null; sku: string | null; name: string | null; name_zh: string | null;
       list_price: string | null; list_currency: string | null; is_active: boolean | null;
-      floor: string | null; max: string | null; ask: string | null; currency: string | null;
+      floor: string | null; max: string | null; ask: string | null; currency: string | null; photo_token: string | null;
     }>`
       -- Every product, plus the business-wide row (product_id is null), in one
       -- read. A LEFT JOIN so a product with no rules comes back as a product
@@ -105,14 +107,15 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
       select p.id as product_id, p.sku, p.name, p.name_zh,
              p.price_usd_per_unit as list_price, p.currency as list_currency, p.is_active,
              pp.floor_price_usd as floor, pp.max_discount_pct as max,
-             pp.human_required_above_pct as ask, pp.currency
+             pp.human_required_above_pct as ask, pp.currency,
+             (select i.token from product_images i where i.product_id = p.id and i.token is not null limit 1) as photo_token
         from products p
         left join pricing_policy pp
           on pp.business_id = ${bid.value} and pp.product_id = p.id
        where p.business_id = ${bid.value}
        union all
       select null, null, null, null, null, null, null,
-             floor_price_usd, max_discount_pct, human_required_above_pct, currency
+             floor_price_usd, max_discount_pct, human_required_above_pct, currency, null
         from pricing_policy
        where business_id = ${bid.value} and product_id is null
       -- The warmth run, phase 9 (w4-products-knowledge-05) — one order, every
@@ -140,6 +143,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
         own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask!, currency: r.currency ?? 'USD' }) : null,
         inheritsDefault: r.floor === null && businessDefault !== null,
         isActive: r.is_active ?? false,
+        photoToken: r.photo_token,
       }));
 
     // G22 — her volume discounts. Only `discount_pct` rows: the table can also
@@ -477,9 +481,11 @@ export function renderPriceRules(
     const fe = (f: PriceRuleField): string => (sent ? err(f) : '');
     // Native autofocus is suppressed by URL fragments; successful redirects keep their section anchors.
     return `
-    <form method="post" action="/app/business/prices" class="pform">
+    <form method="post" action="/app/business/prices" class="pform"${productId && title ? ` aria-labelledby="pf-${esc(productId)}"` : ''}>
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
-      ${title ? `<${heading} class="${heading === 'h2' ? 'pr-h2' : 'sub3'}">${esc(title)}</${heading}>` : ''}
+      ${/* F28 — a product's form sits in its own row under the figures: it carries its product's name, as its heading
+         and as the form's own name, so a reader reaching its Save knows which product it saves. */ ''}
+      ${title ? `<${heading} class="${heading === 'h2' ? 'pr-h2' : 'sub3'}"${productId ? ` id="pf-${esc(productId)}"` : ''}>${esc(title)}</${heading}>` : ''}
       ${sub ? `<p class="fdesc">${esc(sub)}</p>` : ''}
       <label class="pq"><span>${esc(t(locale, productId ? 'prices.q.floor' : 'prices.q.floorAll', { name, currency: v.currency }))}</span>
         <input name="floor" inputmode="decimal" required${field('floor')}
@@ -513,28 +519,44 @@ export function renderPriceRules(
   // no written discount reaches says that nothing comes off it.
   const discounted = (p: ProductRules): boolean =>
     v.volume.some((d) => d.productId === null || d.productId === p.productId);
+  // F28 (Block 4) — the limits are read as a comparison: one row a product, its figures in columns that line
+  // up (price, lowest price, the most that may come off, where you are asked first), the policy said once above.
+  // A product being answered, or needing an answer, has its form in a full-width row under its figures.
+  const cols = [t(locale, 'data.export.col.product'), t(locale, 'data.export.col.price'), t(locale, 'data.export.rule.floor'),
+    t(locale, 'data.export.col.maxOff'), t(locale, 'data.export.col.askAbove')];
+  const cell = (i: number, html: string, cls = ''): string => `<td data-label="${esc(cols[i]!)}"${cls ? ` class="${cls}"` : ''}>${html}</td>`;
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
     const anchor = `p-${p.productId}`;
     // Phase 9 (missed-13) — opening a product lands on its own form, and the form can be closed again.
     const close = open ? `<a class="deeper" href="/app/products/price-limits#${esc(anchor)}">${esc(t(locale, 'prices.close'))}</a>` : '';
+    const rules = p.own ?? (isCovered(p) ? v.businessDefault : null);
+    const formOpen = open || (p.own === null && !isCovered(p));
+    const thumb = p.photoToken
+      ? `<img class="pa-thumb" src="/media/${esc(encodeURIComponent(p.photoToken))}" alt="" loading="lazy" width="44" height="44">`
+      : `<span class="pa-thumb pa-initial" aria-hidden="true">${esc([...label.trim()][0] ?? '')}</span>`;
     // Phase 9 (V1-352) — the product's name is what a row is read by: in ink, at the page's size.
-    return `<li class="row lines" id="${esc(anchor)}">
-      <div class="pr-name"><b><bdi>${esc(label)}</bdi></b>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
-        ${p.listPrice !== null ? `<span class="muted">${esc(show.money(locale, p.listPrice))}</span>` : ''}</div>
-      ${p.own
-        ? `<p class="fdesc">${esc(t(locale, discounted(p) ? 'prices.stated' : 'prices.stated.noDiscount', {
-             floor: show.money(locale, p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
-        : isCovered(p) && v.businessDefault
-          ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: show.money(locale, v.businessDefault.floor) }))}</p>`
-          : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
-      ${open || (p.own === null && !isCovered(p))
-        ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '', open, 'h3', close)
-        // Phase 9 (V1-353) — a door, like every other page's, that lands on the product's own row.
-        : `<a class="deeper" href="/app/products/price-limits?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}${GO}</a>`}
-    </li>`;
+    const act = formOpen ? ''
+      // Phase 9 (V1-353) — a door, like every other page's, that lands on the product's own row.
+      : `<a class="deeper pr-door" href="/app/products/price-limits?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}${GO}</a>`;
+    const nameCell = `<th scope="row" class="pr-name"><div class="pr-who">${thumb}<span class="pr-id"><b><bdi>${esc(label)}</bdi></b>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? `<span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}${act}</span></div></th>`;
+    const pct = (n: number): string => `<bdi>${esc(show.percent(locale, n))}</bdi>`;
+    // Phase 9 — a discount comes only from one she wrote; where none reaches this product, its row says so.
+    const noneReaches = rules !== null && v.volume.length > 0 && !discounted(p)
+      ? `<span class="caption muted">${esc(t(locale, 'prices.table.noDiscount'))}</span>` : '';
+    return `<tr class="pr-row${formOpen ? ' has-form' : ''}" id="${esc(anchor)}">${nameCell}
+      ${cell(1, p.listPrice !== null ? `<bdi>${esc(show.money(locale, p.listPrice))}</bdi>` : `<span class="muted">${esc(t(locale, 'product.detail.noPrice'))}</span>`, 'num')}
+      ${cell(2, rules ? `<b><bdi>${esc(show.money(locale, rules.floor))}</bdi></b>` : `<span class="pr-missing">${esc(t(locale, 'product.head.floorNone'))}</span>`, 'num')}
+      ${cell(3, rules ? `${pct(rules.maxDiscountPct)}${noneReaches}` : '', 'num')}
+      ${cell(4, rules ? pct(rules.askAbovePct) : '', 'num')}
+      </tr>
+      ${formOpen ? `<tr class="pr-form-row"><td colspan="5">${p.own === null && !isCovered(p) ? `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>` : ''}${form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '', open, 'h3', close)}</td></tr>` : ''}`;
   };
+  const table = (rows: readonly ProductRules[], caption: string): string => `<table class="pr-table">
+      <caption class="sr">${esc(caption)}</caption>
+      <thead><tr>${cols.map((c, i) => `<th scope="col"${i > 0 ? ' class="num"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(productRow).join('')}</tbody></table>`;
 
   // Phase 9 (V1-351) — with every product answered for on its own and no
   // answer for everything, the empty form for everything is folded away, not
@@ -547,6 +569,7 @@ export function renderPriceRules(
     <h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'prices.lede', { name }))}</p>
+    <p class="fdesc pr-how">${esc(t(locale, v.volume.length ? 'prices.table.how' : 'prices.table.noneWritten', { name }))}</p>
 
     <section class="fblock pr-block" id="everything">
       <h2>${esc(t(locale, 'prices.default.title'))}</h2>
@@ -556,17 +579,17 @@ export function renderPriceRules(
     ${needing.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.needing.title', { name }))}</h2>
       <p class="fdesc">${esc(t(locale, 'prices.needing.sub', { n: needing.length, name }))}</p>
-      <ul class="rows">${needing.map(productRow).join('')}</ul>
+      ${table(needing, t(locale, 'prices.needing.title', { name }))}
     </section>` : ''}
 
     ${answered.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.answered.title'))}</h2>
-      <ul class="rows">${answered.map(productRow).join('')}</ul>
+      ${table(answered, t(locale, 'prices.answered.title'))}
     </section>` : ''}
 
     ${covered.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.inherited.title'))}</h2>
-      <ul class="rows">${covered.map(productRow).join('')}</ul>
+      ${table(covered, t(locale, 'prices.inherited.title'))}
     </section>` : ''}
 
     ${volumeSection(v, locale, volumeErrors, volumeDraft)}
