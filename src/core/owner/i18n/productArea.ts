@@ -1,4 +1,4 @@
-/** Approved Products area additions; other locales use explicit English fallback. */
+/** Approved Products area additions. Block 4: zh, ar, es and fr are in messages.ts, each catalogue its own. */
 export const PRODUCT_AREA_EN = {
  'products.all':'All products', 'products.add':'Add products', 'products.limits':'Price limits',
  'products.search':'Search products', 'products.searchHint':'Name, product code or customer name for it',

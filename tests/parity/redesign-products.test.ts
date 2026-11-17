@@ -20,7 +20,10 @@ describe('Products area presentation',()=>{
   expect(html).toContain('href="/app/products/add"');
   const limited=productArea('<h1>Products</h1>','en','all',staff);
   expect(limited).not.toContain('/app/products/add');expect(limited).not.toContain('/app/products/price-limits');
-  expect(productArea('', 'fr', 'all')).toContain('All products');
+  // Block 4 (supervisor approved 2026-11-18): the product area is now translated, so this pin held the English
+  // fallback; French reads French. The WhatsApp catalogue keeps its lang="en" label as before.
+  expect(productArea('', 'fr', 'all')).toContain('Tous les produits');
+  expect(productArea('', 'fr', 'all')).not.toContain('All products');
  });
  it('keeps search, page and row anchor through the product record',()=>{
   const html=renderProductList([item],'en',null,OWNER_VIEW,null,{page:{items:[item],q:'canvas',total:121,page:3,pageSize:50,next:null,prev:'/app/products?q=canvas&page=2'},returnHref:source});

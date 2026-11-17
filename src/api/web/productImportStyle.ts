@@ -43,7 +43,7 @@ export const PRODUCT_IMPORT_CSS = String.raw`
 .product-import-floors .block{max-width:var(--measure-prose);}
 .imp-steps{display:flex;flex-wrap:wrap;gap:var(--space-8) var(--space-24);list-style:none;padding:0;margin:0 0 var(--space-24);font-size:var(--font-size-small);color:var(--color-ink-secondary);}
 .imp-steps li{display:flex;align-items:center;gap:var(--space-8);}
-.imp-step-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--color-control-line);border-radius:999px;font-variant-numeric:tabular-nums;}
+.imp-step-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--color-control-line);border-radius:var(--radius-chip);font-variant-numeric:tabular-nums;}
 .imp-steps [aria-current="step"]{color:var(--color-ink);font-weight:600;}
 .imp-steps [aria-current="step"] .imp-step-n{background:var(--color-ink);border-color:var(--color-ink);color:var(--color-surface);}
 .imp-steps .done{color:var(--color-ink);}
