@@ -172,6 +172,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/invoices/:id/edit', action: 'post' },
   { method: 'GET', url: '/app/books/credit-notes/:id/edit', action: 'post' },
   { method: 'POST', url: '/app/books/credit-notes/:id/edit', action: 'post' },
+  // F20 — a credit note's running total while its form is filled: the same role as saving it; it writes nothing.
+  { method: 'POST', url: '/app/books/invoices/:id/credit-notes/preview', action: 'post' },
   { method: 'POST', url: '/app/books/bank/columns', action: 'post' },
 ];
 

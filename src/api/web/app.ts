@@ -82,7 +82,7 @@ import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
-import { savedTotalOf, renderInvoiceTotal } from './booksInvoices.js';
+import { savedTotalOf, renderInvoiceTotal, renderCreditTotal, creditInvoiceOf } from './booksInvoices.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -367,7 +367,7 @@ import { draftFromReading, keepReading, paperOf } from '../../db/booksDocuments.
 import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
-import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
+import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote, type CreditLineInput } from '../../db/booksCreditNotes.js';
 import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
@@ -3494,26 +3494,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = editing?.invoiceId ?? (req.params as { id: string }).id;
     const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, booksToday()), lines: await creditable(tx, bid, id) }));
     if (!got.v || !got.v.key) return reply.callNotFound();
+    // F20 — the credit as first drawn: the form's own defaults (all that is left of each line) under what was typed.
+    const shown = readCreditForm({ ...Object.fromEntries(got.lines.filter((l) => signOf(l.left) > 0).map((l) => [`qty${l.lineNo}`, String(l.left)])), ...values }, locale);
+    const preview = creditLineTrouble(locale, shown.problems) ? null : creditPreview(shown.lines, got.lines);
     return reply.code(code).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.credit.new', { invoice: got.v.key }), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, { id, key: got.v.key, party: got.v.party, currency: got.v.currency }, got.lines, values, problems, booksToday(), editing?.id ?? null, invoiceContext(req))}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, creditInvoiceOf(got.v), got.lines, values, problems, booksToday(), editing?.id ?? null, { ...invoiceContext(req), creditPreview: preview })}` }));
   };
-  app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
-    return creditForm(req, reply, {}, []);
-  });
-  /** A credit note's draft against an issued invoice, or (0216 (a), `editing`) a draft saved over. */
-  const saveCredit = (editingNote: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    const bid = bidOf(s); if (!bid) return reply.callNotFound();
-    const locale = localeOf(req);
-    const param = (req.params as { id: string }).id;
-    if (!/^[0-9a-f-]{36}$/i.test(param)) return reply.callNotFound();
-    const draft = editingNote ? await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, param)) : null;
-    if (editingNote && !draft) return reply.callNotFound();
-    const editing = draft ? { id: param, invoiceId: draft.invoiceId } : null;
-    const id = editing?.invoiceId ?? param;
-    const f = (req.body ?? {}) as Record<string, unknown>;
+  /**
+   * F20 — A CREDIT NOTE'S FORM, READ ONCE: Save and the running total read it here, the same way. Its day, its reason,
+   * and each invoice line's quantity given back (qtyN) and price lowered (redN, 0216).
+   */
+  function readCreditForm(body: unknown, locale: Locale): { values: Record<string, string>; problems: string[]; reason: string; issueDate: string; lines: CreditLineInput[] } {
+    const f = (body ?? {}) as Record<string, unknown>;
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.trim();
     const problems: string[] = [];
@@ -3532,6 +3524,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       byLine.set(n, m[1] === 'qty' ? { ...was, quantity: q } : { ...was, reduction: q });
     }
     const lines = [...byLine].map(([invoiceLineNo, l]) => ({ invoiceLineNo, ...l }));
+    return { values, problems, reason, issueDate, lines };
+  }
+  /** F20 — a line Save would send back holds the running total; the reason and the day are Save's to check and do not. */
+  const creditLineTrouble = (locale: Locale, problems: readonly string[]) =>
+    problems.some((p) => p !== t(locale, 'books.credit.problem.reason') && p !== t(locale, 'books.entry.problem.date'));
+  app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
+    return creditForm(req, reply, {}, []);
+  });
+  /** A credit note's draft against an issued invoice, or (0216 (a), `editing`) a draft saved over. */
+  const saveCredit = (editingNote: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const param = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(param)) return reply.callNotFound();
+    const draft = editingNote ? await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, param)) : null;
+    if (editingNote && !draft) return reply.callNotFound();
+    const editing = draft ? { id: param, invoiceId: draft.invoiceId } : null;
+    const id = editing?.invoiceId ?? param;
+    const { values, problems, reason, issueDate, lines } = readCreditForm(req.body, locale);
     if (problems.length > 0) return creditForm(req, reply, values, problems, 422, editing);
     const out = await withTenantTx(deps.db, bid, (tx) => (editing
       ? redraftCreditNote(tx, bid, editing.id, { issueDate, reason, lines })
@@ -3540,6 +3554,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, invoiceDestination(req,`/app/books/credit-notes/${out.id}`), editing ? 'books.flash.draftSaved' : 'books.flash.creditDrafted');
   };
   app.post('/app/books/invoices/:id/credit-notes', saveCredit(false));
+  /**
+   * F20 — THE CREDIT WHILE THE FORM IS FILLED. Reads the form exactly as Save does (`readCreditForm`) and answers what
+   * Save would store for its lines (`creditPreview`: Save's own `creditLineFigures` over the invoice's lines as
+   * `creditable` reads them) and what that does to what the customer still owes, as a fragment the page puts beside Save.
+   * It writes nothing: two reads in the workspace's own transaction. The same role as Save (`BOOKS_ROUTES`: post).
+   */
+  app.post('/app/books/invoices/:id/credit-notes/preview', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = readCreditForm(req.body, locale);
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, booksToday()), lines: await creditable(tx, bid, id) }));
+    if (!got.v || !got.v.key || got.v.status === 'draft' || got.v.status === 'discarded') return reply.callNotFound();
+    reply.header('cache-control', 'no-store').type('text/html; charset=utf-8');
+    return reply.send(`<div data-total-body>${renderCreditTotal(locale, creditLineTrouble(locale, f.problems) ? null : creditPreview(f.lines, got.lines), creditInvoiceOf(got.v))}</div>`);
+  });
   app.post('/app/books/credit-notes/:id/edit', saveCredit(true));
   app.get('/app/books/credit-notes/:id/edit', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3553,10 +3585,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const c = await withTenantTx(deps.db, bid, (tx) => loadCreditNote(tx, bid, (req.params as { id: string }).id));
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const c = await loadCreditNote(tx, bid, (req.params as { id: string }).id);
+      return { c, v: c ? await loadInvoice(tx, bid, c.invoiceId, booksToday()) : null };
+    });
+    const c = got.c;
     if (!c) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: c.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderCreditNote(locale, personOf(s), c, {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId)})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderCreditNote(locale, personOf(s), c, {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.v ? { creditInvoice: creditInvoiceOf(got.v) } : {})})}` }));
   });
   app.post('/app/books/credit-notes/:id/issue', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

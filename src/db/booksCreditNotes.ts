@@ -97,18 +97,82 @@ export async function redraftCreditNote(tx: Tx, businessId: string, id: string, 
   return writeCreditNote(tx, businessId, '', { ...input, invoiceId: was.invoice_id }, id);
 }
 
-async function writeCreditNote(tx: Tx, businessId: string, by: string, input: CreditNoteInput, editing: string | null):
-  Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
-  // each wish is one line: goods given back, or a price lowered
-  const wanted = input.lines.flatMap((l) => [
+/** Each wish on a credit note's form is one line: goods given back, or a price lowered (to the cent). */
+export function creditWishes(lines: readonly CreditLineInput[]): { readonly invoiceLineNo: number; readonly quantity: Decimal; readonly reduction: Decimal | null }[] {
+  return lines.flatMap((l) => [
     ...(l.reduction && signOf(l.reduction) > 0 ? [{ invoiceLineNo: l.invoiceLineNo, quantity: d('0'), reduction: roundDecimal(l.reduction, 2) }] : []),
     ...(signOf(l.quantity) > 0 ? [{ invoiceLineNo: l.invoiceLineNo, quantity: l.quantity, reduction: null as Decimal | null }] : []),
   ]);
+}
+
+export type CreditFigure = {
+  readonly invoiceLineNo: number; readonly quantity: Decimal; readonly net: Decimal; readonly tax: Decimal;
+  /** The line takes more than is left of its invoice line — the database refuses it (credit_note_line_ok). */
+  readonly over: boolean;
+  /** No such line on the invoice — the database refuses it too. */
+  readonly missing: boolean;
+};
+
+/**
+ * ONE CREDIT NOTE'S LINE FIGURES, the one place they are worked out (F20, UI correction Block 5 — moved here unchanged
+ * from `writeCreditNote`): Save writes exactly these, and the editor's running total reads them, so what the owner is
+ * shown while choosing is what Save will store, by construction.
+ */
+export function creditLineFigures(wanted: ReturnType<typeof creditWishes>, lines: readonly CreditableLine[]): CreditFigure[] {
+  const left = new Map(lines.map((l) => [l.lineNo, l]));
+  return wanted.map((w) => {
+    const l = left.get(w.invoiceLineNo);
+    let net: Decimal; let tax: Decimal;
+    if (!l) { net = d('0'); tax = d('0'); }
+    else if (w.reduction !== null) {
+      // a price lowered: its amount, at the line's tax; all that is left of the line takes exactly what is left
+      const all = compareDecimal(w.reduction, l.leftNet) === 0;
+      net = w.reduction;
+      tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
+    } else {
+      // the last of a line takes exactly what is left of it; a part is its quantity at the line's price and tax
+      const all = compareDecimal(w.quantity, l.left) === 0;
+      net = all ? l.leftNet : roundDecimal(mulDecimal(w.quantity, l.unitPrice), 2);
+      tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
+    }
+    const over = !!l && (compareDecimal(net, l.leftNet) > 0 || (w.reduction === null && compareDecimal(w.quantity, l.left) > 0));
+    // what is left, for this note's next line on the same invoice line (the database counts them together too)
+    if (l) left.set(w.invoiceLineNo, { ...l, left: subDecimal(l.left, w.quantity), leftNet: subDecimal(l.leftNet, net), leftTax: subDecimal(l.leftTax, tax) });
+    return { invoiceLineNo: w.invoiceLineNo, quantity: w.quantity, net, tax, over, missing: !l };
+  });
+}
+
+export type CreditPreview =
+  | { readonly kind: 'nothing' }
+  | { readonly kind: 'over'; readonly line: number }
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'figures'; readonly net: Decimal; readonly tax: Decimal; readonly total: Decimal };
+
+/**
+ * F20 — what Save would store for these credit lines against these invoice lines, written nowhere: `creditWishes` and
+ * `creditLineFigures`, the functions Save uses, over lines read by `creditable`. A form Save would send back is said as
+ * such, never a guessed figure.
+ */
+export function creditPreview(lines: readonly CreditLineInput[], invoiceLines: readonly CreditableLine[]): CreditPreview {
+  const wanted = creditWishes(lines);
+  if (wanted.length === 0) return { kind: 'nothing' };
+  const figures = creditLineFigures(wanted, invoiceLines);
+  if (figures.some((f) => f.missing)) return { kind: 'missing' };
+  const over = figures.find((f) => f.over);
+  if (over) return { kind: 'over', line: over.invoiceLineNo };
+  const net = figures.reduce((a, f) => addDecimal(a, f.net), d('0'));
+  const tax = figures.reduce((a, f) => addDecimal(a, f.tax), d('0'));
+  return { kind: 'figures', net, tax, total: addDecimal(net, tax) };
+}
+
+async function writeCreditNote(tx: Tx, businessId: string, by: string, input: CreditNoteInput, editing: string | null):
+  Promise<{ readonly kind: 'drafted'; readonly id: string } | CreditRefusal> {
+  const wanted = creditWishes(input.lines);
   if (wanted.length === 0) return { kind: 'refused', reason: 'nothing_to_credit', detail: null };
   const inv = (await sql<{ currency: string }>`select currency from invoices where business_id = ${businessId}::uuid and id = ${input.invoiceId}::uuid
     and state = 'issued'`.execute(tx)).rows[0];
   if (!inv) return { kind: 'refused', reason: 'not_issued', detail: null };
-  const left = new Map((await creditable(tx, businessId, input.invoiceId)).map((l) => [l.lineNo, l]));
+  const figures = creditLineFigures(wanted, await creditable(tx, businessId, input.invoiceId));
   try {
     await sql`savepoint draft_credit`.execute(tx);
     let id: string;
@@ -123,25 +187,9 @@ async function writeCreditNote(tx: Tx, businessId: string, by: string, input: Cr
       id = editing;
     }
     let n = 0;
-    for (const w of wanted) {
-      const l = left.get(w.invoiceLineNo);
-      let net: Decimal; let tax: Decimal;
-      if (!l) { net = d('0'); tax = d('0'); }
-      else if (w.reduction !== null) {
-        // a price lowered: its amount, at the line's tax; all that is left of the line takes exactly what is left
-        const all = compareDecimal(w.reduction, l.leftNet) === 0;
-        net = w.reduction;
-        tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
-      } else {
-        // the last of a line takes exactly what is left of it; a part is its quantity at the line's price and tax
-        const all = compareDecimal(w.quantity, l.left) === 0;
-        net = all ? l.leftNet : roundDecimal(mulDecimal(w.quantity, l.unitPrice), 2);
-        tax = all ? l.leftTax : roundDecimal(divDecimal(mulDecimal(net, l.rate), d('100'), 6), 2);
-      }
-      // what is left, for this note's next line on the same invoice line (the database counts them together too)
-      if (l) left.set(w.invoiceLineNo, { ...l, left: subDecimal(l.left, w.quantity), leftNet: subDecimal(l.leftNet, net), leftTax: subDecimal(l.leftTax, tax) });
+    for (const f of figures) {
       await sql`insert into credit_note_lines (business_id, credit_note_id, line_no, invoice_line_no, quantity, net, tax)
-        values (${businessId}::uuid, ${id}::uuid, ${++n}, ${w.invoiceLineNo}, ${w.quantity}::numeric, ${net}::numeric, ${tax}::numeric)`.execute(tx);
+        values (${businessId}::uuid, ${id}::uuid, ${++n}, ${f.invoiceLineNo}, ${f.quantity}::numeric, ${f.net}::numeric, ${f.tax}::numeric)`.execute(tx);
     }
     await sql`release savepoint draft_credit`.execute(tx);
     return { kind: 'drafted', id };

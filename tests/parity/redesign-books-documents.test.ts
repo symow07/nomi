@@ -86,6 +86,13 @@ describe('Books invoice and credit-note presentation',()=>{
   const html=renderCreditNote('en',owner,note,{issuer});
   const paper=html.match(/<article class="book-document"[\s\S]*?<\/article>/)?.[0]??'';
   expect(paper).toContain('A-2026-0001');expect(paper).toContain('Store &lt;Two&gt;');expect(paper).toContain('Price adjustment');expect(paper).toContain('£12.00');expect(paper).not.toContain('<form');
+  // F20 (UI correction, Block 5): the document holds only what the customer reads. The owner's two notes on where the
+  // parties' details came from stand directly under the paper, same words, same conditions — not on it.
+  const under=html.slice(html.indexOf('</article>'),html.indexOf('<div class="bd-outside">',html.indexOf('</article>')));
+  expect(paper).not.toContain('Current business details');expect(paper).not.toContain('As written on the invoice when it was issued');
+  expect(under).toContain('Current business details — these were not copied when the document was issued.');expect(under).toContain('As written on the invoice when it was issued.');
+  const draftUnder=renderCreditNote('en',owner,{...note,state:'draft',billedTo:{...billedTo,asIssued:false}},{issuer});
+  expect(draftUnder.slice(draftUnder.indexOf('</article>'))).toContain('Current business details.');expect(draftUnder.slice(draftUnder.indexOf('</article>'))).toContain('Copied onto the invoice when it is issued, and kept as it is then.');
   expect(html).not.toContain('/credit/issue');expect(html).toContain('price lowered');
   const draft=renderCreditNote('en',owner,{...note,state:'draft'});expect(draft).toContain('/credit/issue');expect(draft).toContain('/credit/discard');
   expect(renderCreditNote('en',accountant,{...note,state:'draft'})).not.toContain('<form');

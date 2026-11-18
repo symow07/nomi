@@ -31,6 +31,11 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bd-title{font-size:var(--font-size-hero);font-weight:600;line-height:1.2;margin:0 0 var(--space-16);overflow-wrap:anywhere;}
 .bd-round{font-size:var(--font-size-small);color:var(--color-ink-secondary);margin:var(--space-4) 0 0;font-variant-numeric:tabular-nums;}
 .bd-notes{max-width:var(--measure-column);margin:calc(-1 * var(--space-8)) 0 var(--space-24);padding:var(--space-8) var(--space-16);border-inline-start:3px solid var(--color-border);}
+/* F20: a credit note — what it is against, its running total, and what it does to the balance. */
+.bd-effect{margin:var(--space-12) 0 0;font-variant-numeric:tabular-nums;max-width:var(--measure-prose);}
+.bd-credit-source{margin-block:var(--space-8) var(--space-24);}
+.bd-credit-source a,.bd-summary dd a{display:inline-flex;align-items:center;min-height:44px;}
+.bd-line-facts dd{font-variant-numeric:tabular-nums;}
 .bd-outside a,.bd-notes a{display:inline-flex;align-items:center;min-height:44px;}
 .bd-notes p{margin:var(--space-4) 0;font-size:var(--font-size-small);color:var(--color-ink);}
 .bd-header>p{margin-block:var(--space-8);}
