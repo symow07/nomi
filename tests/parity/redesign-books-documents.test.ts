@@ -42,7 +42,19 @@ describe('Books invoice and credit-note presentation',()=>{
   const paper=html.match(/<article class="book-document"[\s\S]*?<\/article>/)?.[0]??'';
   expect(paper).toContain('Store &lt;Two&gt;');expect(paper).toContain('20 Shop Street');expect(paper).toContain('Customer &lt;One&gt;');
   expect(paper).toContain('F-2026-0001');expect(paper).toContain('VAT20');expect(paper).toContain('£120.00');
-  expect(paper).toContain('Current business details');expect(paper).not.toContain('<form');
+  // F19 (UI correction, Block 5): the document holds only what the customer reads. The owner's two notes on where the
+  // parties' details came from are no longer on the paper; they stand directly under it, same words, same conditions.
+  const notes=html.slice(html.indexOf('</article>'),html.indexOf('<div class="bd-outside">',html.indexOf('</article>')));
+  expect(paper).not.toContain('Current business details');expect(paper).not.toContain('As written on the invoice when it was issued');
+  expect(notes).toContain('Current business details — these were not copied when the document was issued.');
+  expect(notes).toContain('As written on the invoice when it was issued.');
+  const draftNotes=renderInvoice('en',owner,{...invoice,status:'draft',billedTo:{...billedTo,asIssued:false}},pay,'2026-11-06',{issuer});
+  expect(draftNotes.slice(draftNotes.indexOf('</article>'))).toContain('Current business details.');
+  expect(draftNotes.slice(draftNotes.indexOf('</article>'))).not.toContain('these were not copied');
+  expect(draftNotes.slice(draftNotes.indexOf('</article>'))).toContain('Copied onto the invoice when it is issued, and kept as it is then.');
+  expect(draftNotes.slice(draftNotes.indexOf('</article>'))).not.toContain('As written on the invoice when it was issued');
+  expect(renderInvoice('en',owner,invoice,pay,'2026-11-06')).not.toContain('Current business details');
+  expect(paper).not.toContain('<form');
   expect(html.indexOf('action="/app/books/invoices/invoice/payments"')).toBeGreaterThan(html.indexOf('</article>'));
   expect(html.match(/<h1 /g)).toHaveLength(1);
  });

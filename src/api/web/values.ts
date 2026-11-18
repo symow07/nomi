@@ -2,7 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
-import { formatDecimalToParts, roundDecimal } from '../../core/types/decimal.js';
+import { formatDecimal, formatDecimalToParts, roundDecimal, type Decimal } from '../../core/types/decimal.js';
 import { workspaceZone, workspaceCountry, countryUnknown } from './zone.js';
 import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
@@ -129,6 +129,30 @@ const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): 
 /** Money: "$1.95" in English and Chinese, "1,95 $" in Spanish in Spain, "1.95 US$" (the locale's own form) in Arabic. */
 export const money = (locale: Locale, m: Money): string =>
   isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
+
+/** The places a stored figure carries after its point, trailing zeros not counted. */
+const placesOf = (d: string): number => (d.split('.')[1] ?? '').replace(/0+$/, '').length;
+
+/**
+ * F19 (UI correction, Block 5) — an amount at the places it was stored: a unit price "$1.2345", "$18.40", never
+ * rounded to the cent (money() is); and the exact product of a line, up to eight places. At least two places.
+ */
+export const exactMoney = (locale: Locale, m: Money, most = 4): string => {
+  const stored = placesOf(m.amount);
+  const places = stored < 2 ? 2 : stored > most ? most : stored;
+  if (locale === 'ar') return isolate(locale, arabicMoney(m, places));
+  return isolate(locale, localMoney(locale, m, places) ?? `${currencySymbol(m.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: places, maximumFractionDigits: places }), m.amount)}`);
+};
+
+/** F19 — an invoice line's quantity exactly as stored, grouped ("1,500", "1.2345"): never 万-shortened or rounded. */
+export const exactQuantity = (locale: Locale, d: Decimal): string => {
+  const places = Math.min(4, placesOf(d));
+  const region = locale === 'es' || locale === 'fr' ? regionOf(locale) : null;
+  let nf: Intl.NumberFormat;
+  try { nf = new Intl.NumberFormat(region ?? 'en-US', { minimumFractionDigits: places, maximumFractionDigits: places }); }
+  catch { nf = new Intl.NumberFormat('en-US', { minimumFractionDigits: places, maximumFractionDigits: places }); }
+  return isolate(locale, formatDecimal(nf, d));
+};
 
 /**
  * Phase 9 (V1-169, V1-229, V1-300, V1-307) — a quantity by the same rule as an
