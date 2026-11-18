@@ -214,6 +214,9 @@ export const seconds = (locale: Locale, s: number): string => isolate(locale, f.
 /** "Oct 2", for a day 'YYYY-MM-DD': where a row of the calendar's owed list sits in its month. */
 export const dayMonth = (locale: Locale, ymd: string): string => isolate(locale, f.formatDayMonth(locale, ymd));
 
+/** "Nov 19, 2026", for a day 'YYYY-MM-DD': a figure's period, with its year and without its weekday. */
+export const dayMonthYear = (locale: Locale, ymd: string): string => isolate(locale, f.formatDayMonthYear(locale, ymd));
+
 /** "September 2026". */
 export const month = (locale: Locale, ymd: string): string => isolate(locale, f.formatMonth(locale, ymd));
 

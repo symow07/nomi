@@ -70,6 +70,37 @@ main:has(.entry-form){max-width:100%;}
 .ba-money dd{margin:0;font-size:var(--font-size-title);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 .ba-money p{font-size:var(--font-size-small);line-height:var(--line-height);}
 .ba-actions{display:flex;flex-wrap:wrap;gap:var(--space-12);margin-block:var(--space-32);}
+/* F17: the Books home. Needs you a line each; the three actions next; one setup step; money in three groups. */
+.ba-overview .ba-work{margin-block:var(--space-16) 0;}
+.ba-work-head{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--space-16);margin-bottom:var(--space-8);}
+.ba-overview .ba-work-head h2{margin:0;}
+.ba-work-head p{margin:0;font-size:var(--font-size-small);}
+.ba-waiting{display:flex;flex-wrap:wrap;gap:var(--space-8);list-style:none;margin:0;padding:0;}
+.ba-waiting a{display:inline-flex;align-items:center;gap:var(--space-8);min-height:44px;padding:0 var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink);text-decoration:none;}
+.ba-overview .ba-actions{margin-block:var(--space-16) var(--space-24);}
+.ba-setup{margin-block:0 var(--space-24);padding:var(--space-12) var(--space-16);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);}
+.ba-setup a{display:inline-flex;align-items:center;min-height:44px;}
+.ba-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-24);margin-block:0 var(--space-16);}
+.ba-group{min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-12);}
+.ba-overview .ba-group h2{font-size:var(--font-size-base);font-weight:600;margin:0 0 var(--space-8);}
+.ba-group dl{margin:0;}
+.ba-fig{padding-block:var(--space-8);min-width:0;}
+.ba-fig dt{font-size:var(--font-size-small);color:var(--color-ink-secondary);}
+.ba-fig dd{margin:0;font-size:var(--font-size-title);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.ba-fig dd p{font-size:var(--font-size-small);margin:0;}
+.ba-period{font-size:var(--font-size-caption);color:var(--color-ink-secondary);margin:0;}
+.ba-source{font-size:var(--font-size-small);margin:0;}
+.ba-source a{text-decoration:underline;text-underline-offset:3px;}
+.ba-source a{display:inline-flex;align-items:center;min-height:44px;}
+.ba-note{font-size:var(--font-size-small);color:var(--color-ink-secondary);margin:0;}
+.ba-overview>.caption a{display:inline-flex;align-items:center;min-height:44px;}
+.ba-overview .rows a{display:inline-flex;flex-wrap:wrap;align-items:center;column-gap:var(--space-4);min-height:44px;}
+.ba-how{border-top:1px solid var(--color-border);padding-block:var(--space-8);}
+.ba-how summary{cursor:pointer;min-height:44px;display:flex;align-items:center;}
+.ba-how dl{margin:0 0 var(--space-16);}
+.ba-how dl>div{padding-block:var(--space-8);}
+.ba-how dt{font-weight:600;}
+.ba-how dd{margin:0;font-size:var(--font-size-small);line-height:var(--line-height);}
 .ba-scope{border-block:1px solid var(--color-border);padding-block:var(--space-16);}
 .ba-scope summary{cursor:pointer;min-height:44px;}
 .ba-scope fieldset{margin-block:var(--space-24);padding:0;border:0;}
@@ -78,6 +109,7 @@ main:has(.entry-form){max-width:100%;}
 .ba-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-16);padding-block:var(--space-16);}
 .ba-pager a{min-height:44px;display:flex;align-items:center;}
 @media(max-width:1100px){.books-area{grid-template-columns:minmax(0,1fr);}.ba-nav{position:static;flex-direction:row;flex-wrap:wrap;border-bottom:1px solid var(--color-border);}.ba-nav a{border-inline-start:0;border-bottom:2px solid transparent;}.ba-nav a[aria-current=page]{border-bottom-color:var(--color-accent);}.ba-nav .ba-advanced,.ba-nav .ba-settings{margin-top:0;}}
-@media(max-width:600px){.books-area{gap:var(--space-24);}.ba-nav{display:none;}.ba-chooser{display:block;}.ba-chooser summary{min-height:44px;display:flex;align-items:center;}.ba-chooser nav a{display:flex;align-items:center;min-height:44px;}.ba-money{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.ba-actions{flex-direction:column;}.ba-actions .btn{width:100%;}.ba-content .pform{max-width:100%;min-width:0;}}
+@media(max-width:720px){.books-area{gap:var(--space-16);}.ba-sum{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.ba-fig{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-16);align-items:baseline;}.ba-fig dd{text-align:end;}.ba-period,.ba-source{grid-column:1/-1;}.ba-nav{display:none;}.ba-chooser{display:block;}.ba-chooser summary{min-height:44px;display:flex;align-items:center;}.ba-chooser nav a{display:flex;align-items:center;min-height:44px;}}
+@media(max-width:600px){.ba-money{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.ba-actions{flex-direction:column;}.ba-actions .btn{width:100%;}.ba-overview .ba-actions{flex-direction:row;gap:var(--space-8);}.ba-overview .ba-actions .btn{width:auto;}.ba-content .pform{max-width:100%;min-width:0;}}
 @media print{.ba-nav,.ba-chooser{display:none;}.books-area{display:block;}}
 `;

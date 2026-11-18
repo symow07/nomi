@@ -219,6 +219,12 @@ export function formatDayMonth(locale: Locale, ymd: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(midnight));
 }
 
+/** "Nov 19, 2026", "2026年11月19日", "19 نوفمبر 2026" — a day with its year and no weekday, for a day 'YYYY-MM-DD' (a figure's period). */
+export function formatDayMonthYear(locale: Locale, ymd: string): string {
+  const midnight = `${ymd}T00:00:00Z`;
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(midnight));
+}
+
 /** "Mon", "周一", "الاثنين" — a weekday's short name, for a day 'YYYY-MM-DD'. */
 export function formatWeekday(locale: Locale, ymd: string): string {
   const midnight = `${ymd}T00:00:00Z`;
