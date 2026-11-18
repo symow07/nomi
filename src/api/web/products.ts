@@ -893,6 +893,8 @@ export function renderProductDetail(
   ].filter(Boolean).join('');
 
   // F26 — what is compared at a glance: the price, and (for the owner, whose limits they are) the lowest price.
+  // Block 4 fix1: they come straight after the name (the other name, code, status and photo note follow), so they
+  // are on the first screen at 200 % in every language, a two-line name included.
   const first = d.tiers[0];
   const floorFigure = !viewer.isOwner ? '' : `<div><dt>${esc(t(locale, 'data.export.rule.floor'))}</dt><dd>${d.floor
     ? `<b>${iso(perUnit(locale, d.floor.price, d.unit))}</b>${d.floor.own ? '' : `<span class="caption muted">${esc(t(locale, 'prices.inherited.title'))}</span>`}`
@@ -902,14 +904,14 @@ export function renderProductDetail(
     <h1 class="page"><bdi>${esc(title)}</bdi></h1>
     <div class="pd-photo">${shown[0] ? `<img src="${esc(shown[0])}" alt="${esc(title)}" />` : `<span class="caption muted">${esc(t(locale, 'product.photo.none'))}</span>`}</div>
     <div class="pd-id">
-      ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
-      ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
       <dl class="pd-figures">
         <div><dt>${esc(t(locale, 'data.export.col.price'))}</dt><dd>${first
           ? `<b>${iso(perUnit(locale, first.unitPrice, d.unit))}</b><span class="caption muted">${esc(tierLabel(first))}</span>`
           : `<span class="muted">${esc(t(locale, 'product.detail.noPrice'))}</span>`}</dd></div>
         ${floorFigure}
       </dl>
+      ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
+      ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
     </div>
   </header>`;
 
