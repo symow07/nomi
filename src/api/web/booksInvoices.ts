@@ -54,9 +54,9 @@ export const creditInvoiceOf = (v: InvoiceView): CreditInvoice => ({ id: v.id, k
  * never a guessed amount and never a zero.
  */
 export function renderCreditTotal(locale: Locale, p: CreditPreview | null, inv: CreditInvoice): string {
-  if (!p) return `<p class="caption muted">${esc(t(locale, 'booksDocs.totalNotYet'))}</p>`;
+  if (!p) return `<p class="caption muted">${esc(t(locale, 'booksCredit.notYet'))}</p>`;
   if (p.kind === 'nothing' || p.kind === 'missing') return `<p class="caption">${esc(t(locale, 'booksCredit.nothing'))}</p>`;
-  if (p.kind === 'over') return `<p class="caption" role="status">${esc(t(locale, 'books.credit.moreThanLeft', { line: show.count(locale, p.line) }))}</p>`;
+  if (p.kind === 'over') return `<p class="caption" role="status">${esc(t(locale, 'booksCredit.over', { line: show.count(locale, p.line) }))}</p>`;
   return `<dl class="bd-totals"><div class="row"><dt>${esc(t(locale, 'booksDocs.subtotal'))}</dt><dd>${money(locale, p.net, inv.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksDocs.tax'))}</dt><dd>${money(locale, p.tax, inv.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksCredit.total'))}</dt><dd><strong>${money(locale, p.total, inv.currency)}</strong></dd></div></dl>${creditEffect(locale, inv, p.total)}`;
 }
 
@@ -427,7 +427,7 @@ export function renderNewCreditNote(locale: Locale, inv: CreditInvoice,
   // to the invoice's balance. Every field keeps its name, so Save and its checks are the same.
   const total = `<div class="bd-editor-total" data-total-out aria-live="polite">${opts.creditPreview === undefined
     ? `<p class="caption muted">${esc(t(locale, 'booksDocs.totalOnSave'))}</p>` : renderCreditTotal(locale, opts.creditPreview, inv)}</div>`;
-  return `<section class="book-doc-editor">${back(invoiceHref, inv.key)}<h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
+  return `<section class="book-doc-editor">${back(invoiceHref, t(locale, 'books.credit.against', { invoice: inv.key }))}<h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
     <p class="lede">${esc(t(locale, 'books.credit.newLede'))}</p>
     <dl class="bd-sum-facts bd-credit-source"><div><dt>${esc(t(locale, 'booksCredit.against'))}</dt><dd><a href="${invoiceHref}"><bdi>${esc(inv.key)}</bdi></a></dd></div><div><dt>${esc(t(locale, 'books.invoice.customer'))}</dt><dd><bdi>${esc(inv.party)}</bdi></dd></div>${inv.owed !== undefined ? `<div><dt>${esc(t(locale, signOf(inv.owed) < 0 ? 'books.invoice.status.refund_due' : 'books.invoice.owed'))}</dt><dd>${money(locale, signOf(inv.owed) < 0 ? subDecimal('0' as Decimal, inv.owed) : inv.owed, inv.currency)}</dd></div>` : ''}</dl>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
@@ -440,7 +440,7 @@ export function renderNewCreditNote(locale: Locale, inv: CreditInvoice,
       <p class="caption muted">${esc(t(locale, 'books.credit.reductionHelp'))}</p>
       <div class="bd-save">${total}<button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button></div>
     </form>
-    <p><a class="deeper" href="${invoiceHref}">${esc(inv.key)}</a></p></section>`;
+    <p><a class="deeper" href="${invoiceHref}"><bdi>${esc(inv.key)}</bdi></a></p></section>`;
 }
 
 export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView, opts: BooksDocumentContext = {}): string {

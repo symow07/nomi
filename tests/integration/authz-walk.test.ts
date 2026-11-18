@@ -125,7 +125,7 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   ...Object.fromEntries(['/app/books/invoices', '/app/books/invoices/:id/edit'].map((u) => [u, { party: '@party', issueDate: '2026-04-20', dueDate: '', currency: 'MAD',
     account0: '@income', quantity0: '1', price0: '100', label0: 'Line authz', tax0: '',
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((i) => [[`account${i}`, ''], [`quantity${i}`, ''], [`price${i}`, ''], [`label${i}`, ''], [`tax${i}`, '']])) }])),
-  ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
+  ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/credit-notes/preview', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
   '/app/settings/closures': { from: '2026-12-01', to: '2026-12-02' },
   // Fix round 3 (F4, F6): what each of these reads before it reads an id. A year's close names the account its result
   // goes to and the journal; a follow-up is confirmed at its position; a reading's lines are ticked by key; a request
@@ -220,7 +220,7 @@ const ROUTE_OWN: Record<string, Record<string, string>> = {
   '/app/inbox/:conversationId/act': { conversationId: 'conv4' }, '/app/inbox/:conversationId/translate': { conversationId: 'conv4' },
   '/app/knowledge/:id/restore': { id: 'knowledgeArchived' },
   // What is done with an issued invoice (a credit note, a payment, a refund, sending it) is done with the issued one.
-  ...Object.fromEntries(['/app/books/invoices/:id/credit-notes/new', '/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/payments',
+  ...Object.fromEntries(['/app/books/invoices/:id/credit-notes/new', '/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/credit-notes/preview', '/app/books/invoices/:id/payments',
     '/app/books/invoices/:id/refunds', '/app/books/invoices/:id/send'].map((u) => [u, { id: 'invoiceIssued' }])), '/app/calendar/entries/:id/restore': { id: 'calendarRemoved' },
   '/app/outbound/:outboundId/send-again': { outboundId: 'uncertain' }, '/app/outbound/:outboundId/leave': { outboundId: 'uncertain2' },
   '/app/books/orders/:id/draft': { id: 'orderBook' }, '/app/sequences/:id/steps': { id: 'sequence2' },
@@ -378,6 +378,7 @@ const flashReason = (res: { headers: Record<string, unknown> }): string => {
 const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/inbox/:conversationId/copilot/reply": ["200, nothing written", "takes the conversation's own id and recomputes the panel from its records: it draws the panel (JSON only when Accept asks for it) and keeps nothing — no thread, no ledger line — so there is no write to walk"],
   "POST /app/books/invoices/preview": ["200, nothing written", "the invoice form's total while it is filled (F18): it reads the form as Save does — the tax codes and accounts it names are looked up in the caller's own workspace only, so another workspace's id is 'not one of yours' and yields the 'not yet' sentence — answers a fragment and keeps nothing: there is no write to walk"],
+  "POST /app/books/invoices/:id/credit-notes/preview": ["200, nothing written", "the credit note form's credit while it is filled (F20): it reads the form as Save does (readCreditForm) and works it out from the invoice's own lines, loaded in the caller's workspace only, so another workspace's invoice is not found — answers a fragment and keeps nothing: there is no write to walk (books-credit-notes.test.ts counts every row)"],
   "POST /app/products/add/store": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/products/add/shopify": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
   "POST /app/settings/business/shopify/connect": ["400", "takes no id; the walk sends no store address (a store is read over the public internet, which the walk never touches): refused as not an address, before anything of the workspace is read"],
