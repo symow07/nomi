@@ -31,17 +31,17 @@ main:has(.entry-form){max-width:100%;}
 .entry-lines{border:0;overflow:visible;}
 .entry-lines thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}
 .entry-lines table,.entry-lines tbody{display:block;width:100%;min-width:0;}
-.entry-lines tbody{counter-reset:entry-line;}
-.entry-lines tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-8) var(--space-12);padding:var(--space-16) 0;border-block-start:1px solid var(--color-border);counter-increment:entry-line;}
+.entry-lines tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-8) var(--space-12);padding:var(--space-16) 0;border-block-start:1px solid var(--color-border);}
 .books-area .entry-lines td{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;padding:0;border:0;white-space:normal;}
 .entry-lines td::before{content:attr(data-label);font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
 .entry-lines .el-account,.entry-lines .el-party,.entry-lines .el-label{grid-column:1/-1;}
-.entry-lines .el-account::before{content:counter(entry-line) " · " attr(data-label);font-weight:600;color:var(--color-ink);}
+.entry-lines .el-account::before{content:attr(data-n) " · " attr(data-label);font-weight:600;color:var(--color-ink);}
 .entry-lines select,.entry-lines input:not([type="checkbox"]){width:100%;min-height:44px;padding:var(--space-8);font:inherit;font-size:var(--font-size-small);
   background:var(--color-surface);color:var(--color-ink);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
 .books-area .entry-lines .el-amount input{text-align:end;font-variant-numeric:tabular-nums;padding-inline:var(--space-8);}
 .entry-lines .el-fx{flex-direction:row;align-items:center;min-height:44px;}
 .entry-lines .el-fx input{inline-size:20px;block-size:20px;flex:none;}
+.entry-lines .el-fx-hit{display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;cursor:pointer;}
 .entry-lines .el-echo{font-size:var(--font-size-caption);color:var(--color-ink-secondary);overflow-wrap:anywhere;}
 .entry-lines .el-echo:empty{display:none;}
 /* A tablet and a small desk: who and what share a line, the figures the next. */
@@ -59,6 +59,61 @@ main:has(.entry-form){max-width:100%;}
  .entry-lines .el-fx{align-self:end;}
 }
 .books-area .pcheck{min-height:44px;}
+/* F22 (UI correction, Block 5) — the empty lines of a new entry behind one disclosure, in the same form. */
+.el-more{margin-block:var(--space-8) var(--space-16);border-block-start:1px solid var(--color-border);}
+.el-more>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-weight:600;}
+.el-more .entry-lines{margin-top:0;}
+/* F22 — the books' wide tables. Words wrap, figures keep their line, end-aligned in even widths; whatever is still
+   wider than the column scrolls inside the table's own frame, never the page. A link in a row is a 44 px target. */
+.books-area .bk-rows th,.books-area .bk-rows td{white-space:normal;vertical-align:top;overflow-wrap:break-word;}
+.books-area .bk-rows .num{text-align:end;white-space:nowrap;overflow-wrap:normal;font-variant-numeric:tabular-nums;}
+.books-area .bk-rows th.num{text-align:end;}
+.books-area .bk-rows td.bk-date,.books-area .bk-rows td.bk-key{white-space:nowrap;overflow-wrap:normal;}
+.books-area .bk-rows td>a,.books-area .bk-rows td>span>a{display:inline-flex;align-items:center;min-height:44px;}
+@media(min-width:901px){.books-area .bk-cards td{vertical-align:middle;}.books-area .bk-rows td.bk-key,.books-area .bk-rows td.bk-text,.books-area .bk-rows td.bk-date,.books-area .bk-rows td.num,.books-area .bk-rows td.bk-state{padding-block:var(--space-8);}}
+.books-area .bk-rows:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px;}
+main:has(.bk-orders){max-width:100%;}
+.bk-orders .pform{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));align-items:end;gap:var(--space-8) var(--space-12);margin:0;max-width:100%;}
+.bk-orders .pform .pq{min-width:0;margin:0;}
+.bk-orders .pform .btn{grid-column:1/-1;justify-self:start;}
+.bk-orders .pform select{width:100%;}
+/* The trial balance has six figures a row: the page gives it its width, and the account stays in view as it scrolls. */
+main:has(.bk-tb){max-width:100%;}
+.books-area .bk-tb th,.books-area .bk-tb td{padding-inline:var(--space-8);}
+.books-area .bk-tb tbody th,.books-area .bk-tb tfoot th,.books-area .bk-tb thead tr:first-child th:first-child{position:sticky;inset-inline-start:0;z-index:1;background:var(--color-surface);min-width:9rem;}
+/* A phone or a narrow tablet: each row a card, every value beside its own name; a cell with nothing in it is left out. */
+@media(max-width:900px){
+ .books-area .bk-rows{border:0;overflow:visible;}
+ .bk-rows thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}
+ .bk-rows table,.bk-rows tbody,.bk-rows tfoot{display:block;width:100%;min-width:0;}
+ .bk-rows tr{display:flex;flex-direction:column;gap:var(--space-4);padding-block:var(--space-12);border-block-start:1px solid var(--color-border);}
+ .books-area .bk-rows tr>td,.books-area .bk-rows tr>th{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-4) var(--space-12);padding:0;border:0;text-align:start;white-space:normal;position:static;min-width:0;background:none;}
+ .books-area .bk-rows tr>td.num{white-space:normal;}
+ .bk-rows tr>td[data-label]::before{content:attr(data-label);font-size:var(--font-size-small);color:var(--color-ink-secondary);font-weight:400;}
+ .bk-rows tr>td>*{text-align:end;min-width:0;}
+ .bk-rows tr>td:empty{display:none;}
+ .bk-rows tr>th{font-weight:600;padding-block-end:var(--space-4);}
+ .bk-rows tfoot tr{border-block-start-width:2px;}
+ .bk-rows td.bk-lead{font-weight:600;}
+ .books-area .bk-rows tr>td.bk-act{display:block;min-width:0;}
+ .bk-rows td.bk-act .pform{width:100%;grid-template-columns:minmax(0,1fr);}
+ .books-area .bk-rows tr>td.bk-key{white-space:normal;}
+ .books-area .bk-rows tr>th{display:block;}
+}
+/* A list of documents on a phone (entries, orders): two columns, each name over its value; the number and its state
+   first, then what it is, then its date and amount; the action under them. */
+@media(max-width:900px){
+ .bk-cards tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-flow:row dense;gap:var(--space-4) var(--space-16);}
+ .books-area .bk-cards tr>td{flex-direction:column;flex-wrap:nowrap;align-items:flex-start;justify-content:flex-start;gap:0;}
+ .bk-cards tr>td[data-label]::before{font-size:var(--font-size-caption);}
+ .bk-cards tr>td>*{text-align:start;}
+ .books-area .bk-cards tr>td.num,.books-area .bk-cards tr>td.bk-state{align-items:flex-end;}
+ .bk-cards tr>td.num>*{text-align:end;}
+ .bk-cards td.bk-key{order:0;grid-column:1;}.bk-cards td.bk-state{order:1;grid-column:2;}
+ .bk-cards td.bk-text{order:2;grid-column:1/-1;}
+ .bk-cards td.bk-date{order:3;grid-column:1;}.bk-cards td.num{order:4;grid-column:2;}
+ .bk-cards td.bk-act{order:5;grid-column:1/-1;}
+}
 .ba-doors{list-style:none;padding:0;margin-block:var(--space-24);}
 .ba-doors li{border-top:1px solid var(--color-border);}
 .ba-doors a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-24);min-height:64px;padding-block:var(--space-16);}

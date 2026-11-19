@@ -25,6 +25,11 @@ const amount = (locale: Locale, d: Decimal | null, currency: string): string => 
   const m = moneyFromRow(d, currency);
   return m ? esc(show.money(locale, m)) : esc(d);
 };
+/** F22 (UI correction, Block 5) — a cell's own label, read on a phone where each row is a card. */
+export const cellLabel = (locale: Locale, k: MessageKey, extra?: string): string => ` data-label="${esc(t(locale, k))}${extra ? ` · ${esc(extra)}` : ''}"`;
+/** F22 — the frame a wide table scrolls in, if it must: reachable by keyboard and named. */
+export const tableFrame = (locale: Locale, title: string, cls = ''): string =>
+  `<div class="imp-table bk-rows${cls ? ` ${cls}` : ''}" role="region" tabindex="0" aria-label="${esc(t(locale, 'booksEntry.tableOf', { title }))}">`;
 const statePill = (locale: Locale, s: EntryRow['state']) =>
   `<span class="pill ${s === 'posted' ? 'ok' : 'warn'}">${esc(t(locale, `books.entry.state.${s}` as MessageKey))}</span>`;
 
@@ -32,13 +37,13 @@ export function renderEntries(locale: Locale, viewer: Who, rows: readonly EntryR
   return `<h1 class="page">${esc(t(locale, 'books.entries.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entries.lede'))}</p>
     ${mayPost(viewer) ? `<p><a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale, 'books.entries.new'))}</a></p>` : ''}
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.home.empty'))}</p>` : `<div class="imp-table"><table>
+    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.home.empty'))}</p>` : `${tableFrame(locale, t(locale, 'books.entries.title'), 'bk-cards')}<table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.number'))}</th>
-        <th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
-      <tbody>${rows.map((r) => `<tr><td>${esc(show.dateYear(locale, new Date(`${r.date}T12:00:00Z`)))}</td>
-        <td><a href="/app/books/advanced/entries/${esc(r.id)}"><bdi>${esc(r.state === 'posted' ? r.key : t(locale, 'books.entry.state.draft'))}</bdi></a></td>
-        <td><bdi>${esc(r.label)}</bdi></td><td>${amount(locale, r.total as Decimal, r.currency)}</td>
-        <td>${statePill(locale, r.state)}${r.reversedBy ? ` <span class="pill">${esc(t(locale, 'books.entry.reversed'))}</span>` : ''}</td></tr>`).join('')}</tbody>
+        <th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col" class="num">${esc(t(locale, 'books.entry.total'))}</th><th scope="col">${esc(t(locale, 'booksInvoice.state'))}</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td class="bk-date"${cellLabel(locale, 'books.entry.date')}><span>${esc(show.isolate(locale, show.dateYear(locale, new Date(`${r.date}T12:00:00Z`))))}</span></td>
+        <td class="bk-key"${cellLabel(locale, 'books.entry.number')}><a href="/app/books/advanced/entries/${esc(r.id)}"><bdi>${esc(r.state === 'posted' ? r.key : t(locale, 'books.entry.state.draft'))}</bdi></a></td>
+        <td class="bk-text"${cellLabel(locale, 'books.entry.label')}><bdi>${esc(r.label)}</bdi></td><td class="num"${cellLabel(locale, 'books.entry.total')}><span>${amount(locale, r.total as Decimal, r.currency)}</span></td>
+        <td class="bk-state"${cellLabel(locale, 'booksInvoice.state')}><span>${statePill(locale, r.state)}${r.reversedBy ? ` <span class="pill">${esc(t(locale, 'books.entry.reversed'))}</span>` : ''}</span></td></tr>`).join('')}</tbody>
     </table></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
@@ -80,16 +85,16 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
     <p>${statePill(locale, e.state)}${e.reversedBy ? ` <a href="/app/books/advanced/entries/${esc(e.reversedBy)}">${esc(t(locale, 'books.entry.seeReversal'))}</a>` : ''}${
       e.reverses ? ` <a href="/app/books/advanced/entries/${esc(e.reverses)}">${esc(t(locale, 'books.entry.seeOriginal'))}</a>` : ''}</p>
     <p class="caption muted">${meta.join(' · ')}</p>
-    <div class="imp-table"><table>
+    ${tableFrame(locale, t(locale, 'books.entries.title'))}<table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
-        <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
-        ${foreign ? `<th scope="col">${esc(t(locale, 'books.entry.inBooks'))}</th>` : ''}</tr></thead>
-      <tbody>${e.lines.map((l) => `<tr><td><bdi>${esc(l.account)}</bdi> <span class="muted"><bdi>${esc(l.accountName)}</bdi></span>${
+        <th scope="col" class="num">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col" class="num">${esc(t(locale, 'books.entry.credit'))}</th>
+        ${foreign ? `<th scope="col" class="num">${esc(t(locale, 'books.entry.inBooks'))}</th>` : ''}</tr></thead>
+      <tbody>${e.lines.map((l) => `<tr><td class="bk-text bk-lead"${cellLabel(locale, 'books.entry.account')}><span><bdi>${esc(l.account)}</bdi> <span class="muted"><bdi>${esc(l.accountName)}</bdi></span>${
           l.isFx ? ` <span class="pill">${esc(t(locale, 'books.entry.fx'))}</span>` : ''}${l.label ? `<br><span class="caption muted"><bdi>${esc(l.label)}</bdi></span>` : ''}${
-          Object.keys(l.custom ?? {}).length > 0 ? `<br><span class="caption muted">${customShown(locale, fields, 'line', l.custom)}</span>` : ''}</td>
-        <td>${l.party ? `<bdi>${esc(l.party)}</bdi>` : ''}</td>
-        <td>${amount(locale, l.debit, l.currency)}</td><td>${amount(locale, l.credit, l.currency)}</td>
-        ${foreign ? `<td>${l.rate !== null && (l.bookDebit ?? l.bookCredit) ? `${amount(locale, l.bookDebit ?? l.bookCredit, bookCurrency)} <span class="caption muted">× ${esc(l.rate)}</span>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
+          Object.keys(l.custom ?? {}).length > 0 ? `<br><span class="caption muted">${customShown(locale, fields, 'line', l.custom)}</span>` : ''}</span></td>
+        <td class="bk-text"${cellLabel(locale, 'books.entry.party')}>${l.party ? `<bdi>${esc(l.party)}</bdi>` : ''}</td>
+        <td class="num"${cellLabel(locale, 'books.entry.debit')}>${l.debit ? `<span>${amount(locale, l.debit, l.currency)}</span>` : ''}</td><td class="num"${cellLabel(locale, 'books.entry.credit')}>${l.credit ? `<span>${amount(locale, l.credit, l.currency)}</span>` : ''}</td>
+        ${foreign ? `<td class="num"${cellLabel(locale, 'books.entry.inBooks')}>${l.rate !== null && (l.bookDebit ?? l.bookCredit) ? `<span>${amount(locale, l.bookDebit ?? l.bookCredit, bookCurrency)} <span class="caption muted">× <bdi>${esc(l.rate)}</bdi></span></span>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
     </table></div>
     <p class="caption ${balanced ? 'muted' : ''}">${balanced ? esc(t(locale, 'books.entry.balanced'))
       : esc(t(locale, 'books.entry.notBalanced', { by: sums.filter((s) => compareDecimal(s.debit, s.credit) !== 0).map((s) => `${s.currency} ${s.debit} / ${s.credit}`).join(' · ') }))}</p>
@@ -133,15 +138,31 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
     `${blank ? '<option value=""></option>' : ''}${rows.map((r) => `<option value="${esc(r.id)}"${values[name] === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name ?? r.label ?? '')}</option>`).join('')}`;
   const currencies = (name: string) => CURRENCIES.map((cur) => `<option${(values[name] ?? c.bookCurrency) === cur ? ' selected' : ''}>${cur}</option>`).join('');
   const line = (i: number) => `<tr>
-      <td class="el-account" data-label="${esc(t(locale, 'books.entry.account'))}"><select name="account${i}" data-echo aria-label="${esc(t(locale, 'books.entry.account'))} ${i + 1}">${options(c.accounts, `account${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
+      <td class="el-account" data-n="${i + 1}" data-label="${esc(t(locale, 'books.entry.account'))}"><select name="account${i}" data-echo aria-label="${esc(t(locale, 'books.entry.account'))} ${i + 1}">${options(c.accounts, `account${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
       <td class="el-party" data-label="${esc(t(locale, 'books.entry.party'))}"><select name="party${i}" data-echo aria-label="${esc(t(locale, 'books.entry.party'))} ${i + 1}">${options(c.parties, `party${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
       <td class="el-tax" data-label="${esc(t(locale, 'books.entry.tax'))}"><select name="tax${i}" data-echo aria-label="${esc(t(locale, 'books.entry.tax'))} ${i + 1}">${options(c.taxCodes, `tax${i}`, true)}</select><span class="el-echo" data-echo-out aria-hidden="true"></span></td>
       <td class="el-currency" data-label="${esc(t(locale, 'books.entry.currency'))}"><select name="currency${i}" aria-label="${esc(t(locale, 'books.entry.currency'))} ${i + 1}">${currencies(`currency${i}`)}</select></td>
       <td class="el-amount" data-label="${esc(t(locale, 'books.entry.debit'))}"><input name="debit${i}" inputmode="decimal" value="${v(`debit${i}`)}" aria-label="${esc(t(locale, 'books.entry.debit'))} ${i + 1}" /></td>
       <td class="el-amount" data-label="${esc(t(locale, 'books.entry.credit'))}"><input name="credit${i}" inputmode="decimal" value="${v(`credit${i}`)}" aria-label="${esc(t(locale, 'books.entry.credit'))} ${i + 1}" /></td>
       <td class="el-label" data-label="${esc(t(locale, 'books.entry.lineLabel'))}"><input name="label${i}" value="${v(`label${i}`)}" aria-label="${esc(t(locale, 'books.entry.lineLabel'))} ${i + 1}" /></td>
-      <td class="el-fx" data-label="${esc(t(locale, 'books.entry.fx'))}"><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td>
+      <td class="el-fx" data-label="${esc(t(locale, 'books.entry.fx'))}"><label class="el-fx-hit"><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></label></td>
       ${customInputs(locale, c.fields ?? [], 'line', lineCustom(i), values, { bare: true, n: i + 1 })}</tr>`;
+  // F22 (UI correction, Block 5; F21's remainder) — eight full lines made the phone form 4,839 px. The lines up to the
+  // last one holding anything (at least two: an entry needs two) are open; the empty ones after it sit behind one
+  // disclosure, inside the same form, with the same names: a closed disclosure's fields are still sent.
+  const count = formLines(values, ENTRY_FORM_LINES, 'account');
+  const filled = (i: number) => Object.keys(values).some((k) => values[k] !== '' && values[k] !== undefined && (k.startsWith(lineCustom(i))
+    || ['account', 'party', 'tax', 'debit', 'credit', 'label', 'fx'].some((f) => k === `${f}${i}`)));
+  let last = -1;
+  for (let i = 0; i < count; i += 1) if (filled(i)) last = i;
+  const open = Math.min(count, Math.max(2, last + 1));
+  const linesTable = (from: number, to: number) => `<div class="imp-table entry-lines" role="region" tabindex="0" aria-label="${esc(t(locale, 'books.entries.new'))}"><table>
+        <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
+          <th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.currency'))}</th>
+          <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
+          <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th>${customHeads(c.fields ?? [], 'line')}</tr></thead>
+        <tbody>${Array.from({ length: to - from }, (_, k) => line(from + k)).join('')}</tbody>
+      </table></div>`;
   return `<h1 class="page">${esc(t(locale, editing ? 'books.draft.editTitle' : 'books.entries.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entry.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
@@ -152,13 +173,7 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
       <label class="pq"><span>${esc(t(locale, 'books.entry.document'))}</span><input name="documentRef" value="${v('documentRef')}" maxlength="80" /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.documentDate'))}</span><input type="date" name="documentDate" value="${v('documentDate')}" /></label>
       ${customInputs(locale, c.fields ?? [], 'entry', ENTRY_CUSTOM, values)}</div>
-      ${/* Audit F21, and its fix round — each line is a labelled group at every width: the account on its own line, then who and what, then the figures. A select marked data-echo has its choice written out under it when the box is too narrow to show it whole (the page's script; without it the open list still shows every name in full). */ ''}<div class="imp-table entry-lines" role="region" tabindex="0" aria-label="${esc(t(locale, 'books.entries.new'))}"><table>
-        <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
-          <th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.currency'))}</th>
-          <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
-          <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th>${customHeads(c.fields ?? [], 'line')}</tr></thead>
-        <tbody>${Array.from({ length: formLines(values, ENTRY_FORM_LINES, 'account') }, (_, i) => line(i)).join('')}</tbody>
-      </table></div>
+      ${/* Audit F21, and its fix round — each line is a labelled group at every width: the account on its own line, then who and what, then the figures. A select marked data-echo has its choice written out under it when the box is too narrow to show it whole (the page's script; without it the open list still shows every name in full). */ ''}${linesTable(0, open)}${open < count ? `<details class="el-more"><summary>${esc(t(locale, 'booksEntry.moreLines', { n: show.count(locale, count - open) }))}</summary>${linesTable(open, count)}</details>` : ''}
       <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <p class="caption muted">${esc(t(locale, 'books.entry.draftNote'))}</p>`;
@@ -171,21 +186,21 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
 export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean, c: Pick<EntryChoices, 'parties' | 'taxCodes'>): string {
   const ready = accountsSet && c.parties.length > 0;
   const choose = (o: OrderToEnter) => `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform">
-      <select name="party" required aria-label="${esc(t(locale, 'books.invoice.customer'))}"><option value=""></option>${c.parties.map((p) =>
-        `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select>
-      <select name="taxCode" aria-label="${esc(t(locale, 'books.entry.tax'))}"><option value=""></option>${c.taxCodes.map((x) =>
-        `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select>
+      <label class="pq"><span>${esc(t(locale, 'books.invoice.customer'))}</span><select name="party" required><option value=""></option>${c.parties.map((p) =>
+        `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select></label>
+      <label class="pq"><span>${esc(t(locale, 'books.entry.tax'))}</span><select name="taxCode"><option value=""></option>${c.taxCodes.map((x) =>
+        `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select></label>
       <button class="btn" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>`;
   return `<h1 class="page">${esc(t(locale, 'books.orders.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.orders.lede'))}</p>
     ${!accountsSet ? `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
     ${accountsSet && c.parties.length === 0 ? `<p role="status"><span class="pill warn long">${esc(t(locale, 'books.orders.addCustomers'))}</span> <a class="deeper" href="/app/books/invoices/new#customer">${esc(t(locale, 'books.invoice.addCustomer'))}</a></p>` : ''}
-    ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `<div class="imp-table"><table>
+    ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `${tableFrame(locale, t(locale, 'books.orders.title'), 'bk-orders bk-cards')}<table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.document'))}</th>
-        <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
-      <tbody>${orders.map((o) => `<tr><td>${esc(show.dateYear(locale, new Date(`${o.confirmedOn}T12:00:00Z`)))}</td><td><bdi>${esc(o.reference)}</bdi></td>
-        <td>${o.buyer ? `<bdi>${esc(o.buyer)}</bdi>` : ''}</td><td>${amount(locale, o.total as Decimal, o.currency)}</td>
-        <td>${ready ? choose(o) : ''}</td></tr>`).join('')}</tbody>
+        <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col" class="num">${esc(t(locale, 'books.entry.total'))}</th><th scope="col">${esc(t(locale, 'books.orders.draft'))}</th></tr></thead>
+      <tbody>${orders.map((o) => `<tr><td class="bk-date"${cellLabel(locale, 'books.entry.date')}><span>${esc(show.isolate(locale, show.dateYear(locale, new Date(`${o.confirmedOn}T12:00:00Z`))))}</span></td><td class="bk-key"${cellLabel(locale, 'books.entry.document')}><bdi>${esc(o.reference)}</bdi></td>
+        <td class="bk-text"${cellLabel(locale, 'books.orders.buyer')}>${o.buyer ? `<bdi>${esc(o.buyer)}</bdi>` : ''}</td><td class="num"${cellLabel(locale, 'books.entry.total')}><span>${amount(locale, o.total as Decimal, o.currency)}</span></td>
+        <td class="bk-act">${ready ? choose(o) : ''}</td></tr>`).join('')}</tbody>
     </table></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
