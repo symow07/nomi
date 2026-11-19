@@ -3066,7 +3066,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (problems.length === 0 && lines.length < 2) problems.push(t(locale, 'books.entry.problem.twoLines'));
     const again = async(list: readonly string[]) => {
       const entry=paper&&editing?await withTenantTx(deps.db,bid,tx=>loadEntry(tx,bid,editing)):null;
-      return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,editing?'books.draft.editTitle':'books.entries.new'),active:'settings',...(paper?{booksPath:'/app/books/spending'}:{}),bodyHtml:paper&&entry?renderSpendingDraft(locale,personOf(s),paper,entry,c,values,list,booksToday(),entryContext(req)):renderNewEntry(locale,c,values,list,booksToday(),editing,entryContext(req))}));
+      return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,editing?'books.draft.editTitle':'books.entries.new'),active:'settings',...(paper?{booksPath:'/app/books/spending'}:{}),bodyHtml:paper&&entry?renderSpendingDraft(locale,personOf(s),paper,entry,c,values,list,booksToday(),{...entryContext(req),previewHref:`/app/books/spending/${paper.id}/preview`}):renderNewEntry(locale,c,values,list,booksToday(),editing,entryContext(req))}));
     };
     if (problems.length > 0) return again(problems);
     const input = { journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines,
@@ -3954,7 +3954,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const entry=await loadEntry(tx,bid,entryId);return entry?{p,entry,choices:await entryChoices(tx,bid),values:await draftEntryForm(tx,bid,entry.id)??{}}:null;
     });
     if(!got)return reply.callNotFound();
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.draft'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderSpendingDraft(locale,personOf(s),got.p,got.entry,got.choices,got.values,[],booksToday(),entryContext(req))}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.draft'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderSpendingDraft(locale,personOf(s),got.p,got.entry,got.choices,got.values,[],booksToday(),{...entryContext(req),previewHref:`/app/books/spending/${got.p.id}/preview`})}));
   });
   app.get('/app/books/spending/:id/preview',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid||!deps.documents)return reply.callNotFound();

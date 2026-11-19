@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderSpending, renderPaper } from '../../src/api/web/booksPapers.js';
+import { renderSpending, renderPaper, renderSpendingDraft } from '../../src/api/web/booksPapers.js';
+import type { EntryView } from '../../src/db/booksEntries.js';
+import type { EntryChoices } from '../../src/api/web/booksEntries.js';
 import { decimal } from '../../src/core/types/decimal.js';
 import { messages } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -56,6 +58,23 @@ describe('F24 · receipts', () => {
     expect(side).toContain('<dd>Not found</dd>'); expect(side).not.toContain('<bdi>—</bdi>');
     const read = renderPaper('en', accountant, { id: 'p1', name: 'receipt.png', mediaType: 'image/png', readings: [reading()] }, choices, { available: true, canRead: true });
     expect(read).not.toContain('method="post"'); expect(read).toContain('Corner Print Shop');
+  });
+  it('the draft made from a receipt keeps the same original beside its fields, with no script; every view of it', () => {
+    const echoices = { bookCurrency: 'GBP', journals: [{ id: 'journal', code: 'PUR', name: 'Purchases' }], accounts: [{ id: 'cost', code: '6000', name: 'Materials' }, { id: 'payable', code: '2000', name: 'Suppliers' }], parties: [{ id: 'supplier', code: 'S1', name: 'Paper Shop' }], taxCodes: [] } as unknown as EntryChoices;
+    const line = { lineNo: 1, account: '6000', accountName: 'Materials', party: null, taxCode: null, currency: 'GBP', debit: decimal('12.50'), credit: null, bookDebit: null, bookCredit: null, rate: null, label: 'Paper', isFx: false, custom: {} };
+    const entry = { id: 'entry', key: 'draft', journal: 'PUR', date: '2026-11-01', label: 'Paper Shop R1', state: 'draft', total: '12.50', currency: 'GBP', reverses: null, reversedBy: null, documentRef: 'R1', documentDate: '2026-11-01', postedBy: null, custom: {},
+      lines: [line, { ...line, lineNo: 2, account: '2000', accountName: 'Suppliers', party: 'Paper Shop', debit: null, credit: decimal('12.50') }] } as unknown as EntryView;
+    const values = { journal: 'journal', date: '2026-11-01', label: 'Paper Shop R1', documentRef: 'R1', documentDate: '2026-11-01', account0: 'cost', currency0: 'GBP', debit0: '12.50', label0: 'Paper', account1: 'payable', currency1: 'GBP', party1: 'supplier', credit1: '12.50' };
+    const p = { id: 'p1', name: 'receipt.png', mediaType: 'image/png' };
+    const href = '/app/books/spending/p1/preview';
+    for (const [who, state] of [[owner, 'draft'], [accountant, 'draft'], [owner, 'posted']] as const) {
+      const html = renderSpendingDraft('en', who, p, { ...entry, state } as EntryView, echoices, values, [], '2026-11-19', { previewHref: href });
+      expect(html).toContain(`<img class="bs-original-image" src="${href}"`); expect(html).toContain('/app/books/papers/p1/file');
+      expect(html.indexOf('bs-original-image')).toBeLessThan(html.indexOf('class="bs-side"')); expect(html).not.toContain('<script');
+    }
+    const own = renderSpendingDraft('en', owner, p, entry, echoices, values, [], '2026-11-19', { previewHref: href });
+    expect(own.indexOf('class="bs-side"')).toBeLessThan(own.indexOf('action="/app/books/entries/entry/edit"'));
+    expect(renderSpendingDraft('en', owner, p, entry, echoices, values, [], '2026-11-19', { previewHref: '/elsewhere' })).not.toContain('bs-original-image');
   });
   it('the new words are in all five languages', () => {
     for (const k of ['receipt.title', 'receipt.added', 'receipt.notReadFacts', 'receipt.noFacts', 'receipt.notFound', 'receipt.notRead', 'receipt.nothingRead'] as const)

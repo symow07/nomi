@@ -63,6 +63,9 @@ export const BOOKS_SPENDING_CSS = String.raw`
 .books-spending .bs-side .bs-draft-choices{margin-top:0}
 .books-spending .bs-side .bs-fields{grid-template-columns:minmax(0,1fr)}
 .books-spending .bs-side .bs-read{margin-top:0}
+.books-spending .bs-side>.bs-post{margin-top:0}
+.books-spending .bs-header p>a,.books-spending .bs-side>p>a,.books-spending .bs-reading p>a{display:inline-flex;align-items:center;min-height:44px}
+.books-spending .bs-side .bs-draft-form>fieldset:first-of-type{margin-top:0;padding-top:0;border-top:0}
 @media(min-width:1101px){.books-spending .bs-original{position:sticky;top:var(--space-24)}}
 @media(max-width:1100px){.books-spending .bs-review{grid-template-columns:1fr}.books-spending .bs-original-image{max-height:55vh}.books-spending .bs-original-pdf{height:55vh}}
 @media(max-width:600px){
