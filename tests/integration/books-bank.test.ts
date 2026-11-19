@@ -165,7 +165,8 @@ d('C3 · reconciliation from statement files (requires DATABASE_URL + MIGRATE_DA
 
   it('the accountant sees the page and matches nothing', async () => {
     const theirs = await page(accountant);
-    expect(theirs).toContain('Suggested: BQ-2026-2');
+    // F23 (UI correction, Block 5): the suggestion is shown as the line's best match, its entry named.
+    expect(theirs).toMatch(/Best match<\/p>[\s\S]*?<bdi>BQ-2026-2<\/bdi>/);
     expect(theirs).not.toContain('/app/books/bank/match');
     const tried = await post('/app/books/bank/match', { account: k.bank, line: await lineOf('-380.00'), journalLine: await journalLine('380.00', 'credit') }, accountant);
     expect([tried.statusCode, tried.headers['location']]).toEqual([302, '/app/books']);

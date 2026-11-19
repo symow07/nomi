@@ -159,6 +159,18 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bb-suggestion>a,.bb-line-actions>a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;}
 .bb-suggested{font-size:var(--font-size-small);}
 .bb-line-actions .pform{margin-block:var(--space-16) 0;max-width:100%;}
+.bb-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-4) var(--space-16);margin:0 0 var(--space-8);}
+.bb-head .bb-amount{font-size:var(--font-size-title);font-variant-numeric:tabular-nums;}
+.bb-flow{font-size:var(--font-size-small);font-weight:400;color:var(--color-ink-secondary);}
+.bb-wide{grid-column:1/-1;}
+.bb-ref,.bb-others{margin-top:var(--space-8);}
+.bb-ref>summary,.bb-others>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:var(--font-size-small);}
+.bb-ref p{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.bb-others>.bb-suggestion{border-top:1px solid var(--color-border);padding-top:var(--space-16);margin-top:var(--space-8);}
+.bb-facts dd a{display:inline-flex;align-items:center;min-height:44px;}
+.bb-empty{font-weight:500;margin-block:var(--space-16);}
+.bb-no-other{margin-top:var(--space-12);}
+@media(max-width:720px){.bb-review-line{grid-template-columns:minmax(0,1fr);gap:var(--space-16);}}
 .bank-mapping .bb-preview{overflow:auto;max-width:100%;border:1px solid var(--color-border);margin-bottom:var(--space-32);}
 .bank-mapping .bb-preview:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px;}
 .bank-mapping .bb-preview table{font-size:var(--font-size-small);min-width:100%;}

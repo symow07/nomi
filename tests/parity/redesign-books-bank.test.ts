@@ -3,12 +3,14 @@ import { renderBank,renderStatementColumns } from '../../src/api/web/booksInvoic
 import { decimal } from '../../src/core/types/decimal.js';
 import { guessLayout } from '../../src/core/books/statements.js';
 const owner={isOwner:true};const accountant={isOwner:false,kind:'accountant' as const};
-const line={id:'line',bookedOn:'2026-11-02',amount:decimal('125.75'),currency:'GBP',wording:'Customer <transfer>',reference:'REF <101>',suggestions:[{journalLineId:'journal-line',entryId:'entry',key:'BK-2026-1',date:'2026-11-01',label:'Recorded payment'}]};
+const line={id:'line',bookedOn:'2026-11-02',amount:decimal('125.75'),currency:'GBP',wording:'Customer <transfer>',reference:'REF <101>',suggestions:[{journalLineId:'journal-line',entryId:'entry',key:'BK-2026-1',date:'2026-11-01',label:'Recorded payment',amount:decimal('125.75'),party:'Casa Olivo'}]};
 const data={accounts:[{id:'bank',code:'B01',name:'Business account'}],accountId:'bank',open:[line],matched:[{...line,id:'done',amount:decimal('-20'),suggestions:[],matchId:'match',entryId:'paid-entry',key:'BK-2026-2'}]};
 describe('Bank statement review presentation',()=>{
  it('shows exact statement evidence and the actual suggested entry before its explicit match',()=>{
   const html=renderBank('en',owner,data);
-  expect(html).toContain('class="bb-review-line" id="bank-line-line"');expect(html).toContain('£125.75');expect(html).toContain('£-20.00');
+  expect(html).toContain('class="bb-review-line" id="bank-line-line"');expect(html).toContain('£125.75');
+  // F23 (UI correction, Block 5): a statement amount reads as money in or out with its figure, not a bare minus sign.
+  expect(html).toMatch(/Money out<\/span> <bdi>£20\.00<\/bdi>/);expect(html).toMatch(/Money in<\/span> <bdi>£125\.75<\/bdi>/);
   expect(html).toContain('REF &lt;101&gt;');expect(html).toContain('Customer &lt;transfer&gt;');expect(html).toContain('href="/app/books/advanced/entries/entry"');
   expect(html).toContain('Recorded payment');expect(html).toContain('1 unmatched line shown');
   const form=html.match(/<form[^>]*action="\/app\/books\/bank\/match"[\s\S]*?<\/form>/)?.[0]??'';
