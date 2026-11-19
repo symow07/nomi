@@ -47,11 +47,31 @@ export const BOOKS_SPENDING_CSS = String.raw`
 .books-spending .btn.send{background:var(--color-ink);border-color:var(--color-ink);color:var(--color-surface)}
 .books-spending .bs-advanced{border-top:1px solid var(--color-border);padding-top:var(--space-24);margin-top:var(--space-24);min-width:0}
 .books-spending .bs-advanced .imp-table{overflow-x:auto;max-width:100%}
+.books-spending-book .bs-bill-key{display:inline-flex;align-items:center;min-height:44px}
+.books-spending.bs-receipts{margin-top:var(--space-48)}
+.books-spending .bs-list>li.bs-paper{justify-content:flex-start;align-items:start}
+.books-spending .bs-thumb{flex:0 0 56px;width:56px;height:72px;display:grid;place-items:center;overflow:hidden;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-ink-secondary)}
+.books-spending .bs-thumb img{width:100%;height:100%;object-fit:contain;object-position:center}
+.books-spending .bs-paper-main{flex:1;min-width:0}
+.books-spending .bs-paper>.pill{flex-shrink:0;margin-top:var(--space-12)}
+.books-spending .bs-paper-facts{display:flex;flex-wrap:wrap;gap:var(--space-4) var(--space-24);margin:0}
+.books-spending .bs-paper-facts>div{display:flex;gap:var(--space-8);min-width:0}
+.books-spending .bs-paper-facts dt{color:var(--color-ink-secondary)}
+.books-spending .bs-paper-facts dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.books-spending .bs-paper-missing{color:var(--color-ink-secondary)}
+.books-spending .bs-side{min-width:0;display:grid;gap:var(--space-24);align-content:start}
+.books-spending .bs-side .bs-draft-choices{margin-top:0}
+.books-spending .bs-side .bs-fields{grid-template-columns:minmax(0,1fr)}
+.books-spending .bs-side .bs-read{margin-top:0}
+@media(min-width:1101px){.books-spending .bs-original{position:sticky;top:var(--space-24)}}
 @media(max-width:1100px){.books-spending .bs-review{grid-template-columns:1fr}.books-spending .bs-original-image{max-height:55vh}.books-spending .bs-original-pdf{height:55vh}}
 @media(max-width:600px){
  .books-spending .bs-fields{grid-template-columns:1fr}
  .books-spending .bs-reading{padding:var(--space-16)}
  .books-spending .bs-list>li,.books-spending .bs-saved-lines>li{align-items:start;flex-direction:column;gap:var(--space-8)}
+ .books-spending .bs-list>li.bs-paper{flex-direction:row;flex-wrap:wrap;gap:var(--space-12) var(--space-16)}
+ .books-spending .bs-paper>.pill{margin-top:0;margin-inline-start:calc(56px + var(--space-16))}
+ .books-spending .bs-paper-main{flex-basis:calc(100% - 56px - var(--space-16))}
  .books-spending .bs-filter{align-items:stretch}.books-spending .bs-filter label{flex:1}
  .books-spending .bs-facts dd{max-width:60%}
  .books-spending .bs-saved-lines .bs-facts{width:100%}

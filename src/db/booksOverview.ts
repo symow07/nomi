@@ -14,7 +14,9 @@ export type OverviewState = 'available' | 'needs_setup' | 'unavailable' | 'needs
 export type OverviewPageOptions = {readonly page?:number;readonly size?:number};
 export type OverviewPage<T> = {readonly rows:readonly T[];readonly total:number;readonly from:number;readonly to:number;readonly page:number;readonly pageSize:number;readonly next:number|null;readonly prev:number|null};
 export type PaperWorkState = 'unread'|'problem'|'ready'|'draft'|'posted'|'set_aside';
-export type OverviewPaper = {readonly id:string;readonly name:string;readonly mediaType:string;readonly addedOn:string;readonly state:PaperWorkState;readonly entryId:string|null;readonly lastOutcome:string|null};
+export type OverviewPaper = {readonly id:string;readonly name:string;readonly mediaType:string;readonly addedOn:string;readonly state:PaperWorkState;readonly entryId:string|null;readonly lastOutcome:string|null;
+ /** F24 (UI correction, Block 5) — what the latest reading found, only when it read; null is "not found", never zero. */
+ readonly readSupplier:string|null;readonly readDate:string|null;readonly readTotal:string|null;readonly readCurrency:string|null};
 export type OverviewHistoryPaper = {readonly id:string;readonly name:string;readonly mediaType:string;readonly bytes:number;readonly addedOn:string;readonly entryId:string|null;readonly historyEntries:number;readonly historyThrough:string;readonly keepUntil:string};
 export type OverviewBankLine = {readonly id:string;readonly accountId:string;readonly account:string;readonly bookedOn:string;readonly currency:string;readonly amount:Decimal;readonly wording:string|null;readonly reference:string|null};
 export type OverviewSupplier = {readonly id:string;readonly partyId:string|null;readonly party:string|null;readonly accountId:string;readonly account:string;readonly owed:Decimal;readonly advance:Decimal;readonly unassigned:boolean};
@@ -67,6 +69,8 @@ export async function readOverviewInvoices(tx:Tx,businessId:string,today:string,
  * the existing per-reading draft option; older posted/discarded entries remain evidence, not its state. */
 const paperSource=(businessId:string)=>sql`
  select d.id::text as id,d.name,d.media_type as "mediaType",d.created_at::date::text as "addedOn",r.outcome as "lastOutcome",
+  case when r.outcome='read' then nullif(r.reading->>'supplierName','') end as "readSupplier",case when r.outcome='read' then nullif(r.reading->>'date','') end as "readDate",
+  case when r.outcome='read' then nullif(r.reading->>'total','') end as "readTotal",case when r.outcome='read' then nullif(r.reading->>'currency','') end as "readCurrency",
   e.id::text as "entryId",case when e.state='posted' then 'posted' when e.state='draft' then 'draft'
    when e.state='discarded' then 'set_aside' when r.id is null then 'unread'
    when r.outcome<>'read' or jsonb_array_length(r.problems)>0 or r.reading is null

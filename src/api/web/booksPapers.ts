@@ -10,7 +10,7 @@ import { safeBooksReturn } from './booksNavigation.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { moneyFromRow } from '../../core/types/money.js';
-import type { Decimal } from '../../core/types/decimal.js';
+import { parseDecimal, type Decimal } from '../../core/types/decimal.js';
 import type { ReadingProblem } from '../../core/books/reading.js';
 import type { ReadingRow } from '../../db/booksDocuments.js';
 import { t } from './say.js';
@@ -57,13 +57,22 @@ const statePill = (locale: Locale, state: SpendingFilter) => `<span class="pill$
 const upload = (locale: Locale) => `<form method="post" action="/app/books/papers" enctype="multipart/form-data" class="pform"><label class="pq"><span>${esc(t(locale,'books.papers.file'))}</span><input type="file" name="paper" accept="image/jpeg,image/png,image/webp,application/pdf" required /></label><button class="btn send" type="submit">${esc(t(locale,'books.papers.keep'))}</button></form>`;
 
 export function renderSpending(locale: Locale, viewer: Who, page: OverviewPage<OverviewPaper>, offered: boolean,
-  opts: { readonly state?: SpendingFilter; readonly returnHref?: string } = {}): string {
+  opts: { readonly state?: SpendingFilter; readonly returnHref?: string; readonly book?: string } = {}): string {
   const url = (n: number) => `/app/books/spending?${new URLSearchParams({...(opts.state ? {state:opts.state} : {}),page:String(n)})}`;
   const from = safeBooksReturn(opts.returnHref) ?? url(page.page);
-  return `<section class="books-spending"><header class="bs-header"><h1 class="page">${esc(t(locale,'booksSpending.title'))}</h1><p class="lede">${esc(t(locale,'booksSpending.lede'))}</p></header>
+  // F24 (UI correction, Block 5) — the page's title comes first (it was under the spending book); each receipt is a
+  // spending record: a thumbnail of the kept original, what was read so far (missing shown as missing), its state.
+  const fact = (key: MessageKey, value: string) => `<div><dt>${esc(t(locale,key))}</dt><dd>${value}</dd></div>`;
+  const notFound = esc(t(locale,'receipt.notFound'));
+  const facts = (r: OverviewPaper) => r.lastOutcome === null ? `<p class="bs-paper-missing">${esc(t(locale,'receipt.notReadFacts'))}</p>`
+    : r.lastOutcome !== 'read' ? `<p class="bs-paper-missing">${esc(t(locale,'receipt.noFacts'))}</p>`
+    : `<dl class="bs-paper-facts">${fact('books.papers.supplier', r.readSupplier ? `<bdi>${esc(r.readSupplier)}</bdi>` : notFound)}${fact('books.entry.date', r.readDate ? `<bdi>${esc(day(locale,r.readDate))}</bdi>` : notFound)}${fact('books.entry.total', (() => { const d = r.readTotal ? parseDecimal(r.readTotal) : null; return d ? `<bdi>${money(locale,d,r.readCurrency)}</bdi>` : notFound; })())}</dl>`;
+  const thumb = (r: OverviewPaper) => `<span class="bs-thumb" aria-hidden="true">${['image/jpeg','image/png','image/webp'].includes(r.mediaType) ? `<img src="/app/books/spending/${esc(r.id)}/preview" alt="" loading="lazy" width="56" height="72" />` : icon('file')}</span>`;
+  return `<section class="books-spending"><header class="bs-header"><h1 class="page">${esc(t(locale,'booksSpending.title'))}</h1><p class="lede">${esc(t(locale,'booksSpending.lede'))}</p></header></section>${opts.book ?? ''}
+    <section class="books-spending bs-receipts" id="receipts" aria-labelledby="receipts-title"><h2 id="receipts-title">${esc(t(locale,'receipt.title'))}</h2>
     ${owner(viewer) && offered ? `<details class="bs-upload"${page.total === 0 ? ' open' : ''}><summary>${esc(t(locale,'booksSpending.upload'))}</summary><div id="receipt-upload">${upload(locale)}</div></details>` : ''}
     <form method="get" action="/app/books/spending" class="bs-filter"><label><span>${esc(t(locale,'booksSpending.filter'))}</span><select name="state"><option value="">${esc(t(locale,'booksSpending.all'))}</option>${spendingStates.map(s=>`<option value="${s}"${s === opts.state ? ' selected' : ''}>${esc(stateText(locale,s))}</option>`).join('')}</select></label><button class="btn" type="submit">${esc(t(locale,'booksSpending.show'))}</button></form>
-    ${page.rows.length ? `<ul class="bs-list">${page.rows.map(r=>`<li id="paper-${esc(r.id)}"><div><a href="/app/books/spending/${esc(r.id)}?from=${esc(encodeURIComponent(from.split('#')[0]+'#paper-'+r.id))}"><bdi>${esc(r.name)}</bdi></a><p class="muted">${esc(day(locale,r.addedOn))}</p></div>${statePill(locale,r.state)}</li>`).join('')}</ul>` : `<p>${esc(t(locale,'booksSpending.empty'))}</p>`}
+    ${page.rows.length ? `<ul class="bs-list">${page.rows.map(r=>`<li id="paper-${esc(r.id)}" class="bs-paper">${thumb(r)}<div class="bs-paper-main"><a href="/app/books/spending/${esc(r.id)}?from=${esc(encodeURIComponent(from.split('#')[0]+'#paper-'+r.id))}"><bdi>${esc(r.name)}</bdi></a>${facts(r)}<p class="caption muted">${esc(t(locale,'receipt.added',{date:day(locale,r.addedOn)}))}</p></div>${statePill(locale,r.state)}</li>`).join('')}</ul>` : `<p>${esc(t(locale,'booksSpending.empty'))}</p>`}
     <nav class="bs-pagination" aria-label="${esc(t(locale,'booksSpending.title'))}"><p>${esc(t(locale,'booksSpending.range',{from:page.from,to:page.to,total:page.total}))}</p><div>${page.prev !== null ? `<a href="${esc(url(page.prev))}">${esc(t(locale,'booksSpending.previous'))}</a>` : ''}${page.next !== null ? `<a href="${esc(url(page.next))}">${esc(t(locale,'booksSpending.next'))}</a>` : ''}</div></nav></section>`;
 }
 
@@ -84,8 +93,8 @@ function readingFacts(locale: Locale, r: ReadingRow): string {
   const read = r.reading;
   return `<p class="bs-attribution">${markSmall(16,null)}<span>${esc(t(locale,'books.papers.readBy'))} · ${esc(t(locale,'booksSpending.readAt',{date:show.dateYear(locale,new Date(r.readAt))}))}</span></p>${r.outcome !== 'read' || !read
     ? `<p role="alert">${esc(t(locale,r.outcome === 'cut_off' ? 'books.papers.cutOff' : 'books.papers.unreadable'))}</p>`
-    : `<dl class="bs-facts"><div><dt>${esc(t(locale,'books.papers.supplier'))}</dt><dd><bdi>${esc(read.supplierName ?? '—')}</bdi>${read.supplierTaxId ? `<br><bdi>${esc(read.supplierTaxId)}</bdi>` : ''}</dd></div><div><dt>${esc(t(locale,'books.entry.document'))}</dt><dd><bdi>${esc(read.number ?? '—')}</bdi></dd></div><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${read.date ? esc(day(locale,read.date)) : '—'}</dd></div><div><dt>${esc(t(locale,'books.entry.total'))}</dt><dd>${read.total !== null ? money(locale,read.total,read.currency) : '—'}</dd></div></dl>
-      <ol class="bs-read-lines">${read.lines.map(l=>`<li><bdi>${esc(l.label)}</bdi><dl class="bs-facts"><div><dt>${esc(t(locale,'books.invoice.net'))}</dt><dd>${money(locale,l.net,read.currency)}</dd></div><div><dt>${esc(t(locale,'booksSpending.taxAmount'))}</dt><dd>${money(locale,l.tax,read.currency)} · ${esc(l.taxRate)}%</dd></div></dl></li>`).join('')}</ol>`}
+    : `<dl class="bs-facts"><div><dt>${esc(t(locale,'books.papers.supplier'))}</dt><dd>${read.supplierName ? `<bdi>${esc(read.supplierName)}</bdi>` : esc(t(locale,'receipt.notFound'))}${read.supplierTaxId ? `<br><bdi>${esc(read.supplierTaxId)}</bdi>` : ''}</dd></div><div><dt>${esc(t(locale,'books.entry.document'))}</dt><dd>${read.number ? `<bdi>${esc(read.number)}</bdi>` : esc(t(locale,'receipt.notFound'))}</dd></div><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${read.date ? `<bdi>${esc(day(locale,read.date))}</bdi>` : esc(t(locale,'receipt.notFound'))}</dd></div><div><dt>${esc(t(locale,'books.entry.total'))}</dt><dd>${read.total !== null ? `<bdi>${money(locale,read.total,read.currency)}</bdi>` : esc(t(locale,'receipt.notFound'))}</dd></div></dl>
+      <ol class="bs-read-lines">${read.lines.map(l=>`<li><bdi>${esc(l.label)}</bdi><dl class="bs-facts"><div><dt>${esc(t(locale,'books.invoice.net'))}</dt><dd>${money(locale,l.net,read.currency)}</dd></div><div><dt>${esc(t(locale,'booksSpending.taxAmount'))}</dt><dd><bdi>${money(locale,l.tax,read.currency)}</bdi> · <bdi>${esc(l.taxRate)}%</bdi></dd></div></dl></li>`).join('')}</ol>`}
     ${alerts(r.problems.map(p=>problemText(locale,p)))}${r.entryId?`<p><a href="/app/books/advanced/entries/${esc(r.entryId)}">${esc(t(locale,'books.invoice.seeEntry'))}</a></p>`:''}`;
 }
 
@@ -107,7 +116,9 @@ export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: 
       <button class="btn send" type="submit">${esc(t(locale,'books.entry.saveDraft'))}</button></form></section>`;
   const drafted = entryId && state ? `<p class="bs-entry-state">${statePill(locale,state)} <a href="${state === 'draft' ? `/app/books/spending/${esc(p.id)}/draft?entry=${esc(entryId)}${from?`&amp;from=${encodeURIComponent(from)}`:''}` : `/app/books/advanced/entries/${esc(entryId)}${esc(suffix)}`}">${esc(t(locale,state === 'draft' ? 'booksSpending.reviewDraft' : 'books.invoice.seeEntry'))}</a></p>` : '';
   const read = !owner(viewer) ? '' : !reader.available ? `<p>${esc(t(locale,'books.papers.noReader'))}</p>` : !reader.canRead ? `<p>${esc(t(locale,'books.papers.pdfNotRead'))}</p>`
-    : `<form method="post" action="/app/books/papers/${esc(p.id)}/read" class="pform">${carry}<button class="btn${last?'':' send'}" type="submit">${esc(t(locale,last?'books.papers.readAgain':'books.papers.read'))}</button></form>`;
+    : `<form method="post" action="/app/books/papers/${esc(p.id)}/read" class="pform bs-read">${carry}<button class="btn${last?'':' send'}" type="submit">${esc(t(locale,last?'books.papers.readAgain':'books.papers.read'))}</button></form>`;
+  // F24 (UI correction, Block 5) — nothing read yet: the facts are shown as missing, the original stays beside them.
+  const unread = `<p>${esc(t(locale,'receipt.nothingRead'))}</p><dl class="bs-facts">${(['books.papers.supplier','books.entry.document','books.entry.date','books.entry.total'] as const).map(k=>`<div><dt>${esc(t(locale,k))}</dt><dd>${esc(t(locale,'receipt.notRead'))}</dd></div>`).join('')}</dl>`;
   const history = p.history ? `<p role="status">${statePill(locale,'history')}</p><p>${esc(t(locale,'books.papers.historyExplain',{n:p.history.entries,through:day(locale,p.history.through)}))}</p>` : '';
   // Preview URL is supplied by the authorised route. Only the kept original can be embedded here.
   const previewHref = opts.previewHref === `/app/books/spending/${p.id}/preview` ? opts.previewHref : null;
@@ -115,7 +126,7 @@ export function renderPaper(locale: Locale, viewer: Who, p: { id: string; name: 
     : p.mediaType === 'application/pdf' ? `<iframe class="bs-original-pdf" src="${esc(previewHref)}" title="${esc(t(locale,'booksSpending.preview',{name:p.name}))}"></iframe>` : '';
   return `<section class="books-spending"><header class="bs-header"><h1 class="page"><bdi>${esc(p.name)}</bdi></h1>${alerts(opts.problems??[])}${history}${p.keepUntil?`<p class="muted">${esc(t(locale,'books.papers.keptUntil',{date:day(locale,p.keepUntil)}))}</p>`:''}${p.history?'':drafted}</header>
     <div class="bs-review"><section class="bs-original"><h2>${esc(t(locale,'booksSpending.original'))}</h2><p><a class="dl-get" href="/app/books/papers/${esc(p.id)}/file" download>${icon('download')}<span>${esc(t(locale,'booksSpending.download'))}</span></a></p>${preview}</section>
-    ${p.history?'':`<section class="bs-reading"><h2>${esc(t(locale,'booksSpending.reading'))}</h2>${last ? `<p>${esc(t(locale,'booksSpending.checkReading'))}</p>${readingFacts(locale,last)}` : ''}${read}${p.readings.length>1?`<details class="bs-reading-history"><summary>${esc(t(locale,'booksSpending.previousReadings'))}</summary>${p.readings.slice(1).map(r=>`<section>${readingFacts(locale,r)}</section>`).join('')}</details>`:''}</section>`}</div>${form}
+    ${p.history?'':`<div class="bs-side"><section class="bs-reading"><h2>${esc(t(locale,'booksSpending.reading'))}</h2>${last ? `<p>${esc(t(locale,'booksSpending.checkReading'))}</p>${readingFacts(locale,last)}` : unread}${form ? '' : read}${p.readings.length>1?`<details class="bs-reading-history"><summary>${esc(t(locale,'booksSpending.previousReadings'))}</summary>${p.readings.slice(1).map(r=>`<section>${readingFacts(locale,r)}</section>`).join('')}</details>`:''}</section>${form}${form ? read : ''}</div>`}</div>
     <p><a class="deeper" href="${esc(from ?? '/app/books/spending')}">${esc(t(locale,from?'booksSpending.back':'booksSpending.title'))}</a></p></section>`;
 }
 

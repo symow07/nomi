@@ -3785,7 +3785,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const asked=(req.query as {state?:unknown}).state;
     const states=['pending','unread','problem','ready','draft','posted','set_aside'] as const;const state=states.find(x=>x===asked);
-    const body=asked==='history'?renderBooksHistory(locale,await withTenantTx(deps.db,bid,tx=>readOverviewHistoryPapers(tx,bid,{page:overviewPageOf(req)}))):renderSpending(locale,personOf(s),await withTenantTx(deps.db,bid,tx=>readOverviewPapers(tx,bid,{page:overviewPageOf(req),...(state?{state}:{})})),Boolean(deps.documents),{...(state?{state}:{}),returnHref:req.url});
     // 0227 (Block 2 PR 3) — the owner's spending book above the papers: what waits for a tick, a bill, what is unpaid, the schedule, the categories.
     const book = asked==='history' ? '' : await withTenantTx(deps.db, bid, async (tx) => {
       const today = await spendingToday(tx, bid);
@@ -3808,7 +3807,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }
       return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today), ...(prefill ? { prefill } : {}) }, choices);
     });
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+book+body}));
+    // F24 (UI correction, Block 5) — the page's title first, the spending book under it, then the receipts.
+    const body=asked==='history'?renderBooksHistory(locale,await withTenantTx(deps.db,bid,tx=>readOverviewHistoryPapers(tx,bid,{page:overviewPageOf(req)}))):renderSpending(locale,personOf(s),await withTenantTx(deps.db,bid,tx=>readOverviewPapers(tx,bid,{page:overviewPageOf(req),...(state?{state}:{})})),Boolean(deps.documents),{...(state?{state}:{}),returnHref:req.url,book});
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+(asked==='history'?book:'')+body}));
   });
 
   // ── 0227 · the spending book's writes (the owner's, `booksMay 'post'`) ───────────────────────────────────────────
