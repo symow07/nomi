@@ -102,6 +102,18 @@ describe('F46 · connections and imports: one method open at a time', () => {
   });
 });
 
+describe('F46 · forward chevrons mirror right to left by the app\'s one convention', () => {
+  const chevrons = (html: string) => [...html.matchAll(/<a href="[^"]+">(?:(?!<\/a>).)*?<svg class="([^"]+)"/gs)].map((m) => m[1] ?? '');
+  it('the steps and the Books doors carry flips, and nothing around them mirrors again', () => {
+    const html = renderBooksSetup('ar', FULL, MORE);
+    const marks = chevrons(html);
+    expect(marks.length).toBe(8);
+    for (const c of marks) expect(c.split(' ')).toContain('flips');
+    expect(html).not.toMatch(/class="go"/);
+    expect(BOOKS_AREA_CSS).not.toMatch(/scaleX/);
+  });
+});
+
 describe('F46 · custom fields: Choices only for a choice, Required beside its field', () => {
   const html = renderFields('en', { id: 'o', isOwner: true }, []);
   it('Choices is marked so it can be hidden for any other type', () => {

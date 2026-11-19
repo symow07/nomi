@@ -49,7 +49,7 @@ export function renderBooksSetup(locale: Locale, s: BooksSetupState, more: reado
     <section class="bs-setup" aria-labelledby="bs-steps">
       <h2 id="bs-steps">${esc(t(locale, 'booksArea.setup'))}</h2>
       <p class="bs-progress"><progress max="${steps.length}" value="${done}" aria-labelledby="bs-done"></progress> <span id="bs-done">${esc(t(locale, 'setupList.progress', { done: String(done), total: String(steps.length) }))}</span></p>
-      <ol class="bs-steps">${steps.map((x) => `<li${x.done ? ' class="done"' : ''}><a href="${esc(x.href)}"><span class="bs-step"><span>${esc(t(locale, x.title))}</span><span class="caption muted">${esc(x.reading)}</span></span>${state(x)}${icon('go')}</a></li>`).join('')}</ol>
+      <ol class="bs-steps">${steps.map((x) => `<li${x.done ? ' class="done"' : ''}><a href="${esc(x.href)}"><span class="bs-step"><span>${esc(t(locale, x.title))}</span><span class="caption muted">${esc(x.reading)}</span></span>${state(x)}${icon('go', 'ni flips')}</a></li>`).join('')}</ol>
     </section>
     <section class="ba-hub" aria-labelledby="bs-more"><h2 id="bs-more">${esc(t(locale, 'setupList.more'))}</h2>${booksDoors(locale, more)}</section>`;
 }
