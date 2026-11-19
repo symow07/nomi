@@ -81,3 +81,32 @@ describe('approved owner navigation', () => {
     expect(rail(page('/app', { needsYou: 0 }))).not.toContain('class="navcount"');
   });
 });
+
+// Block 5, found on the way (a Block 1-4 guarantee): the accountant's Log out is a button that posts, and every nav rule
+// once named a.navlink, so it was drawn as the browser's own 29 px button on the phone bar and 36 px in the rail.
+describe("the accountant's Log out takes the nav's own rules", () => {
+  const html = page('/app/books', { viewerRole: 'accountant' });
+  const css = linkedCss(html);
+  it('is still a button posting /logout inside the nav', () => {
+    expect(rail(html)).toMatch(/<form method="post" action="\/logout" class="navout"><button class="navlink" type="submit" data-nav="logout">/);
+  });
+  it('the form gives way and the button drops the browser face', () => {
+    expect(css).toContain('nav.side .navout { display:contents; }');
+    expect(css).toMatch(/nav\.side button\.navlink \{ appearance:none; background:none; border:0; font:inherit;/);
+  });
+  it('the size, hover and press rules of the rail and the phone bar name the button too', () => {
+    for (const rule of [
+      'nav.side :is(a,button).navlink { display: flex;',
+      'nav.side :is(a,button).navlink:hover {',
+      'nav.side :is(a,button).navlink { position:relative;',
+      'nav.side :is(a,button).navlink:active { transform:scale(',
+      '.owner-shell nav.side :is(a,button).navlink { min-height:48px;',
+      '.owner-shell nav.side :is(a,button).navlink, .owner-shell nav.side .nav-more > summary { display:flex;',
+    ]) expect(css, rule).toContain(rule);
+    // What is left on a.navlink alone is a link's own: where you are, a fresh dot, the scroll compaction. The Split
+    // Today preview's rules (.split) are left out: only the owner's Today draws it, never the accountant's shell.
+    for (const m of css.matchAll(/(?<!\.split )nav\.side a\.navlink([^{,]*)\{([^}]*)\}/g)) {
+      expect(m[1]!.trim() + ' { ' + m[2]!.trim(), 'a link-only nav rule').toMatch(/^(\.active|\[data-fresh\]|\.sp-notab|:hover \.ni|\.active \.ni|\.active\[data-fresh\]::after|\[data-fresh\]::after|\s*\{ animation)/);
+    }
+  });
+});

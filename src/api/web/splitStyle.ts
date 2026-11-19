@@ -322,7 +322,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .owner-shell nav.side .brandname small { font-size:var(--font-size-caption); }
 .owner-shell nav.side .navgroup { display:flex; flex-direction:column; gap:var(--space-4); }
 .owner-shell nav.side .navfoot { margin-block-start:auto; padding-block-start:var(--space-32); }
-.owner-shell nav.side a.navlink { min-height:48px; padding:10px var(--space-12); gap:var(--space-12); border-radius:var(--radius-control); font-size:var(--font-size-small); color:var(--color-ink); }
+.owner-shell nav.side :is(a,button).navlink { min-height:48px; padding:10px var(--space-12); gap:var(--space-12); border-radius:var(--radius-control); font-size:var(--font-size-small); color:var(--color-ink); }
 /* Where you are: a quiet tile and weight, never a colour alone. */
 .owner-shell nav.side a.navlink.active { color:var(--color-ink); background:var(--color-sand); box-shadow:none; font-weight:600; }
 .owner-shell nav.side a.navlink.active .ni { color:inherit; }
@@ -436,9 +436,10 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
     padding:var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom)); gap:0; background:var(--color-surface); border-inline-end:0; border-block-end:0; border-block-start:1px solid var(--color-border); overflow:visible; animation:none; }
   .owner-shell nav.side .brand, .owner-shell nav.side a.nav-desktop, .owner-shell nav.side .sp-me { display:none; }
   .owner-shell nav.side .navgroup, .owner-shell nav.side .navfoot { display:contents; }
-  .owner-shell nav.side a.navlink, .owner-shell nav.side .nav-more > summary { display:flex; flex:1 0 auto; flex-direction:column; justify-content:center; align-items:center;
+  .owner-shell nav.side :is(a,button).navlink, .owner-shell nav.side .nav-more > summary { display:flex; flex:1 0 auto; flex-direction:column; justify-content:center; align-items:center;
     min-inline-size:44px; min-block-size:60px; padding:var(--space-4) 0; gap:var(--space-4); font-size:var(--font-size-caption); border:0; animation:none; background:transparent; }
   .owner-shell nav.side a.nav-desktop { display:none; }
+  .owner-shell nav.side button.navlink { inline-size:auto; }
   .owner-shell nav.side .navcount { inset-block-start:0; inset-inline-start:calc(50% + 5px); background:var(--color-surface); }
   /* N1: give every whole word its intrinsic width before sharing spare room. No mid-word breaks or smaller type. */
   .owner-shell nav.side .nl-text { flex:none; max-inline-size:none; white-space:normal; overflow:visible; text-overflow:clip; text-align:center; line-height:1.15; overflow-wrap:normal; word-break:normal; }

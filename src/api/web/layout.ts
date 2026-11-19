@@ -385,13 +385,13 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
 const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
   `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    .btn, .srow, a.navlink, .tab, .deeper, summary, nav.side .ni {
+    .btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
         box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
         transform var(--motion-fast) var(--motion-ease); }
-    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side a.navlink:active { transform:scale(var(--motion-scale-press)); }
-    nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
-    nav.side a.navlink:active .ni { transform:none; }
+    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side :is(a,button).navlink:active { transform:scale(var(--motion-scale-press)); }
+    nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
+    nav.side :is(a,button).navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
     details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
     /* Delay hiding only when closing: opening must expose its fields to the very next Tab. */
@@ -651,7 +651,7 @@ ${FACE_CSS}
      sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under its word. */
   /* The Solar nav (2026-10-05) — airier, as the owner asked: each entry 52 px tall (it was 44), 16 px between
      the icon and its word (12), and 8 px between entries (4). */
-  nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-16); padding: var(--space-8) var(--space-12);
+  nav.side :is(a,button).navlink { display: flex; align-items: flex-start; gap: var(--space-16); padding: var(--space-8) var(--space-12);
     padding-block: calc((52px - 1lh) / 2);
     min-height: 52px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-8); }
@@ -668,7 +668,10 @@ ${FACE_CSS}
   html[lang="zh"] nav.side .nl-text { word-break:keep-all; }
   /* An icon that points (Log out's arrow, a reply's) is mirrored on a right-to-left page, wherever it is drawn. */
   [dir="rtl"] svg.flips { transform:scaleX(-1); }
-  nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
+  nav.side :is(a,button).navlink:hover { background: var(--color-surface); color: var(--color-ink); }
+  /* The accountant's Log out is a button in a form (it posts): the form gives way, and the button takes a link's face and width. */
+  nav.side .navout { display:contents; }
+  nav.side button.navlink { appearance:none; background:none; border:0; font:inherit; color:inherit; text-align:start; cursor:pointer; inline-size:100%; box-sizing:border-box; }
   /* The entry you are on is unmistakable without a colour: a raised white
      tile on the rail's grey, its word in weight, its icon in the deep magenta
      (the colour one job's variable). The Solar nav: the same line drawing as
@@ -1317,7 +1320,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
+    nav.side :is(a,button).navlink { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
       gap:var(--space-8); margin:0; padding:var(--space-4) 2px; min-height:64px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
@@ -1365,7 +1368,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand { display:none; }
   }
   @media (max-width: 400px) {
-    nav.side a.navlink { padding-inline:0; }
+    nav.side :is(a,button).navlink { padding-inline:0; }
   }
   /* V1 step three — the compaction the sticky phone nav plays over the first
      160px of scroll (see the phone block). Spacing from the scale only. */

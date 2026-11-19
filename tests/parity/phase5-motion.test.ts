@@ -208,7 +208,7 @@ describe('the motion pass · every rule that moves names something the product r
   it('each selector of each moving rule matches an element on those pages, or one the script makes', () => {
     const unmatched: string[] = [];
     for (const { sel } of MOVING) {
-      for (const one of sel.split(',').map((s) => s.trim())) {
+      for (const one of sel.split(/,(?![^(]*\))/).map((s) => s.trim())) {
         if (one.startsWith('::view-transition')) continue;          // the browser's own, held below
         let left = one.replace(STATE, '');
         for (const [made, by] of SCRIPT_MADE) {
@@ -273,7 +273,7 @@ describe('the motion pass · timings and distances a person can see', () => {
 });
 
 describe('the motion pass · each moment, as the stylesheet draws it', () => {
-  const ruleOf = (sel: string) => MOVING.find((r) => r.sel.split(',').map((s) => s.trim()).includes(sel))?.body ?? '';
+  const ruleOf = (sel: string) => MOVING.find((r) => r.sel.split(/,(?![^(]*\))/).map((s) => s.trim()).includes(sel))?.body ?? '';
 
   it('arriving: the notice, the draft (a beat after the page), the at-work line, Today, a menu group by group, each face in turn', () => {
     expect(ruleOf('#approve')).toContain('animation:nomi-rise var(--motion-normal) var(--motion-ease) both');
@@ -323,9 +323,9 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
 
   it('the hand: a press settles to 0.97 and comes back; a rail icon lifts under the pointer; colour is left to the rail\'s own rules', () => {
     expect(ruleOf('.btn:active')).toContain('transform:scale(var(--motion-scale-press))');
-    expect(ruleOf('nav.side a.navlink:active')).toContain('transform:scale(var(--motion-scale-press))');
+    expect(ruleOf('nav.side :is(a,button).navlink:active')).toContain('transform:scale(var(--motion-scale-press))');
     expect(ruleOf('.btn')).toContain('transform var(--motion-fast) var(--motion-ease)');   // the release animates too
-    expect(ruleOf('nav.side a.navlink:hover .ni')).toBe(' transform:translateY(calc(-1 * var(--travel-nudge))); ');
+    expect(ruleOf('nav.side :is(a,button).navlink:hover .ni')).toBe(' transform:translateY(calc(-1 * var(--travel-nudge))); ');
   });
 });
 
