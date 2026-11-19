@@ -30,7 +30,13 @@ export function renderBooksReportsHome(locale:Locale,advanced=false,moroccanBook
   ? [['/app/books/advanced/entries','books.entries.title'],['/app/books/advanced/trial-balance','books.trial.title']]
   : [['/app/books/reports/made','ownerReport.made'],['/app/books/reports/money','ownerReport.money'],['/app/books/reports/tax','ownerReport.tax'],['/app/books/reports/customers','ownerReport.customers'],['/app/books/reports/unpaid','ownerReport.unpaid'],['/app/books/reports/profit','booksArea.profitDetails'],['/app/books/reports/cash','booksArea.cashDetails'],['/app/books/reports/suppliers','booksArea.supplierDetails'],['/app/books/books.csv','booksArea.fullDownload'],['/app/books/workbook.xlsx','booksArea.workbook'],['/app/books/pack.xlsx','booksArea.pack'],['/app/books/advanced','booksArea.advanced']];
  if(!advanced&&moroccanBooks)links.push(['/app/books/reports/fec','books.fec.title']);
- return `<h1 class="page">${esc(t(locale,advanced?'booksArea.advanced':'booksArea.reports'))}</h1><p class="lede">${esc(t(locale,advanced?'booksArea.advancedHint':'booksArea.reportsHint'))}</p>`+booksDoors(locale,links);
+ const head=`<h1 class="page">${esc(t(locale,advanced?'booksArea.advanced':'booksArea.reports'))}</h1><p class="lede">${esc(t(locale,advanced?'booksArea.advancedHint':'booksArea.reportsHint'))}</p>`;
+ if(advanced)return head+booksDoors(locale,links);
+ // F25 (UI correction, Block 5) — a report opens a page (an arrow); a file downloads (its kind said, a download mark).
+ const FILE:Record<string,MessageKey>={'/app/books/books.csv':'booksStmt.csv','/app/books/workbook.xlsx':'booksStmt.xlsx','/app/books/pack.xlsx':'booksStmt.xlsx'};
+ const pages=links.filter(([href])=>!FILE[href]),files=links.filter(([href])=>FILE[href]);
+ return head+`<section class="ba-hub" aria-labelledby="hub-pages"><h2 id="hub-pages">${esc(t(locale,'booksStmt.pages'))}</h2>${booksDoors(locale,pages)}</section>`
+  +`<section class="ba-hub" aria-labelledby="hub-files"><h2 id="hub-files">${esc(t(locale,'booksStmt.files'))}</h2><ul class="ba-doors ba-files">${files.map(([href,key])=>`<li><a href="${esc(href)}" download><span class="ba-file"><span>${esc(t(locale,key))}</span><span class="caption muted">${esc(t(locale,FILE[href]!)).replace(/\.(csv|xlsx)/,'<bdi dir="ltr">.$1</bdi>')}</span></span>${icon('download')}</a></li>`).join('')}</ul></section>`;
 }
 
 /**

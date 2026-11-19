@@ -103,7 +103,7 @@ export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: F
         `<li class="row"><span><bdi>${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi></span></li>`).join('')}</ul>`}
       ${y.lines === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `<ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.fec.file', { n: y.lines }))}
         · <bdi dir="ltr">${esc(fecFileName(file.pattern, { ice: file.ice, closesOn: y.endsOn }))}</bdi></span>
-        <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul>`}
+        <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'booksStmt.downloadFec')).replace(/\.txt/, '<bdi dir="ltr">.txt</bdi>')}</span></a></li></ul>`}
     </div>`).join('')}
     ${fecFileNaming(locale, file)}
     <p class="caption muted">${esc(t(locale, 'books.fec.envelope'))}</p>

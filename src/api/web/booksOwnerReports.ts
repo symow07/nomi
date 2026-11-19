@@ -5,6 +5,7 @@ import type { XlsxValue } from '../../net/xlsx.js';
 import { esc } from './layout.js';
 import { t } from './say.js';
 import { booksMoney, booksDay } from './booksOverview.js';
+import { icon } from './icons.js';
 import { SPANS, AGE_BUCKETS, type Span, type Made, type Money, type Tax, type Customers, type Unpaid } from '../../db/booksOwnerReports.js';
 
 /**
@@ -26,12 +27,12 @@ function spanSwitch(locale: Locale, kind: OwnerReportKind, span: Span): string {
   return `<nav class="ba-actions" aria-label="${say(locale, 'booksReport.filters')}">${SPANS.map((s) => `<a href="/app/books/reports/${kind}?period=${s}"${s === span ? ' aria-current="page"' : ''}>${say(locale, `ownerReport.span.${s}` as MessageKey)}</a>`).join('')}</nav>`;
 }
 const periodLine = (locale: Locale, from: string, to: string) => `<p><bdi>${esc(t(locale, 'ownerReport.period', { from: booksDay(locale, from), to: booksDay(locale, to) }))}</bdi></p>`;
-const download = (locale: Locale, kind: OwnerReportKind, span: Span) => `<p><a class="deeper" href="/app/books/reports/${kind}.xlsx?period=${span}">${say(locale, 'ownerReport.download')}</a></p>`;
+const download = (locale: Locale, kind: OwnerReportKind, span: Span) => `<p><a class="dl-get" href="/app/books/reports/${kind}.xlsx?period=${span}" download>${icon('download')}<span>${say(locale, 'ownerReport.download')}</span></a></p>`;
 const rows = (locale: Locale, items: string, none: MessageKey) => items ? `<ul class="rows">${items}</ul>` : `<p class="muted">${say(locale, none)}</p>`;
 
 export function renderOwnerReport(locale: Locale, r: OwnerReport, span: Span, cur: string): string {
   const here = `/app/books/reports/${r.kind}?period=${span}`;
-  const head = `<section class="ba-overview"><p><a href="/app/books/reports">${say(locale, 'booksArea.reports')}</a></p><h1 class="page">${say(locale, title(r.kind))}</h1><p class="lede">${say(locale, `ownerReport.${r.kind}.hint` as MessageKey)}</p>`;
+  const head = `<section class="ba-overview ba-report"><p><a href="/app/books/reports">${say(locale, 'booksArea.reports')}</a></p><h1 class="page">${say(locale, title(r.kind))}</h1><p class="lede">${say(locale, `ownerReport.${r.kind}.hint` as MessageKey)}</p>`;
   let body: string;
   switch (r.kind) {
     case 'made': {
@@ -47,7 +48,7 @@ export function renderOwnerReport(locale: Locale, r: OwnerReport, span: Span, cu
         + (d.state === 'needs_setup' ? `<p>${say(locale, 'ownerReport.noMoneyAccounts')} <a href="/app/settings/books/accounts">${say(locale, 'booksArea.chooseAccounts')}</a></p>`
           : `<dl class="ba-money">${metric(locale, 'ownerReport.in', d.in, cur)}${metric(locale, 'ownerReport.out', d.out, cur)}${metric(locale, 'ownerReport.net', subDecimal(d.in, d.out), cur)}</dl>`
             + (signOf(d.opening) !== 0 ? `<p class="caption muted"><bdi>${esc(t(locale, 'ownerReport.opening', { amount: booksMoney(locale, d.opening, cur).replace(/<\/?bdi>/g, '') }))}</bdi></p>` : '')
-            + rows(locale, d.rows.map((x) => `<li class="row"><span><a href="${esc(entryHref(x.id, here))}"><bdi>${esc(x.label)}</bdi></a> <span class="caption muted">${esc(booksDay(locale, x.date))}</span></span><b>${signOf(x.in) !== 0 ? money(locale, x.in, cur) : ''}${signOf(x.out) !== 0 ? `−${money(locale, x.out, cur)}` : ''}</b></li>`).join(''), 'ownerReport.none'));
+            + rows(locale, d.rows.map((x) => `<li class="row"><span><a href="${esc(entryHref(x.id, here))}"><bdi>${esc(x.label)}</bdi></a> <span class="caption muted"><bdi>${esc(booksDay(locale, x.date))}</bdi></span></span><b>${signOf(x.in) !== 0 ? money(locale, x.in, cur) : ''}${signOf(x.out) !== 0 ? `−${money(locale, x.out, cur)}` : ''}</b></li>`).join(''), 'ownerReport.none'));
       break;
     }
     case 'tax': {

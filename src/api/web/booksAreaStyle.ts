@@ -117,6 +117,30 @@ main:has(.bk-tb){max-width:100%;}
 .ba-doors{list-style:none;padding:0;margin-block:var(--space-24);}
 .ba-doors li{border-top:1px solid var(--color-border);}
 .ba-doors a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-24);min-height:64px;padding-block:var(--space-16);}
+/* F25 (UI correction, Block 5) — the hub: reports open a page, files download; a file's name over its kind. */
+.ba-hub h2{font-size:var(--font-size-title);margin-block:var(--space-32) 0;}
+.ba-hub .ba-doors{margin-block-start:var(--space-12);}
+.ba-file{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}
+/* F25 — a statement: one table, each figure in its own end-aligned column. On a phone each row is a card: what it
+   is across the top, its date and kind side by side, then its figures side by side. */
+@media(max-width:900px){
+ .bk-cards.bk-stmt td.bk-text{order:0;grid-column:1/-1;}
+ .bk-cards.bk-stmt td.bk-text[data-label]::before{content:none;}
+ .bk-cards.bk-stmt td.bk-date{order:1;grid-column:1;}
+ .bk-cards.bk-stmt td.bk-state{order:1;grid-column:2;}
+ .bk-cards.bk-stmt td.bk-acct{order:2;grid-column:1/-1;}
+ .bk-cards.bk-stmt td.num{order:3;grid-column:auto;}
+ .books-area .bk-cards.bk-stmt tr>td.num,.books-area .bk-cards.bk-stmt tr>td.bk-state{align-items:flex-start;}
+ .bk-cards.bk-stmt tr>td.num>*{text-align:start;}
+ .books-area .bk-cards.bk-stmt td.bk-note{order:3;grid-column:1/-1;display:block;}
+}
+/* F25 — Year end in stages, numbered in order. */
+/* F25 — on a report page every link is a 44 px target: the way back, a link on its own line, the switches. */
+.ba-report>p>a,.ba-report nav.ba-actions a{display:inline-flex;align-items:center;min-height:44px;}
+.ye-stages{list-style:none;padding:0;margin:var(--space-32) 0 0;counter-reset:ye;}
+#years .ba-doors{margin-block:var(--space-8) 0;}
+.ye-stages>li{counter-increment:ye;}.ye-stages~.block:first-of-type{border-top:1px solid var(--color-border);padding-top:var(--space-32);}
+.ye-stages>li>h2::before{content:counter(ye) ". ";}
 .ba-overview h2{font-size:var(--font-size-title);}
 .ba-work{margin-block:var(--space-24) var(--space-32);}
 .ba-money{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-24);margin-block:var(--space-24);}
