@@ -40,6 +40,7 @@ import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
+import { renderBooksSetup } from './booksSetup.js';
 import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
@@ -3197,7 +3198,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    const bid=bidOf(s);if(!bid)return reply.callNotFound();
+    const st=await withTenantTx(deps.db,bid,async(tx)=>{const v=await countryBooksOf(tx,bid),c=await closeState(tx,bid),a=await booksAccountsOf(tx,bid),m=await moneyAccountChoices(tx,bid);
+      return {country:v.country,start:c.start?.day??null,years:c.years.length,accounts:!!a.salesJournalId&&!!a.receivableAccountId&&!!a.salesAccountId,
+        identifier:!!v.ein||!!v.companyNumber||v.moroccanIds,money:m.filter(x=>x.marked||x.byRule).length};});
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:renderBooksSetup(locale,st,[['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);

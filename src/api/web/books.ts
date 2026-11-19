@@ -200,7 +200,27 @@ export type BooksSystems = {
 
 /** Focused destination for the existing import and connector controls. */
 export function renderBooksConnections(locale:Locale,viewer:Viewer & {readonly kind?:'team'|'accountant'},systems:BooksSystems):string {
- return `<h1 class="page">${esc(t(locale,'booksArea.connections'))}</h1><p class="lede">${esc(t(locale,'booksArea.connectionsHint'))}</p>${workbookBlock(locale,viewer)}${booksMay({id:viewer.id??'',name:'',...viewer},'post')?sheetsBlock(locale,systems.sheets)+(systems.odoo?odooBlock(locale,systems.odoo):'')+(systems.xero?ledgerBlock(locale,'xero',systems.xero):'')+(systems.quickbooks?ledgerBlock(locale,'quickbooks',systems.quickbooks):''):''}`;
+ const state=(x:{readonly offered:boolean;readonly connection:BooksConnection|null}|undefined):MethodState=>!x||!x.offered?'notHere':!x.connection||x.connection.state==='disconnected'?'not':x.connection.state==='connected'?'connected':'again';
+ const methods:[string,MethodState|null][]=[[workbookBlock(locale,viewer),null]];
+ if(booksMay({id:viewer.id??'',name:'',...viewer},'post')){
+  methods.push([sheetsBlock(locale,systems.sheets),state(systems.sheets)]);
+  if(systems.odoo)methods.push([odooBlock(locale,systems.odoo),state(systems.odoo)]);
+  if(systems.xero)methods.push([ledgerBlock(locale,'xero',systems.xero),state(systems.xero)]);
+  if(systems.quickbooks)methods.push([ledgerBlock(locale,'quickbooks',systems.quickbooks),state(systems.quickbooks)]);
+ }
+ const shown=methods.filter(([html])=>html!=='');
+ const opened=shown.findIndex(([,st])=>st==='again');
+ return `<h1 class="page">${esc(t(locale,'booksArea.connections'))}</h1><p class="lede">${esc(t(locale,'booksArea.connectionsHint'))}</p>${shown.length<2?shown.map(([html])=>html).join(''):`<div class="ba-methods">${shown.map(([html,st],i)=>asMethod(locale,html,st,i===opened)).join('')}</div>`}`;
+}
+
+type MethodState='connected'|'again'|'not'|'notHere';
+const METHOD_WORD:Record<MethodState,MessageKey>={connected:'setupList.connConnected',again:'books.sheets.needsAgain',not:'setupList.connNot',notHere:'setupList.connNotHere'};
+/** F46 — one method's block as a disclosure: its own title and its state in the summary, the block itself inside. */
+function asMethod(locale:Locale,html:string,st:MethodState|null,open:boolean):string{
+ const m=/^<div class="block" id="([a-z-]+)">\s*<h2>([\s\S]*?)<\/h2>/.exec(html);
+ if(!m||!html.endsWith('</div>'))return html;
+ const pill=st===null?'':`<span class="pill${st==='connected'?' ok':st==='again'?' warn':''}">${esc(t(locale,METHOD_WORD[st]))}</span>`;
+ return `<details class="block ba-method" id="${m[1]}" name="books-method"${open?' open':''}><summary><h2>${m[2]}</h2>${pill}</summary><div class="ba-method-body">${html.slice(m[0].length,-'</div>'.length)}</div></details>`;
 }
 
 /**

@@ -23,13 +23,13 @@ export const SETTINGS_PAGES:Readonly<Partial<Record<SettingsGroup,readonly [stri
  business:[['profile','settingsArea.profile'],['selling','settingsArea.selling'],['hours','settingsArea.hours'],['terms','settingsArea.terms'],['currency','settingsArea.currency'],['samples','settingsArea.samples'],['data','settingsArea.data'],['shopify','shopifyOrders.nav']],
  assistant:[['','settingsArea.permissions'],['name','settingsArea.identity'],['promises','settingsArea.promises'],['ready','settingsArea.ready'],['words','settingsArea.words'],['history-policy','settingsArea.historyPolicy']],
  personal:[['account','settingsArea.account'],['notifications','settingsArea.notifications'],['language','settingsArea.language'],['advisor-history','settingsArea.history']],
- books:[['','booksArea.setup'],['country','books.country.nav'],['connections','booksArea.connections'],['accounts','booksArea.accounts'],['starting-balances','booksArea.opening'],['tax','booksArea.taxDetails'],['fields','booksArea.fields']],
+ books:[['','booksArea.setup'],['country','books.country.nav'],['starting-balances','booksArea.opening'],['accounts','booksArea.accounts'],['tax','booksArea.taxDetails'],['connections','booksArea.connections'],['fields','booksArea.fields']],
 };
 export function settingsPageLinks(locale:Locale,group:SettingsGroup,path:string,viewer:Viewer):string {
  const pages=SETTINGS_PAGES[group];if(!pages)return '';
  const current=settingsHref(path).split(/[?#]/)[0]!;
  const isCurrent=(key:string):boolean=>{const href='/app/settings/'+group+(key?'/'+key:'');return current===href||(key!==''&&current.startsWith(href+'/'));};
- if((group==='business'||group==='personal')&&current==='/app/settings/'+group)return '';
+ if((group==='business'||group==='personal'||group==='books')&&current==='/app/settings/'+group)return '';
  const allowed=pages.filter(([key])=>!['terms','samples'].includes(key)||exportSettingsShown()).filter(([key])=>viewerRole()==='accountant'?['account','language'].includes(key):viewer.isOwner||!['data','history-policy'].includes(key));
  const links=allowed.map(([key,title])=>{const href='/app/settings/'+group+(key?'/'+key:'');return `<a href="${href}"${isCurrent(key)?' aria-current="page"':''}>${esc(t(locale,title))}</a>`;}).join('');
  const selected=allowed.find(([key])=>isCurrent(key));
