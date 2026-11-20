@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 /**
  * M9.1 — Owner session, minimal and dependency-free. A signed cookie
@@ -30,7 +30,16 @@ export type OwnerSession = {
    * and the database do not share one.
    */
   readonly pv?: number;
+  /**
+   * 0243 — WHICH session this is: a random id, given by `sign` to every new session. Log out writes it to
+   * `ended_sessions` and the session gate refuses it from then on, so a copy of the cookie no longer opens the app
+   * once its owner has signed out. Optional for the same reason as the others: a cookie signed before 0243 has none,
+   * still verifies until it expires, and cannot be ended this way.
+   */
+  readonly sid?: string;
 };
+
+const SID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
@@ -39,8 +48,10 @@ export function makeSessionCodec(secret: string) {
     createHmac('sha256', secret).update(payload).digest('base64url');
 
   return {
+    /** Every session signed gets its own id (0243) unless it already carries one. */
     sign(session: OwnerSession): string {
-      const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
+      const withId: OwnerSession = session.sid ? session : { ...session, sid: randomUUID() };
+      const payload = Buffer.from(JSON.stringify(withId)).toString('base64url');
       return `${payload}.${mac(payload)}`;
     },
     /** Returns the session iff signature valid AND not expired. Constant-time. */
@@ -57,6 +68,7 @@ export function makeSessionCodec(secret: string) {
       try {
         const s = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as OwnerSession;
         if (typeof s.businessId !== 'string' || typeof s.exp !== 'number' || s.exp < now) return null;
+        if (s.sid !== undefined && (typeof s.sid !== 'string' || !SID.test(s.sid))) return null;
         return s;
       } catch { return null; }
     },

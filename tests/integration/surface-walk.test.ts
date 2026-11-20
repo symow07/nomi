@@ -171,7 +171,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     app = Fastify({ logger: false });
     app.addHook('onRoute', (r) => {
       const ms = Array.isArray(r.method) ? r.method : [r.method];
-      if (ms.includes('GET')) routes.push(r.url);
+      // `/logout` is not a surface: since 0243 it ends the walk's own session on the server, so every page after it
+      // would be the sign-in page.
+      if (ms.includes('GET') && r.url !== '/logout') routes.push(r.url);
     });
     registerWebApp(app, {
       db, advisorDb, businessId: RUN_BIZ, accessCode: CODE,
