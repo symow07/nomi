@@ -20,6 +20,11 @@ create table if not exists ended_sessions (
 create index if not exists ended_sessions_ends_at on ended_sessions (ends_at);
 alter table ended_sessions enable row level security;
 revoke all on ended_sessions from public, nomi_app;
+-- Every table under row security chooses for the accountant (0177): this one is nobody's to read, the accountant's
+-- least of all.
+drop policy if exists not_for_accountants on ended_sessions;
+create policy not_for_accountants on ended_sessions as restrictive for all
+  using (not (select viewer_is_accountant())) with check (not (select viewer_is_accountant()));
 
 -- Records one ended session. Idempotent: a second Log out of the same cookie changes nothing. Rows whose cookie has
 -- expired are pruned as it goes (the app role has no DELETE anywhere).

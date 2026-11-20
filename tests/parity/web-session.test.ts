@@ -161,7 +161,16 @@ describe('M9 · owner session codec', () => {
 
   it('round-trips a valid session', () => {
     const token = codec.sign({ businessId: 'biz-1', exp: now + SESSION_TTL_MS });
-    expect(codec.verify(token, now)).toEqual({ businessId: 'biz-1', exp: now + SESSION_TTL_MS });
+    expect(codec.verify(token, now)).toEqual({ businessId: 'biz-1', exp: now + SESSION_TTL_MS, sid: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+  });
+
+  it('0243 — every session signed gets its own id; one it already carries is kept; a malformed one is refused', () => {
+    const a = codec.verify(codec.sign({ businessId: 'biz-1', exp: now + SESSION_TTL_MS }), now)!;
+    const b = codec.verify(codec.sign({ businessId: 'biz-1', exp: now + SESSION_TTL_MS }), now)!;
+    expect(a.sid).not.toBe(b.sid);
+    const kept = codec.verify(codec.sign({ businessId: 'biz-1', exp: now + SESSION_TTL_MS, sid: a.sid! }), now)!;
+    expect(kept.sid).toBe(a.sid);
+    expect(codec.verify(codec.sign({ businessId: 'biz-1', exp: now + SESSION_TTL_MS, sid: 'not-a-uuid' }), now)).toBeNull();
   });
 
   it('rejects a tampered payload or signature', () => {
