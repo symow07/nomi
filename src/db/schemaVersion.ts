@@ -496,7 +496,9 @@ import type { Db } from './client.js';
 //       workspace and refuses one it does not find (0241; applied after 0242 in production, which the runner allows).
 // 242 = KS6's "connected before" is 0240's `first_channel_at()`: a workspace that ever connected any channel kind is
 //       never asked for approval again (0242).
-export const REQUIRED_SCHEMA_VERSION = 242;
+// 243 = Log out ends the session on the server: the ended session's random id, kept until its cookie would have
+//       expired, refused by the session gate (0243).
+export const REQUIRED_SCHEMA_VERSION = 243;
 
 export type SchemaState = {
   readonly required: number;

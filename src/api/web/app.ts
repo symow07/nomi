@@ -401,6 +401,7 @@ import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type S
 import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
 import { checkSignup, markSignupAttempt, markSignupRefused, markSignupWorkspace, newSignupDeviceId, signupDigests, type SignupCheck } from '../../db/signupMarks.js';
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
+import { endSession, sessionEnded } from '../../db/endedSessions.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { countryName, type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
@@ -924,7 +925,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * nothing to look up and her code is her credential, so she is let through.
    */
   const liveness = makeLivenessCache();
-  const PERSON_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /**
+   * 0243 — which sessions were signed out of. One ended here is known at once (and for good: the id is never reused);
+   * one that is not is asked of the database again after a minute, as liveness is, so a sign-out handled by another
+   * process is honoured within a minute and a request costs no query in the common case. A failed read is null: the
+   * gate then treats it as liveness treats one (the owner through, anyone else to sign in again).
+   */
+  const endedSessions = (() => {
+    const endedHere = new Map<string, number>();
+    const notEnded = new Map<string, number>();
+    const AGAIN_MS = 60_000;
+    const prune = (m: Map<string, number>, now: number) => { if (m.size > 10_000) for (const [k, t] of m) if (t < now) m.delete(k); };
+    return {
+      async ended(sid: string, now: number): Promise<boolean> {
+        if (endedHere.has(sid)) return true;
+        const until = notEnded.get(sid);
+        if (until !== undefined && until > now) return false;
+        if (await sessionEnded(deps.db, sid)) { endedHere.set(sid, now + SESSION_TTL_MS); prune(endedHere, now); return true; }
+        notEnded.set(sid, now + AGAIN_MS); prune(notEnded, now);
+        return false;
+      },
+      async end(sid: string, expMs: number, now: number): Promise<void> {
+        endedHere.set(sid, expMs); notEnded.delete(sid); prune(endedHere, now);
+        await endSession(deps.db, sid, expMs);
+      },
+    };
+  })();
+  const PERSON_ID =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   /**
    * R4 (Intuit's App Assessment, item 9) — NOTHING IS KEPT BY A BROWSER OR A PROXY unless its route says so: an
    * answer without its own cache-control is `no-store` (never merely no-cache or private). Where the deployment is
@@ -938,6 +965,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/app')) return;
     const s = sessionOf(req);
+    // 0243 — a session its owner signed out of is over, whoever presents a copy of the cookie: the access code's
+    // owner included, who has no person row for the check below.
+    if (s?.sid) {
+      const ended = await endedSessions.ended(s.sid, Date.now()).catch(() => null);
+      if (ended === true || (ended === null && !(s.person?.isOwner ?? true))) {
+        setCookie(reply, '', 0);
+        return reply.redirect('/login');
+      }
+    }
     const person = s?.person;
     if (!s || !person || !PERSON_ID.test(person.id)) return;
     const bid = parseBusinessId(s.businessId);
@@ -4733,7 +4769,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // V1 close-out — Setup signs out with a BUTTON (a form that posts here):
   // ending the session is an action, not a place. The address itself still
   // signs out for anything that learned it as a link.
-  const logout = async (_req: FastifyRequest, reply: FastifyReply) => {
+  // 0243 — and the session ends on the server too: before, the browser was only told to forget the cookie, and a copy
+  // of it kept opening the app until it expired (a week). A session signed before 0243 carries no id and cannot be
+  // ended this way; it expires as it always did.
+  const logout = async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req);
+    if (s?.sid) {
+      await endedSessions.end(s.sid, s.exp, Date.now())
+        .catch((e: unknown) => req.log.warn({ err: e }, 'a signed-out session could not be recorded; it ends in this process only'));
+    }
     setCookie(reply, '', 0);
     return reply.redirect('/login');
   };
