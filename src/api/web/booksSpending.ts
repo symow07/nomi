@@ -27,7 +27,9 @@ export type SpendingBook = {
   /** 0238 — the bill form filled from a month's ad spend (`?ads=`): marked estimated, linked back when posted. */
   readonly prefill?: BillPrefill;
 };
-export type BillPrefill = { readonly ads: string; readonly label: string; readonly date: string; readonly gross: string | null; readonly notes: readonly string[] };
+/** `ads` (0238): a month's ad spend; `bank` (F23 fix): a bank line nothing matched, paid from its own account. */
+export type BillPrefill = { readonly label: string; readonly date: string; readonly gross: string | null; readonly notes: readonly string[] }
+  & ({ readonly ads: string; readonly bank?: undefined } | { readonly ads?: undefined; readonly bank: { readonly line: string; readonly account: string } });
 
 const money = (locale: Locale, d: Decimal, currency: string): string => { const m = moneyFromRow(d, currency); return esc(m ? show.money(locale, m) : d); };
 const owner = (v: Who): boolean => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
@@ -39,11 +41,11 @@ function supplierFields(locale: Locale, c: SpendingChoices): string {
   return select('supplier', t(locale, 'booksSpending.bill.supplier'), option('', t(locale, 'booksSpending.bill.supplierNone')) + c.suppliers.map((s) => option(s.id, `${s.code} · ${s.name}`)).join(''))
     + input('newSupplier', t(locale, 'booksSpending.bill.newSupplier'), 'text', ' maxlength="200" autocomplete="off"');
 }
-function costFields(locale: Locale, c: SpendingChoices): string {
+function costFields(locale: Locale, c: SpendingChoices, paidFrom?: string): string {
   const category = select('category', t(locale, 'booksSpending.bill.category'), option('', t(locale, 'booksSpending.bill.categoryNone')) + c.categories.map((x) => option(x.id, x.name)).join(''));
   const account = select('account', t(locale, 'booksSpending.bill.account'), option('', '—') + c.expenseAccounts.map((a) => option(a.id, `${a.code} · ${a.name}`)).join(''));
   const tax = select('tax', t(locale, 'booksSpending.bill.tax'), option('', t(locale, 'booksSpending.bill.taxNone')) + c.taxCodes.map((x) => option(x.id, `${x.code} · ${x.label}`)).join(''));
-  const payFrom = select('payFrom', t(locale, 'booksSpending.bill.payFrom'), option('', t(locale, 'booksSpending.bill.notPaid')) + c.payAccounts.map((a) => option(a.id, `${a.code} · ${a.name}`)).join(''));
+  const payFrom = select('payFrom', t(locale, 'booksSpending.bill.payFrom'), option('', t(locale, 'booksSpending.bill.notPaid'), !paidFrom) + c.payAccounts.map((a) => option(a.id, `${a.code} · ${a.name}`, a.id === paidFrom)).join(''));
   return category + account + tax + payFrom;
 }
 
@@ -56,15 +58,15 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
       <form method="post" action="/app/books/spending/proposals/${esc(p.id)}/skip" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'booksSpending.waiting.skipAsk'))}">${esc(t(locale, 'booksSpending.waiting.skip'))}</button></form>` : ''}</li>`).join('')}</ul></section>`;
   const month = `<p class="caption muted">${esc(t(locale, 'booksSpending.month', { amount: show.money(locale, moneyFromRow(d.spentThisMonth, cur)!) , from: booksDay(locale, d.monthFrom) }))}</p>`;
   const pf = d.prefill;
-  const bill = !may ? '' : `<section class="block" id="bill"><h2>${esc(t(locale, pf ? 'adSpend.prefill.title' : 'booksSpending.bill.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.bill.lede'))}</p>
+  const bill = !may ? '' : `<section class="block" id="bill"><h2>${esc(t(locale, pf?.ads ? 'adSpend.prefill.title' : pf?.bank ? 'booksSpending.fromBank.title' : 'booksSpending.bill.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.bill.lede'))}</p>
     ${pf ? pf.notes.map((n) => `<p class="caption" role="note">${esc(n)}</p>`).join('') : ''}
-    ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">${pf ? `<input type="hidden" name="ads" value="${esc(pf.ads)}" />` : ''}
+    ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">${pf?.ads ? `<input type="hidden" name="ads" value="${esc(pf.ads)}" />` : ''}${pf?.bank ? `<input type="hidden" name="bankLine" value="${esc(pf.bank.line)}" /><input type="hidden" name="bankAccount" value="${esc(pf.bank.account)}" />` : ''}
       ${input('date', t(locale, 'books.entry.date'), 'date', ` value="${esc(pf?.date ?? d.today)}" required`)}
       ${input('label', t(locale, 'books.entry.label'), 'text', ` maxlength="200" required${pf ? ` value="${esc(pf.label)}"` : ''}`)}
       ${input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" autocomplete="off"')}
       <label class="pq"><span><input type="checkbox" name="noref" value="1" /> ${esc(t(locale, 'booksSpending.bill.noRef'))}</span><small class="muted">${esc(t(locale, 'booksSpending.bill.noRefHint'))}</small></label>
       ${input('gross', t(locale, 'booksSpending.bill.gross', { currency: cur }), 'text', ` inputmode="decimal" required${pf?.gross ? ` value="${esc(pf.gross)}"` : ''}`)}
-      ${pf ? input('newSupplier', t(locale, 'booksSpending.bill.newSupplier'), 'text', ' maxlength="200" autocomplete="off" value="Meta"') : supplierFields(locale, c)}${costFields(locale, c)}
+      ${pf?.ads ? input('newSupplier', t(locale, 'booksSpending.bill.newSupplier'), 'text', ' maxlength="200" autocomplete="off" value="Meta"') : supplierFields(locale, c)}${costFields(locale, c, pf?.bank?.account)}
       <button class="btn send" type="submit">${esc(t(locale, 'booksSpending.bill.record'))}</button></form>` : `<p>${esc(t(locale, 'booksSpending.bill.noChart'))}</p><p><a class="deeper" href="/app/settings/books/country">${esc(t(locale, 'books.country.nav'))}</a></p>`}</section>`;
   const unpaid = `<section class="block" id="unpaid"><h2>${esc(t(locale, 'booksSpending.unpaid.title'))}</h2>${d.unpaid.length === 0 ? `<p class="muted">${esc(t(locale, 'booksSpending.unpaid.none'))}</p>` : `<ul class="rows">${d.unpaid.map((b) =>
     `<li class="row"><span><a class="bs-bill-key" href="/app/books/advanced/entries/${esc(b.entryId)}"><bdi>${esc(b.key)}</bdi></a> · <bdi>${esc(booksDay(locale, b.date))}</bdi> · <bdi>${esc(b.label)}</bdi>${b.supplier ? ` · <bdi>${esc(b.supplier)}</bdi>` : ''}${b.noNumber ? ` · ${esc(t(locale, 'booksSpending.bill.noRefShown', { ref: b.documentRef ?? '' }))}` : ''}</span><b>${money(locale, b.gross, b.currency)}</b>${may && c.payAccounts.length ? `

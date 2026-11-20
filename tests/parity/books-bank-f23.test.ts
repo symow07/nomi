@@ -46,8 +46,25 @@ describe('F23 · bank matching', () => {
     expect(all).toContain('Every statement line read for this account is matched.'); expect(all).not.toContain('Nothing matched yet');
     expect(renderBank('en', owner, { accounts: [], accountId: null, open: [], matched: [] })).toContain('has no bank or cash account');
   });
+  it('F23 fix — a line with no entry to match has a next step: money out is recorded as a cost from the line, money in leads to the unpaid invoices', () => {
+    const out = renderBank('en', owner, { accounts, accountId: 'bank', open: [line('l1', [])], matched: [] });
+    const li = out.slice(out.indexOf('id="bank-line-l1"'));
+    expect(li).toContain('No entry of the same amount within a week.');
+    expect(li).toContain('<a class="deeper" href="/app/books/spending?bankLine=l1&amp;account=bank#bill">Record it as a cost</a>');
+    expect(li).toContain('<a class="deeper" href="/app/books/advanced/entries/new">Write an entry for this line</a>');
+    expect(li).toContain('Once it is in the books, its entry is offered here to match.');
+    expect(li).not.toContain('Find the invoice it pays');
+    const inn = renderBank('en', owner, { accounts, accountId: 'bank', open: [{ ...line('l2', []), amount: d('125.75'), wording: 'CASA OLIVO' }], matched: [] });
+    expect(inn).toContain('<a class="deeper" href="/app/books/invoices?state=unpaid">Find the invoice it pays</a>');
+    expect(inn).toContain('Write an entry for this line'); expect(inn).not.toContain('Record it as a cost');
+    // a line WITH a candidate keeps Match as its step; the accountant reads the line and is offered no step
+    expect(renderBank('en', owner, { accounts, accountId: 'bank', open: [line('l1', [s(1)])], matched: [] })).not.toContain('Record it as a cost');
+    const read = renderBank('en', accountant, { accounts, accountId: 'bank', open: [line('l1', [])], matched: [] });
+    expect(read).toContain('No entry of the same amount within a week.'); expect(read).not.toContain('Record it as a cost'); expect(read).not.toContain('entries/new');
+  });
   it('the new words are in all five languages', () => {
-    for (const k of ['bankMatch.best', 'bankMatch.chooseAnother', 'bankMatch.noOther', 'bankMatch.noneRead', 'bankMatch.allMatched', 'bankMatch.moneyIn', 'bankMatch.moneyOut', 'bankMatch.entryAmount', 'bankMatch.details', 'bankMatch.entry'] as const)
+    for (const k of ['bankMatch.best', 'bankMatch.chooseAnother', 'bankMatch.noOther', 'bankMatch.noneRead', 'bankMatch.allMatched', 'bankMatch.moneyIn', 'bankMatch.moneyOut', 'bankMatch.entryAmount', 'bankMatch.details', 'bankMatch.entry',
+      'bankMatch.recordCost', 'bankMatch.findInvoice', 'bankMatch.writeEntry', 'bankMatch.thenMatch'] as const)
       for (const l of LOCALES) { expect(messages[l][k], `${l} ${k}`).toBeTruthy(); if (l !== 'en') expect(messages[l][k]).not.toBe(messages.en[k]); }
   });
 });

@@ -39,7 +39,7 @@ import {
 import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
-import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
+import { renderBooksOverview, renderBooksReportsHome, booksDoors, booksDay, type ScopeAccount } from './booksOverview.js';
 import { renderBooksSetup } from './booksSetup.js';
 import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
@@ -3809,6 +3809,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: `${offer.currency} ${offer.amount}` }),
             ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
       }
+      // F23 fix — "Record it as a cost" from a bank line nothing matched: the form filled from the line's own date,
+      // words and amount, paid from its account, so the bill's entry is the one the bank page then offers to match.
+      // Only money out, only a line still open, only from an account the bill can be paid from; anything else is the
+      // plain form. The owner's only.
+      const q = req.query as { bankLine?: unknown; account?: unknown };
+      const uuidOf = (x: unknown) => (typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x) ? x : null);
+      const bankLine = !ads && booksMay(personOf(s), 'post') ? uuidOf(q.bankLine) : null;
+      const bankAccount = bankLine ? uuidOf(q.account) : null;
+      if (bankLine && bankAccount && choices.payAccounts.some((a) => a.id === bankAccount)) {
+        const [l] = await openLines(tx, bid, bankAccount, bankLine);
+        if (l && signOf(l.amount) < 0) {
+          const gross = String(l.amount).replace(/^-/, '');
+          const sameCurrency = l.currency === choices.bookCurrency;
+          prefill = { bank: { line: l.id, account: bankAccount }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
+            notes: [t(locale, 'booksSpending.fromBank.note', { date: booksDay(locale, l.bookedOn), amount: `${l.currency} ${gross}` }),
+              ...(sameCurrency ? [] : [t(locale, 'booksSpending.fromBank.otherCurrency', { currency: l.currency, books: choices.bookCurrency })])] };
+        }
+      }
       return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today), ...(prefill ? { prefill } : {}) }, choices);
     });
     // F24 (UI correction, Block 5) — the page's title first, the spending book under it, then the receipts.
@@ -3835,7 +3853,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const uuid = (k: string) => (/^[0-9a-f-]{36}$/i.test(str(k)) ? str(k) : null);
     const gross = readTypedAmount(str('gross'));
     const date = dayOf(str('date'));
-    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
+    // F23 fix — the bank line a bill is recorded from, when it came from one (see the redirects below).
+    const fromBank = typeof f['ads'] !== 'string' && uuid('bankLine') && uuid('bankAccount') ? { line: uuid('bankLine')!, account: uuid('bankAccount')! } : null;
+    const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account })}#bill` : '/app/books/spending#bill';
+    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
     const noNumber = str('noref') === '1';
     // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
     // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
@@ -3855,6 +3876,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
     if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
+    // F23 fix — a bill recorded from a bank line goes back to that line, where its entry is now offered to match; a
+    // refused one goes back to the same filled form.
+    if (fromBank) return out.kind === 'posted'
+      ? flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-line-${fromBank.line}`, noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
+      : flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
       : flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
   });

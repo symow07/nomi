@@ -10,6 +10,10 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.waiting.skip': 'Skip this one',
   'booksSpending.waiting.skipAsk': 'Skip this time? Nothing is written, and the next one is proposed on its day.',
   'booksSpending.bill.title': 'Add a bill',
+  // F23 fix (UI correction, Block 5, 2026-11-21) — the bill form filled from a bank line nothing matched. English only.
+  'booksSpending.fromBank.title': 'Recording a bank line as a cost',
+  'booksSpending.fromBank.note': 'Filled from the bank line of {date} for {amount}. Choose the supplier and the category, then record it: you go back to the bank line to match it.',
+  'booksSpending.fromBank.otherCurrency': 'The bank line is in {currency}; your books are in {books}. Nothing is converted: type the amount in {books}.',
   'booksSpending.bill.lede': 'One amount, as the bill says it, tax included. The tax is split off by the code you pick; the rest goes to the category\'s account. Posted when you press the button.',
   'booksSpending.bill.gross': 'Amount, tax included ({currency})',
   'booksSpending.bill.ref': 'Bill or receipt number, as printed',

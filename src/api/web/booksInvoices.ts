@@ -408,7 +408,13 @@ export function renderBank(locale: Locale, viewer: Who, c: {
     `<dl class="bb-facts"><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${day(locale,s.date)}</dd></div><div><dt>${esc(t(locale,'bankMatch.entryAmount'))}</dt><dd class="bb-amount">${flow(s.amount,l.currency)}</dd></div><div class="bb-wide"><dt>${esc(t(locale,'bankMatch.entry'))}</dt><dd><a href="/app/books/advanced/entries/${esc(s.entryId)}"><bdi>${esc(s.key)}</bdi></a>${s.label?` · <bdi>${esc(s.label)}</bdi>`:''}</dd></div>${s.party?`<div class="bb-wide"><dt>${esc(t(locale,'books.entry.party'))}</dt><dd><bdi>${esc(s.party)}</bdi></dd></div>`:''}</dl>${owner?`<form method="post" action="/app/books/bank/match" class="pform"><input type="hidden" name="account" value="${esc(c.accountId!)}" /><input type="hidden" name="line" value="${esc(l.id)}" /><input type="hidden" name="journalLine" value="${esc(s.journalLineId)}" /><button class="btn" type="submit">${esc(t(locale,'books.bank.matchWith',{key:s.key}))}</button></form>`:''}`;
   const actions=(l:import('../../db/bankStatements.js').OpenLine)=>{
     const [best,...others]=l.suggestions;
-    if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>`;
+    // F23 fix (the owner's ruling, 2026-11-21) — a line with no entry to match still has a next step: money out is
+    // recorded as a cost from its own figures (the bill form, filled from the line and paid from this account); money
+    // in leads to the invoices still unpaid; either can be written as an entry. Recorded, it is offered here to match.
+    if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>${owner?`<p class="bb-next">${signOf(l.amount)<0
+      ?`<a class="deeper" href="/app/books/spending?${esc(new URLSearchParams({bankLine:l.id,account:c.accountId!}).toString())}#bill">${esc(t(locale,'bankMatch.recordCost'))}</a>`
+      :`<a class="deeper" href="/app/books/invoices?state=unpaid">${esc(t(locale,'bankMatch.findInvoice'))}</a>`}
+      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,'bankMatch.thenMatch'))}</p>`:''}`;
     return `<div class="bb-suggestion"><p class="bb-suggested">${esc(t(locale,'bankMatch.best'))}</p>${candidate(l,best)}</div>${others.length===0?`<p class="caption muted bb-no-other">${esc(t(locale,'bankMatch.noOther'))}</p>`
       :`<details class="bb-others"><summary>${esc(t(locale,'bankMatch.chooseAnother',{n:show.count(locale,others.length)}))}</summary>${others.map(s=>`<div class="bb-suggestion">${candidate(l,s)}</div>`).join('')}</details>`}`;
   };

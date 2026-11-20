@@ -16774,6 +16774,11 @@ translates them.
   `.noRefHint`, `.noRefShown` (on the unpaid row), `.noRefEntry` (on the entry's page), `booksSpending.flash.billPostedNoRef`,
   `booksSpending.refused.ref_and_no_number`, `.noref_typed`. "NOREF" itself is not translated: it is the reference's prefix
   in the books and the spreadsheets.
+- **Added 2026-11-21 (UI correction, Block 5, F23 fix), English only too:** `booksSpending.fromBank.title` (the bill
+  form's heading when it is filled from a bank line), `.fromBank.note` (where the figures came from, and that recording
+  it goes back to the line), `.fromBank.otherCurrency`. The four bank-page words beside them (`bankMatch.recordCost`,
+  `.findInvoice`, `.writeEntry`, `.thenMatch`) are in all five languages, none read by a native reader; the Arabic ones
+  use verbal nouns, so nobody is addressed by gender.
 
 ## Invoices that go out (2026-11-06; 0226)
 
