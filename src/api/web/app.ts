@@ -1201,7 +1201,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : s && (path === '/app/settings' || settingsGroup(path)) && path !== '/app/settings/components'
         ? settingsArea((settingsGroup(path) ? settingsPageLinks(locale,settingsGroup(path)!,path,personOf(s)) : '') + o.bodyHtml, locale, path, personOf(s))
         : s && assistantSection(path) ? assistantArea(o.bodyHtml, locale, path) : o.bodyHtml;
-    return shell({ ...o, bodyHtml, locale, path: o.booksPath??req.url });
+    // UI correction, Block 5 (check 6) — on the Books pages and their settings, every option's words are isolated on a
+    // right-to-left page (an option cannot hold a <bdi>; `isolateOptions`).
+    const books = /^\/app\/(?:settings\/)?books(?:\/|$)/.test(path);
+    return shell({ ...o, bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
   };
 
   /**

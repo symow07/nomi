@@ -10,6 +10,7 @@ main:has(.books-area){max-width:var(--measure-column);}
 .ba-content{min-width:0;}
 .ba-content>h1.page{margin-top:0;}
 .books-area .btn{min-height:44px;}
+.books-area a[href]{min-width:44px;}
 .books-area .btn.send{color:var(--color-surface);background:var(--color-ink);border-color:var(--color-ink);}
 .books-area input:not([type=checkbox]):not([type=radio]),.books-area select,.books-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
 .books-area .imp-table{max-width:100%;}

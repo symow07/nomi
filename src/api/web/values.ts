@@ -42,6 +42,22 @@ export const isolate = (locale: Locale, s: string): string =>
   !rtl(locale) || s === '' || (s.startsWith(FSI) && s.endsWith(PDI)) ? s : `${FSI}${s}${PDI}`;
 
 /**
+ * UI correction, Block 5 (check 6) — every `<option>`'s words in finished HTML, isolated where the page runs right to
+ * left. An option cannot hold a `<bdi>`, so its text is wrapped in the isolate marks instead ("1000 · Checking" read as
+ * one value). An option with no `value` sends its text, so its plain text is written into `value` first: the marks are
+ * only ever shown, never sent. Empty options and ones already isolated are left alone.
+ */
+const OPTION = /<option\b([^>]*)>([^<]*)<\/option>/g;
+export function isolateOptions(locale: Locale, html: string): string {
+  if (!rtl(locale) || !html.includes('<option')) return html;
+  return html.replace(OPTION, (whole, attrs: string, text: string) => {
+    if (text.trim() === '') return whole;
+    const value = /\svalue=/.test(attrs) ? '' : ` value="${text.replace(/[\t\n\f\r ]+/g, ' ').trim()}"`;
+    return `<option${attrs}${value}>${isolate(locale, text)}</option>`;
+  });
+}
+
+/**
  * A run of figures as one reads it: digits with the separators inside them
  * ("1,000–4,999", "1/5", "09:30"), a currency sign on either side, a trailing
  * "+" or a percent sign. Arabic-Indic digits count too.
