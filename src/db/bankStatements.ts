@@ -39,6 +39,12 @@ export type OpenLine = {
 export type MatchedLine = OpenLine & { readonly matchId: string; readonly entryId: string; readonly key: string };
 
 /** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
+/** Block 5 — is this statement line this workspace's, on this account (open or matched)? */
+export async function lineOnAccount(tx: Tx, businessId: string, accountId: string, lineId: string): Promise<boolean> {
+  return (await sql<{ one: number }>`select 1 as one from statement_lines
+     where business_id = ${businessId}::uuid and account_id = ${accountId}::uuid and id = ${lineId}::uuid`.execute(tx)).rows.length > 0;
+}
+
 export async function openLines(tx: Tx, businessId: string, accountId: string, lineId?: string): Promise<OpenLine[]> {
   const lines = (await sql<{ id: string; booked_on: string; amount: string; currency: string; wording: string | null; reference: string | null }>`
     select s.id::text as id, s.booked_on::text as booked_on, s.amount::text as amount, s.currency, s.wording, s.reference

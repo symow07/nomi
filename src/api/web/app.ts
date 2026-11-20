@@ -369,7 +369,7 @@ import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote, type CreditLineInput } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { bankAccounts, importStatement, keepStatementLayout, lineOnAccount, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
@@ -3865,7 +3865,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
     const ads = typeof f['ads'] === 'string' && str('ads') !== '' ? adsAsked(str('ads')) : undefined;
     if (ads === null) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    // Block 5 — the line must be this workspace's, on that account: a line it does not hold (another workspace's, or
+    // gone) makes this a plain bill, back to Spending, never a redirect to a bank page that is not there.
+    let backToLine = false;
     const out = await withTenantTx(deps.db, got.bid, async (tx) => {
+      backToLine = fromBank !== null && await lineOnAccount(tx, got.bid, fromBank.account, fromBank.line);
       let offer: Awaited<ReturnType<typeof recordOffer>> = null;
       if (ads) {
         await lockAdRecord(tx, got.bid);
@@ -3881,7 +3885,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
     // F23 fix — a bill recorded from a bank line goes back to that line, where its entry is now offered to match; a
     // refused one goes back to the same filled form.
-    if (fromBank) return out.kind === 'posted'
+    if (fromBank && backToLine) return out.kind === 'posted'
       ? flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-line-${fromBank.line}`, noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
       : flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })

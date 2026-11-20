@@ -138,4 +138,19 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(next).toContain('The bill was not recorded: it needs its date and an amount above zero, tax included.');
     expect(next).not.toContain('{n}');
   });
+
+  it('a bill naming a bank line this workspace does not hold is a plain bill: back to Spending, never a bank page that is not there', async () => {
+    const inn = await lineOf('1440.60');
+    const foreign = randomUUID();
+    // another workspace's account (here: one no workspace has) with a real line; then this account with a line it does not hold
+    for (const [i, form] of [{ bankLine: inn, bankAccount: foreign }, { bankLine: randomUUID(), bankAccount: bank }].entries()) {
+      const r = await post('/app/books/spending/bills', { ...form, date: today, label: 'FORGED', ref: `FG-${RUN}-${i}`, gross: '12.00', account: expenseId, payFrom: bank });
+      expect(r.statusCode).toBe(302);
+      expect(r.headers['location'], `case ${i}`).toBe('/app/books/spending#unpaid');
+    }
+    // the refused one goes back to the plain form too, once inside (the early refusal's filled form draws plain: the GET checks the line)
+    const refused = await post('/app/books/spending/bills', { bankLine: inn, bankAccount: foreign, date: today, label: 'FORGED', gross: '12.00', payFrom: bank });
+    expect(refused.headers['location']).toBe('/app/books/spending#bill');
+    expect((await get(`/app/books/spending?bankLine=${inn}&account=${foreign}`)).body).not.toContain('name="bankLine"');
+  });
 });
