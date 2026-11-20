@@ -16779,6 +16779,10 @@ translates them.
   it goes back to the line), `.fromBank.otherCurrency`. The four bank-page words beside them (`bankMatch.recordCost`,
   `.findInvoice`, `.writeEntry`, `.thenMatch`) are in all five languages, none read by a native reader; the Arabic ones
   use verbal nouns, so nobody is addressed by gender.
+- **Added 2026-11-21 (Block 5, the tester's three small texts):** `booksSpending.refused.amount`, English only (a bill
+  refused for its amount or date says so, where it said an entry's "Line {n}"). `books.credit.moreThanLeft` reworded in
+  all five languages: a new credit note has no draft to discard, so it says to change the note and save it again. Not
+  read by a native reader; the Arabic uses the passive, so nobody is addressed by gender.
 
 ## Invoices that go out (2026-11-06; 0226)
 

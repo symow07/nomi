@@ -67,6 +67,8 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.flash.recurringStopped': 'That cost is no longer proposed.',
   'booksSpending.flash.skipped': 'Skipped. The next one is proposed on its day.',
   'booksSpending.flash.proposalGone': 'That proposal was already decided.',
+  // Block 5 fix (2026-11-21): a bill has no lines, so its refusal says what it lacks (was an entry's "Line {n}: …").
+  'booksSpending.refused.amount': 'it needs its date and an amount above zero, tax included.',
   'booksSpending.refused.choices': 'something was not chosen (the supplier, the account or the category, the journal).',
   'booksSpending.refused.supplier': 'an unpaid bill needs a supplier.',
   'booksSpending.refused.pay_account': 'only a bank or cash account can pay.',

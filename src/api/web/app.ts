@@ -372,7 +372,7 @@ import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCre
 import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
-import { CURRENCIES } from '../../core/types/money.js';
+import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
 import { checkRegistry } from '../../core/books/registry.js';
@@ -3826,7 +3826,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           const gross = String(l.amount).replace(/^-/, '');
           const sameCurrency = l.currency === choices.bookCurrency;
           prefill = { bank: { line: l.id, account: bankAccount }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
-            notes: [t(locale, 'booksSpending.fromBank.note', { date: booksDay(locale, l.bookedOn), amount: `${l.currency} ${gross}` }),
+            notes: [t(locale, 'booksSpending.fromBank.note', { date: booksDay(locale, l.bookedOn), amount: ((m) => (m ? show.money(locale, m) : `${l.currency} ${gross}`))(moneyFromRow(gross, l.currency)) }),
               ...(sameCurrency ? [] : [t(locale, 'booksSpending.fromBank.otherCurrency', { currency: l.currency, books: choices.bookCurrency })])] };
         }
       }
@@ -3859,7 +3859,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // F23 fix — the bank line a bill is recorded from, when it came from one (see the redirects below).
     const fromBank = typeof f['ads'] !== 'string' && uuid('bankLine') && uuid('bankAccount') ? { line: uuid('bankLine')!, account: uuid('bankAccount')! } : null;
     const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account })}#bill` : '/app/books/spending#bill';
-    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
+    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.amount') });
     const noNumber = str('noref') === '1';
     // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
     // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.

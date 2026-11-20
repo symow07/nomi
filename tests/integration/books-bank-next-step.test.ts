@@ -100,6 +100,9 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(form).toMatch(/name="gross" inputmode="decimal" required value="380(\.00?)?"/);
     expect(form).toMatch(new RegExp(`<select name="payFrom">.*<option value="${bank}" selected>`, 's'));
     expect(form).toContain('Filled from the bank line of');
+    // the amount as money, never the bare stored figure ("MAD 380")
+    expect(form).toMatch(/Filled from the bank line of [^<]* for [^<]*380\.00/);
+    expect(form).not.toMatch(/for MAD 380(?!\.00)/);
     // money in is not a cost: the plain form
     const plain = (await get(`/app/books/spending?bankLine=${inn}&account=${bank}`)).body;
     expect(plain).not.toContain('name="bankLine"'); expect(plain).toContain('Add a bill');
@@ -129,5 +132,10 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     const r = await post('/app/books/spending/bills', { bankLine: inn, bankAccount: bank, date: today, label: 'x', gross: 'nope', account: expenseId, payFrom: bank });
     expect(r.statusCode).toBe(302);
     expect(r.headers['location']).toBe(`/app/books/spending?bankLine=${inn}&account=${bank}#bill`);
+    // the notice says what the bill lacks: a bill has no lines, so no "Line {n}"
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+    expect(next).toContain('The bill was not recorded: it needs its date and an amount above zero, tax included.');
+    expect(next).not.toContain('{n}');
   });
 });
