@@ -333,10 +333,16 @@ d('D1b · credit notes and refunds (requires DATABASE_URL + MIGRATE_DATABASE_URL
     const { subDecimal } = await import('../../src/core/types/decimal.js');
     const owed = owedOn(v!.total, v!.credited, v!.paid);
     expect(answers[0]!.body).toContain(`Still owed on ${v!.key}: ${shown(owed)} now, ${shown(subDecimal(owed, stored.total))} once this credit note is issued.`);
-    // the editor draws the credit as it opens (all that is left of each line), and its page says the balance before Issue
+    // F20 fix — the editor draws no figure of its own (one drawn without the script could not follow an edit): it asks
+    // the preview as it opens, and its page says the balance before Issue
     const opened = (await app.inject({ method: 'GET', url: `/app/books/invoices/${id}/credit-notes/new`, headers: { cookie: owner } })).body;
-    expect(opened).toContain(`data-total="/app/books/invoices/${id}/credit-notes/preview"`);
-    expect(opened).toContain('Credit total'); expect(opened).toContain(shown(v!.total));
+    expect(opened).toContain(`data-total="/app/books/invoices/${id}/credit-notes/preview" data-total-now`);
+    expect(opened).toContain('The total, with tax, is worked out when you save the draft.'); expect(opened).not.toContain('Credit total');
+    // what the page's script asks as it opens — the form exactly as drawn (all that is left of each line) — is the whole invoice
+    const drawn = Object.fromEntries([...opened.matchAll(/name="(qty\d+|red\d+|issueDate|reason)"[^>]*?value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!]));
+    expect(Object.keys(drawn)).toEqual(expect.arrayContaining(['qty1', 'qty2', 'issueDate']));
+    const asOpened = await preview({ ...drawn, reason: 'x' });
+    expect(asOpened.body).toContain('Credit total'); expect(asOpened.body).toContain(shown(v!.total));
     const notePage = (await app.inject({ method: 'GET', url: `/app/books/credit-notes/${noteId}`, headers: { cookie: owner } })).body;
     expect(notePage).toContain(`Still owed on ${v!.key}: ${shown(owed)} now, ${shown(subDecimal(owed, stored.total))} once this credit note is issued.`);
     expect(notePage).not.toContain('posts its entry');

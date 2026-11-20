@@ -551,6 +551,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     function soon(e) { if (e.target && e.target.form === form) { clearTimeout(timer); timer = setTimeout(ask, 400); } }
     doc.addEventListener('input', soon);
     doc.addEventListener('change', soon);
+    /* F20: and once as it opens */
+    if (form.hasAttribute('data-total-now')) ask();
   }
 
   /* Phase 6: a form on its way says so on the button that sent it, and is not

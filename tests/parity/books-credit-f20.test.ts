@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import vm from 'node:vm';
+import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { renderNewCreditNote, renderCreditNote, renderCreditTotal, type CreditInvoice } from '../../src/api/web/booksInvoices.js';
 import { creditPreview, creditLineFigures, creditWishes, type CreditableLine, type CreditNoteView } from '../../src/db/booksCreditNotes.js';
 import { decimal } from '../../src/core/types/decimal.js';
@@ -24,14 +26,26 @@ const note: CreditNoteView = { id: 'cn', key: null, state: 'draft', issueDate: '
 
 describe('F20 · credit notes', () => {
   it('the editor names its invoice, its customer and what is owed; the reason comes before the lines; the credit sits beside Save', () => {
-    const html = renderNewCreditNote('en', inv, lines, {}, [], '2026-11-19', null, { creditPreview: creditPreview([{ invoiceLineNo: 1, quantity: d('10') }], lines) });
+    const html = renderNewCreditNote('en', inv, lines, {}, [], '2026-11-19', null);
     expect(html).toContain('href="/app/books/invoices/inv"><bdi>F-2026-0005</bdi>'); expect(html).toContain('Casa Olivo'); expect(html).toContain('Still owed');
     expect(html.indexOf('name="reason"')).toBeLessThan(html.indexOf('name="qty1"'));
-    expect(html).toContain('data-total="/app/books/invoices/inv/credit-notes/preview"');
+    expect(html).toContain('data-total="/app/books/invoices/inv/credit-notes/preview" data-total-now');
     expect(html.indexOf('data-total-out')).toBeLessThan(html.indexOf('Save the draft'));
-    expect(html).toContain('Credit total'); expect(html).toContain('$220.00');
-    expect(html).toContain('Still owed on F-2026-0005: $75.00 now. Once this credit note is issued, $145.00 is due back to the customer.');
     expect(html).toContain('$1.2345'); expect(html).not.toContain('posts its entry');
+    // what the preview route answers into that place
+    const answer = renderCreditTotal('en', creditPreview([{ invoiceLineNo: 1, quantity: d('10') }], lines), inv);
+    expect(answer).toContain('Credit total'); expect(answer).toContain('$220.00');
+    expect(answer).toContain('Still owed on F-2026-0005: $75.00 now. Once this credit note is issued, $145.00 is due back to the customer.');
+  });
+  it('F20 fix — without the script the editor shows no figure an edit could leave behind: the total is worked out on Save', () => {
+    // the verify's case: a quantity typed over the default, and a form sent back with a problem
+    for (const [values, problems] of [[{}, []], [{ qty1: '1', reason: 'Straps' }, ['Check this line.']]] as const) {
+      const html = renderNewCreditNote('en', inv, lines, values, problems, '2026-11-19', null);
+      const region = html.slice(html.indexOf('data-total-out'), html.indexOf('Save the draft'));
+      expect(region).toContain('The total, with tax, is worked out when you save the draft.');
+      expect(region).not.toContain('Credit total');
+      expect(region).not.toMatch(/\$\d/);
+    }
   });
   it('the running credit is Save\'s own figures: the last of a line takes what is left; a part at the line\'s price and tax', () => {
     const all = creditPreview([{ invoiceLineNo: 2, quantity: d('3') }], lines);
@@ -68,5 +82,23 @@ describe('F20 · credit notes', () => {
     }
     for (const k of ['booksCredit.total', 'booksCredit.against', 'booksCredit.nothing', 'booksCredit.effect', 'booksCredit.effectRefund', 'booksCredit.owedNow', 'booksCredit.refundNow', 'booksCredit.leftNet', 'booksCredit.over', 'booksCredit.notYet'] as const)
       for (const l of LOCALES) { expect(messages[l][k], `${l} ${k}`).toBeTruthy(); if (l !== 'en') expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]); }
+  });
+  it('F20 fix — the shipped script asks a data-total-now form for its total as the page opens, and only such a form', () => {
+    const run = (now: boolean) => {
+      const asked: string[] = [];
+      const form = { hasAttribute: (n: string) => now && n === 'data-total-now', getAttribute: (n: string) => n === 'data-total' ? '/app/books/invoices/inv/credit-notes/preview' : null };
+      const out = { firstChild: null };
+      const document = {
+        querySelector: (s: string) => s === 'form[data-total]' ? form : s === '[data-total-out]' ? out : null,
+        querySelectorAll: () => [], addEventListener: () => {},
+      };
+      const fetch = (url: string) => { asked.push(url); return new Promise(() => {}); };
+      const window = { addEventListener: () => {}, fetch, FormData: function FormData() {}, URLSearchParams: function URLSearchParams() {}, DOMParser: function DOMParser() {} };
+      vm.runInNewContext(LIVE_SCRIPT, { document, window, fetch, FormData: window.FormData, URLSearchParams: window.URLSearchParams, DOMParser: window.DOMParser,
+        location: { pathname: '/app/books', hash: '', search: '' }, setTimeout: () => 0, clearTimeout: () => {} });
+      return asked;
+    };
+    expect(run(true)).toEqual(['/app/books/invoices/inv/credit-notes/preview']);
+    expect(run(false)).toEqual([]);
   });
 });

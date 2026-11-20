@@ -3499,11 +3499,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = editing?.invoiceId ?? (req.params as { id: string }).id;
     const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, booksToday()), lines: await creditable(tx, bid, id) }));
     if (!got.v || !got.v.key) return reply.callNotFound();
-    // F20 — the credit as first drawn: the form's own defaults (all that is left of each line) under what was typed.
-    const shown = readCreditForm({ ...Object.fromEntries(got.lines.filter((l) => signOf(l.left) > 0).map((l) => [`qty${l.lineNo}`, String(l.left)])), ...values }, locale);
-    const preview = creditLineTrouble(locale, shown.problems) ? null : creditPreview(shown.lines, got.lines);
+    // F20 fix — no figure is drawn here: one drawn without the script could not follow an edit (the page asks the
+    // preview route as it opens instead).
     return reply.code(code).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.credit.new', { invoice: got.v.key }), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, creditInvoiceOf(got.v), got.lines, values, problems, booksToday(), editing?.id ?? null, { ...invoiceContext(req), creditPreview: preview })}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, creditInvoiceOf(got.v), got.lines, values, problems, booksToday(), editing?.id ?? null, invoiceContext(req))}` }));
   };
   /**
    * F20 — A CREDIT NOTE'S FORM, READ ONCE: Save and the running total read it here, the same way. Its day, its reason,

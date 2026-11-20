@@ -38,8 +38,6 @@ export type BooksDocumentContext = {
   readonly sending?: InvoiceSendingView;
   /** F18 — a draft being edited: its figures as the books last saved them, already formatted. */
   readonly savedTotal?: { readonly net: Decimal; readonly tax: Decimal; readonly total: Decimal; readonly currency: string };
-  /** F20 — a credit note's editor: its running total as first drawn (null: not yet). */
-  readonly creditPreview?: CreditPreview | null;
   /** F20 — a credit note's page: its invoice, with what is still owed on it now. */
   readonly creditInvoice?: CreditInvoice;
 };
@@ -436,13 +434,16 @@ export function renderNewCreditNote(locale: Locale, inv: CreditInvoice,
   // F20 (UI correction, Block 5) — the editor says which invoice it is against and what is owed on it; the reason
   // first; each line with what is left of it; the credit worked out beside Save as the lines change, and what it does
   // to the invoice's balance. Every field keeps its name, so Save and its checks are the same.
-  const total = `<div class="bd-editor-total" data-total-out aria-live="polite">${opts.creditPreview === undefined
-    ? `<p class="caption muted">${esc(t(locale, 'booksDocs.totalOnSave'))}</p>` : renderCreditTotal(locale, opts.creditPreview, inv)}</div>`;
+  // F20 fix (2026-11-20) — the page itself draws no figure: without the script a drawn total could not follow an edited
+  // quantity, so the page would show one total and Save store another. It says the total is worked out on Save (the
+  // draft shows it before Issue); with the script the form asks for its total as it opens (`data-total-now`) and again
+  // as the lines change.
+  const total = `<div class="bd-editor-total" data-total-out aria-live="polite"><p class="caption muted">${esc(t(locale, 'booksDocs.totalOnSave'))}</p></div>`;
   return `<section class="book-doc-editor">${back(invoiceHref, t(locale, 'books.credit.against', { invoice: inv.key }))}<h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
     <p class="lede">${esc(t(locale, 'books.credit.newLede'))}</p>
     <dl class="bd-sum-facts bd-credit-source"><div><dt>${esc(t(locale, 'booksCredit.against'))}</dt><dd><a href="${invoiceHref}"><bdi>${esc(inv.key)}</bdi></a></dd></div><div><dt>${esc(t(locale, 'books.invoice.customer'))}</dt><dd><bdi>${esc(inv.party)}</bdi></dd></div>${inv.owed !== undefined ? `<div><dt>${esc(t(locale, signOf(inv.owed) < 0 ? 'books.invoice.status.refund_due' : 'books.invoice.owed'))}</dt><dd>${money(locale, signOf(inv.owed) < 0 ? subDecimal('0' as Decimal, inv.owed) : inv.owed, inv.currency)}</dd></div>` : ''}</dl>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" data-total="/app/books/invoices/${esc(inv.id)}/credit-notes/preview" action="${editing ? `/app/books/credit-notes/${esc(editing)}/edit` : `/app/books/invoices/${esc(inv.id)}/credit-notes`}" class="pform bd-editor-form">${documentReturnField(opts)}
+    <form method="post" data-total="/app/books/invoices/${esc(inv.id)}/credit-notes/preview" data-total-now action="${editing ? `/app/books/credit-notes/${esc(editing)}/edit` : `/app/books/invoices/${esc(inv.id)}/credit-notes`}" class="pform bd-editor-form">${documentReturnField(opts)}
       <label class="pq"><span>${esc(t(locale, 'books.credit.reason'))}</span><input name="reason" value="${v('reason')}" maxlength="200" required /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
       <section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${lines.map(l=>`<fieldset class="bd-edit-line"><legend>${esc(t(locale,'booksDocs.line',{n:l.lineNo}))} · <bdi>${esc(l.label)}</bdi></legend><dl class="bd-line-facts"><div><dt>${esc(t(locale,'books.invoice.quantity'))}</dt><dd>${show.exactQuantity(locale,l.quantity)}</dd></div><div><dt>${esc(t(locale,'books.invoice.unitPrice'))}</dt><dd>${unit(l.unitPrice)}</dd></div><div><dt>${esc(t(locale,'books.credit.left'))}</dt><dd>${show.exactQuantity(locale,l.left)}</dd></div><div><dt>${esc(t(locale,'booksCredit.leftNet'))}</dt><dd>${money(locale,l.leftNet,inv.currency)}</dd></div></dl>
