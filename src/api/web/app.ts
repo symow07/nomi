@@ -969,10 +969,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // owner included, who has no person row for the check below.
     if (s?.sid) {
       const ended = await endedSessions.ended(s.sid, Date.now()).catch(() => null);
-      if (ended === true || (ended === null && !(s.person?.isOwner ?? true))) {
+      if (ended === true) {
         setCookie(reply, '', 0);
         return reply.redirect('/login');
       }
+      // A failed read is not an ended session: as liveness does below, the owner goes through and anyone else is sent
+      // to sign in WITH the cookie kept, so the next request after the database is back still works.
+      if (ended === null && !(s.person?.isOwner ?? true)) return reply.redirect('/login');
     }
     const person = s?.person;
     if (!s || !person || !PERSON_ID.test(person.id)) return;

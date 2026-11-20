@@ -28,11 +28,11 @@ d('0243 · Log out ends the session on the server (requires DATABASE_URL)', { ti
     headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const home = (a: import('fastify').FastifyInstance, cookie: string) => a.inject({ method: 'GET', url: '/app', headers: { cookie } });
   const logout = (a: import('fastify').FastifyInstance, cookie: string) => a.inject({ method: 'POST', url: '/logout', headers: { cookie } });
-  const make = async () => {
+  const make = async (using?: import('../../src/db/client.js').Db) => {
     const { registerWebApp } = await import('../../src/api/web/app.js');
     const a = Fastify({ logger: false });
     registerWebApp(a, {
-      db, businessId: RUN_BIZ, accessCode: CODE, sessionSecret: SECRET, factsTtlMs: 0,
+      db: using ?? db, businessId: RUN_BIZ, accessCode: CODE, sessionSecret: SECRET, factsTtlMs: 0,
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled', secureCookie: false, messagingEnabled: false,
       kickOutbound: async () => {}, kickDrive: async () => {},
     } as unknown as Parameters<typeof registerWebApp>[1]);
@@ -87,6 +87,22 @@ d('0243 · Log out ends the session on the server (requires DATABASE_URL)', { ti
       expect(form.statusCode).toBe(302);
       expect(form.headers['location']).toBe('/login');
     }
+  });
+
+  it('a failed lookup is not an ended session: staff are sent to sign in with the cookie KEPT, and it works once the database answers', async () => {
+    const kept = cookieOf(await login(app, staffCode));
+    expect((await home(app, kept)).statusCode).toBe(200);
+    // A process whose database does not answer (nothing listens on port 1): the gate's read fails.
+    const { createDb } = await import('../../src/db/client.js');
+    const down = createDb('postgresql://nobody@127.0.0.1:1/none');
+    const broken = await make(down);
+    try {
+      const r = await home(broken, kept);
+      expect(r.statusCode).toBe(302);
+      expect(r.headers['location']).toBe('/login');
+      expect(cookieOf(r), 'the cookie is not cleared on a failed read').toBe('');
+    } finally { await broken.close(); await down.destroy().catch(() => {}); }
+    expect((await home(app, kept)).statusCode, 'the same cookie, once the database answers').toBe(200);
   });
 
   it('Log out twice is one ended session; the table is the definer functions\' alone', async () => {
