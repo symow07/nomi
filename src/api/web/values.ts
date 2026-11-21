@@ -2,7 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
-import { formatDecimalToParts, roundDecimal } from '../../core/types/decimal.js';
+import { formatDecimal, formatDecimalToParts, roundDecimal, type Decimal } from '../../core/types/decimal.js';
 import { workspaceZone, workspaceCountry, countryUnknown } from './zone.js';
 import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
@@ -40,6 +40,22 @@ export const rtl = (locale: Locale): boolean => locale === 'ar';
 /** Any value, isolated where the page runs right to left. Already isolated: as it is. */
 export const isolate = (locale: Locale, s: string): string =>
   !rtl(locale) || s === '' || (s.startsWith(FSI) && s.endsWith(PDI)) ? s : `${FSI}${s}${PDI}`;
+
+/**
+ * UI correction, Block 5 (check 6) — every `<option>`'s words in finished HTML, isolated where the page runs right to
+ * left. An option cannot hold a `<bdi>`, so its text is wrapped in the isolate marks instead ("1000 · Checking" read as
+ * one value). An option with no `value` sends its text, so its plain text is written into `value` first: the marks are
+ * only ever shown, never sent. Empty options and ones already isolated are left alone.
+ */
+const OPTION = /<option\b([^>]*)>([^<]*)<\/option>/g;
+export function isolateOptions(locale: Locale, html: string): string {
+  if (!rtl(locale) || !html.includes('<option')) return html;
+  return html.replace(OPTION, (whole, attrs: string, text: string) => {
+    if (text.trim() === '') return whole;
+    const value = /\svalue=/.test(attrs) ? '' : ` value="${text.replace(/[\t\n\f\r ]+/g, ' ').trim()}"`;
+    return `<option${attrs}${value}>${isolate(locale, text)}</option>`;
+  });
+}
 
 /**
  * A run of figures as one reads it: digits with the separators inside them
@@ -130,6 +146,30 @@ const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): 
 export const money = (locale: Locale, m: Money): string =>
   isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
 
+/** The places a stored figure carries after its point, trailing zeros not counted. */
+const placesOf = (d: string): number => (d.split('.')[1] ?? '').replace(/0+$/, '').length;
+
+/**
+ * F19 (UI correction, Block 5) — an amount at the places it was stored: a unit price "$1.2345", "$18.40", never
+ * rounded to the cent (money() is); and the exact product of a line, up to eight places. At least two places.
+ */
+export const exactMoney = (locale: Locale, m: Money, most = 4): string => {
+  const stored = placesOf(m.amount);
+  const places = stored < 2 ? 2 : stored > most ? most : stored;
+  if (locale === 'ar') return isolate(locale, arabicMoney(m, places));
+  return isolate(locale, localMoney(locale, m, places) ?? `${currencySymbol(m.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: places, maximumFractionDigits: places }), m.amount)}`);
+};
+
+/** F19 — an invoice line's quantity exactly as stored, grouped ("1,500", "1.2345"): never 万-shortened or rounded. */
+export const exactQuantity = (locale: Locale, d: Decimal): string => {
+  const places = Math.min(4, placesOf(d));
+  const region = locale === 'es' || locale === 'fr' ? regionOf(locale) : null;
+  let nf: Intl.NumberFormat;
+  try { nf = new Intl.NumberFormat(region ?? 'en-US', { minimumFractionDigits: places, maximumFractionDigits: places }); }
+  catch { nf = new Intl.NumberFormat('en-US', { minimumFractionDigits: places, maximumFractionDigits: places }); }
+  return isolate(locale, formatDecimal(nf, d));
+};
+
 /**
  * Phase 9 (V1-169, V1-229, V1-300, V1-307) — a quantity by the same rule as an
  * amount: the reader's language in the workspace's country. Spanish in Spain
@@ -213,6 +253,9 @@ export const seconds = (locale: Locale, s: number): string => isolate(locale, f.
 
 /** "Oct 2", for a day 'YYYY-MM-DD': where a row of the calendar's owed list sits in its month. */
 export const dayMonth = (locale: Locale, ymd: string): string => isolate(locale, f.formatDayMonth(locale, ymd));
+
+/** "Nov 19, 2026", for a day 'YYYY-MM-DD': a figure's period, with its year and without its weekday. */
+export const dayMonthYear = (locale: Locale, ymd: string): string => isolate(locale, f.formatDayMonthYear(locale, ymd));
 
 /** "September 2026". */
 export const month = (locale: Locale, ymd: string): string => isolate(locale, f.formatMonth(locale, ymd));

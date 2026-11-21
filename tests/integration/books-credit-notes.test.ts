@@ -276,4 +276,75 @@ d('D1b · credit notes and refunds (requires DATABASE_URL + MIGRATE_DATABASE_URL
     expect(page).toContain('Credited');
     expect((await app.inject({ method: 'GET', url: `/app/books/credit-notes/${noteId}`, headers: { cookie: accountant } })).statusCode).toBe(200);
   });
+
+  /**
+   * F20 (UI correction, Block 5) — the credit worked out while the form is filled. t1r's conditions: it reads the form
+   * exactly as Save does, under the same role and the workspace's own scope, and writes NOTHING — no posting, no
+   * number, no row: every table holding this workspace's rows is counted before and after.
+   */
+  it('F20 · THE RUNNING CREDIT: what Save would store, and what it leaves owed — written nowhere, the owner\'s only', async () => {
+    const id = await invoice('MAD', [['3', '1.2345', true], ['10', '49.99', false]]);
+    const preview = (body: Record<string, string>, who = owner) => post(`/app/books/invoices/${id}/credit-notes/preview`, body, who);
+    const census = async () => {
+      const tables = (await admin.query(`select c.table_name as t from information_schema.columns c join information_schema.tables b
+        on b.table_schema = c.table_schema and b.table_name = c.table_name where c.table_schema = 'public' and c.column_name = 'business_id'
+        and b.table_type = 'BASE TABLE' order by 1`)).rows.map((r: { t: string }) => r.t);
+      const out: Record<string, number> = {};
+      for (const t of tables) out[t] = (await admin.query(`select count(*)::int as n from public."${t}" where business_id = $1`, [BIZ])).rows[0].n;
+      return out;
+    };
+    const { money } = await import('../../src/api/web/values.js');
+    const { moneyFromRow } = await import('../../src/core/types/money.js');
+    const shown = (amount: string) => money('en', moneyFromRow(amount, 'MAD')!);
+    const before = await census();
+    expect(Object.keys(before).length).toBeGreaterThan(20);
+    const form = { issueDate: '2026-04-20', reason: 'One pouch torn', qty1: '1', red2: '15.5', qty2: '0' };
+    const answers = [
+      await preview(form),
+      await preview({ ...form, reason: '' }),
+      await preview({ issueDate: '2026-04-20', reason: 'x', qty1: '5' }),
+      await preview({ issueDate: '2026-04-20', reason: 'x', qty1: '0', qty2: '0' }),
+      await preview({ issueDate: '2026-04-20', reason: 'x', qty1: 'one' }),
+    ];
+    for (const a of answers) { expect(a.statusCode).toBe(200); expect(a.headers['cache-control']).toBe('no-store'); expect(a.body).toContain('data-total-body'); }
+    expect(answers[1]!.body).toBe(answers[0]!.body);
+    expect(answers[2]!.body).toContain('Line 1 has less left to credit than that.');
+    expect(answers[3]!.body).toContain('Nothing to credit yet');
+    expect(answers[4]!.body).toContain('The credit cannot be worked out yet');
+    // the accountant and a stranger get nothing, and another workspace's invoice is not found
+    const theirs = await preview(form, accountant);
+    expect([theirs.statusCode, theirs.headers['location']]).toEqual([302, '/app/books']);
+    const stranger = await app.inject({ method: 'POST', url: `/app/books/invoices/${id}/credit-notes/preview`, payload: new URLSearchParams(form).toString(), headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    expect(stranger.statusCode).toBe(302); expect(String(stranger.headers['location'])).toContain('/login');
+    expect((await post(`/app/books/invoices/${randomUUID()}/credit-notes/preview`, form)).statusCode).toBe(404);
+    expect(await census()).toEqual(before);
+    // the same form saved: what is stored is what the preview said, and the balance it named
+    const saved = await post(`/app/books/invoices/${id}/credit-notes`, form);
+    expect(saved.statusCode).toBe(302);
+    const noteId = String(saved.headers['location']).split('?')[0]!.split('/').pop()!;
+    // the count sees a write: Save, given the same form, adds one credit note and its lines — the preview added none
+    const after = await census();
+    expect(after['credit_notes']).toBe(before['credit_notes']! + 1);
+    expect(after['credit_note_lines']).toBe(before['credit_note_lines']! + 2);
+    const stored = (await as((q) => q(`select sum(net)::text as net, sum(tax)::text as tax, sum(net + tax)::text as total from credit_note_lines where credit_note_id = $1`, [noteId]))).rows[0];
+    for (const f of [stored.net, stored.tax, stored.total]) expect(answers[0]!.body).toContain(shown(f));
+    const v = await view(id);
+    const { owedOn } = await import('../../src/db/booksInvoices.js');
+    const { subDecimal } = await import('../../src/core/types/decimal.js');
+    const owed = owedOn(v!.total, v!.credited, v!.paid);
+    expect(answers[0]!.body).toContain(`Still owed on ${v!.key}: ${shown(owed)} now, ${shown(subDecimal(owed, stored.total))} once this credit note is issued.`);
+    // F20 fix — the editor draws no figure of its own (one drawn without the script could not follow an edit): it asks
+    // the preview as it opens, and its page says the balance before Issue
+    const opened = (await app.inject({ method: 'GET', url: `/app/books/invoices/${id}/credit-notes/new`, headers: { cookie: owner } })).body;
+    expect(opened).toContain(`data-total="/app/books/invoices/${id}/credit-notes/preview" data-total-now`);
+    expect(opened).toContain('The total, with tax, is worked out when you save the draft.'); expect(opened).not.toContain('Credit total');
+    // what the page's script asks as it opens — the form exactly as drawn (all that is left of each line) — is the whole invoice
+    const drawn = Object.fromEntries([...opened.matchAll(/name="(qty\d+|red\d+|issueDate|reason)"[^>]*?value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!]));
+    expect(Object.keys(drawn)).toEqual(expect.arrayContaining(['qty1', 'qty2', 'issueDate']));
+    const asOpened = await preview({ ...drawn, reason: 'x' });
+    expect(asOpened.body).toContain('Credit total'); expect(asOpened.body).toContain(shown(v!.total));
+    const notePage = (await app.inject({ method: 'GET', url: `/app/books/credit-notes/${noteId}`, headers: { cookie: owner } })).body;
+    expect(notePage).toContain(`Still owed on ${v!.key}: ${shown(owed)} now, ${shown(subDecimal(owed, stored.total))} once this credit note is issued.`);
+    expect(notePage).not.toContain('posts its entry');
+  });
 });

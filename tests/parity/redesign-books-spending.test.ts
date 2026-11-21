@@ -13,7 +13,7 @@ const reading:ReadingRow={id:'reading',readAt:'2026-11-01T12:00:00Z',outcome:'re
 const paperChoices={...choices,payableDefault:'payable',purchasesDefault:'journal'};
 describe('Spending presentation preserves the original and explicit draft commands',()=>{
  it('uses full pagination counts and distinct real work states without making drafts done',()=>{
-  const html=renderSpending('en',owner,{rows:[{id:'paper',name:'Receipt <1>',mediaType:'image/png',addedOn:'2026-11-01',state:'draft',entryId:'entry',lastOutcome:'read'}],total:101,from:51,to:51,page:2,pageSize:50,next:3,prev:1},true,{state:'draft'});
+  const html=renderSpending('en',owner,{rows:[{id:'paper',name:'Receipt <1>',mediaType:'image/png',addedOn:'2026-11-01',state:'draft',entryId:'entry',lastOutcome:'read',readSupplier:null,readDate:null,readTotal:null,readCurrency:null}],total:101,from:51,to:51,page:2,pageSize:50,next:3,prev:1},true,{state:'draft'});
   expect(html).toContain('51–51 of 101');expect(html).toContain('state=draft');expect(html).toContain('page=3');expect(html).toContain('Receipt &lt;1&gt;');expect(html).toContain('/app/books/spending/paper');expect(html).not.toContain('pill ok');
   expect(html).toContain('action="/app/books/papers"');expect(html).toContain('name="paper"');
  });

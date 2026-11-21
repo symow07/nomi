@@ -2,10 +2,10 @@ import {booksDay} from './booksOverview.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
-import { addDecimal, compareDecimal, signOf, subDecimal, type Decimal } from '../../core/types/decimal.js';
+import { addDecimal, compareDecimal, mulDecimal, parseDecimal, signOf, subDecimal, type Decimal } from '../../core/types/decimal.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { owedOn, type BilledTo, type InvoiceRow, type InvoiceStatus, type InvoiceView } from '../../db/booksInvoices.js';
-import type { CreditableLine, CreditNoteView } from '../../db/booksCreditNotes.js';
+import type { CreditableLine, CreditNoteView, CreditPreview } from '../../db/booksCreditNotes.js';
 import { customInputs } from './booksFields.js';
 import { formLines } from './booksEntries.js';
 import { DATE_FORMATS, type LayoutGuess } from '../../core/books/statements.js';
@@ -26,7 +26,8 @@ type Who = Viewer & { readonly kind?: 'team' | 'accountant' };
 const mayPost = (v: Who) => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
 const plainMoney = (locale: Locale, d: Decimal, currency: string): string => { const m = moneyFromRow(d, currency); return m ? show.money(locale, m) : d; };
 const money = (locale: Locale, d: Decimal, currency: string) => esc(plainMoney(locale, d, currency));
-const day = (locale: Locale, iso: string) => esc(booksDay(locale,iso));
+// F19 — a date isolated as every value on an owner page is (rule 38).
+const day = (locale: Locale, iso: string) => esc(show.isolate(locale, booksDay(locale,iso)));
 const PILL: Record<InvoiceStatus, string> = { draft: 'warn', open: '', partly_paid: 'warn', paid: 'ok', overdue: 'bad', credited: 'muted', refund_due: 'warn', discarded: '' };
 const status = (locale: Locale, s: InvoiceStatus) => `<span class="pill ${PILL[s]}">${esc(t(locale, `books.invoice.status.${s}` as MessageKey))}</span>`;
 
@@ -37,7 +38,35 @@ export type BooksDocumentContext = {
   readonly sending?: InvoiceSendingView;
   /** F18 — a draft being edited: its figures as the books last saved them, already formatted. */
   readonly savedTotal?: { readonly net: Decimal; readonly tax: Decimal; readonly total: Decimal; readonly currency: string };
+  /** F20 — a credit note's page: its invoice, with what is still owed on it now. */
+  readonly creditInvoice?: CreditInvoice;
 };
+
+/** F20 — the invoice a credit note is against, as its editor and its page say it: what is still owed on it now. */
+export type CreditInvoice = { readonly id: string; readonly key: string; readonly party: string; readonly currency: string; readonly owed?: Decimal };
+export const creditInvoiceOf = (v: InvoiceView): CreditInvoice => ({ id: v.id, key: v.key ?? '', party: v.party, currency: v.currency, owed: owedOn(v.total, v.credited, v.paid) });
+
+/**
+ * F20 — what this credit would come to and what it does to the invoice's balance, as a fragment: the editor draws it
+ * beside Save and the preview route answers it as the lines change. `null` is "not yet" (a figure Save would send back),
+ * never a guessed amount and never a zero.
+ */
+export function renderCreditTotal(locale: Locale, p: CreditPreview | null, inv: CreditInvoice): string {
+  if (!p) return `<p class="caption muted">${esc(t(locale, 'booksCredit.notYet'))}</p>`;
+  if (p.kind === 'nothing' || p.kind === 'missing') return `<p class="caption">${esc(t(locale, 'booksCredit.nothing'))}</p>`;
+  if (p.kind === 'over') return `<p class="caption" role="status">${esc(t(locale, 'booksCredit.over', { line: show.count(locale, p.line) }))}</p>`;
+  return `<dl class="bd-totals"><div class="row"><dt>${esc(t(locale, 'booksDocs.subtotal'))}</dt><dd>${money(locale, p.net, inv.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksDocs.tax'))}</dt><dd>${money(locale, p.tax, inv.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksCredit.total'))}</dt><dd><strong>${money(locale, p.total, inv.currency)}</strong></dd></div></dl>${creditEffect(locale, inv, p.total)}`;
+}
+
+/** F20 — what issuing a credit of `total` does to what is still owed on its invoice; said only when the owed amount is known. */
+function creditEffect(locale: Locale, inv: CreditInvoice, total: Decimal): string {
+  if (inv.owed === undefined) return '';
+  const after = subDecimal(inv.owed, total);
+  const now = plainMoney(locale, inv.owed, inv.currency);
+  return `<p class="bd-effect">${esc(signOf(after) < 0
+    ? t(locale, 'booksCredit.effectRefund', { invoice: inv.key, before: now, refund: plainMoney(locale, subDecimal('0' as Decimal, after), inv.currency) })
+    : t(locale, 'booksCredit.effect', { invoice: inv.key, before: now, after: plainMoney(locale, after, inv.currency) }))}</p>`;
+}
 
 /**
  * 0226 — what the invoice's page knows about sending it: whether the workspace sends invoices from Nomi, the
@@ -125,21 +154,41 @@ export type PaymentChoices = {
 };
 
 /** D0 (0187) — who the invoice is to. Issued: the copy taken at issue, said as such; a draft: what will be copied. */
-function billedTo(locale: Locale, b: BilledTo): string {
+function billedTo(locale: Locale, b: BilledTo, note = true): string {
   const row = (label: MessageKey, value: string | null) => (value ? `<div class="row"><dt>${esc(t(locale, label))}</dt><dd><bdi>${esc(value)}</bdi></dd></div>` : '');
   return `<h2>${esc(t(locale, 'books.invoice.billedTo'))}</h2>
     <dl class="bd-address">${row('books.party.name', b.name)}${row('books.party.code', b.code)}${row('books.party.address', b.address)}${row('books.party.country', b.country)}${
       row('books.party.ice', b.ice)}${row('books.party.taxNumber', b.taxNumber)}${
       row(registryLabelKey(b.country), b.registry)}${row('books.party.siret', b.siret)}${row('books.party.registro', b.registro)}</dl>
-    <p class="caption muted">${esc(t(locale, b.asIssued ? 'books.invoice.partyAtIssue' : 'books.invoice.partyTaken'))}</p>`;
+    ${note ? `<p class="caption muted">${esc(t(locale, b.asIssued ? 'books.invoice.partyAtIssue' : 'books.invoice.partyTaken'))}</p>` : ''}`;
 }
 
-function issuerDetails(locale: Locale, issuer: BooksDocumentContext['issuer'], issued: boolean): string {
+function issuerDetails(locale: Locale, issuer: BooksDocumentContext['issuer'], issued: boolean, note = true): string {
   const identifiers: readonly [MessageKey, string | null | undefined][] = [
     ['settings.ids.ice',issuer?.identifiers?.ice], ['settings.ids.if',issuer?.identifiers?.taxId],
     ['settings.ids.rc',issuer?.identifiers?.rc], ['settings.ids.rcCourt',issuer?.identifiers?.rcCourt],
   ];
-  return `<section class="bd-issuer"><h2>${esc(t(locale,'booksDocs.issuer'))}</h2>${issuer?`<p><strong><bdi>${esc(issuer.name)}</bdi></strong></p>${issuer.postalAddress?`<p class="bd-address-text">${esc(issuer.postalAddress)}</p>`:''}${issuer.contactEmail?`<p><bdi>${esc(issuer.contactEmail)}</bdi></p>`:''}${issuer.contactPhone?`<p><bdi>${esc(issuer.contactPhone)}</bdi></p>`:''}<dl class="bd-address">${identifiers.filter(([,value])=>!!value).map(([key,value])=>`<div class="row"><dt>${esc(t(locale,key))}</dt><dd><bdi>${esc(value!)}</bdi></dd></div>`).join('')}</dl><p class="caption muted">${esc(t(locale,issued?'booksDocs.currentIssuer':'booksDocs.currentIssuerDraft'))}</p>`:`<p>${esc(t(locale,'booksDocs.issuerMissing'))}</p>`}</section>`;
+  return `<section class="bd-issuer"><h2>${esc(t(locale,'booksDocs.issuer'))}</h2>${issuer?`<p><strong><bdi>${esc(issuer.name)}</bdi></strong></p>${issuer.postalAddress?`<p class="bd-address-text">${esc(issuer.postalAddress)}</p>`:''}${issuer.contactEmail?`<p><bdi>${esc(issuer.contactEmail)}</bdi></p>`:''}${issuer.contactPhone?`<p><bdi>${esc(issuer.contactPhone)}</bdi></p>`:''}<dl class="bd-address">${identifiers.filter(([,value])=>!!value).map(([key,value])=>`<div class="row"><dt>${esc(t(locale,key))}</dt><dd><bdi>${esc(value!)}</bdi></dd></div>`).join('')}</dl>${note?`<p class="caption muted">${esc(t(locale,issued?'booksDocs.currentIssuer':'booksDocs.currentIssuerDraft'))}</p>`:''}`:`<p>${esc(t(locale,'booksDocs.issuerMissing'))}</p>`}</section>`;
+}
+
+/**
+ * F19 (UI correction, Block 5) — the owner's notes on where each party's details came from: the same words under the
+ * same conditions as before, directly under the paper — the paper holds only what the customer reads.
+ */
+function documentNotes(locale: Locale, issuer: BooksDocumentContext['issuer'], issued: boolean, b: BilledTo): string {
+  return `<section class="bd-notes" aria-label="${esc(t(locale, 'booksInvoice.notes'))}">${issuer ? `<p dir="auto">${esc(t(locale, issued ? 'booksDocs.currentIssuer' : 'booksDocs.currentIssuerDraft'))}</p>` : ''}<p dir="auto">${esc(t(locale, b.asIssued ? 'books.invoice.partyAtIssue' : 'books.invoice.partyTaken'))}</p></section>`;
+}
+
+/** F19 — a line's figures as stored: quantity and unit price at their own places; where quantity × price is not the line's amount to the last place, the sum is shown with its rounding. Nothing is recomputed into the line. */
+function lineFigures(locale: Locale, l: InvoiceView['lines'][number], currency: string): { qty: string; price: string; rounded: string } {
+  const q = parseDecimal(String(l.quantity)), p = parseDecimal(String(l.unitPrice));
+  const unit = p ? moneyFromRow(p, currency) : null;
+  const qty = q ? show.exactQuantity(locale, q) : esc(String(l.quantity));
+  const price = unit ? show.exactMoney(locale, unit) : esc(String(l.unitPrice));
+  if (!q || !p) return { qty, price, rounded: '' };
+  const product = mulDecimal(q, p); const exact = moneyFromRow(product, currency);
+  return { qty, price, rounded: exact && compareDecimal(product, l.net) !== 0
+    ? `<p class="bd-round">${esc(t(locale, 'booksInvoice.rounded', { qty, price, exact: show.exactMoney(locale, exact, 8), net: plainMoney(locale, l.net, currency) }))}</p>` : '' };
 }
 
 export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: PaymentChoices, today: string, opts: BooksDocumentContext = {}): string {
@@ -188,16 +237,26 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
   const sending = mayPost(viewer) && opts.sending && v.status !== 'draft' && v.status !== 'discarded' ? sendingBlock(locale, v, opts.sending, opts) : '';
   const notes = v.creditNotes.length === 0 ? '' : `<h2>${esc(t(locale, 'books.credit.title'))}</h2><ul class="rows">${v.creditNotes.map((c) =>
     `<li class="row"><span><a href="/app/books/credit-notes/${esc(c.id)}${documentReturnQuery(opts)}"><bdi>${esc(c.key ?? t(locale, 'books.entry.state.draft'))}</bdi></a> · ${day(locale, c.issueDate)}</span><span>${money(locale, c.total, v.currency)}</span></li>`).join('')}</ul>`;
-  return `<section class="book-doc-page"><div class="bd-outside">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}</div><article class="book-document"><header class="bd-header"><h1 class="page">${esc(t(locale,'booksDocs.invoice'))} <bdi>${esc(v.key ?? t(locale, 'books.entry.state.draft'))}</bdi></h1><p><bdi>${esc(v.party)}</bdi></p>
-    <p>${status(locale, v.status)}</p></header><div class="bd-parties">${issuerDetails(locale,opts.issuer,v.status!=='draft'&&v.status!=='discarded')}<section>${billedTo(locale, v.billedTo)}</section></div>
+  const issued = v.status !== 'draft' && v.status !== 'discarded';
+  const title = `${esc(t(locale,'booksDocs.invoice'))} <bdi>${esc(v.key ?? t(locale, 'books.entry.state.draft'))}</bdi>`;
+  // F19 — the page's summary, outside the paper: what is owed (or the total), when it is due, its state, the next act.
+  const [amountKey, amount]: [MessageKey, Decimal] = !issued || signOf(owed) === 0 ? ['books.entry.total', v.total]
+    : signOf(owed) > 0 ? ['books.invoice.owed', owed] : ['books.invoice.status.refund_due', subDecimal('0' as Decimal, owed)];
+  const next = !mayPost(viewer) || !issued ? '' : signOf(owed) > 0 ? `<a class="deeper" href="#pay">${esc(t(locale, 'books.invoice.recordPayment'))}</a>`
+    : signOf(owed) < 0 ? `<a class="deeper" href="#refund">${esc(t(locale, 'books.credit.refund'))}</a>` : '';
+  const summary = `<header class="bd-summary" aria-label="${esc(t(locale, 'booksInvoice.summary'))}"><h1 class="page">${title}</h1><p><bdi>${esc(v.party)}</bdi></p>
+    <dl class="bd-sum-facts"><div><dt>${esc(t(locale, amountKey))}</dt><dd><strong>${money(locale, amount, v.currency)}</strong></dd></div>
+      <div><dt>${esc(t(locale, 'books.invoice.due'))}</dt><dd>${v.dueDate ? day(locale, v.dueDate) : esc(t(locale, 'booksDocs.noDue'))}</dd></div>
+      <div><dt>${esc(t(locale, 'booksInvoice.state'))}</dt><dd>${status(locale, v.status)}</dd></div></dl>${next ? `<p class="bd-next">${next}</p>` : ''}</header>`;
+  return `<section class="book-doc-page"><div class="bd-outside">${back(esc(invoiceReturnHref(opts.returnHref)),t(locale,'books.invoices.title'))}</div>${summary}<article class="book-document"><header class="bd-header"><p class="bd-title">${title}</p><p><bdi>${esc(v.party)}</bdi></p></header><div class="bd-parties">${issuerDetails(locale,opts.issuer,issued,false)}<section>${billedTo(locale, v.billedTo, false)}</section></div>
     <p class="caption muted">${esc(t(locale, 'books.entry.date'))}: ${day(locale, v.issueDate)}${v.dueDate ? ` · ${esc(t(locale, 'books.invoice.due'))}: ${day(locale, v.dueDate)}` : ''}${
       v.label ? ` · <bdi>${esc(v.label)}</bdi>` : ''}</p>
     <p class="bd-currency">${esc(t(locale,'booksDocs.currency',{currency:v.currency}))}</p><div class="bd-lines"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.invoice.quantity'))}</th>
         <th scope="col">${esc(t(locale, 'books.invoice.unitPrice'))}</th><th scope="col">${esc(t(locale, 'booksDocs.tax'))}</th>
         <th scope="col">${esc(t(locale, 'booksDocs.subtotal'))}</th></tr></thead>
-      <tbody>${v.lines.map((l) => `<tr><td data-label="${esc(t(locale, 'books.entry.label'))}"><bdi>${esc(l.label)}</bdi></td><td data-label="${esc(t(locale, 'books.invoice.quantity'))}">${esc(l.quantity)}</td><td data-label="${esc(t(locale, 'books.invoice.unitPrice'))}">${esc(l.unitPrice)}</td>
-        <td data-label="${esc(t(locale, 'booksDocs.tax'))}"><span>${l.taxCode ? `<bdi>${esc(l.taxCode)}</bdi> ${money(locale, l.tax, v.currency)}` : ''}</span></td><td data-label="${esc(t(locale, 'booksDocs.subtotal'))}">${money(locale, l.net, v.currency)}</td></tr>`).join('')}</tbody>
+      <tbody>${v.lines.map((l) => { const f = lineFigures(locale, l, v.currency); return `<tr><td data-label="${esc(t(locale, 'books.entry.label'))}"><bdi>${esc(l.label)}</bdi>${f.rounded}</td><td data-label="${esc(t(locale, 'books.invoice.quantity'))}">${f.qty}</td><td data-label="${esc(t(locale, 'books.invoice.unitPrice'))}">${f.price}</td>
+        <td data-label="${esc(t(locale, 'booksDocs.tax'))}"><span>${l.taxCode ? `<bdi>${esc(l.taxCode)}</bdi> ${money(locale, l.tax, v.currency)}` : ''}</span></td><td data-label="${esc(t(locale, 'booksDocs.subtotal'))}">${money(locale, l.net, v.currency)}</td></tr>`; }).join('')}</tbody>
     </table></div>
     <dl class="bd-totals"><div class="row"><dt>${esc(t(locale, 'booksDocs.subtotal'))}</dt><dd>${money(locale, net, v.currency)}</dd></div>
       <div class="row"><dt>${esc(t(locale, 'booksDocs.tax'))}</dt><dd>${money(locale, tax, v.currency)}</dd></div>
@@ -205,7 +264,7 @@ export function renderInvoice(locale: Locale, viewer: Who, v: InvoiceView, pay: 
       ${v.status === 'draft' || v.status === 'discarded' ? '' : `${signOf(v.credited) > 0 ? `<div class="row"><dt>${esc(t(locale, 'books.credit.credited'))}</dt><dd>${money(locale, v.credited, v.currency)}</dd></div>` : ''}
       <div class="row"><dt>${esc(t(locale, 'books.invoice.paid'))}</dt><dd>${money(locale, v.paid, v.currency)}</dd></div>
       <div class="row"><dt>${esc(t(locale, signOf(owed)<0?'books.invoice.status.refund_due':'books.invoice.owed'))}</dt><dd>${money(locale, signOf(owed)<0?subDecimal('0' as Decimal,owed):owed, v.currency)}</dd></div>`}</dl>
-    </article><div class="bd-outside">${v.entryId ? `<p><a href="/app/books/advanced/entries/${esc(v.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></p>` : ''}
+    </article>${documentNotes(locale, opts.issuer, issued, v.billedTo)}<div class="bd-outside">${v.entryId ? `<p><a href="/app/books/advanced/entries/${esc(v.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></p>` : ''}
     ${v.payments.length > 0 ? `<h2>${esc(t(locale, 'books.invoice.payments'))}</h2><ul class="rows">${v.payments.map((p) =>
       `<li class="row"><span>${day(locale, p.paidOn)} · <bdi>${esc(p.account)}</bdi>${p.refundReversal ? ` · <bdi lang="en" dir="ltr">${esc(t(locale,'paymentLinks.kind.refund_reversal'))}</bdi>` : p.refund ? ` · ${esc(t(locale, 'books.credit.refunded'))}` : ''}</span><span>${money(locale, p.amount, v.currency)}${p.paid ? ` · ${esc(t(locale, 'books.invoice.arrived', { amount: plainMoney(locale, p.paid.amount, p.paid.currency) }))}` : ''} <a href="/app/books/advanced/entries/${esc(p.entryId)}">${esc(t(locale, 'books.invoice.seeEntry'))}</a></span></li>`).join('')}</ul>` : ''}
     ${notes}${creditDoor}
@@ -323,6 +382,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
 export function renderBank(locale: Locale, viewer: Who, c: {
   readonly accounts: readonly { id: string; code: string; name: string }[]; readonly accountId: string | null;
   readonly open: readonly import('../../db/bankStatements.js').OpenLine[]; readonly matched: readonly import('../../db/bankStatements.js').MatchedLine[];
+  readonly bookCurrency?: string;
 }): string {
   const owner = mayPost(viewer);
   // Block 1 #2 — bank and cash accounts only (`paymentAccounts`), none chosen for her; a chart with none says what to do.
@@ -339,14 +399,32 @@ export function renderBank(locale: Locale, viewer: Who, c: {
       <label class="pq"><span>${esc(t(locale, 'books.bank.file'))}</span><input type="file" name="statement" accept=".csv,.ofx,.qfx,.xml,text/csv,application/xml" required /></label>
       <button class="btn send" type="submit">${esc(t(locale, 'books.bank.read'))}</button></form>
       <p class="caption muted">${esc(t(locale, 'books.bank.formats'))}</p></div></details>` : '';
+  // F23 (UI correction, Block 5) — each line leads with the statement's own facts (date, money in or out, what the bank
+  // wrote) and its best candidate (date, entry, who, amount) with Match; any other candidate behind Choose another; the
+  // bank's reference behind a detail. The suggestions, the match and its undo are unchanged.
+  const flow = (d: Decimal, currency: string) => `<span class="bb-flow">${esc(t(locale, signOf(d) < 0 ? 'bankMatch.moneyOut' : 'bankMatch.moneyIn'))}</span> <bdi>${money(locale, signOf(d) < 0 ? subDecimal('0' as Decimal, d) : d, currency)}</bdi>`;
   const line = (l: { bookedOn: string; amount: Decimal; currency: string; wording: string | null; reference: string | null }) =>
-    `<div class="bb-statement"><p class="bb-wording"><bdi>${esc(l.wording??t(locale,'bankDocs.noDescription'))}</bdi></p><dl class="bb-facts"><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${day(locale,l.bookedOn)}</dd></div><div><dt>${esc(t(locale,'bankDocs.amount'))}</dt><dd class="bb-amount"><bdi>${money(locale,l.amount,l.currency)}</bdi></dd></div>${l.reference?`<div class="bb-reference"><dt>${esc(t(locale,'bankDocs.reference'))}</dt><dd><bdi>${esc(l.reference)}</bdi></dd></div>`:''}</dl></div>`;
-  const suggestion=(l:import('../../db/bankStatements.js').OpenLine,s:import('../../db/bankStatements.js').Suggestion)=>
-    `<div class="bb-suggestion"><p class="bb-suggested">${esc(t(locale,'books.bank.suggested',{key:s.key}))}</p><a href="/app/books/advanced/entries/${esc(s.entryId)}"><bdi>${esc(s.key)}</bdi></a><p>${day(locale,s.date)}${s.label?` · <bdi>${esc(s.label)}</bdi>`:''}</p>${owner?`<form method="post" action="/app/books/bank/match" class="pform"><input type="hidden" name="account" value="${esc(c.accountId!)}" /><input type="hidden" name="line" value="${esc(l.id)}" /><input type="hidden" name="journalLine" value="${esc(s.journalLineId)}" /><button class="btn" type="submit">${esc(t(locale,'books.bank.matchWith',{key:s.key}))}</button></form>`:''}</div>`;
+    `<div class="bb-statement"><p class="bb-head"><span class="bb-date">${day(locale,l.bookedOn)}</span><span class="bb-amount">${flow(l.amount,l.currency)}</span></p><p class="bb-wording"><bdi>${esc(l.wording??t(locale,'bankDocs.noDescription'))}</bdi></p>${l.reference?`<details class="bb-ref"><summary>${esc(t(locale,'bankMatch.details'))}</summary><p><bdi>${esc(l.reference)}</bdi></p></details>`:''}</div>`;
+  const candidate=(l:import('../../db/bankStatements.js').OpenLine,s:import('../../db/bankStatements.js').Suggestion)=>
+    `<dl class="bb-facts"><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${day(locale,s.date)}</dd></div><div><dt>${esc(t(locale,'bankMatch.entryAmount'))}</dt><dd class="bb-amount">${flow(s.amount,l.currency)}</dd></div><div class="bb-wide"><dt>${esc(t(locale,'bankMatch.entry'))}</dt><dd><a href="/app/books/advanced/entries/${esc(s.entryId)}"><bdi>${esc(s.key)}</bdi></a>${s.label?` · <bdi>${esc(s.label)}</bdi>`:''}</dd></div>${s.party?`<div class="bb-wide"><dt>${esc(t(locale,'books.entry.party'))}</dt><dd><bdi>${esc(s.party)}</bdi></dd></div>`:''}</dl>${owner?`<form method="post" action="/app/books/bank/match" class="pform"><input type="hidden" name="account" value="${esc(c.accountId!)}" /><input type="hidden" name="line" value="${esc(l.id)}" /><input type="hidden" name="journalLine" value="${esc(s.journalLineId)}" /><button class="btn" type="submit">${esc(t(locale,'books.bank.matchWith',{key:s.key}))}</button></form>`:''}`;
+  const actions=(l:import('../../db/bankStatements.js').OpenLine)=>{
+    const [best,...others]=l.suggestions;
+    // F23 fix (the owner's ruling, 2026-11-21) — a line with no entry to match still has a next step: money out is
+    // recorded as a cost from its own figures (the bill form, filled from the line and paid from this account); money
+    // in leads to the invoices still unpaid; either can be written as an entry. A cost recorded from here is matched to the line as it is saved (Block 5);
+    // the rest, recorded, is offered here to match.
+    if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>${owner?`<p class="bb-next">${signOf(l.amount)<0
+      ?`<a class="deeper" href="/app/books/spending?${esc(new URLSearchParams({bankLine:l.id,account:c.accountId!}).toString())}#bill">${esc(t(locale,'bankMatch.recordCost'))}</a>`
+      :`<a class="deeper" href="/app/books/invoices?state=unpaid">${esc(t(locale,'bankMatch.findInvoice'))}</a>`}
+      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,signOf(l.amount)>=0?'bankMatch.thenMatchIn':c.bookCurrency&&l.currency!==c.bookCurrency?'bankMatch.thenMatchOther':'bankMatch.thenMatch'))}</p>`:''}`;
+    return `<div class="bb-suggestion"><p class="bb-suggested">${esc(t(locale,'bankMatch.best'))}</p>${candidate(l,best)}</div>${others.length===0?`<p class="caption muted bb-no-other">${esc(t(locale,'bankMatch.noOther'))}</p>`
+      :`<details class="bb-others"><summary>${esc(t(locale,'bankMatch.chooseAnother',{n:show.count(locale,others.length)}))}</summary>${others.map(s=>`<div class="bb-suggestion">${candidate(l,s)}</div>`).join('')}</details>`}`;
+  };
+  const nothingRead=c.open.length+c.matched.length===0;
   return `${head}${selected?`<p class="bb-scope">${esc(t(locale,'bankDocs.scope',{account:selected.code+' · '+selected.name}))}</p>`:''}${upload}
     <nav class="bb-sections" aria-label="${esc(t(locale,'bankDocs.review'))}"><a href="#bank-open">${esc(t(locale,c.open.length===1?'bankDocs.unmatchedOne':'bankDocs.unmatchedMany',{n:show.count(locale,c.open.length)}))}</a><a href="#bank-matched">${esc(t(locale,c.matched.length===1?'bankDocs.matchedOne':'bankDocs.matchedMany',{n:show.count(locale,c.matched.length)}))}</a></nav><p class="bb-scope">${esc(t(locale,'bankDocs.shownScope'))}</p>
     <section class="bb-review" id="bank-open"><h2>${esc(t(locale, 'books.bank.open'))}</h2>
-    ${c.open.length === 0 ? `<p class="muted">${esc(t(locale, 'books.bank.noneOpen'))}</p>` : `<ul class="bb-lines">${c.open.map(l=>`<li class="bb-review-line" id="bank-line-${esc(l.id)}">${line(l)}<div class="bb-line-actions">${l.suggestions.length===0?`<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>`:l.suggestions.map(s=>suggestion(l,s)).join('')}</div></li>`).join('')}</ul>`}</section>
+    ${c.open.length === 0 ? `<p class="bb-empty" role="status">${esc(t(locale, nothingRead ? 'bankMatch.noneRead' : 'bankMatch.allMatched'))}</p>` : `<ul class="bb-lines">${c.open.map(l=>`<li class="bb-review-line" id="bank-line-${esc(l.id)}">${line(l)}<div class="bb-line-actions">${actions(l)}</div></li>`).join('')}</ul>`}</section>
     <section class="bb-review" id="bank-matched"><h2>${esc(t(locale, 'books.bank.matched'))}</h2>
     ${c.matched.length === 0 ? `<p class="muted">${esc(t(locale, 'books.bank.noneMatched'))}</p>` : `<ul class="bb-lines">${c.matched.map(m=>`<li class="bb-review-line is-matched">${line(m)}<div class="bb-line-actions"><p><span class="pill ok">${esc(t(locale,'books.bank.matched'))}</span></p><a href="/app/books/advanced/entries/${esc(m.entryId)}"><bdi>${esc(m.key)}</bdi></a>${owner?`<form method="post" action="/app/books/bank/unmatch" class="pform"><input type="hidden" name="account" value="${esc(c.accountId!)}" /><input type="hidden" name="match" value="${esc(m.matchId)}" /><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale,'books.bank.unmatchAsk'))}">${esc(t(locale,'books.bank.unmatch'))}</button></form>`:''}</div></li>`).join('')}</ul>`}</section>
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p></section>`;
@@ -356,22 +434,33 @@ export function renderBank(locale: Locale, viewer: Who, c: {
  * D1b (0188) — A CREDIT NOTE on the page: drafted from an issued invoice's lines (how much of each, never more than
  * is left), with its reason and its day; then issued — its number, its entry posted, never changed after.
  */
-export function renderNewCreditNote(locale: Locale, inv: { readonly id: string; readonly key: string; readonly party: string; readonly currency: string },
+export function renderNewCreditNote(locale: Locale, inv: CreditInvoice,
   lines: readonly CreditableLine[], values: Readonly<Record<string, string>>, problems: readonly string[], today: string, editing: string | null = null, opts: BooksDocumentContext = {}): string {
   const v = (k: string) => esc(values[k] ?? '');
-  return `<section class="book-doc-editor"><h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
+  const invoiceHref = `/app/books/invoices/${esc(inv.id)}${documentReturnQuery(opts)}`;
+  const unit = (d: Decimal) => { const m = moneyFromRow(d, inv.currency); return m ? show.exactMoney(locale, m) : esc(d); };
+  // F20 (UI correction, Block 5) — the editor says which invoice it is against and what is owed on it; the reason
+  // first; each line with what is left of it; the credit worked out beside Save as the lines change, and what it does
+  // to the invoice's balance. Every field keeps its name, so Save and its checks are the same.
+  // F20 fix (2026-11-20) — the page itself draws no figure: without the script a drawn total could not follow an edited
+  // quantity, so the page would show one total and Save store another. It says the total is worked out on Save (the
+  // draft shows it before Issue); with the script the form asks for its total as it opens (`data-total-now`) and again
+  // as the lines change.
+  const total = `<div class="bd-editor-total" data-total-out aria-live="polite"><p class="caption muted">${esc(t(locale, 'booksDocs.totalOnSave'))}</p></div>`;
+  return `<section class="book-doc-editor">${back(invoiceHref, t(locale, 'books.credit.against', { invoice: inv.key }))}<h1 class="page">${esc(editing ? t(locale, 'books.draft.editTitle') : t(locale, 'books.credit.new', { invoice: inv.key }))}</h1>
     <p class="lede">${esc(t(locale, 'books.credit.newLede'))}</p>
+    <dl class="bd-sum-facts bd-credit-source"><div><dt>${esc(t(locale, 'booksCredit.against'))}</dt><dd><a href="${invoiceHref}"><bdi>${esc(inv.key)}</bdi></a></dd></div><div><dt>${esc(t(locale, 'books.invoice.customer'))}</dt><dd><bdi>${esc(inv.party)}</bdi></dd></div>${inv.owed !== undefined ? `<div><dt>${esc(t(locale, signOf(inv.owed) < 0 ? 'books.invoice.status.refund_due' : 'books.invoice.owed'))}</dt><dd>${money(locale, signOf(inv.owed) < 0 ? subDecimal('0' as Decimal, inv.owed) : inv.owed, inv.currency)}</dd></div>` : ''}</dl>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
-    <form method="post" action="${editing ? `/app/books/credit-notes/${esc(editing)}/edit` : `/app/books/invoices/${esc(inv.id)}/credit-notes`}" class="pform bd-editor-form">${documentReturnField(opts)}
-      <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
+    <form method="post" data-total="/app/books/invoices/${esc(inv.id)}/credit-notes/preview" data-total-now action="${editing ? `/app/books/credit-notes/${esc(editing)}/edit` : `/app/books/invoices/${esc(inv.id)}/credit-notes`}" class="pform bd-editor-form">${documentReturnField(opts)}
       <label class="pq"><span>${esc(t(locale, 'books.credit.reason'))}</span><input name="reason" value="${v('reason')}" maxlength="200" required /></label>
-      <section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${lines.map(l=>`<fieldset class="bd-edit-line"><legend>${esc(t(locale,'booksDocs.line',{n:l.lineNo}))} · <bdi>${esc(l.label)}</bdi></legend><dl class="bd-line-facts"><div><dt>${esc(t(locale,'books.invoice.quantity'))}</dt><dd>${esc(l.quantity)}</dd></div><div><dt>${esc(t(locale,'books.credit.left'))}</dt><dd>${esc(l.left)}</dd></div></dl>
+      <label class="pq"><span>${esc(t(locale, 'books.entry.date'))}</span><input type="date" name="issueDate" value="${values['issueDate'] ? v('issueDate') : esc(today)}" required /></label>
+      <section class="bd-edit-lines"><h2>${esc(t(locale,'booksDocs.lines'))}</h2>${lines.map(l=>`<fieldset class="bd-edit-line"><legend>${esc(t(locale,'booksDocs.line',{n:l.lineNo}))} · <bdi>${esc(l.label)}</bdi></legend><dl class="bd-line-facts"><div><dt>${esc(t(locale,'books.invoice.quantity'))}</dt><dd>${show.exactQuantity(locale,l.quantity)}</dd></div><div><dt>${esc(t(locale,'books.invoice.unitPrice'))}</dt><dd>${unit(l.unitPrice)}</dd></div><div><dt>${esc(t(locale,'books.credit.left'))}</dt><dd>${show.exactQuantity(locale,l.left)}</dd></div><div><dt>${esc(t(locale,'booksCredit.leftNet'))}</dt><dd>${money(locale,l.leftNet,inv.currency)}</dd></div></dl>
       ${signOf(l.left)>0?`<label class="pq"><span>${esc(t(locale,'books.credit.quantity'))}</span><input name="qty${l.lineNo}" inputmode="decimal" value="${values[`qty${l.lineNo}`]!==undefined?v(`qty${l.lineNo}`):esc(l.left)}" aria-label="${esc(t(locale,'books.credit.quantity'))} ${l.lineNo}" /></label>`:''}
       ${signOf(l.leftNet)>0?`<label class="pq"><span>${esc(t(locale,'books.credit.reduction',{currency:inv.currency}))}</span><input name="red${l.lineNo}" inputmode="decimal" value="${v(`red${l.lineNo}`)}" aria-label="${esc(t(locale,'books.credit.reduction',{currency:inv.currency}))} ${l.lineNo}" /></label>`:''}</fieldset>`).join('')}</section>
       <p class="caption muted">${esc(t(locale, 'books.credit.reductionHelp'))}</p>
-      <button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
+      <div class="bd-save">${total}<button class="btn send" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button></div>
     </form>
-    <p><a class="deeper" href="/app/books/invoices/${esc(inv.id)}${documentReturnQuery(opts)}">${esc(inv.key)}</a></p></section>`;
+    <p><a class="deeper" href="${invoiceHref}"><bdi>${esc(inv.key)}</bdi></a></p></section>`;
 }
 
 export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView, opts: BooksDocumentContext = {}): string {
@@ -385,18 +474,29 @@ export function renderCreditNote(locale: Locale, viewer: Who, c: CreditNoteView,
         <button class="btn send" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.issueAsk'))}">${esc(t(locale, 'books.credit.issue'))}</button></form>
       <form method="post" action="/app/books/credit-notes/${esc(c.id)}/discard" class="pform">${documentReturnField(opts)}
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.credit.discardAsk'))}">${esc(t(locale, 'books.entry.discard'))}</button></form>` : '';
-  return `<section class="book-doc-page"><div class="bd-outside">${back('/app/books/invoices/'+esc(c.invoiceId)+documentReturnQuery(opts),t(locale,'books.credit.against',{invoice:c.invoiceKey}))}</div><article class="book-document"><header class="bd-header"><h1 class="page">${esc(t(locale,'booksDocs.creditNote'))} <bdi>${esc(c.key ?? t(locale, 'books.entry.state.draft'))}</bdi></h1><p><bdi>${esc(c.billedTo.name)}</bdi></p>
-    <p>${pill} <a href="/app/books/invoices/${esc(c.invoiceId)}${documentReturnQuery(opts)}">${esc(t(locale, 'books.credit.against', { invoice: c.invoiceKey }))}</a></p></header><div class="bd-parties">${issuerDetails(locale,opts.issuer,c.state==='issued')}<section>${billedTo(locale,c.billedTo)}</section></div>
+  const title = `${esc(t(locale,'booksDocs.creditNote'))} <bdi>${esc(c.key ?? t(locale, 'books.entry.state.draft'))}</bdi>`;
+  const invoiceHref = `/app/books/invoices/${esc(c.invoiceId)}${documentReturnQuery(opts)}`;
+  const inv = opts.creditInvoice;
+  // F20 — before Issue, the amount, its invoice and what it does to the balance; once issued, the balance as it stands.
+  const effect = !inv || inv.owed === undefined || c.state === 'discarded' ? '' : c.state === 'draft' ? creditEffect(locale, inv, c.total)
+    : `<p class="bd-effect">${esc(signOf(inv.owed) < 0 ? t(locale, 'booksCredit.refundNow', { invoice: inv.key, amount: plainMoney(locale, subDecimal('0' as Decimal, inv.owed), inv.currency) })
+      : t(locale, 'booksCredit.owedNow', { invoice: inv.key, amount: plainMoney(locale, inv.owed, inv.currency) }))}</p>`;
+  const summary = `<header class="bd-summary" aria-label="${esc(t(locale, 'booksInvoice.summary'))}"><h1 class="page">${title}</h1><p><bdi>${esc(c.billedTo.name)}</bdi></p>
+    <dl class="bd-sum-facts"><div><dt>${esc(t(locale, 'booksCredit.total'))}</dt><dd><strong>${money(locale, c.total, c.currency)}</strong></dd></div>
+      <div><dt>${esc(t(locale, 'booksCredit.against'))}</dt><dd><a href="${invoiceHref}"><bdi>${esc(c.invoiceKey)}</bdi></a></dd></div>
+      <div><dt>${esc(t(locale, 'booksInvoice.state'))}</dt><dd>${pill}</dd></div></dl>${effect}</header>`;
+  return `<section class="book-doc-page"><div class="bd-outside">${back(invoiceHref,t(locale,'books.credit.against',{invoice:c.invoiceKey}))}</div>${summary}<article class="book-document"><header class="bd-header"><p class="bd-title">${title}</p><p><bdi>${esc(c.billedTo.name)}</bdi></p>
+    <p>${esc(t(locale, 'books.credit.against', { invoice: c.invoiceKey }))}</p></header><div class="bd-parties">${issuerDetails(locale,opts.issuer,c.state==='issued',false)}<section>${billedTo(locale,c.billedTo,false)}</section></div>
     <p class="caption muted">${esc(t(locale, 'books.entry.date'))}: ${day(locale, c.issueDate)} · <bdi>${esc(c.reason)}</bdi></p>
     <p class="bd-currency">${esc(t(locale,'booksDocs.currency',{currency:c.currency}))}</p><div class="bd-lines"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.label'))}</th><th scope="col">${esc(t(locale, 'books.invoice.quantity'))}</th>
         <th scope="col">${esc(t(locale, 'booksDocs.subtotal'))}</th><th scope="col">${esc(t(locale, 'booksDocs.tax'))}</th></tr></thead>
       <tbody>${c.lines.map((l) => `<tr><td data-label="${esc(t(locale,'books.entry.label'))}"><bdi>${esc(l.label)}</bdi>${signOf(l.quantity) === 0 ? ` <span class="caption muted">${esc(t(locale, 'books.credit.priceLowered'))}</span>` : ''}</td>
-        <td class="num" data-label="${esc(t(locale,'books.invoice.quantity'))}">${signOf(l.quantity) === 0 ? '' : esc(l.quantity)}</td><td class="num" data-label="${esc(t(locale,'booksDocs.subtotal'))}">${money(locale, l.net, c.currency)}</td>
+        <td class="num" data-label="${esc(t(locale,'books.invoice.quantity'))}">${signOf(l.quantity) === 0 ? '' : show.exactQuantity(locale, l.quantity)}</td><td class="num" data-label="${esc(t(locale,'booksDocs.subtotal'))}">${money(locale, l.net, c.currency)}</td>
         <td class="num" data-label="${esc(t(locale,'booksDocs.tax'))}">${money(locale, l.tax, c.currency)}</td></tr>`).join('')}</tbody>
     </table></div>
     <dl class="bd-totals"><div class="row"><dt>${esc(t(locale, 'booksDocs.subtotal'))}</dt><dd>${money(locale,net,c.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'booksDocs.tax'))}</dt><dd>${money(locale,tax,c.currency)}</dd></div><div class="row"><dt>${esc(t(locale, 'books.entry.total'))}</dt><dd><strong>${money(locale, c.total, c.currency)}</strong></dd></div></dl>
-    </article><div class="bd-outside">${c.entryId?`<p><a href="/app/books/advanced/entries/${esc(c.entryId)}">${esc(t(locale,'books.invoice.seeEntry'))}</a></p>`:''}${actions?`<section class="bd-actions"><h2>${esc(t(locale,'booksDocs.creditActions'))}</h2>${actions}</section>`:''}<p><a href="${esc(invoiceReturnHref(opts.returnHref))}">${esc(t(locale,'books.invoices.title'))}</a></p></div></section>`;
+    </article>${documentNotes(locale, opts.issuer, c.state === 'issued', c.billedTo)}<div class="bd-outside">${actions?`<section class="bd-actions"><h2>${esc(t(locale,'booksDocs.creditActions'))}</h2>${actions}</section>`:''}${c.entryId?`<p><a href="/app/books/advanced/entries/${esc(c.entryId)}">${esc(t(locale,'books.invoice.seeEntry'))}</a></p>`:''}<p><a href="${esc(invoiceReturnHref(opts.returnHref))}">${esc(t(locale,'books.invoices.title'))}</a></p></div></section>`;
 }
 
 /**

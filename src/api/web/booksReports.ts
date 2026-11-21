@@ -8,6 +8,7 @@ import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
 import { icon } from './icons.js';
+import { tableFrame } from './booksEntries.js';
 
 /**
  * D1 (Phase 5, item 1) — THE TRIAL BALANCE on a page: a period chosen, each account opened / moved / closed, debit
@@ -17,11 +18,15 @@ const money = (locale: Locale, d: Decimal, currency: string) => {
   if (d === '0' || /^0(\.0+)?$/.test(d)) return '';
   const m = moneyFromRow(d, currency); return m ? esc(show.money(locale, m)) : esc(d);
 };
-const cells = (locale: Locale, s: Sides, cur: string) => `<td class="num">${money(locale, s.debit, cur)}</td><td class="num">${money(locale, s.credit, cur)}</td>`;
+// F22 (UI correction, Block 5) — each figure carries its column's name, read on a phone where an account is a card.
+const cell = (locale: Locale, d: Decimal, cur: string, group: string, side: string) => { const v = money(locale, d, cur);
+  return `<td class="num" data-label="${esc(group)} · ${esc(side)}">${v ? `<span>${v}</span>` : ''}</td>`; };
+const cells = (locale: Locale, s: Sides, cur: string, k: 'books.trial.opening' | 'books.trial.period' | 'books.trial.closing') =>
+  `${cell(locale, s.debit, cur, t(locale, k), t(locale, 'books.entry.debit'))}${cell(locale, s.credit, cur, t(locale, k), t(locale, 'books.entry.credit'))}`;
 
 export function renderTrialBalance(locale: Locale, p: Period, tb: TrialBalance, currency: string, madeAt: Date, problem: boolean): string {
   const head = (k: 'books.trial.opening' | 'books.trial.period' | 'books.trial.closing') => `<th scope="colgroup" colspan="2">${esc(t(locale, k))}</th>`;
-  const side = `<th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>`;
+  const side = `<th scope="col" class="num">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col" class="num">${esc(t(locale, 'books.entry.credit'))}</th>`;
   const verdict = tb.balanced
     ? `<p role="status"><span class="pill ok long">${esc(t(locale, 'books.trial.balanced'))}</span></p>`
     : `<p role="alert"><span class="pill stop long">${esc(t(locale, 'books.trial.notBalanced', { opening: tb.difference.opening, period: tb.difference.period, closing: tb.difference.closing }))}</span></p>`;
@@ -35,12 +40,12 @@ export function renderTrialBalance(locale: Locale, p: Period, tb: TrialBalance, 
     </form>
     <p class="caption muted">${esc(t(locale, 'books.trial.made', { from: show.dateYear(locale, new Date(`${p.from}T12:00:00Z`)), to: show.dateYear(locale, new Date(`${p.to}T12:00:00Z`)),
       when: show.dateYear(locale, madeAt) }))}</p>
-    ${tb.rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `${verdict}<div class="imp-table"><table>
+    ${tb.rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `${verdict}${tableFrame(locale, t(locale, 'books.trial.title'), 'bk-tb')}<table>
       <thead><tr><th scope="col" rowspan="2">${esc(t(locale, 'books.entry.account'))}</th>${head('books.trial.opening')}${head('books.trial.period')}${head('books.trial.closing')}</tr>
         <tr>${side}${side}${side}</tr></thead>
       <tbody>${tb.rows.map((r) => `<tr><th scope="row">${r.kind === 'earlier_result' ? esc(t(locale, 'books.trial.earlier'))
-        : `<bdi>${esc(r.code!)}</bdi> · <bdi>${esc(r.name!)}</bdi>`}</th>${cells(locale, r.opening, currency)}${cells(locale, r.period, currency)}${cells(locale, r.closing, currency)}</tr>`).join('')}</tbody>
-      <tfoot><tr><th scope="row">${esc(t(locale, 'books.entry.total'))}</th>${cells(locale, tb.totals.opening, currency)}${cells(locale, tb.totals.period, currency)}${cells(locale, tb.totals.closing, currency)}</tr></tfoot>
+        : `<bdi>${esc(r.code!)}</bdi> · <bdi>${esc(r.name!)}</bdi>`}</th>${cells(locale, r.opening, currency, 'books.trial.opening')}${cells(locale, r.period, currency, 'books.trial.period')}${cells(locale, r.closing, currency, 'books.trial.closing')}</tr>`).join('')}</tbody>
+      <tfoot><tr><th scope="row">${esc(t(locale, 'books.entry.total'))}</th>${cells(locale, tb.totals.opening, currency, 'books.trial.opening')}${cells(locale, tb.totals.period, currency, 'books.trial.period')}${cells(locale, tb.totals.closing, currency, 'books.trial.closing')}</tr></tfoot>
     </table></div>`}
     ${tb.rows.length === 0 ? '' : `<div class="block" id="pack"><p>${esc(t(locale, 'books.pack.explain'))}</p>
       <ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.pack.file'))}</span>
@@ -98,7 +103,7 @@ export function renderFec(locale: Locale, years: readonly FecYearView[], gaps: F
         `<li class="row"><span><bdi>${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi></span></li>`).join('')}</ul>`}
       ${y.lines === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `<ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.fec.file', { n: y.lines }))}
         · <bdi dir="ltr">${esc(fecFileName(file.pattern, { ice: file.ice, closesOn: y.endsOn }))}</bdi></span>
-        <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul>`}
+        <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'booksStmt.downloadFec')).replace(/\.txt/, '<bdi dir="ltr">.txt</bdi>')}</span></a></li></ul>`}
     </div>`).join('')}
     ${fecFileNaming(locale, file)}
     <p class="caption muted">${esc(t(locale, 'books.fec.envelope'))}</p>

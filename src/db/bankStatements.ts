@@ -28,12 +28,56 @@ export async function importStatement(tx: Tx, businessId: string, by: string, ac
   return { added: fresh.length, refused: lines.length - fresh.length };
 }
 
-export type Suggestion = { readonly journalLineId: string; readonly entryId: string; readonly key: string; readonly date: string; readonly label: string };
+/** F22/F23 (UI correction, Block 5) — `amount` (the line's debit less its credit: the movement on the bank account) and
+ * `party` are read so the page can show the candidate's own figures; what is suggested is unchanged. */
+export type Suggestion = { readonly journalLineId: string; readonly entryId: string; readonly key: string; readonly date: string; readonly label: string;
+  readonly amount: Decimal; readonly party: string | null };
 export type OpenLine = {
   readonly id: string; readonly bookedOn: string; readonly amount: Decimal; readonly currency: string; readonly wording: string | null;
   readonly reference: string | null; readonly suggestions: readonly Suggestion[];
 };
 export type MatchedLine = OpenLine & { readonly matchId: string; readonly entryId: string; readonly key: string };
+
+/** One statement line at a time, until the transaction ends: a bill recorded from it, or a match of it. */
+async function lockStatementLine(tx: Tx, lineId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`statement-line:${lineId.toLowerCase()}`}, 0))`.execute(tx);
+}
+
+/**
+ * Block 5 — the statement line a bill is being recorded from: 'open' (no match now), 'matched', or null (not this
+ * workspace's, or not on this account). The line is held for the rest of the transaction by the advisory lock that
+ * `matchLine` takes too (nomi_app may not lock the line's row: it has no UPDATE right on it), so a bill never reads a
+ * line as open while a match of it commits.
+ */
+export async function lineForBill(tx: Tx, businessId: string, accountId: string, lineId: string, seen: number | null = null): Promise<'open' | 'matched' | 'changed' | null> {
+  await lockStatementLine(tx, lineId);
+  const held = (await sql<{ one: number }>`select 1 as one from statement_lines
+     where business_id = ${businessId}::uuid and account_id = ${accountId}::uuid and id = ${lineId}::uuid`.execute(tx)).rows.length > 0;
+  if (!held) return null;
+  const m = (await sql<{ active: number; ever: number }>`select count(*) filter (where unmatched_at is null)::int as active, count(*)::int as ever
+     from statement_matches where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid`.execute(tx)).rows[0]!;
+  if (m.active > 0) return 'matched';
+  // a line matched and set aside again while the form was open: the form is stale (its money may be in the books)
+  return seen !== null && m.ever !== seen ? 'changed' : 'open';
+}
+
+/** How many matches a statement line has had, set aside or not: the bill form carries it, so a stale form is told. */
+export async function lineMatchCount(tx: Tx, businessId: string, lineId: string): Promise<number> {
+  return (await sql<{ n: number }>`select count(*)::int as n from statement_matches
+     where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid`.execute(tx)).rows[0]!.n;
+}
+
+/**
+ * Block 5 — a bill recorded from an open statement line is matched to it in the same transaction, under the line lock
+ * `lineForBill` took: its entry's line on the statement's account (the money paid from it). False, and nothing
+ * matched, when the bill was not paid from that account or its amount or currency is not the line's (the database
+ * refuses the match, NB020); the line then stays open for the owner.
+ */
+export async function matchBillToLine(tx: Tx, businessId: string, by: string, lineId: string, accountId: string, entryId: string): Promise<boolean> {
+  const paid = (await sql<{ id: string }>`select id::text as id from journal_lines
+     where business_id = ${businessId}::uuid and entry_id = ${entryId}::uuid and account_id = ${accountId}::uuid and credit > 0`.execute(tx)).rows;
+  return paid.length === 1 ? matchLine(tx, businessId, by, lineId, paid[0]!.id) : false;
+}
 
 /** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
 export async function openLines(tx: Tx, businessId: string, accountId: string, lineId?: string): Promise<OpenLine[]> {
@@ -46,15 +90,17 @@ export async function openLines(tx: Tx, businessId: string, accountId: string, l
      order by s.booked_on, s.id limit 200`.execute(tx)).rows;
   const out: OpenLine[] = [];
   for (const l of lines) {
-    const suggestions = (await sql<Suggestion>`
+    const suggestions = (await sql<Omit<Suggestion, 'amount'> & { amount: string }>`
       select jl.id::text as "journalLineId", e.id::text as "entryId",
-             j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as key, e.entry_date::text as date, e.label
+             j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as key, e.entry_date::text as date, e.label,
+             (coalesce(jl.debit, 0) - coalesce(jl.credit, 0))::text as amount, p.name as party
         from journal_lines jl join journal_entries e on e.id = jl.entry_id join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
+        left join parties p on p.id = jl.party_id
        where jl.business_id = ${businessId}::uuid and jl.account_id = ${accountId}::uuid and e.state = 'posted' and jl.currency = ${l.currency}
          and (case when ${l.amount}::numeric > 0 then jl.debit = ${l.amount}::numeric else jl.credit = -${l.amount}::numeric end)
          and abs(e.entry_date - ${l.booked_on}::date) <= 7
          and not exists (select 1 from statement_matches m where m.journal_line_id = jl.id and m.unmatched_at is null)
-       order by abs(e.entry_date - ${l.booked_on}::date), e.number limit 5`.execute(tx)).rows;
+       order by abs(e.entry_date - ${l.booked_on}::date), e.number limit 5`.execute(tx)).rows.map((r) => ({ ...r, amount: parseDecimal(r.amount)! }));
     out.push({ id: l.id, bookedOn: l.booked_on, amount: parseDecimal(l.amount)!, currency: l.currency, wording: l.wording, reference: l.reference, suggestions });
   }
   return out;
@@ -76,6 +122,7 @@ export async function matchedLines(tx: Tx, businessId: string, accountId: string
 /** A person's match: the database checks the account, the amount, the side, and that each line has one at a time. */
 export async function matchLine(tx: Tx, businessId: string, by: string, statementLineId: string, journalLineId: string): Promise<boolean> {
   try {
+    await lockStatementLine(tx, statementLineId);
     await sql`savepoint match_line`.execute(tx);
     await sql`insert into statement_matches (business_id, statement_line_id, journal_line_id, matched_by)
       values (${businessId}::uuid, ${statementLineId}::uuid, ${journalLineId}::uuid, ${by})`.execute(tx);

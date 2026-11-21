@@ -16774,6 +16774,32 @@ translates them.
   `.noRefHint`, `.noRefShown` (on the unpaid row), `.noRefEntry` (on the entry's page), `booksSpending.flash.billPostedNoRef`,
   `booksSpending.refused.ref_and_no_number`, `.noref_typed`. "NOREF" itself is not translated: it is the reference's prefix
   in the books and the spreadsheets.
+- **Added 2026-11-21 (UI correction, Block 5, F23 fix), English only too:** `booksSpending.fromBank.title` (the bill
+  form's heading when it is filled from a bank line), `.fromBank.note` (where the figures came from, and that recording
+  it goes back to the line), `.fromBank.otherCurrency`. The four bank-page words beside them (`bankMatch.recordCost`,
+  `.findInvoice`, `.writeEntry`, `.thenMatch`) are in all five languages, none read by a native reader; the Arabic ones
+  use verbal nouns, so nobody is addressed by gender.
+- **Added 2026-11-21 (Block 5, the tester's three small texts):** `booksSpending.refused.amount`, English only (a bill
+  refused for its amount or date says so, where it said an entry's "Line {n}"). `books.credit.moreThanLeft` reworded in
+  all five languages: it fires when the owner typed more than is left (a quantity or a price reduction) as well as
+  when another note took it, so it names neither a draft, another note nor a quantity: change the note to no more
+  than what is left, then save it. Not read by a native reader; the Arabic uses the passive, so nobody is addressed
+  by gender.
+- **Changed 2026-11-21 (Block 5, the owner's choice: a bill recorded from a bank line is matched to it as it is
+  saved):** `bankMatch.thenMatch` reworded in all five languages — a cost recorded from the line is matched when it is
+  saved; a payment or an entry recorded another way is offered on the line to match. `booksSpending.fromBank.note`
+  (English only) says the bill is matched as it is recorded when left paid from that account for that amount; new,
+  English only: `booksSpending.flash.billMatched`, `.billMatchedNoRef`. Not read by a native reader; the Arabic uses
+  the passive, so nobody is addressed by gender.
+- **Changed again 2026-11-21 (the tester's re-check):** `bankMatch.thenMatch` (money out) now says the match needs
+  the same account and amount, and no longer names "money received" (zh 收款, es cobro, fr encaissement) for a line of
+  money out; new `bankMatch.thenMatchIn` (money in, five languages) promises no match on saving. New, English only:
+  `booksSpending.fromBank.noteOther` (a line in another currency than the books: not matched) and
+  `booksSpending.flash.lineChanged` (a form opened before the line was matched and set aside again). Not read by a
+  native reader.
+- **Added 2026-11-21 (the tester's next re-check):** `bankMatch.thenMatchOther`, five languages — a line of money
+  out in another currency than the books: a cost recorded from it is not matched to it. Not read by a native
+  reader; the Arabic uses the passive.
 
 ## Invoices that go out (2026-11-06; 0226)
 

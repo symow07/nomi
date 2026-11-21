@@ -193,7 +193,8 @@ d('0238 · ad spend on Results, and recorded as a cost (requires DATABASE_URL)',
     const page = await get(owner, `/app/books/spending?ads=${encodeURIComponent(`${month}.instagram`)}`);
     const form = billForm(page.body);
     expect(form).toContain(t('en', 'adSpend.prefill.title'));
-    expect(withoutIsolates(form)).toContain(t('en', 'adSpend.prefill.estimated', { platform: 'Instagram', month, amount: 'USD 1000012.51' }));
+    // Block 5 — Meta's figure as money, never the bare stored figure ("USD 1000012.51")
+    expect(withoutIsolates(form)).toContain(t('en', 'adSpend.prefill.estimated', { platform: 'Instagram', month, amount: '$1,000,012.51' }));
     expect(form).toContain(`name="ads" value="${month}.instagram"`);
     expect(form).toContain(`value="${lastDay}"`);
     expect(form).toContain(`value="Meta ads, Instagram, ${month}"`);

@@ -32,7 +32,7 @@ const renderers = async (): Promise<readonly { readonly f: string; readonly src:
 
 /** CSS rules in a source file, as selector list and body. */
 const rules = (src: string) => [...src.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)]
-  .map((m) => ({ selectors: m[1]!.split(',').map((x) => x.trim()).filter(Boolean), body: m[2]! }));
+  .map((m) => ({ selectors: m[1]!.split(/,(?![^(]*\))/).map((x) => x.trim()).filter(Boolean), body: m[2]! }));
 
 const shellCss = async (): Promise<string> => {
   const src = await readFile(SHELL, 'utf8');
@@ -312,7 +312,7 @@ describe('M49 · buttons and empty states', () => {
      */
     const CENTRED = new Map<string, string>([
       ['splitStyle.ts  .sp-stages li', 'stage labels sit under their dots'],
-      ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
+      ['layout.ts  nav.side :is(a,button).navlink', 'the phone tab bar: an icon over a word, in a cell (Log out, the accountant\'s button, is one)'],
       ['layout.ts  nav.side a.navlink.sub', 'the same tab bar: Inbox and Calendar are two of its five cells'],
       // Block 2 fix 1, defect 3: complete phone labels may wrap; each remains centred under its tab icon.
       ['splitStyle.ts  .owner-shell nav.side .nl-text', 'a wrapped phone-tab label, not a centred content card'],

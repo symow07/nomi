@@ -10,6 +10,11 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.waiting.skip': 'Skip this one',
   'booksSpending.waiting.skipAsk': 'Skip this time? Nothing is written, and the next one is proposed on its day.',
   'booksSpending.bill.title': 'Add a bill',
+  // F23 fix (UI correction, Block 5, 2026-11-21) — the bill form filled from a bank line nothing matched. English only.
+  'booksSpending.fromBank.title': 'Recording a bank line as a cost',
+  'booksSpending.fromBank.note': 'Filled from the bank line of {date} for {amount}. Choose the supplier and the category, then record it: paid from this account for this amount, it is matched to the bank line as it is recorded.',
+  'booksSpending.fromBank.noteOther': 'Filled from the bank line of {date} for {amount}. Choose the supplier and the category, then record it. It is not matched to the bank line: the line is not in the currency of your books.',
+  'booksSpending.fromBank.otherCurrency': 'The bank line is in {currency}; your books are in {books}. Nothing is converted: type the amount in {books}.',
   'booksSpending.bill.lede': 'One amount, as the bill says it, tax included. The tax is split off by the code you pick; the rest goes to the category\'s account. Posted when you press the button.',
   'booksSpending.bill.gross': 'Amount, tax included ({currency})',
   'booksSpending.bill.ref': 'Bill or receipt number, as printed',
@@ -53,6 +58,8 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.categories.removeAsk': 'Remove this category? Bills already posted keep their account.',
   'booksSpending.flash.billPosted': 'Posted as {key}.',
   'booksSpending.flash.billPostedNoRef': 'Posted as {key}. The bill has no number; in the books its reference is {ref}.',
+  'booksSpending.flash.billMatched': 'Posted as {key} and matched to its bank line.',
+  'booksSpending.flash.billMatchedNoRef': 'Posted as {key} and matched to its bank line. The bill has no number; in the books its reference is {ref}.',
   'booksSpending.flash.billRefused': 'The bill was not recorded: {why}',
   'booksSpending.flash.paid': 'Marked as paid: {key}.',
   'booksSpending.flash.categoryAdded': 'Category added.',
@@ -63,6 +70,11 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.flash.recurringStopped': 'That cost is no longer proposed.',
   'booksSpending.flash.skipped': 'Skipped. The next one is proposed on its day.',
   'booksSpending.flash.proposalGone': 'That proposal was already decided.',
+  // Block 5 (Codex on #476): the bank line was matched while its bill form was open. English only.
+  'booksSpending.flash.lineChanged': 'Nothing was recorded: that bank line was matched and set aside again while the form was open, so its money may already be in the books. Check the line, then record it again from there if it still needs it.',
+  'booksSpending.flash.lineMatched': 'Nothing was recorded: that bank line was matched while the form was open, so a bill for it would count the money twice.',
+  // Block 5 fix (2026-11-21): a bill has no lines, so its refusal says what it lacks (was an entry's "Line {n}: …").
+  'booksSpending.refused.amount': 'it needs its date and an amount above zero, tax included.',
   'booksSpending.refused.choices': 'something was not chosen (the supplier, the account or the category, the journal).',
   'booksSpending.refused.supplier': 'an unpaid bill needs a supplier.',
   'booksSpending.refused.pay_account': 'only a bank or cash account can pay.',

@@ -71,7 +71,7 @@ const page = (active: string, path: string, locale: typeof LOCALES[number] = 'en
 
 const css = linkedCss(page('home', '/app'));
 const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
-const bodyOf = (sel: string) => rules.filter((r) => r.sel.split(',').map((x) => x.trim()).includes(sel)).map((r) => r.body).join(';');
+const bodyOf = (sel: string) => rules.filter((r) => r.sel.split(/,(?![^(]*\))/).map((x) => x.trim()).includes(sel)).map((r) => r.body).join(';');
 const pathOf = (svg: string) => /<path d="([^"]+)"\/>/.exec(svg)?.[1];
 /** The phone's block: the one that dissolves the rail into its row of tiles. */
 const phoneBlock = (() => {
@@ -318,16 +318,16 @@ describe('the rail, in Solar\'s Linear set', () => {
   });
 
   it('airy: each entry 52 px tall, 16 px from its icon to its word and 8 px to the next; a phone\'s tile 64 px', () => {
-    const row = bodyOf('nav.side a.navlink');
+    const row = bodyOf('nav.side :is(a,button).navlink');
     expect(row).toContain('min-height: 52px');
     expect(row).toContain('padding-block: calc((52px - 1lh) / 2)');
     expect(row).toContain('gap: var(--space-16)');
     expect(row).toContain('margin-bottom: var(--space-8)');
-    expect(phoneBlock).toMatch(/nav\.side a\.navlink \{[^}]*gap:var\(--space-8\);[^}]*min-height:64px/);
+    expect(phoneBlock).toMatch(/nav\.side :is\(a,button\)\.navlink \{[^}]*gap:var\(--space-8\);[^}]*min-height:64px/);
   });
 
   it('the icon sits level with its word\'s FIRST line; on a phone, over its word', () => {
-    expect(bodyOf('nav.side a.navlink')).toContain('align-items: flex-start');
+    expect(bodyOf('nav.side :is(a,button).navlink')).toContain('align-items: flex-start');
     expect(bodyOf('nav.side .ni')).toContain('margin-block:calc((1lh - 28px) / 2)');
     expect(phoneBlock).toContain('nav.side .ni { margin-block:0; }');
   });
@@ -355,8 +355,8 @@ describe('the rail, in Solar\'s Linear set', () => {
 
   it('a hover lifts the icon, a press sets it down, and the icon of the page you arrive on settles into place — only for a reader who did not ask for less', () => {
     const calm = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n {2}\}\n {2}@media \(prefers-reduced-motion: reduce\)/.exec(css)?.[1] ?? '';
-    expect(calm).toContain('nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }');
-    expect(calm).toContain('nav.side a.navlink:active .ni { transform:none; }');
+    expect(calm).toContain('nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }');
+    expect(calm).toContain('nav.side :is(a,button).navlink:active .ni { transform:none; }');
     expect(calm).toContain('nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }');
     expect(calm).not.toMatch(/\[dir="rtl"\] nav\.side[^{]*\.ni/);
   });

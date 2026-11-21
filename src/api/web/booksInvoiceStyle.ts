@@ -17,6 +17,27 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .book-document .caption,.book-doc-editor .caption{font-size:var(--font-size-small);}
 .bd-header{border-bottom:1px solid var(--color-border);padding-bottom:var(--space-24);margin-bottom:var(--space-32);}
 .bd-header h1{font-size:var(--font-size-hero);margin:0 0 var(--space-16);overflow-wrap:anywhere;}
+/* F19: the invoice at a glance, above the paper; the paper's own title; a line's rounding; the owner's notes under the paper. */
+.bd-summary{margin-block:var(--space-16) 0;max-width:var(--measure-column);}
+.bd-summary h1{margin:0 0 var(--space-4);overflow-wrap:anywhere;}
+.bd-summary>p{margin:0;overflow-wrap:anywhere;}
+.bd-sum-facts{display:flex;flex-wrap:wrap;gap:var(--space-12) var(--space-32);margin:var(--space-16) 0 0;}
+.bd-sum-facts>div{min-width:0;}
+.bd-sum-facts dt{font-size:var(--font-size-small);color:var(--color-ink-secondary);}
+.bd-sum-facts dd{margin:var(--space-4) 0 0;font-variant-numeric:tabular-nums;}
+.bd-sum-facts strong{font-size:var(--font-size-title);}
+.bd-next{margin:var(--space-16) 0 0;}
+.bd-next a{min-height:44px;display:inline-flex;align-items:center;font-weight:600;}
+.bd-title{font-size:var(--font-size-hero);font-weight:600;line-height:1.2;margin:0 0 var(--space-16);overflow-wrap:anywhere;}
+.bd-round{font-size:var(--font-size-small);color:var(--color-ink-secondary);margin:var(--space-4) 0 0;font-variant-numeric:tabular-nums;}
+.bd-notes{max-width:var(--measure-column);margin:calc(-1 * var(--space-8)) 0 var(--space-24);padding:var(--space-8) var(--space-16);border-inline-start:3px solid var(--color-border);}
+/* F20: a credit note — what it is against, its running total, and what it does to the balance. */
+.bd-effect{margin:var(--space-12) 0 0;font-variant-numeric:tabular-nums;max-width:var(--measure-prose);}
+.bd-credit-source{margin-block:var(--space-8) var(--space-24);}
+.bd-credit-source a,.bd-summary dd a{display:inline-flex;align-items:center;min-height:44px;}
+.bd-line-facts dd{font-variant-numeric:tabular-nums;}
+.bd-outside a,.bd-notes a{display:inline-flex;align-items:center;min-height:44px;}
+.bd-notes p{margin:var(--space-4) 0;font-size:var(--font-size-small);color:var(--color-ink);}
 .bd-header>p{margin-block:var(--space-8);}
 .bd-parties{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-32);margin-bottom:var(--space-32);}
 .bd-parties h2{font-size:var(--font-size-base);margin:0 0 var(--space-16);}
@@ -91,6 +112,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
  .book-document{padding:var(--space-20);margin-inline:0;}
  .bd-parties{grid-template-columns:minmax(0,1fr);gap:var(--space-24);}
  .bd-header h1{font-size:var(--font-size-title);}
+ .bd-title{font-size:var(--font-size-title);}
  .bd-lines thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}
  .bd-lines tbody,.bd-lines tr,.bd-lines td{display:block;width:100%;}
  .bd-lines tr{padding-block:var(--space-16);border-bottom:1px solid var(--color-border);}
@@ -137,6 +159,18 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bb-suggestion>a,.bb-line-actions>a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;}
 .bb-suggested{font-size:var(--font-size-small);}
 .bb-line-actions .pform{margin-block:var(--space-16) 0;max-width:100%;}
+.bb-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-4) var(--space-16);margin:0 0 var(--space-8);}
+.bb-head .bb-amount{font-size:var(--font-size-title);font-variant-numeric:tabular-nums;}
+.bb-flow{font-size:var(--font-size-small);font-weight:400;color:var(--color-ink-secondary);}
+.bb-wide{grid-column:1/-1;}
+.bb-ref,.bb-others{margin-top:var(--space-8);}
+.bb-ref>summary,.bb-others>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:var(--font-size-small);}
+.bb-ref p{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.bb-others>.bb-suggestion{border-top:1px solid var(--color-border);padding-top:var(--space-16);margin-top:var(--space-8);}
+.bb-facts dd a{display:inline-flex;align-items:center;min-height:44px;}
+.bb-empty{font-weight:500;margin-block:var(--space-16);}
+.bb-no-other{margin-top:var(--space-12);}
+@media(max-width:720px){.bb-review-line{grid-template-columns:minmax(0,1fr);gap:var(--space-16);}}
 .bank-mapping .bb-preview{overflow:auto;max-width:100%;border:1px solid var(--color-border);margin-bottom:var(--space-32);}
 .bank-mapping .bb-preview:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px;}
 .bank-mapping .bb-preview table{font-size:var(--font-size-small);min-width:100%;}
@@ -151,7 +185,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
 }
 @media print{
  body:has(.book-document){background:var(--color-surface);}
- body:has(.book-document) nav,body:has(.book-document) .area-chooser,body:has(.book-document) .skip,body:has(.book-document) dialog,body:has(.book-document) .flash,body:has(.book-document) .live,.bd-outside{display:none!important;}
+ body:has(.book-document) nav,body:has(.book-document) .area-chooser,body:has(.book-document) .skip,body:has(.book-document) dialog,body:has(.book-document) .flash,body:has(.book-document) .live,.bd-outside,.bd-summary,.bd-notes{display:none!important;}
  body:has(.book-document) main>:not(:has(.book-document)):not(.book-document){display:none!important;}
  body:has(.book-document) .layout,body:has(.book-document) .content{display:block;margin:0;padding:0;}
  body:has(.book-document) main{max-width:100%;width:100%;margin:0;padding:0;}

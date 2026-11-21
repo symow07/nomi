@@ -39,7 +39,8 @@ import {
 import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
-import { renderBooksOverview, renderBooksReportsHome, booksDoors, type ScopeAccount } from './booksOverview.js';
+import { renderBooksOverview, renderBooksReportsHome, booksDoors, booksDay, type ScopeAccount } from './booksOverview.js';
+import { renderBooksSetup } from './booksSetup.js';
 import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
@@ -82,7 +83,7 @@ import { cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot } from './operations.js';
 import { loadSplitData, renderSplitToday } from './splitToday.js';
-import { savedTotalOf, renderInvoiceTotal } from './booksInvoices.js';
+import { savedTotalOf, renderInvoiceTotal, renderCreditTotal, creditInvoiceOf } from './booksInvoices.js';
 import { renderSplitInbox } from './splitInbox.js';
 import { safeInboxReturn } from './inboxNavigation.js';
 import { stageOf } from '../../db/customerStage.js';
@@ -367,11 +368,11 @@ import { draftFromReading, keepReading, paperOf } from '../../db/booksDocuments.
 import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
-import { creditable, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, keepStatementLayout, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote, type CreditLineInput } from '../../db/booksCreditNotes.js';
+import { bankAccounts, importStatement, keepStatementLayout, lineForBill, lineMatchCount, matchBillToLine, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
-import { CURRENCIES } from '../../core/types/money.js';
+import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
 import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js';
 import { checkRegistry } from '../../core/books/registry.js';
@@ -1239,7 +1240,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : s && (path === '/app/settings' || settingsGroup(path)) && path !== '/app/settings/components'
         ? settingsArea((settingsGroup(path) ? settingsPageLinks(locale,settingsGroup(path)!,path,personOf(s)) : '') + o.bodyHtml, locale, path, personOf(s))
         : s && assistantSection(path) ? assistantArea(o.bodyHtml, locale, path) : o.bodyHtml;
-    return shell({ ...o, bodyHtml, locale, path: o.booksPath??req.url });
+    // UI correction, Block 5 (check 6) — on the Books pages and their settings, every option's words are isolated on a
+    // right-to-left page (an option cannot hold a <bdi>; `isolateOptions`).
+    const books = /^\/app\/(?:settings\/)?books(?:\/|$)/.test(path);
+    return shell({ ...o, bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
   };
 
   /**
@@ -3105,7 +3109,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (problems.length === 0 && lines.length < 2) problems.push(t(locale, 'books.entry.problem.twoLines'));
     const again = async(list: readonly string[]) => {
       const entry=paper&&editing?await withTenantTx(deps.db,bid,tx=>loadEntry(tx,bid,editing)):null;
-      return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,editing?'books.draft.editTitle':'books.entries.new'),active:'settings',...(paper?{booksPath:'/app/books/spending'}:{}),bodyHtml:paper&&entry?renderSpendingDraft(locale,personOf(s),paper,entry,c,values,list,booksToday(),entryContext(req)):renderNewEntry(locale,c,values,list,booksToday(),editing,entryContext(req))}));
+      return reply.code(422).type('text/html; charset=utf-8').send(page(req,{title:t(locale,editing?'books.draft.editTitle':'books.entries.new'),active:'settings',...(paper?{booksPath:'/app/books/spending'}:{}),bodyHtml:paper&&entry?renderSpendingDraft(locale,personOf(s),paper,entry,c,values,list,booksToday(),{...entryContext(req),previewHref:`/app/books/spending/${paper.id}/preview`}):renderNewEntry(locale,c,values,list,booksToday(),editing,entryContext(req))}));
     };
     if (problems.length > 0) return again(problems);
     const input = { journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines,
@@ -3236,7 +3240,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   app.get('/app/settings/books',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:`<h1 class="page">${esc(t(locale,'booksArea.settings'))}</h1><p class="lede">${esc(t(locale,'booksArea.setupHint'))}</p>`+booksDoors(locale,[['/app/settings/books/country','books.country.nav'],['/app/settings/books/starting-balances','booksArea.opening'],['/app/settings/books/accounts','booksArea.accounts'],['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/tax','booksArea.taxDetails'],['/app/settings/books/fields','booksArea.fields']])}));
+    const bid=bidOf(s);if(!bid)return reply.callNotFound();
+    const st=await withTenantTx(deps.db,bid,async(tx)=>{const v=await countryBooksOf(tx,bid),c=await closeState(tx,bid),a=await booksAccountsOf(tx,bid),m=await moneyAccountChoices(tx,bid);
+      return {country:v.country,start:c.start?.day??null,years:c.years.length,accounts:!!a.salesJournalId&&!!a.receivableAccountId&&!!a.salesAccountId,
+        identifier:!!v.ein||!!v.companyNumber||v.moroccanIds,money:m.filter(x=>x.marked||x.byRule).length};});
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:renderBooksSetup(locale,st,[['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/fields','booksArea.fields']])}));
   });
   app.get('/app/settings/books/accounts',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
@@ -3533,26 +3541,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = editing?.invoiceId ?? (req.params as { id: string }).id;
     const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, booksToday()), lines: await creditable(tx, bid, id) }));
     if (!got.v || !got.v.key) return reply.callNotFound();
+    // F20 fix — no figure is drawn here: one drawn without the script could not follow an edit (the page asks the
+    // preview route as it opens instead).
     return reply.code(code).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.credit.new', { invoice: got.v.key }), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, { id, key: got.v.key, party: got.v.party, currency: got.v.currency }, got.lines, values, problems, booksToday(), editing?.id ?? null, invoiceContext(req))}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderNewCreditNote(locale, creditInvoiceOf(got.v), got.lines, values, problems, booksToday(), editing?.id ?? null, invoiceContext(req))}` }));
   };
-  app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
-    return creditForm(req, reply, {}, []);
-  });
-  /** A credit note's draft against an issued invoice, or (0216 (a), `editing`) a draft saved over. */
-  const saveCredit = (editingNote: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
-    const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    const bid = bidOf(s); if (!bid) return reply.callNotFound();
-    const locale = localeOf(req);
-    const param = (req.params as { id: string }).id;
-    if (!/^[0-9a-f-]{36}$/i.test(param)) return reply.callNotFound();
-    const draft = editingNote ? await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, param)) : null;
-    if (editingNote && !draft) return reply.callNotFound();
-    const editing = draft ? { id: param, invoiceId: draft.invoiceId } : null;
-    const id = editing?.invoiceId ?? param;
-    const f = (req.body ?? {}) as Record<string, unknown>;
+  /**
+   * F20 — A CREDIT NOTE'S FORM, READ ONCE: Save and the running total read it here, the same way. Its day, its reason,
+   * and each invoice line's quantity given back (qtyN) and price lowered (redN, 0216).
+   */
+  function readCreditForm(body: unknown, locale: Locale): { values: Record<string, string>; problems: string[]; reason: string; issueDate: string; lines: CreditLineInput[] } {
+    const f = (body ?? {}) as Record<string, unknown>;
     const values: Record<string, string> = {};
     for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.trim();
     const problems: string[] = [];
@@ -3571,6 +3570,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       byLine.set(n, m[1] === 'qty' ? { ...was, quantity: q } : { ...was, reduction: q });
     }
     const lines = [...byLine].map(([invoiceLineNo, l]) => ({ invoiceLineNo, ...l }));
+    return { values, problems, reason, issueDate, lines };
+  }
+  /** F20 — a line Save would send back holds the running total; the reason and the day are Save's to check and do not. */
+  const creditLineTrouble = (locale: Locale, problems: readonly string[]) =>
+    problems.some((p) => p !== t(locale, 'books.credit.problem.reason') && p !== t(locale, 'books.entry.problem.date'));
+  app.get('/app/books/invoices/:id/credit-notes/new', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    if (!bidOf(s) || !/^[0-9a-f-]{36}$/i.test((req.params as { id: string }).id)) return reply.callNotFound();
+    return creditForm(req, reply, {}, []);
+  });
+  /** A credit note's draft against an issued invoice, or (0216 (a), `editing`) a draft saved over. */
+  const saveCredit = (editingNote: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const param = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(param)) return reply.callNotFound();
+    const draft = editingNote ? await withTenantTx(deps.db, bid, (tx) => draftCreditForm(tx, bid, param)) : null;
+    if (editingNote && !draft) return reply.callNotFound();
+    const editing = draft ? { id: param, invoiceId: draft.invoiceId } : null;
+    const id = editing?.invoiceId ?? param;
+    const { values, problems, reason, issueDate, lines } = readCreditForm(req.body, locale);
     if (problems.length > 0) return creditForm(req, reply, values, problems, 422, editing);
     const out = await withTenantTx(deps.db, bid, (tx) => (editing
       ? redraftCreditNote(tx, bid, editing.id, { issueDate, reason, lines })
@@ -3579,6 +3600,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, invoiceDestination(req,`/app/books/credit-notes/${out.id}`), editing ? 'books.flash.draftSaved' : 'books.flash.creditDrafted');
   };
   app.post('/app/books/invoices/:id/credit-notes', saveCredit(false));
+  /**
+   * F20 — THE CREDIT WHILE THE FORM IS FILLED. Reads the form exactly as Save does (`readCreditForm`) and answers what
+   * Save would store for its lines (`creditPreview`: Save's own `creditLineFigures` over the invoice's lines as
+   * `creditable` reads them) and what that does to what the customer still owes, as a fragment the page puts beside Save.
+   * It writes nothing: two reads in the workspace's own transaction. The same role as Save (`BOOKS_ROUTES`: post).
+   */
+  app.post('/app/books/invoices/:id/credit-notes/preview', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = readCreditForm(req.body, locale);
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ v: await loadInvoice(tx, bid, id, booksToday()), lines: await creditable(tx, bid, id) }));
+    if (!got.v || !got.v.key || got.v.status === 'draft' || got.v.status === 'discarded') return reply.callNotFound();
+    reply.header('cache-control', 'no-store').type('text/html; charset=utf-8');
+    return reply.send(`<div data-total-body>${renderCreditTotal(locale, creditLineTrouble(locale, f.problems) ? null : creditPreview(f.lines, got.lines), creditInvoiceOf(got.v))}</div>`);
+  });
   app.post('/app/books/credit-notes/:id/edit', saveCredit(true));
   app.get('/app/books/credit-notes/:id/edit', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3592,10 +3631,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
-    const c = await withTenantTx(deps.db, bid, (tx) => loadCreditNote(tx, bid, (req.params as { id: string }).id));
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const c = await loadCreditNote(tx, bid, (req.params as { id: string }).id);
+      return { c, v: c ? await loadInvoice(tx, bid, c.invoiceId, booksToday()) : null };
+    });
+    const c = got.c;
     if (!c) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: c.key ?? t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderCreditNote(locale, personOf(s), c, {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId)})}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderCreditNote(locale, personOf(s), c, {...invoiceContext(req), issuer:await loadBusinessProfile(deps.db,s.businessId), ...(got.v ? { creditInvoice: creditInvoiceOf(got.v) } : {})})}` }));
   });
   app.post('/app/books/credit-notes/:id/issue', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3788,7 +3831,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const asked=(req.query as {state?:unknown}).state;
     const states=['pending','unread','problem','ready','draft','posted','set_aside'] as const;const state=states.find(x=>x===asked);
-    const body=asked==='history'?renderBooksHistory(locale,await withTenantTx(deps.db,bid,tx=>readOverviewHistoryPapers(tx,bid,{page:overviewPageOf(req)}))):renderSpending(locale,personOf(s),await withTenantTx(deps.db,bid,tx=>readOverviewPapers(tx,bid,{page:overviewPageOf(req),...(state?{state}:{})})),Boolean(deps.documents),{...(state?{state}:{}),returnHref:req.url});
     // 0227 (Block 2 PR 3) — the owner's spending book above the papers: what waits for a tick, a bill, what is unpaid, the schedule, the categories.
     const book = asked==='history' ? '' : await withTenantTx(deps.db, bid, async (tx) => {
       const today = await spendingToday(tx, bid);
@@ -3806,12 +3848,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const last = monthDays(offer.month)!.last;
         prefill = { ads: `${offer.month}.${offer.platform}`, label: t('en', 'adSpend.prefill.label', { platform: place, month: offer.month }),
           date: last < today ? last : today, gross: exact ? offer.amount : null,
-          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: `${offer.currency} ${offer.amount}` }),
+          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: ((m) => (m ? show.money(locale, m) : `${offer.currency} ${offer.amount}`))(moneyFromRow(offer.amount, offer.currency)) }),
             ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
+      }
+      // F23 fix — "Record it as a cost" from a bank line nothing matched: the form filled from the line's own date,
+      // words and amount, paid from its account, so the bill's entry is matched to the line as it is recorded (Block 5).
+      // Only money out, only a line still open, only from an account the bill can be paid from; anything else is the
+      // plain form. The owner's only.
+      const q = req.query as { bankLine?: unknown; account?: unknown; seen?: unknown };
+      const uuidOf = (x: unknown) => (typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x) ? x : null);
+      const bankLine = !ads && booksMay(personOf(s), 'post') ? uuidOf(q.bankLine) : null;
+      const bankAccount = bankLine ? uuidOf(q.account) : null;
+      if (bankLine && bankAccount && choices.payAccounts.some((a) => a.id === bankAccount)) {
+        const [l] = await openLines(tx, bid, bankAccount, bankLine);
+        if (l && signOf(l.amount) < 0) {
+          const gross = String(l.amount).replace(/^-/, '');
+          const sameCurrency = l.currency === choices.bookCurrency;
+          // a form sent back after a refusal keeps the count it was first drawn with, so a stale form stays stale
+          const seen = typeof q.seen === 'string' && /^\d{1,6}$/.test(q.seen) ? Number(q.seen) : await lineMatchCount(tx, bid, l.id);
+          prefill = { bank: { line: l.id, account: bankAccount, seen }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
+            notes: [t(locale, sameCurrency ? 'booksSpending.fromBank.note' : 'booksSpending.fromBank.noteOther', { date: booksDay(locale, l.bookedOn), amount: ((m) => (m ? show.money(locale, m) : `${l.currency} ${gross}`))(moneyFromRow(gross, l.currency)) }),
+              ...(sameCurrency ? [] : [t(locale, 'booksSpending.fromBank.otherCurrency', { currency: l.currency, books: choices.bookCurrency })])] };
+        }
       }
       return renderSpendingBook(locale, personOf(s), { today, monthFrom, proposals: await waitingProposals(tx, bid), unpaid: await unpaidBills(tx, bid), recurring: await listRecurring(tx, bid), spentThisMonth: await spentBetween(tx, bid, monthFrom, today), ...(prefill ? { prefill } : {}) }, choices);
     });
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+book+body}));
+    // F24 (UI correction, Block 5) — the page's title first, the spending book under it, then the receipts.
+    const body=asked==='history'?renderBooksHistory(locale,await withTenantTx(deps.db,bid,tx=>readOverviewHistoryPapers(tx,bid,{page:overviewPageOf(req)}))):renderSpending(locale,personOf(s),await withTenantTx(deps.db,bid,tx=>readOverviewPapers(tx,bid,{page:overviewPageOf(req),...(state?{state}:{})})),Boolean(deps.documents),{...(state?{state}:{}),returnHref:req.url,book});
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.papers.title'), active: 'settings',bodyHtml:flashBanner(takeFlash(req,reply))+(asked==='history'?book:'')+body}));
   });
 
   // ── 0227 · the spending book's writes (the owner's, `booksMay 'post'`) ───────────────────────────────────────────
@@ -3830,16 +3894,39 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const f = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
-    const uuid = (k: string) => (/^[0-9a-f-]{36}$/i.test(str(k)) ? str(k) : null);
+    // Block 5 — a uuid's own shape, in lower case: 36 dashes passed the old test and broke the line's lookup (a 500),
+    // and an upper-case account id recorded the bill, then went to a bank page that compares ids exactly (a 404).
+    const uuid = (k: string) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str(k)) ? str(k).toLowerCase() : null);
     const gross = readTypedAmount(str('gross'));
     const date = dayOf(str('date'));
-    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: t(locale, 'books.entry.problem.amount') });
+    // F23 fix — the bank line a bill is recorded from, when it came from one (see the redirects below).
+    const fromBank = typeof f['ads'] !== 'string' && uuid('bankLine') && uuid('bankAccount') ? { line: uuid('bankLine')!, account: uuid('bankAccount')! } : null;
+    const seenIn = /^\d{1,6}$/.test(str('bankSeen')) ? Number(str('bankSeen')) : null;
+    const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account, ...(seenIn === null ? {} : { seen: String(seenIn) }) })}#bill` : '/app/books/spending#bill';
+    // Block 5 — the line first: a form whose line was matched (or matched and set aside) while it was open is told so
+    // before any typo of its own, never sent back to a form that hides it. Checked again under the lock below.
+    const before = fromBank ? await withTenantTx(deps.db, got.bid, (tx) => lineForBill(tx, got.bid, fromBank.account, fromBank.line, seenIn)) : null;
+    if (before === 'matched') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}`, 'booksSpending.flash.lineMatched');
+    if (before === 'changed') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}#bank-line-${fromBank!.line}`, 'booksSpending.flash.lineChanged');
+    if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.amount') });
     const noNumber = str('noref') === '1';
     // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
     // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
     const ads = typeof f['ads'] === 'string' && str('ads') !== '' ? adsAsked(str('ads')) : undefined;
     if (ads === null) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    // Block 5 — every "none" of the form sends an empty value, so a chosen field that is not an id was made by hand:
+    // refused, never read as "none" (a garbled tax code would otherwise post the bill untaxed).
+    if (['supplier', 'tax', 'category', 'account', 'payFrom'].some((k) => str(k) !== '' && uuid(k) === null))
+      return flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.choices') });
+    // Block 5 — the line must be this workspace's, on that account: a line it does not hold (another workspace's, or
+    // gone) makes this a plain bill, back to Spending, never a redirect to a bank page that is not there. A line that was
+    // matched while the form was open is refused: its money is already in the books, and a bill would count it twice.
+    let backToLine = false;
     const out = await withTenantTx(deps.db, got.bid, async (tx) => {
+      const line = fromBank ? await lineForBill(tx, got.bid, fromBank.account, fromBank.line, seenIn) : null;
+      if (line === 'matched') return { kind: 'line_matched' as const };
+      if (line === 'changed') return { kind: 'line_changed' as const };
+      backToLine = line === 'open';
       let offer: Awaited<ReturnType<typeof recordOffer>> = null;
       if (ads) {
         await lockAdRecord(tx, got.bid);
@@ -3849,10 +3936,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const r = await recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
         taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') });
       if (r.kind === 'posted' && offer) await linkRecorded(tx, got.bid, offer, r.billId, personOf(got.s).id);
+      // Block 5 (the owner's choice, 2026-11-21) — recorded from an open line, the bill is matched to it in the same
+      // step, so the line can never be matched again to a second entry for the same money.
+      if (r.kind === 'posted' && fromBank && backToLine)
+        return { ...r, matched: await matchBillToLine(tx, got.bid, personOf(got.s).id, fromBank.line, fromBank.account, r.entryId) };
       return r;
     });
     if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    if (out.kind === 'line_matched') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}`, 'booksSpending.flash.lineMatched');
+    if (out.kind === 'line_changed') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}#bank-line-${fromBank!.line}`, 'booksSpending.flash.lineChanged');
     if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
+    // F23 fix — a bill recorded from a bank line goes back to the bank page: matched to the line, or, when it could not
+    // be (paid from another account, another amount), to the line, still open. A refused one goes back to the filled form.
+    if (fromBank && backToLine && out.kind === 'posted' && 'matched' in out && out.matched)
+      return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-matched`, noNumber ? 'booksSpending.flash.billMatchedNoRef' : 'booksSpending.flash.billMatched', { key: out.key, ref: out.documentRef });
+    if (fromBank && backToLine) return out.kind === 'posted'
+      ? flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-line-${fromBank.line}`, noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
+      : flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
     return out.kind === 'posted' ? flashTo(reply, '/app/books/spending#unpaid', noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
       : flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : '/app/books/spending#bill', 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });
   });
@@ -3956,7 +4056,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const entry=await loadEntry(tx,bid,entryId);return entry?{p,entry,choices:await entryChoices(tx,bid),values:await draftEntryForm(tx,bid,entry.id)??{}}:null;
     });
     if(!got)return reply.callNotFound();
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.draft'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderSpendingDraft(locale,personOf(s),got.p,got.entry,got.choices,got.values,[],booksToday(),entryContext(req))}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.draft'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderSpendingDraft(locale,personOf(s),got.p,got.entry,got.choices,got.values,[],booksToday(),{...entryContext(req),previewHref:`/app/books/spending/${got.p.id}/preview`})}));
   });
   app.get('/app/books/spending/:id/preview',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid||!deps.documents)return reply.callNotFound();
@@ -4243,7 +4343,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const historical=typeof query.account==='string'&&!accounts.some(a=>a.id===query.account)?(await sql<{id:string;code:string;name:string}>`select a.id::text as id,a.code,a.name from accounts a where a.business_id=${bid}::uuid and a.id::text=${query.account} and a.kind='asset' and not a.is_active and exists(select 1 from statement_lines l where l.business_id=a.business_id and l.account_id=a.id)`.execute(tx)).rows:[];
       const choices=[...accounts,...historical];
       const accountId = query.account===undefined?null:bankAccountOf(query.account,choices);
-      return { accounts:choices, accountId, historical:historical.length>0, open: accountId ? await openLines(tx, bid, accountId, lineId) : [], matched: accountId ? await matchedLines(tx, bid, accountId) : [] };
+      const bookCurrency=(await sql<{c:string}>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c;
+      return { accounts:choices, accountId, historical:historical.length>0, bookCurrency, open: accountId ? await openLines(tx, bid, accountId, lineId) : [], matched: accountId ? await matchedLines(tx, bid, accountId) : [] };
     });
     if((query.account!==undefined&&!got.accountId)||(lineId&&!got.open.length))return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.bank.title'), active: 'settings',

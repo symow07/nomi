@@ -1,0 +1,280 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import Fastify from 'fastify';
+import pg from 'pg';
+import { asTenant, purgeBusinesses, type Q } from './books-db.js';
+
+/**
+ * F23 fix (UI correction, Block 5; the owner's ruling, 2026-11-21) — A BANK LINE NOTHING MATCHES STILL HAS A NEXT STEP.
+ * On a Moroccan workspace whose pack came through the country page: a statement read in with money out and money in
+ * and no entry for either. Money out: "Record it as a cost" opens the bill form filled from the line (date, the bank's
+ * words, the amount, paid from that account); recorded, the bill's own entry is matched to the line in the same step
+ * (Block 5, the owner's choice) and the line is closed. A bill changed to another amount is recorded and the line stays
+ * open. Money in leads to the unpaid invoices. The accountant and staff are offered no step and get no filled form.
+ */
+const DATABASE_URL = process.env['DATABASE_URL'];
+const ADMIN_URL = process.env['MIGRATE_DATABASE_URL'];
+const d = DATABASE_URL && ADMIN_URL ? describe : describe.skip;
+const RUN = randomUUID().slice(0, 8);
+const BIZ = `f2330000-0000-4000-8000-${RUN}0001`;
+const SECRET = 'a-test-session-secret-of-sufficient-length';
+const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+
+d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 180_000 }, () => {
+  let db: import('../../src/db/client.js').Db;
+  let admin: pg.Client;
+  let tenant: pg.Client;
+  let app: import('fastify').FastifyInstance;
+  let owner = ''; let staff = ''; let accountant = '';
+  let today = '';
+  let bank = ''; let expenseId = '';
+  const as = <T>(fn: (q: Q) => Promise<T>) => asTenant(tenant, BIZ, fn);
+  const cookieOf = (r: { headers: Record<string, unknown> }) =>
+    ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=')) ?? '';
+  const get = (url: string, who = owner) => app.inject({ method: 'GET', url, headers: { cookie: who } });
+  const post = (url: string, body: Record<string, string>, who = owner) => app.inject({ method: 'POST', url, payload: new URLSearchParams(body).toString(), headers: { cookie: who, ...FORM } });
+  const lineOf = async (amount: string) => (await as((q) => q(`select id::text as id from statement_lines where amount = $1`, [amount]))).rows[0].id as string;
+  const lineHtml = (page: string, id: string) => { const at = page.indexOf(`id="bank-line-${id}"`); expect(at, `line ${id} on the page`).toBeGreaterThan(-1); const end = page.indexOf('</li>', at); return page.slice(at, end); };
+
+  beforeAll(async () => {
+    admin = new pg.Client({ connectionString: ADMIN_URL }); await admin.connect();
+    tenant = new pg.Client({ connectionString: DATABASE_URL }); await tenant.connect();
+    await admin.query(`insert into businesses (id, name, engine, country, currency, books_area, timezone) values ($1, $2, 'service', 'MA', 'MAD', true, 'Africa/Casablanca')`, [BIZ, `Bank next step ${RUN}`]);
+    const { createDb } = await import('../../src/db/client.js');
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    const { addPerson } = await import('../../src/api/web/people.js');
+    const { dayKey } = await import('../../src/core/owner/i18n/format.js');
+    today = dayKey(new Date(), 'Africa/Casablanca');
+    db = createDb(DATABASE_URL!);
+    app = Fastify({ logger: { level: 'error' } });
+    registerWebApp(app, {
+      db, businessId: BIZ, accessCode: `next-${RUN}`, sessionSecret: SECRET, factsTtlMs: 0,
+      employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled', secureCookie: false, messagingEnabled: false,
+      kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await app.ready();
+    const login = (code: string) => app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
+    owner = cookieOf(await login(`next-${RUN}`));
+    const acct = await addPerson(db, BIZ, SECRET, `Accountant ${RUN}`, 'accountant'); if (acct.code !== 'added') throw new Error('fixture');
+    accountant = cookieOf(await login(acct.accessCode));
+    const team = await addPerson(db, BIZ, SECRET, `Staff ${RUN}`, 'team'); if (team.code !== 'added') throw new Error('fixture');
+    staff = cookieOf(await login(team.accessCode));
+    expect((await post('/app/books/country', { country: 'MA', period: 'month', year_start: `${today.slice(0, 4)}-01-01` })).statusCode).toBe(302);
+    bank = (await as((q) => q(`select id::text as id from accounts where code = '5141'`))).rows[0].id as string;
+    expenseId = (await as((q) => q(`select id::text as id from accounts where kind = 'expense' and is_active and code ~ '^61' and not exists (select 1 from accounts c where c.parent_id = accounts.id) order by code limit 1`))).rows[0].id as string;
+    // The statement: money out and money in today, and no entry in the books for either.
+    const day = today.replace(/-/g, '');
+    const ofx = `OFXHEADER:100
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>MAD<BANKTRANLIST>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>${day}<TRNAMT>-380.00<FITID>NX-${RUN}-1<NAME>RIF COTON</STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>${day}<TRNAMT>1440.60<FITID>NX-${RUN}-2<NAME>VIR ATLAS TEXTILES</STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+    const boundary = `----nomi${RUN}`;
+    const up = await app.inject({ method: 'POST', url: `/app/books/bank/import?account=${bank}`, headers: { cookie: owner, 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: `--${boundary}\r\nContent-Disposition: form-data; name="statement"; filename="statement.ofx"\r\nContent-Type: application/octet-stream\r\n\r\n${ofx}\r\n--${boundary}--\r\n` });
+    expect(up.statusCode).toBe(302);
+  });
+  afterAll(async () => { await app?.close(); await db?.destroy(); await tenant?.end(); await purgeBusinesses(admin, [BIZ], 'books-bank-next-step-test'); await admin?.end(); });
+
+  it('the bank page offers each unmatched line its next step; the accountant reads the lines and is offered none', async () => {
+    const out = await lineOf('-380.00'); const inn = await lineOf('1440.60');
+    const page = (await get(`/app/books/bank?account=${bank}`)).body;
+    const o = lineHtml(page, out);
+    expect(o).toContain('No entry of the same amount within a week.');
+    expect(o).toContain(`href="/app/books/spending?bankLine=${out}&amp;account=${bank}#bill">Record it as a cost</a>`);
+    expect(o).toContain('href="/app/books/advanced/entries/new">Write an entry for this line</a>');
+    const i = lineHtml(page, inn);
+    expect(i).toContain('href="/app/books/invoices?state=unpaid">Find the invoice it pays</a>'); expect(i).not.toContain('Record it as a cost');
+    const read = (await get(`/app/books/bank?account=${bank}`, accountant)).body;
+    expect(lineHtml(read, out)).not.toContain('Record it as a cost'); expect(read).not.toContain('entries/new');
+  });
+
+  it('"Record it as a cost" fills the bill form from the line; money in, staff and the accountant get no filled form', async () => {
+    const out = await lineOf('-380.00'); const inn = await lineOf('1440.60');
+    const filled = (await get(`/app/books/spending?bankLine=${out}&account=${bank}`)).body;
+    const form = filled.slice(filled.indexOf('id="bill"'), filled.indexOf('</form>', filled.indexOf('id="bill"')));
+    expect(form).toContain('Recording a bank line as a cost');
+    expect(form).toContain(`name="bankLine" value="${out}"`); expect(form).toContain(`name="bankAccount" value="${bank}"`);
+    expect(form).toMatch(new RegExp(`name="date" value="${today}"`));
+    expect(form).toContain('name="label" maxlength="200" required value="RIF COTON"');
+    expect(form).toMatch(/name="gross" inputmode="decimal" required value="380(\.00?)?"/);
+    expect(form).toMatch(new RegExp(`<select name="payFrom">.*<option value="${bank}" selected>`, 's'));
+    expect(form).toContain('Filled from the bank line of');
+    // the amount as money, never the bare stored figure ("MAD 380")
+    expect(form).toMatch(/Filled from the bank line of [^<]* for [^<]*380\.00/);
+    expect(form).not.toMatch(/for MAD 380(?!\.00)/);
+    // money in is not a cost: the plain form
+    const plain = (await get(`/app/books/spending?bankLine=${inn}&account=${bank}`)).body;
+    expect(plain).not.toContain('name="bankLine"'); expect(plain).toContain('Add a bill');
+    // the accountant reads the page with no bill form; staff the same
+    for (const who of [accountant, staff]) expect((await get(`/app/books/spending?bankLine=${out}&account=${bank}`, who)).body).not.toContain('name="bankLine"');
+  });
+
+  const matchOf = async (line: string) => (await as((q) => q(`select l.entry_id::text as e from statement_matches m join journal_lines l on l.id = m.journal_line_id
+     where m.statement_line_id = $1 and m.unmatched_at is null`, [line]))).rows.map((r) => r.e as string);
+  const flashOf = async (r: { headers: Record<string, unknown> }) => {
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    return (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+  };
+
+  it('a bill from the line changed to another amount is recorded and not matched: back to the line, still open', async () => {
+    const out = await lineOf('-380.00');
+    const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON part', ref: `RP-${RUN}`, gross: '300.00', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [`RP-${RUN}`]))).rows[0].n).toBe(1);
+    expect(await matchOf(out)).toEqual([]);
+    expect(lineHtml((await get(`/app/books/bank?account=${bank}`)).body, out)).toContain('Record it as a cost');
+  });
+
+  it('recorded from the line, the bill is matched to it in the same step: the line is closed, matched to the bill\'s own entry', async () => {
+    const out = await lineOf('-380.00');
+    const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref: `RC-${RUN}`, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    const bill = (await as((q) => q(`select b.entry_id::text as e from spending_bills b join journal_entries j on j.id = b.entry_id where j.document_ref = $1`, [`RC-${RUN}`]))).rows[0] as { e: string };
+    expect(await matchOf(out)).toEqual([bill.e]);
+    const next = await flashOf(r);
+    expect(next).toContain('and matched to its bank line.');
+    expect(next).not.toContain(`id="bank-line-${out}"`);
+    // matched once: the line is offered no second entry, and a second match of it is refused
+    const other = (await as((q) => q(`select l.id::text as id from journal_lines l join journal_entries j on j.id = l.entry_id where j.document_ref = $1 and l.credit is not null`, [`RP-${RUN}`]))).rows[0].id as string;
+    await post('/app/books/bank/match', { account: bank, line: out, journalLine: other });
+    expect(await matchOf(out)).toEqual([bill.e]);
+  });
+
+  it('a refused bill from a bank line goes back to the same filled form', async () => {
+    const inn = await lineOf('1440.60');
+    const r = await post('/app/books/spending/bills', { bankLine: inn, bankAccount: bank, date: today, label: 'x', gross: 'nope', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/spending?bankLine=${inn}&account=${bank}#bill`);
+    // the notice says what the bill lacks: a bill has no lines, so no "Line {n}"
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+    expect(next).toContain('The bill was not recorded: it needs its date and an amount above zero, tax included.');
+    expect(next).not.toContain('{n}');
+  });
+
+  it('a bill naming a bank line this workspace does not hold is a plain bill: back to Spending, never a bank page that is not there', async () => {
+    const inn = await lineOf('1440.60');
+    const foreign = randomUUID();
+    // another workspace's account (here: one no workspace has) with a real line; then this account with a line it does not hold
+    for (const [i, form] of [{ bankLine: inn, bankAccount: foreign }, { bankLine: randomUUID(), bankAccount: bank }].entries()) {
+      const r = await post('/app/books/spending/bills', { ...form, date: today, label: 'FORGED', ref: `FG-${RUN}-${i}`, gross: '12.00', account: expenseId, payFrom: bank });
+      expect(r.statusCode).toBe(302);
+      expect(r.headers['location'], `case ${i}`).toBe('/app/books/spending#unpaid');
+    }
+    // the refused one goes back to the plain form too, once inside (the early refusal's filled form draws plain: the GET checks the line)
+    const refused = await post('/app/books/spending/bills', { bankLine: inn, bankAccount: foreign, date: today, label: 'FORGED', gross: '12.00', payFrom: bank });
+    expect(refused.headers['location']).toBe('/app/books/spending#bill');
+    expect((await get(`/app/books/spending?bankLine=${inn}&account=${foreign}`)).body).not.toContain('name="bankLine"');
+  });
+
+  it('a malformed id is no id (never a 500), and an upper-case id of this workspace\'s line goes back to that line', async () => {
+    const inn = await lineOf('1440.60');
+    for (const [i, bad] of ['-'.repeat(36), 'a'.repeat(36), `${inn.replace(/-/g, '')}abcd`].entries()) {
+      const r = await post('/app/books/spending/bills', { bankLine: bad, bankAccount: bad, date: today, label: 'MALFORMED', ref: `MF-${RUN}-${i}`, gross: '7.00', account: expenseId, payFrom: bank });
+      expect(r.statusCode, `case ${i}`).toBe(302);
+      expect(r.headers['location'], `case ${i}`).toBe('/app/books/spending#unpaid');
+    }
+    const up = await post('/app/books/spending/bills', { bankLine: inn.toUpperCase(), bankAccount: bank.toUpperCase(), date: today, label: 'UPPER', ref: `UP-${RUN}`, gross: '7.00', account: expenseId, payFrom: bank });
+    expect(up.statusCode).toBe(302);
+    expect(up.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${inn}`);
+    expect((await get(String(up.headers['location']).split('#')[0]!)).statusCode).toBe(200);
+  });
+
+  it('a chosen field that is not an id is refused, never read as "none" (a garbled tax code posts nothing)', async () => {
+    const posted = async (ref: string) => (await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n as number;
+    for (const [i, [field, bad]] of ([['tax', '-'.repeat(36)], ['tax', 'vat'], ['supplier', 'a'.repeat(36)], ['category', 'none'], ['account', 'x'], ['payFrom', '-'.repeat(36)]] as const).entries()) {
+      const ref = `GB-${RUN}-${i}`;
+      const r = await post('/app/books/spending/bills', { date: today, label: 'GARBLED', ref, gross: '9.00', account: expenseId, payFrom: bank, [field]: bad });
+      expect(r.statusCode, `${field}=${bad}`).toBe(302);
+      expect(r.headers['location'], `${field}=${bad}`).toBe('/app/books/spending#bill');
+      expect(await posted(ref), `${field}=${bad}`).toBe(0);
+    }
+  });
+
+  it('a bill from a line matched while its form was open is refused: nothing posted, back to the bank page (never counted twice)', async () => {
+    const out = await lineOf('-380.00'); // matched above, by the bill recorded from it
+    expect((await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].n).toBe(1);
+    const ref = `LM-${RUN}`;
+    const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+    expect(next).toContain('Nothing was recorded: that bank line was matched while the form was open');
+    // the same stale form with a typo is told the same, not sent to a plain form that hides the match
+    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(typo.headers['location']).toBe(`/app/books/bank?account=${bank}`);
+    expect(await flashOf(typo)).toContain('Nothing was recorded: that bank line was matched while the form was open');
+  });
+
+  it('a form opened before the line was matched and set aside again is stale: refused, nothing posted; a form opened after records it', async () => {
+    const out = await lineOf('-380.00');
+    const seenIn = (page: string) => /name="bankSeen" value="(\d+)"/.exec(page)?.[1];
+    // the stale form: opened while the line was open, before the bill from it matched it (one match since)
+    const ref = `ST-${RUN}`;
+    const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
+    expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
+    const fresh = seenIn((await get(`/app/books/spending?bankLine=${out}&account=${bank}`)).body);
+    expect(fresh).toBe('1');
+    const stale = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: '0', date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(stale.statusCode).toBe(302);
+    expect(stale.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    expect(await flashOf(stale)).toContain('Nothing was recorded: that bank line was matched and set aside again while the form was open');
+    // a form opened now is the owner's own choice: recorded, and matched to the line
+    const again = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: fresh!, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(again.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    const bill = (await as((q) => q(`select entry_id::text as e from journal_entries j join spending_bills b on b.entry_id = j.id where j.document_ref = $1`, [ref]))).rows[0].e as string;
+    expect(await matchOf(out)).toEqual([bill]);
+  });
+
+  it('a stale form refused for a typo stays stale: told at once, and a form sent back for a typo keeps its first count', async () => {
+    const out = await lineOf('-380.00');
+    const count = async () => (await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1`, [out]))).rows[0].n as number;
+    const unmatchNow = async () => {
+      const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
+      expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
+    };
+    await unmatchNow();
+    const before = await count();
+    const ref = `TY-${RUN}`;
+    // a stale form with a typo: the line is checked first, so it is told the line changed, never sent to a fresh form
+    const stale = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before - 1), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(stale.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect(await flashOf(stale)).toContain('Nothing was recorded: that bank line was matched and set aside again while the form was open');
+    // a current form with a typo goes back to the filled form, carrying its count
+    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(typo.headers['location']).toBe(`/app/books/spending?bankLine=${out}&account=${bank}&seen=${before}#bill`);
+    // meanwhile, another tab records the line and sets the match aside again
+    const other = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before), date: today, label: 'RIF COTON', ref: `OT-${RUN}`, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(other.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    await unmatchNow();
+    // the form sent back is drawn with its first count, not the count of now: its save is refused
+    const redrawn = /name="bankSeen" value="(\d+)"/.exec((await get(String(typo.headers['location']).split('#')[0]!)).body)?.[1];
+    expect(redrawn).toBe(String(before));
+    const fixed = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: redrawn!, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(fixed.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    expect(await matchOf(out)).toEqual([]);
+  });
+
+  it('a line in another currency than the books: the form promises no match', async () => {
+    const day = today.replace(/-/g, '');
+    const ofx = `OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD<BANKTRANLIST>\n<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>${day}<TRNAMT>-42.00<FITID>NX-${RUN}-3<NAME>USD FEE</STMTTRN>\n</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+    const boundary = `----nomi${RUN}u`;
+    const up = await app.inject({ method: 'POST', url: `/app/books/bank/import?account=${bank}`, headers: { cookie: owner, 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: `--${boundary}\r\nContent-Disposition: form-data; name="statement"; filename="usd.ofx"\r\nContent-Type: application/octet-stream\r\n\r\n${ofx}\r\n--${boundary}--\r\n` });
+    expect(up.statusCode).toBe(302);
+    const usd = await lineOf('-42.00');
+    const form = (await get(`/app/books/spending?bankLine=${usd}&account=${bank}`)).body;
+    expect(form).toContain('It is not matched to the bank line: the line is not in the currency of your books.');
+    expect(form).not.toContain('it is matched to the bank line as it is recorded');
+    // the bank page's caption for it promises no match either
+    const caption = lineHtml((await get(`/app/books/bank?account=${bank}`)).body, usd);
+    expect(caption).toContain('so a cost recorded from here is not matched to it'); expect(caption).not.toContain('is matched to this line when it is saved');
+  });
+});

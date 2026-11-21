@@ -55,11 +55,11 @@ export function parse(html: string): El {
 
 export const all = (root: El): El[] => root.children.flatMap((c) => [c, ...all(c)]);
 
-type Compound = { tag: string | null; id: string | null; classes: string[]; attrs: [string, string | null][]; not: Compound[][]; nth: number | null; first: boolean; last: boolean };
+type Compound = { tag: string | null; id: string | null; classes: string[]; attrs: [string, string | null][]; not: Compound[][]; is: Compound[][]; nth: number | null; first: boolean; last: boolean };
 
 /** One compound selector (no combinators), read left to right. */
 function compound(s: string): Compound {
-  const c: Compound = { tag: null, id: null, classes: [], attrs: [], not: [], nth: null, first: false, last: false };
+  const c: Compound = { tag: null, id: null, classes: [], attrs: [], not: [], is: [], nth: null, first: false, last: false };
   let i = 0;
   const ident = (): string => { const m = /^[\w-]+/.exec(s.slice(i))![0]; i += m.length; return m; };
   if (/^[a-zA-Z*]/.test(s)) { c.tag = s[0] === '*' ? null : ident(); if (s[i] === '*') i++; }
@@ -78,8 +78,10 @@ function compound(s: string): Compound {
       for (; j < s.length; j++) { if (s[j] === '(') depth++; else if (s[j] === ')') depth--; else if (depth === 0 && /[.#[:]/.test(s[j]!)) break; }
       const pseudo = s.slice(i, j);
       const not = /^:not\((.*)\)$/.exec(pseudo);
+      const is = /^:is\((.*)\)$/.exec(pseudo);
       const nth = /^:nth-child\((\d+)\)$/.exec(pseudo);
       if (not) c.not.push(not[1]!.split(',').map((x) => compound(x.trim())));
+      else if (is) c.is.push(is[1]!.split(',').map((x) => compound(x.trim())));
       else if (nth) c.nth = Number(nth[1]);
       else if (pseudo === ':first-child') c.first = true;
       else if (pseudo === ':last-child') c.last = true;
@@ -100,6 +102,7 @@ function fits(e: El, c: Compound): boolean {
   if (!c.classes.every((x) => cls.includes(x))) return false;
   if (!c.attrs.every(([k, v]) => k in e.attrs && (v === null || e.attrs[k] === v))) return false;
   if (c.not.some((alts) => alts.some((x) => fits(e, x)))) return false;
+  if (!c.is.every((alts) => alts.some((x) => fits(e, x)))) return false;
   const at = siblings(e).indexOf(e);
   if (c.nth !== null && at !== c.nth - 1) return false;
   if (c.first && at !== 0) return false;

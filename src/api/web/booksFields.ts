@@ -33,10 +33,10 @@ export function renderFields(locale: Locale, viewer: Who, rows: readonly FieldRo
           <span class="caption muted">${esc(t(locale, 'books.fields.keyHint'))}</span></label>
         <label class="pq"><span>${esc(t(locale, 'books.fields.kindOf'))}</span><select name="kind" required>${FIELD_KINDS.map((k) =>
           `<option value="${k}">${esc(word(locale, `books.fields.kind.${k}`))}</option>`).join('')}</select></label>
-        <label class="pq"><span>${esc(t(locale, 'books.fields.choices'))}</span><textarea name="choices" rows="3" maxlength="2000"></textarea>
+        <label class="pq bf-choices"><span>${esc(t(locale, 'books.fields.choices'))}</span><textarea name="choices" rows="3" maxlength="2000"></textarea>
           <span class="caption muted">${esc(t(locale, 'books.fields.choicesHint'))}</span></label>
-        <label class="pq"><span><input type="checkbox" name="required" value="1" /> ${esc(t(locale, 'books.fields.required'))}</span>
-          <span class="caption muted">${esc(t(locale, 'books.fields.requiredHint'))}</span></label>
+        <div class="bf-required"><label class="check"><input type="checkbox" name="required" value="1" aria-describedby="bf-required-hint" /> <span>${esc(t(locale, 'books.fields.required'))}</span></label>
+          <p class="caption muted" id="bf-required-hint">${esc(t(locale, 'books.fields.requiredHint'))}</p></div>
         <button class="btn send" type="submit">${esc(t(locale, 'books.fields.add'))}</button>
       </form></div>`;
   return `<h1 class="page">${esc(t(locale, 'books.fields.title'))}</h1>

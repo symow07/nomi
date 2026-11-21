@@ -64,7 +64,7 @@ describe('phase 7 · the phone nav is one line', () => {
 
   it('wide: the long label; phone: the short one, every entry on one line; the narrowest: no mark before the entries', () => {
     const phone = block('max-width: 720px');
-    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*flex-wrap:nowrap; white-space:nowrap/);
+    expect(phone).toMatch(/nav\.side :is\(a,button\)\.navlink \{[^}]*flex-wrap:nowrap; white-space:nowrap/);
     expect(block('max-width: 379px')).toMatch(/nav\.side \.brand \{ display:none; \}/);
   });
 });
