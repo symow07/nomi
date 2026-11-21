@@ -12,7 +12,7 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.bill.title': 'Add a bill',
   // F23 fix (UI correction, Block 5, 2026-11-21) — the bill form filled from a bank line nothing matched. English only.
   'booksSpending.fromBank.title': 'Recording a bank line as a cost',
-  'booksSpending.fromBank.note': 'Filled from the bank line of {date} for {amount}. Choose the supplier and the category, then record it: you go back to the bank line to match it.',
+  'booksSpending.fromBank.note': 'Filled from the bank line of {date} for {amount}. Choose the supplier and the category, then record it: paid from this account for this amount, it is matched to the bank line as it is recorded.',
   'booksSpending.fromBank.otherCurrency': 'The bank line is in {currency}; your books are in {books}. Nothing is converted: type the amount in {books}.',
   'booksSpending.bill.lede': 'One amount, as the bill says it, tax included. The tax is split off by the code you pick; the rest goes to the category\'s account. Posted when you press the button.',
   'booksSpending.bill.gross': 'Amount, tax included ({currency})',
@@ -57,6 +57,8 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.categories.removeAsk': 'Remove this category? Bills already posted keep their account.',
   'booksSpending.flash.billPosted': 'Posted as {key}.',
   'booksSpending.flash.billPostedNoRef': 'Posted as {key}. The bill has no number; in the books its reference is {ref}.',
+  'booksSpending.flash.billMatched': 'Posted as {key} and matched to its bank line.',
+  'booksSpending.flash.billMatchedNoRef': 'Posted as {key} and matched to its bank line. The bill has no number; in the books its reference is {ref}.',
   'booksSpending.flash.billRefused': 'The bill was not recorded: {why}',
   'booksSpending.flash.paid': 'Marked as paid: {key}.',
   'booksSpending.flash.categoryAdded': 'Category added.',

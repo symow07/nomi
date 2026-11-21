@@ -410,7 +410,8 @@ export function renderBank(locale: Locale, viewer: Who, c: {
     const [best,...others]=l.suggestions;
     // F23 fix (the owner's ruling, 2026-11-21) — a line with no entry to match still has a next step: money out is
     // recorded as a cost from its own figures (the bill form, filled from the line and paid from this account); money
-    // in leads to the invoices still unpaid; either can be written as an entry. Recorded, it is offered here to match.
+    // in leads to the invoices still unpaid; either can be written as an entry. A cost recorded from here is matched to the line as it is saved (Block 5);
+    // the rest, recorded, is offered here to match.
     if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>${owner?`<p class="bb-next">${signOf(l.amount)<0
       ?`<a class="deeper" href="/app/books/spending?${esc(new URLSearchParams({bankLine:l.id,account:c.accountId!}).toString())}#bill">${esc(t(locale,'bankMatch.recordCost'))}</a>`
       :`<a class="deeper" href="/app/books/invoices?state=unpaid">${esc(t(locale,'bankMatch.findInvoice'))}</a>`}

@@ -8,9 +8,9 @@ import { asTenant, purgeBusinesses, type Q } from './books-db.js';
  * F23 fix (UI correction, Block 5; the owner's ruling, 2026-11-21) — A BANK LINE NOTHING MATCHES STILL HAS A NEXT STEP.
  * On a Moroccan workspace whose pack came through the country page: a statement read in with money out and money in
  * and no entry for either. Money out: "Record it as a cost" opens the bill form filled from the line (date, the bank's
- * words, the amount, paid from that account); recorded, the owner is back on the bank line and the bill's own entry is
- * the one offered to match — and matching it closes the line. Money in leads to the unpaid invoices. The accountant and
- * staff are offered no step and get no filled form.
+ * words, the amount, paid from that account); recorded, the bill's own entry is matched to the line in the same step
+ * (Block 5, the owner's choice) and the line is closed. A bill changed to another amount is recorded and the line stays
+ * open. Money in leads to the unpaid invoices. The accountant and staff are offered no step and get no filled form.
  */
 const DATABASE_URL = process.env['DATABASE_URL'];
 const ADMIN_URL = process.env['MIGRATE_DATABASE_URL'];
@@ -110,21 +110,37 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     for (const who of [accountant, staff]) expect((await get(`/app/books/spending?bankLine=${out}&account=${bank}`, who)).body).not.toContain('name="bankLine"');
   });
 
-  it('recorded, the owner is back on the bank line, the bill\'s entry is the one offered, and matching it closes the line', async () => {
+  const matchOf = async (line: string) => (await as((q) => q(`select l.entry_id::text as e from statement_matches m join journal_lines l on l.id = m.journal_line_id
+     where m.statement_line_id = $1 and m.unmatched_at is null`, [line]))).rows.map((r) => r.e as string);
+  const flashOf = async (r: { headers: Record<string, unknown> }) => {
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    return (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+  };
+
+  it('a bill from the line changed to another amount is recorded and not matched: back to the line, still open', async () => {
+    const out = await lineOf('-380.00');
+    const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON part', ref: `RP-${RUN}`, gross: '300.00', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [`RP-${RUN}`]))).rows[0].n).toBe(1);
+    expect(await matchOf(out)).toEqual([]);
+    expect(lineHtml((await get(`/app/books/bank?account=${bank}`)).body, out)).toContain('Record it as a cost');
+  });
+
+  it('recorded from the line, the bill is matched to it in the same step: the line is closed, matched to the bill\'s own entry', async () => {
     const out = await lineOf('-380.00');
     const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref: `RC-${RUN}`, gross: '380.00', account: expenseId, payFrom: bank });
     expect(r.statusCode).toBe(302);
-    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
-    const page = (await get(`/app/books/bank?account=${bank}`)).body;
-    const o = lineHtml(page, out);
-    expect(o).toContain('Best match'); expect(o).not.toContain('Record it as a cost');
-    const jl = /name="journalLine" value="([0-9a-f-]{36})"/.exec(o)?.[1];
-    expect(jl, 'a candidate to match').toBeTruthy();
-    // the candidate is the bill's own: its entry, or the entry that paid it from this account
-    const bill = (await as((q) => q(`select b.entry_id::text as e, b.paid_entry_id::text as p from spending_bills b join journal_entries j on j.id = b.entry_id where j.document_ref = $1`, [`RC-${RUN}`]))).rows[0] as { e: string; p: string | null };
-    expect([bill.e, bill.p]).toContain((await as((q) => q(`select entry_id::text as e from journal_lines where id = $1`, [jl!]))).rows[0].e);
-    expect((await post('/app/books/bank/match', { account: bank, line: out, journalLine: jl! })).statusCode).toBe(302);
-    expect((await get(`/app/books/bank?account=${bank}`)).body).not.toContain(`id="bank-line-${out}"`);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    const bill = (await as((q) => q(`select b.entry_id::text as e from spending_bills b join journal_entries j on j.id = b.entry_id where j.document_ref = $1`, [`RC-${RUN}`]))).rows[0] as { e: string };
+    expect(await matchOf(out)).toEqual([bill.e]);
+    const next = await flashOf(r);
+    expect(next).toContain('and matched to its bank line.');
+    expect(next).not.toContain(`id="bank-line-${out}"`);
+    // matched once: the line is offered no second entry, and a second match of it is refused
+    const other = (await as((q) => q(`select l.id::text as id from journal_lines l join journal_entries j on j.id = l.entry_id where j.document_ref = $1 and l.credit is not null`, [`RP-${RUN}`]))).rows[0].id as string;
+    await post('/app/books/bank/match', { account: bank, line: out, journalLine: other });
+    expect(await matchOf(out)).toEqual([bill.e]);
   });
 
   it('a refused bill from a bank line goes back to the same filled form', async () => {

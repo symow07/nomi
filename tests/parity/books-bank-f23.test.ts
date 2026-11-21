@@ -52,7 +52,7 @@ describe('F23 · bank matching', () => {
     expect(li).toContain('No entry of the same amount within a week.');
     expect(li).toContain('<a class="deeper" href="/app/books/spending?bankLine=l1&amp;account=bank#bill">Record it as a cost</a>');
     expect(li).toContain('<a class="deeper" href="/app/books/advanced/entries/new">Write an entry for this line</a>');
-    expect(li).toContain('Once it is in the books, its entry is offered here to match.');
+    expect(li).toContain('A cost recorded from here is matched to this line when it is saved. A payment or an entry recorded another way is offered here to match.');
     expect(li).not.toContain('Find the invoice it pays');
     const inn = renderBank('en', owner, { accounts, accountId: 'bank', open: [{ ...line('l2', []), amount: d('125.75'), wording: 'CASA OLIVO' }], matched: [] });
     expect(inn).toContain('<a class="deeper" href="/app/books/invoices?state=unpaid">Find the invoice it pays</a>');

@@ -369,7 +369,7 @@ import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote, type CreditLineInput } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, keepStatementLayout, lineForBill, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { bankAccounts, importStatement, keepStatementLayout, lineForBill, matchBillToLine, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
@@ -3852,7 +3852,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
             ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
       }
       // F23 fix — "Record it as a cost" from a bank line nothing matched: the form filled from the line's own date,
-      // words and amount, paid from its account, so the bill's entry is the one the bank page then offers to match.
+      // words and amount, paid from its account, so the bill's entry is matched to the line as it is recorded (Block 5).
       // Only money out, only a line still open, only from an account the bill can be paid from; anything else is the
       // plain form. The owner's only.
       const q = req.query as { bankLine?: unknown; account?: unknown };
@@ -3927,13 +3927,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const r = await recordBill(tx, got.bid, personOf(got.s).id, { date, label: str('label'), documentRef: str('ref'), noNumber, gross, supplierId: uuid('supplier'), newSupplier: str('newSupplier') || null,
         taxCodeId: uuid('tax'), categoryId: uuid('category'), accountId: uuid('account'), payFromAccountId: uuid('payFrom') });
       if (r.kind === 'posted' && offer) await linkRecorded(tx, got.bid, offer, r.billId, personOf(got.s).id);
+      // Block 5 (the owner's choice, 2026-11-21) — recorded from an open line, the bill is matched to it in the same
+      // step, so the line can never be matched again to a second entry for the same money.
+      if (r.kind === 'posted' && fromBank && backToLine)
+        return { ...r, matched: await matchBillToLine(tx, got.bid, personOf(got.s).id, fromBank.line, fromBank.account, r.entryId) };
       return r;
     });
     if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
     if (out.kind === 'line_matched') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}`, 'booksSpending.flash.lineMatched');
     if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
-    // F23 fix — a bill recorded from a bank line goes back to that line, where its entry is now offered to match; a
-    // refused one goes back to the same filled form.
+    // F23 fix — a bill recorded from a bank line goes back to the bank page: matched to the line, or, when it could not
+    // be (paid from another account, another amount), to the line, still open. A refused one goes back to the filled form.
+    if (fromBank && backToLine && out.kind === 'posted' && 'matched' in out && out.matched)
+      return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-matched`, noNumber ? 'booksSpending.flash.billMatchedNoRef' : 'booksSpending.flash.billMatched', { key: out.key, ref: out.documentRef });
     if (fromBank && backToLine) return out.kind === 'posted'
       ? flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank.account })}#bank-line-${fromBank.line}`, noNumber ? 'booksSpending.flash.billPostedNoRef' : 'booksSpending.flash.billPosted', { key: out.key, ref: out.documentRef })
       : flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: spendingWhy(locale, out) });

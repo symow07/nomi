@@ -59,6 +59,18 @@ export async function lineForBill(tx: Tx, businessId: string, accountId: string,
   return matched ? 'matched' : 'open';
 }
 
+/**
+ * Block 5 — a bill recorded from an open statement line is matched to it in the same transaction, under the line lock
+ * `lineForBill` took: its entry's line on the statement's account (the money paid from it). False, and nothing
+ * matched, when the bill was not paid from that account or its amount or currency is not the line's (the database
+ * refuses the match, NB020); the line then stays open for the owner.
+ */
+export async function matchBillToLine(tx: Tx, businessId: string, by: string, lineId: string, accountId: string, entryId: string): Promise<boolean> {
+  const paid = (await sql<{ id: string }>`select id::text as id from journal_lines
+     where business_id = ${businessId}::uuid and entry_id = ${entryId}::uuid and account_id = ${accountId}::uuid and credit is not null`.execute(tx)).rows;
+  return paid.length === 1 ? matchLine(tx, businessId, by, lineId, paid[0]!.id) : false;
+}
+
 /** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
 export async function openLines(tx: Tx, businessId: string, accountId: string, lineId?: string): Promise<OpenLine[]> {
   const lines = (await sql<{ id: string; booked_on: string; amount: string; currency: string; wording: string | null; reference: string | null }>`

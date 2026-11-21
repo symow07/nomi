@@ -16785,6 +16785,12 @@ translates them.
   when another note took it, so it names neither a draft, another note nor a quantity: change the note to no more
   than what is left, then save it. Not read by a native reader; the Arabic uses the passive, so nobody is addressed
   by gender.
+- **Changed 2026-11-21 (Block 5, the owner's choice: a bill recorded from a bank line is matched to it as it is
+  saved):** `bankMatch.thenMatch` reworded in all five languages — a cost recorded from the line is matched when it is
+  saved; a payment or an entry recorded another way is offered on the line to match. `booksSpending.fromBank.note`
+  (English only) says the bill is matched as it is recorded when left paid from that account for that amount; new,
+  English only: `booksSpending.flash.billMatched`, `.billMatchedNoRef`. Not read by a native reader; the Arabic uses
+  the passive, so nobody is addressed by gender.
 
 ## Invoices that go out (2026-11-06; 0226)
 
