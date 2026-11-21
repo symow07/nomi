@@ -8,8 +8,13 @@ import { alertClock, dropAlertsLeftSince } from './alerts-go-with-file.js';
  *
  * Its `afterAll` runs after the file's own (Vitest runs after-hooks in reverse order), so the file's compositions are
  * closed by then. A unit file, or a run with no database, does nothing here.
+ *
+ * ONLY ON A DATABASE THE RUN OWNS (`NOMI_TEST_DB_OWNED=1`: tools/run-integration-isolated.mjs, and CI's fresh Postgres
+ * per job). The queue is the database's, not the file's: on a shared one (the 55451 cluster, run-integration.mjs with
+ * its two URLs) another worktree's run may be queuing its own alerts at the same moment, and "queued during this
+ * file" would take those too. There this does nothing, and P3 can meet a quarter-hour's alerts as it did before.
  */
-const ADMIN_URL = process.env['MIGRATE_DATABASE_URL'];
+const ADMIN_URL = process.env['NOMI_TEST_DB_OWNED'] === '1' ? process.env['MIGRATE_DATABASE_URL'] : undefined;
 let since: string | null = null;
 let file = '';
 

@@ -20,6 +20,15 @@ it('every file runs the clean-up: the setup is in the config', () => {
   expect(config).toContain("'./tests/integration/alerts-go-with-file.setup.ts'");
 });
 
+it('it acts only where the run owns its database: the isolated runner and CI say so, nothing else does', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  expect(read('./alerts-go-with-file.setup.ts')).toContain("process.env['NOMI_TEST_DB_OWNED'] === '1'");
+  expect(read('../../tools/run-integration-isolated.mjs')).toContain("NOMI_TEST_DB_OWNED: '1'");
+  expect(read('../../.github/workflows/ci.yml')).toContain("NOMI_TEST_DB_OWNED: '1'");
+  // run-integration.mjs is also run against the shared 55451 cluster: it must not claim the database.
+  expect(read('../../tools/run-integration.mjs')).not.toContain('NOMI_TEST_DB_OWNED');
+});
+
 d('the alerts a file leaves waiting go with it (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let admin: pg.Client;
   let boss: PgBoss;

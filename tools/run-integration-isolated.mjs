@@ -86,6 +86,8 @@ const env = {
   ...process.env,
   MIGRATE_DATABASE_URL: urlFor('postgres'),
   DATABASE_URL: urlFor('nomi_app', 'nomi_app'),
+  // This run owns the whole database: tests/integration/alerts-go-with-file.setup.ts may clear what a file left queued.
+  NOMI_TEST_DB_OWNED: '1',
 };
 const step = (what, cmd, args, e = env) => {
   const r = spawnSync(cmd, args, { env: e, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

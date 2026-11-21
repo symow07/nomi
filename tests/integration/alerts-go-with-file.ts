@@ -19,6 +19,9 @@ import type pg from 'pg';
  * (`--no-file-parallelism`, tools/run-integration.mjs), so an alert queued between a file's start and its end is that
  * file's. Only alerts still WAITING go — created, or failed and due a retry: the file's workers are closed, so none of
  * its own will ever run them. One being sent (`active`) is left to finish; nothing that already ran is touched.
+ *
+ * "Queued during the file" means the file's only on a database no other process queues to, so the setup acts only
+ * where the run owns its database (`NOMI_TEST_DB_OWNED=1`, set by tools/run-integration-isolated.mjs and by CI).
  */
 
 /** The clock alerts are measured from: the database's, so the comparison never depends on this Mac's. */

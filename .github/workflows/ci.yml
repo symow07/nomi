@@ -83,6 +83,9 @@ jobs:
       # nothing, because a superuser bypasses row security entirely — which is
       # exactly what M19's runtime-identity guard exists to prevent.
       DATABASE_URL: postgresql://nomi_app:nomi_app@127.0.0.1:5432/nomi
+      # A fresh Postgres per job, so this run owns every queued job in it
+      # (tests/integration/alerts-go-with-file.setup.ts acts only then).
+      NOMI_TEST_DB_OWNED: '1'
 
     steps:
       - uses: actions/checkout@v7
