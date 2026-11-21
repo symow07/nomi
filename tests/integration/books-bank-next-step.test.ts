@@ -177,4 +177,17 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
       expect(await posted(ref), `${field}=${bad}`).toBe(0);
     }
   });
+
+  it('a bill from a line matched while its form was open is refused: nothing posted, back to the bank page (never counted twice)', async () => {
+    const out = await lineOf('-380.00'); // matched above, by the bill recorded from it
+    expect((await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].n).toBe(1);
+    const ref = `LM-${RUN}`;
+    const r = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe(`/app/books/bank?account=${bank}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
+    const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
+    expect(next).toContain('Nothing was recorded: that bank line was matched while the form was open');
+  });
 });

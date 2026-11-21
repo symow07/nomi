@@ -67,6 +67,8 @@ export const BOOKS_SPENDING_EN = {
   'booksSpending.flash.recurringStopped': 'That cost is no longer proposed.',
   'booksSpending.flash.skipped': 'Skipped. The next one is proposed on its day.',
   'booksSpending.flash.proposalGone': 'That proposal was already decided.',
+  // Block 5 (Codex on #476): the bank line was matched while its bill form was open. English only.
+  'booksSpending.flash.lineMatched': 'Nothing was recorded: that bank line was matched while the form was open, so a bill for it would count the money twice.',
   // Block 5 fix (2026-11-21): a bill has no lines, so its refusal says what it lacks (was an entry's "Line {n}: …").
   'booksSpending.refused.amount': 'it needs its date and an amount above zero, tax included.',
   'booksSpending.refused.choices': 'something was not chosen (the supplier, the account or the category, the journal).',

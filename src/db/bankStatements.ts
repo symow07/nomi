@@ -38,13 +38,28 @@ export type OpenLine = {
 };
 export type MatchedLine = OpenLine & { readonly matchId: string; readonly entryId: string; readonly key: string };
 
-/** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
-/** Block 5 — is this statement line this workspace's, on this account (open or matched)? */
-export async function lineOnAccount(tx: Tx, businessId: string, accountId: string, lineId: string): Promise<boolean> {
-  return (await sql<{ one: number }>`select 1 as one from statement_lines
-     where business_id = ${businessId}::uuid and account_id = ${accountId}::uuid and id = ${lineId}::uuid`.execute(tx)).rows.length > 0;
+/** One statement line at a time, until the transaction ends: a bill recorded from it, or a match of it. */
+async function lockStatementLine(tx: Tx, lineId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`statement-line:${lineId.toLowerCase()}`}, 0))`.execute(tx);
 }
 
+/**
+ * Block 5 — the statement line a bill is being recorded from: 'open' (no match now), 'matched', or null (not this
+ * workspace's, or not on this account). The line is held for the rest of the transaction by the advisory lock that
+ * `matchLine` takes too (nomi_app may not lock the line's row: it has no UPDATE right on it), so a bill never reads a
+ * line as open while a match of it commits.
+ */
+export async function lineForBill(tx: Tx, businessId: string, accountId: string, lineId: string): Promise<'open' | 'matched' | null> {
+  await lockStatementLine(tx, lineId);
+  const held = (await sql<{ one: number }>`select 1 as one from statement_lines
+     where business_id = ${businessId}::uuid and account_id = ${accountId}::uuid and id = ${lineId}::uuid`.execute(tx)).rows.length > 0;
+  if (!held) return null;
+  const matched = (await sql<{ one: number }>`select 1 as one from statement_matches
+     where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid and unmatched_at is null`.execute(tx)).rows.length > 0;
+  return matched ? 'matched' : 'open';
+}
+
+/** The account's lines not matched yet, each with what the rule suggests — nothing is matched by it. */
 export async function openLines(tx: Tx, businessId: string, accountId: string, lineId?: string): Promise<OpenLine[]> {
   const lines = (await sql<{ id: string; booked_on: string; amount: string; currency: string; wording: string | null; reference: string | null }>`
     select s.id::text as id, s.booked_on::text as booked_on, s.amount::text as amount, s.currency, s.wording, s.reference
@@ -87,6 +102,7 @@ export async function matchedLines(tx: Tx, businessId: string, accountId: string
 /** A person's match: the database checks the account, the amount, the side, and that each line has one at a time. */
 export async function matchLine(tx: Tx, businessId: string, by: string, statementLineId: string, journalLineId: string): Promise<boolean> {
   try {
+    await lockStatementLine(tx, statementLineId);
     await sql`savepoint match_line`.execute(tx);
     await sql`insert into statement_matches (business_id, statement_line_id, journal_line_id, matched_by)
       values (${businessId}::uuid, ${statementLineId}::uuid, ${journalLineId}::uuid, ${by})`.execute(tx);
