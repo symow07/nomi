@@ -16797,6 +16797,9 @@ translates them.
   `booksSpending.fromBank.noteOther` (a line in another currency than the books: not matched) and
   `booksSpending.flash.lineChanged` (a form opened before the line was matched and set aside again). Not read by a
   native reader.
+- **Added 2026-11-21 (the tester's next re-check):** `bankMatch.thenMatchOther`, five languages — a line of money
+  out in another currency than the books: a cost recorded from it is not matched to it. Not read by a native
+  reader; the Arabic uses the passive.
 
 ## Invoices that go out (2026-11-06; 0226)
 

@@ -3855,7 +3855,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // words and amount, paid from its account, so the bill's entry is matched to the line as it is recorded (Block 5).
       // Only money out, only a line still open, only from an account the bill can be paid from; anything else is the
       // plain form. The owner's only.
-      const q = req.query as { bankLine?: unknown; account?: unknown };
+      const q = req.query as { bankLine?: unknown; account?: unknown; seen?: unknown };
       const uuidOf = (x: unknown) => (typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x) ? x : null);
       const bankLine = !ads && booksMay(personOf(s), 'post') ? uuidOf(q.bankLine) : null;
       const bankAccount = bankLine ? uuidOf(q.account) : null;
@@ -3864,7 +3864,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         if (l && signOf(l.amount) < 0) {
           const gross = String(l.amount).replace(/^-/, '');
           const sameCurrency = l.currency === choices.bookCurrency;
-          prefill = { bank: { line: l.id, account: bankAccount, seen: await lineMatchCount(tx, bid, l.id) }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
+          // a form sent back after a refusal keeps the count it was first drawn with, so a stale form stays stale
+          const seen = typeof q.seen === 'string' && /^\d{1,6}$/.test(q.seen) ? Number(q.seen) : await lineMatchCount(tx, bid, l.id);
+          prefill = { bank: { line: l.id, account: bankAccount, seen }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
             notes: [t(locale, sameCurrency ? 'booksSpending.fromBank.note' : 'booksSpending.fromBank.noteOther', { date: booksDay(locale, l.bookedOn), amount: ((m) => (m ? show.money(locale, m) : `${l.currency} ${gross}`))(moneyFromRow(gross, l.currency)) }),
               ...(sameCurrency ? [] : [t(locale, 'booksSpending.fromBank.otherCurrency', { currency: l.currency, books: choices.bookCurrency })])] };
         }
@@ -3899,7 +3901,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const date = dayOf(str('date'));
     // F23 fix — the bank line a bill is recorded from, when it came from one (see the redirects below).
     const fromBank = typeof f['ads'] !== 'string' && uuid('bankLine') && uuid('bankAccount') ? { line: uuid('bankLine')!, account: uuid('bankAccount')! } : null;
-    const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account })}#bill` : '/app/books/spending#bill';
+    const seenIn = /^\d{1,6}$/.test(str('bankSeen')) ? Number(str('bankSeen')) : null;
+    const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account, ...(seenIn === null ? {} : { seen: String(seenIn) }) })}#bill` : '/app/books/spending#bill';
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.amount') });
     const noNumber = str('noref') === '1';
     // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
@@ -3915,7 +3918,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // matched while the form was open is refused: its money is already in the books, and a bill would count it twice.
     let backToLine = false;
     const out = await withTenantTx(deps.db, got.bid, async (tx) => {
-      const line = fromBank ? await lineForBill(tx, got.bid, fromBank.account, fromBank.line, /^\d{1,6}$/.test(str('bankSeen')) ? Number(str('bankSeen')) : null) : null;
+      const line = fromBank ? await lineForBill(tx, got.bid, fromBank.account, fromBank.line, seenIn) : null;
       if (line === 'matched') return { kind: 'line_matched' as const };
       if (line === 'changed') return { kind: 'line_changed' as const };
       backToLine = line === 'open';
@@ -4335,7 +4338,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const historical=typeof query.account==='string'&&!accounts.some(a=>a.id===query.account)?(await sql<{id:string;code:string;name:string}>`select a.id::text as id,a.code,a.name from accounts a where a.business_id=${bid}::uuid and a.id::text=${query.account} and a.kind='asset' and not a.is_active and exists(select 1 from statement_lines l where l.business_id=a.business_id and l.account_id=a.id)`.execute(tx)).rows:[];
       const choices=[...accounts,...historical];
       const accountId = query.account===undefined?null:bankAccountOf(query.account,choices);
-      return { accounts:choices, accountId, historical:historical.length>0, open: accountId ? await openLines(tx, bid, accountId, lineId) : [], matched: accountId ? await matchedLines(tx, bid, accountId) : [] };
+      const bookCurrency=(await sql<{c:string}>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c;
+      return { accounts:choices, accountId, historical:historical.length>0, bookCurrency, open: accountId ? await openLines(tx, bid, accountId, lineId) : [], matched: accountId ? await matchedLines(tx, bid, accountId) : [] };
     });
     if((query.account!==undefined&&!got.accountId)||(lineId&&!got.open.length))return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.bank.title'), active: 'settings',

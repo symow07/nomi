@@ -54,6 +54,10 @@ describe('F23 · bank matching', () => {
     expect(li).toContain('<a class="deeper" href="/app/books/advanced/entries/new">Write an entry for this line</a>');
     expect(li).toContain('A cost recorded from here, paid from this account for the same amount, is matched to this line when it is saved. Anything else recorded for it is offered here to match.');
     expect(li).not.toContain('Once the payment or the entry is recorded');
+    // money out in another currency than the books: the caption promises no match (the database refuses one)
+    const usd = renderBank('en', owner, { accounts, accountId: 'bank', bookCurrency: 'MAD', open: [{ ...line('l3', []), currency: 'USD' }], matched: [] });
+    expect(usd).toContain('so a cost recorded from here is not matched to it'); expect(usd).not.toContain('is matched to this line when it is saved');
+    expect(renderBank('en', owner, { accounts, accountId: 'bank', bookCurrency: 'MAD', open: [{ ...line('l4', []), currency: 'MAD' }], matched: [] })).toContain('is matched to this line when it is saved');
     expect(li).not.toContain('Find the invoice it pays');
     const inn = renderBank('en', owner, { accounts, accountId: 'bank', open: [{ ...line('l2', []), amount: d('125.75'), wording: 'CASA OLIVO' }], matched: [] });
     expect(inn).toContain('<a class="deeper" href="/app/books/invoices?state=unpaid">Find the invoice it pays</a>');
@@ -67,7 +71,7 @@ describe('F23 · bank matching', () => {
   });
   it('the new words are in all five languages', () => {
     for (const k of ['bankMatch.best', 'bankMatch.chooseAnother', 'bankMatch.noOther', 'bankMatch.noneRead', 'bankMatch.allMatched', 'bankMatch.moneyIn', 'bankMatch.moneyOut', 'bankMatch.entryAmount', 'bankMatch.details', 'bankMatch.entry',
-      'bankMatch.recordCost', 'bankMatch.findInvoice', 'bankMatch.writeEntry', 'bankMatch.thenMatch', 'bankMatch.thenMatchIn'] as const)
+      'bankMatch.recordCost', 'bankMatch.findInvoice', 'bankMatch.writeEntry', 'bankMatch.thenMatch', 'bankMatch.thenMatchIn', 'bankMatch.thenMatchOther'] as const)
       for (const l of LOCALES) { expect(messages[l][k], `${l} ${k}`).toBeTruthy(); if (l !== 'en') expect(messages[l][k]).not.toBe(messages.en[k]); }
   });
 });

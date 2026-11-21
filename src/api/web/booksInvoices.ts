@@ -382,6 +382,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
 export function renderBank(locale: Locale, viewer: Who, c: {
   readonly accounts: readonly { id: string; code: string; name: string }[]; readonly accountId: string | null;
   readonly open: readonly import('../../db/bankStatements.js').OpenLine[]; readonly matched: readonly import('../../db/bankStatements.js').MatchedLine[];
+  readonly bookCurrency?: string;
 }): string {
   const owner = mayPost(viewer);
   // Block 1 #2 — bank and cash accounts only (`paymentAccounts`), none chosen for her; a chart with none says what to do.
@@ -415,7 +416,7 @@ export function renderBank(locale: Locale, viewer: Who, c: {
     if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>${owner?`<p class="bb-next">${signOf(l.amount)<0
       ?`<a class="deeper" href="/app/books/spending?${esc(new URLSearchParams({bankLine:l.id,account:c.accountId!}).toString())}#bill">${esc(t(locale,'bankMatch.recordCost'))}</a>`
       :`<a class="deeper" href="/app/books/invoices?state=unpaid">${esc(t(locale,'bankMatch.findInvoice'))}</a>`}
-      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,signOf(l.amount)<0?'bankMatch.thenMatch':'bankMatch.thenMatchIn'))}</p>`:''}`;
+      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,signOf(l.amount)>=0?'bankMatch.thenMatchIn':c.bookCurrency&&l.currency!==c.bookCurrency?'bankMatch.thenMatchOther':'bankMatch.thenMatch'))}</p>`:''}`;
     return `<div class="bb-suggestion"><p class="bb-suggested">${esc(t(locale,'bankMatch.best'))}</p>${candidate(l,best)}</div>${others.length===0?`<p class="caption muted bb-no-other">${esc(t(locale,'bankMatch.noOther'))}</p>`
       :`<details class="bb-others"><summary>${esc(t(locale,'bankMatch.chooseAnother',{n:show.count(locale,others.length)}))}</summary>${others.map(s=>`<div class="bb-suggestion">${candidate(l,s)}</div>`).join('')}</details>`}`;
   };

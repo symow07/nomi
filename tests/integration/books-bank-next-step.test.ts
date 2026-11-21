@@ -228,6 +228,23 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(await matchOf(out)).toEqual([bill]);
   });
 
+  it('a stale form refused for a typo stays stale: the form sent back keeps its first count, and the save is refused', async () => {
+    const out = await lineOf('-380.00');
+    const before = (await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1`, [out]))).rows[0].n as number;
+    const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
+    expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
+    // the old form (drawn with one match fewer) is sent with a typo: refused, back to the filled form, still stale
+    const ref = `TY-${RUN}`;
+    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before - 1), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(typo.headers['location']).toBe(`/app/books/spending?bankLine=${out}&account=${bank}&seen=${before - 1}#bill`);
+    const redrawn = /name="bankSeen" value="(\d+)"/.exec((await get(String(typo.headers['location']).split('#')[0]!)).body)?.[1];
+    expect(redrawn).toBe(String(before - 1));
+    const fixed = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: redrawn!, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(fixed.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    expect(await matchOf(out)).toEqual([]);
+  });
+
   it('a line in another currency than the books: the form promises no match', async () => {
     const day = today.replace(/-/g, '');
     const ofx = `OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD<BANKTRANLIST>\n<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>${day}<TRNAMT>-42.00<FITID>NX-${RUN}-3<NAME>USD FEE</STMTTRN>\n</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
@@ -239,5 +256,8 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     const form = (await get(`/app/books/spending?bankLine=${usd}&account=${bank}`)).body;
     expect(form).toContain('It is not matched to the bank line: the line is not in the currency of your books.');
     expect(form).not.toContain('it is matched to the bank line as it is recorded');
+    // the bank page's caption for it promises no match either
+    const caption = lineHtml((await get(`/app/books/bank?account=${bank}`)).body, usd);
+    expect(caption).toContain('so a cost recorded from here is not matched to it'); expect(caption).not.toContain('is matched to this line when it is saved');
   });
 });
