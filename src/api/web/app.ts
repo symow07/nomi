@@ -3867,6 +3867,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // placement are never offered (or recorded) twice. An offer already recorded, or gone, posts nothing.
     const ads = typeof f['ads'] === 'string' && str('ads') !== '' ? adsAsked(str('ads')) : undefined;
     if (ads === null) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
+    // Block 5 — every "none" of the form sends an empty value, so a chosen field that is not an id was made by hand:
+    // refused, never read as "none" (a garbled tax code would otherwise post the bill untaxed).
+    if (['supplier', 'tax', 'category', 'account', 'payFrom'].some((k) => str(k) !== '' && uuid(k) === null))
+      return flashTo(reply, ads ? `/app/books/spending?ads=${encodeURIComponent(`${ads.month}.${ads.platform}`)}#bill` : billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.choices') });
     // Block 5 — the line must be this workspace's, on that account: a line it does not hold (another workspace's, or
     // gone) makes this a plain bill, back to Spending, never a redirect to a bank page that is not there.
     let backToLine = false;

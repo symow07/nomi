@@ -166,4 +166,15 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(up.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${inn}`);
     expect((await get(String(up.headers['location']).split('#')[0]!)).statusCode).toBe(200);
   });
+
+  it('a chosen field that is not an id is refused, never read as "none" (a garbled tax code posts nothing)', async () => {
+    const posted = async (ref: string) => (await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n as number;
+    for (const [i, [field, bad]] of ([['tax', '-'.repeat(36)], ['tax', 'vat'], ['supplier', 'a'.repeat(36)], ['category', 'none'], ['account', 'x'], ['payFrom', '-'.repeat(36)]] as const).entries()) {
+      const ref = `GB-${RUN}-${i}`;
+      const r = await post('/app/books/spending/bills', { date: today, label: 'GARBLED', ref, gross: '9.00', account: expenseId, payFrom: bank, [field]: bad });
+      expect(r.statusCode, `${field}=${bad}`).toBe(302);
+      expect(r.headers['location'], `${field}=${bad}`).toBe('/app/books/spending#bill');
+      expect(await posted(ref), `${field}=${bad}`).toBe(0);
+    }
+  });
 });
