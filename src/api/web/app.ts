@@ -369,7 +369,7 @@ import { checkReading, parseReadingAnswer } from '../../core/books/reading.js';
 import { discardInvoice, draftInvoice, draftInvoiceForm, issueInvoice, loadInvoice, previewInvoiceTotals, recordPayment, redraftInvoice } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, invoiceReturnHref, renderBank, renderStatementColumns, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, creditPreview, discardCreditNote, draftCreditForm, draftCreditNote, issueCreditNote, loadCreditNote, redraftCreditNote, type CreditLineInput } from '../../db/booksCreditNotes.js';
-import { bankAccounts, importStatement, keepStatementLayout, lineForBill, matchBillToLine, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
+import { bankAccounts, importStatement, keepStatementLayout, lineForBill, lineMatchCount, matchBillToLine, matchedLines, matchLine, openLines, paymentAccounts, statementLayoutFor, unmatch } from '../../db/bankStatements.js';
 import { csvRows, DATE_FORMATS, guessLayout, headerKey, layoutOf, readCsvWithLayout, readStatement, statementFormatOf, type CsvLayout, type DateFormat, type StatementRead } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
@@ -3864,8 +3864,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         if (l && signOf(l.amount) < 0) {
           const gross = String(l.amount).replace(/^-/, '');
           const sameCurrency = l.currency === choices.bookCurrency;
-          prefill = { bank: { line: l.id, account: bankAccount }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
-            notes: [t(locale, 'booksSpending.fromBank.note', { date: booksDay(locale, l.bookedOn), amount: ((m) => (m ? show.money(locale, m) : `${l.currency} ${gross}`))(moneyFromRow(gross, l.currency)) }),
+          prefill = { bank: { line: l.id, account: bankAccount, seen: await lineMatchCount(tx, bid, l.id) }, label: (l.wording ?? '').slice(0, 200), date: l.bookedOn, gross: sameCurrency ? gross : null,
+            notes: [t(locale, sameCurrency ? 'booksSpending.fromBank.note' : 'booksSpending.fromBank.noteOther', { date: booksDay(locale, l.bookedOn), amount: ((m) => (m ? show.money(locale, m) : `${l.currency} ${gross}`))(moneyFromRow(gross, l.currency)) }),
               ...(sameCurrency ? [] : [t(locale, 'booksSpending.fromBank.otherCurrency', { currency: l.currency, books: choices.bookCurrency })])] };
         }
       }
@@ -3915,8 +3915,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // matched while the form was open is refused: its money is already in the books, and a bill would count it twice.
     let backToLine = false;
     const out = await withTenantTx(deps.db, got.bid, async (tx) => {
-      const line = fromBank ? await lineForBill(tx, got.bid, fromBank.account, fromBank.line) : null;
+      const line = fromBank ? await lineForBill(tx, got.bid, fromBank.account, fromBank.line, /^\d{1,6}$/.test(str('bankSeen')) ? Number(str('bankSeen')) : null) : null;
       if (line === 'matched') return { kind: 'line_matched' as const };
+      if (line === 'changed') return { kind: 'line_changed' as const };
       backToLine = line === 'open';
       let offer: Awaited<ReturnType<typeof recordOffer>> = null;
       if (ads) {
@@ -3935,6 +3936,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (out.kind === 'ads_refused') return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recordRefused');
     if (out.kind === 'line_matched') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}`, 'booksSpending.flash.lineMatched');
+    if (out.kind === 'line_changed') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}#bank-line-${fromBank!.line}`, 'booksSpending.flash.lineChanged');
     if (out.kind === 'posted' && ads) return flashTo(reply, '/app/results#ad-spend', 'adSpend.flash.recorded', { key: out.key });
     // F23 fix — a bill recorded from a bank line goes back to the bank page: matched to the line, or, when it could not
     // be (paid from another account, another amount), to the line, still open. A refused one goes back to the filled form.

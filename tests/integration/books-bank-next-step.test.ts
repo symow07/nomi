@@ -206,4 +206,38 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
     expect(next).toContain('Nothing was recorded: that bank line was matched while the form was open');
   });
+
+  it('a form opened before the line was matched and set aside again is stale: refused, nothing posted; a form opened after records it', async () => {
+    const out = await lineOf('-380.00');
+    const seenIn = (page: string) => /name="bankSeen" value="(\d+)"/.exec(page)?.[1];
+    // the stale form: opened while the line was open, before the bill from it matched it (one match since)
+    const ref = `ST-${RUN}`;
+    const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
+    expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
+    const fresh = seenIn((await get(`/app/books/spending?bankLine=${out}&account=${bank}`)).body);
+    expect(fresh).toBe('1');
+    const stale = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: '0', date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(stale.statusCode).toBe(302);
+    expect(stale.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);
+    expect(await flashOf(stale)).toContain('Nothing was recorded: that bank line was matched and set aside again while the form was open');
+    // a form opened now is the owner's own choice: recorded, and matched to the line
+    const again = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: fresh!, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(again.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    const bill = (await as((q) => q(`select entry_id::text as e from journal_entries j join spending_bills b on b.entry_id = j.id where j.document_ref = $1`, [ref]))).rows[0].e as string;
+    expect(await matchOf(out)).toEqual([bill]);
+  });
+
+  it('a line in another currency than the books: the form promises no match', async () => {
+    const day = today.replace(/-/g, '');
+    const ofx = `OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD<BANKTRANLIST>\n<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>${day}<TRNAMT>-42.00<FITID>NX-${RUN}-3<NAME>USD FEE</STMTTRN>\n</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+    const boundary = `----nomi${RUN}u`;
+    const up = await app.inject({ method: 'POST', url: `/app/books/bank/import?account=${bank}`, headers: { cookie: owner, 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: `--${boundary}\r\nContent-Disposition: form-data; name="statement"; filename="usd.ofx"\r\nContent-Type: application/octet-stream\r\n\r\n${ofx}\r\n--${boundary}--\r\n` });
+    expect(up.statusCode).toBe(302);
+    const usd = await lineOf('-42.00');
+    const form = (await get(`/app/books/spending?bankLine=${usd}&account=${bank}`)).body;
+    expect(form).toContain('It is not matched to the bank line: the line is not in the currency of your books.');
+    expect(form).not.toContain('it is matched to the bank line as it is recorded');
+  });
 });

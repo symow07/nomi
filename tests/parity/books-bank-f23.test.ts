@@ -52,10 +52,13 @@ describe('F23 · bank matching', () => {
     expect(li).toContain('No entry of the same amount within a week.');
     expect(li).toContain('<a class="deeper" href="/app/books/spending?bankLine=l1&amp;account=bank#bill">Record it as a cost</a>');
     expect(li).toContain('<a class="deeper" href="/app/books/advanced/entries/new">Write an entry for this line</a>');
-    expect(li).toContain('A cost recorded from here is matched to this line when it is saved. A payment or an entry recorded another way is offered here to match.');
+    expect(li).toContain('A cost recorded from here, paid from this account for the same amount, is matched to this line when it is saved. Anything else recorded for it is offered here to match.');
+    expect(li).not.toContain('Once the payment or the entry is recorded');
     expect(li).not.toContain('Find the invoice it pays');
     const inn = renderBank('en', owner, { accounts, accountId: 'bank', open: [{ ...line('l2', []), amount: d('125.75'), wording: 'CASA OLIVO' }], matched: [] });
     expect(inn).toContain('<a class="deeper" href="/app/books/invoices?state=unpaid">Find the invoice it pays</a>');
+    // money in has no cost to record from it: its caption promises no match on saving
+    expect(inn).toContain('Once the payment or the entry is recorded, it is offered here to match.'); expect(inn).not.toContain('A cost recorded from here');
     expect(inn).toContain('Write an entry for this line'); expect(inn).not.toContain('Record it as a cost');
     // a line WITH a candidate keeps Match as its step; the accountant reads the line and is offered no step
     expect(renderBank('en', owner, { accounts, accountId: 'bank', open: [line('l1', [s(1)])], matched: [] })).not.toContain('Record it as a cost');
@@ -64,7 +67,7 @@ describe('F23 · bank matching', () => {
   });
   it('the new words are in all five languages', () => {
     for (const k of ['bankMatch.best', 'bankMatch.chooseAnother', 'bankMatch.noOther', 'bankMatch.noneRead', 'bankMatch.allMatched', 'bankMatch.moneyIn', 'bankMatch.moneyOut', 'bankMatch.entryAmount', 'bankMatch.details', 'bankMatch.entry',
-      'bankMatch.recordCost', 'bankMatch.findInvoice', 'bankMatch.writeEntry', 'bankMatch.thenMatch'] as const)
+      'bankMatch.recordCost', 'bankMatch.findInvoice', 'bankMatch.writeEntry', 'bankMatch.thenMatch', 'bankMatch.thenMatchIn'] as const)
       for (const l of LOCALES) { expect(messages[l][k], `${l} ${k}`).toBeTruthy(); if (l !== 'en') expect(messages[l][k]).not.toBe(messages.en[k]); }
   });
 });

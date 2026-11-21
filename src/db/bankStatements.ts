@@ -49,14 +49,22 @@ async function lockStatementLine(tx: Tx, lineId: string): Promise<void> {
  * `matchLine` takes too (nomi_app may not lock the line's row: it has no UPDATE right on it), so a bill never reads a
  * line as open while a match of it commits.
  */
-export async function lineForBill(tx: Tx, businessId: string, accountId: string, lineId: string): Promise<'open' | 'matched' | null> {
+export async function lineForBill(tx: Tx, businessId: string, accountId: string, lineId: string, seen: number | null = null): Promise<'open' | 'matched' | 'changed' | null> {
   await lockStatementLine(tx, lineId);
   const held = (await sql<{ one: number }>`select 1 as one from statement_lines
      where business_id = ${businessId}::uuid and account_id = ${accountId}::uuid and id = ${lineId}::uuid`.execute(tx)).rows.length > 0;
   if (!held) return null;
-  const matched = (await sql<{ one: number }>`select 1 as one from statement_matches
-     where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid and unmatched_at is null`.execute(tx)).rows.length > 0;
-  return matched ? 'matched' : 'open';
+  const m = (await sql<{ active: number; ever: number }>`select count(*) filter (where unmatched_at is null)::int as active, count(*)::int as ever
+     from statement_matches where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid`.execute(tx)).rows[0]!;
+  if (m.active > 0) return 'matched';
+  // a line matched and set aside again while the form was open: the form is stale (its money may be in the books)
+  return seen !== null && m.ever !== seen ? 'changed' : 'open';
+}
+
+/** How many matches a statement line has had, set aside or not: the bill form carries it, so a stale form is told. */
+export async function lineMatchCount(tx: Tx, businessId: string, lineId: string): Promise<number> {
+  return (await sql<{ n: number }>`select count(*)::int as n from statement_matches
+     where business_id = ${businessId}::uuid and statement_line_id = ${lineId}::uuid`.execute(tx)).rows[0]!.n;
 }
 
 /**
@@ -67,7 +75,7 @@ export async function lineForBill(tx: Tx, businessId: string, accountId: string,
  */
 export async function matchBillToLine(tx: Tx, businessId: string, by: string, lineId: string, accountId: string, entryId: string): Promise<boolean> {
   const paid = (await sql<{ id: string }>`select id::text as id from journal_lines
-     where business_id = ${businessId}::uuid and entry_id = ${entryId}::uuid and account_id = ${accountId}::uuid and credit is not null`.execute(tx)).rows;
+     where business_id = ${businessId}::uuid and entry_id = ${entryId}::uuid and account_id = ${accountId}::uuid and credit > 0`.execute(tx)).rows;
   return paid.length === 1 ? matchLine(tx, businessId, by, lineId, paid[0]!.id) : false;
 }
 

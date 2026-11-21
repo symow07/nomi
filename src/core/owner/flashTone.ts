@@ -145,7 +145,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'autonomy.flash.notReleased',
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
-  'booksSpending.flash.billRefused', 'booksSpending.flash.categoryRefused', 'booksSpending.flash.recurringRefused', 'booksSpending.flash.proposalGone', 'booksSpending.flash.lineMatched',
+  'booksSpending.flash.billRefused', 'booksSpending.flash.categoryRefused', 'booksSpending.flash.recurringRefused', 'booksSpending.flash.proposalGone', 'booksSpending.flash.lineMatched', 'booksSpending.flash.lineChanged',
   // 0238 — ad spend: what did not connect, and a month and placement already recorded as a cost.
   'adSpend.flash.notConfigured', 'adSpend.flash.noAccounts', 'adSpend.flash.expired', 'adSpend.flash.denied', 'adSpend.flash.unavailable', 'adSpend.flash.recordRefused',
   'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'product.tier.notRemoved', 'practice.flash.media_refused', 'proof.owner.flash.failed',

@@ -415,7 +415,7 @@ export function renderBank(locale: Locale, viewer: Who, c: {
     if(!best) return `<p class="muted">${esc(t(locale,'books.bank.noSuggestion'))}</p>${owner?`<p class="bb-next">${signOf(l.amount)<0
       ?`<a class="deeper" href="/app/books/spending?${esc(new URLSearchParams({bankLine:l.id,account:c.accountId!}).toString())}#bill">${esc(t(locale,'bankMatch.recordCost'))}</a>`
       :`<a class="deeper" href="/app/books/invoices?state=unpaid">${esc(t(locale,'bankMatch.findInvoice'))}</a>`}
-      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,'bankMatch.thenMatch'))}</p>`:''}`;
+      <a class="deeper" href="/app/books/advanced/entries/new">${esc(t(locale,'bankMatch.writeEntry'))}</a></p><p class="caption muted">${esc(t(locale,signOf(l.amount)<0?'bankMatch.thenMatch':'bankMatch.thenMatchIn'))}</p>`:''}`;
     return `<div class="bb-suggestion"><p class="bb-suggested">${esc(t(locale,'bankMatch.best'))}</p>${candidate(l,best)}</div>${others.length===0?`<p class="caption muted bb-no-other">${esc(t(locale,'bankMatch.noOther'))}</p>`
       :`<details class="bb-others"><summary>${esc(t(locale,'bankMatch.chooseAnother',{n:show.count(locale,others.length)}))}</summary>${others.map(s=>`<div class="bb-suggestion">${candidate(l,s)}</div>`).join('')}</details>`}`;
   };

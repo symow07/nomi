@@ -29,7 +29,7 @@ export type SpendingBook = {
 };
 /** `ads` (0238): a month's ad spend; `bank` (F23 fix): a bank line nothing matched, paid from its own account. */
 export type BillPrefill = { readonly label: string; readonly date: string; readonly gross: string | null; readonly notes: readonly string[] }
-  & ({ readonly ads: string; readonly bank?: undefined } | { readonly ads?: undefined; readonly bank: { readonly line: string; readonly account: string } });
+  & ({ readonly ads: string; readonly bank?: undefined } | { readonly ads?: undefined; readonly bank: { readonly line: string; readonly account: string; readonly seen: number } });
 
 const money = (locale: Locale, d: Decimal, currency: string): string => { const m = moneyFromRow(d, currency); return esc(m ? show.money(locale, m) : d); };
 const owner = (v: Who): boolean => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
@@ -60,7 +60,7 @@ export function renderSpendingBook(locale: Locale, viewer: Who, d: SpendingBook,
   const pf = d.prefill;
   const bill = !may ? '' : `<section class="block" id="bill"><h2>${esc(t(locale, pf?.ads ? 'adSpend.prefill.title' : pf?.bank ? 'booksSpending.fromBank.title' : 'booksSpending.bill.title'))}</h2><p class="muted">${esc(t(locale, 'booksSpending.bill.lede'))}</p>
     ${pf ? pf.notes.map((n) => `<p class="caption" role="note">${esc(n)}</p>`).join('') : ''}
-    ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">${pf?.ads ? `<input type="hidden" name="ads" value="${esc(pf.ads)}" />` : ''}${pf?.bank ? `<input type="hidden" name="bankLine" value="${esc(pf.bank.line)}" /><input type="hidden" name="bankAccount" value="${esc(pf.bank.account)}" />` : ''}
+    ${c.purchasesJournal && (c.payableAccount || c.payAccounts.length) ? `<form method="post" action="/app/books/spending/bills" class="pform">${pf?.ads ? `<input type="hidden" name="ads" value="${esc(pf.ads)}" />` : ''}${pf?.bank ? `<input type="hidden" name="bankLine" value="${esc(pf.bank.line)}" /><input type="hidden" name="bankAccount" value="${esc(pf.bank.account)}" /><input type="hidden" name="bankSeen" value="${pf.bank.seen}" />` : ''}
       ${input('date', t(locale, 'books.entry.date'), 'date', ` value="${esc(pf?.date ?? d.today)}" required`)}
       ${input('label', t(locale, 'books.entry.label'), 'text', ` maxlength="200" required${pf ? ` value="${esc(pf.label)}"` : ''}`)}
       ${input('ref', t(locale, 'booksSpending.bill.ref'), 'text', ' maxlength="120" autocomplete="off"')}

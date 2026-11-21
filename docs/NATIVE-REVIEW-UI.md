@@ -16791,6 +16791,12 @@ translates them.
   (English only) says the bill is matched as it is recorded when left paid from that account for that amount; new,
   English only: `booksSpending.flash.billMatched`, `.billMatchedNoRef`. Not read by a native reader; the Arabic uses
   the passive, so nobody is addressed by gender.
+- **Changed again 2026-11-21 (the tester's re-check):** `bankMatch.thenMatch` (money out) now says the match needs
+  the same account and amount, and no longer names "money received" (zh 收款, es cobro, fr encaissement) for a line of
+  money out; new `bankMatch.thenMatchIn` (money in, five languages) promises no match on saving. New, English only:
+  `booksSpending.fromBank.noteOther` (a line in another currency than the books: not matched) and
+  `booksSpending.flash.lineChanged` (a form opened before the line was matched and set aside again). Not read by a
+  native reader.
 
 ## Invoices that go out (2026-11-06; 0226)
 
