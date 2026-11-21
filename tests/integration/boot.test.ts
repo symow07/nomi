@@ -254,7 +254,8 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
       // Another file's alerts may still be queued — on 2026-10-05 provider-billing's ten were, and this
       // worker took them first, one about every 2 s, so this job ran 16 s late, after the cleanup below
       // had taken the phone away ("nowhere to go"). Let the queue drain first (bounded), so the 5 s
-      // below measure this job alone. The leak itself is closed where it was made (provider-billing).
+      // below measure this job alone. That leak was closed where it was made (provider-billing); since 2026-11-22 every
+      // file's waiting alerts go with it, the morning summary's quarter-hourly ones included (alerts-go-with-file.setup.ts).
       const queued = async () => (await sql<{ n: number }>`select count(*)::int as n from pgboss.job
         where name = 'notify.team' and state in ('created', 'retry') and start_after <= now()`.execute(prod.db)).rows[0]!.n;
       for (let i = 0; i < 300 && (await queued()) > 0; i++) await new Promise((r) => setTimeout(r, 100));
