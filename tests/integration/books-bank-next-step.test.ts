@@ -205,6 +205,10 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     const flash = ([] as string[]).concat((r.headers['set-cookie'] as string | string[]) ?? []).map((c) => c.split(';')[0]!).filter((c) => !c.startsWith('yf_session='));
     const next = (await app.inject({ method: 'GET', url: String(r.headers['location']), headers: { cookie: [owner, ...flash].join('; ') } })).body;
     expect(next).toContain('Nothing was recorded: that bank line was matched while the form was open');
+    // the same stale form with a typo is told the same, not sent to a plain form that hides the match
+    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(typo.headers['location']).toBe(`/app/books/bank?account=${bank}`);
+    expect(await flashOf(typo)).toContain('Nothing was recorded: that bank line was matched while the form was open');
   });
 
   it('a form opened before the line was matched and set aside again is stale: refused, nothing posted; a form opened after records it', async () => {
@@ -228,17 +232,30 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(await matchOf(out)).toEqual([bill]);
   });
 
-  it('a stale form refused for a typo stays stale: the form sent back keeps its first count, and the save is refused', async () => {
+  it('a stale form refused for a typo stays stale: told at once, and a form sent back for a typo keeps its first count', async () => {
     const out = await lineOf('-380.00');
-    const before = (await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1`, [out]))).rows[0].n as number;
-    const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
-    expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
-    // the old form (drawn with one match fewer) is sent with a typo: refused, back to the filled form, still stale
+    const count = async () => (await as((q) => q(`select count(*)::int as n from statement_matches where statement_line_id = $1`, [out]))).rows[0].n as number;
+    const unmatchNow = async () => {
+      const match = (await as((q) => q(`select id::text as id from statement_matches where statement_line_id = $1 and unmatched_at is null`, [out]))).rows[0].id as string;
+      expect((await post('/app/books/bank/unmatch', { account: bank, match })).statusCode).toBe(302);
+    };
+    await unmatchNow();
+    const before = await count();
     const ref = `TY-${RUN}`;
-    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before - 1), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
-    expect(typo.headers['location']).toBe(`/app/books/spending?bankLine=${out}&account=${bank}&seen=${before - 1}#bill`);
+    // a stale form with a typo: the line is checked first, so it is told the line changed, never sent to a fresh form
+    const stale = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before - 1), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(stale.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
+    expect(await flashOf(stale)).toContain('Nothing was recorded: that bank line was matched and set aside again while the form was open');
+    // a current form with a typo goes back to the filled form, carrying its count
+    const typo = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before), date: today, label: 'RIF COTON', ref, gross: 'abc', account: expenseId, payFrom: bank });
+    expect(typo.headers['location']).toBe(`/app/books/spending?bankLine=${out}&account=${bank}&seen=${before}#bill`);
+    // meanwhile, another tab records the line and sets the match aside again
+    const other = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: String(before), date: today, label: 'RIF COTON', ref: `OT-${RUN}`, gross: '380.00', account: expenseId, payFrom: bank });
+    expect(other.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-matched`);
+    await unmatchNow();
+    // the form sent back is drawn with its first count, not the count of now: its save is refused
     const redrawn = /name="bankSeen" value="(\d+)"/.exec((await get(String(typo.headers['location']).split('#')[0]!)).body)?.[1];
-    expect(redrawn).toBe(String(before - 1));
+    expect(redrawn).toBe(String(before));
     const fixed = await post('/app/books/spending/bills', { bankLine: out, bankAccount: bank, bankSeen: redrawn!, date: today, label: 'RIF COTON', ref, gross: '380.00', account: expenseId, payFrom: bank });
     expect(fixed.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${out}`);
     expect((await as((q) => q(`select count(*)::int as n from journal_entries where document_ref = $1`, [ref]))).rows[0].n).toBe(0);

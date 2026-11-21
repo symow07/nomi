@@ -3903,6 +3903,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const fromBank = typeof f['ads'] !== 'string' && uuid('bankLine') && uuid('bankAccount') ? { line: uuid('bankLine')!, account: uuid('bankAccount')! } : null;
     const seenIn = /^\d{1,6}$/.test(str('bankSeen')) ? Number(str('bankSeen')) : null;
     const billForm = fromBank ? `/app/books/spending?${new URLSearchParams({ bankLine: fromBank.line, account: fromBank.account, ...(seenIn === null ? {} : { seen: String(seenIn) }) })}#bill` : '/app/books/spending#bill';
+    // Block 5 — the line first: a form whose line was matched (or matched and set aside) while it was open is told so
+    // before any typo of its own, never sent back to a form that hides it. Checked again under the lock below.
+    const before = fromBank ? await withTenantTx(deps.db, got.bid, (tx) => lineForBill(tx, got.bid, fromBank.account, fromBank.line, seenIn)) : null;
+    if (before === 'matched') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}`, 'booksSpending.flash.lineMatched');
+    if (before === 'changed') return flashTo(reply, `/app/books/bank?${new URLSearchParams({ account: fromBank!.account })}#bank-line-${fromBank!.line}`, 'booksSpending.flash.lineChanged');
     if (gross === null || gross === 'ambiguous' || signOf(gross) <= 0 || !date) return flashTo(reply, billForm, 'booksSpending.flash.billRefused', { why: t(locale, 'booksSpending.refused.amount') });
     const noNumber = str('noref') === '1';
     // 0238 — a bill from "Record as a cost": the same writer, then the link in the same transaction, so the month and
