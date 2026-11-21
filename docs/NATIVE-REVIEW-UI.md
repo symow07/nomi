@@ -16781,8 +16781,10 @@ translates them.
   use verbal nouns, so nobody is addressed by gender.
 - **Added 2026-11-21 (Block 5, the tester's three small texts):** `booksSpending.refused.amount`, English only (a bill
   refused for its amount or date says so, where it said an entry's "Line {n}"). `books.credit.moreThanLeft` reworded in
-  all five languages: a new credit note has no draft to discard, so it says to change the note and save it again. Not
-  read by a native reader; the Arabic uses the passive, so nobody is addressed by gender.
+  all five languages: it fires when the owner typed more than is left (a quantity or a price reduction) as well as
+  when another note took it, so it names neither a draft, another note nor a quantity: change the note to no more
+  than what is left, then save it. Not read by a native reader; the Arabic uses the passive, so nobody is addressed
+  by gender.
 
 ## Invoices that go out (2026-11-06; 0226)
 

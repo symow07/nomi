@@ -153,4 +153,17 @@ d('F23 fix · a bank line with no entry has a next step (requires DATABASE_URL +
     expect(refused.headers['location']).toBe('/app/books/spending#bill');
     expect((await get(`/app/books/spending?bankLine=${inn}&account=${foreign}`)).body).not.toContain('name="bankLine"');
   });
+
+  it('a malformed id is no id (never a 500), and an upper-case id of this workspace\'s line goes back to that line', async () => {
+    const inn = await lineOf('1440.60');
+    for (const [i, bad] of ['-'.repeat(36), 'a'.repeat(36), `${inn.replace(/-/g, '')}abcd`].entries()) {
+      const r = await post('/app/books/spending/bills', { bankLine: bad, bankAccount: bad, date: today, label: 'MALFORMED', ref: `MF-${RUN}-${i}`, gross: '7.00', account: expenseId, payFrom: bank });
+      expect(r.statusCode, `case ${i}`).toBe(302);
+      expect(r.headers['location'], `case ${i}`).toBe('/app/books/spending#unpaid');
+    }
+    const up = await post('/app/books/spending/bills', { bankLine: inn.toUpperCase(), bankAccount: bank.toUpperCase(), date: today, label: 'UPPER', ref: `UP-${RUN}`, gross: '7.00', account: expenseId, payFrom: bank });
+    expect(up.statusCode).toBe(302);
+    expect(up.headers['location']).toBe(`/app/books/bank?account=${bank}#bank-line-${inn}`);
+    expect((await get(String(up.headers['location']).split('#')[0]!)).statusCode).toBe(200);
+  });
 });

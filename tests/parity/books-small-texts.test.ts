@@ -15,6 +15,9 @@ describe('Block 5 · small texts', () => {
       expect(s, l).toContain('2');
       expect(s, l).not.toMatch(draft);
       expect(s, l).not.toMatch(/\{\w+\}/);
+      // the same refusal fires when the owner simply typed too much on a new note: it claims no other note, and
+      // names no quantity (a price reduction is refused the same way)
+      expect(s, l).not.toMatch(/in between|期间|في الأثناء|entretanto|entre-temps|数量/);
     }
   });
 

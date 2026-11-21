@@ -3809,7 +3809,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const last = monthDays(offer.month)!.last;
         prefill = { ads: `${offer.month}.${offer.platform}`, label: t('en', 'adSpend.prefill.label', { platform: place, month: offer.month }),
           date: last < today ? last : today, gross: exact ? offer.amount : null,
-          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: `${offer.currency} ${offer.amount}` }),
+          notes: [t(locale, 'adSpend.prefill.estimated', { platform: place, month: offer.month, amount: ((m) => (m ? show.money(locale, m) : `${offer.currency} ${offer.amount}`))(moneyFromRow(offer.amount, offer.currency)) }),
             ...(sameCurrency ? [] : [t(locale, 'adSpend.prefill.otherCurrency', { currency: offer.currency, books: choices.bookCurrency })])] };
       }
       // F23 fix — "Record it as a cost" from a bank line nothing matched: the form filled from the line's own date,
@@ -3853,7 +3853,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const f = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
-    const uuid = (k: string) => (/^[0-9a-f-]{36}$/i.test(str(k)) ? str(k) : null);
+    // Block 5 — a uuid's own shape, in lower case: 36 dashes passed the old test and broke the line's lookup (a 500),
+    // and an upper-case account id recorded the bill, then went to a bank page that compares ids exactly (a 404).
+    const uuid = (k: string) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str(k)) ? str(k).toLowerCase() : null);
     const gross = readTypedAmount(str('gross'));
     const date = dayOf(str('date'));
     // F23 fix — the bank line a bill is recorded from, when it came from one (see the redirects below).
