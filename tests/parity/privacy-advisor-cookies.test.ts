@@ -175,7 +175,9 @@ describe('the privacy page · cookies, drawn from the registry the code is check
         const row = /<tr>[\s\S]*?<\/tr>/g;
         const mine = [...table.matchAll(row)].map((m) => m[0]).find((r) => r.includes(`<code dir="ltr">${c.name}</code>`))!;
         expect(mine, `${l} ${c.name}`).toContain(`<td>${esc(t(l, c.purpose))}</td>`);
-        expect(mine, `${l} ${c.name}`).toContain(`<td>${esc(formatLifetime(l, c.lifetimeSec))}</td>`);
+        // Loosened in UI Block 8 (F42 legal, rule 38): the duration is a value, so it sits in <bdi> ("7 أيام" in an
+        // Arabic table). The words are exactly formatLifetime's, as before; only the isolating element is new.
+        expect(mine, `${l} ${c.name}`).toContain(`<td><bdi>${esc(formatLifetime(l, c.lifetimeSec))}</bdi></td>`);
       }
       expect(table, l).toContain(`<th scope="col">${esc(t(l, 'legal.privacy.cookies.lifetime'))}</th>`);
       expect(html, l).toContain(p(l, 'legal.privacy.cookies.body'));

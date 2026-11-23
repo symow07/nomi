@@ -217,7 +217,7 @@ function cookieTable(l: Locale): string {
   }
   const comma = l === 'zh' ? '、' : l === 'ar' ? '، ' : ', ';
   return `<table class="cookies"><thead><tr><th scope="col">${esc(t(l, 'legal.privacy.cookies.name'))}</th><th scope="col">${esc(t(l, 'legal.privacy.cookies.purpose'))}</th><th scope="col">${esc(t(l, 'legal.privacy.cookies.lifetime'))}</th></tr></thead><tbody>${
-    rows.map((r) => `<tr><td>${r.names.map((n) => `<code dir="ltr">${esc(n)}</code>`).join(comma)}</td><td>${esc(t(l, r.purpose))}</td><td>${esc(formatLifetime(l, r.life))}</td></tr>`).join('')
+    rows.map((r) => `<tr><td>${r.names.map((n) => `<code dir="ltr">${esc(n)}</code>`).join(comma)}</td><td>${esc(t(l, r.purpose))}</td><td><bdi>${esc(formatLifetime(l, r.life))}</bdi></td></tr>`).join('')
   }</tbody></table>`;
 }
 
@@ -262,7 +262,7 @@ export function renderCookies(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
     ${cookieTable(l)}
     ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
-    <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
+    <p class="go"><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email, false)}
     ${updated(l, 'legal.updated.privacy')}`, home, '/cookies', privacyCss(l));
 }
@@ -383,7 +383,7 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
     <h2>${k('legal.terms.liability.title')}</h2><p>${k('legal.terms.liability.body')}</p>
     <h2>${k('legal.terms.changes.title')}</h2><p>${k('legal.terms.changes.body')}</p>
     ${contact(l, email, false)}
-    <p><a href="/privacy">${k('legal.privacyLink')}</a></p>
+    <p class="go"><a href="/privacy">${k('legal.privacyLink')}</a></p>
     ${updated(l, 'legal.updated.terms')}`, home, '/terms');
 }
 
@@ -412,7 +412,7 @@ export function renderRefunds(l: Locale, email: string | null, facts: { readonly
     <p>${k('legal.refunds.ask')}</p>
     ${contact(l, email, false)}
     ${operatorNamed() ? `<p>${k('legal.refunds.operator', { company: OPERATOR.name.trim(), address: OPERATOR.address.trim() })}</p>` : ''}
-    <p><a href="/terms">${k('legal.termsLink')}</a> · <a href="/privacy">${k('legal.privacyLink')}</a></p>
+    <p class="go"><a href="/terms">${k('legal.termsLink')}</a> · <a href="/privacy">${k('legal.privacyLink')}</a></p>
     ${updated(l, 'legal.updated.refunds')}`, home, '/refunds');
 }
 
@@ -501,6 +501,6 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
       'legal.deletion.kept.advisorUnlinked',
     ])}</ul>
     ${contact(l, email, !email)}
-    <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>
+    <p class="go"><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>
     ${updated(l, 'legal.updated.deletion')}`, home, '/data-deletion');
 }

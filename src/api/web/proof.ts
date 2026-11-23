@@ -362,9 +362,9 @@ export function renderProof(v: ProofView): string {
     locale: l, title: t(l, 'proof.title', { seller: v.seller }), noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
     body: `
   <header class="head">
-    <div class="seller">${esc(v.seller)}</div>
-    <h1>${esc(v.productName)}</h1>
-    ${/* CC-31 — the owner's own article number; one the import made up means nothing to a buyer. */ ''}${ownSku(v.sku) ? `<div class="sku">${esc(ownSku(v.sku)!)}</div>` : ''}
+    <div class="seller"><bdi>${esc(v.seller)}</bdi></div>
+    <h1><bdi>${esc(v.productName)}</bdi></h1>
+    ${/* CC-31 — the owner's own article number; one the import made up means nothing to a buyer. */ ''}${ownSku(v.sku) ? `<div class="sku"><bdi>${esc(ownSku(v.sku)!)}</bdi></div>` : ''}
   </header>
 
   <section class="sec">
