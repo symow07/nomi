@@ -40,7 +40,33 @@ export const TERMS_VERSION: string = createHash('sha256')
  * returns to the same page (`path`).
  */
 const SHELL = (locale: Locale, title: string, body: string, home: string, path: string, css: string = PUBLIC_TOP_CSS): string =>
-  publicFrame({ locale, title: `${title} · Nomi`, mainClass:'legal', body: `${publicTop(locale, home, path)}<article class="legal-copy">${body}</article>`, extraCss: css + LEGAL_READING_CSS });
+  publicFrame({ locale, title: `${title} · Nomi`, mainClass:'legal', body: `${publicTop(locale, home, path)}<article class="legal-copy">${withContents(locale, body)}</article>`, extraCss: css + LEGAL_READING_CSS });
+
+/** A page with at least this many sections opens them with a list of contents. */
+const CONTENTS_FROM = 4;
+
+/**
+ * UI correction Block 8 (F42) — every section heading can be linked to, and a long page lists its sections first.
+ * The legal text itself is untouched: each `<h2>` is left as written; one with an id of its own is linked to it, any other
+ * to an empty mark just before it (`part-N`, the same in every language), and the list, built from those same headings, is placed before the first.
+ */
+function withContents(locale: Locale, body: string): string {
+  let n = 0;
+  const parts: { id: string; label: string }[] = [];
+  const out = body.replace(/<h2( id="([^"]+)")?>([\s\S]*?)<\/h2>/g, (whole, _attr: string | undefined, own: string | undefined, inner: string) => {
+    n += 1;
+    const id = own ?? `part-${n}`;
+    parts.push({ id, label: inner.replace(/<[^>]*>/g, '') });
+    // The heading itself is left exactly as written; one without an id of its own is reached by the mark before it.
+    return own ? whole : `<span class="part" id="${id}"></span>${whole}`;
+  });
+  if (parts.length < CONTENTS_FROM) return out;
+  const list = `<nav class="legal-toc" aria-labelledby="legal-toc-title"><p class="legal-toc-title" id="legal-toc-title">${esc(t(locale, 'legal.contents'))}</p>`
+    + `<ol>${parts.map((p) => `<li><a href="#${p.id}">${p.label}</a></li>`).join('')}</ol></nav>`;
+  const first = parts[0]!.id;
+  const at = Math.min(...[out.indexOf(`<span class="part" id="${first}"`), out.indexOf(`<h2 id="${first}"`)].filter((i) => i >= 0));
+  return `${out.slice(0, at)}${list}${out.slice(at)}`;
+}
 
 const LEGAL_READING_CSS=`
   main.legal{max-width:var(--measure-prose);padding-block:var(--space-24) var(--space-48);}
@@ -50,6 +76,14 @@ const LEGAL_READING_CSS=`
   .legal-copy p,.legal-copy li{font-size:var(--font-size-base);line-height:1.8;}
   .legal-copy a{color:var(--color-accent);}
   .legal-copy .updated{font-size:var(--font-size-small);}
+  .legal-copy h2,.legal-copy .part{scroll-margin-top:var(--space-16);}
+  .legal-copy .part{display:block;}
+  .legal-toc{margin:var(--space-32) 0 0;padding:var(--space-16) var(--space-16) var(--space-8);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface);}
+  .legal-toc-title{margin:0 0 var(--space-4);font-size:var(--font-size-small);font-weight:600;color:var(--color-ink);}
+  .legal-toc ol{margin:0;padding-inline-start:var(--space-24);}
+  .legal-copy .legal-toc li{margin:0;font-size:var(--font-size-small);line-height:1.4;color:var(--color-ink-secondary);}
+  .legal-toc a{display:inline-flex;align-items:center;min-height:44px;color:var(--color-ink);}
+  @media (min-width: 40rem){.legal-toc ol{columns:2;column-gap:var(--space-32);}.legal-toc li{break-inside:avoid;}}
 `;
 
 /** A sentence from the catalogue with one placeholder made a link — the rest escaped. */
@@ -187,14 +221,34 @@ function cookieTable(l: Locale): string {
   }</tbody></table>`;
 }
 
-/** The cookie table's rules: the page's tokens, a rule under each row, nothing wider than the page. */
-const PRIVACY_CSS = `${PUBLIC_TOP_CSS}
+/**
+ * The cookie table's rules: the page's tokens, a rule under each row, nothing wider than the page. Words are never
+ * broken (Block 8, F42: "How long it lasts" read "Ho w lon g it last s" at 390): only a cookie's own name may wrap.
+ * Below 40rem each cookie is a block, its three values labelled with the table's own headings — drawn by the
+ * stylesheet, so the table's markup and words are unchanged and a screen reader still hears the table.
+ */
+const cssText = (s: string): string => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/</g, '\\3c ')}"`;
+const privacyCss = (l: Locale): string => {
+  const label = (n: number, key: 'name' | 'purpose' | 'lifetime') => {
+    const text = cssText(t(l, `legal.privacy.cookies.${key}`));
+    return `  table.cookies td:nth-child(${n})::before { content:${text}; content:${text} / ""; }\n`;
+  };
+  return `${PUBLIC_TOP_CSS}
   table.cookies { border-collapse:collapse; margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
   table.cookies th, table.cookies td { text-align:start; vertical-align:top; padding-block:var(--space-8); padding-inline:0 var(--space-12);
-    border-bottom:1px solid var(--color-border); overflow-wrap:anywhere; }
+    border-bottom:1px solid var(--color-border); overflow-wrap:break-word; hyphens:manual; }
   table.cookies th { color:var(--color-ink); font-weight:600; }
-  table.cookies code { font-size:var(--font-size-small); }
+  table.cookies code { font-size:var(--font-size-small); overflow-wrap:anywhere; }
+  table.cookies td:nth-child(3) { white-space:nowrap; }
+  @media (max-width: 40rem) {
+    table.cookies, table.cookies tbody, table.cookies tr, table.cookies td { display:block; }
+    table.cookies thead { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    table.cookies tr { padding-block:var(--space-12); border-bottom:1px solid var(--color-border); }
+    table.cookies td { border:0; padding:0 0 var(--space-8); }
+    table.cookies td::before { display:block; font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
+${label(1, 'name')}${label(2, 'purpose')}${label(3, 'lifetime')}  }
 `;
+};
 
 /**
  * The cookie policy as a page of its own (docs/PRE-LAUNCH.md item 5): the privacy page's own cookie section, word
@@ -210,7 +264,7 @@ export function renderCookies(l: Locale, email: string | null, facts: LegalFacts
     ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
     <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email, false)}
-    ${updated(l, 'legal.updated.privacy')}`, home, '/cookies', PRIVACY_CSS);
+    ${updated(l, 'legal.updated.privacy')}`, home, '/cookies', privacyCss(l));
 }
 
 export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site', person: string | null = null): string {
@@ -301,7 +355,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
     <p><a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email, true)}
-    ${updated(l, 'legal.updated.privacy')}`, home, '/privacy', PRIVACY_CSS);
+    ${updated(l, 'legal.updated.privacy')}`, home, '/privacy', privacyCss(l));
 }
 
 /**
