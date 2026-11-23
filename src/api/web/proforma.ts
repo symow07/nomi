@@ -7,7 +7,7 @@ import { roundMoney, subMoney, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { ownSku } from '../../core/owner/sku.js';
 import { t } from './say.js';
-import { publicDocument, esc } from './layout.js';
+import { publicFrame, esc } from './layout.js';
 import { loadOrder, proformaText } from './orders.js';
 import { buyerLocale } from './proof.js';
 import { productName } from './inbox.js';
@@ -104,7 +104,8 @@ export async function loadProformaPage(db: Db, token: string): Promise<ProformaV
 
 /**
  * The document. Standalone like the price page: no nav, no session, no way into the app, nothing of Nomi's — it is
- * the seller's paper. Its rules travel inside it (`publicDocument`), and it prints as a plain A4 sheet.
+ * the seller's paper. Its rules travel inside it (`publicFrame`: everything inside the page, nothing to fetch), and it
+ * prints as a plain A4 sheet.
  */
 export function renderProformaPage(v: ProformaView): string {
   return withZone(v.zone, () => {
@@ -175,14 +176,18 @@ export function renderProformaPage(v: ProformaView): string {
   </footer>
 </article>`;
 
-    return publicDocument({
+    return publicFrame({
       locale: l, title: t(l, 'pi.title', { seller: v.seller, reference: v.reference }), noindex: true,
       mainClass: 'pi', extraCss: PROFORMA_CSS, body,
     });
   });
 }
 
-/** The document's own rules; the tokens and base rules are publicDocument's. Ink on the sheet, nothing of the brand. */
+/**
+ * The document's own rules; the tokens and base rules are the public frame's (UI correction Block 8). Ink on the sheet,
+ * nothing of the brand. The seller's name is in the frame's one sans: the serif is kept for a legal document's title
+ * alone, and this is the seller's paper, not a policy of Nomi's to read.
+ */
 const PROFORMA_CSS = `
   main.pi { max-width:var(--measure-column); padding:var(--space-32) var(--space-16) var(--space-48); }
   .pi-sheet { max-width:var(--measure-column); margin:0 auto; background:var(--color-surface); border:1px solid var(--color-border);
@@ -190,7 +195,7 @@ const PROFORMA_CSS = `
   .pi-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:var(--space-24);
              padding-bottom:var(--space-24); border-bottom:2px solid var(--color-ink); }
   .pi-from { min-width:0; flex:1 1 16rem; }
-  .pi-seller { font-family:var(--font-voice); font-size:var(--font-size-display); line-height:var(--line-height-tight); font-weight:700;
+  .pi-seller { font-size:var(--font-size-display); line-height:var(--line-height-tight); font-weight:700;
                letter-spacing:var(--tracking-tight); color:var(--color-ink); }
   .pi-address { margin-top:var(--space-8); color:var(--color-ink-secondary); font-size:var(--font-size-small); white-space:pre-line; }
   .pi-doc { flex:0 1 auto; text-align:end; }
