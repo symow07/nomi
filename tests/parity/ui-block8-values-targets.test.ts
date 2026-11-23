@@ -54,11 +54,13 @@ describe('Block 8 · a link on its own line is a 44 px target', () => {
   it('the door: ask for another link, e-mail me a new link, and the sign-up’s list of problems', () => {
     for (const l of LOCALES) {
       const sent = forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60, sent: 'sara@example.com' });
-      expect(sent, l).toContain(`<p class="go"><a href="/login/forgot">${t(l, 'forgot.again')}</a></p>`);
+      expect(sent, l).toContain(`<p class="solo"><a href="/login/forgot">${t(l, 'forgot.again')}</a></p>`);
       const gone = setPasswordPage({ locale: l, path: '/login/set-password', passwordMin: 10, passwordMax: 200, link: null, recoveryOn: true, contact: 'hello@example.test' });
-      expect(gone, l).toContain('<p class="go"><a href="/login/forgot">');
+      expect(gone, l).toContain('<p class="solo"><a href="/login/forgot">');
+      // `.go` is the app's chevron, mirrored in RTL: a row named so on the door mirrored a whole Arabic line.
+      expect(sent + gone, l).not.toContain('<p class="go">');
       const css = linkedCss(sent);
-      for (const sel of ['.login .go a', '.login .err li a']) expect(css, `${l} ${sel}`).toContain(sel);
+      for (const sel of ['.login .solo a', '.login .err li a']) expect(css, `${l} ${sel}`).toContain(sel);
       const r = rule(css, '.login .err li a');
       expect(r, l).toContain('min-height:44px');
       expect(r, l).toContain('display:inline-flex');
@@ -76,12 +78,12 @@ describe('Block 8 · a link on its own line is a 44 px target', () => {
         renderDataDeletion(l, 'privacy@example.test'),
       ];
       for (const html of pages) {
-        expect(rule(html, '.go a {'), l).toContain('min-height:44px');
+        expect(rule(html, '.solo a {'), l).toContain('min-height:44px');
         for (const row of html.match(/<p>(?:<a href="\/(?:privacy|terms)">[^<]+<\/a>(?: · )?)+<\/p>/g) ?? []) {
           expect.fail(`${l}: a row of legal links without its targets: ${row}`);
         }
       }
-      expect(renderLegalTerms(l, null), l).toContain('<p class="go"><a href="/privacy">');
+      expect(renderLegalTerms(l, null), l).toContain('<p class="solo"><a href="/privacy">');
     }
   });
 });

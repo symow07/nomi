@@ -2873,7 +2873,7 @@ ${cssVariables(DESIGN_TOKENS)}
   :focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
   ::selection { background:var(--color-ink); color:var(--color-surface); }
   main { overflow-wrap:break-word; }
-  .go a { display:inline-flex; align-items:center; min-height:44px; }
+  .solo a { display:inline-flex; align-items:center; min-height:44px; }
   .updated { margin-top:var(--space-48); }
   input, select, button, textarea { font-family:inherit; }
   button { font:inherit; font-weight:600; padding:var(--space-12) var(--space-24); border:0;
@@ -3334,7 +3334,7 @@ ${markBefore('failed', ['.err', '.fld-err'])}
   .login .foot a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
   /* A door link is a target a thumb can hit (44 px), as everywhere else. */
-  .login .other a, .forgot a, .login .go a, .login .err li a { display:inline-flex; align-items:center; min-height:44px; }
+  .login .other a, .forgot a, .login .solo a, .login .err li a { display:inline-flex; align-items:center; min-height:44px; }
 ${LANGMENU_CSS}`;
 
 /** The door's sheet: the base rules and the door's own — never the pages' sections. */
@@ -3689,7 +3689,7 @@ export function setPasswordPage(input: {
     // for whoever already chose a password with it.
     const gone = t(locale, 'setpw.gone.title');
     const how = input.recoveryOn
-      ? `<p class="lead">${esc(t(locale, 'setpw.gone.ask'))}</p><p class="go"><a href="/login/forgot">${esc(t(locale, 'setpw.gone.newLink'))}</a></p>`
+      ? `<p class="lead">${esc(t(locale, 'setpw.gone.ask'))}</p><p class="solo"><a href="/login/forgot">${esc(t(locale, 'setpw.gone.newLink'))}</a></p>`
       : input.contact
         ? `<p class="lead">${esc(t(locale, 'setpw.gone.write', { email: '\u0000' })).replace('\u0000', `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`)}</p>`
         : '';
@@ -3772,7 +3772,7 @@ export function forgotPasswordPage(input: {
     return doorFrame(locale, input.path, t(locale, 'forgot.sent.title'),
       `<h1>${esc(t(locale, 'forgot.sent.title'))}</h1>
       <p class="lead" role="status">${said('forgot.sent', input.sent)}</p>
-      <p class="go"><a href="/login/forgot">${esc(t(locale, 'forgot.again'))}</a></p>
+      <p class="solo"><a href="/login/forgot">${esc(t(locale, 'forgot.again'))}</a></p>
       ${codes}`, other);
   }
   // PWR2 — the page, not the browser, says an address is not one (`novalidate`),
