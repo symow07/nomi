@@ -82,7 +82,7 @@ const LEGAL_READING_CSS=`
   .legal-toc-title{margin:0 0 var(--space-4);font-size:var(--font-size-small);font-weight:600;color:var(--color-ink);}
   .legal-toc ol{margin:0;padding-inline-start:var(--space-24);}
   .legal-copy .legal-toc li{margin:0;font-size:var(--font-size-small);line-height:1.4;color:var(--color-ink-secondary);}
-  .legal-toc a{display:inline-flex;align-items:center;min-height:44px;color:var(--color-ink);}
+  .legal-toc a{display:inline-flex;align-items:center;min-height:44px;min-width:44px;color:var(--color-ink);}
   @media (min-width: 40rem){.legal-toc ol{columns:2;column-gap:var(--space-32);}.legal-toc li{break-inside:avoid;}}
 `;
 

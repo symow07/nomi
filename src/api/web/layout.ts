@@ -562,6 +562,7 @@ export const LANGMENU_CSS = `  .langmenu { position:relative; margin:0; padding:
     border:1px solid var(--color-border); border-radius:var(--radius-chip); background:var(--color-surface); color:var(--color-ink);
     font-size:var(--font-size-caption); line-height:1.2; cursor:pointer; list-style:none; white-space:nowrap; }
   .langmenu > summary::-webkit-details-marker, .langmenu > summary::before { display:none; }
+  .langmenu > summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
   .langmenu > summary::after { content:""; inline-size:0.4em; block-size:0.4em; border-inline-end:2px solid currentColor;
     border-block-end:2px solid currentColor; transform:translateY(-0.12em) rotate(45deg); }
   .langmenu[open] > summary::after { transform:translateY(0.12em) rotate(-135deg); }
@@ -2873,7 +2874,7 @@ ${cssVariables(DESIGN_TOKENS)}
   :focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
   ::selection { background:var(--color-ink); color:var(--color-surface); }
   main { overflow-wrap:break-word; }
-  .solo a { display:inline-flex; align-items:center; min-height:44px; }
+  .solo a { display:inline-flex; align-items:center; min-height:44px; min-width:44px; }
   .updated { margin-top:var(--space-48); }
   input, select, button, textarea { font-family:inherit; }
   button { font:inherit; font-weight:600; padding:var(--space-12) var(--space-24); border:0;
@@ -3263,6 +3264,7 @@ const DOOR_STYLE = `
   body.door { --color-brand:var(--color-ink); caret-color:var(--color-ink); }
   body.door .mark { --color-brand:var(--color-cue); }
   body.door ::selection { background:var(--color-ink); color:var(--color-surface); }
+  body.door summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
   .login { max-width: var(--measure-form); margin: 0 auto var(--space-48); padding: 0 var(--space-16); box-sizing:content-box; }
   /* Block 8 (F42) — one quiet top line: whose door (the mark, the name, what it is) and the language menu. */
   .login .door-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
@@ -3331,10 +3333,11 @@ ${markBefore('failed', ['.err', '.fld-err'])}
   /* V1-038, V1-039 — the door's foot is where to read more, not a slogan. */
   .login .foot { display:flex; justify-content:center; flex-wrap:wrap; gap:0 var(--space-16);
     margin-top:var(--space-24); font-size:var(--font-size-caption); }
-  .login .foot a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
+  .login .foot a { display:inline-flex; align-items:center; min-height:44px; min-width:44px; color:var(--color-ink-secondary); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
   /* A door link is a target a thumb can hit (44 px), as everywhere else. */
-  .login .other a, .forgot a, .login .solo a, .login .err li a { display:inline-flex; align-items:center; min-height:44px; }
+  .login .other a, .forgot a, .login .solo a, .login .err li a { display:inline-flex; align-items:center; min-height:44px;
+    min-width:44px; }
 ${LANGMENU_CSS}`;
 
 /** The door's sheet: the base rules and the door's own — never the pages' sections. */
