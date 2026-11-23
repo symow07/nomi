@@ -76,7 +76,7 @@ const CSS = `
   .chat-empty { padding:var(--space-16); border:1px dashed var(--color-border); border-radius:var(--radius-card); }
   .chat-lines { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .chat-line { max-width:85%; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border);
-    white-space:pre-wrap; overflow-wrap:break-word; color:var(--color-ink); scroll-margin-block-end:var(--space-48); }
+    white-space:pre-wrap; overflow-wrap:break-word; color:var(--color-ink); }
   .chat-line.mine { align-self:flex-end; background:var(--color-sand); border-color:transparent; }
   .chat-who { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:normal; }
   .chat-state { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:normal; }
@@ -85,8 +85,7 @@ const CSS = `
   .chat-retry { min-height:44px; padding:0 var(--space-12); font:inherit; font-weight:600; }
   .chat-again { margin:0 0 var(--space-16); font-size:var(--font-size-small); }
   .chat-again a { display:inline-flex; align-items:center; min-height:44px; }
-  .chat-form { position:sticky; inset-block-end:0; z-index:2; background:var(--color-paper); padding-block:var(--space-12) var(--space-16);
-    border-block-start:1px solid var(--color-border); }
+  .chat-form { padding-block:var(--space-12) var(--space-16); border-block-start:1px solid var(--color-border); }
   .chat-form label { display:block; font-weight:600; margin-bottom:var(--space-4); }
   .chat-form textarea { width:100%; min-height:4.5em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); resize:vertical; }
   .chat-send { display:flex; justify-content:flex-end; margin-top:var(--space-8); }
@@ -105,6 +104,8 @@ const js = (v: unknown): string => JSON.stringify(v).replace(/</g, '\\u003c');
  * that did arrive is stored once. The next message gets a fresh `n` at once. Without the script none of this runs:
  * the form posts and the page comes back, as it always did. A first message's line shows once its conversation is
  * made (a moment after the post): until then it stays "Sent", and the page looks again after 2.5 s and 7 s.
+ * The box is not stuck to the screen (a stuck block covers whatever scrolls under it): when the thread changes above
+ * it and the box is on screen, the page scrolls by what the change moved it, so the box stays where the reader has it.
  */
 function script(l: Locale, key: string, business: string, embed: string | null): string {
   const say = {
@@ -121,14 +122,16 @@ function theirs(){return th.querySelectorAll('li.chat-line:not(.mine)').length;}
 function list(){var o=th.querySelector('ol.chat-lines');if(!o){th.textContent='';o=document.createElement('ol');o.className='chat-lines';th.appendChild(o);}return o;}
 function fresh(){var a=new Uint8Array(18),c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',s='';crypto.getRandomValues(a);for(var i=0;i<a.length;i++)s+=c[a[i]&63];return s;}
 function near(){return window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-160;}
-function show(p,state,why){p.state=state;p.li.className='chat-line mine pending'+(state==='failed'?' failed':'');var s=p.li.querySelector('.chat-state');s.textContent='';
+function show(p,state,why){hold(function(){p.state=state;p.li.className='chat-line mine pending'+(state==='failed'?' failed':'');var s=p.li.querySelector('.chat-state');s.textContent='';
 var w=document.createElement('span');w.textContent=state==='sending'?S.sending:state==='sent'?S.sent:(why||S.failed);s.appendChild(w);
-if(state==='failed'){var b=document.createElement('button');b.type='button';b.className='chat-retry';b.textContent=S.retry;b.addEventListener('click',function(){go(p);});s.appendChild(b);}}
+if(state==='failed'){var b=document.createElement('button');b.type='button';b.className='chat-retry';b.textContent=S.retry;b.addEventListener('click',function(){f.querySelector('textarea').focus({preventScroll:true});go(p);});s.appendChild(b);}});}
 function swap(doc){var nt=doc&&doc.getElementById('chat-thread');if(!nt)return false;var before=theirs(),low=near();
-th.innerHTML=nt.innerHTML;m=nt.getAttribute('data-mark')||m;th.setAttribute('data-mark',m);
+var kept=hold(function(){th.innerHTML=nt.innerHTML;m=nt.getAttribute('data-mark')||m;th.setAttribute('data-mark',m);
 out=out.filter(function(p){return !(p.state==='sent'&&mine(p.text)>p.had);});
-for(var i=0;i<out.length;i++)list().appendChild(out[i].li);
-if(theirs()>before)say(S.fresh);var last=th.querySelector('li.chat-line:last-child');if(low&&last)last.scrollIntoView({block:'nearest'});return true;}
+for(var i=0;i<out.length;i++)list().appendChild(out[i].li);});
+if(theirs()>before)say(S.fresh);var last=th.querySelector('li.chat-line:last-child');if(!kept&&low&&last)last.scrollIntoView({block:'nearest'});return true;}
+function hold(fn){var ta=f.querySelector('textarea'),y=ta.getBoundingClientRect().top,seen=y<window.innerHeight&&y+ta.offsetHeight>0;fn();
+if(seen){var d=ta.getBoundingClientRect().top-y;if(d)window.scrollBy(0,d);}return seen;}
 function page(r){return r.text().then(function(h){return new DOMParser().parseFromString(h,'text/html');});}
 function look(){if(busy)return;busy=true;fetch(self,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?page(r):null;}).then(function(d){busy=false;if(d)swap(d);}).catch(function(){busy=false;});}
 function go(p){show(p,'sending');say(S.sending);
@@ -139,8 +142,8 @@ show(p,'failed');say(S.failed);}).catch(function(){show(p,'failed');say(S.failed
 f.addEventListener('submit',function(e){var ta=f.querySelector('textarea'),x=ta.value.trim();if(!x||!window.fetch||!window.DOMParser||!window.crypto)return;e.preventDefault();
 var body=new URLSearchParams(new FormData(f)),li=document.createElement('li'),who=document.createElement('span'),d=document.createElement('div'),s=document.createElement('span');
 who.className='chat-who';who.textContent=S.you;d.dir='auto';d.textContent=x;s.className='chat-state';li.appendChild(who);li.appendChild(d);li.appendChild(s);
-var p={li:li,body:body,text:x,had:mine(x),state:''};out.push(p);list().appendChild(li);ta.value='';f.querySelector('input[name=n]').value=fresh();
-li.scrollIntoView({block:'nearest'});go(p);});
+var p={li:li,body:body,text:x,had:mine(x),state:''};out.push(p);hold(function(){list().appendChild(li);show(p,'sending');});ta.value='';f.querySelector('input[name=n]').value=fresh();
+go(p);});
 setInterval(function(){if(document.hidden)return;fetch(u,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.text():m}).then(function(n){if(n!==m)look();}).catch(function(){});},E);})();</script>`;
 }
 

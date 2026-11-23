@@ -6,7 +6,8 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 /**
  * UI correction Block 8 · F43 — the public chat page (inventory 141). The thread is one stable container the script
  * swaps on its own (never the form, so a draft and the cursor stay); a message shows as sending, sent, or not sent
- * with a Try again that posts the same fields (the same `n`); the composer stays in reach at the foot of the screen;
+ * with a Try again that posts the same fields (the same `n`); the composer is not stuck over the thread (a stuck block
+ * covers what scrolls under it) but held where the reader has it when the thread changes above it;
  * the page is in the public frame. With the script off it is the same plain form it always was: method, action, the
  * hidden `n` (and `v` when embedded), `text`, one submit. Fails at cfc71dca; passes on head.
  */
@@ -58,9 +59,16 @@ describe('Block 8 · F43: the chat page', () => {
     }
   });
 
-  it('the composer stays in reach, its targets are 44 px, and a refusal is read inside the form', () => {
+  it('the composer is held in place, never stuck over the thread; its targets are 44 px; a refusal is read inside the form', () => {
     const html = page('en', { notice: 'tooLong' });
-    expect(html).toMatch(/\.chat-form \{ position:sticky; inset-block-end:0;/);
+    const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+    expect(css).not.toMatch(/\.chat-[a-z-]+[^{]*\{[^}]*position:\s*(sticky|fixed)/);
+    const js = html.slice(html.lastIndexOf('<script>'), html.lastIndexOf('</script>'));
+    expect(js).toContain('function hold(fn)');
+    expect(js).toContain('window.scrollBy(0,d)');
+    expect(js).toContain('var kept=hold(function(){th.innerHTML=nt.innerHTML;');
+    expect(js).toContain("hold(function(){list().appendChild(li);show(p,'sending');});");
+    expect(js).toContain('function show(p,state,why){hold(function(){');
     expect(html).toMatch(/\.chat-form button \{ min-height:44px;/);
     expect(html).toMatch(/\.chat-retry \{ min-height:44px;/);
     expect(html).toMatch(/<form class="chat-form" method="post" action="\/chat\/k_abcdefghijklmnop">\s*<p role="alert">/);
