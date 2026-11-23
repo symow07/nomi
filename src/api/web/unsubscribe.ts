@@ -6,7 +6,7 @@ import { recordAddressStop } from '../../db/optOuts.js';
 import { t } from './say.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { publicDocument, esc } from './layout.js';
+import { publicFrame, publicTop, PUBLIC_TOP_CSS, esc } from './layout.js';
 
 /**
  * M40.2 — the second buyer-facing surface this product has, after M35's proof
@@ -22,7 +22,7 @@ import { publicDocument, esc } from './layout.js';
  */
 
 const SHELL = (locale: Locale, title: string, body: string): string =>
-  publicDocument({ locale, title: title, body, noindex: true });
+  publicFrame({ locale, title: title, body: `${publicTop(locale, '/site', null)}${body}`, noindex: true, extraCss: PUBLIC_TOP_CSS });
 
 export function renderUnsubscribe(claim: UnsubscribeClaim, token: string): string {
   const l = claim.locale;

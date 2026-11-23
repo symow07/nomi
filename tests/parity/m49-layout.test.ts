@@ -316,9 +316,9 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  nav.side a.navlink.sub', 'the same tab bar: Inbox and Calendar are two of its five cells'],
       // Block 2 fix 1, defect 3: complete phone labels may wrap; each remains centred under its tab icon.
       ['splitStyle.ts  .owner-shell nav.side .nl-text', 'a wrapped phone-tab label, not a centred content card'],
-      ['layout.ts  .login h1', 'approved centred access form under the large seal'],
+      // Block 8 (F42): the large seal over the card became a quiet top line; the card's title stays centred.
+      ['layout.ts  .login h1', 'approved centred access form, its title centred in the card'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
-      ['layout.ts  .login .brand', 'Phase 9 (V1-040) — the mark and name over that card, centred like the pill above and the links below'],
       ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
       // V1 step four: the rehearsal verdict's rule moved into the shell with the rest of pilot.ts.
       ['layout.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],

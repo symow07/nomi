@@ -236,6 +236,15 @@ export function switcher(locale: Locale, path: string): string {
 }
 
 /**
+ * UI correction Block 8 (audit F42) — the language choice on a public page, quietly: the language in use, in a small
+ * button at the end of the page's top line; the same five links open under it (a disclosure, so it works with no
+ * script). The pill (`switcher`) stays on the site, which is held byte for byte, and in Setup.
+ */
+export const langMenu = (locale: Locale, path: string): string =>
+  `<details class="langmenu"><summary><span class="lm-label">${esc(t(locale, 'switcher.aria'))}</span>`
+  + `<span class="lm-now" lang="${locale}">${esc(LOCALE_LABEL[locale])}</span></summary>${switcher(locale, path)}</details>`;
+
+/**
  * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS (`signal` in
  * tokens.ts): ok ✓, waiting ●, failed ✕ (the assistant's star was retired by the icons run). Colour does those
  * jobs and no others, and never alone: each is a shape as well as a hue.
@@ -542,6 +551,30 @@ export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); 
   /* The switcher is chrome. A solid jade fill made it the loudest object
      on a page whose subject was somebody's business. */
   .langsw a.on { background:var(--color-surface); color:var(--color-brand); font-weight:600; }
+`;
+
+/**
+ * Block 8 (F42) — the language menu's rules: one small bordered button (the language's word for "Language" in small
+ * type, then the language in use), and the five names as a short list under it. The chosen one is ink, in weight.
+ */
+export const LANGMENU_CSS = `  .langmenu { position:relative; margin:0; padding:0; border:0; flex:none; }
+  .langmenu > summary { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px; padding:0 var(--space-12);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); background:var(--color-surface); color:var(--color-ink);
+    font-size:var(--font-size-caption); line-height:1.2; cursor:pointer; list-style:none; white-space:nowrap; }
+  .langmenu > summary::-webkit-details-marker, .langmenu > summary::before { display:none; }
+  .langmenu > summary::after { content:""; inline-size:0.4em; block-size:0.4em; border-inline-end:2px solid currentColor;
+    border-block-end:2px solid currentColor; transform:translateY(-0.12em) rotate(45deg); }
+  .langmenu[open] > summary::after { transform:translateY(0.12em) rotate(-135deg); }
+  .langmenu > summary:dir(rtl)::after { transform:translateY(-0.12em) rotate(-45deg); }
+  .langmenu[open] > summary:dir(rtl)::after { transform:translateY(0.12em) rotate(135deg); }
+  .langmenu .lm-label { color:var(--color-ink-secondary); }
+  .langmenu .lm-now { font-weight:600; }
+  .langmenu > .langsw { position:absolute; inset-inline-end:0; z-index:5; margin-block-start:var(--space-4);
+    display:flex; flex-direction:column; gap:0; min-inline-size:11rem; padding:var(--space-4); background:var(--color-surface);
+    border:1px solid var(--color-border); border-radius:var(--radius-card); }
+  .langmenu > .langsw a { justify-content:flex-start; padding:0 var(--space-12); border-radius:var(--radius-control); color:var(--color-ink); }
+  .langmenu > .langsw a.on { background:var(--color-sand); color:var(--color-ink); font-weight:600; }
+  @media (max-width: 22rem) { .langmenu .lm-label { display:none; } }
 `;
 
 /**
@@ -2792,14 +2825,66 @@ export function publicDocument(input: {
   /** Phase 5 — the site: a search-result line, and the mark in the tab. */
   readonly description?: string; readonly icon?: boolean;
 }): string {
-  return `<!doctype html>
+  return documentWith(PUBLIC_STYLE, (input.extraCss ?? '').includes('--font-voice'), '', input);
+}
+
+/** The one writer of a self-contained public page: its rules inside it, its faces named, nothing linked. */
+const documentWith = (style: string, voice: boolean, bodyAttrs: string, input: {
+  readonly locale: Locale; readonly title: string; readonly body: string;
+  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+  readonly description?: string; readonly icon?: boolean;
+}): string => `<!doctype html>
 <html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
-${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
-${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss ?? '').includes('--font-voice'), input.locale)}
+${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${style}${input.extraCss ?? ''}
+${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, voice, input.locale)}
 </style>
-</head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
+</head><body${bodyAttrs}><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
+
+/**
+ * UI correction Block 8 (audit F42) — THE PUBLIC FRAME: the same promise as `publicDocument` (everything inside the
+ * page, nothing to fetch: no script, no stylesheet link), drawn from the signed-in app's palette (DESIGN_TOKENS, Block
+ * 1) instead of the 84cb4580 values the site keeps. Every public page but the site uses it: the legal pages, the closed
+ * workspace, the unsubscribe pages, the link-not-working pages, the price page, the proforma, the payment return and
+ * the web chat. As on the door and the signed-in pages: a link's line, the focus ring and a selection are INK; the
+ * accent is the seal's alone; ONE sans, as on the signed-in pages (Block 1 retired the serif there), with one
+ * exception: a legal document's title keeps the serif the owner approved for it (type.test.ts) — it marks the page as a
+ * document to read rather than a page to act on, and only that one line; every word of the policy itself is sans.
+ */
+const FRAME_STYLE = `
+${cssVariables(DESIGN_TOKENS)}
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--color-paper); color:var(--color-ink);
+         font: var(--font-size-base)/var(--line-height) var(--font-family);
+         -webkit-text-size-adjust:100%; }
+  body.pub { --color-brand:var(--color-ink); caret-color:var(--color-ink); }
+  body.pub .mark { --color-brand:var(--color-cue); }
+  main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-24) var(--space-16) var(--space-48); }
+  h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-16); font-weight:700; }
+  h2 { font-size:var(--font-size-title); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  @media (max-width: 560px) { h1 { font-size:var(--font-size-display); } }
+  p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  p, li { text-wrap:pretty; }
+  h1, h2 { text-wrap:balance; }
+  ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
+  a { color:var(--color-ink); text-decoration-color:var(--color-ink-secondary); text-underline-offset:0.2em; }
+  a:hover { text-decoration-color:var(--color-ink); }
+  :focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+  ::selection { background:var(--color-ink); color:var(--color-surface); }
+  main { overflow-wrap:break-word; }
+  .updated { margin-top:var(--space-48); }
+  input, select, button, textarea { font-family:inherit; }
+  button { font:inherit; font-weight:600; padding:var(--space-12) var(--space-24); border:0;
+           border-radius:var(--radius-control); background:var(--color-ink);
+           color:var(--color-surface); cursor:pointer; min-height:44px; }
+`;
+
+export function publicFrame(input: {
+  readonly locale: Locale; readonly title: string; readonly body: string;
+  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+}): string {
+  return documentWith(FRAME_STYLE, (input.extraCss ?? '').includes('--font-voice'), ' class="pub"', input);
 }
 
 /**
@@ -2810,12 +2895,13 @@ ${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss
  */
 export const publicTop = (locale: Locale, home: string, path: string | null): string =>
   `<header class="pub-top"><a class="pub-brand" href="${esc(home)}">${markSmall(32, null)}<span>Nomi</span></a>`
-  + `${path ? switcher(locale, path) : ''}</header>`;
-export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
+  + `${path ? langMenu(locale, path) : ''}</header>`;
+/** Block 8 (F42) — the top line: the mark and the name at the start, the language menu at the end, a hairline under. */
+export const PUBLIC_TOP_CSS = `${LANGSW_CSS}${LANGMENU_CSS}
   .pub-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16);
-    flex-wrap:wrap; margin:calc(-1 * var(--space-24)) 0 var(--space-32); }
+    padding-block-end:var(--space-12); border-block-end:1px solid var(--color-border); margin:0 0 var(--space-32); }
   .pub-brand { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px; font-weight:700;
-    font-size:var(--font-size-title); color:var(--color-ink); text-decoration:none; }
+    font-size:var(--font-size-base); color:var(--color-ink); text-decoration:none; }
   .pub-brand .mark { flex:none; }
 `;
 
@@ -3171,14 +3257,26 @@ const cardSheet = (locale: Locale): string =>
  * whether an e-mail address has an account.
  */
 const DOOR_STYLE = `
-  .login { max-width: var(--measure-form); margin: 6vh auto var(--space-48); padding: 0 var(--space-16); }
-  .login .top-sw { display:flex; justify-content:center; margin-bottom:var(--space-16); }
-  .login .card { padding:var(--space-24) 0 0; border:0; background:transparent; box-shadow:none; }
-  .login .brand { flex-direction:column; justify-content:center; gap:var(--space-12); text-align:center;
-    font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-24); padding:0; }
-  /* Phase 9 (V1-040 and public-missed-10) — above: the site's mark and name, centred like
-     the pill above them and the links below. */
-  .login .brand small { margin-top:0; }
+  /* Block 8 (F42) — the door's theme is the signed-in app's: a link's line, the focus ring, the chosen language and a
+     selection in ink; the accent is the seal's alone. */
+  body.door { --color-brand:var(--color-ink); caret-color:var(--color-ink); }
+  body.door .mark { --color-brand:var(--color-cue); }
+  body.door ::selection { background:var(--color-ink); color:var(--color-surface); }
+  .login { max-width: var(--measure-form); margin: 0 auto var(--space-48); padding: 0 var(--space-16); box-sizing:content-box; }
+  /* Block 8 (F42) — one quiet top line: whose door (the mark, the name, what it is) and the language menu. */
+  .login .door-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
+    padding:var(--space-16) 0 var(--space-12); border-block-end:1px solid var(--color-border); margin-bottom:var(--space-32); }
+  .login .card { padding:var(--space-8) 0 0; border:0; background:transparent; box-shadow:none; }
+  @media (min-width: 40rem) {
+    .login .card { padding:var(--space-32); background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel);
+      margin-inline:calc(-1 * var(--space-32)); width:auto; }
+    .login .door-top { margin-inline:calc(-1 * var(--space-32)); }
+  }
+  .login .brand { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:var(--space-8); align-items:center;
+    font-weight:700; font-size:var(--font-size-base); margin:0; padding:0; min-width:0; }
+  /* The mark spans the name and the line under it. */
+  .login .brand .mark { grid-row:span 2; }
+  .login .brand small { grid-column:2; margin-top:0; font-weight:400; line-height:1.3; }
   .login h1 { font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-8); }
   .login h1 { text-wrap:balance; text-align:center; margin-bottom:var(--space-24); }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
@@ -3234,7 +3332,9 @@ ${markBefore('failed', ['.err', '.fld-err'])}
     margin-top:var(--space-24); font-size:var(--font-size-caption); }
   .login .foot a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
-`;
+  /* A door link is a target a thumb can hit (44 px), as everywhere else. */
+  .login .other a, .forgot a { display:inline-flex; align-items:center; min-height:44px; }
+${LANGMENU_CSS}`;
 
 /** The door's sheet: the base rules and the door's own — never the pages' sections. */
 const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
@@ -3273,10 +3373,9 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 ${navigationOptIn()}
 ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
-<body><div class="login">
-  <div class="top-sw">${switcher(locale, path)}</div>
-  <div class="brand">${markDetail(72, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
-  <div class="card">${card}</div>
+<body class="door"><div class="login">
+  <header class="door-top"><div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>${langMenu(locale, path)}</header>
+  <main class="card">${card}</main>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
 </div></body></html>`);

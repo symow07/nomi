@@ -6,7 +6,7 @@ import type { InboundMessageEvent } from '../../channels/whatsapp/parse.js';
 import { CHAT_KEY, VISITOR, businessName, chatPageBusiness, newVisitor, visitorLines, visitorMark, type ChatLine } from '../../db/webChat.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t } from './say.js';
-import { esc, publicDocument } from './layout.js';
+import { esc, publicDocument, publicFrame, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { parseCookies } from './session.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import * as show from './values.js';
@@ -117,7 +117,10 @@ export function mountWebChat(app: FastifyInstance, deps: WebChatDeps): void {
     const bid = await chatPageBusiness(deps.db, key);
     const send = (status: number, html: string) => reply.code(status).type('text/html; charset=utf-8')
       .header('cache-control', 'no-store').header('referrer-policy', 'no-referrer').header('x-robots-tag', 'noindex, nofollow').send(html);
-    if (!bid) return send(404, publicDocument({ locale, title: t(locale, 'chat.gone'), body: `<h1>${esc(t(locale, 'chat.gone'))}</h1>`, noindex: true }));
+    // Block 8 (F42) — a chat link that does not work says what may have happened and how to reach the business anyway;
+    // like every other 404 here, it names no business (it would say that the page had existed).
+    if (!bid) return send(404, publicFrame({ locale, title: t(locale, 'chat.gone'), noindex: true, extraCss: PUBLIC_TOP_CSS,
+      body: `${publicTop(locale, '/site', null)}<h1>${esc(t(locale, 'chat.gone'))}</h1><p>${esc(t(locale, 'chat.goneNext'))}</p>` }));
     const embed = embeddedOf(req);
     const visitor = visitorOf(req) ?? giveVisitor(reply, key, deps);
     const { business, lines, mark } = await withTenantTx(deps.db, bid, async (tx) => ({

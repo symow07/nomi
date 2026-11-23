@@ -14,7 +14,7 @@ import {readStripePage} from '../../db/stripePage.js';
 import {invoiceConversation} from '../../outbound/invoiceSend.js';
 import {sendPaymentLink} from '../../outbound/paymentLinkSend.js';
 import {paymentReason,renderStripePayments} from './stripePayments.js';
-import {publicDocument,esc} from './layout.js';
+import {publicFrame,esc} from './layout.js';
 import {t} from './say.js';
 import type {Flash} from './flash.js';
 
@@ -108,7 +108,7 @@ export function registerPaymentRoutes(app:FastifyInstance,c:Context):void{
     });return r.state==='posted'?c.redirect(reply,'paymentLinks.flash.posted'):refuse(req,reply,r.reason??'other');
   });
   app.get('/payment/return',async(req,reply)=>{
-    const locale=c.locale(req);return reply.type('text/html; charset=utf-8').send(publicDocument({locale,title:t(locale,'paymentLinks.return.title'),noindex:true,body:`<h1><bdi lang="en" dir="ltr">${esc(t(locale,'paymentLinks.return.title'))}</bdi></h1><p><bdi lang="en" dir="ltr">${esc(t(locale,'paymentLinks.return.text'))}</bdi></p>`}));
+    const locale=c.locale(req);return reply.type('text/html; charset=utf-8').send(publicFrame({locale,title:t(locale,'paymentLinks.return.title'),noindex:true,body:`<h1><bdi lang="en" dir="ltr">${esc(t(locale,'paymentLinks.return.title'))}</bdi></h1><p><bdi lang="en" dir="ltr">${esc(t(locale,'paymentLinks.return.text'))}</bdi></p>`}));
   });
   if(c.provider){const provider=c.provider;app.register(async scope=>{
     scope.removeContentTypeParser('application/json');

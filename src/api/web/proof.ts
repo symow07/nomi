@@ -8,7 +8,7 @@ import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/loca
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 
-import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
+import { publicFrame, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
 import { sellsByQuantity } from '../../core/owner/sellingStyle.js';
@@ -358,7 +358,7 @@ export function renderProof(v: ProofView): string {
       </section>`
     : '';
 
-  return publicDocument({
+  return publicFrame({
     locale: l, title: t(l, 'proof.title', { seller: v.seller }), noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
     body: `
   <header class="head">
@@ -389,7 +389,11 @@ const PROOF_CSS = `
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
-  .proof { background:var(--color-surface); border:1px solid var(--color-border); max-width:var(--measure-prose); margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
+  /* Block 8 (F42) — a sheet set on the page with room above it (it sat flush with the top edge); a phone gets the page itself. */
+  .proof { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel); max-width:var(--measure-prose);
+           margin:var(--space-32) auto var(--space-48); padding:var(--space-24) var(--space-24) var(--space-32); }
+  .proof > h1 { margin-bottom:var(--space-12); }
+  @media (max-width: 40rem) { .proof { margin:0 auto; border:0; border-radius:0; padding:var(--space-24) var(--space-16) var(--space-48); } }
   .head { padding-bottom:var(--space-16); border-bottom:1px solid var(--color-border);
           margin-bottom:var(--space-24); }
   .seller { color:var(--color-ink-secondary); font-size:var(--font-size-small);
@@ -402,7 +406,7 @@ const PROOF_CSS = `
   .fact { display:flex; align-items:baseline; gap:var(--space-12); flex-wrap:wrap;
           padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .fact:last-child { border-bottom:0; }
-  .proof .head h1 { font-family:var(--font-voice); font-size:var(--font-size-display); font-weight:400; }
+  .proof .head h1 { font-size:var(--font-size-display); font-weight:700; }
   .f-l { color:var(--color-ink-secondary); min-width:9rem; flex:0 0 auto; }
   .f-v { font-weight:600; flex:1 1 auto; }
   .f-s { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
@@ -413,7 +417,7 @@ const PROOF_CSS = `
   .proof-certs li:last-child { border-bottom:0; }
   .taught { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .taught:last-child { border-bottom:0; }
-  p.voice { font-family:var(--font-voice); font-size:var(--font-size-small); margin:var(--space-4) 0; }
+  p.voice { font-size:var(--font-size-small); margin:var(--space-4) 0; }
   .proof-foot { margin-top:var(--space-32); padding-top:var(--space-16);
           border-top:1px solid var(--color-border);
           color:var(--color-ink-secondary); font-size:var(--font-size-small); }
@@ -459,7 +463,7 @@ export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'p
   const said = kind !== 'unsubscribe'
     ? `<p class="muted">${esc(t(locale, `public.notFound.${kind}.body`))}</p>\n<p>${esc(t(locale, `public.notFound.${kind}.next`))}</p>`
     : `<p class="muted">${esc(t(locale, 'public.notFound.body'))}</p>\n<p>${esc(t(locale, 'public.notFound.unsubscribe'))}</p>`;
-  return publicDocument({
+  return publicFrame({
     locale, title: `${title} · Nomi`, noindex: true, mainClass: 'proof', extraCss: PROOF_CSS + PUBLIC_TOP_CSS,
     body: `${publicTop(locale, '/site', null)}
 <h1>${esc(title)}</h1>

@@ -6,7 +6,7 @@ import { formatLifetime } from '../../core/owner/i18n/format.js';
 import { COOKIES } from './thirdParty.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
+import { publicFrame, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { OPERATOR, operatorNamed } from '../../core/legal/operator.js';
 import { BOOKS_RETENTION } from '../../core/legal/booksRetention.js';
 
@@ -40,10 +40,10 @@ export const TERMS_VERSION: string = createHash('sha256')
  * returns to the same page (`path`).
  */
 const SHELL = (locale: Locale, title: string, body: string, home: string, path: string, css: string = PUBLIC_TOP_CSS): string =>
-  publicDocument({ locale, title: `${title} · Nomi`, mainClass:'legal', body: `${publicTop(locale, home, path)}<article class="legal-copy">${body}</article>`, extraCss: css + LEGAL_READING_CSS });
+  publicFrame({ locale, title: `${title} · Nomi`, mainClass:'legal', body: `${publicTop(locale, home, path)}<article class="legal-copy">${body}</article>`, extraCss: css + LEGAL_READING_CSS });
 
 const LEGAL_READING_CSS=`
-  main.legal{max-width:var(--measure-prose);padding-block:var(--space-48);}
+  main.legal{max-width:var(--measure-prose);padding-block:var(--space-24) var(--space-48);}
   .legal-copy{padding-top:var(--space-24);}
   .legal-copy h1{font-family:var(--font-voice);font-weight:400;line-height:1.15;margin-bottom:var(--space-32);}
   .legal-copy h2{padding-top:var(--space-24);border-top:1px solid var(--color-border);margin-top:var(--space-48);}

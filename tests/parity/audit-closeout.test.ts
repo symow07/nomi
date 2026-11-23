@@ -404,7 +404,9 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       }
     }
     const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
-    expect(door).toContain('.login .brand { flex-direction:column; justify-content:center; gap:var(--space-12); text-align:center;');
+    // UI correction Block 8 (audit F42, 2026-11-24): the brand is no longer a centred 72 px seal over the card but the start of
+    // one quiet top line (the mark, the name, the line under it), with the language menu at its end. Pin loosened for that.
+    expect(door).toContain('.login .brand { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:var(--space-8); align-items:center;');
   });
 
   it('the knowledge page says its title once (it printed it twice), with its lede under it', () => {
