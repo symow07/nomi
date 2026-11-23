@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
-import { renderProof, type ProofView } from '../../src/api/web/proof.js';
+import { renderProof, notFoundPage, type ProofView } from '../../src/api/web/proof.js';
+import { renderClosed } from '../../src/api/web/erasure.js';
 import { renderPrivacy, renderCookies, renderLegalTerms, renderRefunds, renderDataDeletion, type LegalFacts } from '../../src/api/web/legal.js';
 import { forgotPasswordPage, setPasswordPage, signupPage } from '../../src/api/web/layout.js';
 import { DEFAULT_PROCESSOR, HOSTING } from '../../src/core/legal/processors.js';
@@ -70,16 +71,16 @@ describe('Block 8 · a link on its own line is a 44 px target', () => {
     }
   });
 
-  it('the legal pages: the row of links to the other pages', () => {
+  it('the legal pages, workspace closed and the link-not-working page: the row of links to the other pages', () => {
     for (const l of LOCALES) {
       const pages = [
         renderPrivacy(l, 'privacy@example.test', FACTS), renderCookies(l, 'privacy@example.test', FACTS),
         renderLegalTerms(l, 'privacy@example.test'), renderRefunds(l, 'privacy@example.test', { trialDays: 14 }),
-        renderDataDeletion(l, 'privacy@example.test'),
+        renderDataDeletion(l, 'privacy@example.test'), renderClosed(l), notFoundPage(l, 'proof'),
       ];
       for (const html of pages) {
         expect(rule(html, '.solo a {'), l).toContain('min-height:44px');
-        for (const row of html.match(/<p>(?:<a href="\/(?:privacy|terms)">[^<]+<\/a>(?: · )?)+<\/p>/g) ?? []) {
+        for (const row of html.match(/<p>(?:<a href="\/[a-z-]+">[^<]+<\/a>(?: · )?)+<\/p>/g) ?? []) {
           expect.fail(`${l}: a row of legal links without its targets: ${row}`);
         }
       }

@@ -216,6 +216,6 @@ export function renderClosed(locale: Locale, home = '/site'): string {
     <h1>${esc(t(locale, 'closed.title'))}</h1>
     <p>${esc(t(locale, 'closed.body'))}</p>
     <p>${esc(t(locale, 'closed.backups'))}</p>
-    <p><a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a> · <a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a></p>`,
+    <p class="solo"><a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a> · <a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a></p>`,
   });
 }

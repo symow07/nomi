@@ -353,7 +353,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
     ${cookieTable(l)}
     ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
-    <p><a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
+    <p class="solo"><a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email, true)}
     ${updated(l, 'legal.updated.privacy')}`, home, '/privacy', privacyCss(l));
 }

@@ -468,6 +468,6 @@ export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'p
     body: `${publicTop(locale, '/site', null)}
 <h1>${esc(title)}</h1>
 ${said}
-<p><a href="/privacy">${esc(t(locale, 'legal.privacy.title'))}</a> · <a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a></p>`,
+<p class="solo"><a href="/privacy">${esc(t(locale, 'legal.privacy.title'))}</a> · <a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a></p>`,
   });
 }
