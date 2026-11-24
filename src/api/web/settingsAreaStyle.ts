@@ -93,6 +93,18 @@ export const SETTINGS_AREA_CSS=`
 .team-avail .turn .person{flex:1 1 12em;align-self:center;}
 .turn-away{display:flex;flex-direction:column;gap:var(--space-4);}
 .turn-switch{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-12);margin-block:var(--space-12);}
+.dr-index ul{display:flex;flex-wrap:wrap;gap:0 var(--space-24);list-style:none;margin:0 0 var(--space-8);padding:0;}
+.dr-index a{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:3px;}
+.dr-index-h{margin:0;font-size:var(--font-size-small);color:var(--color-ink-secondary);}
+.dr-short{margin:0 0 var(--space-8);max-width:var(--measure-prose);}
+.sa-subject.data-review{margin-block:var(--space-8) 0;padding-top:0;border-top:0;}
+.data-review>summary{display:flex;align-items:center;cursor:pointer;font-weight:600;}
+.data-review .sa-body>.lede:first-child{margin-top:var(--space-8);}
+.settings-area .btn.hist-quiet{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
+.hist-team .row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-8) var(--space-16);}
+.quiet-pair{display:flex;flex-wrap:wrap;gap:var(--space-12) var(--space-24);}
+.quiet-one{display:flex;flex-direction:column;gap:var(--space-4);flex:1 1 10em;min-width:0;}
+.ways-after{margin-top:var(--space-12);}
 @media(max-width:600px){.team-table thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);}.team-table,.team-table tbody,.team-table tr,.team-table th,.team-table td{display:block;}.team-table tr.tm{border-top:1px solid var(--color-border);padding-block:var(--space-12) var(--space-4);}.team-table th,.team-table td{border:0;padding:var(--space-4) 0;}.team-table .tm-edit td{padding:0 0 var(--space-8);}.tm-k{display:inline;color:var(--color-ink-secondary);margin-inline-end:var(--space-8);}}
 @media(min-width:721px){.settings-area .biz-form .setrow{grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--space-8) var(--space-24);}.settings-area .biz-form .fr-l{padding-top:var(--space-8);}}
 @media(max-width:1100px){.settings-area{grid-template-columns:minmax(0,1fr);}.sa-nav{position:static;flex-direction:row;flex-wrap:wrap;}.sa-nav .sa-index{margin:0;}.sa-content{max-width:none;}}

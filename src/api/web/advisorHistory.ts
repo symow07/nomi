@@ -53,8 +53,10 @@ export type HistoryPage = {
 export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flash | null, part:'all'|'mine'|'workspace' = 'all'): string {
   const s = v.state;
   const say = (k: MessageKey, p: Record<string, string> = {}) => esc(t(locale, k, p));
+  // UI Block 7 (F37) — turning history on is the act these pages lead with; turning it off and deleting a person's
+  // history are drawn secondary (outlined), each keeping its confirmation, route and value.
   const button = (action: string, name: string, value: string, label: string, confirm?: string) =>
-    `<form method="post" action="${action}" class="inline"><button class="btn" type="submit" name="${name}" value="${value}"${confirm
+    `<form method="post" action="${action}" class="inline"><button class="btn${confirm ? ' hist-quiet' : ''}" type="submit" name="${name}" value="${value}"${confirm
       ? ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(confirm)}"` : ''}>${esc(label)}</button></form>`;
 
   const why = s.keyProblem ? `<p class="muted">${say('advisor.history.keyMissing')}</p>`
@@ -89,7 +91,7 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
   const team = `<section class="block" id="team">
       <h2>${say('advisor.history.team')}</h2>
       <p class="muted">${say('advisor.history.teamHelp')}</p>
-      ${v.team.length === 0 ? `<p class="muted">${say('advisor.history.noTeam')}</p>` : `<ul class="rows">${v.team.map((p) => `<li class="row lines">
+      ${v.team.length === 0 ? `<p class="muted">${say('advisor.history.noTeam')}</p>` : `<ul class="rows hist-team">${v.team.map((p) => `<li class="row lines">
         <bdi>${esc(p.name)}</bdi>
         ${button(`${HISTORY_PAGE}/team/${esc(p.id)}/delete`, 'go', '1', t(locale, 'advisor.memory.ownerDelete', { name: p.name }),
           t(locale, 'advisor.memory.ownerDeleteConfirm', { name: p.name }))}

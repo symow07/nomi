@@ -17081,3 +17081,9 @@ Team, Data and account), all written by Claude and not yet read by a native spea
   person removed («تعديل بيانات {who} أو الإزالة من الفريق»; «وتبقى المحادثات السابقة تحمل الاسم نفسه») and the owner's
   role is the catalogue's own «مالك الحساب»; Spanish and French owner roles reuse `people.held.owner` («Quien dirige el
   negocio», « La direction »); Chinese 在岗安排 for "Availability" may want a plainer word.
+- Data and personal (F37): the data page's `data.index`, `data.close.short`, `data.close.review / .reviewAsk`; the
+  reworded buttons `data.deletion.ask` (was "Send the request", now "Ask the Nomi team to erase this workspace"),
+  `alerts.way.save`, `alerts.morning.save` and `settings.alerts.save` (each was a bare Save). To read first: Arabic uses
+  verbal nouns, no imperative («مراجعة مساحة العمل هذه ثم إغلاقها»; «طلب محو مساحة العمل هذه من فريق Nomi»); Chinese
+  保存早间摘要设置 adds 设置 so it reads as saving the setting, not sending a summary; French « Enregistrer le moyen
+  choisi » for the way may want the page's own heading word.

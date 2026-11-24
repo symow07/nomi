@@ -255,8 +255,10 @@ function morningForm(m: MorningSetting, locale: Locale): string {
         <fieldset>
           <legend>${esc(t(locale, 'alerts.morning.quiet'))}</legend>
           <p class="caption muted">${esc(t(locale, 'alerts.morning.quietHint'))}</p>
-          <label for="quiet-from">${esc(t(locale, 'alerts.morning.from'))}</label> ${hours('quietFrom', 'quiet-from', m.quietFrom)}
-          <label for="quiet-until">${esc(t(locale, 'alerts.morning.until'))}</label> ${hours('quietUntil', 'quiet-until', m.quietUntil)}
+          ${/* UI Block 7 (F37) — From and Until side by side, each label over its own control. */ ''}<div class="quiet-pair">
+            <span class="quiet-one"><label for="quiet-from">${esc(t(locale, 'alerts.morning.from'))}</label> ${hours('quietFrom', 'quiet-from', m.quietFrom)}</span>
+            <span class="quiet-one"><label for="quiet-until">${esc(t(locale, 'alerts.morning.until'))}</label> ${hours('quietUntil', 'quiet-until', m.quietUntil)}</span>
+          </div>
         </fieldset>
         <button class="btn" type="submit">${esc(t(locale, 'alerts.morning.save'))}</button>
       </form>
@@ -302,9 +304,10 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
       <li>${esc(t(locale, 'alerts.two.order'))}</li>
       <li>${esc(t(locale, 'alerts.two.handover'))}</li>
     </ul>
-    <p class="ways-sub">${esc(t(locale, 'alerts.rest'))}</p>
+    ${/* UI Block 7 (F37) — the two things, then the controls at once; what stays inside Nomi, and the e-mails that
+       come whatever the way, said under the choice they qualify. */ ''}${v.ways ? waysForm(v.ways, v, locale, from) : ''}
+    <p class="ways-sub ways-after">${esc(t(locale, 'alerts.rest'))}</p>
     ${also}
-    ${v.ways ? waysForm(v.ways, v, locale, from) : ''}
     ${v.ways?.morning ? morningForm(v.ways.morning, locale) : ''}
     ${devices}`;
 }

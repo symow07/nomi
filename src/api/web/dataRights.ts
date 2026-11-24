@@ -334,7 +334,7 @@ export function renderDataRights(
     </li></ul>
     <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.title'))}</div>
   </section>`;
-  const files = `<section class="block">
+  const files = `<section class="block" id="copy">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>
     <p class="lede">${esc(t(locale, 'data.export.lead'))}</p>
     ${links(record)}
@@ -381,13 +381,20 @@ export function renderDataRights(
             data-confirm="${esc(t(locale, 'data.deletion.askConfirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>`),
           ])}
         </form>`;
+  // UI Block 7 (F37) — closing is a review of its own: the heading and one line say what it does; the fold holds the
+  // whole consequence right beside the unchanged form (same field, route, confirmation and red button). An open
+  // request stays outside it, a standing state with its own Take that back.
+  const consequence = `<p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>`;
+  const review = (key: MessageKey, body: string) => `<details class="sa-subject data-review"><summary><span>${esc(t(locale, key))}</span></summary>
+      <div class="sa-body">${consequence}${body}</div></details>`;
   const ask = !viewer.isOwner
-    ? `<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
+    ? `${consequence}<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
     : v.closable === false
-      ? `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>${pending}${request}`
+      ? `${pending}${request ? review('data.close.reviewAsk', `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>${request}`)
+        : `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>`}`
       // Phase 9 (settings-a-new-13, V1-493) — the request as the settings pages'
       // card of rows; its button red, for what it takes away.
-      : `${pending}<form method="post" action="/app/settings/data/close">
+      : `${pending}${review('data.close.review', `<form method="post" action="/app/settings/data/close">
           <input type="hidden" name="asked" value="0" />
           ${rowsCard(null, [
             fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
@@ -395,7 +402,7 @@ export function renderDataRights(
             cardActs(`${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.close'))}</button>`),
           ])}
-        </form>`;
+        </form>`)}`;
 
   const workspace = v.requests.filter((r) => r.scope === 'workspace');
   const history = workspace.length === 0 ? '' : `<section class="block">
@@ -408,17 +415,28 @@ export function renderDataRights(
     </li>`).join('')}</ul>
   </section>`;
 
+  // UI Block 7 (F37) — one page, its subjects named at the top: what is routine (a copy) apart from what is
+  // consequential (a customer's deletion, what the law keeps, closing). Each a door to its own section.
+  const books = booksSection(v.books ?? null, locale, viewer);
+  const papers = papersSection(v.papers ?? null, locale, viewer);
+  const subjects: readonly (readonly [string, MessageKey])[] = [
+    ['copy', 'data.export.title'], ['advisor-history', 'advisor.history.title'], ['buyers', 'data.buyers.title'],
+    ...(books ? [['books', 'data.books.title'] as const] : []), ...(papers ? [['papers', 'data.papers.title'] as const] : []),
+    ['close', 'data.deletion.title']];
+  const index = `<nav class="dr-index" aria-labelledby="dr-index-h"><p class="dr-index-h" id="dr-index-h">${esc(t(locale, 'data.index'))}</p><ul>${subjects.map(([id, k]) =>
+    `<li><a href="#${id}">${esc(t(locale, k))}</a></li>`).join('')}</ul></nav>`;
   return `${back('/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
+    ${index}
     ${files}
     ${advisor}
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
-    ${booksSection(v.books ?? null, locale, viewer)}
-    ${papersSection(v.papers ?? null, locale, viewer)}
+    ${books}
+    ${papers}
     <section class="block" id="close">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
-      <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>
+      <p class="dr-short">${esc(t(locale, 'data.close.short'))}</p>
       ${ask}
     </section>
     ${history}
