@@ -2,7 +2,8 @@ import type { FollowUpRule } from '../../core/conversation/followUps.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { FollowUpRun } from '../../db/followUps.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
-import { esc } from './layout.js';
+import { esc, wordsHtml } from './layout.js';
+import { messageLocale } from '../../core/owner/i18n/messages.js';
 import { setupFold } from './employee.js';
 import { t } from './say.js';
 import * as show from './values.js';
@@ -14,22 +15,25 @@ const exact = (s: string): string => `<blockquote class="follow-up-words" dir="a
 export function renderFollowUpRule(locale: Locale, rule: FollowUpRule, owner: boolean, invalid = false, open = false): string {
   const preview = rule.wording ? exact(rule.wording) : `<p class="muted">${say(locale, 'followUp.emptyWords')}</p>`;
   // UI Block 6 (F32) — folded like the other decisions, saying where it stands: on or off, and after how long.
-  const now = `${say(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${say(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}`;
-  return setupFold('follow-ups', null, say(locale, 'followUp.title'), now, `
+  // Fix round: the summary line is in the page's language (every string on it has a key in all five catalogues).
+  const now = `${wordsHtml(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${wordsHtml(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}`;
+  const daysKey = (n: number): MessageKey => (n === 1 ? 'followUp.day' : 'followUp.days');
+  const optLang = (n: number): string => (locale !== 'en' && messageLocale(locale, daysKey(n)) === 'en' ? ' lang="en" dir="ltr"' : '');
+  return setupFold('follow-ups', null, wordsHtml(locale, 'followUp.title'), now, `
     <p>${say(locale, 'followUp.intro')}</p>
     ${invalid ? `<p role="alert" id="follow-up-error">${say(locale, 'followUp.ruleError')}</p>` : ''}
     ${owner ? `<form method="post" action="/app/settings/assistant/follow-ups">
       <label class="follow-up-check"><input type="checkbox" name="enabled" value="1"${rule.enabled ? ' checked' : ''}>${say(locale, 'followUp.enabled')}</label>
       <label for="follow-up-delay">${say(locale, 'followUp.delay')}</label>
       <select id="follow-up-delay" name="delayDays" aria-describedby="follow-up-clock"${invalid ? ' aria-invalid="true"' : ''}>
-      ${[1, 2, 3, 4, 5, 6, 7].map(n => `<option value="${n}"${n === rule.delayDays ? ' selected' : ''} lang="en" dir="ltr">${esc(t(locale, n === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, n) }))}</option>`).join('')}</select>
+      ${[1, 2, 3, 4, 5, 6, 7].map(n => `<option value="${n}"${n === rule.delayDays ? ' selected' : ''}${optLang(n)}>${esc(t(locale, daysKey(n), { n: show.count(locale, n) }))}</option>`).join('')}</select>
       <p id="follow-up-clock" class="caption muted">${say(locale, 'followUp.clock')}</p>
       <label for="follow-up-wording">${say(locale, 'followUp.wording')}</label>
       <textarea id="follow-up-wording" name="wording" rows="4" dir="auto" aria-describedby="follow-up-words-help${invalid ? ' follow-up-error' : ''}"${invalid ? ' aria-invalid="true"' : ''}>${esc(rule.wording)}</textarea>
       <p id="follow-up-words-help" class="caption muted">${say(locale, 'followUp.wordsHelp')}</p>
       <p class="caption muted">${say(locale, 'followUp.future')}</p>
       <button class="btn" type="submit">${say(locale, 'followUp.save')}</button>
-    </form>` : `<p>${say(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${say(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}</p>`}
+    </form>` : `<p>${now}</p>`}
     <h3>${say(locale, 'followUp.preview')}</h3>${preview}`, 'follow-up-settings', invalid || open);
 }
 

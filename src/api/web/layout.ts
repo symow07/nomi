@@ -1917,6 +1917,20 @@ const STYLE_PAGES = `
   .hs-lines .row { padding-block:var(--space-4); }
   .hs-lines .pcheck { align-items:flex-start; padding-block:var(--space-8); }
   .hs-lines .pcheck input { flex:none; margin-block-start:0.3em; }
+  @media (max-width:600px) {
+    .sa-content:has(> .hs-step) > .sa-page-chooser { margin-bottom:var(--space-8); padding-bottom:var(--space-4); }
+    .hs-step { margin-bottom:0; flex-wrap:nowrap; }
+    .hs-step > .back { flex:none; }
+    .hs-step > .hs-where { min-inline-size:0; justify-content:flex-end; text-align:end; }
+    .hs-step ~ h1.page { margin-bottom:var(--space-12); }
+    .hs-step ~ .lede { margin-bottom:var(--space-8); }
+    .hs-step ~ .pform { margin-top:0; gap:var(--space-8); }
+    .hs-step ~ .pform .choices { row-gap:0; }
+    .hs-step ~ .pform > p.small { margin-block:0; }
+    .hs-step ~ .pform textarea { margin-block:var(--space-4); }
+    .hs-step ~ .pform textarea[name="told"] { block-size:5rem; }
+    .hs-step ~ .pform textarea[name="told"]:focus { block-size:8.5rem; }
+  }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
   .wa-steps li { margin-bottom:var(--space-8); }
