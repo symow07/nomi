@@ -677,7 +677,7 @@ ${FACE_CSS}
   .skip { position:absolute; top:calc(-2 * var(--space-48)); inset-inline-start:var(--space-8); z-index:3;
     padding:var(--space-8) var(--space-16); border-radius:var(--radius-card);
     background:var(--color-surface); color:var(--color-ink); box-shadow:var(--shadow-lift2);
-    font-size:var(--font-size-small); font-weight:600; }
+    font-size:var(--font-size-small); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count

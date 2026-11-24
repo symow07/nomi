@@ -96,3 +96,12 @@ describe('UI Block 6 · F39 — Activity: compact dated events', () => {
     }
   });
 });
+
+// UI Block 6 — the shell's skip link is the first stop on every Block 6 page; it was 40 px tall (also at 117d3160).
+describe('UI Block 6 — the skip link is a 44 px target', () => {
+  it('the skip link keeps 44 px of height', () => {
+    const layout = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+    const rule = layout.slice(layout.indexOf('.skip {'), layout.indexOf('.skip:focus'));
+    expect(rule).toContain('min-height:44px; display:inline-flex; align-items:center;');
+  });
+});
