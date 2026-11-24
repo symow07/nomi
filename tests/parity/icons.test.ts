@@ -48,6 +48,9 @@ const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
   'date-promise': 'quote',
   kinds: 'list', sell: 'hand-money', language: 'global', prices: 'banknote', closures: 'calendar-mark',
   month: 'chart-2', 'date-order': 'delivery', 'date-closure': 'calendar-mark',
+  // UI Block 7 (F34): the Channels rows without a shape got one (one icon column, one size), and the chat page's Copy.
+  // An addition to the table, not a loosening: each new meaning is still held to its own Solar drawing.
+  'ch-chat': 'chat-round-dots', 'ch-telegram': 'send-square', 'ch-tiktok': 'music-note', copy: 'copy',
 };
 /** The keys of icons.ts's map, read from its source. */
 const keysOf = (map: 'ICON') => {

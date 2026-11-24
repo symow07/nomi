@@ -24,6 +24,7 @@ import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { back, deeper, esc, signalMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { icon } from './icons.js';
 import { connectedChannels } from '../../db/connectedChannels.js';
 import { callingCode } from '../../core/channel/callingCodes.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -549,6 +550,8 @@ export function renderReach(
    * shows: each channel's card on the channel's own screen. Absent: all.
    */
   only?: readonly OutreachChannel[],
+  /** UI Block 7 (F34) — drawn as a fold under its name (WhatsApp's own screen). */
+  fold = false,
 ): string {
   const shown = only ? OUTREACH_CHANNELS.filter((c) => only.includes(c)) : OUTREACH_CHANNELS;
   const rows = shown.map((channel: OutreachChannel) => {
@@ -656,8 +659,17 @@ export function renderReach(
     </div>`;
   }).join('');
 
+  const title = esc(shown.length === 1 ? t(locale, 'reach.title.one', { channel: t(locale, `reach.channel.${shown[0]!}` as MessageKey) }) : t(locale, 'reach.title'));
+  // UI Block 7 (F34) — on WhatsApp's own screen what the place allows is reference: folded under its name, so the
+  // connection comes first. Open whenever it holds the owner's switch for writing first, so no control is hidden.
+  if (fold) {
+    const holdsSwitch = shown.some((c) => canBeEnabled(c)) && outreachShown();
+    return `<details class="sa-subject ch-fold" id="reach"${holdsSwitch ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${title}</span><span class="sa-now">${esc(t(locale, 'reach.intro'))}</span></span></summary>
+    <div class="sa-body">${rows}</div>
+  </details>`;
+  }
   return `<div class="block">
-    <h2>${esc(shown.length === 1 ? t(locale, 'reach.title.one', { channel: t(locale, `reach.channel.${shown[0]!}` as MessageKey) }) : t(locale, 'reach.title'))}</h2>
+    <h2>${title}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'reach.intro'))}</p>
     ${rows}
   </div>`;
@@ -820,11 +832,22 @@ function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | 
     ? `<form method="post" action="/app/channels/${which}" class="inline"><input type="hidden" name="on" value="${on ? '0' : '1'}" />
         <button class="btn${on ? ' ghost' : ' send'}" type="submit"${on ? ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, k('offAsk')))}"` : ''}>${esc(t(locale, on ? k('turnOff') : k('turnOn')))}</button></form>`
     : `<p class="caption">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+  // UI Block 7 (F34) — beside each code, Copy (the address as a full link, wherever the page is open); and for the chat
+  // page, Open: the page itself in a new tab, which is how an owner sees what a customer sees. Where the browser gives
+  // no clipboard, Copy selects the code instead and says so.
+  const tools = (code: string, abs: boolean, open: boolean): string => `<div class="ch-tools">
+      <button class="btn" type="button" data-copy="${esc(code)}"${abs ? ' data-abs="1"' : ''} data-said="${esc(t(locale, 'ch.copied'))}" data-select="${esc(t(locale, 'ch.copySelected'))}"
+        onclick="var b=this,w=b.closest('.ch-code'),s=w.querySelector('.ch-said'),c=w.querySelector('.code'),v=b.dataset.abs?new URL(b.dataset.copy,location.href).href:b.dataset.copy;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){s.textContent=b.dataset.said},function(){var r=document.createRange(),g=getSelection();r.selectNodeContents(c);g.removeAllRanges();g.addRange(r);s.textContent=b.dataset.select})">${icon('copy')}<span>${esc(t(locale, 'ch.copy'))}</span></button>
+      ${open ? `<a class="ch-open" href="${esc(code)}" target="_blank" rel="noopener">${icon('external')}<span>${esc(t(locale, 'ch.open'))}</span></a>` : ''}
+      <span class="caption ch-said" role="status"></span>
+    </div>${open ? `<p class="caption">${esc(t(locale, 'ch.openNote'))}</p>` : ''}`;
+  const code = (text: string, abs: boolean, open: boolean) =>
+    `<div class="ch-code"><p class="issued"><span class="code" dir="ltr">${esc(text)}</span></p>${tools(text, abs, open)}</div>`;
   return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p>
     <p><span class="pill${on ? ' ok' : ''}">${esc(t(locale, on ? k('on') : k('off')))}</span></p>
-    ${on ? `<p>${esc(t(locale, k('share')))}</p><p class="issued"><span class="code" dir="ltr">${esc(p.url!)}</span></p>` : ''}
+    ${on ? `<p>${esc(t(locale, k('share')))}</p>${code(p.url!, true, which === 'chat')}` : ''}
     ${which === 'telegram' && p.greeting ? `<p class="caption">${esc(t(locale, 'channels.telegram.greetingWritten'))}</p><blockquote dir="auto">${esc(p.greeting)}</blockquote>` : ''}
-    ${on && which === 'chat' ? `<p>${esc(t(locale, 'channels.chat.embed'))}</p><p class="issued"><span class="code" dir="ltr">${esc(`<script src="${p.url!}/widget.js" async></script>`)}</span></p>` : ''}
+    ${on && which === 'chat' ? `<p>${esc(t(locale, 'channels.chat.embed'))}</p>${code(`<script src="${p.url!}/widget.js" async></script>`, false, false)}` : ''}
     ${control}`;
 }
 
@@ -986,8 +1009,9 @@ export function renderChannelScreen(
   parts: ChannelScreenParts = {},
 ): string {
   const head = `${back(CHANNELS_HOME, t(locale, 'factory.reach.title'))}<h1 class="page">${esc(channelScreenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  // UI Block 7 (F34) — on WhatsApp's own screen the reach block is a fold (see renderReach's `fold`).
   const reach = (c: OutreachChannel) => renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
-    data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c]);
+    data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c], c === 'whatsapp');
   const body = (html: string) => `${head}<div class="ch-screen">${html}</div>`;
   switch (screen) {
     case 'whatsapp': return body(`${whatsappCard(data, locale, viewer)}${reach('whatsapp')}`);
@@ -1043,11 +1067,12 @@ export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}):
     ${flashBanner(o.flash ?? null)}
     <p class="lede">${esc(t(locale, 'channel.connect.intro', { name }))}</p>
     <div class="block">
-      <ol class="wa-steps">
+      <details class="sa-subject ch-fold" id="how" open><summary><span class="sa-sum"><span class="sa-sname">${esc(t(locale, 'ch.howConnect'))}</span></span></summary>
+      <div class="sa-body"><ol class="wa-steps">
         <li>${esc(t(locale, 'channel.connect.step1'))}</li>
         <li>${esc(t(locale, 'channel.connect.step2'))}</li>
         <li>${esc(t(locale, 'channel.connect.step3', { page: t(locale, 'nav.channels') }))}</li>
-      </ol>
+      </ol></div></details>
       ${act}
       <p class="muted">${esc(t(locale, 'channel.connect.note'))}</p>
     </div>`;

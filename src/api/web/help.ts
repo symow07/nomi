@@ -64,18 +64,24 @@ export function renderMetaHelp(locale: Locale, o: { readonly statusShown?: boole
   const shown = o.statusShown ?? true;
   // Phase 9 (w4-business-assistant-07) — the steps are on Instagram and Messenger's own screen, under its name.
   const where = { section: t(locale, 'accounts.title'), page: channelScreenTitle(locale, 'meta') };
+  // UI Block 7 (F34) — each step is a fold: the six titles read as one checklist, and a step opens when it is
+  // needed. A link to `#<step>` (Your accounts on the Channels page) opens that step: the page script's deep-link
+  // reveal opens a `details.sa-subject` named by the address. The first step is open, so the page never starts empty.
   const steps = META_HELP_STEPS.map((s, i) => `
-    <section class="block help-step" id="${s.id}" aria-labelledby="${s.id}-h">
-      <h2 id="${s.id}-h">${esc(show.count(locale, i + 1))}. ${esc(t(locale, s.title))}</h2>
+    <details class="sa-subject help-step" id="${s.id}"${i === 0 ? ' open' : ''}>
+      <summary><h2 class="sa-sname" id="${s.id}-h">${esc(show.count(locale, i + 1))}. ${esc(t(locale, s.title))}</h2></summary>
+      <div class="sa-body">
       <p class="help-line"><b>${esc(t(locale, 'help.meta.checkLabel'))}</b> ${esc(t(locale, !shown && s.checkNoStatus ? s.checkNoStatus : s.check, { name, ...where }))}</p>
       <p class="help-line muted">${esc(t(locale, 'help.meta.whyLabel'))} ${esc(t(locale, s.why, { name }))}</p>
       ${s.meta.length ? `<ul class="help-links">${s.meta.map((m) =>
         `<li><a href="${esc(m.href)}" rel="noopener noreferrer" target="_blank">${esc(t(locale, m.label))}${AWAY}<span class="sr">${esc(t(locale, 'help.meta.opensMeta'))}</span></a></li>`).join('')}</ul>` : ''}
-    </section>`).join('');
+      </div>
+    </details>`).join('');
   return `
     <div class="dhead">${back(`${channelScreenHref('meta')}${shown ? '#your-accounts' : ''}`, channelScreenTitle(locale, 'meta'))}</div>
     <h1 class="page">${esc(t(locale, 'help.meta.title'))}</h1>
     <p class="lede">${esc(t(locale, shown ? 'help.meta.lead' : 'help.meta.lead.noStatus', { name, ...where }))}</p>
+    <p class="caption">${esc(t(locale, 'ch.howMeta'))}</p>
     ${steps}
     <section class="block" id="rules" aria-labelledby="rules-h">
       <h2 id="rules-h">${esc(t(locale, 'help.meta.rules.title'))}</h2>

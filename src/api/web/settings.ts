@@ -325,10 +325,23 @@ export type MenuRow = {
   readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
   /** The advisor run — the row IS the assistant: its own slot (`agentMark`) stands where a row's shape does. */
   readonly agent?: true;
+  /**
+   * UI Block 7 (F34) — a channel's states, each named: the first pair is the row's value (its connection, with the
+   * value's tone), then whether it can answer now and who gets replies; and the one next step, if there is one.
+   * They stand under the name, inside the same door.
+   */
+  readonly states?: { readonly items: readonly (readonly [label: string, value: string])[]; readonly next: string | null };
 };
 
 export const menuRow = (r: MenuRow): string => {
   const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
+  if (r.states && r.href) {
+    const [first, ...rest] = r.states.items;
+    const pair = (label: string, value: string, cls: string) =>
+      `<span class="ch-state"><span class="ch-k">${esc(label)}</span><span class="${cls}"><bdi>${esc(value)}</bdi></span></span>`;
+    const states = `<span class="ch-states">${first ? pair(first[0], first[1], `sr-value${r.tone ? ` ${r.tone}` : ''}`) : ''}${rest.map(([k, v]) => pair(k, v, 'ch-v')).join('')}</span>`;
+    return `<li class="ch-row"><a class="srow sr-menu sr-two" href="${settingsHref(r.href)}">${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}${states}${r.states.next ? `<span class="ch-next">${esc(r.states.next)}</span>` : ''}</span>${GO}</a></li>`;
+  }
   // Phase 9 of the warmth run (w4-today-setup-24, w4-whole-08) — the value's
   // cell takes the PAGE's direction, so its state mark stands where reading
   // starts (on the right in Arabic) and the cell lines up at the row's end;

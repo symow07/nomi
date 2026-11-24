@@ -17054,3 +17054,20 @@ and the assistant's settings, all written by Claude and not yet read by a native
   plural form sits beside a figure; Arabic actions are verbal nouns (تعليم إجابة، فتح المحادثة), nobody addressed by an
   imperative; "Nomi" stays a name (问 Nomi / «سؤال Nomi» / Preguntar a Nomi / Demander à Nomi). The rest of the
   `followUp.*` lines and `area1.results.title / .sales / .assistant / .setup / .views` are still English-only.
+
+**The UI correction, Block 7 (2026-11-24):** new zh / ar / es / fr lines on the Settings pages (Channels, Business,
+Team, Data and account), all written by Claude and not yet read by a native speaker:
+- Channels (F34): the three labels `ch.k.connection / .ready / .replies`; the states `ch.ready.team / .connectFirst /
+  .reconnect / .notHere` and `ch.replies.none / .notYet / .listed / .everyone / .asSet`; the next steps
+  `ch.next.connect / .reconnect / .start / .finish / .none / .resume` ({page} is the "Going live" page's own title);
+  the chat page's `ch.copy / .copied / .copySelected / .open / .openNote`; the folds' `ch.howConnect` and `ch.howMeta`.
+  To read first: Arabic avoids addressing anyone by an imperative (verbal nouns: «الخطوة التالية: الربط.»; «يمكن نسخه
+  بلوحة المفاتيح»; «أي رسالة تُكتب هناك»); Chinese `ch.k.replies` is 回复给谁 (who gets replies), not 回复 alone; Spanish
+  uses tú and French vous, as the rest of each catalogue does.
+- The Settings area's own words, which were English in every language until now: every `settingsArea.*` line (48: the
+  seven parts, their hints, the sub-pages' names and hints, `settingsArea.back`, `.notSet`, `.changeProfile`), the
+  shell's `nav.more / .sections / .primary / .results / .getStarted` and the help door's `help.door`. To read first:
+  French `settingsArea.notifications` is "Alertes" and `settingsArea.assistant` "Votre assistant", so neither is the
+  English word; Chinese avoids 他 / 它 (`settingsArea.identityHint` says 回复客户的助手). `nav.customers` and French
+  `nav.assistant` stay English on purpose: `tests/parity/redesign-copy.test.ts` and `phase7-phone.test.ts` hold them as
+  the approved English redesign copy.
