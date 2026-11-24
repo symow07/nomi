@@ -104,10 +104,15 @@ describe('UI Block 6 fix 1 · F39 — the Results scope, the assistant area and 
 });
 
 describe('UI Block 6 fix 1 — the live-refresh pin says the limit it asserts', () => {
-  it('the comment above the 58,800 ceiling names 58,800 and what it measured', () => {
+  // UI Block 7's F34 fix round raised the ceiling to 59,800 (Copy moved into the script); the rule is the same: the
+  // comment above the ceiling names the limit it asserts and what was measured, Block 6's 58,800 / 58,766 kept in it.
+  it('the comment above the 59,800 ceiling names 59,800 and what it measured', () => {
     const test = src('./live-refresh.test.ts');
-    const at = test.indexOf('toBeLessThan(58_800)');
+    const at = test.indexOf('toBeLessThan(59_800)');
+    expect(at).toBeGreaterThan(0);
     const comment = test.slice(test.lastIndexOf('// Block 2 fix round 2', at), at);
+    expect(comment).toContain('59,800');
+    expect(comment).toContain('59,767');
     expect(comment).toContain('58,800');
     expect(comment).toContain('58,766');
   });

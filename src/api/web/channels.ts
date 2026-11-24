@@ -834,10 +834,10 @@ function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | 
     : `<p class="caption">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
   // UI Block 7 (F34) — beside each code, Copy (the address as a full link, wherever the page is open); and for the chat
   // page, Open: the page itself in a new tab, which is how an owner sees what a customer sees. Where the browser gives
-  // no clipboard, Copy selects the code instead and says so.
+  // no clipboard, Copy selects the code instead and says so. The behaviour is the shared script's (`copying` in
+  // liveScript.ts), not an inline handler: inside one, `document` is on the scope chain, so `URL` was document.URL.
   const tools = (code: string, abs: boolean, open: boolean): string => `<div class="ch-tools">
-      <button class="btn" type="button" data-copy="${esc(code)}"${abs ? ' data-abs="1"' : ''} data-said="${esc(t(locale, 'ch.copied'))}" data-select="${esc(t(locale, 'ch.copySelected'))}"
-        onclick="var b=this,w=b.closest('.ch-code'),s=w.querySelector('.ch-said'),c=w.querySelector('.code'),v=b.dataset.abs?new URL(b.dataset.copy,location.href).href:b.dataset.copy;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){s.textContent=b.dataset.said},function(){var r=document.createRange(),g=getSelection();r.selectNodeContents(c);g.removeAllRanges();g.addRange(r);s.textContent=b.dataset.select})">${icon('copy')}<span>${esc(t(locale, 'ch.copy'))}</span></button>
+      <button class="btn" type="button" data-copy="${esc(code)}"${abs ? ' data-abs="1"' : ''} data-said="${esc(t(locale, 'ch.copied'))}" data-select="${esc(t(locale, 'ch.copySelected'))}">${icon('copy')}<span>${esc(t(locale, 'ch.copy'))}</span></button>
       ${open ? `<a class="ch-open" href="${esc(code)}" target="_blank" rel="noopener">${icon('external')}<span>${esc(t(locale, 'ch.open'))}</span></a>` : ''}
       <span class="caption ch-said" role="status"></span>
     </div>${open ? `<p class="caption">${esc(t(locale, 'ch.openNote'))}</p>` : ''}`;
