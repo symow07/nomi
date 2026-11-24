@@ -128,9 +128,16 @@ export function renderGuide(
       ${step === 'products' && !done ? namesWantedLines(locale, v.names ?? []) : ''}
     </li>`;
   }).join('');
+  // UI Block 6 · F38 — progress is said once: how many of the five are done, with the set-up times one press away;
+  // the next step to do is the framed card, its instructions open, and the rest are compact rows.
+  const progress = esc(t(locale, 'guide.progress', {
+    done: show.count(locale, v.steps.filter((s) => s.done).length), total: show.count(locale, SETUP_STEPS.length) }));
   return `${options.embedded ? '' : `<header class="setup-intro"><h1 class="page">${wordsHtml(locale, 'area1.setup.title')}</h1>
     <p class="muted">${wordsHtml(locale, 'area1.setup.intro')}</p></header>`}
-    ${options.milestones ? renderSetupMilestones(options.milestones, locale, { now: options.now, canManage: options.canManage }) : ''}
+    ${options.milestones
+      ? `<details class="gs-progress"><summary>${progress} · ${esc(t(locale, 'guide.progress.times'))}</summary>${
+          renderSetupMilestones(options.milestones, locale, { now: options.now, canManage: options.canManage })}</details>`
+      : `<p class="gs-progress">${progress}</p>`}
     ${v.next === null ? `<p class="fok setup-complete">${wordsHtml(locale, 'area1.setup.complete')}</p>` : ''}
     <ol class="guide setup-steps">${items}</ol>
     <div class="block"><h2>${esc(t(locale, 'guide.after.title'))}</h2><p>${esc(t(locale, 'guide.after.body', { name }))}</p></div>`;

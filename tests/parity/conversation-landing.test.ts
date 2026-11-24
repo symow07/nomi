@@ -264,7 +264,8 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
         const order = [
           at(html, 'class="timeline"'), at(html, '>p-50</div>'), landing(html),
           at(html, 'class="card draft"'),
-          at(html, 'class="card sbx-trust'), at(html, 'id="compose"'),
+          // UI Block 6 · F38 — the box goes on with the conversation; the trust evidence sits beside it, after it.
+          at(html, 'id="compose"'), at(html, 'class="card sbx-trust'),
         ];
         expect(order, l).toEqual([...order].sort((a, b) => a - b));
         // the fix wave (w4-conversation-03) — under the draft card its "Hand to me" is the take-over

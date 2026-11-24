@@ -316,13 +316,6 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
         <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
     </form>
-    ${/* 0224 (Block 1 #11) — a photo or a voice note, as a customer would send one: through the real vision and transcriber. */ ''}<details class="practice-media"><summary>${esc(t(locale, 'sandbox.media.label'))}</summary>
-    <form method="post" action="/app/sandbox/media" enctype="multipart/form-data" class="mediabar">
-      <label class="pq"><span>${esc(t(locale, 'sandbox.media.label'))}</span><input type="file" name="media" accept="image/jpeg,image/png,image/webp,audio/ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/aac,audio/x-m4a" required /></label>
-      <label class="pq"><span>${esc(t(locale, 'sandbox.media.caption'))}</span><input name="caption" maxlength="500" autocomplete="off" /></label>
-      <button class="btn" type="submit">${esc(t(locale, 'sandbox.media.send'))}</button>
-    </form></details>
-    <details class="practice-scenarios"><summary>${esc(t(locale,'sandbox.scenario.label'))}</summary>
     <form method="post" action="/app/sandbox/scenario" class="scenariobar">
       <label class="muted" for="scenario">${esc(t(locale, 'sandbox.scenario.label'))}</label>
       <select id="scenario" name="scenarioId">
@@ -331,7 +324,12 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'sandbox.scenario.load'))}</button>
     </form>
-    </details>
+    ${/* 0224 (Block 1 #11) — a photo or a voice note, as a customer would send one: through the real vision and transcriber. */ ''}<details class="practice-media"><summary>${esc(t(locale, 'sandbox.media.label'))}</summary>
+    <form method="post" action="/app/sandbox/media" enctype="multipart/form-data" class="mediabar">
+      <label class="pq"><span>${esc(t(locale, 'sandbox.media.label'))}</span><input type="file" name="media" accept="image/jpeg,image/png,image/webp,audio/ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/aac,audio/x-m4a" required /></label>
+      <label class="pq"><span>${esc(t(locale, 'sandbox.media.caption'))}</span><input name="caption" maxlength="500" autocomplete="off" /></label>
+      <button class="btn" type="submit">${esc(t(locale, 'sandbox.media.send'))}</button>
+    </form></details>
   </div>`;
 }
 
@@ -400,11 +398,29 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   // page opened with 41 case titles and the box to write in 3,000 px down.
   return `<details class="card pchecks">
     <summary><h2>${esc(t(locale, 'practice.scripted.title'))}&nbsp;· <span class="pcount">${esc(t(locale, 'practice.scripted.count', { passed: report.passed, total: report.total }))}</span></h2></summary>
-    <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
+    ${scriptedBody(report, locale, rows)}
+  </details>`;
+}
+
+function scriptedBody(report: PracticeReport, locale: Locale, rows = report.cases.map((c) => `
+    <li class="pcase ${c.passed ? 'ok' : 'bad'}">
+      <span class="pmark">${shape(c.passed ? 'ok' : 'failed')}</span>
+      <span class="ptitle">${esc(t(locale, `sandbox.case.${c.id}` as MessageKey))}</span>
+    </li>`).join('')): string {
+  return `<p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
     <ul class="pcases">${rows}</ul>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>
-    <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: assistantName(locale) }))}</p>
-  </details>`;
+    <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: assistantName(locale) }))}</p>`;
+}
+
+/**
+ * UI Block 6 · F38 — THE TRUST EVIDENCE, ONE DISCLOSURE beside the customer's box: what was checked on the newest
+ * turn, then the safety checks that ran (the same cases, words and count as their own fold). Closed, it is one line.
+ */
+function trustEvidence(view: SandboxView, locale: Locale, report: PracticeReport | undefined): string {
+  const count = report ? esc(t(locale, 'practice.scripted.count', { passed: report.passed, total: report.total })) : '';
+  return `<details class="practice-trust"><summary>${esc(t(locale, 'sandbox.trust.title'))}${count ? ` · <span class="pcount">${count}</span>` : ''}</summary>${renderTrust(view.lastTurn, locale)}${
+    report ? `<section class="sbx-scripted"><h3>${esc(t(locale, 'practice.scripted.title'))} · ${count}</h3>${scriptedBody(report, locale)}</section>` : ''}</details>`;
 }
 
 /**
@@ -448,6 +464,8 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
   flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings; checklist?: PracticeChecklistView;
   /** Phase 5 — the assistant is at work on the customer's newest line (`assistantWorking`, live.ts). */
   working?: boolean;
+  /** UI Block 6 · F38 — the safety checks, shown in the trust disclosure beside the box. */
+  practice?: PracticeReport;
 }): string {
   const name = assistantName(locale);
   const banner = `<p class="sbx-note">${esc(t(locale, 'sandbox.banner'))}</p>`;
@@ -515,9 +533,10 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${/* The fix wave (w4-conversation-03) — under the draft card, its "Hand to me" is the take-over, as on a conversation. */ ''}${
       view.ownership === 'AI' && draftCard.trim() ? '' : sandboxTakeoverCard(view, locale)}
-    <details class="practice-trust"><summary>${esc(t(locale,'sandbox.trust.title'))}</summary>${renderTrust(view.lastTurn, locale)}</details>
-    ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
+    ${/* UI Block 6 · F38 — the box goes on with the conversation; the evidence sits beside it, one disclosure. */ ''}<div class="sbx-pair">${
+      renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
       view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim(), opts.checklist?.currency ?? 'USD')}
+    ${trustEvidence(view, locale, opts.practice)}</div>
     ${opts.checklist ? renderPracticeChecklist(opts.checklist, locale) : ''}`;
 
   const reset = `<form method="post" action="/app/sandbox/reset" class="inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
@@ -528,6 +547,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     <div class="block"><div class="dhead spread sbx-log-h"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${reset}</div>${log}</div>
     ${flashHtml}
     ${acts}
+    ${older && opts.practice ? renderPractice(opts.practice, locale) : ''}
     ${opts.settings ? `<details class="practice-controls"><summary>${esc(t(locale,'practice.mode.title'))}</summary>${practiceModeCard(opts.settings, locale)}</details>` : ''}
     `;
 }

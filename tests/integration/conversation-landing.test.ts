@@ -306,7 +306,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const page = await get('/app/sandbox').then((r) => r.body);
     const order = [
       at(page, 'class="timeline"'), at(page, 'id="latest"'), at(page, 'class="card draft"'),
-      at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
+      // UI Block 6 · F38 — the box goes on with the conversation; the trust evidence sits beside it, after it.
+      at(page, 'id="compose"'), at(page, 'class="card sbx-trust'),
     ];
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(page).not.toContain('class="card takeover');   // the fix wave (w4-conversation-03): the draft card's "Hand to me" is the take-over

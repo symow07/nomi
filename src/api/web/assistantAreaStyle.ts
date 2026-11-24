@@ -12,7 +12,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-area .btn{color:var(--color-surface);background:var(--color-ink);border-color:var(--color-ink);}
 /* Block 2: Practice shares the conversation card's action hierarchy. */
 .assistant-practice #approve .btn:not(.send),.assistant-practice .takeover .btn:not(.send),.assistant-practice .sbx-log-h .btn{color:var(--color-ink);background:var(--color-surface);border-color:var(--color-control-line);}
-.assistant-practice .sbx-log-h .btn.danger{border-color:var(--color-ink);border-width:2px;}
+.assistant-practice .sbx-log-h .btn.danger{border-color:var(--color-control-line);border-width:1px;font-weight:400;}
 .assistant-practice #approve .btn:not(.send):not(:disabled):hover,.assistant-practice .takeover .btn:not(.send):not(:disabled):hover,.assistant-practice .sbx-log-h .btn:not(:disabled):hover{background:var(--color-sand);border-color:var(--color-ink);}
 .assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
 .assistant-area .pform{min-width:0;}
@@ -59,6 +59,19 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-practice .scenariobar{display:flex;flex-wrap:wrap;gap:var(--space-12);align-items:end;}
 .assistant-practice .scenariobar select{min-width:0;max-width:100%;}
 .assistant-practice .practice-controls{border-top:1px solid var(--color-border);padding-block:var(--space-24);}
+/* UI Block 6 · F38: the box with the conversation, the situation under it, the evidence beside it in one disclosure. */
+.assistant-practice .sbx-pair{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;column-gap:var(--space-32);}
+.assistant-practice .sbx-pair>*{margin-block:0;}
+.assistant-practice .scenariobar .btn,.assistant-practice .mediabar .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
+.assistant-practice .sbx-pair>.practice-trust{border-top:1px solid var(--color-border);padding-block:var(--space-12);min-width:0;}
+.assistant-practice .practice-trust>summary .pcount{font-size:inherit;font-weight:400;margin:0;}
+.assistant-practice .practice-trust .card{border-top:0;padding-block:var(--space-8);}
+.assistant-practice .sbx-scripted{border-top:1px solid var(--color-border);padding-block:var(--space-12);}
+.assistant-practice .sbx-scripted h3{font-size:var(--font-size-base);margin:0 0 var(--space-8);}
+.assistant-practice .scenariobar{padding-block-start:var(--space-12);border-top:1px solid var(--color-border);}
+.assistant-practice .scenariobar label{flex-basis:100%;}
+.assistant-practice summary:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;}
+@media (min-width:1200px){.assistant-practice .sbx-pair{grid-template-columns:minmax(0,2fr) minmax(0,1fr);}}
 .assistant-practice #readiness{border-top:1px solid var(--color-border);padding-top:var(--space-24);margin-top:var(--space-32);}
 .assistant-area .scheck{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .assistant-area .scheck .proposed{border:0;font-family:inherit;font-size:var(--font-size-base);background:var(--color-assistant-wash);padding:var(--space-24);}

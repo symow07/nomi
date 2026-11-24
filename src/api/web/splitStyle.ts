@@ -377,6 +377,17 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .gs-heading h2 { margin:0; flex:1; }
 .gs-heading .deeper { margin:0; }
 .gs-help { max-inline-size:70ch; margin-block-start:var(--space-12); }
+/* UI Block 6 · F38 — the next step is the one framed card, its instructions open; the others are compact rows. */
+.setup-steps .guide-step.next { border:1px solid var(--color-ink); border-radius:var(--radius-card); padding:var(--space-20); background:var(--color-surface); }
+.setup-steps .guide-step.next + .guide-step { border-block-start:0; }
+.setup-steps .guide-step:not(.next) { padding-block:var(--space-8); }
+.setup-steps .guide-step:not(.next) .gs-h { font-size:var(--font-size-base); }
+.setup-steps .guide-step:not(.next) .gs-help { margin-block-start:0; }
+.setup-steps .guide-step.done .gs-h { color:var(--color-ink-secondary); font-weight:400; }
+.gs-progress { margin-block:var(--space-16) 0; }
+.gs-progress > summary { font-weight:600; font-size:var(--font-size-base); }
+.gs-progress .setup-clock { margin-block:var(--space-12) var(--space-16); }
+.gs-progress > summary:focus-visible, .setup-steps summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
 .readiness-section { margin-block-start:var(--space-40); }
 .calendar-page .cal-context { display:grid; gap:var(--space-12) var(--space-24); padding-block:var(--space-8) var(--space-16); border-block-end:1px solid var(--color-border); }
 .cal-context .cal-period { margin:0; align-items:start; }

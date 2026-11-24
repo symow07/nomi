@@ -278,7 +278,8 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
   it('every ownership state renders in en/zh/ar with no technical vocabulary', () => {
     // Scoped to the control card: the rest of the page carries the M12.2
     // scenario picker, whose titles are developer-authored test-case names.
-    const card = (html: string) => html.match(/<div class="card takeover[\s\S]*?<\/div>\s*<details class="practice-trust"/)?.[0] ?? '';
+    // UI Block 6 · F38 — the take-over card is followed by the box and its evidence (`sbx-pair`), no longer the evidence alone.
+    const card = (html: string) => html.match(/<div class="card takeover[\s\S]*?<\/div>\s*<div class="sbx-pair">/)?.[0] ?? '';
     for (const l of LOCALES) {
       for (const o of ['AI', 'WAITING_HUMAN', 'OWNER_CONTROLLED'] as const) {
         const html = renderSandbox(view({ ownership: o }), l, { flash: null });

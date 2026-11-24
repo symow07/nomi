@@ -9657,10 +9657,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           + (shopifyHere ? `<p class="caption" id="shopify-practice">${esc(t(locale, 'shopifyOrders.practice'))}</p>` : '')
           + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
-            ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
+            ? renderSandbox(view, locale, { flash, prefill, now, working, practice, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`+(checklist?renderPracticeChecklist(checklist,locale):''))
           + (live.ok?renderReady(await loadReady(deps.db,live.value),locale,{embedded:true}):'')
-          + renderPractice(practice, locale)+'</div>',
+          // UI Block 6 · F38 — where the box is, the safety checks are in the trust disclosure beside it.
+          + (deps.enqueueInbound ? '' : renderPractice(practice, locale))+'</div>',
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark, working && view.ownership === 'AI')) } : {}),
       }));
     });
