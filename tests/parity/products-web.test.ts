@@ -10,6 +10,10 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import { SHOPIFY_SCREEN_LABELS, withoutShopifyScreenLabels } from './shopify-screen-labels.js';
+// UI Block 9 (F09, long lists): on a desk the product list's price and minimum are columns under one header, so each
+// sits in its own span (and the minimum's key in one that the header replaces there); the row's words are unchanged.
+// columnless() reads the row's words as one run again — the pin below is on the words, as it was.
+const columnless = (s: string): string => s.replace(/<span class="prod-(?:price|sep|moq|k)">/g, '').replace(/<\/span>/g, '');
 
 const items: ProductListItem[] = [
   { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd('0.92'), learned: true, status: 'learned', imageMatchable: true, isActive: true },
@@ -33,7 +37,7 @@ describe('M9.5 · product list (localized)', () => {
     expect(html).toContain('$0.92');
     // CC-13 — the Chinese colon, full width and with no space after it; a figure and 个 together,
     // each figure isolated (the Arabic line reordered a bare price).
-    expect(html).toContain('最低起订：<bdi>1000个</bdi>');
+    expect(columnless(html)).toContain('最低起订：<bdi>1000个</bdi>');
     // Phase 9 (V1-299) — the price of one unit; where it starts above the minimum, from how many.
     expect(html).toContain('5000个起：<bdi>$0.92/个</bdi>');
     expect(html).not.toContain('已学习 ✓'); expect(html).not.toContain('可以被图片识别');   // V1 review fix 3: an absent mark means fine
@@ -46,8 +50,8 @@ describe('M9.5 · product list (localized)', () => {
     expect(html).toContain('Products'); expect(html).toContain('Canvas bag');
     // CC-13 — a figure and its unit are two words (a no-break space between); the gap between
     // the two facts is the product's own " · ", not a full-width space.
-    expect(html).toContain('Min. order: <bdi>1,000\u00a0pcs</bdi>');
-    expect(html).toContain('From 5,000\u00a0pcs: <bdi>$0.92/pc</bdi> · Min. order');
+    expect(columnless(html)).toContain('Min. order: <bdi>1,000\u00a0pcs</bdi>');
+    expect(columnless(html)).toContain('From 5,000\u00a0pcs: <bdi>$0.92/pc</bdi> · Min. order');
     // V1 review fix 3: an absent mark means fine — nothing says "Learned" or "Recognizable".
     expect(html).not.toContain('Learned ✓'); expect(html).not.toContain('Recognizable by photo');
     expect(html.split('Not recognizable by photo yet').length - 1).toBe(items.filter((i) => !i.imageMatchable).length);

@@ -670,15 +670,17 @@ export function renderProductList(
       ? (starts ? labelled(locale, esc(t(locale, 'product.list.from', { qty: show.quantityOf(locale, p.entryQty, u) })), iso(perUnit(locale, p.entryPrice, p.unit)))
         : iso(perUnit(locale, p.entryPrice, p.unit)))
       : esc(t(locale, 'product.list.priceTbd'));
-    const moq = !byQuantity && p.moq === null ? null : labelled(locale, esc(t(locale, 'product.list.moq')),
-      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
+    // UI Block 9 (F09): the key is its own span, so on a desk the column's header names it once (the span is kept for a
+    // screen reader); on a phone the row reads as before: "Min. order: 500 pcs".
+    const moq = !byQuantity && p.moq === null ? null : `<span class="prod-k">${labelled(locale, esc(t(locale, 'product.list.moq')), '')}</span>${
+      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u))}`;
     // Phase 9 (V1-302) — a row that opens says so, with the chevron every door has.
     const href = `/app/products/${encodeURIComponent(p.id)}${page || opts.returnHref ? `?from=${encodeURIComponent(source + '#p-' + p.id)}` : ''}`;
     const thumb = p.photoToken ? `<img class="pa-thumb" src="/media/${esc(encodeURIComponent(p.photoToken))}" alt="" loading="lazy" width="56" height="56">` : `<span class="pa-thumb pa-initial" aria-hidden="true">${esc([...displayName(locale, p.name, p.nameZh).trim()][0] ?? '')}</span>`;
     return `
     <a class="prod" id="p-${esc(p.id)}" href="${esc(href)}">${thumb}<span class="prod-m">
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
-      <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
+      <span class="prod-b muted"><span class="prod-price">${price}</span>${moq === null ? '' : `<span class="prod-sep">${locale === 'zh' ? '　' : ' · '}</span><span class="prod-moq">${moq}</span>`}</span>
       ${(p.namesWanted ?? []).length ? `<span class="p-tag">${esc(t(locale, 'product.list.noNameMark'))}</span>` : ''}
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
     </span>${GO}</a>`;
@@ -692,8 +694,11 @@ export function renderProductList(
       ${deeper('/app/assistant/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
     </div></div>` : '';
-  const pager = page ? `<nav class="pa-pager" aria-label="${esc(t(locale, 'products.pages'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
-  return `${head}<div class="rows pa-products">${cards}</div>${pager}${doors}</section>`;
+  const pagerAt = (where: 'above' | 'below') => page && (where === 'below' || page.prev || page.next) ? `<nav class="pa-pager pa-pager-${where}" aria-label="${esc(t(locale, where === 'above' ? 'assistantArea.pagesAbove' : 'assistantArea.pagesBelow'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
+  // UI Block 9 (F09): the columns are named once above the rows; the pager is drawn above them too.
+  const hasMoq = byQuantity || items.some((p) => p.moq !== null);
+  const listHead = `<div class="pa-head${hasMoq ? '' : ' pa-head-nomoq'}" aria-hidden="true"><span></span><span>${esc(t(locale, 'knowledgeList.product'))}</span><span class="num">${esc(t(locale, 'import.columns.price'))}</span>${hasMoq ? `<span class="num">${esc(t(locale, 'product.list.moq'))}</span>` : '<span></span>'}<span></span></div>`;
+  return `${head}${pagerAt('above')}${listHead}<div class="rows pa-products">${cards}</div>${pagerAt('below')}${doors}</section>`;
 }
 
 export function renderProductDetail(

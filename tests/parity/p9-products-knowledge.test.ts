@@ -37,6 +37,10 @@ import { decimal } from '../../src/core/types/decimal.js';
 
 const NBSP = ' ';
 const plain = (s: string): string => s.replace(/[\u2066-\u2069\u200f]/g, '');
+// UI Block 9 (F09, long lists): on a desk the product list's price and minimum are columns under one header, so each
+// sits in its own span (and the minimum's key in one that the header replaces there); the row's words are unchanged.
+// columnless() reads the row's words as one run again — the pin below is on the words, as it was.
+const columnless = (s: string): string => s.replace(/<span class="prod-(?:price|sep|moq|k)">/g, '').replace(/<\/span>/g, '');
 
 const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 500, unit: 'pcs', entryQty: 500,
@@ -56,11 +60,11 @@ const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
 
 describe('Products — the list', () => {
   it('V1-299 / V1-317 — one notation for a price: the price of one unit, singular, in every language', () => {
-    const en = plain(renderProductList([item()], 'en'));
+    const en = columnless(plain(renderProductList([item()], 'en')));
     expect(en).toContain(`<bdi>$1.05/pc</bdi> · Min. order: <bdi>500${NBSP}pcs</bdi>`);
     expect(en).not.toContain('500 pcs: $1.05');
     expect(en).not.toContain('/pcs');
-    expect(plain(renderProductList([item()], 'zh'))).toContain('<bdi>$1.05/个</bdi>　最低起订：<bdi>500个</bdi>');
+    expect(columnless(plain(renderProductList([item()], 'zh')))).toContain('<bdi>$1.05/个</bdi>　最低起订：<bdi>500个</bdi>');
     expect(plain(renderProductList([item()], 'ar'))).toContain('لكل قطعة');
     expect(plain(renderProductList([item()], 'es'))).toContain('/ud.</bdi>');
     // The quantity it starts from is said only where the price starts above the minimum.
