@@ -102,6 +102,7 @@ export const SETTINGS_AREA_CSS=`
 .data-review>summary{display:flex;align-items:center;cursor:pointer;font-weight:600;}
 .data-review .sa-body>.lede:first-child{margin-top:var(--space-8);}
 .settings-area .btn.hist-quiet{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
+.settings-area .btn.second{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
 .hist-team .row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-8) var(--space-16);}
 .quiet-pair{display:flex;flex-wrap:wrap;gap:var(--space-12) var(--space-24);}
 .quiet-one{display:flex;flex-direction:column;gap:var(--space-4);flex:1 1 10em;min-width:0;}

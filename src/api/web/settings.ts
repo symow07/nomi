@@ -675,7 +675,10 @@ export function renderProfile(
     + hid('location', val('location', p.location)) + hid('working_hours', val('workingHours', p.workingHours))
     + (draft.languagesServed ?? p.languagesServed).map((l) => hid(`lang_${l}`, 'on')).join('');
   const keepContact = hid('contact_email', val('contactEmail', p.contactEmail)) + hid('contact_phone', val('contactPhone', p.contactPhone));
-  const act = (key: MessageKey): string => cardActs(`<button class="btn send" type="submit">${esc(t(locale, key))}</button>`);
+  // One primary act per page (the surface walk's rule): the business details' Save is the filled one; the contact and
+  // the time zone Saves are outlined secondaries, each still its own form and its own named Save.
+  const act = (key: MessageKey, primary = false): string =>
+    cardActs(`<button class="btn ${primary ? 'send' : 'second'}" type="submit">${esc(t(locale, key))}</button>`);
   const zoneSaves = zone !== null;
   const currencySaves = currency !== null && !currency.fixed && viewer.isOwner;
   const zoneAct: MessageKey = zoneSaves && currencySaves ? 'biz.save.zone' : zoneSaves ? 'biz.save.zoneOnly' : 'biz.save.currencyOnly';
@@ -684,7 +687,7 @@ export function renderProfile(
       field('name', 'settings.field.name', 'name', p.name), description, ...(sells ? [sells] : []),
       field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
-      languages, act('biz.save.business'),
+      languages, act('biz.save.business', true),
     ], 'about')}${keepContact}
   </form>
   <form method="post" action="/app/settings" class="sform biz-form">

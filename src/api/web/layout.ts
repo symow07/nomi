@@ -1936,7 +1936,7 @@ const STYLE_PAGES = `
   .wa-steps li { margin-bottom:var(--space-8); }
   /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
   .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
-  .help-links a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; display:inline-flex; align-items:center; min-height:44px; }
   .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
 
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */

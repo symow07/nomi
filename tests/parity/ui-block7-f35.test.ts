@@ -31,7 +31,8 @@ const forms = (html: string) => [...html.matchAll(/<form method="post" action="\
 const names = (f: string, hidden: boolean) =>
   [...f.matchAll(/<(input|select|textarea)\b([^>]*)>/g)].filter((m) => (m[2]!.includes('type="hidden"')) === hidden)
     .map((m) => /name="([^"]+)"/.exec(m[2]!)?.[1]).filter((n): n is string => !!n);
-const acts = (f: string) => [...f.matchAll(/<div class="fr-acts"><button class="btn send" type="submit">([^<]+)<\/button><\/div>/g)].map((m) => m[1]!);
+const acts = (f: string) => [...f.matchAll(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">([^<]+)<\/button><\/div>/g)].map((m) => m[1]!);
+const fills = (f: string) => f.match(/class="btn send\b/g)?.length ?? 0;
 const PROFILE = ['name', 'description', 'location', 'working_hours', 'contact_email', 'contact_phone'];
 
 describe('F35 · the profile is three subjects, each saved by its own Save', () => {
@@ -42,6 +43,10 @@ describe('F35 · the profile is three subjects, each saved by its own Save', () 
       expect(fs.length, l).toBe(3);
       expect(html, l).not.toContain('class="savebar"');
       expect(fs.map(acts), l).toEqual([[esc(t(l, 'biz.save.business'))], [esc(t(l, 'biz.save.contact'))], [esc(t(l, 'biz.save.zone'))]]);
+      // One primary act per page (the surface walk holds the profile to two filled buttons, with the kind form's):
+      // the business details' Save is filled, the other two outlined.
+      expect(fs.map(fills), l).toEqual([1, 0, 0]);
+      expect(html, l).toContain('<button class="btn second" type="submit">');
       expect(html, l).toContain(esc(t(l, 'biz.scopeNote')));
     }
   });
