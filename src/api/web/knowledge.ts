@@ -295,7 +295,8 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const biz = data.business.map((i) => itemCard(i, locale, null,'',options.from??'')).join('');
-  if(options.only==='facts')return biz+teachForm(locale,'',prefill,BUSINESS_KINDS,options.from??'');
+  // UI Block 6 (F30) — the facts list is rows; its teach form is the action at the top of the page (assistantKnowledge.ts).
+  if(options.only==='facts')return data.business.length?`<ul class="ak-rows ak-facts">${data.business.map((i)=>factRow(i,locale,options.from??'')).join('')}</ul>`:'';
   // CC-20 — no title of its own: this is the second half of the knowledge page,
   // under the one <h1> the page's first half draws (`renderKnowledgeOps`), which
   // carries this page's lede too. It printed the same title a second time.
@@ -314,13 +315,30 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
 }
 
 function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml = '', from = ''): string {
-  const pid = esc(productId ?? '');
   return `<div class="kitem" id="fact-${esc(i.id)}">
     <div class="kh"><b>${esc(i.label)}</b> <span class="pill">${esc(kindLabel(locale, i.kind))}</span>
       <span class="muted src">${esc(sourceLabel(locale, i.source))}</span></div>
     <div class="kc">${esc(i.content)}</div>
     ${usageHtml}
-    <details class="knowledge-change"><summary>${esc(t(locale,'assistantKnowledge.changeFact'))}</summary><form method="post" action="/app/knowledge/correct" class="krow-actions">
+    ${changeFact(i, locale, productId, from)}
+  </div>`;
+}
+
+/**
+ * UI Block 6 (F30) — a taught fact as one row of the facts list: what it says, then its type, where it came from and
+ * that it is in use, each named (the names are the list's column heads on a wide screen, the row's own words on a
+ * phone). Change or archive is the same disclosure, the same two forms, as the card's.
+ */
+export function factRow(i: KItem, locale: Locale, from = ''): string {
+  const cell = (k: MessageKey, v: string, cls = '') => `<span class="ak-cell${cls}"><span class="ak-k">${esc(t(locale, k))}</span> <span class="ak-v">${v}</span></span>`;
+  return `<li class="ak-row ak-fact" id="fact-${esc(i.id)}"><div class="ak-main"><b class="ak-name"><bdi>${esc(i.label)}</bdi></b><p class="kc">${esc(i.content)}</p></div>${
+    cell('knowledgeList.type', esc(kindLabel(locale, i.kind)))}${cell('knowledgeList.source', esc(sourceLabel(locale, i.source)))}${
+    cell('knowledgeList.status', esc(t(locale, 'knowledgeList.inUse')), ' ak-state')}${changeFact(i, locale, null, from)}</li>`;
+}
+
+function changeFact(i: KItem, locale: Locale, productId: string | null, from: string): string {
+  const pid = esc(productId ?? '');
+  return `<details class="knowledge-change"><summary>${esc(t(locale,'assistantKnowledge.changeFact'))}</summary><form method="post" action="/app/knowledge/correct" class="krow-actions">
       ${from?`<input type="hidden" name="from" value="${esc(assistantReturnHref(from))}">`: ''}<input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
       <textarea name="content" rows="2" aria-label="${esc(t(locale, 'knowledge.correct'))}" placeholder="${esc(t(locale, 'knowledge.correct'))}">${esc(i.content)}</textarea>
@@ -332,9 +350,11 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
       ${from?`<input type="hidden" name="from" value="${esc(assistantReturnHref(from))}">`: ''}<input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
       <button class="btn ghost" type="submit">${esc(t(locale, 'knowledge.archive'))}</button>
-    </form></details>
-  </div>`;
+    </form></details>`;
 }
+
+/** UI Block 6 (F30) — the business's own teach form (business kinds), for the list's action at the top. */
+export const businessTeachForm = (locale: Locale, prefill = '', from = ''): string => teachForm(locale, '', prefill, BUSINESS_KINDS, from);
 
 /**
  * Phase 9 (V1-363, V1-368, V1-377) — the teach form is the product's own form:

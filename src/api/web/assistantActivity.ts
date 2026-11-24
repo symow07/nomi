@@ -5,8 +5,9 @@ import type { AssistantPage } from '../../db/assistantKnowledge.js';
 import { esc,conversationUrl } from './layout.js';
 import { t } from './say.js';
 import * as show from './values.js';
-export function assistantPager<T>(page:AssistantPage<T>,locale:Locale,href:(n:number)=>string):string {
- return `<nav class="aa-pager" aria-label="${esc(t(locale,'nav.sections'))}">${page.prev?`<a href="${esc(href(page.prev))}">${esc(t(locale,'assistantArea.previous'))}</a>`:''}<span class="caption">${esc(t(locale,'assistantArea.range',{from:page.from,to:page.to,total:page.total}))}</span>${page.next?`<a href="${esc(href(page.next))}">${esc(t(locale,'assistantArea.next'))}</a>`:''}</nav>`;
+/** UI Block 6 (F30, F39) — the same pages above a list and below it; each its own named landmark. */
+export function assistantPager<T>(page:AssistantPage<T>,locale:Locale,href:(n:number)=>string,where:'above'|'below'='below'):string {
+ return `<nav class="aa-pager aa-pager-${where}" aria-label="${esc(t(locale,where==='above'?'assistantArea.pagesAbove':'assistantArea.pagesBelow'))}">${page.prev?`<a href="${esc(href(page.prev))}">${esc(t(locale,'assistantArea.previous'))}</a>`:''}<span class="caption">${esc(t(locale,'assistantArea.range',{from:page.from,to:page.to,total:page.total}))}</span>${page.next?`<a href="${esc(href(page.next))}">${esc(t(locale,'assistantArea.next'))}</a>`:''}</nav>`;
 }
 export function renderAssistantActivity(page:AssistantPage<AssistantActivityRow>,locale:Locale):string {
  return `<h1 class="page">${esc(t(locale,'assistantArea.activity'))}</h1><p class="lede">${esc(t(locale,'assistantArea.activityIntro'))}</p>${page.rows.length?page.rows.map(g=>{

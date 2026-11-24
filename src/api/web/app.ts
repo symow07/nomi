@@ -11,7 +11,7 @@ import { sayOnPage } from './instagramComments.js';
 import { GO } from './icons.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
-import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
+import { renderAssistantKnowledge,knowledgeView,knowledgeOpen } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
 import { readAssistantActivity } from '../../db/assistantActivity.js';
 import { renderAssistantActivity } from './assistantActivity.js';
@@ -9254,7 +9254,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const knowledgeFrom=(req:FastifyRequest,fallback='/app/assistant/knowledge?view=facts')=>assistantReturnHref(((req.method==='POST'?req.body:req.query) as {from?:unknown}|undefined)?.from,fallback);
   const readingReturn=(req:FastifyRequest,id:string)=>{const from=knowledgeFrom(req,'');return '/app/assistant/knowledge/readings/'+encodeURIComponent(id)+(from?'?from='+encodeURIComponent(from):'');};
   const knowledgeBody = async (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale, kept: PageFactsKept | null = null) => {
-    const query=(req.query??{}) as {range?:unknown;teach?:unknown;view?:unknown;q?:unknown;state?:unknown;page?:unknown};
+    const query=(req.query??{}) as {range?:unknown;teach?:unknown;view?:unknown;q?:unknown;state?:unknown;page?:unknown;open?:unknown};
     const range=parseKnowledgeRange(typeof query.range==='string'?query.range:undefined);
     const prefill=typeof query.teach==='string'?query.teach:'';
     const view=kept?'readings':prefill?'facts':knowledgeView(query.view);
@@ -9271,9 +9271,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       withTenantTx(deps.db,bid.value,tx=>answerSuggestions(tx,bid.value,new Date(),FAQ_ANSWER_MIN_RELEVANCE)),
     ]);
     const returnHref=assistantReturnHref(req.url,'/app/assistant/knowledge?view='+view);
-    return renderAssistantKnowledge(locale,{view,q,state,range,prefill,returnHref,...pages,flash:kept?null:takeFlash(req,reply),
+    return renderAssistantKnowledge(locale,{view,q,state,range,prefill,returnHref,...pages,open:knowledgeOpen(query.open),readingOpen:kept!==null,flash:kept?null:takeFlash(req,reply),
       gaps:renderKnowledgeOps(ops,locale,new Date(),null,{embedded:true}),suggestions:renderAnswerSuggestions(locale,given,personOf(s),new Date()),period:renderKnowledgePeriod(ops,locale,new Date()),
-      readingForm:deps.pageFactsReader?renderPageFactsForm(locale,kept):(kept?`<p role="alert">${esc(t(locale,`pageFacts.refused.${kept.reason}` as MessageKey))}</p>`:'')+`<p>${esc(t(locale,'assistantKnowledge.readerUnavailable'))}</p><a href="/app/assistant/knowledge?view=facts#teach">${esc(t(locale,'assistantArea.teach'))}</a>`,
+      readingForm:deps.pageFactsReader?renderPageFactsForm(locale,kept):(kept?`<p role="alert">${esc(t(locale,`pageFacts.refused.${kept.reason}` as MessageKey))}</p>`:'')+`<p>${esc(t(locale,'assistantKnowledge.readerUnavailable'))}</p><a href="/app/assistant/knowledge?view=facts&amp;open=teach#teach">${esc(t(locale,'assistantArea.teach'))}</a>`,
     });
   };
   app.get('/app/assistant/knowledge', authed('knowledge', async (s, req, locale, reply) => {
