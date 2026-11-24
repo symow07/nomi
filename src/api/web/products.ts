@@ -760,7 +760,7 @@ export function renderProductDetail(
   const opens = (g: ProductEditGroup): boolean => draft['group'] === g
     || (PRODUCT_EDIT_GROUPS[g] as readonly ProductEditField[]).some((f) => !!errors[f]);
   const groupField = (g: ProductEditGroup): string => `${fromField}<input type="hidden" name="group" value="${g}" />`;
-  const detailsForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('details') ? ' open' : ''}>
+  const detailsForm = !viewer.isOwner ? '' : `<details class="pd-change" data-edit${opens('details') ? ' open' : ''}>
       <summary>${esc(t(locale, 'product.change.details'))}</summary>
       <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="details">
       ${groupField('details')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.identity'))}</legend>
@@ -774,9 +774,9 @@ export function renderProductDetail(
       <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
         <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
         <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
-      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.details'))}</button>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.details'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
     </form></details>`;
-  const pricingForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('pricing') ? ' open' : ''}>
+  const pricingForm = !viewer.isOwner ? '' : `<details class="pd-change" data-edit${opens('pricing') ? ' open' : ''}>
       <summary>${esc(t(locale, 'product.change.prices'))}</summary>
       <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="pricing">
       ${groupField('pricing')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.pricing'))}</legend>
@@ -797,7 +797,7 @@ export function renderProductDetail(
       <label class="pcheck"><input type="checkbox" name="isActive" ${activeNow ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
       <span class="caption muted">${esc(t(locale, 'product.edit.active.hint'))}</span>
-      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.prices'))}</button>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.prices'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
     </form></details>`;
 
   // Phase 9 (V1-314) — the prices are read, not pressed: hairline rows, not boxes.
@@ -819,11 +819,11 @@ export function renderProductDetail(
   const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
   const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
   const removeName = viewer.isOwner && removable.length
-    ? `<details class="pd-change"><summary>${esc(t(locale, 'product.alias.remove.label'))}</summary><form method="post" action="/app/products/${esc(pid)}/names/remove" class="pform alias-remove">${fromField}
+    ? `<details class="pd-change" data-edit><summary>${esc(t(locale, 'product.alias.remove.label'))}</summary><form method="post" action="/app/products/${esc(pid)}/names/remove" class="pform alias-remove">${fromField}
         <label class="pq"><span>${esc(t(locale, 'product.alias.remove.label'))}</span>
         <select name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select></label>
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form></details>`
+          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button></form></details>`
     : '';
   // 2026-10-14 (the owner) — a name in each language the owner chose or a buyer wrote in, or those buyers cannot find it.
   const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('')
@@ -848,13 +848,13 @@ export function renderProductDetail(
   // Phase 2d (0152) — the owner keeps the product's photo here, to send in a chat: one, replaced or removed here.
   // Staff see the photos and no form (Phase 4: the catalogue is the owner's).
   // F26 — the first photo stands beside the name; Save and Remove are two groups apart, never side by side.
-  const photoForms = viewer.isOwner ? `<details class="pd-change">
+  const photoForms = viewer.isOwner ? `<details class="pd-change" data-edit>
       <summary>${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</summary>
       <p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
       <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">${fromField}
         <label class="fld"><span class="muted">${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</span>
           <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
-        <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button>
+        <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
       </form>
       ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline pd-apart">${fromField}
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"

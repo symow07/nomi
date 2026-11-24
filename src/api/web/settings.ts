@@ -28,6 +28,7 @@ import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 import { switcher, deeper, back, esc, conversationUrl, ASSISTANT_HOME } from './layout.js';
 import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
+import { factList, editFold, editActs, editSection } from './editFold.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { validateIdentifiers, keepsMoroccanBooks, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
@@ -239,15 +240,17 @@ function identifiersCard(
     const e = errors[f];
     return e ? `<span class="fielderr" role="alert" id="ids-${f}-err">${esc(t(locale, `settings.ids.err.${e}` as MessageKey, { n: ICE_POSITIONS }))}</span>` : undefined;
   };
-  return `<form method="post" action="/app/settings/identifiers" class="sform biz-form">
-    ${rowsCard(t(locale, 'settings.ids.title'), [
+  // UI Block 9 (F10) — the identifiers read first; their form opens on purpose, and again after a refused save.
+  const form = `<form method="post" action="/app/settings/identifiers" class="sform biz-form"><div class="scard">${[
       ...rows.map(([f, name, label, why]) => fieldRow({ label: t(locale, label), forId: `ids-${name}`, error: err(f),
         ...(why ? { desc: t(locale, why) } : {}),
         control: `<input id="ids-${name}" name="${name}" dir="ltr" value="${esc(draft ? draft[f] : stored(f))}"${errors[f] ? ` aria-invalid="true" aria-describedby="ids-${f}-err"` : ''} />` })),
       `<p class="caption muted">${esc(t(locale, 'settings.ids.sources'))}</p>`,
-      cardActs(`<button class="btn" type="submit">${esc(t(locale, 'settings.ids.save'))}</button>`),
-    ], 'identifiers')}
-  </form>`;
+      editActs(locale, t(locale, 'settings.ids.save')),
+    ].join('')}</div></form>`;
+  return editSection({ id: 'identifiers', title: t(locale, 'settings.ids.title'),
+    facts: factList(locale, rows.map(([f, , label]) => [t(locale, label), stored(f) ? `<bdi dir="ltr">${esc(stored(f))}</bdi>` : ''] as const)),
+    fold: editFold(t(locale, 'edit.change.ids'), Object.keys(errors).length > 0, form) });
 }
 
 const langsSql = (langs: readonly string[]) =>
@@ -651,12 +654,8 @@ export function renderProfile(
   const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
     need: need(needs.description), desc: t(locale, 'settings.desc.description'),
     control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
-  // The warmth run (V1-006, V1-525, -07) — what the business sells, in the
-  // owner's words for it, and the door to the one place it is answered.
-  const sells = p.whatYouSell ? fieldRow({ label: t(locale, 'settings.field.whatYouSell'), desc: t(locale, 'settings.whatYouSell.from'),
-    control: `<span class="fr-value">${p.whatYouSell.category
-      ? esc(t(locale, `hs.category.${p.whatYouSell.category}` as MessageKey))
-      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span>${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` }) : '';
+  // The warmth run (V1-006, V1-525, -07) — what the business sells, in the owner's words for it, and the door to the one
+  // place it is answered: since UI Block 9 (F10) a value of the part's summary (sellsValue below), not a row of its form.
 
   // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
   // were three forms with a Save each; the route saves all three.
@@ -677,21 +676,54 @@ export function renderProfile(
   const keepContact = hid('contact_email', val('contactEmail', p.contactEmail)) + hid('contact_phone', val('contactPhone', p.contactPhone));
   // One primary act per page (the surface walk's rule): the business details' Save is the filled one; the contact and
   // the time zone Saves are outlined secondaries, each still its own form and its own named Save.
-  const act = (key: MessageKey, primary = false): string =>
-    cardActs(`<button class="btn ${primary ? 'send' : 'second'}" type="submit">${esc(t(locale, key))}</button>`);
+  // UI Block 9 (F10) — each part's acts: its own Save, and a Cancel beside it (editFold.ts).
+  const act = (key: MessageKey, primary = false): string => editActs(locale, t(locale, key), primary);
   const zoneSaves = zone !== null;
   const currencySaves = currency !== null && !currency.fixed && viewer.isOwner;
   const zoneAct: MessageKey = zoneSaves && currencySaves ? 'biz.save.zone' : zoneSaves ? 'biz.save.zoneOnly' : 'biz.save.currencyOnly';
-  const form = `<form method="post" action="/app/settings" class="sform biz-form">
-    ${rowsCard(t(locale, 'profile.group.business'), [
-      field('name', 'settings.field.name', 'name', p.name), description, ...(sells ? [sells] : []),
+  // UI Block 9 (F10) — each part reads first: its values in a short list (stored values: a refused save's words stay in
+  // its form, which opens), and its form behind its own "Change …" fold — open at rest only while the part still needs
+  // something for setting up, or after a refused save of it. "What you sell" is answered elsewhere: it stays a value.
+  const card = (rows: readonly string[]): string => `<div class="scard">${rows.join('')}</div>`;
+  const refused = (fs: readonly ProfileField[]): boolean => fs.some((f) => !!errors[f]);
+  const text = (v: string | null | undefined, long = false): string =>
+    v && v.trim() ? (long ? `<span class="ef-long"><bdi>${esc(v)}</bdi></span>` : `<bdi>${esc(v)}</bdi>`) : '';
+  const sellsValue = p.whatYouSell ? `<span class="fr-value">${p.whatYouSell.category
+      ? esc(t(locale, `hs.category.${p.whatYouSell.category}` as MessageKey))
+      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span> <span class="caption muted">${esc(t(locale, 'settings.whatYouSell.from'))}</span> ${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` : '';
+  const aboutFacts = factList(locale, [
+    [t(locale, 'settings.field.name'), text(p.name)],
+    [t(locale, 'settings.field.description'), text(p.description, true)],
+    ...(p.whatYouSell ? [[t(locale, 'settings.field.whatYouSell'), sellsValue] as const] : []),
+    [t(locale, 'settings.field.location'), text(p.location)],
+    [t(locale, 'settings.field.workingHours'), text(p.workingHours)],
+    [t(locale, 'settings.field.languages'), SERVED_LANGUAGES.filter((l) => p.languagesServed.includes(l)).map((l) => `<bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi>`).join(LIST_GAP[locale])],
+  ]);
+  const contactFacts = factList(locale, [
+    [t(locale, 'settings.field.contactEmail'), p.contactEmail ? `<bdi dir="ltr">${esc(p.contactEmail)}</bdi>` : ''],
+    [t(locale, 'settings.field.contactPhone'), p.contactPhone ? `<bdi dir="ltr">${esc(p.contactPhone)}</bdi>` : ''],
+    [t(locale, 'settings.field.postalAddress'), text(p.postalAddress, true)],
+  ]);
+  const zoneFacts = factList(locale, [
+    ...(zone ? [[t(locale, 'settings.zone.label'), `<bdi>${esc(zoneLabel(locale, zone.zone))}</bdi>`] as const] : []),
+    ...(currency ? [[t(locale, 'settings.currency.label'), `<bdi>${esc(currencyLabel(locale, currency.currency))}</bdi>`] as const] : []),
+  ]);
+  const zoneChange: MessageKey = zoneSaves && currencySaves ? 'edit.change.zoneCurrency' : zoneSaves ? 'edit.change.zone' : 'edit.change.currency';
+  const form = `${editSection({ id: 'about', title: t(locale, 'profile.group.business'), facts: aboutFacts,
+    fold: editFold(t(locale, 'edit.change.business'), needs.description || needs.location || refused(['name', 'description', 'location', 'workingHours']),
+    `<form method="post" action="/app/settings" class="sform biz-form">
+    ${card([
+      field('name', 'settings.field.name', 'name', p.name), description,
       field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
       languages, act('biz.save.business', true),
-    ], 'about')}${keepContact}
-  </form>
-  <form method="post" action="/app/settings" class="sform biz-form">
-    ${rowsCard(t(locale, 'profile.group.contact'), [
+    ])}${keepContact}
+  </form>`) })}
+  ${editSection({ id: 'contact', title: t(locale, 'profile.group.contact'), facts: contactFacts,
+    fold: editFold(t(locale, 'edit.change.contact'), needs.contact || refused(['contactEmail', 'contactPhone', 'postalAddress'])
+      || (!!p.outreachArea && !(p.postalAddress ?? '').trim()),
+    `<form method="post" action="/app/settings" class="sform biz-form">
+    ${card([
       // The warmth run (w4-settings-b-outreach-06) — either one finishes the
       // step (setup.ts), and each field says so: marking both "needed" read
       // as asking for both.
@@ -704,14 +736,15 @@ export function renderProfile(
         desc: t(locale, 'settings.desc.postalAddress'),
         control: `<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto">${esc(val('postalAddress', p.postalAddress ?? null))}</textarea>` }),
       act('biz.save.contact'),
-    ], 'contact')}${keepBusiness}
-  </form>
-  ${zone || currency ? `<form method="post" action="/app/settings" class="sform biz-form">
-    ${rowsCard(t(locale, 'profile.group.zone'), [
+    ])}${keepBusiness}
+  </form>`) })}
+  ${!(zone || currency) ? '' : zoneSaves || currencySaves ? editSection({ id: 'zone', title: t(locale, 'profile.group.zone'), facts: zoneFacts,
+    fold: editFold(t(locale, zoneChange), false, `<form method="post" action="/app/settings" class="sform biz-form">
+    ${card([
       ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []),
-      ...(zoneSaves || currencySaves ? [act(zoneAct)] : []),
-    ], 'zone')}${keepBusiness}${keepContact}
-  </form>` : ''}`;
+      act(zoneAct),
+    ])}${keepBusiness}${keepContact}
+  </form>`) }) : rowsCard(t(locale, 'profile.group.zone'), [...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : [])], 'zone')}`;
 
   const missing = needs.description || needs.location || needs.contact;
   // Phase 7 — the business's facts have ONE home, My business (two doors, one
