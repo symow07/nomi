@@ -120,6 +120,7 @@ describe('UI Block 6 — targets 44 px both ways, and figures isolated, on the a
     expect(src('followUpStyle.ts')).toContain('.follow-up-settings .follow-up-check{display:flex;gap:var(--space-8);align-items:center;min-block-size:44px}');
     expect(area).toContain('.aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}');
     expect(src('assistantOverview.ts')).toContain('<a class="aa-go" href="/app/results?view=assistant">');
+    expect(src('assistantOverview.ts')).toContain('<p>${status}</p><a class="aa-go" href="/app/settings/assistant">');
     expect(src('assistantKnowledge.ts')).toContain('<a class="aa-go" href="/app/assistant/knowledge?view=facts&amp;open=teach#teach">');
   });
   it('a saved fact\'s figures are isolated on a right-to-left page, and left as they are elsewhere', () => {
