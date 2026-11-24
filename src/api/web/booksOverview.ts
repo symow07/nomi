@@ -17,6 +17,8 @@ export const booksDay=(locale:Locale,date:string):string=>formatDateYear(locale,
 export function booksScopeQuery(o:BooksOverviewOptions):URLSearchParams {const q=new URLSearchParams();for(const [key,ids] of [['cash',o.cashAccountIds],['payable',o.payableAccountIds],['transfer',o.transferAccountIds]] as const)for(const id of ids??[])q.append(key,id);return q;}
 export function booksHref(path:string,o:BooksOverviewOptions,extra:Record<string,string>={}):string {const q=booksScopeQuery(o);for(const [k,v] of Object.entries(extra))q.set(k,v);return path+(q.size?'?'+q.toString():'');}
 export function booksPager(locale:Locale,p:Pick<OverviewPage<unknown>,'from'|'to'|'total'|'next'|'prev'>,href:(page:number)=>string):string {
+ // F47 — "0–0 of 0" under nothing is not a range: with no row there is no pager
+ if(p.total===0)return '';
  return `<nav class="ba-pager" aria-label="${esc(t(locale,'booksArea.support'))}">${p.prev?`<a rel="prev" href="${esc(href(p.prev))}">${esc(t(locale,'booksArea.previous'))}</a>`:'<span></span>'}<span class="caption"><bdi>${esc(t(locale,'booksArea.range',{from:p.from,to:p.to,total:p.total}))}</bdi></span>${p.next?`<a rel="next" href="${esc(href(p.next))}">${esc(t(locale,'booksArea.next'))}</a>`:'<span></span>'}</nav>`;
 }
 export function booksScope(locale:Locale,accounts:readonly ScopeAccount[],o:BooksOverviewOptions,action='/app/books'):string {

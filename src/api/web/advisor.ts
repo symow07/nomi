@@ -1,3 +1,4 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import { markSmall } from '../../core/owner/brand.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Locale } from '../../core/owner/i18n/locale.js';
@@ -165,7 +166,7 @@ export function renderEarlier(locale: Locale, rows: readonly ThreadRow[], flash:
   return `${back('/app/assistant/ask', t(locale, 'nav.advisor'))}
     <h1 class="page">${esc(t(locale, 'advisor.thread.earlier'))}</h1>
     ${flashBanner(flash)}
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'advisor.thread.none'))}</p>` : `<ul class="rows adv-earlier">${rows.map((r) => `<li class="row lines">
+    ${rows.length === 0 ? stateBlock('empty', { heading: t(locale, 'state.advisor.h'), body: t(locale, 'state.advisor.p'), nextHtml: stateNext('/app/assistant/ask', t(locale, 'state.advisor.next')) }) : `<ul class="rows adv-earlier">${rows.map((r) => `<li class="row lines">
         <a href="/app/assistant/ask/${esc(r.id)}#latest"><bdi>${esc(r.title === '' ? show.date(locale, r.startedAt) : r.title ?? t(locale, 'advisor.thread.unreadable'))}</bdi></a>
         <span class="caption muted">${esc(show.date(locale, r.lastTurnAt))}</span>
         <form method="post" action="/app/advisor/c/${esc(r.id)}/delete" class="inline">

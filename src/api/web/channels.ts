@@ -1,3 +1,4 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -759,6 +760,9 @@ export type InboundLink = {
 export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts' | 'chat' | 'telegram' | 'tiktok';
 export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts', 'chat', 'telegram', 'tiktok'];
 export const CHANNELS_HOME = '/app/settings/channels';
+/** F47 — a channel this installation does not offer: a state of its own, and where the others are. */
+const notOffered = (locale: Locale, why: string): string =>
+  stateBlock('unavailable', { heading: t(locale, 'state.channel.h'), body: why, nextHtml: stateNext(CHANNELS_HOME, t(locale, 'nav.channels')) });
 export const channelScreenHref = (s: ChannelScreen): string => s==='alerts'?'/app/settings/personal/notifications#whatsapp':`/app/settings/channels/${s}`;
 /** The screen a channel's own controls are on. */
 export const screenOfChannel = (c: OutreachChannel): ChannelScreen =>
@@ -801,7 +805,7 @@ export type ChannelScreenParts = {
 function tiktokScreen(locale: Locale, viewer: Viewer, p: NonNullable<ChannelScreenParts['tiktok']>): string {
   const name = assistantName(locale);
   const lede = `<p class="lede">${esc(t(locale, 'channels.tiktok.lede', { name }))}</p>`;
-  if (!p.served) return `${lede}<p>${esc(t(locale, 'channels.tiktok.notHere'))}</p>`;
+  if (!p.served) return `${lede}${notOffered(locale, t(locale, 'channels.tiktok.notHere'))}`;
   const a = p.account;
   const state = !a ? `<p><span class="pill">${esc(t(locale, 'connect.state.notConnected'))}</span></p>`
     : a.needsAttention ? `<p role="status"><span class="pill warn">${esc(t(locale, 'connect.state.attention'))}</span> ${esc(t(locale, 'channels.tiktok.attention'))}</p>`
@@ -826,7 +830,7 @@ function tiktokScreen(locale: Locale, viewer: Viewer, p: NonNullable<ChannelScre
 function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | null; readonly served: boolean; readonly greeting?: string }, which: 'chat' | 'telegram'): string {
   const k = (s: string) => `channels.${which}.${s}` as MessageKey;
   const name = assistantName(locale);
-  if (!p.served) return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p><p>${esc(t(locale, k('notHere')))}</p>`;
+  if (!p.served) return `<p class="lede">${esc(t(locale, k('lede'), { name }))}</p>${notOffered(locale, t(locale, k('notHere')))}`;
   const on = p.url !== null;
   const control = viewer.isOwner
     ? `<form method="post" action="/app/channels/${which}" class="inline"><input type="hidden" name="on" value="${on ? '0' : '1'}" />

@@ -1,3 +1,4 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -243,7 +244,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date,
   // when a customer asked something; with no question at all, that is what it says.
   const noGaps = ops.report.commonRequests.length === 0 ? 'knowledge.ops.noQuestions' : 'knowledge.ops.noGaps';
   const gaps = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>
-    ${ops.gaps.length ? ops.gaps.map(gapCard).join('') : `<div class="empty">${esc(t(locale, noGaps, { period: periodWord(locale, ops.range) }))}</div>`}
+    ${ops.gaps.length ? ops.gaps.map(gapCard).join('') : stateBlock('empty', { heading: t(locale, 'state.gaps.h'), body: t(locale, noGaps, { period: periodWord(locale, ops.range) }), nextHtml: stateNext('/app/assistant/knowledge?open=teach', t(locale, 'state.gaps.next')) }, { level: 3 })}
   </div>`;
 
   // The page's one title and its lede; the list of what was taught follows
