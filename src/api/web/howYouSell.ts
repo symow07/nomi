@@ -201,7 +201,7 @@ export function renderQuestion(
         : answeredHere ? v.state.quantityFirst : null;
       const usual = SELLING_DEFAULTS[v.facts.profile].quantityFirst;
       const mark = (yes: boolean) => usual === yes ? `<span class="muted small hs-usual">${esc(t(locale, `selling.usual.${v.facts.profile}` as MessageKey))}</span>` : '';
-      fields = `${chosen === null ? `<p class="small">${esc(t(locale, v.state.quantityFirst ? 'hs.price.now.yes' : 'hs.price.now.no', { name }))}</p>` : ''}
+      fields = `${chosen === null ? `<p class="small hs-now">${esc(t(locale, v.state.quantityFirst ? 'hs.price.now.yes' : 'hs.price.now.no', { name }))}</p>` : ''}
         <fieldset class="choices hs-choices">${radio('quantityFirst', 'no', chosen === false, t(locale, 'selling.quantityFirst.no', { name }), mark(false), true)}${
         radio('quantityFirst', 'yes', chosen === true, t(locale, 'selling.quantityFirst.yes', { name }), mark(true), true)}</fieldset>
         ${errLine(locale, errors['quantityFirst'])}
@@ -216,11 +216,14 @@ export function renderQuestion(
       // Phase 9 — nothing chosen for her on a question she has not answered.
       const mode = kept?.q === 'minimum' ? kept.mode : answeredHere ? (v.facts.profile === 'bulk' ? 'depends' : 'none') : null;
       const qty = kept?.q === 'minimum' && kept.qty !== null ? String(kept.qty) : '';
-      fields = `<fieldset class="choices">${radio('mode', 'none', mode === 'none', t(locale, 'hs.minimum.none'))}${
+      const withMin = v.state.products.filter((p) => p.moq !== null).length;
+      fields = `<p class="small hs-now">${esc(withMin === 0 ? t(locale, 'hs.now.minimumNone')
+          : t(locale, 'hs.now.minimum', { n: show.count(locale, withMin), total: show.count(locale, v.state.products.length) }))}</p>
+        <div class="hs-min"><fieldset class="choices hs-choices">${radio('mode', 'none', mode === 'none', t(locale, 'hs.minimum.none'))}${
         radio('mode', 'same', mode === 'same', t(locale, 'hs.minimum.same'))}${
         radio('mode', 'depends', mode === 'depends', t(locale, 'hs.minimum.depends'))}</fieldset>${errLine(locale, errors['mode'])}
-        <label class="fld"><span class="muted">${esc(t(locale, 'hs.minimum.qty'))}</span>
-          <input name="qty" inputmode="numeric" value="${val('qty', qty)}" />${errLine(locale, errors['qty'])}</label>
+        <label class="fld hs-dep"><span class="muted">${esc(t(locale, 'hs.minimum.qty'))}</span>
+          <input name="qty" inputmode="numeric" value="${val('qty', qty)}" />${errLine(locale, errors['qty'])}</label></div>
         <p class="muted small">${esc(t(locale, 'hs.minimum.hint'))}</p>`;
       break;
     }
@@ -252,10 +255,10 @@ export function renderQuestion(
       // ticks are kept.
       const category = kept?.q === 'product_claims' ? kept.category : v.state.productCategory ?? null;
       const held = (k: string) => kept?.q === 'product_claims' ? kept.keys.includes(k) : v.state.allowed.has(`product_attribute:${k}`);
-      fields = `<fieldset class="choices">${PRODUCT_CATEGORIES.map((c) => radio('category', c, category === c, t(locale, `hs.category.${c}` as MessageKey))).join('')}</fieldset>
+      fields = `<div class="hs-claims"><fieldset class="choices hs-choices">${PRODUCT_CATEGORIES.map((c) => radio('category', c, category === c, t(locale, `hs.category.${c}` as MessageKey))).join('')}</fieldset>
         ${errLine(locale, errors['category'])}
-        ${(['cosmetics', 'apparel'] as const).map((c) => `<fieldset class="choices"><legend class="muted small">${esc(t(locale, `hs.category.${c}` as MessageKey))}</legend>${
-          CATEGORY_CLAIMS[c].map((k) => box(`attr:${k}`, held(k), t(locale, `claim.${k}` as MessageKey))).join('')}</fieldset>`).join('')}
+        ${(['cosmetics', 'apparel'] as const).map((c) => `<fieldset class="choices hs-dep hs-cat-${c}"><legend class="muted small">${esc(t(locale, `hs.category.${c}` as MessageKey))}</legend>${
+          CATEGORY_CLAIMS[c].map((k) => box(`attr:${k}`, held(k), t(locale, `claim.${k}` as MessageKey))).join('')}</fieldset>`).join('')}</div>
         <p class="muted small">${esc(t(locale, 'hs.product_claims.hint', { name }))}</p>`;
       break;
     }
@@ -278,22 +281,24 @@ export function renderQuestion(
             <input type="date" name="closure${i}.to" value="${val(`closure${i}.to`, c?.to ?? '')}" /></label>
           ${errLine(locale, errors[`closure${i}`])}</div>`;
       }).join('');
+      const closureFilled = (kept?.q === 'hours' && kept.closures.length > 0) || Array.from({ length: MAX_CLOSURES }, (_, i) => !!errors[`closure${i}`]
+        || ['label', 'from', 'to'].some((f) => typeof typed?.[`closure${i}.${f}`] === 'string' && String(typed[`closure${i}.${f}`]) !== '')).some(Boolean);
       const already = v.state.closures.length
-        ? `<p class="muted small">${esc(t(locale, 'hs.closure.already'))} ${v.state.closures.map((c) => `<bdi>${esc(c.label)} ${esc(c.from)} – ${esc(c.to)}</bdi>`).join(' · ')}</p>` : '';
-      fields = `<label class="fld"><span class="muted">${esc(t(locale, 'hs.hours.label'))}</span>
+        ? `<p class="small hs-now">${esc(t(locale, 'hs.closure.already'))} ${v.state.closures.map((c) => `<bdi>${esc(c.label)} ${esc(c.from)} – ${esc(c.to)}</bdi>`).join(' · ')}</p>` : '';
+      fields = `${already}<label class="fld"><span class="muted">${esc(t(locale, 'hs.hours.label'))}</span>
           <input name="hours" dir="auto" maxlength="${MAX_HOURS}" placeholder="${esc(t(locale, 'hs.hours.placeholder'))}" value="${val('hours', hours)}" />${errLine(locale, errors['hours'])}</label>
-        <h2>${esc(t(locale, 'hs.closure.title'))}</h2>
+        <details class="hs-more"${closureFilled ? ' open' : ''}><summary>${esc(t(locale, 'hs.closure.title'))}</summary>
         <p class="muted small">${esc(t(locale, 'hs.closure.zone', { zone: v.facts.zone }))}</p>
-        ${rows}${already}`;
+        ${rows}</details>`;
       break;
     }
     case 'words': {
       const terms = kept?.q === 'words' ? kept.terms.join('\n') : '';
       const own = [...v.state.words];
-      fields = `<label class="fld"><span class="muted">${esc(t(locale, 'hs.words.label'))}</span>
+      fields = `${own.length ? `<p class="small hs-now">${esc(t(locale, 'hs.words.already'))} ${own.map((w) => `<bdi>${esc(w)}</bdi>`).join(' · ')}</p>` : ''}
+        <label class="fld"><span class="muted">${esc(t(locale, 'hs.words.label'))}</span>
           <textarea name="terms" rows="5" dir="auto">${val('terms', terms)}</textarea>${errLine(locale, errors['terms'])}
-          <span class="caption muted">${esc(t(locale, 'hs.words.hint', { name }))}</span></label>
-        ${own.length ? `<p class="muted small">${esc(t(locale, 'hs.words.already'))} ${own.map((w) => `<bdi>${esc(w)}</bdi>`).join(' · ')}</p>` : ''}`;
+          <span class="caption muted">${esc(t(locale, 'hs.words.hint', { name }))}</span></label>`;
       break;
     }
     case 'offered':
@@ -308,15 +313,15 @@ export function renderQuestion(
   // in one row (Later posts to its own address and needs no choice).
   const at = v.order.indexOf(q);
   const position = at < 0 ? '' : `<p class="muted hs-pos">${esc(t(locale, 'hs.position', { i: show.count(locale, at + 1), n: show.count(locale, v.order.length) }))}</p>`;
-  return `<div class="dhead">${back(HS_BASE, t(locale, 'hs.questions.title'))}</div>
-    ${position}
+  const stands = `<p class="muted hs-state">${esc(t(locale, `hs.state.${v.progress[q]?.state ?? 'open'}` as MessageKey))}</p>`;
+  return `<div class="dhead hs-step">${back(HS_BASE, t(locale, 'hs.questions.title'))}<div class="hs-where">${position}${stands}</div></div>
     <h1 class="page">${esc(title(locale, q, name))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, `hs.lede.${q}` as MessageKey, { name }))}</p>
     ${canAnswer ? `<form method="post" action="${HS_BASE}/${q}" class="pform">${fields}
       <div class="acts hs-acts"><button class="btn send" type="submit">${esc(t(locale, 'hs.next'))}</button>
         <button class="btn" type="submit" formaction="${HS_BASE}/${q}/skip" formnovalidate>${esc(t(locale, 'hs.skip'))}</button></div></form>`
-      : `${fields}<form method="post" action="${HS_BASE}/${q}/skip"><button class="btn" type="submit">${esc(t(locale, 'hs.skip'))}</button></form>`}`;
+      : `${fields}<form method="post" action="${HS_BASE}/${q}/skip" class="hs-later"><button class="btn" type="submit">${esc(t(locale, 'hs.skip'))}</button></form>`}`;
 }
 
 /** One line, as she reads it before ticking it. */
@@ -353,7 +358,7 @@ export function renderConfirm(v: QuestionView, locale: Locale, flash: Flash | nu
     ? `<p class="muted">${esc(t(locale, 'hs.confirm.nothing', { name }))}</p>
        <button class="btn send" type="submit">${esc(t(locale, 'hs.confirm.done'))}</button>`
     : `<p class="muted">${esc(t(locale, 'hs.confirm.lede'))}</p>
-       <ul class="rows">${lines.map((l) => `<li class="row lines"><label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}" />
+       <ul class="rows hs-lines">${lines.map((l) => `<li class="row lines"><label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}" />
          <span>${lineText(l, locale, name)}</span></label></li>`).join('')}</ul>
        <button class="btn send" type="submit">${esc(t(locale, 'hs.confirm.save'))}</button>`;
   return `<div class="dhead">${back(`${HS_BASE}/${v.q}`, t(locale, 'hs.confirm.back'))}</div>

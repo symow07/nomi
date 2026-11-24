@@ -1890,6 +1890,32 @@ const STYLE_PAGES = `
   /* The fix wave (w4-business-assistant-25) — the choices sit one under another in every language, short ones too. */
   .hs-choices { flex-direction:column; }
   .hs-acts { margin:var(--space-16) 0 0; }
+  /* UI Block 6 · F33 — one question a page, compact: back and where she is on one row; what is in force now; the
+     control; Next filled, Leave for later outlined. A field a choice needs shows only once that choice is made. */
+  .hs-step { justify-content:space-between; margin-bottom:var(--space-4); }
+  .hs-where { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 var(--space-8); font-size:var(--font-size-small); }
+  .hs-where p { margin:0; }
+  .hs-state::before { content:"·"; margin-inline-end:var(--space-8); }
+  .hs-step ~ .lede { margin-bottom:var(--space-16); }
+  .hs-now { margin:0; max-width:var(--measure-prose); }
+  .hs-choices.choices { gap:0; }
+  .hs-min, .hs-claims { display:flex; flex-direction:column; gap:var(--space-8); }
+  @supports selector(:has(*)) {
+    .hs-min:not(:has(input[name="mode"][value="same"]:checked)) .hs-dep { display:none; }
+    .hs-claims .hs-dep { display:none; }
+    .hs-claims:has(input[name="category"][value="cosmetics"]:checked) .hs-cat-cosmetics,
+    .hs-claims:has(input[name="category"][value="apparel"]:checked) .hs-cat-apparel { display:flex; }
+  }
+  .hs-more > summary { display:flex; align-items:center; min-height:44px; cursor:pointer; font-weight:600; }
+  .hs-more > summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .hs-more[open] > summary { margin-bottom:var(--space-8); }
+  .hs-more .pform { margin-bottom:var(--space-16); }
+  .hs-acts .btn:not(.send), .hs-later .btn { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink); }
+  .pform > .hs-acts { margin-top:0; }
+  .hs-lines { margin-top:0; }
+  .hs-lines .row { padding-block:var(--space-4); }
+  .hs-lines .pcheck { align-items:flex-start; padding-block:var(--space-8); }
+  .hs-lines .pcheck input { flex:none; margin-block-start:0.3em; }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
   .wa-steps li { margin-bottom:var(--space-8); }
