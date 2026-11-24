@@ -354,10 +354,12 @@ describe('NEW (prev.) primary act in different places · a one-card form ends wi
     // UI Block 7 (F35) — pin moved, not loosened: the profile's cards were one form with one Save after them; F35 makes
     // each card its own form with its own Save, so each is a one-card form and follows the same rule as Samples, Terms
     // and the rate: its act in its card's foot, one per card (ui-block7-f35.test.ts holds what each one saves).
+    // One primary act per page (surface walk, CC-29): the first card's Save is filled, the others outlined (btn second).
     const p = profile('en');
     expect(p.match(/<section class="sgroup"/g)?.length).toBeGreaterThan(1);
     expect(p).not.toContain('class="savebar"');
-    expect(p.match(/<div class="fr-acts"><button class="btn send" type="submit">[^<]+<\/button><\/div><\/div><\/section>/g)?.length)
+    expect(p.match(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">[^<]+<\/button><\/div><\/div><\/section>/g)?.length)
       .toBe(p.match(/<section class="sgroup"/g)?.length);
+    expect(p.match(/<div class="fr-acts"><button class="btn send" type="submit">/g)?.length).toBe(1);
   });
 });
