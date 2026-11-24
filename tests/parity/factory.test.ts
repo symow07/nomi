@@ -951,7 +951,10 @@ describe('Phase 9 · B5 · My business', () => {
 
   it('new-01 · missed-02 · a WhatsApp never connected is a plain door, and speaks of WhatsApp only', () => {
     const html = screen('channels', audit);
-    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/settings/channels/whatsapp"><svg[^]*?</svg><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value"><bdi>`));
+    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/settings/channels/whatsapp"><svg[^]*?</svg><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span><span class="ch-states"><span class="ch-state"><span class="ch-k">Connection</span><span class="sr-value"><bdi>`));
+    // UI Block 7 (F34) — pin moved, not loosened: the row now shows Connection, Ready to answer and Replies as three
+    // labelled states inside the row, so the connection's value sits under its label. It is still a plain sr-value (no
+    // warn or bad tone) and the line still speaks of WhatsApp only, which is what new-01 and missed-02 hold.
     expect(html).not.toContain('cannot receive or answer a customer');
     // phase 7 — the cards' rules went with the cards
     expect(css).not.toMatch(/\.fconn\.todo \{/);

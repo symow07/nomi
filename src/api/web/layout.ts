@@ -1635,7 +1635,7 @@ const STYLE_PAGES = `
   .way-d { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .way:has(> input:disabled) { cursor:default; }
   .way:has(> input:disabled) .way-n { color:var(--color-ink-secondary); }
-  .way-door { white-space:nowrap; }
+  .way-door { white-space:nowrap; display:inline-flex; align-items:center; min-height:44px; }
   .way-foot { margin:0; padding:var(--space-12) var(--space-16); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .ways-none { margin:0 0 var(--space-12); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); max-width:var(--measure-prose); }
   .ways-sub { margin:0 0 var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); max-width:var(--measure-prose); }
@@ -1936,7 +1936,7 @@ const STYLE_PAGES = `
   .wa-steps li { margin-bottom:var(--space-8); }
   /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
   .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
-  .help-links a { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; display:inline-flex; align-items:center; min-height:44px; }
   .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
 
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */

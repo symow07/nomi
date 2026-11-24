@@ -46,6 +46,8 @@ export const SOLAR_WANTED = [
   // the owner's choices for the seven gaps (2026-10-05): each kind of reply, how it sells, the language, its
   // price limits, closed days and a closure, this month, an order on its way
   'list', 'hand-money', 'global', 'banknote', 'calendar-mark', 'chart-2', 'delivery',
+  // UI Block 7 (F34): every channel row has its own shape — web chat, Telegram, TikTok — and the chat page's Copy
+  'chat-round-dots', 'send-square', 'music-note', 'copy',
 ];
 
 

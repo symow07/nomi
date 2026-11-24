@@ -277,86 +277,116 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         <p class="muted">${esc(t(locale, 'people.issued.once'))}</p>
       </div>`
     : '';
-  // Phase 9 (V1-520) — a person called by the business's name is asked for
-  // their own in a card of its own, the same shape as adding someone: one
-  // field width on the page. The warmth run (w4-settings-b-outreach-02) — the
-  // card sits under that person's own row, so it reads as theirs, not as the
-  // row above it.
+  // Phase 9 (V1-520) — a person called by the business's name is asked for their own, in that person's editor, which
+  // is open while it is asked. One filled act on the page (phase 4): adding someone. A name asked for is a quiet Save.
   const askName = (p: TeamMember): string => !namedLikeBusiness(p.name, v.business) ? '' :
     `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="sform askname">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, p.isOwner ? 'people.name.yours' : 'people.add.label'), forId: `pp-name-${esc(p.id)}`,
           desc: t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'),
           control: `<input id="pp-name-${esc(p.id)}" name="name" required maxlength="60" />` }),
-        // One filled act on the page (phase 4): adding someone. A name asked for
-        // here is a quiet Save, however many people it is asked of.
         cardActs(`<button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>`),
       ])}
     </form>`;
+  // A sentence that names someone: the name isolated (rule 38), the words around it the catalogue's.
+  const naming = (k: MessageKey, name: string): string =>
+    esc(t(locale, k, { who: '\u0001' })).replace('\u0001', `<bdi>${esc(name)}</bdi>`);
+  const roleOf = (p: TeamMember): string => t(locale, p.isOwner ? 'team.role.owner' : p.kind === 'accountant' ? 'people.kind.accountant' : 'team.role.team');
+  // UI Block 7 · F36 — the member editor: deliberate (a fold under that person's row, closed unless a name is asked
+  // for), and Remove inside it, secondary, saying whom it removes and what follows — the same route and confirmation.
+  const editor = (p: TeamMember): string => {
+    const ask = askName(p);
+    if (p.isOwner && !ask) return '';
+    const remove = p.isOwner ? '' : `<div class="tm-remove">
+        <p class="muted">${esc(t(locale, 'team.remove.what'))}</p>
+        <form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${naming('team.remove.button', p.name)}</button></form></div>`;
+    const role = p.isOwner ? '' : `<p class="tm-role">${esc(t(locale, 'team.edit.role', { role: roleOf(p) }))}</p>`;
+    return `<tr class="tm-edit"><td colspan="4"><details class="team-edit"${ask ? ' open' : ''}>
+        <summary><span>${p.isOwner ? esc(t(locale, 'people.name.yours')) : naming('team.edit.open', p.name)}</span></summary>
+        <div class="tm-body">${ask}${role}${remove}</div></details></td></tr>`;
+  };
+  const head = (k: MessageKey): string => `<th scope="col">${esc(t(locale, k))}</th>`;
+  const cell = (k: MessageKey, body: string): string => `<td><span class="tm-k" aria-hidden="true">${esc(t(locale, k))}</span>${body}</td>`;
+  const table = `<table class="team-table">
+      <caption class="sa-vh">${esc(t(locale, 'people.title'))}</caption>
+      <thead><tr>${head('team.col.name')}${head('team.col.role')}${head('team.col.signIn')}${head('team.col.here')}</tr></thead>
+      <tbody>${v.people.map((p) => `<tr class="tm">
+        <th scope="row"><span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}</span>
+          <span class="caption muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))}</span></span></th>
+        ${cell('team.col.role', esc(roleOf(p)))}
+        ${cell('team.col.signIn', esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code')))}
+        ${/* The warmth run (-01) — where they are is a line of its own, never led by a dot. */ ''}${cell('team.col.here', `<span class="caption">${presence(p)}</span>`)}
+      </tr>${editor(p)}`).join('')}</tbody></table>`;
+  // F36 — the role is a choice with its label beside its control (was a detached box), only where the books are on (A6).
+  const roleChoice = booksShown() ? `<fieldset class="tm-roles"><legend>${esc(t(locale, 'team.col.role'))}</legend>
+      <label class="tm-choice" for="pp-add-team"><input id="pp-add-team" type="radio" name="accountant" value="off" checked /> <span>${esc(t(locale, 'team.add.asTeam'))}</span></label>
+      <label class="tm-choice" for="pp-add-accountant"><input id="pp-add-accountant" type="radio" name="accountant" value="on" /> <span>${esc(t(locale, 'people.add.accountant'))}</span></label>
+    </fieldset>` : '';
+  const alone = v.people.every((p) => p.isOwner);
 
   // Phase 9 (V1-512) — the way back to Setup, as Business profile has.
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'people.title'))}</h1>
     ${flashBanner(flash)}
     ${issued}
-    <section class="block">
+    <section class="block team-members">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
-      ${/* The warmth run (-03) — the list is as wide as the forms on the page (team). */ ''}<ul class="rows team">${v.people.map((p) => `<li class="row">
-        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}${p.kind === 'accountant' ? ` <span class="muted">· ${esc(t(locale, 'people.kind.accountant'))}</span>` : ''}</span>
-          <span class="caption muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))} · ${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span>
-          ${/* The warmth run (-01) — where they are is a line of its own: wrapped after a dot, it began a line with one. */ ''}<span class="caption">${presence(p)}</span></span>
-        ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
-          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
-        ${askName(p)}
-      </li>`).join('')}</ul>
+      ${table}
     </section>
-    ${/* Phase 9 (V1-509, V1-519) — adding someone is its own section with its own heading, and says first that a code will be shown to hand over. */ ''}<section class="block" id="add">
-      <h2>${esc(t(locale, 'people.add.title'))}</h2>
+    ${/* Phase 9 (V1-509, V1-519); F36 — adding someone is a task of its own, opened when wanted (open while nobody else is here). */ ''}<section class="block" id="add">
+      <details class="sa-subject team-add"${alone ? ' open' : ''}><summary><h2>${esc(t(locale, 'people.add.title'))}</h2></summary>
+      <div class="sa-body">
       <p class="muted">${esc(t(locale, 'people.add.hint'))}</p>
       <form method="post" action="/app/settings/people" class="sform">
         ${rowsCard(null, [
           fieldRow({ label: t(locale, 'people.add.label'), forId: 'pp-add-name',
             control: `<input id="pp-add-name" name="name" required maxlength="60"
               placeholder="${esc(t(locale, 'people.add.placeholder'))}" />` }),
-          // A5 (decision 12) — the business's accountant: the books, and nothing else. A6 — only where the books are on.
-          ...(booksShown() ? [fieldRow({ label: t(locale, 'people.add.accountant'), forId: 'pp-add-accountant',
-            control: `<span class="chkbox"><input id="pp-add-accountant" type="checkbox" name="accountant" /></span>` })] : []),
+          ...(roleChoice ? [`<div class="setrow tm-rolerow">${roleChoice}</div>`] : []),
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>`),
         ])}
-      </form>
+      </form></div></details>
     </section>
-    ${v.rotation ? renderRotationSection(v.rotation, locale, now) : ''}
-    ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}
-    ${/* Phase 9 (V1-518) — what only the owner may do is a list to read, not rows that look tappable. */ ''}<section class="block">
-      <h2>${esc(t(locale, 'people.ownerOnly.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'people.ownerOnly.intro'))}</p>
+    ${/* F36 — roles and what each may do, apart from availability. Phase 9 (V1-518): a list to read, not rows that look tappable. */ ''}<section class="block team-roles" id="roles">
+      <h2>${esc(t(locale, 'team.roles.title'))}</h2>
+      <h3>${esc(t(locale, 'team.role.owner'))}</h3>
+      <p class="muted">${esc(t(locale, 'people.ownerOnly.title'))}</p>
       <ul class="owner-only">${OWNER_ONLY.map((a) =>
         `<li>${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
-      <p class="muted">${esc(t(locale, 'people.ownerOnly.rest'))}</p>
-    </section>`;
+      <h3>${esc(t(locale, 'team.role.team'))}</h3>
+      <p class="muted">${esc(t(locale, 'people.ownerOnly.intro'))} ${esc(t(locale, 'people.ownerOnly.rest'))}</p>
+      ${booksShown() ? `<h3>${esc(t(locale, 'people.kind.accountant'))}</h3>
+      <p class="muted">${esc(t(locale, 'team.role.accountantWhat'))}</p>` : ''}
+    </section>
+    ${v.rotation ? renderRotationSection(v.rotation, locale, now) : ''}
+    ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}`;
 }
 
 /**
  * S3 (Phase 5, item 21) — HAND-OFFS IN TURN, the owner's: on or off; for each person (never the accountant), in turn
  * or not, and away until a day (skipped until then). The next hand-off goes to whoever in turn has waited longest.
+ * UI Block 7 · F36 — availability, apart from roles: each control has its own label, with room between them.
  */
 function renderRotationSection(r: RotationView, locale: Locale, now: Date): string {
   const day = (d: Date | null) => (d === null ? '' : d.toISOString().slice(0, 10));
   const rows = r.people.filter((p) => !p.accountant).map((p) => {
     const away = p.awayUntil !== null && p.awayUntil.getTime() > now.getTime();
-    return `<li class="row"><form method="post" action="/app/settings/people/${esc(p.id)}/turn" class="inline turn">
+    const id = esc(p.id);
+    return `<li class="row"><form method="post" action="/app/settings/people/${id}/turn" class="inline turn">
         <span class="person"><bdi>${esc(p.name)}</bdi>${away ? ` <span class="pill warn">${esc(t(locale, 'turn.awayUntil', { date: show.date(locale, p.awayUntil!) }))}</span>` : ''}
           ${p.lastGivenAt ? `<span class="caption muted">${esc(t(locale, 'turn.lastGiven', { when: show.when(locale, p.lastGivenAt, now) }))}</span>` : ''}</span>
-        <label class="chkbox"><input type="checkbox" name="inTurn" value="1"${p.inRotation ? ' checked' : ''} /> ${esc(t(locale, 'turn.inTurn'))}</label>
-        <label><span class="caption">${esc(t(locale, 'turn.away'))}</span> <input type="date" name="awayUntil" value="${esc(day(away ? p.awayUntil : null))}" /></label>
-        <button class="btn" type="submit">${esc(t(locale, 'turn.save'))}</button></form></li>`;
+        <label class="chkbox turn-in" for="tt-in-${id}"><input id="tt-in-${id}" type="checkbox" name="inTurn" value="1"${p.inRotation ? ' checked' : ''} /> <span>${esc(t(locale, 'turn.inTurn'))}</span></label>
+        <span class="turn-away"><label class="caption" for="tt-away-${id}">${esc(t(locale, 'turn.away'))}</label><input id="tt-away-${id}" type="date" name="awayUntil" value="${esc(day(away ? p.awayUntil : null))}" /></span>
+        <button class="btn" type="submit">${esc(t(locale, 'turn.save'))}<span class="sa-vh"> <bdi>${esc(p.name)}</bdi></span></button></form></li>`;
   }).join('');
-  return `<section class="block" id="turn">
-      <h2>${esc(t(locale, 'turn.title'))}</h2>
+  return `<section class="block team-avail" id="turn">
+      <h2>${esc(t(locale, 'team.avail.title'))}</h2>
+      <h3>${esc(t(locale, 'turn.title'))}</h3>
       <p class="muted">${esc(t(locale, 'turn.explain'))}</p>
-      <form method="post" action="/app/settings/people/turn" class="inline">
+      <form method="post" action="/app/settings/people/turn" class="inline turn-switch">
         <input type="hidden" name="on" value="${r.on ? '0' : '1'}" />
         <span class="pill${r.on ? ' stop' : ''}">${esc(t(locale, r.on ? 'turn.isOn' : 'turn.isOff'))}</span>
         <button class="btn${r.on ? ' ghost' : ''}" type="submit">${esc(t(locale, r.on ? 'turn.switchOff' : 'turn.switchOn'))}</button></form>

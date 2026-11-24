@@ -27,7 +27,7 @@ import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
 import { switcher, deeper, back, esc, conversationUrl, ASSISTANT_HOME } from './layout.js';
 import { agentMark } from './agentMark.js';
-import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
+import { fieldRow, rowsCard, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { validateIdentifiers, keepsMoroccanBooks, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
@@ -239,7 +239,7 @@ function identifiersCard(
     const e = errors[f];
     return e ? `<span class="fielderr" role="alert" id="ids-${f}-err">${esc(t(locale, `settings.ids.err.${e}` as MessageKey, { n: ICE_POSITIONS }))}</span>` : undefined;
   };
-  return `<form method="post" action="/app/settings/identifiers" class="sform">
+  return `<form method="post" action="/app/settings/identifiers" class="sform biz-form">
     ${rowsCard(t(locale, 'settings.ids.title'), [
       ...rows.map(([f, name, label, why]) => fieldRow({ label: t(locale, label), forId: `ids-${name}`, error: err(f),
         ...(why ? { desc: t(locale, why) } : {}),
@@ -325,10 +325,23 @@ export type MenuRow = {
   readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
   /** The advisor run — the row IS the assistant: its own slot (`agentMark`) stands where a row's shape does. */
   readonly agent?: true;
+  /**
+   * UI Block 7 (F34) — a channel's states, each named: the first pair is the row's value (its connection, with the
+   * value's tone), then whether it can answer now and who gets replies; and the one next step, if there is one.
+   * They stand under the name, inside the same door.
+   */
+  readonly states?: { readonly items: readonly (readonly [label: string, value: string])[]; readonly next: string | null };
 };
 
 export const menuRow = (r: MenuRow): string => {
   const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
+  if (r.states && r.href) {
+    const [first, ...rest] = r.states.items;
+    const pair = (label: string, value: string, cls: string) =>
+      `<span class="ch-state"><span class="ch-k">${esc(label)}</span><span class="${cls}"><bdi>${esc(value)}</bdi></span></span>`;
+    const states = `<span class="ch-states">${first ? pair(first[0], first[1], `sr-value${r.tone ? ` ${r.tone}` : ''}`) : ''}${rest.map(([k, v]) => pair(k, v, 'ch-v')).join('')}</span>`;
+    return `<li class="ch-row"><a class="srow sr-menu sr-two" href="${settingsHref(r.href)}">${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}${states}${r.states.next ? `<span class="ch-next">${esc(r.states.next)}</span>` : ''}</span>${GO}</a></li>`;
+  }
   // Phase 9 of the warmth run (w4-today-setup-24, w4-whole-08) — the value's
   // cell takes the PAGE's direction, so its state mark stands where reading
   // starts (on the right in Arabic) and the cell lines up at the row's end;
@@ -652,13 +665,32 @@ export function renderProfile(
   // the rate, every add form); in a bar after the cards when one Save saves
   // several cards, as here — inside the last card it would read as that
   // card's own.
-  const form = `<form method="post" action="/app/settings" class="sform">
+  // UI Block 7 (F35) — each subject is its own form with its own Save, which says what it saves. The route still saves
+  // the whole profile (unchanged), so a subject's form carries the OTHER subjects' fields, hidden, as the page shows
+  // them: the stored values, or after a refused save the submission (M20.4: the submission wins, and a refused save
+  // came from one subject, so the others' part of it is what was stored). The address, the zone and the currency ride
+  // only with their own subject (the route leaves each untouched when the form does not carry it).
+  const hid = (name: string, value: string): string => `<input type="hidden" name="${name}" value="${esc(value)}" />`;
+  const keepBusiness = hid('name', val('name', p.name)) + hid('description', val('description', p.description))
+    + hid('location', val('location', p.location)) + hid('working_hours', val('workingHours', p.workingHours))
+    + (draft.languagesServed ?? p.languagesServed).map((l) => hid(`lang_${l}`, 'on')).join('');
+  const keepContact = hid('contact_email', val('contactEmail', p.contactEmail)) + hid('contact_phone', val('contactPhone', p.contactPhone));
+  // One primary act per page (the surface walk's rule): the business details' Save is the filled one; the contact and
+  // the time zone Saves are outlined secondaries, each still its own form and its own named Save.
+  const act = (key: MessageKey, primary = false): string =>
+    cardActs(`<button class="btn ${primary ? 'send' : 'second'}" type="submit">${esc(t(locale, key))}</button>`);
+  const zoneSaves = zone !== null;
+  const currencySaves = currency !== null && !currency.fixed && viewer.isOwner;
+  const zoneAct: MessageKey = zoneSaves && currencySaves ? 'biz.save.zone' : zoneSaves ? 'biz.save.zoneOnly' : 'biz.save.currencyOnly';
+  const form = `<form method="post" action="/app/settings" class="sform biz-form">
     ${rowsCard(t(locale, 'profile.group.business'), [
       field('name', 'settings.field.name', 'name', p.name), description, ...(sells ? [sells] : []),
       field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
-      languages,
-    ])}
+      languages, act('biz.save.business', true),
+    ], 'about')}${keepContact}
+  </form>
+  <form method="post" action="/app/settings" class="sform biz-form">
     ${rowsCard(t(locale, 'profile.group.contact'), [
       // The warmth run (w4-settings-b-outreach-06) — either one finishes the
       // step (setup.ts), and each field says so: marking both "needed" read
@@ -671,12 +703,15 @@ export function renderProfile(
         need: p.outreachArea && !(draft.postalAddress ?? p.postalAddress ?? '').trim() ? t(locale, 'settings.need.postalAddress') : undefined,
         desc: t(locale, 'settings.desc.postalAddress'),
         control: `<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto">${esc(val('postalAddress', p.postalAddress ?? null))}</textarea>` }),
-    ])}
-    ${zone || currency ? rowsCard(t(locale, 'profile.group.zone'), [
+      act('biz.save.contact'),
+    ], 'contact')}${keepBusiness}
+  </form>
+  ${zone || currency ? `<form method="post" action="/app/settings" class="sform biz-form">
+    ${rowsCard(t(locale, 'profile.group.zone'), [
       ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []),
-    ], 'zone') : ''}
-    ${saveBar(t(locale, 'settings.alerts.save'))}
-  </form>`;
+      ...(zoneSaves || currencySaves ? [act(zoneAct)] : []),
+    ], 'zone')}${keepBusiness}${keepContact}
+  </form>` : ''}`;
 
   const missing = needs.description || needs.location || needs.contact;
   // Phase 7 — the business's facts have ONE home, My business (two doors, one
@@ -685,6 +720,7 @@ export function renderProfile(
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
     ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
+    <p class="caption biz-scope">${esc(t(locale, 'biz.scopeNote'))}</p>
     ${form}
     ${p.identifiers ? identifiersCard(p.identifiers, locale, viewer, ids.draft ?? null, ids.errors ?? {}) : ''}`;
 }
@@ -946,7 +982,7 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
         : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to }))}</div>`}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform biz-form">
         ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
           control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` }),
           // The warmth run — a form of one card ends with its act inside it, as every form on these pages (ONE_CARD_ACT).
@@ -1097,6 +1133,16 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   // them (`closureNote`): the closure's name, and that no date can be promised.
   // Phase 9 of the warmth run (w4-settings-a-13) — with no closure yet, the sample is said as it reads mid-sentence.
   const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.example.sample') });
+  // UI Block 7 (F35) — on Settings the recorded days come first (what is true now), then the form that adds more, as
+  // every subject on these pages; each Remove (undone from its notice, as before) names, to a screen reader, the closure
+  // it removes.
+  const closureList = v.closures.length === 0
+    ? `<div class="empty whole">${esc(t(locale, 'closures.empty', { name }))}</div>`
+    : `<ul class="closures">${v.closures.map((c) => `<li>
+          <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
+          <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
+            <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}${embedded ? `<span class="sa-vh"> <bdi>${esc(c.label)}</bdi></span>` : ''}</button>
+          </form></li>`).join('')}</ul>`;
   // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
   // from (phase 7: How you sell); the intro is the settings pages' one lede.
   return `${embedded ? '' : back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
@@ -1104,7 +1150,9 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
     <p class="muted small closure-said measure-prose">${esc(example)}</p>
-    <form method="post" action="/app/settings/closures">
+    ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.now'))}</h3>${closureList}` : ''}
+    <form method="post" action="/app/settings/closures" class="biz-form">
+      ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.add'))}</h3>` : ''}
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
           control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
@@ -1116,13 +1164,7 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
         cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
       ])}
     </form>
-    ${v.closures.length === 0
-      ? `<div class="empty whole">${esc(t(locale, 'closures.empty', { name }))}</div>`
-      : `<ul class="closures">${v.closures.map((c) => `<li>
-          <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
-          <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-            <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
-          </form></li>`).join('')}</ul>`}`;
+    ${embedded ? '' : closureList}`;
 }
 
 /* ── M45 · samples ───────────────────────────────────────────────────────── */
@@ -1283,7 +1325,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform biz-form">
         ${rowsCard(null, [
           /* Phase 9 (V1-539) — the example is a line under the name, which wraps; a placeholder was cut off on a phone. */ fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', desc: t(locale, 'terms.payment.example'), error: keptError(kept, 'payment', 'tm-payment-err'),
             control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
@@ -1368,7 +1410,7 @@ export function renderSamples(
     ${mode==='requests'?'':`<section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform biz-form">
         ${rowsCard(null, [
           /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
             desc: currency ? t(locale, 'samples.price.desc', { currency: currencyInLine(locale, currency) }) : t(locale, 'samples.price.free'),
@@ -1386,7 +1428,19 @@ export function renderSamples(
 }
 
 /** Read current profile values without inventing a second partial profile write. */
-export function settingsProfileValue(locale:Locale,subject:'hours'|'currency',p:BusinessProfile,z:ZoneChoice|null,c:CurrencyChoice|null):string {
- const row=(key:MessageKey,value:string|null)=>`<dt>${esc(t(locale,key))}</dt><dd><bdi>${esc(value||t(locale,'settingsArea.notSet'))}</bdi></dd>`;
- return `<h1 class="page">${esc(t(locale,subject==='hours'?'settingsArea.hours':'settingsArea.currency'))}</h1><p class="lede">${esc(t(locale,subject==='hours'?'settingsArea.hoursHint':'settingsArea.currencyHint'))}</p><dl class="sa-value">${subject==='hours'?row('settings.field.workingHours',p.workingHours)+row('settings.zone.label',z?.zone??null):row('settings.currency.label',c?.currency??null)}</dl>${deeper('/app/settings/business/profile'+(subject==='hours'?'#pf-working_hours':'#zone'),t(locale,'settingsArea.changeProfile'))}`;
+// UI Block 7 (F35) — the values as the profile's own rows show them (one pattern: name and why on the start side, the
+// value on the end side), each by its name in the owner's language (a zone was its raw IANA name, a currency its code),
+// and a read-only value says why it is read-only (rules 41, 42). The door to change it only where it can change here.
+export function settingsProfileValue(locale:Locale,subject:'hours'|'currency',p:BusinessProfile,z:ZoneChoice|null,c:CurrencyChoice|null,viewer:Viewer=OWNER_VIEW):string {
+ const value=(v:string|null)=>`<span class="fr-value">${v?`<bdi>${esc(v)}</bdi>`:esc(t(locale,'settingsArea.notSet'))}</span>`;
+ const door=(hash:string)=>`<p class="biz-door">${deeper('/app/settings/business/profile'+hash,t(locale,'settingsArea.changeProfile'))}</p>`;
+ const rows=subject==='hours'
+  ?[fieldRow({label:t(locale,'settings.field.workingHours'),control:value(p.workingHours)}),
+    fieldRow({label:t(locale,'settings.zone.label'),desc:t(locale,'settings.zone.why'),control:value(z?zoneLabel(locale,z.zone):null)})]
+  :[fieldRow({label:t(locale,'settings.currency.label'),desc:t(locale,c?.fixed?'settings.currency.fixed':'settings.currency.why'),
+    control:value(c?currencyLabel(locale,c.currency):null)+(c&&!c.fixed&&!viewer.isOwner?ownerDecides(locale):'')})];
+ // Hours and the zone change on the profile (anyone who may open it); the currency only by the owner, and only until
+ // the first price is set: once fixed, no door leads to a choice that is not there.
+ const changes=subject==='hours'?door('#pf-working_hours'):c&&!c.fixed&&viewer.isOwner?door('#zone'):'';
+ return `<h1 class="page">${esc(t(locale,subject==='hours'?'settingsArea.hours':'settingsArea.currency'))}</h1><p class="lede">${esc(t(locale,subject==='hours'?'settingsArea.hoursHint':'settingsArea.currencyHint'))}</p><div class="biz-form biz-now">${rowsCard(t(locale,subject==='hours'?'biz.now.hours':'biz.now.currency'),rows)}${changes}</div>`;
 }

@@ -840,48 +840,90 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const waHint = wired ? t(locale, 'golive.waNoProvider')
     : s.lc === 'not_connected' && elsewhere ? t(locale, 'factory.reach.other.notConnected', { name })
     : t(locale, `channel.state.${s.lc}.hint` as MessageKey, { name });
+  // UI Block 7 (F34) — each place a customer writes says three things, each named: its connection (the row's value),
+  // whether it can answer now, and who gets replies; then the one next step. All read from what is on record here:
+  // a place this installation does not offer is "not offered here yet", never a failure.
+  const page = t(locale, 'business.row.live');
+  const said = (k: MessageKey): string => t(locale, k, { name, page });
+  const heldNow = s.r.opsSilenced ? said('business.live.paused') : said('business.live.stopped');
+  // A step that is the owner's own; a sales assistant reads whose it is.
+  const step = (k: MessageKey | null): string | null => (k === null ? null : !viewer.isOwner && k !== 'ch.next.none' ? said('staff.ownerDecides') : said(k));
+  const states = (connection: string, ready: string, replies: string, next: MessageKey | null) => ({
+    items: [[said('ch.k.connection'), connection], [said('ch.k.ready'), ready], [said('ch.k.replies'), replies]] as const,
+    next: step(next) });
+  const pilotOn = f.readiness.pilotMode ?? true;
+  const waNext: MessageKey | null = s.lc === 'not_connected' && !s.waWired ? 'ch.next.connect'
+    : s.lc === 'paused' && !s.waWired ? 'ch.next.reconnect'
+    : s.held ? (s.stoppedAt ? 'ch.next.resume' : 'ch.next.none')
+    : wired || s.r.live ? 'ch.next.none'
+    : s.r.canActivate ? 'ch.next.start' : 'ch.next.finish';
+  const waValue = wired ? t(locale, 'connect.state.connected') : t(locale, `channel.state.${s.lc}` as MessageKey, { name });
   const whatsapp = menuRow({ href: channelScreenHref('whatsapp'), icon: 'whatsapp', label: channelScreenTitle(locale, 'whatsapp'),
     descHtml: [s.waWired && c.displayId ? `<bdi>${esc(c.displayId)}</bdi>` : '', esc(waHint)].filter(Boolean).join(' · '),
-    value: wired ? t(locale, 'connect.state.connected') : t(locale, `channel.state.${s.lc}` as MessageKey, { name }),
+    value: waValue,
     // Phase 9 — the waiting signal is for a connection that stopped; a number
     // never connected waits on nothing, so it carries no state colour.
-    tone: s.waWired ? 'ok' : s.lc === 'paused' ? 'warn' : undefined });
+    tone: s.waWired ? 'ok' : s.lc === 'paused' ? 'warn' : undefined,
+    states: states(waValue,
+      s.lc === 'not_connected' && !s.waWired ? said('ch.ready.connectFirst')
+        : s.lc === 'paused' && !s.waWired ? said('ch.ready.reconnect')
+        : s.held ? heldNow
+        : wired ? said('ch.ready.team')
+        : s.r.live ? said('business.live.on')
+        : said(s.r.canActivate ? 'business.live.ready' : 'business.live.notYet'),
+      s.held ? said('ch.replies.none') : s.r.live && !wired ? said(pilotOn ? 'ch.replies.listed' : 'ch.replies.everyone') : said('ch.replies.notYet'),
+      waNext) });
+  // Every other place: connected, waiting for the owner, not connected, or not offered on this installation.
+  const otherStates = (st: ReachChannel['state'] | 'none', connection: string) => states(connection,
+    st === 'none' ? said('ch.ready.notHere') : st === 'not_connected' ? said('ch.ready.connectFirst')
+      : st === 'attention' ? said('ch.ready.reconnect') : s.held ? heldNow : said('business.live.on'),
+    st === 'connected' ? said(s.held ? 'ch.replies.none' : 'ch.replies.asSet') : said('ch.replies.notYet'),
+    st === 'none' ? null : st === 'not_connected' ? 'ch.next.connect' : st === 'attention' ? 'ch.next.reconnect'
+      : s.held && s.stoppedAt ? 'ch.next.resume' : 'ch.next.none');
 
   // Instagram and Messenger: one Facebook Page connects both, so one row and one screen.
   const meta = (['instagram', 'messenger'] as const).map((ch) => s.others.find((o) => o.channel === ch)).filter((o): o is ReachChannel => o !== undefined);
   const metaOn = meta.filter((o) => o.state === 'connected');
   const metaAttention = meta.some((o) => o.state === 'attention');
   const metaAs = meta.find((o) => o.as)?.as ?? null;
+  const metaValue = metaAttention ? t(locale, 'connect.state.attention')
+    // both answering: Connected; one of them: its name
+    : metaOn.length && metaOn.length === meta.length ? t(locale, 'connect.state.connected')
+    : metaOn.length ? inLine(metaOn.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)))
+    : t(locale, meta.length ? 'connect.state.notConnected' : 'connect.state.notHere');
   const metaRow = menuRow({ href: channelScreenHref('meta'), icon: 'meta', label: channelScreenTitle(locale, 'meta'),
     ...(metaAs ? { descHtml: `<bdi>${esc(metaAs)}</bdi>` } : {}),
-    value: metaAttention ? t(locale, 'connect.state.attention')
-      // both answering: Connected; one of them: its name
-      : metaOn.length && metaOn.length === meta.length ? t(locale, 'connect.state.connected')
-      : metaOn.length ? inLine(metaOn.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)))
-      : t(locale, meta.length ? 'connect.state.notConnected' : 'connect.state.notHere'),
-    tone: metaAttention ? 'warn' : metaOn.length ? 'ok' : undefined });
+    value: metaValue,
+    tone: metaAttention ? 'warn' : metaOn.length ? 'ok' : undefined,
+    states: otherStates(metaAttention ? 'attention' : metaOn.length ? 'connected' : meta.length ? 'not_connected' : 'none', metaValue) });
 
   const mail = s.others.find((o) => o.channel === 'email');
+  const mailValue = t(locale, !mail ? 'connect.state.notHere' : mail.state === 'connected' ? 'connect.state.connected'
+    : mail.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected');
   const email = menuRow({ href: channelScreenHref('email'), icon: 'email', label: channelScreenTitle(locale, 'email'),
     ...(mail?.as ? { descHtml: `<bdi>${esc(mail.as)}</bdi>` } : {}),
-    value: t(locale, !mail ? 'connect.state.notHere' : mail.state === 'connected' ? 'connect.state.connected'
-      : mail.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
-    tone: mail?.state === 'connected' ? 'ok' : mail?.state === 'attention' ? 'warn' : undefined });
+    value: mailValue,
+    tone: mail?.state === 'connected' ? 'ok' : mail?.state === 'attention' ? 'warn' : undefined,
+    states: otherStates(mail?.state ?? 'none', mailValue) });
 
   // S7 — the chat page and Telegram: each its own row and screen, connected or not, or not offered here.
+  // UI Block 7 (F34, the F03 remainder) — each with its own shape, so every row's name starts at one edge.
   const own = (ch: 'web_chat' | 'telegram', screen: 'chat' | 'telegram') => {
     const o = s.others.find((x) => x.channel === ch);
-    return menuRow({ href: channelScreenHref(screen), label: channelScreenTitle(locale, screen),
-      value: t(locale, !o ? 'connect.state.notHere' : o.state === 'connected' ? 'connect.state.connected' : 'connect.state.notConnected'),
-      tone: o?.state === 'connected' ? 'ok' : undefined });
+    const value = t(locale, !o ? 'connect.state.notHere' : o.state === 'connected' ? 'connect.state.connected' : 'connect.state.notConnected');
+    return menuRow({ href: channelScreenHref(screen), icon: screen === 'chat' ? 'ch-chat' : 'ch-telegram', label: channelScreenTitle(locale, screen),
+      value, tone: o?.state === 'connected' ? 'ok' : undefined,
+      states: otherStates(!o ? 'none' : o.state === 'connected' ? 'connected' : 'not_connected', value) });
   };
   // 0215 — TikTok: its own row and screen, named as the account it is connected as, or needing her.
   const tk = s.others.find((x) => x.channel === 'tiktok');
-  const tiktokRow = menuRow({ href: channelScreenHref('tiktok'), label: channelScreenTitle(locale, 'tiktok'),
+  const tkValue = t(locale, !tk ? 'connect.state.notHere' : tk.state === 'connected' ? 'connect.state.connected'
+    : tk.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected');
+  const tiktokRow = menuRow({ href: channelScreenHref('tiktok'), icon: 'ch-tiktok', label: channelScreenTitle(locale, 'tiktok'),
     ...(tk?.as ? { descHtml: `<bdi>${esc(tk.as)}</bdi>` } : {}),
-    value: t(locale, !tk ? 'connect.state.notHere' : tk.state === 'connected' ? 'connect.state.connected'
-      : tk.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
-    tone: tk?.state === 'connected' ? 'ok' : tk?.state === 'attention' ? 'warn' : undefined });
+    value: tkValue,
+    tone: tk?.state === 'connected' ? 'ok' : tk?.state === 'attention' ? 'warn' : undefined,
+    states: otherStates(tk?.state ?? 'none', tkValue) });
   const metaRank = Math.min(s.rank('instagram', 1), s.rank('messenger', 2));
   const rows = [{ at: s.rank('whatsapp', 0), html: whatsapp }, { at: metaRank, html: metaRow }, { at: s.rank('email', 3), html: email },
     { at: s.rank('web_chat', 4), html: own('web_chat', 'chat') }, { at: s.rank('telegram', 5), html: own('telegram', 'telegram') },
@@ -890,7 +932,6 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
 
   // WA (0120) — once WhatsApp is live, who may get a reply: the list only
   // (pilot mode, how going live always starts), or every customer who writes.
-  const pilotOn = f.readiness.pilotMode ?? true;
   const listed = f.readiness.recipients.length;
   const allowlist = !s.showAllowlist ? '' : menuGroup('whatsapp', t(locale, 'reach.channel.whatsapp'), [menuRow({
     href: BUSINESS_SCREEN_PATH.allowlist, label: t(locale, 'allowlist.title', { name }),
@@ -921,7 +962,7 @@ function allowlistScreen(f: FactoryView, locale: Locale, flash: Flash | null, vi
   const list = f.readiness.recipients.length === 0
     ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
     : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
-        <li class="done">${shape('ok')} <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
+        <li class="done">${shape('ok')} <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted"><bdi>${esc(r.phone)}</bdi></span>` : ''}
           ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
             <input type="hidden" name="phone" value="${esc(r.phone)}" />
             <button class="btn ghost" type="submit"

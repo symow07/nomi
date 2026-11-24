@@ -17054,3 +17054,36 @@ and the assistant's settings, all written by Claude and not yet read by a native
   plural form sits beside a figure; Arabic actions are verbal nouns (تعليم إجابة، فتح المحادثة), nobody addressed by an
   imperative; "Nomi" stays a name (问 Nomi / «سؤال Nomi» / Preguntar a Nomi / Demander à Nomi). The rest of the
   `followUp.*` lines and `area1.results.title / .sales / .assistant / .setup / .views` are still English-only.
+
+**The UI correction, Block 7 (2026-11-24):** new zh / ar / es / fr lines on the Settings pages (Channels, Business,
+Team, Data and account), all written by Claude and not yet read by a native speaker:
+- Channels (F34): the three labels `ch.k.connection / .ready / .replies`; the states `ch.ready.team / .connectFirst /
+  .reconnect / .notHere` and `ch.replies.none / .notYet / .listed / .everyone / .asSet`; the next steps
+  `ch.next.connect / .reconnect / .start / .finish / .none / .resume` ({page} is the "Going live" page's own title);
+  the chat page's `ch.copy / .copied / .copySelected / .open / .openNote`; the folds' `ch.howConnect` and `ch.howMeta`.
+  To read first: Arabic avoids addressing anyone by an imperative (verbal nouns: «الخطوة التالية: الربط.»; «يمكن نسخه
+  بلوحة المفاتيح»; «أي رسالة تُكتب هناك»); Chinese `ch.k.replies` is 回复给谁 (who gets replies), not 回复 alone; Spanish
+  uses tú and French vous, as the rest of each catalogue does.
+- The Settings area's own words, which were English in every language until now: every `settingsArea.*` line (48: the
+  seven parts, their hints, the sub-pages' names and hints, `settingsArea.back`, `.notSet`, `.changeProfile`), the
+  shell's `nav.more / .sections / .primary / .results / .getStarted` and the help door's `help.door`. To read first:
+  French `settingsArea.notifications` is "Alertes" and `settingsArea.assistant` "Votre assistant", so neither is the
+  English word; Chinese avoids 他 / 它 (`settingsArea.identityHint` says 回复客户的助手). `nav.customers` and French
+  `nav.assistant` stay English on purpose: `tests/parity/redesign-copy.test.ts` and `phase7-phone.test.ts` hold them as
+  the approved English redesign copy.
+- Business (F35): the scope line `biz.scopeNote`; the named Saves `biz.save.business / .contact / .zone / .zoneOnly /
+  .currencyOnly / .kind`; the headings `biz.now.hours / .currency` and `biz.closures.now / .add`. To read first: each
+  Save must say only what it saves (Chinese 保存联系方式, not 保存); Arabic uses verbal nouns («حفظ بيانات التواصل»), no
+  imperative; French `biz.scopeNote` uses « bouton d’enregistrement », the catalogue's own word for Save.
+- Team (F36): the table's columns `team.col.name / .role / .signIn / .here`; the roles `team.role.owner / .team /
+  .accountantWhat` and `team.roles.title`, `team.avail.title`; the editor `team.edit.open / .role`, `team.remove.what /
+  .button`; the add choice `team.add.asTeam`. To read first (rule 6, nobody gendered): Arabic avoids a pronoun on the
+  person removed («تعديل بيانات {who} أو الإزالة من الفريق»; «وتبقى المحادثات السابقة تحمل الاسم نفسه») and the owner's
+  role is the catalogue's own «مالك الحساب»; Spanish and French owner roles reuse `people.held.owner` («Quien dirige el
+  negocio», « La direction »); Chinese 在岗安排 for "Availability" may want a plainer word.
+- Data and personal (F37): the data page's `data.index`, `data.close.short`, `data.close.review / .reviewAsk`; the
+  reworded buttons `data.deletion.ask` (was "Send the request", now "Ask the Nomi team to erase this workspace"),
+  `alerts.way.save`, `alerts.morning.save` and `settings.alerts.save` (each was a bare Save). To read first: Arabic uses
+  verbal nouns, no imperative («مراجعة مساحة العمل هذه ثم إغلاقها»; «طلب محو مساحة العمل هذه من فريق Nomi»); Chinese
+  保存早间摘要设置 adds 设置 so it reads as saving the setting, not sending a summary; French « Enregistrer le moyen
+  choisi » for the way may want the page's own heading word.

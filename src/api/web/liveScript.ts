@@ -90,6 +90,12 @@ import { COPILOT_SCRIPT } from './copilotScript.js';
  * format: the `.json()` method and the `application/json` type it asks for;
  * and G5b's `JSON.stringify(sub)`, the browser's way to hand over a push
  * subscription).
+ *
+ * UI Block 7 F34 fix round — `copying`: Copy beside an address or code on Channels (`button[data-copy]` inside
+ * `.ch-code`). `data-abs` makes the address a full link from wherever the page is open (`window.URL` named
+ * explicitly). Where the browser gives no clipboard, or refuses, the code is selected instead and the line beside it
+ * says so (`data-select`); copied, it says `data-said`. It was an inline handler, where `document` is on the scope
+ * chain: `URL` there was document.URL, a string, and Copy did nothing (tests/parity/ui-block7-inline-scope.test.ts).
  */
 export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new arrives (CC-26).
    One small script, linked once by the shell. Every page works without it. */
@@ -507,6 +513,20 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
     no.addEventListener('click', shut);
     box.addEventListener('click', function (e) { if (e.target === box) shut(); });
+  }
+
+  /* F34: Copy (button[data-copy]); no clipboard, the code is selected instead. */
+  function copying() {
+    doc.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('button[data-copy]') : 0;
+      if (!b) return;
+      var w = b.closest('.ch-code') || b.parentNode, s = w.querySelector('.ch-said'), c = w.querySelector('.code'), v = b.getAttribute('data-copy') || '', cb = navigator.clipboard;
+      function say(k) { if (s) s.textContent = b.getAttribute(k) || ''; }
+      function pick() { try { var r = doc.createRange(), g = getSelection(); r.selectNodeContents(c); g.removeAllRanges(); g.addRange(r); } catch (x) {} say('data-select'); }
+      if (b.getAttribute('data-abs')) { try { v = new window.URL(v, window.location.href).href; } catch (x) {} }
+      if (!cb || typeof cb.writeText !== 'function') return pick();
+      try { cb.writeText(v).then(function () { say('data-said'); }, pick); } catch (x) { pick(); }
+    });
   }
 
   /* F21: a select marked data-echo has its choice written out under it when the words are wider than its box. */
@@ -1064,6 +1084,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   sending();
   totals();
   echoes();
+  copying();
   orbs();
   cards();
   faces();

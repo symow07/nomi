@@ -44,6 +44,9 @@ const ICON = {
   business: 'shop', sell: 'hand-money', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog',
   whatsapp: 'chat-round-line', meta: 'chat-square', email: 'letter', live: 'power', prices: 'banknote', alerts: 'bell',
   terms: 'file-text', samples: 'gift', closures: 'calendar-mark', rate: 'transfer-horizontal',
+  // UI Block 7 (F34) — the other places a customer writes, each with its own shape so every channel row has one,
+  // and the chat page's Copy.
+  'ch-chat': 'chat-round-dots', 'ch-telegram': 'send-square', 'ch-tiktok': 'music-note', copy: 'copy',
   // Setup and Settings: getting started (the guide's videos), the checklist, the language, the people, the
   // sign-in, billing, your data, logging out.
   guide: 'video-frame-play-horizontal', setup: 'checklist', language: 'global', people: 'users-group-two-rounded',
