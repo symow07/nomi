@@ -320,7 +320,11 @@ export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null =
 export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null, canReread = false, returnHref=''): string {
   const from=assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings');
   const reading=(id:string,again=false)=>'/app/assistant/knowledge/readings/'+encodeURIComponent(id)+(again?'/again':'')+'?from='+encodeURIComponent(from);
-  const lines=(editable:boolean)=>`<ul class="rows">${p.lines.map(l=>`<li class="reading-line"><blockquote><span class="caption muted">${esc(t(locale,'assistantKnowledge.sourceSentence'))}</span><p dir="auto">${esc(l.quote)}</p></blockquote>${editable?`<label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}"><span dir="auto">${markSmall(16,null)}${esc(l.fact)}</span></label>`:`<div class="reading-fact" dir="auto">${markSmall(16,null)}${esc(l.fact)}</div>`}</li>`).join('')}</ul>`;
+  // UI Block 6 (F31) — each line is the page's sentence and what would be learned from it, side by side in two neutral
+  // columns named once above them; the tick sits beside what it approves. On a phone the two are one linked section,
+  // each part saying its own name. No wash: the assistant's seal marks what it read.
+  const heads=`<div class="reading-heads" aria-hidden="true"><span>${esc(t(locale,'pageFacts.colSource'))}</span><span>${esc(t(locale,'pageFacts.colFact'))}</span></div>`;
+  const lines=(editable:boolean)=>`${heads}<ul class="rows reading-lines">${p.lines.map(l=>`<li class="reading-line"><blockquote><span class="caption muted rl-name">${esc(t(locale,'assistantKnowledge.sourceSentence'))}</span><p dir="auto">${esc(l.quote)}</p></blockquote>${editable?`<label class="pcheck"><input type="checkbox" name="line:${esc(l.key)}"><span class="rl-fact"><span class="caption muted rl-name">${esc(t(locale,'pageFacts.colFact'))}</span><span dir="auto">${markSmall(16,null)}${esc(l.fact)}</span></span></label>`:`<div class="reading-fact"><span class="caption muted rl-name">${esc(t(locale,'pageFacts.colFact'))}</span><span dir="auto">${markSmall(16,null)}${esc(l.fact)}</span></div>`}</li>`).join('')}</ul>`;
   const head=`<div class="reading-review">${back(from,t(locale,'nav.knowledge'))}<h1 class="page">${esc(t(locale,'pageFacts.reviewTitle'))}</h1>${flashBanner(flash)}<p>${esc(t(locale,'pageFacts.from',{source:sourceLabel(locale,p.source,true)}))}</p><p class="caption muted">${esc(show.dateYear(locale,p.createdAt))}</p>`;
   const original=`<details><summary>${esc(t(locale,'assistantKnowledge.proposed'))}</summary>${lines(false)}</details>`;
   if(p.replacedBy)return `${head}<p id="replaced">${esc(t(locale,'pageFacts.replaced'))}</p><p>${deeper(reading(p.replacedBy),t(locale,'pageFacts.replaced.open'))}</p>${original}</div>`;
@@ -336,17 +340,18 @@ export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null,
 export function renderReread(p: Proposal, charge: RereadCharge, locale: Locale, refused: PageFactsRefusal | null = null, returnHref=''): string {
   const cost = charge.kind === 'share' ? t(locale, 'pageFacts.reread.charge', { at: charge.atMost, used: charge.used })
     : charge.kind === 'no_limit' ? t(locale, 'pageFacts.reread.noLimit') : null;
+  // UI Block 6 (F31) — one compact confirmation: the page, what happens to this reading, then the allowance note and
+  // the button together in one panel; nothing said before was dropped, and nothing moved after the button.
   return `${back(`/app/assistant/knowledge/readings/${esc(p.id)}?from=${encodeURIComponent(assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings'))}`, t(locale, 'pageFacts.reviewTitle'))}
     <h1 class="page">${esc(t(locale, 'pageFacts.reread.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>
-    <p>${esc(t(locale, 'pageFacts.reread.intro'))}</p>
-    <p>${esc(t(locale, p.decidedAt ? 'pageFacts.reread.keepsApproved' : 'pageFacts.reread.replacesWaiting'))}</p>
+    <section class="reread-confirm"><p class="rr-source">${esc(t(locale, 'pageFacts.from', { source: sourceLabel(locale, p.source, true) }))}</p>
+    <p>${esc(t(locale, 'pageFacts.reread.intro'))} ${esc(t(locale, p.decidedAt ? 'pageFacts.reread.keepsApproved' : 'pageFacts.reread.replacesWaiting'))}</p>
     ${refused ? `<p class="perr" role="alert" id="reread-err">${esc(t(locale, `pageFacts.refused.${refused}` as MessageKey))}</p>` : ''}
     ${cost === null ? (refused === 'allowance_used' ? '' : `<p class="perr" role="alert">${esc(t(locale, 'pageFacts.refused.allowance_used'))}</p>`)
-      : `<p id="reread-cost">${esc(cost)}</p>
+      : `<div class="rr-cost"><p id="reread-cost">${esc(cost)}</p>
     <p id="reread-nothing">${esc(t(locale, 'pageFacts.reread.nothingCounts'))}</p>
     <form method="post" action="/app/knowledge/from-page/${esc(p.id)}/again" class="pform"><input type="hidden" name="from" value="${esc(assistantReturnHref(returnHref,'/app/assistant/knowledge?view=readings'))}">
       <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.reread.button'))}</button>
-    </form>`}`;
+    </form></div>`}</section>`;
 }
 

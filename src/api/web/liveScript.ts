@@ -1027,6 +1027,23 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* A link to a fold opens it and focuses its summary; ?open= does it without script. */
+  function deepLinks() {
+    function reveal() {
+      var m = /^#([\\w-]+)$/.exec(location.hash || '') || /[?&]open=([\\w-]+)/.exec(location.search || '');
+      var at = m && doc.getElementById && doc.getElementById(m[1]);
+      var fold = at && at.closest('details.sa-subject,details.ak-add');
+      if (!fold) return;
+      fold.open = true;
+      var s = fold.querySelector('summary');
+      s.focus({ preventScroll: true });
+      s.scrollIntoView();
+    }
+    reveal();
+    window.addEventListener('load', function () { setTimeout(reveal); });
+    window.addEventListener('hashchange', reveal);
+  }
+
   /* The native summary still opens/closes without script; this second close is at the end of the full text. */
   doc.querySelectorAll('[data-message-close]').forEach(function (button) { button.hidden = false; });
   doc.addEventListener('click', function (e) {
@@ -1038,6 +1055,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var summary = fold.querySelector('summary');
     if (summary) { summary.focus(); summary.scrollIntoView({ block: 'nearest' }); }
   });
+  deepLinks();
   navigationMenus();
   toToday();
   keepWords();

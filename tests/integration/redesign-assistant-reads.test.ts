@@ -79,6 +79,18 @@ d('Area 6 complete bounded Assistant reads',()=>{
   expect(all.filter(r=>r.conversationId===CHAT).map(r=>r.kind).sort()).toEqual(['learned_edit','spotcheck_improve','spotcheck_issue','spotcheck_pass']);
   const first=await tx(t=>readAssistantActivity(t,B,{size:1})),again=await tx(t=>readAssistantActivity(t,B,{size:1}));expect(first.rows[0]?.id).toBe(again.rows[0]?.id);
  });
+ // UI Block 6 · F39 — Activity's filters: each shows only its own part of the same union, the same rows and columns.
+ it('filters the event union by kind without losing a row or a column',async()=>{
+  const sending=await tx(t=>readAssistantActivity(t,B,{show:'sending'})),checks=await tx(t=>readAssistantActivity(t,B,{show:'checks'})),edits=await tx(t=>readAssistantActivity(t,B,{show:'edits'}));
+  expect([sending.total,checks.total,edits.total]).toEqual([106,3,1]);
+  expect(sending.rows.every(r=>['promote','revoke','self_demote'].includes(r.kind)&&r.id.startsWith('capability:'))).toBe(true);
+  expect(checks.rows.map(r=>r.kind).sort()).toEqual(['spotcheck_improve','spotcheck_issue','spotcheck_pass']);
+  expect(checks.rows.every(r=>r.conversationId===CHAT&&r.at instanceof Date&&r.id.startsWith('check:'))).toBe(true);
+  expect(edits.rows).toMatchObject([{kind:'learned_edit',capability:'greet',conversationId:CHAT}]);
+  expect(edits.rows[0]?.at).toBeInstanceOf(Date);
+  expect((await tx(t=>readAssistantActivity(t,B,{show:'all'}))).total).toBe(110);
+  expect((await tx(t=>readAssistantActivity(t,OTHER,{show:'checks'}),OTHER)).total).toBe(0);
+ });
  it('honors row security and explicit tenant scope and works inside a read-only transaction',async()=>{
   await tx(async t=>{await sql`set transaction read only`.execute(t);
    for(const read of [readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage,readAssistantActivity]){expect((await read(t,OTHER,{})).total).toBe(0);expect((await read(t,B,{})).total).toBeGreaterThan(0);}

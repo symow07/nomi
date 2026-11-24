@@ -277,9 +277,13 @@ export function renderKnowledgePeriod(ops: KnowledgeOps, locale: Locale, now: Da
   const asked = ops.report.commonRequests.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.commonRequests'))}</h3>
       <ul class="reqs">${ops.report.commonRequests.map((q) =>
         `<li><span class="q">${sourceText(locale, q.question)}</span> <span class="muted">×${q.count}</span></li>`).join('')}</ul>` : '';
-  const activity = ops.activity.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.activity'))}</h3><ul class="ki-acts">${ops.activity.map((a) =>
-      `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
-        <span>${esc(a.label)}</span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`).join('')}</ul>` : '';
+  // UI Block 6 (F30) — recent changes are the newest five; the older ones wait in a disclosure, and the whole list of
+  // what is taught is one door away.
+  const change = (a: KnowledgeOps['activity'][number]) => `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
+        <span><bdi>${esc(a.label)}</bdi></span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`;
+  const RECENT = 5;
+  const activity = ops.activity.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.activity'))}</h3><ul class="ki-acts">${ops.activity.slice(0, RECENT).map(change).join('')}</ul>${
+      ops.activity.length > RECENT ? `<details class="ki-older"><summary>${esc(t(locale, 'knowledgeList.olderChanges'))}</summary><ul class="ki-acts">${ops.activity.slice(RECENT).map(change).join('')}</ul></details>` : ''}<p class="ki-all"><a class="deeper" href="/app/assistant/knowledge?view=facts">${esc(t(locale, 'knowledgeList.allFacts'))}</a></p>` : '';
   return `<div class="block" id="period"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod', { period: periodWord(locale, ops.range) }))}</h2>
     ${tabs}
     ${report || asked || activity ? `${report}${asked}${activity}` : `<div class="empty">${esc(t(locale, 'knowledge.ops.noActivity', { period: periodWord(locale, ops.range) }))}</div>`}

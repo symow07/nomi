@@ -17038,3 +17038,19 @@ answer now shows only guide lines, as the page shows them: a translated guide is
 **The UI correction, Block 2 (2026-11-13):** two new lines on the conversation page, for a long message's fold —
 `conv.message.whole` (完整消息 / «الرسالة كاملة») and `conv.message.less` (收起 / «عرض أقل»). Nouns and a verbal noun;
 nobody is addressed.
+
+**The UI correction, Block 6 (2026-11-24):** new zh / ar / es / fr lines on the assistant's pages, Results, How you sell
+and the assistant's settings, all written by Claude and not yet read by a native speaker:
+- Activity: `aaActivity.filter.label / .all / .sending / .checks / .edits`, `aaActivity.actor.team`, and the pager's
+  `assistantArea.pagesAbove / .pagesBelow`.
+- Knowledge: `knowledgeList.*` (teach, readPage, addProduct, fact, type, source, status, inUse, product, taught, page,
+  lines, read, found, olderChanges, allFacts) and `pageFacts.colSource / .colFact`.
+- Getting started and How you sell: `guide.progress`, `guide.progress.times`, `hs.now.minimum`, `hs.now.minimumNone`.
+- Fix round 1: every `assistantArea.*` line (27, from `assistantArea.overview` to `assistantArea.next`, with the
+  pager's range `assistantArea.range` — 第 {from}–{to} 条，共 {total} 条 / «{from} إلى {to} من {total}» / de / sur),
+  the Results scope `area1.results.intro`, and the Follow-ups summary `followUp.title / .on / .off / .day / .days`.
+  To read first: `followUp.on` / `.off` agree with the title's noun (Arabic «مفعّلة» with المتابعة, Spanish
+  "Activados" with seguimientos, French "Activées" with relances); Arabic `followUp.days` is «عدد الأيام: {n}» so no
+  plural form sits beside a figure; Arabic actions are verbal nouns (تعليم إجابة، فتح المحادثة), nobody addressed by an
+  imperative; "Nomi" stays a name (问 Nomi / «سؤال Nomi» / Preguntar a Nomi / Demander à Nomi). The rest of the
+  `followUp.*` lines and `area1.results.title / .sales / .assistant / .setup / .views` are still English-only.

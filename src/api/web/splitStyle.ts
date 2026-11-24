@@ -350,7 +350,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
    or Today's gutter where the page is drawn wide — at every width. */
 .area-links { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-24); box-sizing:border-box; max-inline-size:var(--measure-column); margin-inline:auto; padding-inline:var(--space-32); }
 .content:has(> main.wide) > .area-nav .area-links { max-inline-size:none; margin-inline:0; padding-inline:${GUT}; }
-.area-nav a { display:flex; align-items:center; min-block-size:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
+.area-nav a { display:flex; align-items:center; justify-content:center; min-block-size:44px; min-inline-size:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
 .area-nav a[aria-current] { color:var(--color-accent); font-weight:600; border-block-end-color:var(--color-accent); }
 .area-chooser { display:none; }
 .sp-priority { padding:0 ${GUT} 32px; }
@@ -364,6 +364,10 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
 .results-page .results-header > .tabs { flex-wrap:wrap; }
 .results-page .results-header > .tabs > .tab { white-space:nowrap; }
+/* UI Block 6 · F39 — the period and what is counted, one line under the period's tabs. */
+.results-page .results-header > .an-since, .results-page .results-header > .results-scope { display:inline; margin:0; }
+.results-page .results-header > .results-scope::before { content:"· "; }
+.results-page .results-header > .tabs { margin-block-end:var(--space-8); }
 .results-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-32); }
 .results-section { min-inline-size:0; }
 .results-section h2 { margin-block:0 var(--space-16); }
@@ -377,6 +381,17 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .gs-heading h2 { margin:0; flex:1; }
 .gs-heading .deeper { margin:0; }
 .gs-help { max-inline-size:70ch; margin-block-start:var(--space-12); }
+/* UI Block 6 · F38 — the next step is the one framed card, its instructions open; the others are compact rows. */
+.setup-steps .guide-step.next { border:1px solid var(--color-ink); border-radius:var(--radius-card); padding:var(--space-20); background:var(--color-surface); }
+.setup-steps .guide-step.next + .guide-step { border-block-start:0; }
+.setup-steps .guide-step:not(.next) { padding-block:var(--space-8); }
+.setup-steps .guide-step:not(.next) .gs-h { font-size:var(--font-size-base); }
+.setup-steps .guide-step:not(.next) .gs-help { margin-block-start:0; }
+.setup-steps .guide-step.done .gs-h { color:var(--color-ink-secondary); font-weight:400; }
+.gs-progress { margin-block:var(--space-16) 0; }
+.gs-progress > summary { font-weight:600; font-size:var(--font-size-base); }
+.gs-progress .setup-clock { margin-block:var(--space-12) var(--space-16); }
+.gs-progress > summary:focus-visible, .setup-steps summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
 .readiness-section { margin-block-start:var(--space-40); }
 .calendar-page .cal-context { display:grid; gap:var(--space-12) var(--space-24); padding-block:var(--space-8) var(--space-16); border-block-end:1px solid var(--color-border); }
 .cal-context .cal-period { margin:0; align-items:start; }

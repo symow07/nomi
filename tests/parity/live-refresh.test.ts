@@ -129,7 +129,10 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // Block 2 fix round 2: native Back restores every reading region after fragment traversal; the pane
     // keeps the draft position and supplies the promised explicit retry. Those required changes add 1,873
     // characters (55,948 -> 57,821). Keep a bounded 58,100-character ceiling; this is still one deferred file.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(58_100);
+    // UI Block 6 (F32): a link that names a fold on the assistant's settings opens it and gives its summary focus,
+    // on arrival and on a later #link. That added markup and its handler measure 58,766 (58,056 at 117d3160); the
+    // ceiling is now 58,800 characters, still one deferred file.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(58_800);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

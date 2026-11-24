@@ -11,9 +11,9 @@ import { sayOnPage } from './instagramComments.js';
 import { GO } from './icons.js';
 import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsPage } from '../../db/assistantKnowledge.js';
 import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
-import { renderAssistantKnowledge,knowledgeView } from './assistantKnowledge.js';
+import { renderAssistantKnowledge,knowledgeView,knowledgeOpen } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
-import { readAssistantActivity } from '../../db/assistantActivity.js';
+import { readAssistantActivity, activityShow } from '../../db/assistantActivity.js';
 import { renderAssistantActivity } from './assistantActivity.js';
 import { assistantArea, assistantSection, dailyAssistantScreen } from './assistantArea.js';
 import { renderAssistantOverview } from './assistantOverview.js';
@@ -228,7 +228,7 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, setupFoldOf, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderMonthReport } from './monthReport.js';
@@ -6941,10 +6941,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
+    const open = setupFoldOf((req.query as { open?: unknown }).open);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true)
-        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true, open)
+        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner, false, open === 'follow-ups'),
     }));
   });
   app.post('/app/settings/assistant/follow-ups', async (req, reply) => {
@@ -7389,9 +7390,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/assistant/activity',authed('assistant',async(s,req,locale)=>{
     const bid=parseBusinessId(s.businessId);if(!bid.ok)return missingPage(locale,t(locale,'assistantArea.activityEmpty'),{href:'/app/assistant',label:t(locale,'nav.assistant')});
-    const pageNumber=Number((req.query as {page?:unknown}).page);
-    const events=await withTenantTx(deps.db,bid.value,tx=>readAssistantActivity(tx,bid.value,{page:pageNumber}));
-    return {title:t(locale,'assistantArea.activity'),bodyHtml:renderAssistantActivity(events,locale)};
+    const pageNumber=Number((req.query as {page?:unknown}).page),only=activityShow((req.query as {show?:unknown}).show);
+    const events=await withTenantTx(deps.db,bid.value,tx=>readAssistantActivity(tx,bid.value,{page:pageNumber,show:only}));
+    return {title:t(locale,'assistantArea.activity'),bodyHtml:renderAssistantActivity(events,locale,only)};
   }));
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
@@ -9254,7 +9255,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const knowledgeFrom=(req:FastifyRequest,fallback='/app/assistant/knowledge?view=facts')=>assistantReturnHref(((req.method==='POST'?req.body:req.query) as {from?:unknown}|undefined)?.from,fallback);
   const readingReturn=(req:FastifyRequest,id:string)=>{const from=knowledgeFrom(req,'');return '/app/assistant/knowledge/readings/'+encodeURIComponent(id)+(from?'?from='+encodeURIComponent(from):'');};
   const knowledgeBody = async (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale, kept: PageFactsKept | null = null) => {
-    const query=(req.query??{}) as {range?:unknown;teach?:unknown;view?:unknown;q?:unknown;state?:unknown;page?:unknown};
+    const query=(req.query??{}) as {range?:unknown;teach?:unknown;view?:unknown;q?:unknown;state?:unknown;page?:unknown;open?:unknown};
     const range=parseKnowledgeRange(typeof query.range==='string'?query.range:undefined);
     const prefill=typeof query.teach==='string'?query.teach:'';
     const view=kept?'readings':prefill?'facts':knowledgeView(query.view);
@@ -9271,9 +9272,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       withTenantTx(deps.db,bid.value,tx=>answerSuggestions(tx,bid.value,new Date(),FAQ_ANSWER_MIN_RELEVANCE)),
     ]);
     const returnHref=assistantReturnHref(req.url,'/app/assistant/knowledge?view='+view);
-    return renderAssistantKnowledge(locale,{view,q,state,range,prefill,returnHref,...pages,flash:kept?null:takeFlash(req,reply),
+    return renderAssistantKnowledge(locale,{view,q,state,range,prefill,returnHref,...pages,open:knowledgeOpen(query.open),readingOpen:kept!==null,flash:kept?null:takeFlash(req,reply),
       gaps:renderKnowledgeOps(ops,locale,new Date(),null,{embedded:true}),suggestions:renderAnswerSuggestions(locale,given,personOf(s),new Date()),period:renderKnowledgePeriod(ops,locale,new Date()),
-      readingForm:deps.pageFactsReader?renderPageFactsForm(locale,kept):(kept?`<p role="alert">${esc(t(locale,`pageFacts.refused.${kept.reason}` as MessageKey))}</p>`:'')+`<p>${esc(t(locale,'assistantKnowledge.readerUnavailable'))}</p><a href="/app/assistant/knowledge?view=facts#teach">${esc(t(locale,'assistantArea.teach'))}</a>`,
+      readingForm:deps.pageFactsReader?renderPageFactsForm(locale,kept):(kept?`<p role="alert">${esc(t(locale,`pageFacts.refused.${kept.reason}` as MessageKey))}</p>`:'')+`<p>${esc(t(locale,'assistantKnowledge.readerUnavailable'))}</p><a href="/app/assistant/knowledge?view=facts&amp;open=teach#teach">${esc(t(locale,'assistantArea.teach'))}</a>`,
     });
   };
   app.get('/app/assistant/knowledge', authed('knowledge', async (s, req, locale, reply) => {
@@ -9656,10 +9657,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           + (shopifyHere ? `<p class="caption" id="shopify-practice">${esc(t(locale, 'shopifyOrders.practice'))}</p>` : '')
           + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
-            ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
+            ? renderSandbox(view, locale, { flash, prefill, now, working, practice, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`+(checklist?renderPracticeChecklist(checklist,locale):''))
           + (live.ok?renderReady(await loadReady(deps.db,live.value),locale,{embedded:true}):'')
-          + renderPractice(practice, locale)+'</div>',
+          // UI Block 6 · F38 — where the box is, the safety checks are in the trust disclosure beside it.
+          + (deps.enqueueInbound ? '' : renderPractice(practice, locale))+'</div>',
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark, working && view.ownership === 'AI')) } : {}),
       }));
     });

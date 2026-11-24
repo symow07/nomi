@@ -29,6 +29,18 @@ export const SETTINGS_AREA_CSS=`
 .settings-area .block{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .sa-subject{margin-block:var(--space-32);padding-top:var(--space-24);border-top:1px solid var(--color-border);}
 .sa-subject h2{font-size:var(--font-size-title);}
+.sa-subject>summary{min-height:44px;scroll-margin-block-start:var(--space-24);}
+.sa-sum{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}
+.sa-sname{font-weight:600;}
+.sa-now{font-size:var(--font-size-small);color:var(--color-ink-secondary);overflow-wrap:anywhere;}
+.sa-body{padding-top:var(--space-16);}
+.sa-body:focus{outline:none;}
+.sa-body:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;}
+.stop-panel{margin-block:var(--space-24);padding:var(--space-16) var(--space-24);border:1px solid var(--color-ink);border-radius:var(--radius-card);}
+.stop-panel h2{margin:0 0 var(--space-8);font-size:var(--font-size-base);}
+.stop-panel .stop-here{margin:0;padding:0;border:0;}
+.settings-area .btn.danger{background:transparent;color:var(--color-ink);border-color:var(--color-ink);}
+.settings-area :is(.certlist,.actrow) .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
 .sa-value{margin-block:var(--space-24);}
 .sa-value dt{color:var(--color-ink-secondary);font-size:var(--font-size-small);}
 .sa-value dd{margin:var(--space-8) 0 var(--space-24);overflow-wrap:anywhere;}

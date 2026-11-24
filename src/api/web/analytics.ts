@@ -179,10 +179,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const tab = (r: Range) =>
     `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/results?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
   const since = d.since ? `<p class="caption muted an-since">${esc(t(locale, 'analytics.since', { date: show.date(locale, d.since) }))}</p>` : '';
+  // UI Block 6 · F39 — ONE REPORT HEADER: the period (its tabs, and where it starts) and what is counted, together.
   const header = `<header class="results-header">${back('/app', t(locale, 'split.title'))}
     <h1 class="page">${wordsHtml(locale, 'area1.results.title')}</h1>
-    <p class="muted">${wordsHtml(locale, 'area1.results.intro')}</p>
-    <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}</header>`;
+    <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}<p class="caption muted results-scope">${wordsHtml(locale, 'area1.results.intro')}</p></header>`;
   if (!d.hasActivity) {
     return `<div class="results-page">${header}<section class="empty results-empty">
       <h2 class="stated-now">${esc(t(locale, 'analytics.empty.title'))}</h2>

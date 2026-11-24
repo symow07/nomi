@@ -677,7 +677,7 @@ ${FACE_CSS}
   .skip { position:absolute; top:calc(-2 * var(--space-48)); inset-inline-start:var(--space-8); z-index:3;
     padding:var(--space-8) var(--space-16); border-radius:var(--radius-card);
     background:var(--color-surface); color:var(--color-ink); box-shadow:var(--shadow-lift2);
-    font-size:var(--font-size-small); font-weight:600; }
+    font-size:var(--font-size-small); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
@@ -886,7 +886,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
   /* The identity system (2026-10-04) — a door is the brand: its words, its chevron, its underline. */
-  .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
+  .deeper { display:flex; width:fit-content; align-items:center; justify-content:center; gap:var(--space-4); min-height:44px; min-inline-size:44px;
     padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
@@ -1736,6 +1736,7 @@ const STYLE_PAGES = `
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .fsteps li { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
+  .fsteps .blink { display:inline-flex; align-items:center; min-block-size:44px; min-inline-size:44px; }
   .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
@@ -1890,6 +1891,46 @@ const STYLE_PAGES = `
   /* The fix wave (w4-business-assistant-25) — the choices sit one under another in every language, short ones too. */
   .hs-choices { flex-direction:column; }
   .hs-acts { margin:var(--space-16) 0 0; }
+  /* UI Block 6 · F33 — one question a page, compact: back and where she is on one row; what is in force now; the
+     control; Next filled, Leave for later outlined. A field a choice needs shows only once that choice is made. */
+  .hs-step { justify-content:space-between; margin-bottom:var(--space-4); }
+  .hs-where { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 var(--space-8); font-size:var(--font-size-small); }
+  .hs-where p { margin:0; }
+  .hs-state::before { content:"·"; margin-inline-end:var(--space-8); }
+  .hs-step ~ .lede { margin-bottom:var(--space-16); }
+  .hs-now { margin:0; max-width:var(--measure-prose); }
+  .hs-choices.choices { gap:0; }
+  .hs-min, .hs-claims { display:flex; flex-direction:column; gap:var(--space-8); }
+  @supports selector(:has(*)) {
+    .hs-min:not(:has(input[name="mode"][value="same"]:checked)) .hs-dep { display:none; }
+    .hs-claims .hs-dep { display:none; }
+    .hs-claims:has(input[name="category"][value="cosmetics"]:checked) .hs-cat-cosmetics,
+    .hs-claims:has(input[name="category"][value="apparel"]:checked) .hs-cat-apparel { display:flex; }
+  }
+  .hs-more > summary { display:flex; align-items:center; min-height:44px; cursor:pointer; font-weight:600; }
+  .hs-more > summary:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .hs-more[open] > summary { margin-bottom:var(--space-8); }
+  .hs-more .pform { margin-bottom:var(--space-16); }
+  .hs-acts .btn:not(.send), .hs-later .btn { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink); }
+  .pform > .hs-acts { margin-top:0; }
+  .hs-lines { margin-top:0; }
+  .hs-lines .row { padding-block:var(--space-4); }
+  .hs-lines .pcheck { align-items:flex-start; padding-block:var(--space-8); }
+  .hs-lines .pcheck input { flex:none; margin-block-start:0.3em; }
+  @media (max-width:600px) {
+    .sa-content:has(> .hs-step) > .sa-page-chooser { margin-bottom:var(--space-8); padding-bottom:var(--space-4); }
+    .hs-step { margin-bottom:0; flex-wrap:nowrap; }
+    .hs-step > .back { flex:none; }
+    .hs-step > .hs-where { min-inline-size:0; justify-content:flex-end; text-align:end; }
+    .hs-step ~ h1.page { margin-bottom:var(--space-12); }
+    .hs-step ~ .lede { margin-bottom:var(--space-8); }
+    .hs-step ~ .pform { margin-top:0; gap:var(--space-8); }
+    .hs-step ~ .pform .choices { row-gap:0; }
+    .hs-step ~ .pform > p.small { margin-block:0; }
+    .hs-step ~ .pform textarea { margin-block:var(--space-4); }
+    .hs-step ~ .pform textarea[name="told"] { block-size:5rem; }
+    .hs-step ~ .pform textarea[name="told"]:focus { block-size:8.5rem; }
+  }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
   .wa-steps li { margin-bottom:var(--space-8); }
