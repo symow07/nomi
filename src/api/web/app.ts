@@ -13,7 +13,7 @@ import { readKnowledgeProductsPage,readKnowledgeFactsPage,readKnowledgeReadingsP
 import { registerCatalogueRoutes, type CatalogueWebDeps } from './waCatalogueRoutes.js';
 import { renderAssistantKnowledge,knowledgeView,knowledgeOpen } from './assistantKnowledge.js';
 import { assistantReturnHref } from './assistantNavigation.js';
-import { readAssistantActivity } from '../../db/assistantActivity.js';
+import { readAssistantActivity, activityShow } from '../../db/assistantActivity.js';
 import { renderAssistantActivity } from './assistantActivity.js';
 import { assistantArea, assistantSection, dailyAssistantScreen } from './assistantArea.js';
 import { renderAssistantOverview } from './assistantOverview.js';
@@ -7390,9 +7390,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/assistant/activity',authed('assistant',async(s,req,locale)=>{
     const bid=parseBusinessId(s.businessId);if(!bid.ok)return missingPage(locale,t(locale,'assistantArea.activityEmpty'),{href:'/app/assistant',label:t(locale,'nav.assistant')});
-    const pageNumber=Number((req.query as {page?:unknown}).page);
-    const events=await withTenantTx(deps.db,bid.value,tx=>readAssistantActivity(tx,bid.value,{page:pageNumber}));
-    return {title:t(locale,'assistantArea.activity'),bodyHtml:renderAssistantActivity(events,locale)};
+    const pageNumber=Number((req.query as {page?:unknown}).page),only=activityShow((req.query as {show?:unknown}).show);
+    const events=await withTenantTx(deps.db,bid.value,tx=>readAssistantActivity(tx,bid.value,{page:pageNumber,show:only}));
+    return {title:t(locale,'assistantArea.activity'),bodyHtml:renderAssistantActivity(events,locale,only)};
   }));
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────

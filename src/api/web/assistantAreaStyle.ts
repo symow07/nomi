@@ -31,9 +31,20 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-overview blockquote{overflow-wrap:anywhere;word-break:break-word;}
 .aa-overview .stop-here{margin-top:var(--space-32);padding-top:var(--space-24);border-top:1px solid var(--color-border);}
 .aa-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-16);padding-block:var(--space-16);}
-.aa-pager a{min-height:44px;display:flex;align-items:center;}
-.aa-event{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
-.aa-event p{margin-block:var(--space-8);}
+.aa-pager a{min-height:44px;min-width:44px;display:flex;align-items:center;}
+/* UI Block 6 · F39: Activity as compact dated events, the day once; filters and pages above and below. */
+.aa-filter{display:flex;flex-wrap:wrap;gap:var(--space-4) var(--space-16);border-bottom:1px solid var(--color-border);margin-block:var(--space-16) var(--space-8);}
+.aa-filter a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;border-bottom:2px solid transparent;text-decoration:none;color:var(--color-ink);}
+.aa-filter a[aria-current]{color:var(--color-accent);border-bottom-color:var(--color-accent);}
+.aa-dayset{margin-block:var(--space-16) 0;}
+.aa-day{font-size:var(--font-size-base);margin:0 0 var(--space-4);}
+.aa-events{list-style:none;padding:0;margin:0;}
+.aa-event{display:grid;grid-template-columns:4.5rem minmax(0,1fr);gap:var(--space-16);padding-block:var(--space-8);border-top:1px solid var(--color-border);}
+.aa-event time{font-variant-numeric:tabular-nums;color:var(--color-ink-secondary);font-size:var(--font-size-small);padding-block-start:2px;}
+.aa-body{min-width:0;overflow-wrap:anywhere;}
+.aa-actor{display:block;font-size:var(--font-size-small);color:var(--color-ink-secondary);}
+.aa-what{margin:0;}
+.aa-body a{display:inline-flex;align-items:center;min-height:44px;}
 .ask-business{display:none;}
 .ask-workspace{display:grid;grid-template-columns:minmax(0,1fr) 13rem;gap:var(--space-32);}
 .ask-conversation,.ask-history{min-width:0;}

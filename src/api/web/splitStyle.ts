@@ -364,6 +364,10 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
 .results-page .results-header > .tabs { flex-wrap:wrap; }
 .results-page .results-header > .tabs > .tab { white-space:nowrap; }
+/* UI Block 6 · F39 — the period and what is counted, one line under the period's tabs. */
+.results-page .results-header > .an-since, .results-page .results-header > .results-scope { display:inline; margin:0; }
+.results-page .results-header > .results-scope::before { content:"· "; }
+.results-page .results-header > .tabs { margin-block-end:var(--space-8); }
 .results-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-32); }
 .results-section { min-inline-size:0; }
 .results-section h2 { margin-block:0 var(--space-16); }
