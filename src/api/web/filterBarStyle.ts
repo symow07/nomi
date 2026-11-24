@@ -27,7 +27,7 @@ export const FILTER_BAR_CSS = `
       color:var(--color-ink); font-size:var(--font-size-small); font-weight:500; cursor:pointer; inline-size:fit-content; }
     .fbar .fbar-more[open] > summary { margin-block-end:var(--space-12); }
     .fbar .fbar-n { display:inline-flex; align-items:center; justify-content:center; min-inline-size:1.5em; padding-inline:0.4em;
-      border-radius:999px; background:var(--color-ink); color:var(--color-surface); font-size:var(--font-size-small); }
+      border-radius:var(--radius-chip); background:var(--color-ink); color:var(--color-surface); font-size:var(--font-size-small); }
     .fbar .fbar-fields { flex-direction:column; align-items:stretch; gap:var(--space-12); }
     .fbar .fbar-acts .btn { flex:1 1 auto; }
   }
