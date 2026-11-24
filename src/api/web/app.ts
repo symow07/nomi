@@ -228,7 +228,7 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, setupFoldOf, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderMonthReport } from './monthReport.js';
@@ -6941,10 +6941,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
+    const open = setupFoldOf((req.query as { open?: unknown }).open);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true)
-        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true, open)
+        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner, false, open === 'follow-ups'),
     }));
   });
   app.post('/app/settings/assistant/follow-ups', async (req, reply) => {

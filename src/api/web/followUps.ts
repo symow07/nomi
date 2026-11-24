@@ -3,6 +3,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { FollowUpRun } from '../../db/followUps.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc } from './layout.js';
+import { setupFold } from './employee.js';
 import { t } from './say.js';
 import * as show from './values.js';
 
@@ -10,10 +11,11 @@ const words = (s: string): string => `<bdi lang="en" dir="ltr">${esc(s)}</bdi>`;
 const say = (l: Locale, k: MessageKey, p?: Record<string, string | number>): string => words(t(l, k, p));
 const exact = (s: string): string => `<blockquote class="follow-up-words" dir="auto">${esc(s)}</blockquote>`;
 
-export function renderFollowUpRule(locale: Locale, rule: FollowUpRule, owner: boolean, invalid = false): string {
+export function renderFollowUpRule(locale: Locale, rule: FollowUpRule, owner: boolean, invalid = false, open = false): string {
   const preview = rule.wording ? exact(rule.wording) : `<p class="muted">${say(locale, 'followUp.emptyWords')}</p>`;
-  return `<details class="sa-subject follow-up-settings" id="follow-ups"${invalid ? ' open' : ''}>
-    <summary>${say(locale, 'followUp.title')}</summary>
+  // UI Block 6 (F32) — folded like the other decisions, saying where it stands: on or off, and after how long.
+  const now = `${say(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${say(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}`;
+  return setupFold('follow-ups', null, say(locale, 'followUp.title'), now, `
     <p>${say(locale, 'followUp.intro')}</p>
     ${invalid ? `<p role="alert" id="follow-up-error">${say(locale, 'followUp.ruleError')}</p>` : ''}
     ${owner ? `<form method="post" action="/app/settings/assistant/follow-ups">
@@ -28,7 +30,7 @@ export function renderFollowUpRule(locale: Locale, rule: FollowUpRule, owner: bo
       <p class="caption muted">${say(locale, 'followUp.future')}</p>
       <button class="btn" type="submit">${say(locale, 'followUp.save')}</button>
     </form>` : `<p>${say(locale, rule.enabled ? 'followUp.on' : 'followUp.off')} · ${say(locale, rule.delayDays === 1 ? 'followUp.day' : 'followUp.days', { n: show.count(locale, rule.delayDays) })}</p>`}
-    <h3>${say(locale, 'followUp.preview')}</h3>${preview}</details>`;
+    <h3>${say(locale, 'followUp.preview')}</h3>${preview}`, 'follow-up-settings', invalid || open);
 }
 
 const reasons: Readonly<Record<string, MessageKey>> = {

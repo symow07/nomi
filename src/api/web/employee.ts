@@ -614,14 +614,15 @@ function languagesLine(locale: Locale, hold: AloneHold | null): string {
 function stopHere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
   if (!viewer.isOwner || e.stopped || !e.answering) return '';
   const name = assistantName(locale);
-  return `<div class="stop-here" id="stop">
+  // UI Block 6 (F32) — its own panel, after the levels and apart from them, named; the same line, form and question.
+  return `<section class="stop-panel" aria-labelledby="stop-h"><h2 id="stop-h">${esc(t(locale, 'assistant.stop.title', { name }))}</h2><div class="stop-here" id="stop">
       <p class="small">${esc(t(locale, 'her.stop.lede', { name }))}</p>
       <form method="post" action="/app/business/stop-assistant" class="inline">
         <input type="hidden" name="from" value="employee" />
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'assistant.stop.action.stopConfirm', { name }))}">${esc(t(locale, 'assistant.stop.action.stop', { name }))}</button>
       </form>
-    </div>`;
+    </div></section>`;
 }
 
 /**
@@ -678,10 +679,17 @@ function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): strin
       ${inForce}
       ${withdrawnRows(e, locale)}
       ${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}
-      ${stopHere(e, locale, viewer)}
       ${more}
     </section>`;
 }
+
+/** UI Block 6 (F32) — the folds on the assistant's settings page a link may open by name. */
+export const SETUP_FOLDS = ['progress', 'reply-types', 'follow-ups'] as const;
+export type SetupFold = typeof SETUP_FOLDS[number];
+export const setupFoldOf = (raw: unknown): SetupFold | null => SETUP_FOLDS.find((f) => f === raw) ?? null;
+/** One folded decision: its name and where it stands in the summary (both already escaped); the target id inside. */
+export const setupFold = (id: SetupFold, open: SetupFold | null, nameHtml: string, nowHtml: string, body: string, extraClass = '', force = false): string =>
+  `<details class="sa-subject${extraClass ? ` ${extraClass}` : ''}"${open === id || force ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${nameHtml}</span><span class="sa-now">${nowHtml}</span></span></summary><div class="sa-body" id="${id}" tabindex="-1">${body}</div></details>`;
 
 /**
  * A row of the menu: the settings pattern's own row (`settings.ts` menuRow —
@@ -719,14 +727,17 @@ const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string 
  */
 export function renderEmployee(
   e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW, focused = false,
+  open: SetupFold | null = null,
 ): string {
   const name = assistantName(locale);
   const st = standing(e, locale);
-  if(focused) return `<h1 class="page">${esc(t(locale,'settingsArea.permissions'))}</h1>${flashBanner(flash)}<p class="lede">${esc(t(locale,'settingsArea.permissionHint'))}</p>${levelControl(e,locale,viewer)}
-    <details class="sa-subject" id="progress"><summary>${esc(t(locale,'employee.promo.title'))}</summary>${renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true})}</details>
-    <details class="sa-subject" id="reply-types"><summary>${esc(t(locale,'her.handles.title'))}</summary>${renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})}${renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true})}</details>`;
-  const nothingYet = t(locale, 'her.menu.nothingYet');
   const met = e.conditions.filter((c) => c.met).length;
+  // UI Block 6 (F32) — each decision folded under its name and where it stands now; the fold a link names is open
+  // (?open=), and the link's target is inside the fold, so a browser opens it for #progress without any script.
+  if(focused) return `<h1 class="page">${esc(t(locale,'settingsArea.permissions'))}</h1>${flashBanner(flash)}<p class="lede">${esc(t(locale,'settingsArea.permissionHint'))}</p>${levelControl(e,locale,viewer)}${stopHere(e,locale,viewer)}
+    ${setupFold('progress',open,esc(t(locale,'employee.promo.title')),esc(e.conditions.length?t(locale,'nav.setup.progress',{done:met,total:e.conditions.length}):st.alone.length?t(locale,'employee.promo.done'):labelled(locale,t(locale,'employee.promo.next'),t(locale,'employee.stage.partial'))),renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true}))}
+    ${setupFold('reply-types',open,esc(t(locale,'her.handles.title')),esc(st.nowLabel),renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})+renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true}))}`;
+  const nothingYet = t(locale, 'her.menu.nothingYet');
   const capList = (caps: readonly string[]) => formatList(locale, caps.map((c) => capabilityName(locale, c)));
 
   const says: MenuRow[] = [
@@ -772,7 +783,7 @@ export function renderEmployee(
 
   return `<h1 class="page">${esc(name)}</h1>
     ${flashBanner(flash)}
-    ${levelControl(e, locale, viewer)}
+    ${levelControl(e, locale, viewer)}${stopHere(e, locale, viewer)}
     ${menuGroup('says', t(locale, 'her.group.says'), says)}
     ${menuGroup('works', t(locale, 'her.group.works'), works)}
     ${menuGroup('going', t(locale, 'her.group.going'), going)}`;
