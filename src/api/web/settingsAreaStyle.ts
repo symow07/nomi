@@ -14,7 +14,7 @@ export const SETTINGS_AREA_CSS=`
 .sa-index-list svg{width:18px;flex:none;}
 .sa-description{display:block;color:var(--color-ink-secondary);font-weight:400;font-size:var(--font-size-small);margin-top:var(--space-8);}
 .sa-pages{display:flex;flex-wrap:wrap;gap:var(--space-8) var(--space-24);border-bottom:1px solid var(--color-border);margin-bottom:var(--space-32);}
-.sa-pages a{display:flex;align-items:center;min-height:44px;text-decoration:none;color:var(--color-ink-secondary);border-bottom:2px solid transparent;font-size:var(--font-size-small);}
+.sa-pages a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;text-decoration:none;color:var(--color-ink-secondary);border-bottom:2px solid transparent;font-size:var(--font-size-small);}
 .sa-pages a[aria-current]{color:var(--color-accent);border-bottom-color:var(--color-accent);}
 .settings-area .scard,.settings-area .card{box-shadow:none;border-inline:0;border-radius:0;background:transparent;}
 .settings-area .sgroup{margin-block:var(--space-32);}
@@ -65,6 +65,7 @@ export const SETTINGS_AREA_CSS=`
 .biz-scope{margin-block:var(--space-16) 0;color:var(--color-ink-secondary);}
 .settings-area .biz-form .scard{border-top:1px solid var(--color-border);}
 .settings-area .biz-form .fr-acts{padding-inline:0;}
+.settings-area .setrow:has(input[type=checkbox]) label.fr-name{display:flex;align-items:center;min-height:44px;}
 .biz-door{margin:var(--space-12) 0 0;}
 .settings-area .biz-form .sgroup-h{font-size:var(--font-size-title);font-weight:600;color:var(--color-ink);margin-block:var(--space-32) var(--space-8);}
 .settings-area h3.sgroup-h{font-size:var(--font-size-base);font-weight:600;color:var(--color-ink);margin-block:var(--space-24) var(--space-8);}

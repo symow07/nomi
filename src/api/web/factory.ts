@@ -962,7 +962,7 @@ function allowlistScreen(f: FactoryView, locale: Locale, flash: Flash | null, vi
   const list = f.readiness.recipients.length === 0
     ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
     : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
-        <li class="done">${shape('ok')} <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
+        <li class="done">${shape('ok')} <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted"><bdi>${esc(r.phone)}</bdi></span>` : ''}
           ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
             <input type="hidden" name="phone" value="${esc(r.phone)}" />
             <button class="btn ghost" type="submit"
