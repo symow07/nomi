@@ -17075,3 +17075,9 @@ Team, Data and account), all written by Claude and not yet read by a native spea
   .currencyOnly / .kind`; the headings `biz.now.hours / .currency` and `biz.closures.now / .add`. To read first: each
   Save must say only what it saves (Chinese 保存联系方式, not 保存); Arabic uses verbal nouns («حفظ بيانات التواصل»), no
   imperative; French `biz.scopeNote` uses « bouton d’enregistrement », the catalogue's own word for Save.
+- Team (F36): the table's columns `team.col.name / .role / .signIn / .here`; the roles `team.role.owner / .team /
+  .accountantWhat` and `team.roles.title`, `team.avail.title`; the editor `team.edit.open / .role`, `team.remove.what /
+  .button`; the add choice `team.add.asTeam`. To read first (rule 6, nobody gendered): Arabic avoids a pronoun on the
+  person removed («تعديل بيانات {who} أو الإزالة من الفريق»; «وتبقى المحادثات السابقة تحمل الاسم نفسه») and the owner's
+  role is the catalogue's own «مالك الحساب»; Spanish and French owner roles reuse `people.held.owner` («Quien dirige el
+  negocio», « La direction »); Chinese 在岗安排 for "Availability" may want a plainer word.

@@ -87,7 +87,10 @@ describe('V1-509, V1-519 · adding someone has its own heading, and says a code 
   it('a section of its own after the list, headed, with the hint before the button, in every locale', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      const list = html.indexOf('</ul>');
+      // Pin moved, not loosened (UI Block 7 · F36): the people are a table now, so the list ends at </table>; the add
+      // section still comes after it, headed, hint first, and its form is still outside the list.
+      const list = html.indexOf('</table>');
+      expect(list, l).toBeGreaterThan(-1);
       const head = html.indexOf(`<h2>${esc(t(l, 'people.add.title'))}</h2>`);
       const hint = html.indexOf(esc(t(l, 'people.add.hint')));
       const form = html.indexOf('action="/app/settings/people"');
@@ -95,7 +98,7 @@ describe('V1-509, V1-519 · adding someone has its own heading, and says a code 
       expect(hint, l).toBeGreaterThan(head);
       expect(form, l).toBeGreaterThan(hint);
       // the form is not inside the list of people
-      expect(html.slice(html.indexOf('<ul class="rows">'), list), l).not.toContain('action="/app/settings/people"');
+      expect(html.slice(html.indexOf('<table class="team-table">'), list), l).not.toContain('action="/app/settings/people"');
     }
     expect(t('en', 'people.add.hint')).toMatch(/code/);
   });
