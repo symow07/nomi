@@ -17071,3 +17071,7 @@ Team, Data and account), all written by Claude and not yet read by a native spea
   English word; Chinese avoids 他 / 它 (`settingsArea.identityHint` says 回复客户的助手). `nav.customers` and French
   `nav.assistant` stay English on purpose: `tests/parity/redesign-copy.test.ts` and `phase7-phone.test.ts` hold them as
   the approved English redesign copy.
+- Business (F35): the scope line `biz.scopeNote`; the named Saves `biz.save.business / .contact / .zone / .zoneOnly /
+  .currencyOnly / .kind`; the headings `biz.now.hours / .currency` and `biz.closures.now / .add`. To read first: each
+  Save must say only what it saves (Chinese 保存联系方式, not 保存); Arabic uses verbal nouns («حفظ بيانات التواصل»), no
+  imperative; French `biz.scopeNote` uses « bouton d’enregistrement », the catalogue's own word for Save.

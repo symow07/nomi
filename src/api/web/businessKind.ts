@@ -7,7 +7,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
-import { fieldRow, rowsCard, saveBar, keptError, keptInvalid, type Kept } from './rows.js';
+import { fieldRow, rowsCard, saveBar, cardActs, keptError, keptInvalid, type Kept } from './rows.js';
 
 
 /**
@@ -78,7 +78,7 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
-    <form method="post" action="/app/settings/business" class="sform">
+    <form method="post" action="/app/settings/business" class="sform${embedded ? ' biz-form' : ''}">
       ${rowsCard(null, [
         // Phase 9 (w4-settings-a-11) — sent back, the answer that was wrong says so under itself; the others are kept.
         fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind', error: keptError(kept, 'kind', 'bk-kind-err'),
@@ -92,7 +92,9 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
         fieldRow({ label: t(locale, 'signup.website'), forId: 'bk-website', error: keptError(kept, 'website', 'bk-website-err'),
           control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
             inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url"${keptInvalid(kept, 'website', 'bk-website-err')} />` }),
+        // UI Block 7 (F35) — on Business profile, one subject among several: its act in its own card, saying what it saves.
+        ...(embedded ? [cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'biz.save.kind'))}</button>`)] : []),
       ])}
-      ${saveBar(t(locale, 'business.kind.save'))}
+      ${embedded ? '' : saveBar(t(locale, 'business.kind.save'))}
     </form>`;
 }

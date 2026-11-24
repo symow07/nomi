@@ -7889,7 +7889,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
   app.get('/app/settings/business/currency', authed('settings', async (sess, req, locale, reply) =>
-    `${settingsProfileValue(locale,'currency',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),await loadCurrencyChoice(deps.db,sess.businessId))}${renderRate(await loadRates(deps.db, sess.businessId), locale,takeFlash(req, reply), personOf(sess),null,true)}`));
+    `${settingsProfileValue(locale,'currency',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),await loadCurrencyChoice(deps.db,sess.businessId),personOf(sess))}${renderRate(await loadRates(deps.db, sess.businessId), locale,takeFlash(req, reply), personOf(sess),null,true)}`));
 
   app.post('/app/settings/rate', async (req, reply) => {
     // Phase 4 — the rate she honours converts every price: money, hers.
