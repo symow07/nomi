@@ -371,17 +371,22 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *
  * Now, from the tokens (`motionMs`, `motionEase`, `motionTravelPx`, `motionScale`):
  *
- *   arriving   220 ms, the gentle ease-out: a notice, the draft card (a beat
- *              after the page), the assistant at work, Today's band and hero,
- *              each face in turn, a menu group by group, a fold's content —
- *              16 px (a fold 8 px), from transparent
+ *   arriving   220 ms, the gentle ease-out, only for what completes: a notice
+ *              after a save, and the draft drawn in place once the assistant
+ *              has written it — 16 px, from transparent. UI Block 9 (F44): a
+ *              page an owner opens many times a day arrives still — Today's
+ *              band and faces, a menu's groups, the at-work line and a fold
+ *              drawn open no longer rise in on every arrival
+ *   opening    a fold opened by hand fades in and drops 8 px (220 ms); one the
+ *              page draws open does not move
  *   dialogs    the question grows in from 0.96 and 16 px; the profile card
  *              springs up 48 px over 250 ms (from the screen's foot on a
  *              phone); both sink away in 160 ms when closed, with their dimming
  *   the toast  slides in 24 px from its own edge, and back out the same way
- *   pages      the page's content fades out (160 ms) and the next rises in
- *              12 px (250 ms); the rail stays, and its raised tile slides to
- *              the entry chosen — so do the Inbox lens and the chosen day
+ *   pages      the next page is simply there (UI Block 9, F44: the content's
+ *              fade and 12 px rise played on every navigation); the rail
+ *              stays, and its raised tile slides to the entry chosen — so do
+ *              the Inbox lens and the chosen day
  *   hand       a hover or a press settles both ways (160 ms): a control
  *              presses to 0.97 and comes back; a rail icon lifts 2 px, and
  *              a press sets it back down
@@ -394,8 +399,6 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  * `phase5-motion.test.ts` holds that, the durations by name, and that each
  * rule's selector is one the pages really draw.
  */
-const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
-  `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     .btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
@@ -405,19 +408,12 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
     nav.side :is(a,button).navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
-    details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
-    /* Delay hiding only when closing: opening must expose its fields to the very next Tab. */
-    details:not([open])::details-content { opacity:0; transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
+    /* A fold moves when it is opened, never because a page arrived with it open. Hiding waits only when closing:
+       opening must expose its fields to the very next Tab. */
+    details[open]::details-content { transition:opacity var(--motion-normal) var(--motion-ease), transform var(--motion-normal) var(--motion-ease); }
+    details:not([open])::details-content { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
-    .flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    #approve, .td { animation-delay:var(--motion-fast); }
-    .home-schedule { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
-    .sgroup + .sgroup { animation-delay:var(--motion-step); }
-    .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
-    /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
-    main[data-drawn-again] .home-card, main[data-drawn-again] .home-schedule, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
-    .td-row > li { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
-${STAGGER}
+    .flash, main[data-drawn-again] #approve { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .td-row { scroll-behavior:smooth; }
     .working .dots i { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     .working .dots i + i { animation-delay:var(--motion-fast); }
@@ -447,16 +443,16 @@ ${STAGGER}
     .mo td.sel .mo-d { view-transition-name:day-on; }
     ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
     ::view-transition-group(page) { animation:none; }
-    ::view-transition-old(page) { animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both; }
-    ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
+    ::view-transition-old(page), ::view-transition-old(root) { animation:none; opacity:0; }
+    ::view-transition-new(page), ::view-transition-new(root) { animation:none; }
   }
   @media (prefers-reduced-motion: reduce) {
     /* The record disclosure margin must settle immediately, not animate through the global 1ms duration. */
     .record-section>summary { transition-property:none; }
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
-      animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
+      animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important;
+      animation-name:none !important; transition-property:none !important; }
   }
-  @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
   @keyframes nomi-settle { from { opacity:0.5; transform:translateY(calc(-1 * var(--travel-nudge))); } }
   @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
@@ -466,8 +462,6 @@ ${STAGGER}
   @keyframes nomi-toast-out-rtl { to { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
   @keyframes nomi-toast-up { from { opacity:0; transform:translateY(var(--travel-toast)); } }
   @keyframes nomi-toast-down { to { opacity:0; transform:translateY(var(--travel-toast)); } }
-  @keyframes nomi-page-in { from { opacity:0; transform:translateY(var(--travel-page)); } }
-  @keyframes nomi-fade-out { to { opacity:0; } }
   /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
      the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
   .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }

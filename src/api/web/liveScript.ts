@@ -540,7 +540,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
 
   /* F10: a part's Cancel puts its form back as drawn and closes its fold; Escape in an open fold closes it, words kept. */
   function editFolds() {
-    if (!doc.querySelector('details[data-edit]')) return;
     doc.querySelectorAll('[data-edit-cancel]').forEach(function (b) { b.hidden = false; });
     function shut(fold) { fold.open = false; var s = fold.querySelector('summary'); if (s) { s.focus(); s.scrollIntoView({ block: 'nearest' }); } }
     doc.addEventListener('click', function (e) {
@@ -550,7 +549,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       shut(f);
     });
     doc.addEventListener('keydown', function (e) {
-      var f = e.key === 'Escape' && !e.defaultPrevented && e.target && e.target.closest ? e.target.closest('details[data-edit][open]') : null;
+      var f = e.key === 'Escape' && !e.defaultPrevented && e.target && e.target.closest ? e.target.closest('details[data-edit][open],details.ak-add[open]') : null;
       if (!f || doc.querySelector('dialog[open]')) return;
       e.preventDefault();
       shut(f);

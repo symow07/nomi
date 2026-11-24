@@ -379,11 +379,15 @@ describe('the stylesheet — a wash and a label, never a magenta frame', () => {
     const animated = rules.filter((r) => /#approve\b/.test(r.sel) && /animation:/.test(r.body) && !/animation:\s*none\b/.test(r.body));
     expect(animated).toHaveLength(1);
     expect(animated[0]!.body).toContain('nomi-rise var(--motion-normal) var(--motion-ease)');
+    // UI Block 9 (F44) — pin narrowed, not loosened: the card rose on every opening of a conversation (a repeated
+    // entrance); it now rises once, when the script draws it in place because the assistant has just written it.
+    expect(animated[0]!.sel).toBe('.flash, main[data-drawn-again] #approve');
     const noPref = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n {2}\}/.exec(css)?.[1] ?? '';
-    expect(noPref).toMatch(/#approve[^{]*\{ animation:nomi-rise var\(--motion-normal\) var\(--motion-ease\) both; \}/);
-    // the motion pass: far enough to be seen (16 px), a beat after the page appears
+    expect(noPref).toMatch(/main\[data-drawn-again\] #approve \{ animation:nomi-rise var\(--motion-normal\) var\(--motion-ease\) both; \}/);
+    // the motion pass: far enough to be seen (16 px). UI Block 9 (F44): "a beat after the page appears" went with the
+    // entrance on every arrival — drawn in place there is no page to wait for, so the card rises at once.
     expect(css).toContain('@keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }');
-    expect(css).toContain('#approve, .td { animation-delay:var(--motion-fast); }');
+    expect(css).not.toContain('#approve, .td { animation-delay:var(--motion-fast); }');
     // and the conversation's and Practice's draft are the one card
     const d = page(detail({ pendingDraft: conversationDetail().pendingDraft }), 'en');
     expect(d).toContain('<section class="card draft" id="approve"');
