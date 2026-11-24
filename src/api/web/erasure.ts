@@ -3,7 +3,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { t } from './say.js';
-import { back, esc, publicDocument, publicTop, PUBLIC_TOP_CSS } from './layout.js';
+import { back, esc, publicFrame, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { recordBuyerRequest, BUYER_NOTE_MAX } from './dataRights.js';
 import { samePersonLine } from './conversations.js';
 import type { SamePersonRecord } from '../../db/samePerson.js';
@@ -210,12 +210,12 @@ export function renderCloseAsk(locale: Locale, typedName: string, businessName: 
  * no workspace — the session that knew it is gone.
  */
 export function renderClosed(locale: Locale, home = '/site'): string {
-  return publicDocument({
+  return publicFrame({
     locale, title: `${t(locale, 'closed.title')} · Nomi`, extraCss: PUBLIC_TOP_CSS,
     body: `${publicTop(locale, home, '/closed')}
     <h1>${esc(t(locale, 'closed.title'))}</h1>
     <p>${esc(t(locale, 'closed.body'))}</p>
     <p>${esc(t(locale, 'closed.backups'))}</p>
-    <p><a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a> · <a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a></p>`,
+    <p class="solo"><a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a> · <a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a></p>`,
   });
 }

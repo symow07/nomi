@@ -6,7 +6,7 @@ import type { InboundMessageEvent } from '../../channels/whatsapp/parse.js';
 import { CHAT_KEY, VISITOR, businessName, chatPageBusiness, newVisitor, visitorLines, visitorMark, type ChatLine } from '../../db/webChat.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t } from './say.js';
-import { esc, publicDocument } from './layout.js';
+import { esc, publicFrame, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { parseCookies } from './session.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import * as show from './values.js';
@@ -17,7 +17,12 @@ import { widgetScript } from '../../channels/web_chat/widget.js';
  * its site, a profile or a printed code. A buyer writes there, and the answer appears there.
  *
  *   · Nothing to sign up for and nothing fetched from anywhere: the page arrives complete, works without its script
- *     (a link looks again), and the script only asks this page's own mark every twenty seconds while it is open.
+ *     (a plain form that posts and comes back; a link looks again), and the script only asks this page's own mark
+ *     every twenty seconds while it is open — and this page itself when the mark moved.
+ *   · UI correction Block 8 (F43): with the script, a message is sent without leaving the page. It shows at once as
+ *     "Sending…", then "Sent", or "Not sent." with a Try again that posts the very same form (the same `n`: a message
+ *     that did arrive is never stored twice). A new answer replaces the thread only — what is being typed stays.
+ *     The send is the same POST as the form's, to the same route; no route was added.
  *   · The visitor is a random handle in the page's own cookie (`yf_chat`, this page's path only) — the browser's,
  *     never a name or an address. Clearing it starts a new conversation.
  *   · A message posted here becomes a channel event like a webhook's (`ingest`): stored once (a form sent twice is
@@ -65,21 +70,81 @@ function giveVisitor(reply: FastifyReply, key: string, deps: WebChatDeps): strin
 }
 
 const CSS = `
-  .chat-lines { list-style:none; margin:var(--space-16) 0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .chat-head h1 { margin-bottom:var(--space-8); }
+  .chat-head p { margin:0; }
+  .chat-thread { margin:var(--space-24) 0 var(--space-8); }
+  .chat-empty { padding:var(--space-16); border:1px dashed var(--color-border); border-radius:var(--radius-card); }
+  .chat-lines { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .chat-line { max-width:85%; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border);
-    white-space:pre-wrap; overflow-wrap:anywhere; }
-  .chat-line.mine { align-self:flex-end; background:var(--color-paper); }
-  .chat-who { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .chat-form textarea { width:100%; min-height:6em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); }
-  .chat-form button { margin-top:var(--space-8); min-height:44px; padding:0 var(--space-16); font:inherit; }
-  .chat-foot { margin-top:var(--space-24); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+    white-space:pre-wrap; overflow-wrap:break-word; color:var(--color-ink); }
+  .chat-line.mine { align-self:flex-end; background:var(--color-sand); border-color:transparent; }
+  .chat-who { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:normal; }
+  .chat-state { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:normal; }
+  .chat-line.failed { border-color:var(--color-warn); }
+  .chat-line.failed .chat-state { color:var(--color-warn); }
+  .chat-retry { min-height:44px; padding:0 var(--space-12); font:inherit; font-weight:600; }
+  .chat-again { margin:0 0 var(--space-16); font-size:var(--font-size-small); }
+  .chat-again a { display:inline-flex; align-items:center; min-height:44px; }
+  .chat-form { padding-block:var(--space-12) var(--space-16); border-block-start:1px solid var(--color-border); }
+  .chat-form label { display:block; font-weight:600; margin-bottom:var(--space-4); }
+  .chat-form textarea { width:100%; min-height:4.5em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); resize:vertical; }
+  .chat-send { display:flex; justify-content:flex-end; margin-top:var(--space-8); }
+  .chat-form button { min-height:44px; padding:0 var(--space-24); font:inherit; font-weight:600; }
+  .chat-status { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .chat-foot { margin-top:var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 `;
 
-function script(key: string, mark: string, embed: string | null): string {
-  // Asks only this page's own mark; looks again when it moved, unless something is being typed.
-  return `<script>(function(){var m=${JSON.stringify(mark)},u=${JSON.stringify(`/chat/${key}/mark${embed ? `?v=${embed}` : ''}`)};
-setInterval(function(){if(document.hidden)return;fetch(u,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.text():m}).then(function(n){
-var b=document.querySelector('textarea');if(n!==m&&(!b||!b.value.trim()))location.reload();}).catch(function(){});},${CHAT_EVERY_MS});})();</script>`;
+/** A value placed in the script: JSON, and never able to close the script element. */
+const js = (v: unknown): string => JSON.stringify(v).replace(/</g, '\\u003c');
+
+/**
+ * The page's one script. It asks only this page's own mark, and this page when the mark moved, and swaps the thread
+ * (never the form: a draft stays as it is). A message goes by the form's own POST; while it travels it is shown as
+ * sending, then sent, or not sent with a Try again that posts the same fields again — the same `n`, so a message
+ * that did arrive is stored once. The next message gets a fresh `n` at once. Without the script none of this runs:
+ * the form posts and the page comes back, as it always did. A first message's line shows once its conversation is
+ * made (a moment after the post): until then it stays "Sent", and the page looks again after 2.5 s and 7 s.
+ * The box is not stuck to the screen (a stuck block covers whatever scrolls under it): when the thread changes above
+ * it and the box is on screen, the page scrolls by what the change moved it, so the box stays where the reader has it.
+ */
+function script(l: Locale, key: string, business: string, embed: string | null): string {
+  const say = {
+    you: t(l, 'chat.you'), sending: t(l, 'chat.sending'), sent: t(l, 'chat.sent'), failed: t(l, 'chat.failed'),
+    retry: t(l, 'chat.retry'), fresh: t(l, 'chat.fresh', { business }),
+  };
+  const v = embed ? `?v=${embed}` : '';
+  return `<script>(function(){var S=${js(say)},self=${js(`/chat/${key}${v}`)},u=${js(`/chat/${key}/mark${v}`)},E=${CHAT_EVERY_MS};
+var f=document.querySelector('form.chat-form'),th=document.getElementById('chat-thread'),st=document.getElementById('chat-status');
+if(!f||!th)return;var m=th.getAttribute('data-mark')||'0',busy=false,out=[];
+function say(x){st.textContent='';setTimeout(function(){st.textContent=x;},50);}
+function mine(x){var n=0,ls=th.querySelectorAll('li.chat-line.mine:not(.pending) > div');for(var i=0;i<ls.length;i++)if(ls[i].textContent===x)n++;return n;}
+function theirs(){return th.querySelectorAll('li.chat-line:not(.mine)').length;}
+function list(){var o=th.querySelector('ol.chat-lines');if(!o){th.textContent='';o=document.createElement('ol');o.className='chat-lines';th.appendChild(o);}return o;}
+function fresh(){var a=new Uint8Array(18),c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',s='';crypto.getRandomValues(a);for(var i=0;i<a.length;i++)s+=c[a[i]&63];return s;}
+function near(){return window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-160;}
+function show(p,state,why){hold(function(){p.state=state;p.li.className='chat-line mine pending'+(state==='failed'?' failed':'');var s=p.li.querySelector('.chat-state');s.textContent='';
+var w=document.createElement('span');w.textContent=state==='sending'?S.sending:state==='sent'?S.sent:(why||S.failed);s.appendChild(w);
+if(state==='failed'){var b=document.createElement('button');b.type='button';b.className='chat-retry';b.textContent=S.retry;b.addEventListener('click',function(){f.querySelector('textarea').focus({preventScroll:true});go(p);});s.appendChild(b);}});}
+function swap(doc){var nt=doc&&doc.getElementById('chat-thread');if(!nt)return false;var before=theirs(),low=near();
+var kept=hold(function(){th.innerHTML=nt.innerHTML;m=nt.getAttribute('data-mark')||m;th.setAttribute('data-mark',m);
+out=out.filter(function(p){return !(p.state==='sent'&&mine(p.text)>p.had);});
+for(var i=0;i<out.length;i++)list().appendChild(out[i].li);});
+if(theirs()>before)say(S.fresh);var last=th.querySelector('li.chat-line:last-child');if(!kept&&low&&last)last.scrollIntoView({block:'nearest'});return true;}
+function hold(fn){var ta=f.querySelector('textarea'),y=ta.getBoundingClientRect().top,seen=y<window.innerHeight&&y+ta.offsetHeight>0;fn();
+if(seen){var d=ta.getBoundingClientRect().top-y;if(d)window.scrollBy(0,d);}return seen;}
+function page(r){return r.text().then(function(h){return new DOMParser().parseFromString(h,'text/html');});}
+function look(){if(busy)return;busy=true;fetch(self,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?page(r):null;}).then(function(d){busy=false;if(d)swap(d);}).catch(function(){busy=false;});}
+function go(p){show(p,'sending');say(S.sending);
+fetch(f.action,{method:'POST',body:p.body,credentials:'same-origin',cache:'no-store'}).then(function(r){
+if(r.ok)return page(r).then(function(d){show(p,'sent');say(S.sent);swap(d);if(out.indexOf(p)>=0){setTimeout(look,2500);setTimeout(look,7000);}});
+if(r.status===422)return page(r).then(function(d){var a=d.querySelector('p[role=alert]');show(p,'failed',a?a.textContent:'');say(a?a.textContent:S.failed);});
+show(p,'failed');say(S.failed);}).catch(function(){show(p,'failed');say(S.failed);});}
+f.addEventListener('submit',function(e){var ta=f.querySelector('textarea'),x=ta.value.trim();if(!x||!window.fetch||!window.DOMParser||!window.crypto)return;e.preventDefault();
+var body=new URLSearchParams(new FormData(f)),li=document.createElement('li'),who=document.createElement('span'),d=document.createElement('div'),s=document.createElement('span');
+who.className='chat-who';who.textContent=S.you;d.dir='auto';d.textContent=x;s.className='chat-state';li.appendChild(who);li.appendChild(d);li.appendChild(s);
+var p={li:li,body:body,text:x,had:mine(x),state:''};out.push(p);hold(function(){list().appendChild(li);show(p,'sending');});ta.value='';f.querySelector('input[name=n]').value=fresh();
+go(p);});
+setInterval(function(){if(document.hidden)return;fetch(u,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.text():m}).then(function(n){if(n!==m)look();}).catch(function(){});},E);})();</script>`;
 }
 
 export function renderChatPage(o: {
@@ -93,20 +158,22 @@ export function renderChatPage(o: {
   const self = `/chat/${esc(o.key)}${embed ? `?v=${esc(embed)}` : ''}`;
   const line = (x: ChatLine, i: number) => `<li class="chat-line${x.mine ? ' mine' : ''}"${i === o.lines.length - 1 ? ' id="latest"' : ''}><span class="chat-who">${esc(x.mine ? t(l, 'chat.you') : o.business)} · ${esc(show.when(l, x.at, o.now))}</span><div dir="auto">${esc(x.text)}</div></li>`;
   const notice = o.notice ? `<p role="alert">${esc(t(l, o.notice === 'off' ? 'chat.off' : 'chat.tooLong'))}</p>` : '';
-  const body = `<h1>${esc(t(l, 'chat.title', { business: o.business }))}</h1>
-    <p>${esc(t(l, 'chat.lede', { business: o.business }))}</p>
-    ${o.lines.length ? `<ol class="chat-lines">${o.lines.map(line).join('')}</ol>` : `<p>${esc(t(l, 'chat.empty'))}</p>`}
-    <p><a href="${self}#latest">${esc(t(l, 'chat.refresh'))}</a></p>
-    ${notice}
+  // The business's page: it opens on the business's name (whose page, and what it is), not on Nomi's top line —
+  // the conversation is the business's, and inside the business's own site the frame is theirs already.
+  const body = `<header class="chat-head"><h1>${esc(t(l, 'chat.title', { business: o.business }))}</h1>
+    <p>${esc(t(l, 'chat.lede', { business: o.business }))}</p></header>
+    <div class="chat-thread" id="chat-thread" data-mark="${esc(o.mark)}">${o.lines.length ? `<ol class="chat-lines">${o.lines.map(line).join('')}</ol>` : `<p class="chat-empty">${esc(t(l, 'chat.empty'))}</p>`}</div>
+    <p class="chat-again"><a href="${self}#latest">${esc(t(l, 'chat.refresh'))}</a></p>
+    <p class="chat-status" id="chat-status" role="status" aria-live="polite"></p>
     <form class="chat-form" method="post" action="/chat/${esc(o.key)}">
-      <input type="hidden" name="n" value="${esc(nonce())}" />${embed ? `\n      <input type="hidden" name="v" value="${esc(embed)}" />` : ''}
+      ${notice}<input type="hidden" name="n" value="${esc(nonce())}" />${embed ? `\n      <input type="hidden" name="v" value="${esc(embed)}" />` : ''}
       <label for="chat-text">${esc(t(l, 'chat.label'))}</label>
       <textarea id="chat-text" name="text" required maxlength="${MAX}" dir="auto"></textarea>
-      <button type="submit">${esc(t(l, 'chat.send'))}</button>
+      <div class="chat-send"><button type="submit">${esc(t(l, 'chat.send'))}</button></div>
     </form>
     <p class="chat-foot">${esc(t(l, 'chat.kept', { business: o.business }))} <a href="/privacy"${embed ? ' target="_blank" rel="noopener"' : ''}>${esc(t(l, 'chat.privacy'))}</a></p>
-    ${script(o.key, o.mark, embed)}`;
-  return publicDocument({ locale: l, title: t(l, 'chat.title', { business: o.business }), body, noindex: true, extraCss: CSS });
+    ${script(l, o.key, o.business, embed)}`;
+  return publicFrame({ locale: l, title: t(l, 'chat.title', { business: o.business }), body, noindex: true, extraCss: CSS });
 }
 
 export function mountWebChat(app: FastifyInstance, deps: WebChatDeps): void {
@@ -117,7 +184,10 @@ export function mountWebChat(app: FastifyInstance, deps: WebChatDeps): void {
     const bid = await chatPageBusiness(deps.db, key);
     const send = (status: number, html: string) => reply.code(status).type('text/html; charset=utf-8')
       .header('cache-control', 'no-store').header('referrer-policy', 'no-referrer').header('x-robots-tag', 'noindex, nofollow').send(html);
-    if (!bid) return send(404, publicDocument({ locale, title: t(locale, 'chat.gone'), body: `<h1>${esc(t(locale, 'chat.gone'))}</h1>`, noindex: true }));
+    // Block 8 (F42) — a chat link that does not work says what may have happened and how to reach the business anyway;
+    // like every other 404 here, it names no business (it would say that the page had existed).
+    if (!bid) return send(404, publicFrame({ locale, title: t(locale, 'chat.gone'), noindex: true, extraCss: PUBLIC_TOP_CSS,
+      body: `${publicTop(locale, '/site', null)}<h1>${esc(t(locale, 'chat.gone'))}</h1><p>${esc(t(locale, 'chat.goneNext'))}</p>` }));
     const embed = embeddedOf(req);
     const visitor = visitorOf(req) ?? giveVisitor(reply, key, deps);
     const { business, lines, mark } = await withTenantTx(deps.db, bid, async (tx) => ({
