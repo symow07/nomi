@@ -331,7 +331,7 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
  */
 export function factRow(i: KItem, locale: Locale, from = ''): string {
   const cell = (k: MessageKey, v: string, cls = '') => `<span class="ak-cell${cls}"><span class="ak-k">${esc(t(locale, k))}</span> <span class="ak-v">${v}</span></span>`;
-  return `<li class="ak-row ak-fact" id="fact-${esc(i.id)}"><div class="ak-main"><b class="ak-name"><bdi>${esc(i.label)}</bdi></b><p class="kc">${esc(i.content)}</p></div>${
+  return `<li class="ak-row ak-fact" id="fact-${esc(i.id)}"><div class="ak-main"><b class="ak-name"><bdi>${esc(i.label)}</bdi></b><p class="kc">${esc(show.isolateFigures(locale, i.content))}</p></div>${
     cell('knowledgeList.type', esc(kindLabel(locale, i.kind)))}${cell('knowledgeList.source', esc(sourceLabel(locale, i.source)))}${
     cell('knowledgeList.status', esc(t(locale, 'knowledgeList.inUse')), ' ak-state')}${changeFact(i, locale, null, from)}</li>`;
 }

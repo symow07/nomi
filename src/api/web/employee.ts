@@ -370,7 +370,7 @@ function countLine(locale: Locale, base: string, n: number): string {
   const said = esc(tn(locale, base, n));
   const figure = esc(new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(n));
   const at = said.indexOf(figure);
-  const html = at < 0 ? said : `${said.slice(0, at)}<b class="hnum">${figure}</b>${said.slice(at + figure.length)}`;
+  const html = at < 0 ? said : `${said.slice(0, at)}<b class="hnum">${esc(show.count(locale, n))}</b>${said.slice(at + figure.length)}`;
   return `<div class="hrow"><span class="hlabel">${html}</span></div>`;
 }
 

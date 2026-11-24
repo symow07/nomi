@@ -886,7 +886,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
   /* The identity system (2026-10-04) — a door is the brand: its words, its chevron, its underline. */
-  .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
+  .deeper { display:flex; width:fit-content; align-items:center; justify-content:center; gap:var(--space-4); min-height:44px; min-inline-size:44px;
     padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
@@ -1736,6 +1736,7 @@ const STYLE_PAGES = `
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .fsteps li { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
+  .fsteps .blink { display:inline-flex; align-items:center; min-block-size:44px; min-inline-size:44px; }
   .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }

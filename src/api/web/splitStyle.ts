@@ -350,7 +350,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
    or Today's gutter where the page is drawn wide — at every width. */
 .area-links { display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-24); box-sizing:border-box; max-inline-size:var(--measure-column); margin-inline:auto; padding-inline:var(--space-32); }
 .content:has(> main.wide) > .area-nav .area-links { max-inline-size:none; margin-inline:0; padding-inline:${GUT}; }
-.area-nav a { display:flex; align-items:center; min-block-size:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
+.area-nav a { display:flex; align-items:center; justify-content:center; min-block-size:44px; min-inline-size:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); border-block-end:2px solid transparent; }
 .area-nav a[aria-current] { color:var(--color-accent); font-weight:600; border-block-end-color:var(--color-accent); }
 .area-chooser { display:none; }
 .sp-priority { padding:0 ${GUT} 32px; }

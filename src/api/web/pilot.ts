@@ -630,7 +630,7 @@ export function renderPilotReadiness(
 // sections. ✓ / ○ and real counts only — no scores, percentages, or grades.
 
 function rbCount(label: MessageKey, n: number, href: string | null, locale: Locale): string {
-  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${n}</b>${href ? deeper(href, t(locale, 'pilot.open'), 'rbgo') : ''}</div>`;
+  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${esc(show.count(locale, n))}</b>${href ? deeper(href, t(locale, 'pilot.open'), 'rbgo') : ''}</div>`;
 }
 
 function duringSection(ops: OperationsSnapshot, locale: Locale): string {
@@ -707,7 +707,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
         <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div></div>`;
   }
   const row = (label: string, item: FeedbackItem) =>
-    `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>
+    `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${esc(show.count(locale, item.count))}</b>
       ${item.lastAt ? `<span class="muted rbwhen">${esc(show.date(locale, item.lastAt))}</span>` : ''}</div>`;
   const reasons = f.handoffReasons.length
     ? `<h3 class="rbsub">${esc(t(locale, 'feedback.reasons'))}</h3>` +
@@ -811,7 +811,7 @@ function healthSection(r: Reliability, locale: Locale): string {
       ${r.sent === 0 ? `<p class="muted">${esc(t(locale, 'ops.health.none'))}</p>` : `<div class="ok">${shape('ok')} ${esc(t(locale, 'ops.health.ok'))}</div>`}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
-    <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${r.stuckOutbound}</b>
+    <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${esc(show.count(locale, r.stuckOutbound))}</b>
       ${deeper('/app/channels', t(locale, 'pilot.open'), 'rbgo')}</div>
     ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(show.date(locale, r.oldestQueuedAt))}</b></div>` : ''}
     <p class="muted">${esc(t(locale, 'ops.health.whatToDo'))}</p>

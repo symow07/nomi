@@ -14,6 +14,7 @@ import type { AssistantPage } from '../../src/db/assistantKnowledge.js';
 import { esc } from '../../src/api/web/layout.js';
 import { withAssistantName } from '../../src/api/web/say.js';
 import { withoutIsolates } from './isolates.js';
+import { factRow, type KItem } from '../../src/api/web/knowledge.js';
 
 const area = readFileSync(new URL('../../src/api/web/assistantAreaStyle.ts', import.meta.url), 'utf8');
 const split = readFileSync(new URL('../../src/api/web/splitStyle.ts', import.meta.url), 'utf8');
@@ -103,5 +104,38 @@ describe('UI Block 6 — the skip link is a 44 px target', () => {
     const layout = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
     const rule = layout.slice(layout.indexOf('.skip {'), layout.indexOf('.skip:focus'));
     expect(rule).toContain('min-height:44px; display:inline-flex; align-items:center;');
+  });
+});
+
+// UI Block 6 — the guard's 44 px and rule 38 findings on Block 6 pages (signed-in guard, all present at 117d3160).
+describe('UI Block 6 — targets 44 px both ways, and figures isolated, on the assistant pages', () => {
+  const src = (f: string) => readFileSync(new URL(`../../src/api/web/${f}`, import.meta.url), 'utf8');
+  it('one-word links and checkbox rows keep 44 px of width and height', () => {
+    const layout = src('layout.ts');
+    const deeper = layout.slice(layout.indexOf('  .deeper { display:flex;'), layout.indexOf('}', layout.indexOf('  .deeper { display:flex;')));
+    expect(deeper).toContain('min-height:44px;');
+    expect(deeper).toContain('min-inline-size:44px;');
+    expect(layout).toContain('.fsteps .blink { display:inline-flex; align-items:center; min-block-size:44px; min-inline-size:44px; }');
+    expect(split).toContain('.area-nav a { display:flex; align-items:center; justify-content:center; min-block-size:44px; min-inline-size:44px;');
+    expect(src('followUpStyle.ts')).toContain('.follow-up-settings .follow-up-check{display:flex;gap:var(--space-8);align-items:center;min-block-size:44px}');
+    expect(area).toContain('.aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}');
+    expect(src('assistantOverview.ts')).toContain('<a class="aa-go" href="/app/results?view=assistant">');
+    expect(src('assistantKnowledge.ts')).toContain('<a class="aa-go" href="/app/assistant/knowledge?view=facts&amp;open=teach#teach">');
+  });
+  it('a saved fact\'s figures are isolated on a right-to-left page, and left as they are elsewhere', () => {
+    const fact: KItem = { id: 'f1', kind: 'faq', label: 'Delivery', content: 'We deliver in 5 to 8 days, free over 40.', source: 'owner_confirmed' };
+    expect(factRow(fact, 'ar')).toContain('\u20685\u2069 to \u20688\u2069 days, free over \u206840\u2069.');
+    expect(factRow(fact, 'en')).toContain('We deliver in 5 to 8 days, free over 40.');
+    expect(withoutIsolates(factRow(fact, 'ar'))).toContain('We deliver in 5 to 8 days, free over 40.');
+  });
+  it('the counts on Results (her counts, the runbook\'s rows, delivery health) go through show.count', () => {
+    const employee = src('employee.ts');
+    expect(employee).toContain('<b class="hnum">${esc(show.count(locale, n))}</b>');
+    expect(employee).not.toContain('<b class="hnum">${figure}</b>');
+    const pilot = src('pilot.ts');
+    for (const v of ['n', 'item.count', 'r.stuckOutbound']) {
+      expect(pilot).toContain(`<b class="n">\${esc(show.count(locale, ${v}))}</b>`);
+      expect(pilot).not.toContain(`<b class="n">\${${v}}</b>`);
+    }
   });
 });

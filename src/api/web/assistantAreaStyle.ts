@@ -1,5 +1,6 @@
 export const ASSISTANT_AREA_CSS=String.raw`
 main:has(.assistant-area){max-width:var(--measure-column);}
+.aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}
 .assistant-area{display:grid;grid-template-columns:11rem minmax(0,1fr);gap:var(--space-32);font-size:var(--font-size-base);}
 .aa-nav{display:flex;flex-direction:column;align-self:start;position:sticky;top:var(--space-24);}
 .aa-nav a{display:flex;align-items:center;min-height:44px;padding:var(--space-12);color:var(--color-ink);text-decoration:none;border-inline-start:2px solid transparent;}
