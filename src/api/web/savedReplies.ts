@@ -4,6 +4,7 @@ import { SAVED_REPLY_LANGUAGES, SAVED_REPLY_TEXT_MAX, SAVED_REPLY_TITLE_MAX, sav
 import type { SavedReply } from '../../db/savedReplies.js';
 import { t } from './say.js';
 import { esc, back, deeper } from './layout.js';
+import { filterBar } from './filterBar.js';
 import { GO } from './icons.js';
 
 /** Saved replies retain their existing POST contracts. These pages prepare words; insertion and Send stay in the conversation. */
@@ -45,7 +46,7 @@ export function renderSavedReplies(locale: Locale, rows: readonly SavedReply[], 
   return `<div class="saved-replies-page">${back('/app/inbox', t(locale, 'nav.inbox'))}
     <header class="saved-replies-header"><h1 class="page">${esc(t(locale, 'savedReplies.title'))}</h1><span id="new-reply">${deeper('/app/inbox/replies?new=1', t(locale, 'savedReplies.add'))}</span></header>
     <p class="saved-replies-intro">${esc(t(locale, 'savedReplies.lede'))}</p>
-    <form method="get" action="/app/inbox/replies" class="saved-search"><label>${esc(t(locale, 'savedReplies.search'))}<input type="search" name="q" value="${esc(query)}" maxlength="200"></label><button class="btn" type="submit">${esc(t(locale, 'savedReplies.search'))}</button>${query ? `<a href="/app/inbox/replies">${esc(t(locale, 'savedReplies.clearSearch'))}</a>` : ''}</form>
+    ${filterBar({ locale, action: '/app/inbox/replies', cls: 'saved-search', name: t(locale, 'savedReplies.search'), search: { label: t(locale, 'savedReplies.search'), control: `<input type="search" name="q" value="${esc(query)}" maxlength="200">` }, submit: t(locale, 'savedReplies.search'), clear: query ? { href: '/app/inbox/replies', label: t(locale, 'savedReplies.clearSearch') } : null })}
     <section aria-labelledby="saved-in-use"><h2 id="saved-in-use">${esc(t(locale, 'area2.saved.inUse'))}</h2>
       ${inUse.length === 0 ? `<p class="muted">${esc(t(locale, query ? 'savedReplies.noMatch' : 'savedReplies.none'))}</p>` : `<ul class="saved-reply-rows">${inUse.map(row).join('')}</ul>`}</section>
     ${archived.length === 0 ? '' : `<details class="saved-archive"${query ? ' open' : ''}><summary>${esc(t(locale, 'savedReplies.archivedTitle'))}</summary><ul class="saved-reply-rows">${archived.map(row).join('')}</ul></details>`}

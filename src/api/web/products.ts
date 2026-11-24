@@ -29,6 +29,7 @@ import { scriptNeeds } from '../../db/setup.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
+import { filterBar } from './filterBar.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -628,7 +629,7 @@ export function renderProductList(
   if (page?.q) query.set('q', page.q);
   if (page && page.page > 1) query.set('page', String(page.page));
   const source = productReturnHref(opts.returnHref ?? ('/app/products' + (query.size ? `?${query}` : ''))).split('#')[0]!;
-  const search = page ? `<form method="get" action="/app/products" class="pa-search"><label>${esc(t(locale, 'products.search'))}<input type="search" name="q" value="${esc(page.q)}" placeholder="${esc(t(locale, 'products.searchHint'))}"></label><button class="btn" type="submit">${esc(t(locale, 'products.show'))}</button>${page.q ? `<a href="/app/products">${esc(t(locale, 'products.clear'))}</a>` : ''}</form>` : '';
+  const search = page ? `${filterBar({ locale, action: '/app/products', cls: 'pa-search', name: t(locale, 'products.search'), search: { label: t(locale, 'products.search'), control: `<input type="search" name="q" value="${esc(page.q)}" placeholder="${esc(t(locale, 'products.searchHint'))}">` }, submit: t(locale, 'products.show'), clear: page.q ? { href: '/app/products', label: t(locale, 'products.clear') } : null })}` : '';
   const byQuantity = sellsByQuantity(kind);
   const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;

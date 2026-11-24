@@ -135,7 +135,9 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // UI Block 7's F34 fix round (2026-11-24): Copy on Channels moves out of an inline handler (where `URL` was
     // document.URL and Copy did nothing) into this script, with its fallback — 1,001 characters, 59,767 measured;
     // 58,800 became 59,800, deliberately.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(59_800);
+    // UI Block 9 (F07): the shared filter bar's other filters fold behind "Filters" on a phone unless one is on, and
+    // open again on a desk (filters(), 527 characters) — 60,294 measured; 59,800 became 60,400, deliberately.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(60_400);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

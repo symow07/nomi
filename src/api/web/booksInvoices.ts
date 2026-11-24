@@ -1,5 +1,6 @@
 import {booksDay} from './booksOverview.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
+import { filterBar } from './filterBar.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { addDecimal, compareDecimal, mulDecimal, parseDecimal, signOf, subDecimal, type Decimal } from '../../core/types/decimal.js';
@@ -133,7 +134,7 @@ export function renderInvoices(locale: Locale, viewer: Who, rows: readonly Invoi
   const query = new URLSearchParams(); if(opts.q) query.set('q',opts.q); if(opts.state) query.set('state',opts.state);
   const source = invoiceReturnHref(opts.returnHref ?? '/app/books/invoices' + (query.size ? '?' + query : '')).split('#')[0]!;
   const page = opts.page;
-  const filters = page || opts.q || opts.state ? `<form method="get" action="/app/books/invoices" class="bd-filters"><label>${esc(t(locale,'booksDocs.search'))}<input type="search" name="q" value="${esc(opts.q ?? '')}" placeholder="${esc(t(locale,'booksDocs.searchHint'))}"></label><label>${esc(t(locale,'booksDocs.state'))}<select name="state">${INVOICE_FILTERS.map(state=>`<option value="${state}"${state===(opts.state??'all')?' selected':''}>${esc(invoiceStateLabel(locale,state))}</option>`).join('')}</select></label><button class="btn" type="submit">${esc(t(locale,'booksDocs.show'))}</button>${opts.q || opts.state && opts.state !== 'all' ? `<a href="/app/books/invoices">${esc(t(locale,'booksDocs.clear'))}</a>` : ''}</form>` : '';
+  const filters = page || opts.q || opts.state ? filterBar({locale,action:'/app/books/invoices',cls:'bd-filters',name:t(locale,'booksDocs.search'),search:{label:t(locale,'booksDocs.search'),control:`<input type="search" name="q" value="${esc(opts.q ?? '')}" placeholder="${esc(t(locale,'booksDocs.searchHint'))}">`},fields:[{label:t(locale,'booksDocs.state'),control:`<select name="state">${INVOICE_FILTERS.map(state=>`<option value="${state}"${state===(opts.state??'all')?' selected':''}>${esc(invoiceStateLabel(locale,state))}</option>`).join('')}</select>`}],submit:t(locale,'booksDocs.show'),clear:opts.q || opts.state && opts.state !== 'all' ? {href:'/app/books/invoices',label:t(locale,'booksDocs.clear')} : null,active:opts.state && opts.state !== 'all' ? 1 : 0}) : '';
   const pager = page ? `<nav class="bd-pager" aria-label="${esc(t(locale,'booksDocs.pages'))}">${page.prev?`<a href="${esc(invoiceReturnHref(page.prev))}">${esc(t(locale,'booksDocs.previous'))}</a>`:'<span></span>'}<span>${esc(t(locale,'booksDocs.range',{from:show.count(locale,page.from),to:show.count(locale,page.to),total:show.count(locale,page.total)}))}</span>${page.next?`<a href="${esc(invoiceReturnHref(page.next))}">${esc(t(locale,'booksDocs.next'))}</a>`:'<span></span>'}</nav>` : '';
   return `<section class="books-invoices"><h1 class="page">${esc(t(locale, 'books.invoices.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.invoices.lede'))}</p>
@@ -388,10 +389,10 @@ export function renderBank(locale: Locale, viewer: Who, c: {
   // Block 1 #2 — bank and cash accounts only (`paymentAccounts`), none chosen for her; a chart with none says what to do.
   const choose = c.accounts.length === 0
     ? `<p>${esc(t(locale, 'books.invoice.noBank'))}</p><p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.title'))}</a></p>`
-    : `<form method="get" action="/app/books/bank" class="pform bb-account">
-      <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account" required><option value=""${c.accountId ? '' : ' selected'}>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${c.accounts.map((a) =>
-        `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select></label>
-      <button class="btn" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
+    : filterBar({ locale, action: '/app/books/bank', cls: 'bb-account', name: t(locale, 'books.bank.account'),
+      search: { label: t(locale, 'books.bank.account'), control: `<select name="account" required><option value=""${c.accountId ? '' : ' selected'}>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${c.accounts.map((a) =>
+        `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select>` },
+      submit: t(locale, 'books.bank.show') });
   const head=`<section class="books-bank"><h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1><p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>${choose}`;
   if (!c.accountId) return `${head}</section>`;
   const selected=c.accounts.find(a=>a.id===c.accountId);

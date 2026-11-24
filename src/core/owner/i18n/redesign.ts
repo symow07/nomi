@@ -23,6 +23,7 @@ import { WA_CATALOGUE_EN } from './waCatalogue.js';
 import { SHOPIFY_ORDERS_EN } from './shopifyOrders.js';
 import { AD_SPEND_EN } from './adSpend.js';
 import { HELP_EN } from './help.js';
+import { UI_FINISH_EN } from './uiFinish.js';
 
 /**
  * The approved redesign is English-only. New words still pass through t(),
@@ -55,6 +56,7 @@ export const REDESIGN_EN = {
   ...SHOPIFY_ORDERS_EN,
   ...AD_SPEND_EN,
   ...HELP_EN,
+  ...UI_FINISH_EN,
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
   'nav.more': 'More',

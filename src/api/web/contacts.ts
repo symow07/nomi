@@ -20,6 +20,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 
 import { back, deeper, esc } from './layout.js';
+import { filterBar } from './filterBar.js';
 import { face, faceLink } from './faces.js';
 import { faceVersions } from '../../db/faces.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -358,11 +359,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       ${page < pages ? deeper(href(page + 1), t(locale, 'buyers.page.next')) : ''}
     </nav>` : '';
 
-  const search = v.contacts.length === 0 ? '' : `<form class="search" method="get" action="/app/customers/outreach" role="search">
-      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'contacts.search.placeholder'))}" aria-label="${esc(t(locale, 'contacts.search.label'))}" />
-      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-      ${q ? `<a class="clear" href="/app/customers/outreach">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
-    </form>`;
+  const search = v.contacts.length === 0 ? '' : filterBar({ locale, action: '/app/customers/outreach', cls: 'search', name: t(locale, 'contacts.search.label'),
+      search: { label: t(locale, 'contacts.search.label'), control: `<input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'contacts.search.placeholder'))}" />` },
+      submit: t(locale, 'buyers.search.go'), clear: q ? { href: '/app/customers/outreach', label: t(locale, 'buyers.search.clear') } : null });
 
   const list = v.contacts.length === 0
     ? `<div class="empty">${esc(t(locale, 'contacts.empty'))}</div>`

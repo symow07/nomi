@@ -529,6 +529,15 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* F07: a filter bar's other filters (details[data-fbar]) fold behind "Filters" on a phone unless one is on. */
+  function filters() {
+    var all = doc.querySelectorAll('details[data-fbar]'), mq = all.length && window.matchMedia ? window.matchMedia('(max-width:720px)') : 0;
+    function set() { for (var i = 0; i < all.length; i++) all[i].open = !mq.matches || all[i].getAttribute('data-fbar-on') !== '0'; }
+    if (!mq) return;
+    set();
+    if (mq.addEventListener) mq.addEventListener('change', set);
+  }
+
   /* F21: a select marked data-echo has its choice written out under it when the words are wider than its box. */
   function echoes() {
     var all = doc.querySelectorAll('select[data-echo]'), pen;
@@ -1085,6 +1094,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   totals();
   echoes();
   copying();
+  filters();
   orbs();
   cards();
   faces();
