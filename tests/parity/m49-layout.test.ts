@@ -316,6 +316,9 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  nav.side a.navlink.sub', 'the same tab bar: Inbox and Calendar are two of its five cells'],
       // Block 2 fix 1, defect 3: complete phone labels may wrap; each remains centred under its tab icon.
       ['splitStyle.ts  .owner-shell nav.side .nl-text', 'a wrapped phone-tab label, not a centred content card'],
+      // The navigation block (2026-11-25) — the desktop rail is narrow: each area an icon over its word, in a cell.
+      ['sectionsStyle.ts  .owner-shell nav.side :is(a,button).navlink', 'the narrow desktop rail: an icon over its word, in a cell'],
+      ['sectionsStyle.ts  .owner-shell nav.side .nl-text', 'the narrow rail\'s word under its icon, when it takes two lines'],
       // Block 8 (F42): the large seal over the card became a quiet top line; the card's title stays centred.
       ['layout.ts  .login h1', 'approved centred access form, its title centred in the card'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],

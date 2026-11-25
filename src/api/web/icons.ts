@@ -91,7 +91,9 @@ export type RailIcon = 'home-2' | 'inbox' | 'calendar' | 'settings' | 'users-gro
   // A6 — the books' mode: its entry, the switch between the two, and the accountant's way out.
   | 'notebook-minimalistic' | 'transfer-horizontal' | 'logout'
   // B18 — the accountant's own sign-in, on their rail (Setup's sign-in row draws the same).
-  | 'key' | 'box' | 'list';
+  | 'key' | 'box' | 'list'
+  // The navigation block — Reports and Ask Nomi, each its own area on the rail.
+  | 'chart-2' | 'chat-round-dots';
 export const railIcon = (name: RailIcon): string => solarSvg('ni', name, 28);
 
 /*

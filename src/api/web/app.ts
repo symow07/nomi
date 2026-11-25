@@ -1086,7 +1086,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const who = personOf(s);
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
     const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null; readonly exportTrade?: boolean }) => {
-      const f = { ...f0, viewerRole };
+      const f = { ...f0, viewerRole, ads: adsReady() !== null };
       // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
       if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.

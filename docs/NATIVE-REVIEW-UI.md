@@ -17117,3 +17117,18 @@ states, all written by Claude and not yet read by a native speaker (`src/core/ow
   - Arabic uses verbal nouns and «يمكن تجربة…», never an imperative («الاستعداد لأول عميل»); French
     `state.customers.next` is an infinitive (« Se préparer pour le premier client »); Spanish uses tú («Prepárate»).
   - Each line says "customer" (客户, عميل, cliente, client), never "buyer"; none has a pronoun for a person.
+
+## Navigation
+
+**The navigation block (2026-11-25):** the rail's new area and the section sidebar's group names, written by Claude in
+zh / ar / es / fr and not yet read by a native speaker (`src/core/owner/i18n/navigation.ts`):
+- The area: `nav.reports` (报告, التقارير, Informes, Rapports).
+- The sidebar's own name for a screen reader, `side.label` (本栏内容, محتوى هذا القسم, En esta sección, Dans cette rubrique).
+- Group headings: `side.teach / .test / .goLive / .watch` (the assistant), `side.catalogue / .sell` (products),
+  `side.setup` (books), `side.views / .tools` (inbox), `side.workspace / .teamBilling / .you` (settings),
+  `side.reportsBooks` (the books' reports inside Reports). To read first: each is a short heading, no verb where the
+  language allows; `side.goLive` (上线, بدء العمل, Empezar a atender, Mise en service) must read as "start answering
+  customers", not as publishing a site. `side.reportsBooks` matches the rail's Books word in each language.
+- Items: `side.channelsAll`, `side.ch.*`, `side.booksReports`, `side.import`.
+- The line on Settings, `side.settingsMoved`, says where the assistant's and the books' settings went; it uses no
+  pronoun for the assistant.

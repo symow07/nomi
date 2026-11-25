@@ -275,9 +275,9 @@ describe('M38 · her page', () => {
       "app.post('/app/contacts/:id/archive'",
     ]) expect(app, r).toContain(r);
     // A — the door hangs off the list of everyone who wrote, which is Buyers
-    // since Customers merged into it.
-    const buyers = await readFile(new URL('../../src/api/web/splitInbox.ts', import.meta.url), 'utf8');
-    expect(buyers).toContain("deeper('/app/customers/outreach'");
+    // since Customers merged into it. The navigation block (2026-11-25): it is Customers' sidebar item now.
+    const sections = await readFile(new URL('../../src/api/web/sections.ts', import.meta.url), 'utf8');
+    expect(sections).toContain("{ label: 'customers.followups', href: '/app/customers/outreach'");
     expect(app).toContain("['/app/contacts', '/app/customers/outreach']");
     expect(app).toContain("['/app/contacts/suppress', '/app/customers/outreach/suppress']");
   });

@@ -167,22 +167,19 @@ describe('Phase 9 · the shell', () => {
     // THE WARMTH RUN — Setup is a row of Settings (phase 1); phase 7: How you
     // sell's pages lead back to its menu, the products and the channels to the
     // rows of My business that open them.
+    // The navigation block (2026-11-25): a page that is its area's own entry draws no way back — the section sidebar
+    // is the way — so only a page listed nowhere itself keeps one.
     const cases: [string, string, MessageKey][] = [
-      ...['hours','currency','samples','terms'].map(s=>['/app/settings/business/'+s,'/app/settings/business','settingsArea.business'] as [string,string,MessageKey]),
-      ['/app/settings/assistant/words','/app/settings/assistant','nav.employee'],
-      ['/app/settings/assistant','/app/settings','nav.settings'],
-      ['/app/settings/team','/app/settings','nav.settings'],
-      ['/app/settings/business','/app/settings','nav.settings'],
       ['/app/settings/channels/technical','/app/settings/channels','settingsArea.channels'],
-      ['/app/knowledge','/app/assistant','nav.assistant'],
-      ['/app/replies','/app/inbox','nav.inbox'],
-      ['/app/labels','/app/customers','nav.customers'],
-      ['/app/surveys','/app/customers','nav.customers'],
-      ['/app/guide','/app','nav.home'], ['/app/onboarding','/app','nav.home'],
-      ['/app/ready','/app/assistant/practice','assistantArea.practice'],
       ['/app/onboarding/practice','/app/assistant/practice','assistantArea.practice'],
-      ['/app/onboarding/activity','/app/results','nav.home'],
+      ['/app/onboarding/activity','/app/results','nav.reports'],
     ];
+    const entries = ['/app/settings/business/hours','/app/settings/assistant/words','/app/settings/assistant','/app/settings/team','/app/settings/business','/app/knowledge','/app/replies','/app/labels','/app/surveys','/app/guide'];
+    for (const path of entries) {
+      const h = page('en', path, '<h1 class="page">x</h1>');
+      expect(h.slice(h.indexOf('<main'), h.indexOf('</main>')), path).not.toContain('class="back"');
+      expect(h, path).toMatch(/<aside class="sect"[\s\S]*aria-current="page"[\s\S]*<\/aside>/);
+    }
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
       const m = main(page(l, path, '<h1 class="page">x</h1>'));

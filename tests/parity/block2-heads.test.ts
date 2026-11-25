@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { shell } from '../../src/api/web/layout.js';
 import { SPLIT_CSS } from '../../src/api/web/splitStyle.js';
 import { ASSISTANT_AREA_CSS } from '../../src/api/web/assistantAreaStyle.js';
-import { assistantArea } from '../../src/api/web/assistantArea.js';
+import { t } from '../../src/api/web/say.js';
 import { INBOX_LIST_CSS } from '../../src/api/web/inboxListStyle.js';
 
 const page = (bodyHtml: string, path = '/app', locale: 'en' | 'ar' = 'en') =>
@@ -54,12 +54,15 @@ describe('F04 · the shell\'s heads', () => {
     expect(SPLIT_CSS).toMatch(/\.content:has\(> main\.wide\) > \.area-nav \.area-links \{ max-inline-size:none; margin-inline:0; padding-inline:max\(var\(--space-24\), calc\(\(100% - 1240px\) \/ 2\)\); \}/);
   });
 
-  it('Ask Nomi and the assistant\'s other pages: the same rule in the assistant area, at its own phone width', () => {
-    expect(assistantArea('<h1>Ask Nomi</h1>', 'en', '/app/assistant/ask')).toContain('<details class="area-chooser aa-chooser" data-titled>');
-    expect(assistantArea('<h1>Something else</h1>', 'en', '/app/assistant/ask')).toContain('<details class="area-chooser aa-chooser"><summary>');
-    const phone = media(ASSISTANT_AREA_CSS, '(max-width:600px)');
-    expect(phone).toContain('.assistant-area:has(> .aa-chooser[data-titled]) > .aa-content h1{position:absolute;');
-    expect(ASSISTANT_AREA_CSS.replace(phone, '')).not.toContain('data-titled');
+  it('the assistant\'s pages: the one chooser of the navigation block keeps the rule, in every area', () => {
+    // The navigation block (2026-11-25): each area's own chooser (aa-, ba-, ca-, pa-, sa-) gave way to the one the
+    // shell draws from the section map, so the rule is the shell's, at the shell's phone width.
+    const practice = t('en', 'assistantArea.practice');
+    const at = (h1: string) => shell({ title: 'T', active: 'assistant', locale: 'en', path: '/app/assistant/practice', bodyHtml: `<h1>${h1}</h1>` });
+    expect(at(practice)).toContain('<details class="area-chooser" data-titled>');
+    expect(at('Something else')).toContain('<details class="area-chooser"><summary>');
+    expect(ASSISTANT_AREA_CSS).not.toContain('data-titled');
+    expect(ASSISTANT_AREA_CSS).not.toContain('aa-chooser');
   });
 
   it('the Inbox on a phone: the business below the title; the view\'s label kept for a reader', () => {

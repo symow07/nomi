@@ -15,12 +15,13 @@ describe('approved owner navigation', () => {
   it('keeps the same labelled primary destinations on Today, legacy pages and Books', () => {
     for (const path of ['/app', '/app/books', '/app/products', '/app/settings']) {
       for (const split of [false, true]) {
-        expect(destinations(page(path, {}, split))).toEqual(['home', 'inbox', 'customers', 'products', 'books', 'assistant', 'settings', 'more']);
+        // The navigation block (2026-11-25): Reports is its own area, and Ask Nomi has its own slot at the foot.
+        expect(destinations(page(path, {}, split))).toEqual(['home', 'inbox', 'customers', 'products', 'assistant', 'books', 'reports', 'ask', 'settings', 'more']);
       }
     }
   });
   it('selects the correct area from nested and transitional routes', () => {
-    for (const [path, area] of Object.entries({ '/app/calendar?day=2026-11-05': 'home', '/app/results': 'home', '/app/get-started': 'home', '/app/customers/c1': 'customers', '/app/products/p1': 'products', '/app/books/invoices/i1': 'books', '/app/advisor': 'assistant', '/app/knowledge': 'assistant' })) {
+    for (const [path, area] of Object.entries({ '/app/calendar?day=2026-11-05': 'home', '/app/results': 'reports', '/app/results/month': 'reports', '/app/settings/assistant/month': 'reports', '/app/get-started': 'home', '/app/customers/c1': 'customers', '/app/products/p1': 'products', '/app/books/invoices/i1': 'books', '/app/advisor': 'ask', '/app/assistant/ask': 'ask', '/app/knowledge': 'assistant', '/app/settings/books/tax': 'books', '/app/payments/stripe': 'products' })) {
       expect(hubFor(path, 'settings'), path).toBe(area);
     }
   });
@@ -28,14 +29,15 @@ describe('approved owner navigation', () => {
     const html = page('/app/calendar');
     expect(html).toContain('class="area-nav"');
     expect(html).toContain('class="area-chooser"');
-    for (const href of ['/app', '/app/calendar', '/app/results', '/app/get-started']) expect(html).toContain(`href="${href}"`);
+    for (const href of ['/app', '/app/calendar', '/app/get-started']) expect(html).toContain(`href="${href}"`);
     expect(html).toMatch(/href="\/app\/calendar"[^>]*aria-current="page"/);
   });
-  it('keeps daily reply checks and activity in Assistant while configuration stays in Settings', () => {
-    for (const path of ['/app/settings/assistant/checks', '/app/settings/assistant/history']) {
-      expect(hubFor(path, 'settings')).toBe('assistant');
+  it('keeps the assistant\'s daily work and its configuration in Assistant; Settings keeps only the workspace', () => {
+    // The navigation block (2026-11-25, the owner's decision): the assistant's settings moved into its own area.
+    for (const path of ['/app/settings/assistant/checks', '/app/settings/assistant/history', '/app/settings/assistant/alone', '/app/settings/assistant']) {
+      expect(hubFor(path, 'settings'), path).toBe('assistant');
     }
-    expect(hubFor('/app/settings/assistant/alone', 'settings')).toBe('settings');
+    expect(hubFor('/app/settings/business/hours', 'assistant')).toBe('settings');
   });
   it('keeps Books hidden when off or the viewer is team; accountants get only their safe destinations', () => {
     expect(destinations(page('/app', { books: false }))).not.toContain('books');
@@ -47,16 +49,24 @@ describe('approved owner navigation', () => {
     expect(accountant).not.toContain('href="/app/inbox"');
     expect(accountant).not.toContain('href="/app/settings"');
   });
-  it('marks Results, rather than Today, on every permitted staff Results view in both directions', () => {
+  it('marks Reports, rather than Today, on every permitted staff report in both directions: rail, sidebar and chooser', () => {
+    const want: Record<string, string> = {
+      '/app/results': '/app/results', '/app/results?view=assistant': '/app/results?view=assistant', '/app/results?view=setup': '/app/results',
+      '/app/results/month': '/app/results/month', '/app/analytics': '/app/results',
+    };
     for (const locale of ['en', 'ar'] as const) {
-      for (const path of ['/app/results', '/app/results?view=assistant', '/app/results?view=setup', '/app/results/month', '/app/analytics']) {
+      for (const [path, href] of Object.entries(want)) {
         const html = withWorkspace({ ...scope, viewerRole: 'team' }, () => shell({
           title: 'Results', locale, active: 'analytics', path, bodyHtml: '<h1 class="page">Results</h1>',
         }));
-        const area = html.split('<nav class="area-nav"')[1]?.split('</nav>')[0] ?? '';
-        expect(area, `${locale} ${path}`).toMatch(/href="\/app\/results" aria-current="page"/);
-        expect(area).not.toMatch(/href="\/app" aria-current="page"/);
-        expect(area.match(/aria-current="page"/g)).toHaveLength(2); // Desktop and phone menu.
+        expect(rail(html), `${locale} ${path}`).toMatch(/data-nav="reports" aria-current="page"/);
+        const side = html.split('<aside class="sect"')[1]?.split('</aside>')[0] ?? '';
+        const chooser = html.split('<nav class="area-nav"')[1]?.split('</nav>')[0] ?? '';
+        for (const part of [side, chooser]) {
+          expect(part, `${locale} ${path}`).toContain(`href="${href}" aria-current="page"`);
+          expect(part).not.toMatch(/href="\/app" aria-current="page"/);
+          expect(part.match(/aria-current="page"/g)).toHaveLength(1);
+        }
       }
     }
   });

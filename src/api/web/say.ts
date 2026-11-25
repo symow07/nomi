@@ -61,6 +61,8 @@ export type RequestScope = {
   readonly exportTrade?: boolean;
   /** A6 — who is looking, for which mode's switch the shell offers: the owner, the team, or the accountant. */
   readonly viewerRole?: 'owner' | 'team' | 'accountant';
+  /** The navigation block — this installation can read a Meta ad account, so Reports offers Ad spend. */
+  readonly ads?: boolean;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -109,6 +111,7 @@ export const booksShown = (): boolean => scope.getStore()?.books ?? false;
 export const viewerRole = (): 'owner' | 'team' | 'accountant' => scope.getStore()?.viewerRole ?? 'owner';
 
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
+export const adsShown = (): boolean => scope.getStore()?.ads ?? false;
 export const outreachShown = (): boolean => scope.getStore()?.outreach ?? false;
 
 /** CC-14 — the business's name for this request, or null outside a workspace. Never blank. */

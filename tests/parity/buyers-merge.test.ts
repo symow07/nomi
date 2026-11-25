@@ -1,4 +1,5 @@
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { withZone } from '../../src/api/web/zone.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -341,7 +342,9 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     const off = withWorkspace({ name: null, several: false, outreach: false, setup: null }, () => html('en'));
     const on = withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => html('en'));
     expect(off).not.toContain('href="/app/customers/outreach"');
-    expect(on).toContain('href="/app/customers/outreach"');
+    // The navigation block (2026-11-25): the contacts door moved again, to Customers' sidebar, its one home.
+    expect(on).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => sectionSidebar('en', 'customers', '/app/customers'))).toContain('href="/app/customers/outreach"');
     // phase 9 of the warmth run (V1-166) — no calendar door: the rail has Calendar on every width
     expect(on).not.toContain('class="deeper on-phone"');
   });

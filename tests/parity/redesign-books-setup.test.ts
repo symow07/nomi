@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { renderBooksSetup, type BooksSetupState } from '../../src/api/web/booksSetup.js';
 import { renderBooksConnections } from '../../src/api/web/books.js';
 import { renderFields } from '../../src/api/web/booksFields.js';
 import { settingsPageLinks } from '../../src/api/web/settingsArea.js';
 import { BOOKS_AREA_CSS } from '../../src/api/web/booksAreaStyle.js';
-import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
+import { withWorkspace, t, type RequestScope } from '../../src/api/web/say.js';
 import type { BooksConnection } from '../../src/db/booksConnections.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withoutIsolates } from './isolates.js';
@@ -70,7 +71,11 @@ describe('F46 · the tab row is not repeated on the hub', () => {
   it('the hub has the checklist instead; a step page keeps its row', () => {
     withWorkspace(scope, () => {
       expect(settingsPageLinks('en', 'books', '/app/settings/books', { isOwner: true })).toBe('');
-      expect(settingsPageLinks('en', 'books', '/app/settings/books/tax', { isOwner: true })).toContain('class="sa-pages"');
+      // The navigation block (2026-11-25): no area draws its own row; a step page is lit in the books' sidebar, under Setup.
+      expect(settingsPageLinks('en', 'books', '/app/settings/books/tax', { isOwner: true })).toBe('');
+      const side = sectionSidebar('en', 'books', '/app/settings/books/tax');
+      expect(side).toContain('href="/app/settings/books/tax" aria-current="page"');
+      expect(side).toContain(`<p class="sect-head">${t('en', 'side.setup')}</p>`);
     });
   });
 });

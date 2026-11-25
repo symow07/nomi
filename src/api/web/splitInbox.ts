@@ -139,9 +139,13 @@ export function renderInboxViews(data: InboxList, locale: Locale, options: { rea
   return options.compact ? `<div class="il-views is-compact">${chooser}</div>` : `<div class="il-views">${tabs}${chooser}</div>`;
 }
 
-/** Existing tools remain doors, and the outreach feature remains workspace-gated. */
+/**
+ * The Inbox's own tools, under its views: this column IS the Inbox's section sidebar (sections.ts draws none beside the
+ * list). The navigation block (2026-11-25): Instagram comments are a place to answer, so they live here, not three
+ * steps into Settings; Follow-ups, Labels and Feedback have one home, under Customers.
+ */
 export function renderInboxTools(locale: Locale): string {
-  return `<nav class="si-doors" aria-label="${esc(t(locale, 'area2.inbox.tools'))}">${deeper('/app/inbox/replies', t(locale, 'savedReplies.title'))}${outreachShown() ? deeper('/app/customers/outreach', t(locale, 'customers.followups')) : ''}${deeper('/app/customers/labels', t(locale, 'labels.pageTitle'))}${deeper('/app/customers/feedback', t(locale, 'customers.feedback'))}</nav>`;
+  return `<nav class="si-doors" aria-label="${esc(t(locale, 'area2.inbox.tools'))}">${deeper('/app/channels/instagram/comments', t(locale, 'igComments.title'))}${deeper('/app/inbox/replies', t(locale, 'savedReplies.title'))}</nav>`;
 }
 
 /** Existing order/deletion priority, values and opened-state semantics, with optional visual selection only. */

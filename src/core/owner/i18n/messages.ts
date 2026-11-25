@@ -2,6 +2,7 @@ import { isCountryCode } from '../business.js';
 import { type Locale, DEFAULT_LOCALE } from './locale.js';
 import { REDESIGN_EN } from './redesign.js';
 import { UI_FINISH_ZH, UI_FINISH_AR, UI_FINISH_ES, UI_FINISH_FR } from './uiFinish.js';
+import { NAVIGATION_ZH, NAVIGATION_AR, NAVIGATION_ES, NAVIGATION_FR } from './navigation.js';
 
 /**
  * ADR-0008 — The owner-surface message catalog. English is the SOURCE OF TRUTH:
@@ -5936,6 +5937,7 @@ export type MessageKey = keyof typeof EN;
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_ZH,
+  ...NAVIGATION_ZH,
   'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
   'savedReplies.clearSearch': '清除搜索',
@@ -11882,6 +11884,7 @@ const ZH: Record<MessageKey, string> = {
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_AR,
+  ...NAVIGATION_AR,
   'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
   'savedReplies.clearSearch': 'مسح البحث',
@@ -17830,6 +17833,7 @@ const AR: Record<MessageKey, string> = {
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_ES,
+  ...NAVIGATION_ES,
   'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
   'savedReplies.clearSearch': 'Borrar búsqueda',
@@ -23718,6 +23722,7 @@ const ES: Record<MessageKey, string> = {
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_FR,
+  ...NAVIGATION_FR,
   'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',
   'savedReplies.clearSearch': 'Effacer la recherche',

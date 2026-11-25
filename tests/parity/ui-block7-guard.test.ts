@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SECTIONS_CSS } from '../../src/api/web/sectionsStyle.js';
 import { readFileSync } from 'node:fs';
 import { SETTINGS_AREA_CSS } from '../../src/api/web/settingsAreaStyle.js';
 
@@ -26,10 +27,12 @@ describe('Block 7 guard · 44 px targets and isolated values on the settings pag
   it("the links to Meta's help are 44 px targets", () => {
     expect(rule(LAYOUT, '  .help-links a')).toMatch(/min-height:44px/);
   });
-  it('a settings page link is at least 44 px wide as well as high, however short its name', () => {
-    const r = rule(SETTINGS_AREA_CSS, '.sa-pages a');
-    expect(r).toMatch(/min-height:44px/);
-    expect(r).toMatch(/min-width:44px/);
+  it('a section link is at least 44 px high and spans its sidebar, however short its name', () => {
+    // The navigation block (2026-11-25): Settings' row of page links gave way to the section sidebar (sectionsStyle.ts).
+    expect(SETTINGS_AREA_CSS).not.toContain('.sa-pages');
+    const r = rule(SECTIONS_CSS, '.sect a');
+    expect(r).toMatch(/display:flex/);
+    expect(r).toMatch(/min-block-size:44px/);
   });
   it("a tick's label in a settings row is its 44 px target", () => {
     expect(rule(SETTINGS_AREA_CSS, '.settings-area .setrow:has(input[type=checkbox]) label.fr-name')).toMatch(/min-height:44px/);

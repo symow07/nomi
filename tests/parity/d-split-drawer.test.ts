@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { shell, esc, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutreachRoute, OUTREACH_PREFIXES } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
 import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
@@ -41,8 +42,9 @@ describe('D · five entries', () => {
   // Setup are Settings' two rows (its screen, `renderSettingsHome`).
   // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's; the assistant is Settings' first row.
   it('Home, Inbox, Calendar, the advisor, Settings — in that order, and no conditional sixth', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/books', '/app/assistant', '/app/settings']);
-    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'customers', 'products', 'books', 'assistant', 'settings']);
+    // The navigation block (2026-11-25, the owner's decision): Reports is its own area and Ask Nomi has its own slot.
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/assistant', '/app/books', '/app/results', '/app/assistant/ask', '/app/settings']);
+    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'customers', 'products', 'assistant', 'books', 'reports', 'ask', 'settings']);
   });
 
   it('Settings and Setup are named in every language, in owner words', () => {
@@ -57,11 +59,15 @@ describe('D · five entries', () => {
 
   it('the map gives Products its own area and keeps business, assistant and setup contexts', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-    // Changed by the approved 5.5 order-facts patch: the Shopify order questions page joins the business area.
-    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data','shopify'].map(s=>'/app/settings/business/'+s));
-    expect(under('/app/settings')).toEqual(['business','channels','assistant','books','team','billing','personal'].map(s=>'/app/settings/'+s));
+    // The navigation block (2026-11-25): Shopify orders and payment links sit under Products; the assistant's and the
+    // books' settings under their own areas, so Settings keeps only the workspace.
+    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s));
+    expect(under('/app/settings')).toEqual(['business','channels','team','billing','personal'].map(s=>'/app/settings/'+s));
+    expect(under('/app/products')).toEqual(expect.arrayContaining(['/app/settings/business/shopify', '/app/payments/stripe']));
+    expect(under('/app/assistant')).toContain('/app/settings/assistant');
+    expect(under('/app/books')).toContain('/app/settings/books');
     expect(under('/app/settings/personal')).toEqual(['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s));
-    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s));
+    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email','chat'].map(s=>'/app/settings/channels/'+s));
     expect(under('/app/settings/assistant')).toContain('/app/settings/assistant/words');
     expect(under('/app/assistant')).toContain('/app/assistant/knowledge');
     expect(under('/app/products')).toContain('/app/products/add');
@@ -77,13 +83,17 @@ describe('D · five entries', () => {
     expect(hubFor('/app/products/abc', 'x')).toBe('products');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/calendar', 'x')).toBe('home');
-    // The advisor run — the assistant's settings, and the pages reached from them, sit under Settings.
-    expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
-    expect(hubFor('/app/settings/assistant#reply-types', 'x')).toBe('settings');
+    // The navigation block (2026-11-25) — the assistant's settings, and the pages reached from them, sit under the
+    // assistant's own area (they sat under Settings since the advisor run).
+    expect(hubFor('/app/settings/assistant', 'x')).toBe('assistant');
+    expect(hubFor('/app/settings/assistant#reply-types', 'x')).toBe('assistant');
     expect(hubFor('/app/assistant/knowledge', 'x')).toBe('assistant');
-    expect(hubFor('/app/settings/assistant/words', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant/words', 'x')).toBe('assistant');
+    expect(hubFor('/app/settings/books/tax', 'x')).toBe('books');
+    expect(hubFor('/app/settings/business/shopify', 'x')).toBe('products');
+    expect(hubFor('/app/payments/stripe', 'x')).toBe('products');
     expect(hubFor('/app/assistant/practice', 'x')).toBe('assistant');
-    expect(hubFor('/app/advisor', 'x')).toBe('assistant');
+    expect(hubFor('/app/advisor', 'x')).toBe('ask'); // the navigation block: Ask Nomi has its own slot
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/team', 'x')).toBe('settings');
     expect(hubFor('/app/settings/business/data', 'x')).toBe('settings');
@@ -238,7 +248,10 @@ describe('D · the outreach area exists only where it is switched on', () => {
   it('the door to contacts, the Apollo card and the writing-first switch appear only with the area on', () => {
     const off = facts({ outreach: false }); const on = facts({ outreach: true });
     expect(withWorkspace(off, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/customers/outreach"');
-    expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).toContain('href="/app/customers/outreach"');
+    // The navigation block (2026-11-25): follow-ups have one home, Customers' sidebar, not the Inbox's tools.
+    expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace(off, () => sectionSidebar('en', 'customers', '/app/customers'))).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace(on, () => sectionSidebar('en', 'customers', '/app/customers'))).toContain('href="/app/customers/outreach"');
 
     // Phase 9 (V1-434) — Apollo is not one of the owner's accounts: its key is set on Prospects, in the area itself.
     expect(withWorkspace(off, () => renderAccounts(accounts, 'en'))).not.toContain('/app/prospects');
