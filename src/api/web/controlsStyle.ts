@@ -60,6 +60,10 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
 .owner-shell .btn.danger { background:var(--color-surface); border:1.5px solid var(--color-ink); color:var(--color-ink); font-weight:600; }
 .owner-shell .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
 .owner-shell .btn.ghost:not(:disabled):hover { background:transparent; color:var(--color-ink); }
+/* One height for every button on a page, over the areas' older 44 px rules (a Cancel beside its Save, the conversation's
+   head); the hidden Find button keeps no size at all. */
+${AT} ${BUTTON}:not(.find-quiet) { min-block-size:var(--control-button); }
+${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
 .owner-shell ${BUTTON} > svg { flex:none; inline-size:18px; block-size:18px; }
 /* A button that opens a fold is a button like any other: no caret inside it. */
 .owner-shell summary:is(.btn, .sp-btn)::before { content:none; display:none; }
@@ -154,7 +158,7 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
   ${AT} ${FIELD} { min-block-size:var(--control-touch); }
   ${AT} :is(${LINE}) { block-size:var(--control-touch); }
   ${AT} textarea:not(.bare) { min-block-size:calc(2 * var(--control-touch)); }
-  .owner-shell ${BUTTON} { min-block-size:var(--control-touch); }
+  .owner-shell ${BUTTON}, ${AT} ${BUTTON}:not(.find-quiet) { min-block-size:var(--control-touch); }
   .owner-shell :is(.il-views .si-tab, :is(.sa-nav, .aa-nav, .ba-nav) a:not(.sa-index)) { min-block-size:var(--control-touch); }
 }
 `;
