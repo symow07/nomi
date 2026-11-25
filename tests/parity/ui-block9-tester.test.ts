@@ -51,4 +51,12 @@ describe('UI Block 9 · the tester round', () => {
   it('F10: a Cancel the script has not shown is not drawn', () => {
     expect(EDIT_FOLD_CSS).toContain('button.btn.ghost[data-edit-cancel][hidden]{display:none;}');
   });
+
+  it('every pager link is 44 px both ways', () => {
+    for (const [css, sel] of [[CUSTOMERS_CSS, '.ca-pager a'], [PRODUCTS_CSS, '.pa-pager a'], [BOOKS_INVOICE_CSS, '.bd-pager a']] as const) {
+      const all = css.split(`${sel}{`).slice(1).map((r) => r.slice(0, r.indexOf('}'))).join(';');
+      expect(all, sel).toContain('min-width:44px');
+      expect(`${rule(css, sel)};${all}`, sel).toMatch(/min-height:44px/);
+    }
+  });
 });

@@ -32,7 +32,7 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .ca-value-note{grid-column:1/-1;font-size:var(--font-size-small);margin:0;max-width:var(--measure-prose);}
 .ca-basis{font-size:var(--font-size-small);margin-block:var(--space-16);}
 .ca-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-16);border-top:1px solid var(--color-border);padding-block:var(--space-16);font-size:var(--font-size-small);}
-.ca-pager a{display:flex;align-items:center;min-height:44px;}
+.ca-pager a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;}
 .ca-empty{padding-block:var(--space-32);max-width:var(--measure-prose);}
 .customer-record{max-width:var(--measure-column);}
 .customer-record .pcard{max-width:100%;background:transparent;border:0;border-radius:0;box-shadow:none;padding:0;gap:var(--space-16);}

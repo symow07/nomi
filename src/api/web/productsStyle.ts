@@ -16,6 +16,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pa-search label{display:grid;gap:var(--space-8);flex:1 1 24rem;min-width:0;font-size:var(--font-size-small);}
 .pa-search input{width:100%;min-height:44px;font-size:var(--font-size-base);}
 .pa-search>a,.pa-pager a{display:flex;align-items:center;min-height:44px;}
+.pa-pager a{justify-content:center;min-width:44px;}
 .pa-products{max-width:100%;}
 .pa-products .prod{min-height:88px;gap:var(--space-24);padding-block:var(--space-16);text-decoration:none;scroll-margin-block-start:var(--space-24);}
 .pa-products .prod:hover .prod-h b{text-decoration:underline;text-underline-offset:.2em;}
