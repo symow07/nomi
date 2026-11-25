@@ -27,13 +27,13 @@ const walk = (dir: string): string[] =>
 const SRC = walk('src').map((f) => ({ f, s: readFileSync(join(ROOT, f), 'utf8') }));
 
 describe('V1 · type — decision 1', () => {
-  it('the shared scale includes overview headings and keeps the body at 16', () => {
+  it('the shared scale includes overview headings and keeps the body at 15', () => {
     // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: the overview title, its phone size and the overview figure came down from
     // 44 / 36 / 40 (a display serif that competed with the work) to 26 / 24 / 32.
-    // THE CONTROLS PASS (the owner's "start" on the Intercom comparison, 2026-11-25) set the workspace scale: a 16 px
-    // body (the 45+ floor, design-system.test.ts), 14 px lists and labels, a 20 px section and a 24 px page title.
-    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 14, 16, 20, 22, 24, 24, 28, 28]);
-    expect(DESIGN_TOKENS.font.sizePx.base).toBe(16);
+    // THE CONTROLS PASS (the owner's "start" on the Intercom comparison, 2026-11-25) set the workspace scale; the owner then chose a 15 px
+    // body (Intercom's size, 2026-11-25, design-system.test.ts), 14 px lists and labels, a 20 px section and a 24 px page title.
+    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 14, 15, 16, 20, 22, 24, 24, 28, 28]);
+    expect(DESIGN_TOKENS.font.sizePx.base).toBe(15);
   });
 
   // The type pass (2026-10-04) opened Latin up from 1.5 to 1.6; Chinese and Arabic were already that open. The controls

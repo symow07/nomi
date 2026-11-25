@@ -153,9 +153,9 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 auto; text-align:end; }
 }
 
-/* Under a finger (a phone's width, or any touch screen): every field, button and menu row grows to the 44 px target. */
+/* Under a finger (a phone's width, or any touch screen): every field, button and menu row grows to the 44 px target, and a field's words stay 16 px (below that a phone zooms the page on a field). */
 @media (max-width: 720px), (pointer: coarse) {
-  ${AT} ${FIELD} { min-block-size:var(--control-touch); }
+  ${AT} ${FIELD} { min-block-size:var(--control-touch); font-size:var(--font-size-field); }
   ${AT} :is(${LINE}) { block-size:var(--control-touch); }
   ${AT} textarea:not(.bare) { min-block-size:calc(2 * var(--control-touch)); }
   .owner-shell ${BUTTON}, ${AT} ${BUTTON}:not(.find-quiet) { min-block-size:var(--control-touch); }

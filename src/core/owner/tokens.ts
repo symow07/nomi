@@ -118,10 +118,11 @@ export const DESIGN_TOKENS = {
      */
     // THE UI CORRECTION (2026-11-13, audit F01): a page title is `display` (26), semibold, on every route; the three
     // overview sizes came down with it (they were 44 / 36 / 40, a serif display that competed with the work).
-    // THE CONTROLS PASS (2026-11-25, the Intercom comparison): the workspace scale — a 16 px body (the floor promised
-    // to 45+ eyes, and the size under which a phone's browser zooms the page on a field), 14 px lists and labels, a
+    // THE CONTROLS PASS (2026-11-25, the Intercom comparison): the workspace scale — a 15 px body (the owner's choice,
+    // 2026-11-25, to match Intercom; it replaces the earlier 16 px floor), a field's own words stay 16 px under a finger
+    // (below 16 a phone's browser zooms the page on a field — controlsStyle.ts), 14 px lists and labels, a
     // 24 px page title over a 20 px section. 17 px read as a document, not a place to work: a screen held half the rows Intercom's does.
-    sizePx: { caption: 13, small: 14, base: 16, title: 20, display: 24, hero: 28, overviewTitle: 24, overviewPhone: 22, overviewMoney: 28 },
+    sizePx: { caption: 13, small: 14, base: 15, field: 16, title: 20, display: 24, hero: 28, overviewTitle: 24, overviewPhone: 22, overviewMoney: 28 },
     /**
      * Set from `html[lang]`; the shell writes the locale there on every page.
      * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
