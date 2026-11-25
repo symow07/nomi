@@ -1,3 +1,4 @@
+import { CONTROLS_CSS } from '../../src/api/web/controlsStyle.js';
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
@@ -208,7 +209,10 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(h).toContain('class="si-tab on" aria-current="true" href="/app/inbox?filter=all"');
     expect(CSS).toContain('.il-views .si-tab.on { color:var(--color-accent); background:var(--color-assistant-wash); }');
     expect(CSS).toContain('.il-page .si-search .sp-btn { min-block-size:44px; }');
-    expect(CSS).toContain('min-block-size:44px; margin:0; font-size:var(--font-size-base)');
+    // The controls pass (2026-11-25): the search box is the shared text box (controlsStyle.ts) — 40 px with a mouse,
+    // 44 px under a finger or on a phone.
+    expect(CONTROLS_CSS).toMatch(/block-size:var\(--control-field\)/);
+    expect(CONTROLS_CSS).toMatch(/@media \(max-width: 720px\), \(pointer: coarse\) \{[^@]*block-size:var\(--control-touch\)/);
   });
 
   it('the rail\'s number is a figure, and its link says what it counts', () => {

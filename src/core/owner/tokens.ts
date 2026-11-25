@@ -118,7 +118,10 @@ export const DESIGN_TOKENS = {
      */
     // THE UI CORRECTION (2026-11-13, audit F01): a page title is `display` (26), semibold, on every route; the three
     // overview sizes came down with it (they were 44 / 36 / 40, a serif display that competed with the work).
-    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 26, overviewPhone: 24, overviewMoney: 32 },
+    // THE CONTROLS PASS (2026-11-25, the Intercom comparison): the workspace scale — a 16 px body (the floor promised
+    // to 45+ eyes, and the size under which a phone's browser zooms the page on a field), 14 px lists and labels, a
+    // 24 px page title over a 20 px section. 17 px read as a document, not a place to work: a screen held half the rows Intercom's does.
+    sizePx: { caption: 13, small: 14, base: 16, title: 20, display: 24, hero: 28, overviewTitle: 24, overviewPhone: 22, overviewMoney: 28 },
     /**
      * Set from `html[lang]`; the shell writes the locale there on every page.
      * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
@@ -126,7 +129,7 @@ export const DESIGN_TOKENS = {
      * Arabic (1.75) were already that open; a step more pushed the owner's
      * decided row heights (64 px with a line under the name) to 65 and 66.
      */
-    lineHeight: { en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 },
+    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75, es: 1.5, fr: 1.5 },
     /**
      * Headings (20 px and up) close up: a 26 px line in a 39 px box read as
      * loose. Arabic keeps room for its ascenders and marks when a heading wraps.
@@ -238,6 +241,9 @@ export const DESIGN_TOKENS = {
    * the base size does not silently make a line of prose longer to read.
    */
   measure: { column: '1040px', prose: '62ch', form: '40ch' },
+  // The controls pass (2026-11-25) — the height of each shared control: a field and a button on a desktop, the
+  // touch target every control grows to under a finger, and the one page header's row.
+  controlPx: { field: 40, button: 36, touch: 44, header: 56 } as Readonly<Record<'field' | 'button' | 'touch' | 'header', number>> | undefined,
   /**
    * THE WARMTH RUN (2026-10-03) — rounded for warmth. Every corner in the
    * product is one of these: a control (a field, a button), a card (a card, a
@@ -372,7 +378,9 @@ export const DESIGN_TOKENS = {
  */
 export const PUBLIC_TOKENS = {
   ...DESIGN_TOKENS,
-  font: { ...DESIGN_TOKENS.font, sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 44, overviewPhone: 36, overviewMoney: 40 } },
+  // The public pages keep their reading scale and draw no workspace control: the controls pass (2026-11-25) is the workspace's.
+  controlPx: undefined,
+  font: { ...DESIGN_TOKENS.font, sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34, overviewTitle: 44, overviewPhone: 36, overviewMoney: 40 }, lineHeight: { en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 } },
   color: {
     ok: '#3F6B5C',
     brand: '#9A0F5E',

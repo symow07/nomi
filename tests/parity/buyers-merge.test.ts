@@ -83,7 +83,8 @@ describe('A · one list, with a search box', () => {
       expect(bare, l).toContain('<input type="search" name="q" value=""');
       expect(bare, l).toContain(`placeholder="${shown(l, 'buyers.search.placeholder')}"`);
       expect(bare, l).toContain(`aria-label="${shown(l, 'buyers.search.label')}"`);
-      expect(bare, l).toContain(`<button class="sp-btn" type="submit">${shown(l, 'buyers.search.go')}</button>`);
+      // The controls pass (2026-11-25): Enter searches, as Intercom's box does; the button stays for a keyboard and a screen reader.
+      expect(bare, l).toContain(`<button class="sp-btn find-quiet" type="submit">${shown(l, 'buyers.search.go')}</button>`);
       expect(bare, `${l}: nothing to clear`).not.toContain('class="clear"');
 
       const found = html(l, { query: 'Ahmed "Al" <Rashid>', page: { from: 1, to: 6, total: 6, next: null, prev: null } });

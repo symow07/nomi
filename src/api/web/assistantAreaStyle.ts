@@ -15,7 +15,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-practice #approve .btn:not(.send),.assistant-practice .takeover .btn:not(.send),.assistant-practice .sbx-log-h .btn{color:var(--color-ink);background:var(--color-surface);border-color:var(--color-control-line);}
 .assistant-practice .sbx-log-h .btn.danger{border-color:var(--color-control-line);border-width:1px;font-weight:400;}
 .assistant-practice #approve .btn:not(.send):not(:disabled):hover,.assistant-practice .takeover .btn:not(.send):not(:disabled):hover,.assistant-practice .sbx-log-h .btn:not(:disabled):hover{background:var(--color-sand);border-color:var(--color-ink);}
-.assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
+.assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{max-width:100%;}
 .assistant-area .pform{min-width:0;}
 .assistant-area .pcheck{min-height:44px;}
 .aa-status{padding-block:var(--space-16);border-block:1px solid var(--color-border);margin-block:var(--space-24) var(--space-32);}
@@ -55,7 +55,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ask-history li{margin-bottom:var(--space-16);overflow-wrap:anywhere;}
 .ask-history a{min-height:44px;display:flex;align-items:center;}
 .ask-form{display:flex;flex-direction:column;gap:var(--space-12);margin-block:var(--space-24);}
-.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
+.ask-form textarea{width:100%;resize:vertical;}
 .ask-form .btn{align-self:flex-start;}
 .ask-line .msg{max-width:100%;margin-block:var(--space-24);}
 .ask-line .bubble{max-width:100%;}
@@ -87,7 +87,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-practice #readiness{border-top:1px solid var(--color-border);padding-top:var(--space-24);margin-top:var(--space-32);}
 .assistant-area .scheck{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .assistant-area .scheck .proposed{border:0;font-family:inherit;font-size:var(--font-size-base);background:var(--color-assistant-wash);padding:var(--space-24);}
-.assistant-area .scfix textarea{width:100%;min-height:96px;}
+.assistant-area .scfix textarea{width:100%;}
 .assistant-area .scfix label{display:block;margin-block:var(--space-16);}
 .ak-tabs{display:flex;flex-wrap:wrap;gap:var(--space-16);border-bottom:1px solid var(--color-border);margin-block:var(--space-24);}
 .ak-tabs a{display:flex;align-items:center;min-height:44px;border-bottom:2px solid transparent;text-decoration:none;color:var(--color-ink);}
@@ -100,7 +100,8 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ak-list a{display:flex;flex-direction:column;gap:var(--space-8);padding-block:var(--space-24);overflow-wrap:anywhere;}
 .ak-list .caption{color:var(--color-ink-secondary);}
 .ak-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-8) var(--space-16);margin-block:var(--space-16) var(--space-8);}
-.ak-add>summary{display:inline-flex;align-items:center;min-height:44px;min-width:44px;padding-inline:var(--space-16);border:1px solid var(--color-ink);border-radius:var(--radius-control);cursor:pointer;color:var(--color-ink);background:var(--color-surface);}
+/* The controls pass (2026-11-25): the summary is the shared button (class btn); only its fold behaviour is here. */
+.ak-add>summary{cursor:pointer;list-style:none;}
 .ak-add[open]{flex-basis:100%;}
 
 .ak-add .teach>.sub3,.ak-add #from-page>h2{display:none;}

@@ -404,7 +404,7 @@ describe('phase 4 · five languages, right to left, a phone first', () => {
       expect(rows(pane), l).toHaveLength(LIST.conversations.length);
       expect(pane, l).toContain('<span class="sp-rval">');
       expect(pane, l).not.toContain(esc(say(l, 'pane.current')));
-      expect(pane, l).toContain('<select name="filter">');
+      expect(pane, l).toContain('<select name="filter"');
     }
     // the same function on both: no second copy of the row to drift
     const panes = readFileSync(`${ROOT}src/api/web/panes.ts`, 'utf8');

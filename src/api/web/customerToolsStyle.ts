@@ -8,7 +8,7 @@ export const CUSTOMER_TOOLS_CSS = `
 .customer-tools .block { padding-block:var(--space-24); }
 .customer-tools .block h2 { font-size:var(--font-size-title); margin-block:0 var(--space-16); }
 .customer-tools .btn, .customer-tools input:not([type="hidden"]), .customer-tools select { min-block-size:44px; }
-.customer-tools input, .customer-tools select, .customer-tools textarea { font-size:var(--font-size-base); min-inline-size:0; }
+.customer-tools input, .customer-tools select, .customer-tools textarea { min-inline-size:0; }
 .customer-tools .btn { color:var(--color-ink); background:transparent; border-color:var(--color-ink); }
 .customer-tools .btn.send { color:var(--color-surface); background:var(--color-ink); border-color:var(--color-ink); }
 .customer-tools .btn.danger { color:var(--color-ink); border-color:var(--color-ink); }

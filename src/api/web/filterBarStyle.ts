@@ -8,12 +8,12 @@ export const FILTER_BAR_CSS = `
   .fbar .fbar-f { display:flex; flex-direction:column; gap:var(--space-4); min-inline-size:0; flex:0 1 14rem; font-size:var(--font-size-small); }
   .fbar .fbar-q { flex:1 1 18rem; }
   .fbar .fbar-l { color:var(--color-ink-secondary); font-weight:500; }
-  .fbar .fbar-f input, .fbar .fbar-f select { flex:none; box-sizing:border-box; inline-size:100%; block-size:44px; min-block-size:44px; padding-block:0; font-size:var(--font-size-base); }
+  .fbar .fbar-f input, .fbar .fbar-f select { flex:none; box-sizing:border-box; inline-size:100%; }
   .fbar .fbar-more { display:contents; }
   .fbar .fbar-more > summary { display:none; }
   .fbar .fbar-fields { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-12) var(--space-16); flex:0 1 auto; min-inline-size:0; }
   .fbar .fbar-acts { display:flex; align-items:center; gap:var(--space-8) var(--space-16); flex:none; }
-  .fbar .fbar-acts .btn { box-sizing:border-box; block-size:44px; min-block-size:44px; padding-block:0; background:var(--color-surface); color:var(--color-ink); border-color:var(--color-control-line); font-weight:500; }
+  .fbar .fbar-acts .btn { box-sizing:border-box; padding-block:0; background:var(--color-surface); color:var(--color-ink); font-weight:500; }
   .fbar .fbar-clear, .fbar > a { display:inline-flex; align-items:center; min-block-size:44px; min-inline-size:44px; }
   @media (min-width:721px) {
     .fbar .fbar-more::details-content { content-visibility:visible; display:contents; }

@@ -5,6 +5,7 @@ import { FOLLOW_UP_CSS } from './followUpStyle.js';
 import { FILTER_BAR_CSS } from './filterBarStyle.js';
 import { LISTS_CSS } from './listsStyle.js';
 import { EDIT_FOLD_CSS } from './editFoldStyle.js';
+import { CONTROLS_CSS } from './controlsStyle.js';
 import { STATE_CSS } from './stateBlockStyle.js';
 import { pageFrom } from './helpTopics.js';
 import { settingsHref } from './settingsNavigation.js';
@@ -1531,7 +1532,6 @@ const STYLE_PAGES = `
   .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
   .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
   .sreq-a { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); max-width:var(--measure-form); }
-  .sreq-a textarea { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
@@ -1744,7 +1744,6 @@ const STYLE_PAGES = `
   .fgap-s { margin:0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
-  .alform input { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
@@ -1800,7 +1799,7 @@ const STYLE_PAGES = `
   .filepick:focus-within .btn { outline:2px solid var(--color-brand); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
+  textarea { width:100%; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
   /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
   .imp { display:block; }
@@ -1817,7 +1816,6 @@ const STYLE_PAGES = `
   .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .imp-warn { display:block; color:var(--color-ink-secondary); font-weight:600; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
-  .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
   .imp-typed input, .imp-pct input { width:8em; }
   /* Phase 9 (V1-340) — the figure and its sign stay on one line, in either direction. */
   .imp-pct { display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap; }
@@ -1839,7 +1837,6 @@ const STYLE_PAGES = `
   .imp-table tfoot th, .imp-table tfoot td { font-weight:600; border-bottom:0; }
   .imp-cols label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-12) 0; }
   .imp-cols label.pcheck { flex-direction:row; }
-  .imp-cols select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
 
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
@@ -1880,7 +1877,6 @@ const STYLE_PAGES = `
   .prob { background:var(--color-sand); color:var(--color-ink); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
-  .ownerform input { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   /* ── howYouSell.ts — Phase 9: the hub and its questions. */
   .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
   .hs-start { margin:0 0 var(--space-8); }
@@ -1959,7 +1955,7 @@ const STYLE_PAGES = `
   .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   .teach h3 { margin:0; font-size:var(--font-size-small); }
-  input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; }
+  input[type=text], textarea, select { width:100%; }
   .kbtns { display:flex; gap:var(--space-8); }
   /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
   .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
@@ -2012,7 +2008,7 @@ const STYLE_PAGES = `
   /* The warmth run (-18) — the way back, which holds the focus on arrival, is a control's size and corner, so its ring is too. */
   .confirm > .back { padding:0 var(--space-12); border-radius:var(--radius-control); }
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-  .wform textarea { width:100%; font:inherit; }
+  .wform textarea { width:100%; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
   /* Phase 9 (V1-543, V1-544) — the list grouped by its answer, the reason said once at each group's head. */
   .ctgroup { margin-top:var(--space-24); }
@@ -2666,7 +2662,7 @@ const STYLE_PAGES = `
   .en .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
   .en-a { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-8); }
   .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-  .sqform textarea { width:100%; font:inherit; }
+  .sqform textarea { width:100%; }
   .pill.wait { background:var(--color-sand); color:var(--color-ink-secondary); }
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
@@ -2694,14 +2690,14 @@ const STYLE_PAGES = `
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
+  select { max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
   /* The fix wave (w4-conversation-22) — the total's label, its field and the hint under it, one group. */
   .sbx-total { display:flex; flex-direction:column; gap:var(--space-4); }
   .sbx-total input { max-width:var(--measure-form); }
   .sbx-total p { margin:0; font-size:var(--font-size-caption); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
+  textarea { width:100%; resize:vertical; }
   .sbx-trust { border-color:var(--color-border); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
@@ -2951,7 +2947,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}${LANGMENU_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS + FILTER_BAR_CSS + LISTS_CSS + EDIT_FOLD_CSS + STATE_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS + FILTER_BAR_CSS + LISTS_CSS + EDIT_FOLD_CSS + STATE_CSS + CONTROLS_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,

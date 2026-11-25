@@ -55,6 +55,7 @@ const ICON = {
   // what a customer sent that is not words (a file, a voice note, a photo), a door, the way back, closing.
   download: 'download-minimalistic', regular: 'repeat', calendar: 'calendar-minimalistic', person: 'user',
   file: 'paperclip', voice: 'microphone', photo: 'gallery', go: 'alt-arrow-right', back: 'alt-arrow-left', close: 'close',
+  search: 'magnifier',
   // A door that opens another site, in a new tab.
   external: 'arrow-right-up',
   // The calendar's kinds of date: a sample (the same gift as My business's samples), an order on its way, a

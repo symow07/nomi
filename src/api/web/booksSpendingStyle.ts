@@ -10,7 +10,7 @@ export const BOOKS_SPENDING_CSS = String.raw`
 .books-spending .bs-upload .pform{max-width:var(--measure-form);margin-top:var(--space-16)}
 .books-spending .bs-filter{display:flex;align-items:end;gap:var(--space-12);margin-bottom:var(--space-24)}
 .books-spending .bs-filter label{display:grid;gap:var(--space-8);min-width:0}
-.books-spending input,.books-spending select{min-height:44px;font:inherit;max-width:100%;min-width:0}
+.books-spending input,.books-spending select{max-width:100%;min-width:0}
 .books-spending .bs-list,.books-spending .bs-saved-lines{list-style:none;padding:0;margin:0}
 .books-spending .bs-list>li,.books-spending .bs-saved-lines>li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-24);border-top:1px solid var(--color-border);padding:var(--space-20) 0}
 .books-spending .bs-list>li:last-child,.books-spending .bs-saved-lines>li:last-child{border-bottom:1px solid var(--color-border)}
