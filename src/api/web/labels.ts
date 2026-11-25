@@ -1,3 +1,4 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { LABEL_MAX } from '../../core/owner/labels.js';
 import type { Label } from '../../db/labels.js';
@@ -21,5 +22,5 @@ export function renderLabels(locale: Locale, rows: readonly Label[]): string {
         : `<form method="post" action="/app/labels/${esc(l.id)}/archive" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'labels.archiveAsk', { name: l.name }))}">${esc(t(locale, 'labels.archive'))}</button></form>`}</span></li>`;
   return `<section class="customer-tools tool-labels"><h1 class="page">${esc(t(locale, 'labels.pageTitle'))}</h1>
     <p class="lede">${esc(t(locale, 'labels.lede'))}</p>
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'labels.noneYet'))}</p><a class="deeper" href="/app/customers">${esc(t(locale, 'customers.back'))}</a>` : `<ul class="rows">${rows.map(row).join('')}</ul>`}</section>`;
+    ${rows.length === 0 ? stateBlock('empty', { heading: t(locale, 'state.labels.h'), body: t(locale, 'state.labels.p'), nextHtml: stateNext('/app/customers', t(locale, 'customers.back')) }) : `<ul class="rows">${rows.map(row).join('')}</ul>`}</section>`;
 }

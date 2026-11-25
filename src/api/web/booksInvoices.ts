@@ -1,5 +1,7 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import {booksDay} from './booksOverview.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
+import { filterBar } from './filterBar.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { addDecimal, compareDecimal, mulDecimal, parseDecimal, signOf, subDecimal, type Decimal } from '../../core/types/decimal.js';
@@ -7,7 +9,7 @@ import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { owedOn, type BilledTo, type InvoiceRow, type InvoiceStatus, type InvoiceView } from '../../db/booksInvoices.js';
 import type { CreditableLine, CreditNoteView, CreditPreview } from '../../db/booksCreditNotes.js';
 import { customInputs } from './booksFields.js';
-import { formLines } from './booksEntries.js';
+import { formLines, tableFrame, cellLabel } from './booksEntries.js';
 import { DATE_FORMATS, type LayoutGuess } from '../../core/books/statements.js';
 import { registryLabelKey } from '../../core/books/registry.js';
 import { t } from './say.js';
@@ -133,18 +135,19 @@ export function renderInvoices(locale: Locale, viewer: Who, rows: readonly Invoi
   const query = new URLSearchParams(); if(opts.q) query.set('q',opts.q); if(opts.state) query.set('state',opts.state);
   const source = invoiceReturnHref(opts.returnHref ?? '/app/books/invoices' + (query.size ? '?' + query : '')).split('#')[0]!;
   const page = opts.page;
-  const filters = page || opts.q || opts.state ? `<form method="get" action="/app/books/invoices" class="bd-filters"><label>${esc(t(locale,'booksDocs.search'))}<input type="search" name="q" value="${esc(opts.q ?? '')}" placeholder="${esc(t(locale,'booksDocs.searchHint'))}"></label><label>${esc(t(locale,'booksDocs.state'))}<select name="state">${INVOICE_FILTERS.map(state=>`<option value="${state}"${state===(opts.state??'all')?' selected':''}>${esc(invoiceStateLabel(locale,state))}</option>`).join('')}</select></label><button class="btn" type="submit">${esc(t(locale,'booksDocs.show'))}</button>${opts.q || opts.state && opts.state !== 'all' ? `<a href="/app/books/invoices">${esc(t(locale,'booksDocs.clear'))}</a>` : ''}</form>` : '';
-  const pager = page ? `<nav class="bd-pager" aria-label="${esc(t(locale,'booksDocs.pages'))}">${page.prev?`<a href="${esc(invoiceReturnHref(page.prev))}">${esc(t(locale,'booksDocs.previous'))}</a>`:'<span></span>'}<span>${esc(t(locale,'booksDocs.range',{from:show.count(locale,page.from),to:show.count(locale,page.to),total:show.count(locale,page.total)}))}</span>${page.next?`<a href="${esc(invoiceReturnHref(page.next))}">${esc(t(locale,'booksDocs.next'))}</a>`:'<span></span>'}</nav>` : '';
+  const filters = page || opts.q || opts.state ? filterBar({locale,action:'/app/books/invoices',cls:'bd-filters',name:t(locale,'booksDocs.search'),search:{label:t(locale,'booksDocs.search'),control:`<input type="search" name="q" value="${esc(opts.q ?? '')}" placeholder="${esc(t(locale,'booksDocs.searchHint'))}">`},fields:[{label:t(locale,'booksDocs.state'),control:`<select name="state">${INVOICE_FILTERS.map(state=>`<option value="${state}"${state===(opts.state??'all')?' selected':''}>${esc(invoiceStateLabel(locale,state))}</option>`).join('')}</select>`}],submit:t(locale,'booksDocs.show'),clear:opts.q || opts.state && opts.state !== 'all' ? {href:'/app/books/invoices',label:t(locale,'booksDocs.clear')} : null,active:opts.state && opts.state !== 'all' ? 1 : 0}) : '';
+  const pagerAt = (where:'above'|'below') => page && page.total > 0 && (where === 'below' || page.prev || page.next) ? `<nav class="bd-pager bd-pager-${where}" aria-label="${esc(t(locale,where==='above'?'assistantArea.pagesAbove':'assistantArea.pagesBelow'))}">${page.prev?`<a href="${esc(invoiceReturnHref(page.prev))}">${esc(t(locale,'booksDocs.previous'))}</a>`:'<span></span>'}<span>${esc(t(locale,'booksDocs.range',{from:show.count(locale,page.from),to:show.count(locale,page.to),total:show.count(locale,page.total)}))}</span>${page.next?`<a href="${esc(invoiceReturnHref(page.next))}">${esc(t(locale,'booksDocs.next'))}</a>`:'<span></span>'}</nav>` : '';
   return `<section class="books-invoices"><h1 class="page">${esc(t(locale, 'books.invoices.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.invoices.lede'))}</p>
     ${mayPost(viewer) ? `<p><a class="deeper" href="/app/books/invoices/new">${esc(t(locale, 'books.invoices.new'))}</a></p>` : ''}${filters}
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale,opts.q || opts.state && opts.state !== 'all' ? 'booksDocs.noMatch' : 'books.invoices.none'))}</p>` : `<ul class="bd-invoices">${rows.map(r=>{
+    ${rows.length === 0 ? (opts.q || opts.state && opts.state !== 'all' ? stateBlock('nomatch', { heading: t(locale, 'state.invoices.none.h'), body: t(locale, 'state.invoices.none.p'), nextHtml: stateNext('/app/books/invoices', t(locale, 'booksDocs.clear')) }) : stateBlock('empty', { heading: t(locale, 'state.invoices.h'), body: t(locale, 'state.invoices.p'), nextHtml: mayPost(viewer) ? stateNext('/app/books/invoices/new', t(locale, 'books.invoices.new')) : stateNext('/app/books', t(locale, 'books.workbook.again')) })) : `${pagerAt('above')}${tableFrame(locale, t(locale, 'books.invoices.title'), 'bk-cards bd-inv')}<table><thead><tr><th scope="col">${esc(t(locale,'books.entry.number'))}</th><th scope="col">${esc(t(locale,'books.invoice.customer'))}</th><th scope="col">${esc(t(locale,'books.entry.date'))}</th><th scope="col">${esc(t(locale,'books.invoice.due'))}</th><th scope="col" class="num">${esc(t(locale,'books.entry.total'))}</th><th scope="col" class="num">${esc(t(locale,'books.invoice.owed'))}</th><th scope="col">${esc(t(locale,'booksInvoice.state'))}</th></tr></thead><tbody>${rows.map(r=>{
       const outstanding=owedOn(r.total,r.credited,r.paid);
       const issued=r.status!=='draft'&&r.status!=='discarded';
       const refund=issued&&signOf(outstanding)<0;
       const href='/app/books/invoices/'+encodeURIComponent(r.id)+(page||opts.returnHref?'?from='+encodeURIComponent(source+'#invoice-'+r.id):'');
-      return `<li class="bd-invoice-row" id="invoice-${esc(r.id)}"><div class="bd-invoice-name"><a href="${esc(href)}"><bdi>${esc(r.key ?? t(locale,'books.entry.state.draft'))}</bdi></a><bdi>${esc(r.party)}</bdi>${status(locale,r.status)}</div><dl class="bd-invoice-facts"><div><dt>${esc(t(locale,'books.entry.date'))}</dt><dd>${day(locale,r.issueDate)}</dd></div><div><dt>${esc(t(locale,'books.invoice.due'))}</dt><dd>${r.dueDate?day(locale,r.dueDate):esc(t(locale,'booksDocs.noDue'))}</dd></div><div><dt>${esc(t(locale,'books.entry.total'))}</dt><dd><bdi>${money(locale,r.total,r.currency)}</bdi></dd></div><div><dt>${esc(t(locale,refund?'books.invoice.status.refund_due':'books.invoice.owed'))}</dt><dd><bdi>${issued?money(locale,refund?subDecimal('0' as Decimal,outstanding):outstanding,r.currency):esc(t(locale,'booksDocs.notIssued'))}</bdi></dd></div></dl></li>`;
-    }).join('')}</ul>`}${pager}
+      const owedKey:MessageKey=refund?'books.invoice.status.refund_due':'books.invoice.owed';
+      return `<tr class="bd-inv-row" id="invoice-${esc(r.id)}"><td class="bk-key"${cellLabel(locale,'books.entry.number')}><a href="${esc(href)}"><bdi>${esc(r.key ?? t(locale,'books.entry.state.draft'))}</bdi></a></td><td class="bk-text"${cellLabel(locale,'books.invoice.customer')}><bdi>${esc(r.party)}</bdi></td><td class="bk-date"${cellLabel(locale,'books.entry.date')}><span>${day(locale,r.issueDate)}</span></td><td class="bk-date bd-due"${cellLabel(locale,'books.invoice.due')}><span>${r.dueDate?day(locale,r.dueDate):esc(t(locale,'booksDocs.noDue'))}</span></td><td class="num bd-total"${cellLabel(locale,'books.entry.total')}><span><bdi>${money(locale,r.total,r.currency)}</bdi></span></td><td class="num bd-owed"${cellLabel(locale,owedKey)}><span>${refund?`<span class="bd-refund">${esc(t(locale,owedKey))}</span> `:''}<bdi>${issued?money(locale,refund?subDecimal('0' as Decimal,outstanding):outstanding,r.currency):esc(t(locale,'booksDocs.notIssued'))}</bdi></span></td><td class="bk-state"${cellLabel(locale,'booksInvoice.state')}><span>${status(locale,r.status)}</span></td></tr>`;
+    }).join('')}</tbody></table></div>`}${pagerAt('below')}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p></section>`;
 }
 
@@ -388,10 +391,10 @@ export function renderBank(locale: Locale, viewer: Who, c: {
   // Block 1 #2 — bank and cash accounts only (`paymentAccounts`), none chosen for her; a chart with none says what to do.
   const choose = c.accounts.length === 0
     ? `<p>${esc(t(locale, 'books.invoice.noBank'))}</p><p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.title'))}</a></p>`
-    : `<form method="get" action="/app/books/bank" class="pform bb-account">
-      <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account" required><option value=""${c.accountId ? '' : ' selected'}>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${c.accounts.map((a) =>
-        `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select></label>
-      <button class="btn" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
+    : filterBar({ locale, action: '/app/books/bank', cls: 'bb-account', name: t(locale, 'books.bank.account'),
+      search: { label: t(locale, 'books.bank.account'), control: `<select name="account" required><option value=""${c.accountId ? '' : ' selected'}>${esc(t(locale, 'books.invoice.bankChoose'))}</option>${c.accounts.map((a) =>
+        `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select>` },
+      submit: t(locale, 'books.bank.show') });
   const head=`<section class="books-bank"><h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1><p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>${choose}`;
   if (!c.accountId) return `${head}</section>`;
   const selected=c.accounts.find(a=>a.id===c.accountId);

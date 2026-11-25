@@ -559,7 +559,9 @@ describe('the home run · composed from the system: the card raised, the tiles l
     expect(ours).not.toMatch(/(margin|padding|border)-(left|right)|(^|[^-])\b(left|right)\s*:/);
   });
 
-  it('the card and the schedule rise into place, the wins a beat later — only for a reader who has not asked for less motion', () => {
+  // UI Block 9 (F44) — pin turned round: Today is the page an owner opens most, and its card, schedule and faces rose
+  // in on every arrival (a repeated page entrance). Today now arrives still; what rises is what completes.
+  it('Today arrives still: its card, schedule and faces do not rise on every arrival; a notice after a save still does', () => {
     const blocks: string[] = [];
     for (let at0 = css.indexOf('@media (prefers-reduced-motion: no-preference)'); at0 >= 0;
       at0 = css.indexOf('@media (prefers-reduced-motion: no-preference)', at0 + 1)) {
@@ -567,10 +569,9 @@ describe('the home run · composed from the system: the card raised, the tiles l
       for (; j < css.length; j++) { if (css[j] === '{') depth++; else if (css[j] === '}' && --depth === 0) break; }
       blocks.push(css.slice(at0, j));
     }
-    expect(blocks.some((b) => b.includes('.flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
-    expect(blocks.some((b) => b.includes('.home-schedule { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }'))).toBe(true);
-    expect(blocks.some((b) => b.includes('#approve, .td { animation-delay:var(--motion-fast); }'))).toBe(true);
-    expect(css.match(/\.home-card, \.td, \.sgroup \{ animation/g)).toHaveLength(1);
+    expect(blocks.some((b) => b.includes('.flash, main[data-drawn-again] #approve { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
+    for (const still of ['.home-card', '.home-schedule', '.td-row > li', '.td {', '.sgroup {'])
+      expect(blocks.some((b) => new RegExp(`${still.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^}]*animation:nomi-rise`).test(b)), still).toBe(false);
   });
 
   it('no rendered Home carries a colour of its own', () => {

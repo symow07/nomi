@@ -17087,3 +17087,33 @@ Team, Data and account), all written by Claude and not yet read by a native spea
   verbal nouns, no imperative («مراجعة مساحة العمل هذه ثم إغلاقها»; «طلب محو مساحة العمل هذه من فريق Nomi»); Chinese
   保存早间摘要设置 adds 设置 so it reads as saving the setting, not sending a summary; French « Enregistrer le moyen
   choisi » for the way may want the page's own heading word.
+
+**The UI correction, Block 9 (2026-11-25):** new zh / ar / es / fr lines on the lists, the record pages and the pages'
+states, all written by Claude and not yet read by a native speaker (`src/core/owner/i18n/uiFinish.ts`):
+- Filters (F07): `filters.more`, the phone's "Filters" button (筛选, التصفية, Filtros, Filtres), which is followed by
+  the number of filters that are on.
+- Long lists (F09): the column words `customers.lastContact / .orderValue / .labels / .created / .product / .amount /
+  .stateAt / .standingOrders`. To read first: each is a column heading, a noun phrase with no verb. Arabic «آخر تواصل»
+  must read as a date column, and Chinese 最近联系 likewise.
+- Records (F10): the fold names `edit.change.business / .contact / .zone / .currency / .zoneCurrency / .kind / .ids`
+  and the empty value `edit.notGiven` (还没填写, لم يُذكر بعد, Aún sin indicar, Pas encore indiqué). To read first:
+  Arabic uses verbal nouns («تغيير المعرّفات القانونية»), never an imperative; each fold says only what it changes.
+- States (F47), thirty-two lines `state.*`: the twenty of this item and the twelve of the next. Here: `labels`,
+  `advisor`, `gaps`, `invoices`, `invoices.none`, `report`, `bank`, `billing` and `channel`, each a heading, with a
+  sentence and a next step where it has one. To read first:
+  - Two different states never share a heading in any language (a test holds it), so 这个视图里没有内容 (a report with
+    nothing in range) and 还没有标签 (no labels yet) must stay apart.
+  - `state.billing.p` avoids a software word on Billing in every language («لا يمكن اختيار باقة هنا بعد»).
+  - `state.channel.h` keeps "installation" (这个安装, هذا التثبيت), as the channel pages' own `channels.*.notHere`
+    lines already do. A native reader may want a plainer word for both.
+  - No line has a pronoun for the assistant or a person: zh avoids 它, es "ella" and fr « elle ».
+- States of the lists (F47, the tester's round), twelve lines: Customers `state.customers.h / .p / .next / .none.h /
+  .none.p`, Orders `state.orders.h / .p / .none.h / .none.p`, Saved replies `state.replies.p / .none.p`, and the next
+  step `state.clearFilters` (清除筛选, مسح عوامل التصفية, Borrar los filtros, Effacer les filtres). Each list has one
+  pair: "none yet" (`.h`, `.p`) and "none match" (`.none.h`, `.none.p`). To read first:
+  - The two headings of a list must read as different states: 还没有客户 / 没有符合条件的客户, «لا عملاء بعد» / «لا
+    عملاء مطابقون», «Aún no hay pedidos» / «Ningún pedido coincide», « Aucune commande pour l’instant » / « Aucune
+    commande ne correspond ».
+  - Arabic uses verbal nouns and «يمكن تجربة…», never an imperative («الاستعداد لأول عميل»); French
+    `state.customers.next` is an infinitive (« Se préparer pour le premier client »); Spanish uses tú («Prepárate»).
+  - Each line says "customer" (客户, عميل, cliente, client), never "buyer"; none has a pronoun for a person.

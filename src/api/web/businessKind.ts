@@ -1,13 +1,14 @@
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
-import { fieldRow, rowsCard, saveBar, cardActs, keptError, keptInvalid, type Kept } from './rows.js';
+import { fieldRow, rowsCard, saveBar, keptError, keptInvalid, type Kept } from './rows.js';
+import { factList, editFold, editActs } from './editFold.js';
 
 
 /**
@@ -75,10 +76,16 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   // the page holds, as Setup's row does; (V1-473) and the page says what each
   // is used for, and when a change counts.
   // Phase 7 — a fact about the business: reached from My business, and back there.
-  return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
-    ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
-    <form method="post" action="/app/settings/business" class="sform${embedded ? ' biz-form' : ''}">
+  // UI Block 9 (F10) — on Business profile the part reads first (its three values) and its form opens on purpose, open
+  // at rest while the kind or the country is not answered; its own page (the form alone) is unchanged.
+  const country = v.country === null ? null : canonicalCountry(v.country);
+  const facts = embedded ? factList(locale, [
+    [t(locale, 'signup.kind'), v.kind ? esc(t(locale, `business.kind.${v.kind}` as MessageKey)) : ''],
+    // The country reads as its form's list names it (countryName's short names, "USA", were the export trade's).
+    [t(locale, 'signup.country'), country ? `<bdi>${esc(countryOptions(locale).find((c) => c.code === country)?.name ?? countryName(locale, country) ?? country)}</bdi>` : ''],
+    [t(locale, 'signup.website'), v.website ? `<bdi dir="ltr">${esc(v.website)}</bdi>` : ''],
+  ]) : '';
+  const form = `<form method="post" action="/app/settings/business" class="sform${embedded ? ' biz-form' : ''}">
       ${rowsCard(null, [
         // Phase 9 (w4-settings-a-11) — sent back, the answer that was wrong says so under itself; the others are kept.
         fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind', error: keptError(kept, 'kind', 'bk-kind-err'),
@@ -93,8 +100,12 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
           control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
             inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url"${keptInvalid(kept, 'website', 'bk-website-err')} />` }),
         // UI Block 7 (F35) — on Business profile, one subject among several: its act in its own card, saying what it saves.
-        ...(embedded ? [cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'biz.save.kind'))}</button>`)] : []),
+        ...(embedded ? [editActs(locale, t(locale, 'biz.save.kind'), true)] : []),
       ])}
       ${embedded ? '' : saveBar(t(locale, 'business.kind.save'))}
     </form>`;
+  return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
+    ${flashBanner(flash)}
+    <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
+    ${embedded ? `${facts}${editFold(t(locale, 'edit.change.kind'), !v.kind || !country || !!kept, form)}` : form}`;
 }

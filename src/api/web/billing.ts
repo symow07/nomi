@@ -1,3 +1,4 @@
+import { stateBlock, stateNext } from './stateBlock.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
@@ -43,7 +44,14 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
       fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
       fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
     ])}`;
-  if (!v.configured) return nothing('billing.notConfigured');
+  // F47 — not offered on this installation: said as a state of its own, the plan and the charge still shown as none
+  if (!v.configured) return `${head}
+    <p class="lede">${esc(t(locale, 'billing.notConfigured'))}</p>
+    ${stateBlock('unavailable', { heading: t(locale, 'state.billing.h'), body: t(locale, 'state.billing.p'), nextHtml: stateNext('/app/settings/setup', t(locale, 'state.billing.next')) })}
+    ${rowsCard(null, [
+      fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
+      fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
+    ])}`;
   if (!v.state.billed) return nothing('billing.notBilled');
   const s = v.state;
   const date = (d: Date | null) => (d ? show.date(locale, d) : '—');

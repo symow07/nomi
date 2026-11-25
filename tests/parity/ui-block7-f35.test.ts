@@ -31,7 +31,9 @@ const forms = (html: string) => [...html.matchAll(/<form method="post" action="\
 const names = (f: string, hidden: boolean) =>
   [...f.matchAll(/<(input|select|textarea)\b([^>]*)>/g)].filter((m) => (m[2]!.includes('type="hidden"')) === hidden)
     .map((m) => /name="([^"]+)"/.exec(m[2]!)?.[1]).filter((n): n is string => !!n);
-const acts = (f: string) => [...f.matchAll(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">([^<]+)<\/button><\/div>/g)].map((m) => m[1]!);
+// UI Block 9 (F10): a Cancel (shown by the script, data-edit-cancel) now sits beside each part's Save, after it; the
+// Save read here is unchanged.
+const acts = (f: string) => [...f.matchAll(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">([^<]+)<\/button>(?:<button class="btn ghost" type="button" data-edit-cancel hidden>[^<]+<\/button>)?<\/div>/g)].map((m) => m[1]!);
 const fills = (f: string) => f.match(/class="btn send\b/g)?.length ?? 0;
 const PROFILE = ['name', 'description', 'location', 'working_hours', 'contact_email', 'contact_phone'];
 
@@ -79,16 +81,20 @@ describe('F35 · the profile is three subjects, each saved by its own Save', () 
     }
     expect(draw('en', { fixed: true })).toContain(esc(t('en', 'settings.currency.fixed')));
     expect(draw('en', { viewer: STAFF })).toContain(esc(t('en', 'staff.ownerDecides')));
-    // nothing to save in it: no Save at all
+    // nothing to save in it: no Save at all. UI Block 9 (F10): a part with nothing to save is no longer an empty form
+    // (it has no fold to open): its rows are drawn read-only, the currency and why it is fixed, and no form at all.
     const none = draw('en', { fixed: true, zone: false });
-    expect(forms(none).length).toBe(3);
-    expect(acts(forms(none)[2]!)).toEqual([]);
+    expect(forms(none).length).toBe(2);
+    expect(none).toContain('<section class="sgroup" id="zone">');
+    expect(none).toContain(esc(t('en', 'settings.currency.fixed')));
+    expect(none).not.toContain(esc(t('en', 'biz.save.currencyOnly')));
   });
   it('the type, country and website on the profile: its own Save in its own card, saying what it saves', () => {
     const v = { kind: null, country: 'PT', website: '' };
     for (const l of LOCALES) {
       const on = renderBusinessKind(v, l, null, 'x', null, true);
-      expect(on, l).toContain(`<div class="fr-acts"><button class="btn send" type="submit">${esc(t(l, 'biz.save.kind'))}</button></div></div></section>`);
+      // UI Block 9 (F10): the part's Cancel sits after its Save, in the same card foot.
+      expect(on, l).toContain(`<div class="fr-acts"><button class="btn send" type="submit">${esc(t(l, 'biz.save.kind'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(l, 'common.cancel'))}</button></div></div></section>`);
       expect(on, l).not.toContain('class="savebar"');
       expect(renderBusinessKind(v, l, null, 'x'), l).toContain(`<div class="savebar"><button class="btn send" type="submit">${esc(t(l, 'business.kind.save'))}</button>`);
     }

@@ -117,12 +117,15 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   it('A PRODUCT, A CONVERSATION AND AN ORDER THAT ARE NOT THERE: a state with the reason and the way back', async () => {
     for (const url of ['/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
       const r = await get(url);
-      expect(r.body, url).toContain(`<div class="empty">${t('en', 'common.notFoundBody')}`);
+      // UI Block 9 (F47, tester round) — drawn as the state block (unavailable); the reason's words are unchanged.
+      expect(r.body, url).toContain(`<p class="state-p">${t('en', 'common.notFoundBody')}</p>`);
     }
     // (w4-products-knowledge-16) a product not here says so in its own words — never "removed".
     const product = await get('/app/products/00000000-0000-4000-8000-000000000000');
     expect(product.statusCode).toBe(404);
-    expect(product.body).toContain(`<div class="empty">${t('en', 'product.notFound.body')}`);
+    // UI Block 9 (F47, tester round 2) — the pin moved: the missing product is drawn as the state block (unavailable),
+    // like every other missing record; its words and its 404 are unchanged.
+    expect(product.body).toContain(`<section class="state" data-state="unavailable"><h1 class="page state-h">${t('en', 'product.notFound')}</h1><p class="state-p">${t('en', 'product.notFound.body')}</p>`);
   });
 
   // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: its address leads

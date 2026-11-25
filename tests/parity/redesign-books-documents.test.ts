@@ -31,8 +31,12 @@ describe('Books invoice and credit-note presentation',()=>{
  });
  it('keeps totals, outstanding amount and state in each phone-readable list row',()=>{
   const html=renderInvoices('en',owner,[invoice,{...invoice,id:'draft',key:null,status:'draft'}]);
-  expect(html).not.toContain('<table');expect(html).toContain('class="bd-invoice-row"');
-  const row=html.match(/<li class="bd-invoice-row"[\s\S]*?<\/li>/)?.[0]??'';
+  // UI Block 9 (F09, long lists): this pin held "no table" — each invoice a list item that repeated its own labels. The
+  // list is now the books' shared table (one header on a desk, figures end-aligned); on a phone each row is still a
+  // card with every value beside its name (data-label), so what this test reads in a row is unchanged.
+  expect(html).toContain('<table');expect(html).toContain('bk-cards bd-inv');expect(html).toContain('class="bd-inv-row"');
+  const row=html.match(/<tr class="bd-inv-row"[\s\S]*?<\/tr>/)?.[0]??'';
+  expect(row).toContain('data-label="Still owed"');
   expect(row).toContain('£120.00');expect(row).toContain('£90.00');expect(row).toContain('Partly paid');
   expect(row).toContain('Customer &lt;One&gt;');expect(row).toContain('/app/books/invoices/invoice');
   expect(renderInvoices('en',accountant,[invoice])).not.toContain('/invoices/new');

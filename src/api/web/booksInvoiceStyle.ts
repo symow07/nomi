@@ -5,6 +5,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bd-filters label{display:grid;gap:var(--space-8);min-width:0;flex:1;}
 .bd-filters input,.bd-filters select{font-size:var(--font-size-base);min-height:44px;width:100%;}
 .bd-filters a,.bd-pager a{min-height:44px;display:flex;align-items:center;}
+.bd-pager a{justify-content:center;min-width:44px;}
 .bd-invoices{list-style:none;margin:0;padding:0;}
 .bd-invoice-row{display:grid;grid-template-columns:minmax(12rem,1fr) minmax(0,2fr);gap:var(--space-24);padding-block:var(--space-24);border-top:1px solid var(--color-border);scroll-margin-block-start:var(--space-24);}
 .bd-invoice-name{display:flex;align-items:start;flex-direction:column;gap:var(--space-8);min-width:0;overflow-wrap:anywhere;}

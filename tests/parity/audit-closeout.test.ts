@@ -33,6 +33,10 @@ import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
 import { decimal } from '../../src/core/types/decimal.js';
+// UI Block 9 (F09, long lists): on a desk the product list's price and minimum are columns under one header, so each
+// sits in its own span (and the minimum's key in one that the header replaces there); the row's words are unchanged.
+// columnless() reads the row's words as one run again — the pin below is on the words, as it was.
+const columnless = (s: string): string => s.replace(/<span class="prod-(?:price|sep|moq|k)">/g, '').replace(/<\/span>/g, '');
 
 /**
  * The audit of 2026-09-20 (`docs/AUDIT-2026-09-20.md`), its last open rows,
@@ -200,13 +204,13 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
   });
 
   it('products: the colon and the gap per language, every figure spaced from its unit', () => {
-    const en = withoutIsolates(renderProductList([item()], 'en'));
+    const en = columnless(withoutIsolates(renderProductList([item()], 'en')));
     // Phase 9 (V1-299) — the price of one unit; the quantity it starts from only where that is above the minimum.
     expect(en).toContain(`From 5,000${NBSP}pcs: <bdi>$0.92/pc</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
-    const ar = withoutIsolates(renderProductList([item()], 'ar'));
+    const ar = columnless(withoutIsolates(renderProductList([item()], 'ar')));
     // The design pass §9: Arabic money is the locale's own form, read as one unit.
     expect(ar).toContain(`ابتداءً من 5,000${NBSP}قطعة: <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi> · `);
-    const zh = withoutIsolates(renderProductList([item()], 'zh'));
+    const zh = columnless(withoutIsolates(renderProductList([item()], 'zh')));
     expect(zh).toContain('5000个起：<bdi>$0.92/个</bdi>　最低起订：<bdi>1000个</bdi>');
     for (const [l, html] of [['en', en], ['ar', ar]] as const) {
       expect(html, l).not.toMatch(/[：　]/);

@@ -8,6 +8,7 @@ import { renderNewEntry, type EntryChoices } from './booksEntries.js';
 import { customShown } from './booksFields.js';
 import { safeBooksReturn } from './booksNavigation.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
+import { filterBar } from './filterBar.js';
 import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { moneyFromRow } from '../../core/types/money.js';
 import { parseDecimal, type Decimal } from '../../core/types/decimal.js';
@@ -71,7 +72,7 @@ export function renderSpending(locale: Locale, viewer: Who, page: OverviewPage<O
   return `<section class="books-spending"><header class="bs-header"><h1 class="page">${esc(t(locale,'booksSpending.title'))}</h1><p class="lede">${esc(t(locale,'booksSpending.lede'))}</p></header></section>${opts.book ?? ''}
     <section class="books-spending bs-receipts" id="receipts" aria-labelledby="receipts-title"><h2 id="receipts-title">${esc(t(locale,'receipt.title'))}</h2>
     ${owner(viewer) && offered ? `<details class="bs-upload"${page.total === 0 ? ' open' : ''}><summary>${esc(t(locale,'booksSpending.upload'))}</summary><div id="receipt-upload">${upload(locale)}</div></details>` : ''}
-    <form method="get" action="/app/books/spending" class="bs-filter"><label><span>${esc(t(locale,'booksSpending.filter'))}</span><select name="state"><option value="">${esc(t(locale,'booksSpending.all'))}</option>${spendingStates.map(s=>`<option value="${s}"${s === opts.state ? ' selected' : ''}>${esc(stateText(locale,s))}</option>`).join('')}</select></label><button class="btn" type="submit">${esc(t(locale,'booksSpending.show'))}</button></form>
+    ${filterBar({locale,action:'/app/books/spending',cls:'bs-filter',name:t(locale,'booksSpending.filter'),search:{label:t(locale,'booksSpending.filter'),control:`<select name="state"><option value="">${esc(t(locale,'booksSpending.all'))}</option>${spendingStates.map(s=>`<option value="${s}"${s === opts.state ? ' selected' : ''}>${esc(stateText(locale,s))}</option>`).join('')}</select>`},submit:t(locale,'booksSpending.show'),clear:opts.state?{href:'/app/books/spending',label:t(locale,'booksSpending.all')}:null})}
     ${page.rows.length ? `<ul class="bs-list">${page.rows.map(r=>`<li id="paper-${esc(r.id)}" class="bs-paper">${thumb(r)}<div class="bs-paper-main"><a href="/app/books/spending/${esc(r.id)}?from=${esc(encodeURIComponent(from.split('#')[0]+'#paper-'+r.id))}"><bdi>${esc(r.name)}</bdi></a>${facts(r)}<p class="caption muted">${esc(t(locale,'receipt.added',{date:day(locale,r.addedOn)}))}</p></div>${statePill(locale,r.state)}</li>`).join('')}</ul>` : `<p>${esc(t(locale,'booksSpending.empty'))}</p>`}
     <nav class="bs-pagination" aria-label="${esc(t(locale,'booksSpending.title'))}"><p>${esc(t(locale,'booksSpending.range',{from:page.from,to:page.to,total:page.total}))}</p><div>${page.prev !== null ? `<a href="${esc(url(page.prev))}">${esc(t(locale,'booksSpending.previous'))}</a>` : ''}${page.next !== null ? `<a href="${esc(url(page.next))}">${esc(t(locale,'booksSpending.next'))}</a>` : ''}</div></nav></section>`;
 }

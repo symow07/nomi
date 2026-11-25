@@ -355,11 +355,14 @@ describe('NEW (prev.) primary act in different places · a one-card form ends wi
     // each card its own form with its own Save, so each is a one-card form and follows the same rule as Samples, Terms
     // and the rate: its act in its card's foot, one per card (ui-block7-f35.test.ts holds what each one saves).
     // One primary act per page (surface walk, CC-29): the first card's Save is filled, the others outlined (btn second).
+    // UI Block 9 (F10) — pin moved, not loosened: each part now reads first and its card sits in a form behind the
+    // part's "Change …" fold (section.sgroup.ef > details > form > div.scard), with a Cancel after its Save; the rule
+    // held is the same — every part's card ends with its own act.
     const p = profile('en');
-    expect(p.match(/<section class="sgroup"/g)?.length).toBeGreaterThan(1);
+    expect(p.match(/<section class="sgroup(?: ef)?"/g)?.length).toBeGreaterThan(1);
     expect(p).not.toContain('class="savebar"');
-    expect(p.match(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">[^<]+<\/button><\/div><\/div><\/section>/g)?.length)
-      .toBe(p.match(/<section class="sgroup"/g)?.length);
+    expect(p.match(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">[^<]+<\/button>(?:<button class="btn ghost" type="button" data-edit-cancel hidden>[^<]+<\/button>)?<\/div><\/div>/g)?.length)
+      .toBe(p.match(/<section class="sgroup(?: ef)?"/g)?.length);
     expect(p.match(/<div class="fr-acts"><button class="btn send" type="submit">/g)?.length).toBe(1);
   });
 });

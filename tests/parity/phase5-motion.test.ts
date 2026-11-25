@@ -190,6 +190,8 @@ const along = (curve: string, time: number): number => {
 };
 
 describe('the motion pass · every rule that moves names something the product really draws', () => {
+  // UI Block 9 (F44): Today's faces and a menu's groups no longer move on arrival; they stay in the pages read here,
+  // which the rules that still move are matched against.
   it('the pages it is read against are real: Today\'s faces, the draft, a menu, the lenses, the month, the dialogs', () => {
     const one = (sel: string) => TREES.flatMap((tr) => select(tr, sel)).length;
     expect(one('.td-row > li')).toBeGreaterThanOrEqual(8);
@@ -275,13 +277,15 @@ describe('the motion pass · timings and distances a person can see', () => {
 describe('the motion pass · each moment, as the stylesheet draws it', () => {
   const ruleOf = (sel: string) => MOVING.find((r) => r.sel.split(/,(?![^(]*\))/).map((s) => s.trim()).includes(sel))?.body ?? '';
 
-  it('arriving: the notice, the draft (a beat after the page), the at-work line, Today, a menu group by group, each face in turn', () => {
-    expect(ruleOf('#approve')).toContain('animation:nomi-rise var(--motion-normal) var(--motion-ease) both');
-    expect(MOVING.find((r) => r.sel === '#approve, .td')?.body).toContain('animation-delay:var(--motion-fast)');
-    expect(ruleOf('.sgroup + .sgroup')).toContain('animation-delay:var(--motion-step)');
-    expect(ruleOf('.td-row > li')).toContain('animation:nomi-rise');
-    expect(ruleOf('.td-row > li:nth-child(4)')).toContain('animation-delay:calc(var(--motion-fast) + 3 * var(--motion-step))');
-    expect(ruleOf('details[open] > :not(summary)')).toContain('animation:nomi-arrive var(--motion-normal) var(--motion-ease) both');
+  // UI Block 9 (F44) — pin moved: "no repeated page entrance on routine work". Today's faces, a menu's groups, the
+  // at-work line, the draft on every arrival and a fold the page draws open rose in each time an owner opened the
+  // page; now only what completes rises — a notice after a save, and the draft drawn in place once written.
+  it('arriving: only what completes rises in — the notice, and the draft drawn in place; a routine page arrives still', () => {
+    expect(ruleOf('.flash')).toContain('animation:nomi-rise var(--motion-normal) var(--motion-ease) both');
+    expect(ruleOf('main[data-drawn-again] #approve')).toContain('animation:nomi-rise var(--motion-normal) var(--motion-ease) both');
+    for (const routine of ['#approve', '.working', '.home-card', '.td', '.sgroup', '.home-schedule', '.td-row > li', 'details[open] > :not(summary)'])
+      expect(ruleOf(routine), routine).toBe('');
+    expect(css).not.toContain('nomi-arrive');
     expect(ruleOf('details:not([open])::details-content')).toContain('opacity:0');
   });
 
@@ -291,7 +295,10 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     const closing = ruleOf('details:not([open])::details-content');
     expect(closing).toContain('opacity:0');
     expect(closing).toContain('transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete');
-    expect(ruleOf('details[open] > :not(summary)')).toContain('animation:nomi-arrive var(--motion-normal) var(--motion-ease) both');
+    // UI Block 9 (F44) — pin moved: opening fades in and drops the fold's 8 px as a transition, which runs only when a
+    // fold is opened (a keyframe ran on every fold the page drew open); it names no visibility, so nothing waits.
+    expect(closing).toContain('transform:translateY(calc(-1 * var(--travel-fold)))');
+    expect(ruleOf('details[open]::details-content').trim()).toBe('transition:opacity var(--motion-normal) var(--motion-ease), transform var(--motion-normal) var(--motion-ease);');
   });
 
   it('dialogs come and go: they grow in from 0.96 and sink away, with their dimming; the card springs', () => {
@@ -308,7 +315,9 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     expect(MOVING.some((r) => r.sel === '.toast, [dir="rtl"] .toast' && r.body.includes('nomi-toast-up'))).toBe(true);
   });
 
-  it('pages: the content fades out and rises in, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
+  // UI Block 9 (F44) — pin moved: the content's fade and 12 px rise played on every navigation (a repeated page
+  // entrance); the next page is now simply there, and what slides is what was chosen — the rail's tile, the lens, the day.
+  it('pages: the next page is simply there, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
     const vt = calm.join('\n');
     expect(vt).not.toContain('@view-transition');
     expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }))
@@ -317,8 +326,11 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
     expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
     expect(ruleOf('.si-order .si-fil.on')).toContain('view-transition-name:lens-on');
     expect(ruleOf('.mo td.sel .mo-d')).toContain('view-transition-name:day-on');
-    expect(ruleOf('::view-transition-new(page)')).toContain('animation:nomi-page-in var(--motion-max) var(--motion-ease) both');
-    expect(ruleOf('::view-transition-old(page)')).toContain('animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both');
+    expect(ruleOf('::view-transition-new(page)').trim()).toBe('animation:none;');
+    expect(ruleOf('::view-transition-new(root)').trim()).toBe('animation:none;');
+    expect(ruleOf('::view-transition-old(page)').trim()).toBe('animation:none; opacity:0;');
+    expect(ruleOf('::view-transition-old(root)').trim()).toBe('animation:none; opacity:0;');
+    expect(css).not.toContain('nomi-page-in');
   });
 
   it('the hand: a press settles to 0.97 and comes back; a rail icon lifts under the pointer; colour is left to the rail\'s own rules', () => {
@@ -346,6 +358,9 @@ describe('the motion pass · nothing moves for a reader who asked for less', () 
     expect(moving.match(/\b\d+(?:\.\d+)?m?s\b/g) ?? []).toEqual([]);
     expect(still).toHaveLength(1);
     expect(still[0]).toMatch(/\*,\s*\*::before,\s*\*::after\s*\{[^}]*animation-duration:1ms !important;[^}]*transition-duration:1ms !important;/);
+    // UI Block 9 (F44): "reduced motion gives 0 running animations". A 1 ms duration still started one — a summary's
+    // chevron and margin ran for a frame on every opening — so the reduce block now names nothing to run at all.
+    expect(still[0]).toMatch(/animation-name:none !important; transition-property:none !important;/);
   });
 });
 

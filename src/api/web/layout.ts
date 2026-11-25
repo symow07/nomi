@@ -2,6 +2,10 @@ import { SETTINGS_AREA_CSS } from './settingsAreaStyle.js';
 import { MONTH_REPORT_CSS } from './monthReportStyle.js';
 import { SETUP_MINUTES_CSS } from './setupMinutesStyle.js';
 import { FOLLOW_UP_CSS } from './followUpStyle.js';
+import { FILTER_BAR_CSS } from './filterBarStyle.js';
+import { LISTS_CSS } from './listsStyle.js';
+import { EDIT_FOLD_CSS } from './editFoldStyle.js';
+import { STATE_CSS } from './stateBlockStyle.js';
 import { pageFrom } from './helpTopics.js';
 import { settingsHref } from './settingsNavigation.js';
 import { ASSISTANT_AREA_CSS } from './assistantAreaStyle.js';
@@ -181,8 +185,10 @@ export const atWork = (text: string, assistant = false): string =>
  * Phase 6 — a page that is not there says so as a state, not a bare heading
  * and one word: what is missing, the likely reason, and the way back.
  */
+/** UI Block 9 (F47) — a record that is not here is the state `unavailable`, drawn as the state block (stateBlock.ts):
+ * its heading is the page's one h1, then the likely reason, then the one way back. */
 export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
-  `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(title)}</h1><p class="state-p">${esc(t(locale, 'common.notFoundBody'))}</p><p class="state-next">${deeper(door.href, door.label)}</p></section>`;
 
 export const deeper = (href: string, label: string, extra = '', attrs = '', labelLanguage?: 'en'): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}${GO}</a>`;
@@ -368,17 +374,22 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *
  * Now, from the tokens (`motionMs`, `motionEase`, `motionTravelPx`, `motionScale`):
  *
- *   arriving   220 ms, the gentle ease-out: a notice, the draft card (a beat
- *              after the page), the assistant at work, Today's band and hero,
- *              each face in turn, a menu group by group, a fold's content —
- *              16 px (a fold 8 px), from transparent
+ *   arriving   220 ms, the gentle ease-out, only for what completes: a notice
+ *              after a save, and the draft drawn in place once the assistant
+ *              has written it — 16 px, from transparent. UI Block 9 (F44): a
+ *              page an owner opens many times a day arrives still — Today's
+ *              band and faces, a menu's groups, the at-work line and a fold
+ *              drawn open no longer rise in on every arrival
+ *   opening    a fold opened by hand fades in and drops 8 px (220 ms); one the
+ *              page draws open does not move
  *   dialogs    the question grows in from 0.96 and 16 px; the profile card
  *              springs up 48 px over 250 ms (from the screen's foot on a
  *              phone); both sink away in 160 ms when closed, with their dimming
  *   the toast  slides in 24 px from its own edge, and back out the same way
- *   pages      the page's content fades out (160 ms) and the next rises in
- *              12 px (250 ms); the rail stays, and its raised tile slides to
- *              the entry chosen — so do the Inbox lens and the chosen day
+ *   pages      the next page is simply there (UI Block 9, F44: the content's
+ *              fade and 12 px rise played on every navigation); the rail
+ *              stays, and its raised tile slides to the entry chosen — so do
+ *              the Inbox lens and the chosen day
  *   hand       a hover or a press settles both ways (160 ms): a control
  *              presses to 0.97 and comes back; a rail icon lifts 2 px, and
  *              a press sets it back down
@@ -391,8 +402,6 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  * `phase5-motion.test.ts` holds that, the durations by name, and that each
  * rule's selector is one the pages really draw.
  */
-const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
-  `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     .btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
@@ -402,19 +411,12 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
     nav.side :is(a,button).navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
-    details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
-    /* Delay hiding only when closing: opening must expose its fields to the very next Tab. */
-    details:not([open])::details-content { opacity:0; transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
+    /* A fold moves when it is opened, never because a page arrived with it open. Hiding waits only when closing:
+       opening must expose its fields to the very next Tab. */
+    details[open]::details-content { transition:opacity var(--motion-normal) var(--motion-ease), transform var(--motion-normal) var(--motion-ease); }
+    details:not([open])::details-content { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
-    .flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    #approve, .td { animation-delay:var(--motion-fast); }
-    .home-schedule { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
-    .sgroup + .sgroup { animation-delay:var(--motion-step); }
-    .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
-    /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
-    main[data-drawn-again] .home-card, main[data-drawn-again] .home-schedule, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
-    .td-row > li { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
-${STAGGER}
+    .flash, main[data-drawn-again] #approve { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .td-row { scroll-behavior:smooth; }
     .working .dots i { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     .working .dots i + i { animation-delay:var(--motion-fast); }
@@ -444,16 +446,16 @@ ${STAGGER}
     .mo td.sel .mo-d { view-transition-name:day-on; }
     ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
     ::view-transition-group(page) { animation:none; }
-    ::view-transition-old(page) { animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both; }
-    ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
+    ::view-transition-old(page), ::view-transition-old(root) { animation:none; opacity:0; }
+    ::view-transition-new(page), ::view-transition-new(root) { animation:none; }
   }
   @media (prefers-reduced-motion: reduce) {
     /* The record disclosure margin must settle immediately, not animate through the global 1ms duration. */
     .record-section>summary { transition-property:none; }
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
-      animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
+      animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important;
+      animation-name:none !important; transition-property:none !important; }
   }
-  @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
   @keyframes nomi-settle { from { opacity:0.5; transform:translateY(calc(-1 * var(--travel-nudge))); } }
   @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
@@ -463,8 +465,6 @@ ${STAGGER}
   @keyframes nomi-toast-out-rtl { to { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
   @keyframes nomi-toast-up { from { opacity:0; transform:translateY(var(--travel-toast)); } }
   @keyframes nomi-toast-down { to { opacity:0; transform:translateY(var(--travel-toast)); } }
-  @keyframes nomi-page-in { from { opacity:0; transform:translateY(var(--travel-page)); } }
-  @keyframes nomi-fade-out { to { opacity:0; } }
   /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
      the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
   .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -2951,7 +2951,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}${LANGMENU_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS + FILTER_BAR_CSS + LISTS_CSS + EDIT_FOLD_CSS + STATE_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -3103,7 +3103,7 @@ const wayBack = (locale: Locale, path: string, body: string): string => {
  */
 export const notFoundInside = (locale: Locale): string =>
   // Phase 9 (w4-today-setup-30) — a calm line and its door, not the dashed box the run retired.
-  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><p class="muted">${esc(t(locale, 'error.notfound.body'))}</p>${deeper('/app', t(locale, 'error.home'))}`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(t(locale, 'error.notfound.title'))}</h1><p class="state-p">${esc(t(locale, 'error.notfound.body'))}</p><p class="state-next">${deeper('/app', t(locale, 'error.home'))}</p></section>`;
 
 /**
  * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE, said on every page:
@@ -3218,7 +3218,9 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
   // The home run — a greeting is a page's first words, not its name: Home's tab says "Home".
-  const ownHeading = /<h1 class="page"(?![^>]*\bdata-greeting\b)[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  // UI Block 9 — a state block's heading is `class="page state-h"`: it names the tab too (a missing record, a
+  // missing product, a mistyped address), as its plain `class="page"` heading did before.
+  const ownHeading = /<h1 class="page(?: [^"]*)?"(?![^>]*\bdata-greeting\b)[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
   /**
    * THE WARMTH RUN (2026-10-03), phase 8 — every page in a workspace asks the
    * rail's question (`railAnswer`, live.ts) from the number it was drawn with,
@@ -3396,7 +3398,9 @@ const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
  * The door runs no script (CC-26): it holds the password and the code fields,
  * and nothing on it needs one (public-new-11 was decided that way).
  */
-type DoorOptions = { readonly site?: string };
+/** `state`: UI Block 9 (F47), a door page that IS a state (the error page) names its kind on the card, as the app's
+ * state block does; the door's own sheet draws it, since the page may reach someone with no session. */
+type DoorOptions = { readonly site?: string; readonly state?: 'error' | 'unavailable' };
 
 /**
  * w4-public-05, -06 — the space between a sentence and what follows it: none after a
@@ -3420,7 +3424,7 @@ ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body class="door"><div class="login">
   <header class="door-top"><div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>${langMenu(locale, path)}</header>
-  <main class="card">${card}</main>
+  <main class="card"${o.state ? ` data-state="${o.state}"` : ''}>${card}</main>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
 </div></body></html>`);
@@ -3903,5 +3907,8 @@ export function errorPage(input: {
     ? `<p class="other"><a href="/app">${esc(t(locale, 'error.home'))}</a></p>`
     : `<p class="other"><a href="${esc(input.site ?? '/site')}">${esc(t(locale, 'error.toSite'))}</a></p>`
       + `<p class="other small"><a href="/login">${esc(t(locale, 'login.title'))}</a></p>`;
-  return doorFrame(locale, input.path, title, card, other, input.site ? { site: input.site } : {});
+  // F47 — a crash is `error` (it did not work; the reference is what was kept); an address that leads nowhere is
+  // `unavailable` (nothing is pretended, and the one way out is a place that exists).
+  const state = kind === 'crash' ? 'error' as const : 'unavailable' as const;
+  return doorFrame(locale, input.path, title, card, other, input.site ? { site: input.site, state } : { state });
 }

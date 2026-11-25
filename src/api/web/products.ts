@@ -29,6 +29,8 @@ import { scriptNeeds } from '../../db/setup.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
+import { stateBlock, stateNext } from './stateBlock.js';
+import { filterBar } from './filterBar.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -91,8 +93,8 @@ export const perUnit = (locale: Locale, price: Money, unit: string): string =>
  * never erased; the page says so), with the way back to where it was looked for.
  */
 export const renderProductMissing = (locale: Locale, to: { readonly href: string; readonly label: string } | null = null): string =>
-  `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="empty">${esc(t(locale, 'product.notFound.body'))}<div>${
-    deeper(to?.href ?? '/app/products', to?.label ?? t(locale, 'product.detail.back'))}</div></div>`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(t(locale, 'product.notFound'))}</h1><p class="state-p">${esc(t(locale, 'product.notFound.body'))}</p><p class="state-next">${
+    deeper(to?.href ?? '/app/products', to?.label ?? t(locale, 'product.detail.back'))}</p></section>`;
 
 /** Phase 9 (missed-03) — an address cut short is a product that is not here, never a broken page. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -628,7 +630,7 @@ export function renderProductList(
   if (page?.q) query.set('q', page.q);
   if (page && page.page > 1) query.set('page', String(page.page));
   const source = productReturnHref(opts.returnHref ?? ('/app/products' + (query.size ? `?${query}` : ''))).split('#')[0]!;
-  const search = page ? `<form method="get" action="/app/products" class="pa-search"><label>${esc(t(locale, 'products.search'))}<input type="search" name="q" value="${esc(page.q)}" placeholder="${esc(t(locale, 'products.searchHint'))}"></label><button class="btn" type="submit">${esc(t(locale, 'products.show'))}</button>${page.q ? `<a href="/app/products">${esc(t(locale, 'products.clear'))}</a>` : ''}</form>` : '';
+  const search = page ? `${filterBar({ locale, action: '/app/products', cls: 'pa-search', name: t(locale, 'products.search'), search: { label: t(locale, 'products.search'), control: `<input type="search" name="q" value="${esc(page.q)}" placeholder="${esc(t(locale, 'products.searchHint'))}">` }, submit: t(locale, 'products.show'), clear: page.q ? { href: '/app/products', label: t(locale, 'products.clear') } : null })}` : '';
   const byQuantity = sellsByQuantity(kind);
   const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
@@ -652,11 +654,10 @@ export function renderProductList(
     ${suggested.length ? `<div class="block measure-prose"><p class="caption muted">${esc(t(locale, 'product.list.namesSuggested', {
       languages: formatList(locale, suggested.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}`;
   if (items.length === 0) {
-    if (page?.q) return `${head}<div class="pa-empty"><h2>${esc(t(locale, 'products.noMatch'))}</h2><p>${esc(t(locale, 'products.noMatchHelp'))}</p></div></section>`;
+    if (page?.q) return `${head}${stateBlock('nomatch', { heading: t(locale, 'products.noMatch'), body: t(locale, 'products.noMatchHelp'), nextHtml: stateNext('/app/products', t(locale, 'products.clear')) })}</section>`;
     // Phase 9 (missed-01) — the door names the page it opens.
-    return `${head}
-      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name }))}</span>
-      <div class="doors">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ownerDecides(locale)}</div></div></div></section>`;
+    return `${head}${stateBlock('empty', { heading: t(locale, 'product.list.empty.title'), body: t(locale, 'product.list.empty.body', { name }),
+      nextHtml: viewer.isOwner ? stateNext('/app/products/add', t(locale, 'product.teach')) : `<span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span>` })}</section>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -669,15 +670,17 @@ export function renderProductList(
       ? (starts ? labelled(locale, esc(t(locale, 'product.list.from', { qty: show.quantityOf(locale, p.entryQty, u) })), iso(perUnit(locale, p.entryPrice, p.unit)))
         : iso(perUnit(locale, p.entryPrice, p.unit)))
       : esc(t(locale, 'product.list.priceTbd'));
-    const moq = !byQuantity && p.moq === null ? null : labelled(locale, esc(t(locale, 'product.list.moq')),
-      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
+    // UI Block 9 (F09): the key is its own span, so on a desk the column's header names it once (the span is kept for a
+    // screen reader); on a phone the row reads as before: "Min. order: 500 pcs".
+    const moq = !byQuantity && p.moq === null ? null : `<span class="prod-k">${labelled(locale, esc(t(locale, 'product.list.moq')), '')}</span>${
+      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u))}`;
     // Phase 9 (V1-302) — a row that opens says so, with the chevron every door has.
     const href = `/app/products/${encodeURIComponent(p.id)}${page || opts.returnHref ? `?from=${encodeURIComponent(source + '#p-' + p.id)}` : ''}`;
     const thumb = p.photoToken ? `<img class="pa-thumb" src="/media/${esc(encodeURIComponent(p.photoToken))}" alt="" loading="lazy" width="56" height="56">` : `<span class="pa-thumb pa-initial" aria-hidden="true">${esc([...displayName(locale, p.name, p.nameZh).trim()][0] ?? '')}</span>`;
     return `
     <a class="prod" id="p-${esc(p.id)}" href="${esc(href)}">${thumb}<span class="prod-m">
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
-      <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
+      <span class="prod-b muted"><span class="prod-price">${price}</span>${moq === null ? '' : `<span class="prod-sep">${locale === 'zh' ? '　' : ' · '}</span><span class="prod-moq">${moq}</span>`}</span>
       ${(p.namesWanted ?? []).length ? `<span class="p-tag">${esc(t(locale, 'product.list.noNameMark'))}</span>` : ''}
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
     </span>${GO}</a>`;
@@ -691,8 +694,11 @@ export function renderProductList(
       ${deeper('/app/assistant/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
     </div></div>` : '';
-  const pager = page ? `<nav class="pa-pager" aria-label="${esc(t(locale, 'products.pages'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
-  return `${head}<div class="rows pa-products">${cards}</div>${pager}${doors}</section>`;
+  const pagerAt = (where: 'above' | 'below') => page && (where === 'below' || page.prev || page.next) ? `<nav class="pa-pager pa-pager-${where}" aria-label="${esc(t(locale, where === 'above' ? 'assistantArea.pagesAbove' : 'assistantArea.pagesBelow'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
+  // UI Block 9 (F09): the columns are named once above the rows; the pager is drawn above them too.
+  const hasMoq = byQuantity || items.some((p) => p.moq !== null);
+  const listHead = `<div class="pa-head${hasMoq ? '' : ' pa-head-nomoq'}" aria-hidden="true"><span></span><span>${esc(t(locale, 'knowledgeList.product'))}</span><span class="num">${esc(t(locale, 'import.columns.price'))}</span>${hasMoq ? `<span class="num">${esc(t(locale, 'product.list.moq'))}</span>` : '<span></span>'}<span></span></div>`;
+  return `${head}${pagerAt('above')}${listHead}<div class="rows pa-products">${cards}</div>${pagerAt('below')}${doors}</section>`;
 }
 
 export function renderProductDetail(
@@ -754,7 +760,7 @@ export function renderProductDetail(
   const opens = (g: ProductEditGroup): boolean => draft['group'] === g
     || (PRODUCT_EDIT_GROUPS[g] as readonly ProductEditField[]).some((f) => !!errors[f]);
   const groupField = (g: ProductEditGroup): string => `${fromField}<input type="hidden" name="group" value="${g}" />`;
-  const detailsForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('details') ? ' open' : ''}>
+  const detailsForm = !viewer.isOwner ? '' : `<details class="pd-change" data-edit${opens('details') ? ' open' : ''}>
       <summary>${esc(t(locale, 'product.change.details'))}</summary>
       <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="details">
       ${groupField('details')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.identity'))}</legend>
@@ -768,9 +774,9 @@ export function renderProductDetail(
       <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
         <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
         <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
-      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.details'))}</button>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.details'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
     </form></details>`;
-  const pricingForm = !viewer.isOwner ? '' : `<details class="pd-change"${opens('pricing') ? ' open' : ''}>
+  const pricingForm = !viewer.isOwner ? '' : `<details class="pd-change" data-edit${opens('pricing') ? ' open' : ''}>
       <summary>${esc(t(locale, 'product.change.prices'))}</summary>
       <form method="post" action="/app/products/${pid}/edit" class="pform product-edit" data-group="pricing">
       ${groupField('pricing')}<fieldset class="pa-fields"><legend class="sr">${esc(t(locale, 'products.pricing'))}</legend>
@@ -791,7 +797,7 @@ export function renderProductDetail(
       <label class="pcheck"><input type="checkbox" name="isActive" ${activeNow ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
       <span class="caption muted">${esc(t(locale, 'product.edit.active.hint'))}</span>
-      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.prices'))}</button>
+      </fieldset><button class="btn send" type="submit">${esc(t(locale, 'product.save.prices'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
     </form></details>`;
 
   // Phase 9 (V1-314) — the prices are read, not pressed: hairline rows, not boxes.
@@ -813,11 +819,11 @@ export function renderProductDetail(
   const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
   const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
   const removeName = viewer.isOwner && removable.length
-    ? `<details class="pd-change"><summary>${esc(t(locale, 'product.alias.remove.label'))}</summary><form method="post" action="/app/products/${esc(pid)}/names/remove" class="pform alias-remove">${fromField}
+    ? `<details class="pd-change" data-edit><summary>${esc(t(locale, 'product.alias.remove.label'))}</summary><form method="post" action="/app/products/${esc(pid)}/names/remove" class="pform alias-remove">${fromField}
         <label class="pq"><span>${esc(t(locale, 'product.alias.remove.label'))}</span>
         <select name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select></label>
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form></details>`
+          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button></form></details>`
     : '';
   // 2026-10-14 (the owner) — a name in each language the owner chose or a buyer wrote in, or those buyers cannot find it.
   const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('')
@@ -842,13 +848,13 @@ export function renderProductDetail(
   // Phase 2d (0152) — the owner keeps the product's photo here, to send in a chat: one, replaced or removed here.
   // Staff see the photos and no form (Phase 4: the catalogue is the owner's).
   // F26 — the first photo stands beside the name; Save and Remove are two groups apart, never side by side.
-  const photoForms = viewer.isOwner ? `<details class="pd-change">
+  const photoForms = viewer.isOwner ? `<details class="pd-change" data-edit>
       <summary>${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</summary>
       <p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
       <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">${fromField}
         <label class="fld"><span class="muted">${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</span>
           <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
-        <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button>
+        <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(locale, 'common.cancel'))}</button>
       </form>
       ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline pd-apart">${fromField}
         <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"

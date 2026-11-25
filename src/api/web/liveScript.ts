@@ -529,6 +529,33 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* F07: a filter bar's other filters (details[data-fbar]) fold behind "Filters" on a phone unless one is on. */
+  function filters() {
+    var all = doc.querySelectorAll('details[data-fbar]'), mq = all.length && window.matchMedia ? window.matchMedia('(max-width:720px)') : 0;
+    function set() { for (var i = 0; i < all.length; i++) all[i].open = !mq.matches || all[i].getAttribute('data-fbar-on') !== '0'; }
+    if (!mq) return;
+    set();
+    if (mq.addEventListener) mq.addEventListener('change', set);
+  }
+
+  /* F10: a part's Cancel puts its form back as drawn and closes its fold; Escape in an open fold closes it, words kept. */
+  function editFolds() {
+    doc.querySelectorAll('[data-edit-cancel]').forEach(function (b) { b.hidden = false; });
+    function shut(fold) { fold.open = false; var s = fold.querySelector('summary'); if (s) { s.focus(); s.scrollIntoView({ block: 'nearest' }); } }
+    doc.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-edit-cancel]') : null, f = b && b.closest('details[data-edit]');
+      if (!f) return;
+      if (b.form) b.form.reset();
+      shut(f);
+    });
+    doc.addEventListener('keydown', function (e) {
+      var f = e.key === 'Escape' && !e.defaultPrevented && e.target && e.target.closest ? e.target.closest('details[data-edit][open],details.ak-add[open]') : null;
+      if (!f || doc.querySelector('dialog[open]')) return;
+      e.preventDefault();
+      shut(f);
+    });
+  }
+
   /* F21: a select marked data-echo has its choice written out under it when the words are wider than its box. */
   function echoes() {
     var all = doc.querySelectorAll('select[data-echo]'), pen;
@@ -1052,7 +1079,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     function reveal() {
       var m = /^#([\\w-]+)$/.exec(location.hash || '') || /[?&]open=([\\w-]+)/.exec(location.search || '');
       var at = m && doc.getElementById && doc.getElementById(m[1]);
-      var fold = at && at.closest('details.sa-subject,details.ak-add');
+      var fold = at && (at.closest('details.sa-subject,details.ak-add') || at.querySelector(':scope > details[data-edit]'));
       if (!fold) return;
       fold.open = true;
       var s = fold.querySelector('summary');
@@ -1085,6 +1112,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   totals();
   echoes();
   copying();
+  filters();
+  editFolds();
   orbs();
   cards();
   faces();

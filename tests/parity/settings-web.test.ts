@@ -133,7 +133,11 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
     for (const v of ['义乌宏发保温杯厂', '不锈钢保温杯、饭盒、竹砧板。', '浙江义乌',
                      '周一至周六 9:00-18:00', 'sales@hongfa.example', '8657985001234'])
       expect(html, v).toContain(v);
-    expect(html).not.toContain('OLD NAME');          // the submission wins
+    // UI Block 9 (F10): each part now reads first — its summary lists what is STORED (the refused save changed nothing,
+    // and says so). The submission still wins in every form: no field of any form carries the stored row.
+    const forms = [...html.matchAll(/<form\b[\s\S]*?<\/form>/g)].map((m) => m[0]).join('');
+    expect(forms).toContain('义乌宏发保温杯厂');
+    expect(forms).not.toContain('OLD NAME');          // the submission wins
   });
 
   it('marks the field that failed, and only that one', () => {
