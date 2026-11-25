@@ -96,6 +96,9 @@ describe('ui-block9 r3 · 3 · the missing product and the signed-in 404 are the
     expect(s7).toContain('`staff.notAllowed`: "Only the owner can do that."');
     expect(s7).toContain('`/app/settings/people`, `/app/settings/billing`, `/app/customers/import`');
     expect(s7).toMatch(/\*\*OPEN \(the same at aa752c3c\):\*\* a team member who opens the books \(`\/app\/books\/invoices`\) lands on Today with\s+no words/);
+    // Round 3: the accountant at the owner-only pages is sent to the books with no notice (the same at aa752c3c).
+    expect(s7).toMatch(/\*\*The accountant\*\* at those owner-only pages[\s\S]*?sent to `\/app\/books` with \*\*no notice\*\*/);
+    expect(s7).not.toMatch(/^\s*- a refusal is a redirect plus a notice/m);
     expect(s7).toContain('`renderProductMissing`');
     expect(s7).toContain('`notFoundInside`');
     expect(t('en', 'staff.notAllowed')).toBe('Only the owner can do that.');

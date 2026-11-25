@@ -145,6 +145,9 @@ or a button, 44 px).
     - **OPEN (the same at aa752c3c):** a team member who opens the books (`/app/books/invoices`) lands on Today with
       no words. The notice "The books are the owner's and the accountant's." is painted later, on a page after that.
       The routing was not changed in Block 9.
+    - **The accountant** at those owner-only pages (`/app/settings/people`, `/app/settings/billing`,
+      `/app/customers/import`) is sent to `/app/books` with **no notice**, on that page or the next.
+      **OPEN (the same at aa752c3c):** a refusal the accountant cannot read. The routing was not changed in Block 9.
     - The kind stays defined for a page that is someone else's to decide as a whole.
 - **Marks**: each kind carries a mark of its own shape beside its heading (round, dashed round, open round, a diamond,
   a filled square, a dashed square), so the kinds differ by more than colour.
@@ -152,7 +155,8 @@ or a button, 44 px).
 - **Distinct headings**: two kinds never share a heading.
 - **Money**: a state never stands in for an amount. A missing figure is never shown as zero.
 - **Other states the system has**, each with a heading, a sentence and a way on:
-  - a refusal is a redirect plus a notice (`staff.notAllowed`);
+  - a team member's refusal is a redirect plus a notice (`staff.notAllowed`); the accountant's is a redirect to
+    the books with no notice (OPEN, above);
   - work under way is a working line or a busy button (`aria-busy`);
   - a fault or a missing page is `errorPage` or `missingPage`.
 
