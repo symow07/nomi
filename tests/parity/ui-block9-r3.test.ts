@@ -119,3 +119,20 @@ describe('ui-block9 r3 · 4 · the twelve round-2 words wait for a native read',
     expect(b9).not.toContain('twenty lines `state.*`');
   });
 });
+
+// PR #481's review: with no statement ever read in, the unmatched-lines page drew "Every bank line is matched" — an
+// empty queue shown as complete with nothing behind it. The words now hold in both cases (nothing read in; all matched).
+describe('ui-block9 · the empty bank queue does not claim the lines are matched', () => {
+  it('in every language the heading and sentence hold when no statement was read in', () => {
+    expect(t('en', 'state.bank.h')).toBe('No bank line is waiting for its entry');
+    expect(t('en', 'state.bank.p')).toContain('or no statement has been read in yet');
+    for (const l of LOCALES) {
+      expect(t(l, 'state.bank.h'), l).not.toMatch(/Every bank line is matched/);
+      if (l !== 'en') expect(t(l, 'state.bank.h'), l).not.toBe(t('en', 'state.bank.h')); // translated, not English
+    }
+    expect(t('zh', 'state.bank.h')).not.toContain('都已核对');
+    expect(t('ar', 'state.bank.h')).not.toContain('مطابَقة');
+    expect(t('es', 'state.bank.h')).not.toContain('conciliadas');
+    expect(t('fr', 'state.bank.h')).not.toContain('rapprochées');
+  });
+});
