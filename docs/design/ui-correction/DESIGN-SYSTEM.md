@@ -98,6 +98,10 @@ Every filtered list uses the one bar (`.fbar`).
 - Customers, Products, Orders and Invoices name their columns once, above the rows, from 1100 px up.
 - Figures are end-aligned in tabular digits.
 - Each row keeps its keys for a screen reader. On a phone it shows them, and a row is two or three lines.
+- A figure's column is as wide as its widest figure, and the other cells wrap beside it, so a long amount is never
+  drawn over a date. Up to 600 px an invoice card has two columns: what it is on the start side, its figures on the
+  end side, one per line.
+- A pager link is 44 px both ways, above the list and below it.
 - A list longer than one page has its pager above and below.
 - A page with nothing on it draws no range: never "0–0 of 0" (F47).
 
@@ -108,6 +112,8 @@ Every filtered list uses the one bar (`.fbar`).
 - A fold is open at rest only when the part still needs something, or when a save was refused (the words are kept).
 - Cancel puts the form back as drawn, closes it and returns focus to its summary.
 - Escape closes the fold and keeps what was typed.
+- Without the script there is no Cancel: it stays `hidden` until the script shows it, so no button does nothing. The
+  summary still opens and closes the fold, and Save still saves.
 - An optional creation form is closed at rest.
 
 ## 7 · States (`stateBlock.ts`, `stateBlockStyle.ts`; F47)
@@ -116,6 +122,23 @@ A page in a state draws `section.state[data-state=<kind>]`: one heading, one sen
 or a button, 44 px).
 
 - **Kinds**: `empty`, `nomatch`, `loading`, `error`, `forbidden` and `unavailable`.
+- **Where each is drawn**:
+  - `empty` and `nomatch`: Customers, Orders, Products, Saved replies, Invoices, Labels, the advisor's history, the
+    gaps, the bank lines and the reports.
+  - `unavailable`: Billing, a channel this installation does not offer, a record that is not here (`missingPage`),
+    and an address that leads nowhere (`errorPage`, `notfound`).
+  - `error`: a page that broke (`errorPage`, `crash`, with its reference).
+  - The two door pages carry the kind on their card (`main.card[data-state]`). They keep the door's own sheet,
+    because they may reach someone with no session.
+- **Kinds no page uses, and why**:
+  - `loading`: the pages are drawn on the server and arrive complete. No part of a page is fetched after it
+    arrives, so nothing on a page is ever "on its way". The live line only says that something new came in.
+    Work under way after a press is a busy button (`aria-busy`). The kind stays defined for the first part that is
+    drawn in later.
+  - `forbidden`: no page is kept from someone as a whole page. A part kept for the owner says so in place
+    (`staff.ownerDecides`) and keeps the rest of the page. An owner-only address answers the not-found page, or, for
+    an accountant, the books with a notice. An action that is not theirs returns to its page with a notice
+    (`staff.notAllowed`). The kind stays defined for a page that is someone else's to decide as a whole.
 - **Marks**: each kind carries a mark of its own shape beside its heading (round, dashed round, open round, a diamond,
   a filled square, a dashed square), so the kinds differ by more than colour.
 - **Announcing**: `nomatch` and `loading` are announced (`role="status"`).

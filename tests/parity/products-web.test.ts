@@ -63,7 +63,10 @@ describe('M9.5 · product list (localized)', () => {
     // Phase 9 (missed-01) — the door names the page it opens ("Upload your catalog" named a third thing).
     for (const l of LOCALES) {
       const html = renderProductList([], l);
-      expect(html, l).toContain(`href="/app/products/add">${t(l, 'product.teach')}<span class="go"`);
+      // UI Block 9 (F47, tester round) — the empty list is the state block now: its next step is the state's own link
+      // (stateNext, no arrow), so the pin reads the door's address and words, not the arrow after them.
+      expect(html, l).toContain(`href="/app/products/add">${t(l, 'product.teach')}</a>`);
+      expect(html, l).toContain('data-state="empty"');
       expect(html, l).toContain(`<h1 class="page">${t(l, 'nav.products')}</h1>`);
     }
     expect(renderProductList([], 'en')).not.toMatch(/upload|catalog/i);

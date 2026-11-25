@@ -56,8 +56,10 @@ describe('phase 6 · empty', () => {
   it('a page that is not there: what is missing, the likely reason, the way back', () => {
     for (const l of LOCALES) {
       const html = missingPage(l, t(l, 'product.notFound'), { href: '/app/products', label: t(l, 'product.detail.back') });
-      expect(html, l).toMatch(/^<h1 class="page">/);
-      expect(html, l).toContain(`<div class="empty">${t(l, 'common.notFoundBody')}`);
+      // UI Block 9 (F47, tester round) — the missing page is the state block now (unavailable): the same three parts,
+      // the page's h1 as the state's heading, the reason as its sentence.
+      expect(html, l).toMatch(/^<section class="state" data-state="unavailable"><h1 class="page state-h">/);
+      expect(html, l).toContain(`<p class="state-p">${t(l, 'common.notFoundBody')}</p>`);
       expect(html, l).toContain('href="/app/products"');
     }
   });

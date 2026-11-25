@@ -185,8 +185,10 @@ export const atWork = (text: string, assistant = false): string =>
  * Phase 6 — a page that is not there says so as a state, not a bare heading
  * and one word: what is missing, the likely reason, and the way back.
  */
+/** UI Block 9 (F47) — a record that is not here is the state `unavailable`, drawn as the state block (stateBlock.ts):
+ * its heading is the page's one h1, then the likely reason, then the one way back. */
 export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
-  `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(title)}</h1><p class="state-p">${esc(t(locale, 'common.notFoundBody'))}</p><p class="state-next">${deeper(door.href, door.label)}</p></section>`;
 
 export const deeper = (href: string, label: string, extra = '', attrs = '', labelLanguage?: 'en'): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${settingsHref(href)}"${attrs ? ` ${attrs}` : ''}>${labelLanguage ? `<bdi lang="en" dir="ltr">${esc(label)}</bdi>` : esc(label)}${GO}</a>`;
@@ -3394,7 +3396,9 @@ const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
  * The door runs no script (CC-26): it holds the password and the code fields,
  * and nothing on it needs one (public-new-11 was decided that way).
  */
-type DoorOptions = { readonly site?: string };
+/** `state`: UI Block 9 (F47), a door page that IS a state (the error page) names its kind on the card, as the app's
+ * state block does; the door's own sheet draws it, since the page may reach someone with no session. */
+type DoorOptions = { readonly site?: string; readonly state?: 'error' | 'unavailable' };
 
 /**
  * w4-public-05, -06 — the space between a sentence and what follows it: none after a
@@ -3418,7 +3422,7 @@ ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body class="door"><div class="login">
   <header class="door-top"><div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>${langMenu(locale, path)}</header>
-  <main class="card">${card}</main>
+  <main class="card"${o.state ? ` data-state="${o.state}"` : ''}>${card}</main>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
 </div></body></html>`);
@@ -3901,5 +3905,8 @@ export function errorPage(input: {
     ? `<p class="other"><a href="/app">${esc(t(locale, 'error.home'))}</a></p>`
     : `<p class="other"><a href="${esc(input.site ?? '/site')}">${esc(t(locale, 'error.toSite'))}</a></p>`
       + `<p class="other small"><a href="/login">${esc(t(locale, 'login.title'))}</a></p>`;
-  return doorFrame(locale, input.path, title, card, other, input.site ? { site: input.site } : {});
+  // F47 — a crash is `error` (it did not work; the reference is what was kept); an address that leads nowhere is
+  // `unavailable` (nothing is pretended, and the one way out is a place that exists).
+  const state = kind === 'crash' ? 'error' as const : 'unavailable' as const;
+  return doorFrame(locale, input.path, title, card, other, input.site ? { site: input.site, state } : { state });
 }

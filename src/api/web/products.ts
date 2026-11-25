@@ -29,6 +29,7 @@ import { scriptNeeds } from '../../db/setup.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
+import { stateBlock, stateNext } from './stateBlock.js';
 import { filterBar } from './filterBar.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -653,11 +654,10 @@ export function renderProductList(
     ${suggested.length ? `<div class="block measure-prose"><p class="caption muted">${esc(t(locale, 'product.list.namesSuggested', {
       languages: formatList(locale, suggested.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}`;
   if (items.length === 0) {
-    if (page?.q) return `${head}<div class="pa-empty"><h2>${esc(t(locale, 'products.noMatch'))}</h2><p>${esc(t(locale, 'products.noMatchHelp'))}</p></div></section>`;
+    if (page?.q) return `${head}${stateBlock('nomatch', { heading: t(locale, 'products.noMatch'), body: t(locale, 'products.noMatchHelp'), nextHtml: stateNext('/app/products', t(locale, 'products.clear')) })}</section>`;
     // Phase 9 (missed-01) — the door names the page it opens.
-    return `${head}
-      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name }))}</span>
-      <div class="doors">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ownerDecides(locale)}</div></div></div></section>`;
+    return `${head}${stateBlock('empty', { heading: t(locale, 'product.list.empty.title'), body: t(locale, 'product.list.empty.body', { name }),
+      nextHtml: viewer.isOwner ? stateNext('/app/products/add', t(locale, 'product.teach')) : `<span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span>` })}</section>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);

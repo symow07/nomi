@@ -46,7 +46,9 @@ describe('Block 8 · F42 — one public and sign-in frame', () => {
       expect(html, `${l} ${what}`).toMatch(/<header class="door-top"><div class="brand"><svg class="mark"[\s\S]*?<\/div><details class="langmenu"><summary>/);
       expect(html, `${l} ${what}`).not.toContain('class="top-sw"');
       // The page's task is its landmark; the five languages are still there, behind the menu.
-      expect(html, `${l} ${what}`).toContain('<main class="card">');
+      // UI Block 9 (F47, tester round) — the error page's card names its state (data-state), so the pin reads the
+      // card's class, with or without that attribute.
+      expect(html, `${l} ${what}`).toMatch(/<main class="card"( data-state="(error|unavailable)")?>/);
       for (const o of LOCALES) expect(html, `${l} ${what} ${o}`).toContain(`/locale?set=${o}&next=`);
     }
   });

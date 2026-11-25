@@ -59,4 +59,22 @@ describe('UI Block 9 · the tester round', () => {
       expect(`${rule(css, sel)};${all}`, sel).toMatch(/min-height:44px/);
     }
   });
+
+  it('F47: the none pages are state blocks, empty apart from no match, in every language', () => {
+    const page = { rows: [], total: 0, from: 0, to: 0, next: null, prev: null };
+    for (const l of LOCALES) {
+      expect(renderCustomers({ ...page, q: '', label: null }, l, now), l).toContain('data-state="empty"');
+      expect(renderCustomers({ ...page, q: 'zzz', label: null }, l, now), l).toContain('data-state="nomatch"');
+      expect(renderCustomerOrders({ ...page, q: '', clientId: null, state: null }, l, now), l).toContain('data-state="empty"');
+      expect(renderCustomerOrders({ ...page, q: 'zzz', clientId: null, state: null }, l, now), l).toContain('data-state="nomatch"');
+      expect(renderProductList([], l), l).toContain('data-state="empty"');
+      expect(renderProductList([], l, null, OWNER_VIEW, null, { page: { items: [], q: 'zzz', total: 0, page: 1, pageSize: 50, next: null, prev: null } }), l)
+        .toContain('data-state="nomatch"');
+      expect(renderSavedReplies(l, []), l).toContain('data-state="empty"');
+      expect(renderSavedReplies(l, [], { query: 'zzz' }), l).toContain('data-state="nomatch"');
+      expect(errorPage({ locale: l, path: '/app/x', kind: 'crash', reference: 'c0ffee11' }), l).toContain('<main class="card" data-state="error">');
+      expect(errorPage({ locale: l, path: '/app/x', kind: 'notfound' }), l).toContain('<main class="card" data-state="unavailable">');
+      expect(missingPage(l, 'x', { href: '/app/inbox', label: 'y' }), l).toContain('<section class="state" data-state="unavailable"><h1 class="page state-h">');
+    }
+  });
 });

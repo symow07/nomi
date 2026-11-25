@@ -111,7 +111,8 @@ describe('F47 · a page in a state says which state, why, and the one next step'
 
   it('every state word is in all five catalogues, and none falls back to English', () => {
     const keys = Object.keys(messages.en).filter((k) => k.startsWith('state.'));
-    expect(keys.length).toBe(20);
+    // tester round: 12 more, for the customers, orders and saved-replies none pages
+    expect(keys.length).toBe(32);
     for (const l of LOCALES) for (const k of keys) {
       expect((messages[l] as Record<string, string>)[k], `${l} ${k}`).toBeTruthy();
       if (l !== 'en') expect((messages[l] as Record<string, string>)[k], `${l} ${k}`).not.toBe((messages.en as Record<string, string>)[k]);

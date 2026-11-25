@@ -117,7 +117,8 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   it('A PRODUCT, A CONVERSATION AND AN ORDER THAT ARE NOT THERE: a state with the reason and the way back', async () => {
     for (const url of ['/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
       const r = await get(url);
-      expect(r.body, url).toContain(`<div class="empty">${t('en', 'common.notFoundBody')}`);
+      // UI Block 9 (F47, tester round) — drawn as the state block (unavailable); the reason's words are unchanged.
+      expect(r.body, url).toContain(`<p class="state-p">${t('en', 'common.notFoundBody')}</p>`);
     }
     // (w4-products-knowledge-16) a product not here says so in its own words — never "removed".
     const product = await get('/app/products/00000000-0000-4000-8000-000000000000');
