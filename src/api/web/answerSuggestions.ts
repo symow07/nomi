@@ -35,7 +35,6 @@ export function renderAnswerSuggestions(locale: Locale, rows: readonly AnswerSug
       </form></div>`;
   };
   return `<div class="block" id="answers-given"><h2>${esc(t(locale, 'knowledge.given.title'))}</h2>
-    <p class="fdesc">${esc(t(locale, 'knowledge.given.lede'))}</p>
     ${rows.length ? rows.map(card).join('') : `<div class="empty">${esc(t(locale, 'knowledge.given.none'))}</div>`}
   </div>`;
 }

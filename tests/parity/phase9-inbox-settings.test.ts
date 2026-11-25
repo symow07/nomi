@@ -577,7 +577,8 @@ describe('the settings pages', () => {
   });
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
-    for (const p of ['alerts', 'billing', 'business', 'closures', 'forbidden']) {
+    // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
+    for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
       const h = draw(p, 'en');
       expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
     }
@@ -631,7 +632,8 @@ describe('the settings pages', () => {
       expect(/<h1 class="page">([^<]*)<\/h1>/.exec(h)![1], l).toBe(shown(l, 'business.kind.title'));
       expect(t(l, 'business.kind.title'), l).toBe(t(l, 'setup.desc.kind'));
       expect(t(l, 'business.kind.title'), l).not.toBe(t(l, 'signup.kind'));
-      expect(h, l).toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(h, l).not.toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
       expect(h, l).toContain(esc(t(l, 'settings.field.location')));
       expect(h, l).toContain(esc(t(l, 'settings.profile.title')));
     }
