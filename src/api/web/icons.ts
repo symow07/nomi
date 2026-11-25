@@ -55,7 +55,7 @@ const ICON = {
   // what a customer sent that is not words (a file, a voice note, a photo), a door, the way back, closing.
   download: 'download-minimalistic', regular: 'repeat', calendar: 'calendar-minimalistic', person: 'user',
   file: 'paperclip', voice: 'microphone', photo: 'gallery', go: 'alt-arrow-right', back: 'alt-arrow-left', close: 'close',
-  search: 'magnifier',
+  search: 'magnifier', pick: 'alt-arrow-down',
   // A door that opens another site, in a new tab.
   external: 'arrow-right-up',
   // The calendar's kinds of date: a sample (the same gift as My business's samples), an order on its way, a
@@ -124,4 +124,15 @@ export const iconMask = (id: IconId, size: number, line: number): string => {
   const url = `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>${body}</svg>")`;
   return `-webkit-mask-image:${url}; mask-image:${url}; -webkit-mask-size:contain; mask-size:contain; `
     + '-webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;';
+};
+
+/**
+ * An icon as a background, for a control that cannot hold a drawn mark of its own (a select's arrow): the same
+ * drawing in a fixed grey, `line` px at `size` px. Written out, not percent-encoded, like iconMask.
+ */
+export const iconImage = (id: IconId, size: number, line: number): string => {
+  const units = Number((line * 24 / size).toFixed(3));
+  const body = SOLAR[ICON[id]].replace(/"/g, "'").replace(/stroke='currentColor'/g, "stroke='black' stroke-opacity='0.6'")
+    .replace("stroke-width='1.5'", `stroke-width='${units}'`);
+  return `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>${body}</svg>")`;
 };

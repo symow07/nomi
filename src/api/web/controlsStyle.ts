@@ -1,4 +1,4 @@
-import { iconMask } from './icons.js';
+import { iconImage, iconMask } from './icons.js';
 
 /**
  * THE CONTROLS PASS (2026-11-25) — the owner's comparison with Intercom found that nothing on screen was a shared
@@ -45,6 +45,12 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
 .owner-shell .field-search > input { flex:1 1 auto; inline-size:100%; min-inline-size:0; margin:0; }
 .owner-shell .field-search::before { content:""; position:absolute; z-index:1; inset-block:0; inset-inline-start:var(--space-12); inline-size:16px;
   margin-block:auto; block-size:16px; background:var(--color-ink-secondary); pointer-events:none; ${iconMask('search', 16, 1.5)} }
+/* A select draws the same arrow as the rest of the app (not the browser's own), set in from the edge like the search's mark. */
+${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:none; padding-inline-end:calc(var(--space-12) + 16px + var(--space-12));
+  background-image:${iconImage('pick', 16, 1.5)}; background-repeat:no-repeat; background-size:16px 16px; background-position:right 14px center; }
+[dir="rtl"] ${AT} select:not(.bare):not([multiple]) { background-position:left 14px center; }
+/* The view chooser is one column, so its select ends on the search box's edge (its Show button is only for no-script). */
+.owner-shell .il-view-form { grid-template-columns:minmax(0, 1fr); }
 .owner-shell .find-quiet { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; padding:0; border:0; min-block-size:0; }
 /* A label sits above its field in the list's size; what is said under a field is a caption. */
 .owner-shell main :is(.fld, .fr-name, label) { font-size:var(--font-size-small); }

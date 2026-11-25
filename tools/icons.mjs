@@ -49,7 +49,7 @@ export const SOLAR_WANTED = [
   // UI Block 7 (F34): every channel row has its own shape — web chat, Telegram, TikTok — and the chat page's Copy
   'chat-round-dots', 'send-square', 'music-note', 'copy',
   // The controls pass (2026-11-25): the search box's own mark, drawn inside the box
-  'magnifier',
+  'magnifier', 'alt-arrow-down',
 ];
 
 
