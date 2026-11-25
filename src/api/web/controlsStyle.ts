@@ -49,6 +49,12 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
 ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:none; padding-inline-end:calc(var(--space-12) + 16px + var(--space-12));
   background-image:${iconImage('pick', 16, 1.5)}; background-repeat:no-repeat; background-size:16px 16px; background-position:right 14px center; }
 [dir="rtl"] ${AT} select:not(.bare):not([multiple]) { background-position:left 14px center; }
+/* Today's one column stands in the middle of the page (the owner, 2026-11-25), its head and every block in it; the help
+   button keeps the corner every other page gives it. */
+.owner-shell .sp-panels.is-one { justify-content:center; }
+.owner-shell .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:auto; }
+@media (min-width:721px) { .owner-shell .sp:has(> .sp-panels.is-one) > .sp-head { margin-inline:auto; } }
+.owner-shell .content:has(.sp > .sp-panels.is-one) > .help-door { inset-inline-start:auto; inset-inline-end:var(--space-16); }
 /* The view chooser is one column, so its select ends on the search box's edge (its Show button is only for no-script). */
 .owner-shell .il-view-form { grid-template-columns:minmax(0, 1fr); }
 .owner-shell .find-quiet { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; padding:0; border:0; min-block-size:0; }
