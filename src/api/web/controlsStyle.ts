@@ -80,6 +80,10 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
    Long words keep their own measure (measure-prose, measure-form) inside it. */
 .owner-shell main { max-inline-size:none; padding:var(--space-24) max(var(--space-24), calc((100% - 1240px) / 2)) var(--space-48); }
 .owner-shell .area-links { max-inline-size:none; margin-inline:0; padding-inline:max(var(--space-24), calc((100% - 1240px) / 2)); }
+/* Every page's row of tabs sits in the middle of its column (the owner, 2026-11-25), with the same room on both sides as the
+   help button takes on one. */
+.owner-shell :is(.area-links, .content .ca-nav, .content .pa-nav, .content .sa-pages) { justify-content:center; }
+.owner-shell .content :is(.ca-nav, .pa-nav, .sa-pages) { padding-inline-start:calc(44px + var(--space-8)); }
 .owner-shell main.wide { padding:0; }
 .owner-shell main h1.page, .owner-shell .il-header h1 { font-family:var(--font-family); font-size:var(--font-size-display); font-weight:600;
   line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-16); }
@@ -139,16 +143,13 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
    drawn, the back link over a title is a third, and goes; a phone, which has neither, keeps it. */
 @media (min-width: 601px) { .owner-shell .sa-content > a.back:has(+ h1.page) { display:none; } }
 
-/* The reply box (Today and the conversation, on a desk): ONE frame — the words, then the answers inside its foot,
-   the main act at the far end. A phone keeps its band (conversationStyle.ts), which is built to its own height. */
+/* The reply box (Today and the conversation, on a desk): the words in their own box, the answers on one row under it
+   — never inside it (the owner, 2026-11-25) — the main act at the far end. A phone keeps its band (conversationStyle.ts). */
 @media (min-width: 721px) {
-  .owner-shell :is(form.sp-form, .conv-acts form.approve) { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
-    padding:var(--space-8); background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-card); }
-  .owner-shell :is(form.sp-form, .conv-acts form.approve):focus-within { border-color:var(--color-ink); }
+  .owner-shell :is(form.sp-form, .conv-acts form.approve) { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .owner-shell :is(form.sp-form, .conv-acts form.approve) > :not(.sp-acts, .acts, .sp-acts-more, input[type=hidden], label.sr) { flex:1 1 100%; }
-  ${AT} :is(form.sp-form, .conv-acts form.approve) > textarea { box-sizing:border-box; inline-size:100%; margin:0;
-    min-block-size:calc(2 * var(--control-field)); padding:var(--space-4) var(--space-8); border:0; background:transparent; resize:vertical; }
-  ${AT} :is(form.sp-form, .conv-acts form.approve) > textarea:is(:focus, :focus-visible, :hover) { outline:none; border:0; }
+  ${AT} :is(form.sp-form, .conv-acts form.approve) > textarea { box-sizing:border-box; inline-size:100%; margin:0 0 var(--space-4);
+    min-block-size:calc(3 * var(--control-field)); resize:vertical; }
   .owner-shell :is(form.sp-form > .sp-acts, .conv-acts form.approve > .acts) { display:flex; flex-wrap:wrap; gap:var(--space-8); margin:0; margin-inline-start:auto; order:2; }
   .owner-shell :is(form.sp-form > .sp-acts, .conv-acts form.approve > .acts) > :is(.send, .sp-send) { order:2; }
   .owner-shell form.sp-form > .sp-acts-more { display:contents; }
