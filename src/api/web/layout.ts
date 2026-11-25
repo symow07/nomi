@@ -114,7 +114,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
   { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s) },
-  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email','chat'].map(s=>'/app/settings/channels/'+s) },
+  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email','chat','telegram','tiktok'].map(s=>'/app/settings/channels/'+s) },
   { hub: ASSISTANT_HOME, routes: ['alone','name','words','promises','ready','history-policy'].map(s=>ASSISTANT_HOME+'/'+s) },
   // The navigation block (2026-11-25): the assistant's settings are the assistant area's "Go live" group.
   { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/knowledge/procedures','/app/assistant/practice','/app/assistant/review','/app/assistant/activity',ASSISTANT_HOME] },

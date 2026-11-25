@@ -406,10 +406,10 @@ describe('Results', () => {
     expect(empty).toContain('Not enough activity for this month yet.');
   });
 
-  it('V1-207 · Results is Today\'s page and says so; its period chip is not a second "Today"', () => {
+  it('V1-207 · Results is the Reports area\'s own page (the navigation block): no way back to Today; its period chip is not a second "Today"', () => {
     for (const l of LOCALES) {
       const h = results(l);
-      expect(h, l).toContain(`<a class="back" href="/app">${BACK}${shown(l, 'split.title')}</a>`);
+      expect(h, l).not.toContain('class="back"');
       expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'split.title'));
     }
   });

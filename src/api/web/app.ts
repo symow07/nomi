@@ -1231,7 +1231,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   /** The Split rail's foot: who is signed in. */
   const splitRail = (person: { readonly id: string; readonly name: string }): { readonly me: string } => ({
-    me: `<a class="sp-me" href="/app/settings/personal/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
+    me: `<a class="sp-me" href="/app/settings/personal/account" aria-label="${esc(person.name)}">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
   });
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; booksPath?:string; live?: string; wide?: boolean; split?: { readonly me: string } }): string => {
     const locale = localeOf(req), s = sessionOf(req), path = o.booksPath??req.url.split('?')[0]!;

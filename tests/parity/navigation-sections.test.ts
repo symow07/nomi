@@ -98,7 +98,9 @@ describe('you are here', () => {
   it('the longest address wins; a view named by a query wins where the page carries it; an anchor never', () => {
     expect(currentItem('reports', '/app/results')?.href).toBe('/app/results');
     expect(currentItem('reports', '/app/results?view=assistant')?.href).toBe('/app/results?view=assistant');
-    expect(currentItem('reports', '/app/results?view=setup')?.href).toBe('/app/results');
+    expect(currentItem('reports', '/app/results?view=setup')?.href).toBe('/app/results?view=setup');
+    expect(currentItem('reports', '/app/results?view=other')?.href).toBe('/app/results');
+    expect(currentItem('settings', '/app/settings/channels/technical')?.href).toBe('/app/settings/channels');
     expect(currentItem('reports', '/app/analytics')?.href).toBe('/app/results');
     expect(currentItem('assistant', '/app/assistant/knowledge/procedures')?.href).toBe('/app/assistant/knowledge/procedures');
     expect(currentItem('assistant', '/app/assistant/knowledge/abc')?.href).toBe('/app/assistant/knowledge');
@@ -146,7 +148,7 @@ describe('where it is drawn', () => {
   it('desktop: a narrow rail, then the sidebar from 961 px; between, the chooser, clear of the "?"; never printed', () => {
     expect(SECTIONS_CSS).toContain('.owner-shell .layout:has(> .sect) { grid-template-columns:88px 240px minmax(0, 1fr); }');
     expect(SECTIONS_CSS).toMatch(/@media \(min-width:961px\) \{\n {2}\.sect \{ display:block;/);
-    expect(SECTIONS_CSS).toContain('margin-inline-end:calc(44px + var(--space-8))');
+    expect(SECTIONS_CSS).toContain('margin-inline-end:calc(44px + var(--space-16) + var(--space-8))');
     expect(SECTIONS_CSS).toContain('@media print { .sect, .owner-shell .content > .area-nav { display:none; } }');
   });
 });

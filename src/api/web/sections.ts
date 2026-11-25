@@ -120,6 +120,7 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
     { items: [
       { label: 'area1.results.sales', href: '/app/results', also: ['/app/analytics'] },
       { label: 'area1.results.assistant', href: '/app/results?view=assistant', also: [`${ASSISTANT_SETTINGS}/month`] },
+      { label: 'area1.results.setup', href: '/app/results?view=setup', also: ['/app/onboarding/activity'] },
       { label: 'monthMail.tab', href: '/app/results/month' },
       { label: 'adSpend.title', href: '/app/results#ad-spend', show: adsShown },
     ] },
@@ -139,11 +140,13 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
       { label: 'settingsArea.samples', href: '/app/settings/business/samples', show: exportSettingsShown },
     ] },
     { label: 'settingsArea.channels', show: notAccountant, items: [
-      { label: 'side.channelsAll', href: '/app/settings/channels', exact: true },
+      { label: 'side.channelsAll', href: '/app/settings/channels', exact: true, also: ['/app/settings/channels/technical'] },
       { label: 'side.ch.whatsapp', href: '/app/settings/channels/whatsapp' },
       { label: 'side.ch.meta', href: '/app/settings/channels/meta' },
       { label: 'side.ch.email', href: '/app/settings/channels/email' },
       { label: 'side.ch.chat', href: '/app/settings/channels/chat' },
+      { label: 'reach.channel.telegram', href: '/app/settings/channels/telegram' },
+      { label: 'reach.channel.tiktok', href: '/app/settings/channels/tiktok' },
     ] },
     { label: 'side.teamBilling', show: owner, items: [
       { label: 'settingsArea.team', href: '/app/settings/team' },
@@ -241,5 +244,6 @@ export function sectionChooser(locale: Locale, area: AreaId, path: string, bodyH
 /** Is this address one of the area's own entries (so it needs no "‹ back" link: the sidebar is the way)? */
 export const isSectionPage = (area: AreaId, path: string): boolean => {
   const item = currentItem(area, path);
-  return item !== null && [base(item.href), ...(item.also ?? [])].includes(base(settingsHref(path)));
+  // Its own address only: a page an item merely owns (a sub-page, an older address) keeps the way back it is given.
+  return item !== null && base(item.href) === base(settingsHref(path));
 };

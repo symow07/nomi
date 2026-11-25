@@ -5,7 +5,8 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 describe('approved English redesign copy', () => {
   it('resolves new navigation through the catalogue in every existing locale', () => {
     for (const locale of LOCALES) {
-      expect(t(locale, 'nav.customers' as MessageKey)).toBe('Customers');
+      // The navigation block (2026-11-25): the rail's own words are written in every language now.
+      expect(t(locale, 'nav.customers' as MessageKey)).toBe(({ en: 'Customers', zh: '客户', ar: 'العملاء', es: 'Clientes', fr: 'Clients' } as const)[locale]);
       expect(t(locale, 'area1.results.title' as MessageKey)).toBe('Sales results');
     }
   });

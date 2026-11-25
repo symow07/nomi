@@ -132,7 +132,7 @@ describe('Block 6.1 · the "?" covers no control', () => {
     expect([...choosers].sort()).toEqual([]);
     for (const c of [...choosers, ...rows]) expect(rule(c), c).toBe(true);
     expect(layout).toMatch(/\.content \.area-nav \.area-chooser \{ margin-inline-end:calc\(44px \+ var\(--space-8\)\)/);
-    expect(SECTIONS_CSS).toContain('.owner-shell .content > .area-nav .area-chooser { display:block; margin:0; margin-inline-end:calc(44px + var(--space-8)); }');
+    expect(SECTIONS_CSS).toContain('.owner-shell .content > .area-nav .area-chooser { display:block; margin:0; margin-inline-end:calc(44px + var(--space-16) + var(--space-8)); }');
   });
 });
 

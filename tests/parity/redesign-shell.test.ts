@@ -51,7 +51,7 @@ describe('approved owner navigation', () => {
   });
   it('marks Reports, rather than Today, on every permitted staff report in both directions: rail, sidebar and chooser', () => {
     const want: Record<string, string> = {
-      '/app/results': '/app/results', '/app/results?view=assistant': '/app/results?view=assistant', '/app/results?view=setup': '/app/results',
+      '/app/results': '/app/results', '/app/results?view=assistant': '/app/results?view=assistant', '/app/results?view=setup': '/app/results?view=setup',
       '/app/results/month': '/app/results/month', '/app/analytics': '/app/results',
     };
     for (const locale of ['en', 'ar'] as const) {

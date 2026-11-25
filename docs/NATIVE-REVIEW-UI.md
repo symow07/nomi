@@ -17132,3 +17132,13 @@ zh / ar / es / fr and not yet read by a native speaker (`src/core/owner/i18n/nav
 - Items: `side.channelsAll`, `side.ch.*`, `side.booksReports`, `side.import`.
 - The line on Settings, `side.settingsMoved`, says where the assistant's and the books' settings went; it uses no
   pronoun for the assistant.
+- Words the sidebar lists that were still English in zh / ar / es / fr until this block (the tester's finding), now
+  written in `navigation.ts`: `nav.customers`, `nav.assistant`, `customers.all / .orders / .followups / .feedback`,
+  `igComments.title`, `waCatalog.title`, `shopifyOrders.nav`, `procedures.title`, every `booksArea.*` label of the
+  sidebar, `area1.results.sales / .assistant / .setup`, `monthMail.tab`, `adSpend.title`. To read first: the books'
+  words (年终结账, إقفال السنة, Cierre del año, Clôture de l’exercice) are an accountant's; `customers.followups`
+  (跟进, المتابعات, Seguimientos, Relances) names the outreach list. `paymentLinks.title` stays English: its page is
+  English only, so its heading must match.
+- `side.settingsMoved` is now two lines: the assistant's (to everyone but an accountant) and `side.settingsMovedBooks`
+  (to the owner, only where the books are on). Books › Setup is 初始设置 / Mise en place, so it does not read as the
+  Settings area (设置 / Réglages).

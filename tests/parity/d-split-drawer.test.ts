@@ -67,7 +67,7 @@ describe('D · five entries', () => {
     expect(under('/app/assistant')).toContain('/app/settings/assistant');
     expect(under('/app/books')).toContain('/app/settings/books');
     expect(under('/app/settings/personal')).toEqual(['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s));
-    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email','chat'].map(s=>'/app/settings/channels/'+s));
+    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email','chat','telegram','tiktok'].map(s=>'/app/settings/channels/'+s));
     expect(under('/app/settings/assistant')).toContain('/app/settings/assistant/words');
     expect(under('/app/assistant')).toContain('/app/assistant/knowledge');
     expect(under('/app/products')).toContain('/app/products/add');
