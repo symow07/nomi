@@ -156,7 +156,7 @@ d('the Inbox in the Split look (requires DATABASE_URL)', { timeout: 120_000 }, (
     expect(html).toContain(`class="back" href="${source.replaceAll('&', '&amp;')}"`);
     expect(names(html)).toContain('Quentin Quiet');
     expect(names(html)).not.toContain('Omar Order');
-    const chooser = withoutIsolates(html.split('<select name="filter">')[1]!.split('</select>')[0]!);
+    const chooser = withoutIsolates(html.split('<select name="filter"')[1]!.split('>').slice(1).join('>').split('</select>')[0]!);
     expect([...chooser.matchAll(/<option[^>]*>[^<]* · (\d+)<\/option>/g)].map((m) => m[1])).toEqual(['3', '1', '5', '1', '9']);
     const untrusted = await get(`/app/inbox/${conv['quiet']}?from=${encodeURIComponent('https://outside.example/app/inbox')}`);
     expect(untrusted).toContain('class="back" href="/app/inbox"');
