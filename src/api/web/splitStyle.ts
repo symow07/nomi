@@ -30,9 +30,9 @@ export const SPLIT_CSS = `
 .split nav.side { background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
 .split nav.side a.navlink.active { background:var(--color-sand); box-shadow:none; color:var(--color-ink); }
 .split nav.side a.navlink.active .ni { color:var(--color-ink); }
-.split .sp-me { display:flex; align-items:center; gap:var(--space-8); min-height:44px; padding:var(--space-4) var(--space-8); color:var(--color-ink);
+.owner-shell .sp-me { display:flex; align-items:center; gap:var(--space-8); min-height:44px; padding:var(--space-4) var(--space-8); color:var(--color-ink);
   font-size:var(--font-size-small); text-decoration:none; border-radius:var(--radius-control); }
-.split .sp-me:hover { background:var(--color-sand); }
+.owner-shell .sp-me:hover { background:var(--color-sand); }
 
 /* The page: a keyboard's focus never lands under the phone's tab bar */
 html:has(body.split) { scroll-padding-block-end:96px; }

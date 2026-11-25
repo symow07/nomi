@@ -3135,6 +3135,8 @@ export function shell(input: {
   readonly wide?: boolean;
   /** The Split Today preview (`SPLIT_TODAY=on`), only ever on Today: its sheet, its rail, and who is signed in at the rail's foot. */
   readonly split?: { readonly me: string };
+  /** Who is signed in, at the rail's foot — on every page (the owner, 2026-11-25), not only the Split ones. */
+  readonly me?: string;
 }): string {
   const { locale } = input;
   const here = hubFor(input.path, input.active);
@@ -3158,7 +3160,7 @@ export function shell(input: {
   const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', ['products', 'assistant', 'settings'].includes(n.id) ? ' nav-desktop' : '');
   const moreLinks = [...visible.filter((n) => ['products', 'assistant'].includes(n.id)), { href: '/app/calendar', id: 'calendar' }, ...visible.filter((n) => n.id === 'settings')];
   const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${wordsHtml(locale, 'nav.more')}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${wordsHtml(locale, labelFor(n.id))}</a>`).join('')}</div></details>`;
-  return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.split?.me ?? ''}</div>${more}`);
+  return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.me ?? input.split?.me ?? ''}</div>${more}`);
 
 }
 

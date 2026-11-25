@@ -1243,7 +1243,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // UI correction, Block 5 (check 6) — on the Books pages and their settings, every option's words are isolated on a
     // right-to-left page (an option cannot hold a <bdi>; `isolateOptions`).
     const books = /^\/app\/(?:settings\/)?books(?:\/|$)/.test(path);
-    return shell({ ...o, bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
+    // The rail's foot names who is signed in on every page, not only Today and the Inbox (the owner, 2026-11-25).
+    const me = o.split?.me ?? (s ? splitRail(personOf(s)).me : undefined);
+    return shell({ ...o, ...(me ? { me } : {}), bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
   };
 
   /**
