@@ -47,4 +47,8 @@ describe('UI Block 9 · the tester round', () => {
     for (const c of ['bd-owed', 'bd-total', 'bk-state']) expect(phone, c).toMatch(new RegExp(`td\\.${c}\\{grid-column:2;`));
     for (const c of ['bk-key', 'bk-text', 'bk-date']) expect(phone, c).toMatch(new RegExp(`td\\.${c}\\{grid-column:1;`));
   });
+
+  it('F10: a Cancel the script has not shown is not drawn', () => {
+    expect(EDIT_FOLD_CSS).toContain('button.btn.ghost[data-edit-cancel][hidden]{display:none;}');
+  });
 });

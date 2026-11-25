@@ -9,6 +9,7 @@ export const EDIT_FOLD_CSS = `.ef-sum{display:grid;gap:var(--space-8);margin:0 0
 .ef-fold[open]>summary{margin-block-end:var(--space-8);}
 .ef-fold .fr-acts{display:flex;flex-wrap:wrap;gap:var(--space-8);justify-content:flex-end;}
 button.btn.ghost[data-edit-cancel]{background:transparent;color:var(--color-ink);border-color:transparent;font-weight:400;min-height:44px;}
+button.btn.ghost[data-edit-cancel][hidden]{display:none;}
 button.btn.ghost[data-edit-cancel]:hover{text-decoration:underline;text-decoration-color:var(--color-brand);}
 .settings-area .ef>.sgroup-h{font-size:var(--font-size-title);font-weight:600;color:var(--color-ink);margin-block:var(--space-32) var(--space-8);}
 @media(max-width:600px){.ef-sum>div{grid-template-columns:minmax(0,1fr);gap:0;}}
