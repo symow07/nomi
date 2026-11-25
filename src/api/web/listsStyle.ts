@@ -30,15 +30,27 @@ export const LISTS_CSS = String.raw`
  .books-area .bk-rows.bd-inv th,.books-area .bk-rows.bd-inv td{padding-inline:var(--space-8);}
 }
 @media(max-width:900px){
- .bk-cards.bd-inv tr{grid-template-columns:minmax(0,auto) minmax(0,auto) minmax(0,1fr);}
+ .bk-cards.bd-inv tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;}
  .bk-cards.bd-inv td.bk-key{order:0;grid-column:1/span 2;}
  .bk-cards.bd-inv td.bk-state{order:1;grid-column:3;}
  .bk-cards.bd-inv td.bk-text{order:2;grid-column:1/span 2;}
  .bk-cards.bd-inv td.bd-owed{order:3;grid-column:3;}
  .bk-cards.bd-inv td.bk-date{order:4;grid-column:auto;white-space:normal;}
  .bk-cards.bd-inv td.bd-total{order:5;grid-column:3;}
+ .bk-cards.bd-inv tr>td{min-width:0;}
+ .bk-cards.bd-inv tr>td>*{min-width:0;max-width:100%;overflow-wrap:anywhere;}
  .bk-cards.bd-inv td.bk-key[data-label]::before,.bk-cards.bd-inv td.bk-text[data-label]::before,.bk-cards.bd-inv td.bk-state[data-label]::before{content:none;}
  .books-area .bk-cards.bd-inv td.bk-text{justify-content:center;}
+}
+@media(max-width:600px){
+ .bk-cards.bd-inv tr{grid-template-columns:minmax(0,1fr) auto;}
+ .bk-cards.bd-inv td.bk-key{grid-column:1;grid-row:1;}
+ .bk-cards.bd-inv td.bk-state{grid-column:2;grid-row:1;}
+ .bk-cards.bd-inv td.bk-text{grid-column:1;grid-row:2;}
+ .bk-cards.bd-inv td.bd-owed{grid-column:2;grid-row:2;}
+ .bk-cards.bd-inv td.bk-date{grid-column:1;grid-row:3;}
+ .bk-cards.bd-inv td.bk-date.bd-due{grid-column:1;grid-row:4;}
+ .bk-cards.bd-inv td.bd-total{grid-column:2;grid-row:3;}
 }
 @media(max-width:600px){
  .ca-customers .ca-customer{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"p v" "s s" "l o" "n n";gap:var(--space-8) var(--space-16);padding-block:var(--space-16);position:relative;}
