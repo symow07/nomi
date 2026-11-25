@@ -126,7 +126,8 @@ or a button, 44 px).
   - `empty` and `nomatch`: Customers, Orders, Products, Saved replies, Invoices, Labels, the advisor's history, the
     gaps, the bank lines and the reports.
   - `unavailable`: Billing, a channel this installation does not offer, a record that is not here (`missingPage`),
-    and an address that leads nowhere (`errorPage`, `notfound`).
+    a product that is not here (`renderProductMissing`), a mistyped `/app` address while signed in
+    (`notFoundInside`), and an address that leads nowhere (`errorPage`, `notfound`).
   - `error`: a page that broke (`errorPage`, `crash`, with its reference).
   - The two door pages carry the kind on their card (`main.card[data-state]`). They keep the door's own sheet,
     because they may reach someone with no session.
@@ -135,10 +136,16 @@ or a button, 44 px).
     arrives, so nothing on a page is ever "on its way". The live line only says that something new came in.
     Work under way after a press is a busy button (`aria-busy`). The kind stays defined for the first part that is
     drawn in later.
-  - `forbidden`: no page is kept from someone as a whole page. A part kept for the owner says so in place
-    (`staff.ownerDecides`) and keeps the rest of the page. An owner-only address answers the not-found page, or, for
-    an accountant, the books with a notice. An action that is not theirs returns to its page with a notice
-    (`staff.notAllowed`). The kind stays defined for a page that is someone else's to decide as a whole.
+  - `forbidden`: no page draws it. What a team member meets instead, as the browser shows it:
+    - A part kept for the owner says so in place (`staff.ownerDecides`, "The owner decides this.") and keeps the
+      rest of the page.
+    - An owner-only page (`/app/settings/people`, `/app/settings/billing`, `/app/customers/import`) or an action
+      that is not theirs (`ownerOnly` in `app.ts`) sends them back to a page they may see with the notice
+      `staff.notAllowed`: "Only the owner can do that."
+    - **OPEN (the same at aa752c3c):** a team member who opens the books (`/app/books/invoices`) lands on Today with
+      no words. The notice "The books are the owner's and the accountant's." is painted later, on a page after that.
+      The routing was not changed in Block 9.
+    - The kind stays defined for a page that is someone else's to decide as a whole.
 - **Marks**: each kind carries a mark of its own shape beside its heading (round, dashed round, open round, a diamond,
   a filled square, a dashed square), so the kinds differ by more than colour.
 - **Announcing**: `nomatch` and `loading` are announced (`role="status"`).

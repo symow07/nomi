@@ -93,8 +93,8 @@ export const perUnit = (locale: Locale, price: Money, unit: string): string =>
  * never erased; the page says so), with the way back to where it was looked for.
  */
 export const renderProductMissing = (locale: Locale, to: { readonly href: string; readonly label: string } | null = null): string =>
-  `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="empty">${esc(t(locale, 'product.notFound.body'))}<div>${
-    deeper(to?.href ?? '/app/products', to?.label ?? t(locale, 'product.detail.back'))}</div></div>`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(t(locale, 'product.notFound'))}</h1><p class="state-p">${esc(t(locale, 'product.notFound.body'))}</p><p class="state-next">${
+    deeper(to?.href ?? '/app/products', to?.label ?? t(locale, 'product.detail.back'))}</p></section>`;
 
 /** Phase 9 (missed-03) — an address cut short is a product that is not here, never a broken page. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

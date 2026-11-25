@@ -3103,7 +3103,7 @@ const wayBack = (locale: Locale, path: string, body: string): string => {
  */
 export const notFoundInside = (locale: Locale): string =>
   // Phase 9 (w4-today-setup-30) — a calm line and its door, not the dashed box the run retired.
-  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><p class="muted">${esc(t(locale, 'error.notfound.body'))}</p>${deeper('/app', t(locale, 'error.home'))}`;
+  `<section class="state" data-state="unavailable"><h1 class="page state-h">${esc(t(locale, 'error.notfound.title'))}</h1><p class="state-p">${esc(t(locale, 'error.notfound.body'))}</p><p class="state-next">${deeper('/app', t(locale, 'error.home'))}</p></section>`;
 
 /**
  * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE, said on every page:
@@ -3218,7 +3218,9 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
   // The home run — a greeting is a page's first words, not its name: Home's tab says "Home".
-  const ownHeading = /<h1 class="page"(?![^>]*\bdata-greeting\b)[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  // UI Block 9 — a state block's heading is `class="page state-h"`: it names the tab too (a missing record, a
+  // missing product, a mistyped address), as its plain `class="page"` heading did before.
+  const ownHeading = /<h1 class="page(?: [^"]*)?"(?![^>]*\bdata-greeting\b)[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
   /**
    * THE WARMTH RUN (2026-10-03), phase 8 — every page in a workspace asks the
    * rail's question (`railAnswer`, live.ts) from the number it was drawn with,
