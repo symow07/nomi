@@ -75,7 +75,9 @@ describe('F09 — long lists: one header, figures in columns, the pager at the t
     expect(LISTS_CSS).toContain('.ca-head,.pa-head{display:none;}');
     expect(LISTS_CSS).toMatch(/@media\(min-width:1100px\)\{[\s\S]*\.ca-head\{display:grid;/);
     expect(LISTS_CSS).toContain('.ca-customer .ca-row-facts dt,.pa-products .prod-k{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)');
-    expect(LISTS_CSS).toContain('grid-template-areas:"p v" "s s" "l o" "n n"');
+    // Pin moved (tester round 2): a customer's value no longer shares the first line with the person, which squeezed a
+    // 13-digit number until it broke at 320; the person has the whole line, value and orders the next (ui-block9-r3).
+    expect(LISTS_CSS).toContain('grid-template-areas:"p p" "s s" "v o" "l l" "n n"');
     expect(LISTS_CSS).toContain('grid-template-areas:"t t" "p a" "c s"');
     expect(LISTS_CSS).not.toMatch(/\/\*|token|stack/);
   });
