@@ -15,8 +15,8 @@ import { esc } from './layout.js';
  *
  * A missing figure is never drawn as zero here: a state block replaces a list or a feature, never an amount.
  */
-export type StateKind = 'empty' | 'nomatch' | 'loading' | 'error' | 'forbidden' | 'unavailable';
-export const STATE_KINDS: readonly StateKind[] = ['empty', 'nomatch', 'loading', 'error', 'forbidden', 'unavailable'];
+export const STATE_KINDS = ['empty', 'nomatch', 'loading', 'error', 'forbidden', 'unavailable'] as const;
+export type StateKind = (typeof STATE_KINDS)[number];
 
 export interface StateWords {
   /** The state's own heading, in the page's language. */
