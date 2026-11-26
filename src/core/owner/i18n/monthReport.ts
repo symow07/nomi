@@ -1,12 +1,11 @@
 /** Block 4.3: approved English copy; other locales keep this explicit fallback. */
 export const MONTH_REPORT_EN = {
-  "monthReport.title": "What Nomi did for you",
   "monthReport.intro": "One month at a time: who {name} answered, what sold and what was handed to you.",
   "monthReport.picker.label": "Month",
   "monthReport.picker.show": "Show",
   "monthReport.picker.previousName": "Previous month: {month}",
   "monthReport.picker.nextName": "Next month: {month}",
-  "monthReport.state.running": "{month} so far, up to today. These figures change until the month ends.",
+  "monthReport.state.running": "So far, up to today.",
   "monthReport.state.firstMonth": "Counted from {date}, the day your workspace was made.",
   "monthReport.empty.title": "Nothing happened in {month}",
   "monthReport.empty.past": "No customer wrote, {name} sent no reply, and no order or invoice was settled this month.",

@@ -11,7 +11,9 @@ export const MONTH_REPORT_CSS = String.raw`
 .month-report .result-row dd{font-variant-numeric:tabular-nums;text-align:end;overflow-wrap:anywhere}
 .month-report .mr-amounts{display:grid;gap:var(--space-4)}
 .month-report .result-row .mr-definition{grid-column:1 / -1;margin:0;text-align:start;font-weight:400}
-.month-report .mr-definition p{margin:var(--space-8) 0 0}
+.month-report .mr-definition p{margin:0}
+.month-report .mr-def>summary{font-weight:400;font-size:inherit;color:inherit}
+.month-report .mr-def>p{margin:0 0 var(--space-8);font-size:var(--font-size-caption);color:var(--color-ink-secondary)}
 .month-report .mr-subrow{margin-inline-start:var(--space-16);border-block-end-color:var(--color-sand)}
 .month-report .mr-subrow dt,.month-report .mr-subrow dd{font-size:var(--font-size-small)}
 .month-report .mr-picker{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"previous form next";align-items:baseline;gap:var(--space-12);margin-block:var(--space-24)}

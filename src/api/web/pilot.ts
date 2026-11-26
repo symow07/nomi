@@ -20,6 +20,8 @@ import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
 import { esc, deeper, back, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
+import { GO } from './icons.js';
+import { settingsHref } from './settingsNavigation.js';
 import { menuRow, menuGroup } from './settings.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -643,10 +645,16 @@ export function renderPilotReadiness(
 // sections. ✓ / ○ and real counts only — no scores, percentages, or grades.
 
 function rbCount(label: MessageKey, n: number, href: string | null, locale: Locale): string {
-  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${esc(show.count(locale, n))}</b>${href ? deeper(href, t(locale, 'pilot.open'), 'rbgo') : ''}</div>`;
+  // The text pass (2026-11-26) — a row that leads somewhere IS its door (its caret at the row's end): the word "Open"
+  // on every row said nothing the caret does not.
+  const inner = `<span class="lbl">${esc(t(locale, label))}</span><b class="n">${esc(show.count(locale, n))}</b>`;
+  return href ? `<a class="rbrow" href="${settingsHref(href)}">${inner}<span class="rbgo">${GO}</span></a>` : `<div class="rbrow">${inner}</div>`;
 }
 
 function duringSection(ops: OperationsSnapshot, locale: Locale): string {
+  // The text pass (2026-11-26) — the block is headed by the span it was counted over. Under Reports it is the month,
+  // as the assistant's view beside it: "1 reply prepared" there and "Replies prepared 0" here were a month and a week.
+  const month = ops.range === 'month';
   const quiet = !ops.hasAttention
     && ops.activity.handled === 0 && ops.activity.draftsCreated === 0 && ops.activity.corrections === 0
     && ops.knowledge.openGaps === 0 && ops.knowledge.recentCorrections === 0 && ops.knowledge.recentlyTaught === 0;
@@ -657,7 +665,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       ${rbCount('ops.card.waiting', ops.attention.handoffs, '/app/inbox', locale)}
       ${rbCount('ops.card.approvals', ops.attention.pendingApprovals, '/app/inbox?filter=pending', locale)}
       ${rbCount('knowledge.ops.gaps', ops.knowledge.openGaps, '/app/knowledge', locale)}
-      <h3 class="rbsub">${esc(t(locale, 'runbook.during.activity'))}</h3>
+      <h3 class="rbsub">${esc(t(locale, month ? 'ops.activity.title' : 'runbook.during.activity'))}</h3>
       ${rbCount('ops.activity.handled', ops.activity.handled, '/app/analytics', locale)}
       ${rbCount('ops.activity.drafts', ops.activity.draftsCreated, '/app/inbox', locale)}
       ${rbCount('ops.activity.corrections', ops.activity.corrections, '/app/knowledge', locale)}
@@ -665,7 +673,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       ${rbCount('knowledge.report.corrected', ops.knowledge.recentCorrections, null, locale)}
       ${rbCount('knowledge.report.facts', ops.knowledge.recentlyTaught, '/app/knowledge', locale)}`;
   // Phase 9 — on its own screen, headed "How it is going": this block is the week.
-  return `<div class="block"><h2>${esc(t(locale, 'runbook.during.week'))}</h2>${body}</div>`;
+  return `<div class="block"><h2>${esc(t(locale, month ? 'her.recent.title' : 'runbook.during.week'))}</h2>${body}</div>`;
 }
 
 /**
@@ -698,10 +706,9 @@ function practiceSection(rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>, loca
 
 function afterSection(locale: Locale): string {
   const link = (label: MessageKey, href: string) =>
-    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span>${deeper(href, t(locale, 'pilot.open'), 'rbgo')}</div>`;
+    `<a class="pr" href="${settingsHref(href)}"><span class="lbl">${esc(t(locale, label))}</span><span class="rbgo">${GO}</span></a>`;
   return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
     ${link('runbook.after.promotion', ASSISTANT_HOME)}
     ${link('runbook.after.autonomy', ASSISTANT_HOME)}
     ${link('runbook.after.gaps', '/app/knowledge')}

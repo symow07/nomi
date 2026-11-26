@@ -24,8 +24,6 @@ export const NAVIGATION_EN = {
   'side.reportsBooks': 'Books',
   'side.booksReports': 'Reports and tax',
   'side.import': 'Import customers',
-  'side.settingsMoved': 'Your assistant\'s settings are under Assistant.',
-  'side.settingsMovedBooks': 'The books\' settings are under Books.',
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
@@ -81,8 +79,6 @@ export const NAVIGATION_ZH: Record<NavigationKey, string> = {
   'side.reportsBooks': '账簿',
   'side.booksReports': '报表和税务',
   'side.import': '导入客户',
-  'side.settingsMoved': '助手的设置在“助手”里。',
-  'side.settingsMovedBooks': '账簿的设置在“账簿”里。',
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': '客户',
   'nav.assistant': '助手',
@@ -136,8 +132,6 @@ export const NAVIGATION_AR: Record<NavigationKey, string> = {
   'side.reportsBooks': 'الدفاتر',
   'side.booksReports': 'التقارير والضرائب',
   'side.import': 'استيراد العملاء',
-  'side.settingsMoved': 'إعدادات المساعد في قسم «المساعد».',
-  'side.settingsMovedBooks': 'إعدادات الدفاتر في قسم «الدفاتر».',
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'العملاء',
   'nav.assistant': 'المساعد',
@@ -191,8 +185,6 @@ export const NAVIGATION_ES: Record<NavigationKey, string> = {
   'side.reportsBooks': 'Contabilidad',
   'side.booksReports': 'Informes e impuestos',
   'side.import': 'Importar clientes',
-  'side.settingsMoved': 'La configuración del asistente está en Asistente.',
-  'side.settingsMovedBooks': 'La configuración de la contabilidad está en Contabilidad.',
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Clientes',
   'nav.assistant': 'Asistente',
@@ -246,8 +238,6 @@ export const NAVIGATION_FR: Record<NavigationKey, string> = {
   'side.reportsBooks': 'Comptes',
   'side.booksReports': 'Rapports et taxes',
   'side.import': 'Importer des clients',
-  'side.settingsMoved': 'Les réglages de l’assistant sont dans Assistant.',
-  'side.settingsMovedBooks': 'Les réglages des comptes sont dans Comptes.',
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Clients',
   'nav.assistant': 'Assistant',

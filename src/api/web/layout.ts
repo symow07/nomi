@@ -1546,6 +1546,9 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-127, V1-128) — a count follows its label; a door (Open, with its caret) ends the row, as on every row of this page. */
   .rbrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:4px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
+  a.rbrow, a.pr { color:inherit; text-decoration:none; }
+  a.rbrow:hover .lbl, a.rbrow:focus-visible .lbl, a.pr:hover .lbl, a.pr:focus-visible .lbl { text-decoration:underline; text-underline-offset:3px; }
+  .rbgo { display:inline-flex; color:var(--color-brand); }
   .rbrow .lbl { font-size:var(--font-size-small); text-wrap:pretty; }
   .rbrow .n { font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); font-variant-numeric:tabular-nums; }
   .rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }
@@ -3092,6 +3095,23 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/onboarding/practice': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
   '/app/onboarding/activity': { href: '/app/results', label: 'nav.reports' },
 };
+/**
+ * The text pass (2026-11-26) — a page that is one of its area's own entries carries no link above its title: the
+ * sidebar (the chooser on a phone) already says where it is, and such a link read as a second, often wrong, title
+ * ("My business" over a channel's page). Pages still draw theirs, for the places they are shown outside the shell;
+ * the shell takes it off here. Only a link that stands before the page's title and leads to ANOTHER page goes: a
+ * calendar's or a report's "previous month" leads to the page itself and stays.
+ */
+export const withoutLeadingBack = (path: string, body: string): string => {
+  const at = body.search(/<a class="back"/);
+  const title = body.search(/<h1\b/);
+  if (at < 0 || at > (title < 0 ? 400 : title)) return body;
+  const link = /^<a class="back" href="([^"]*)"[^>]*>[\s\S]*?<\/a>/.exec(body.slice(at));
+  if (!link) return body;
+  const own = (p: string): string => (settingsHref(p).split(/[?#]/)[0] ?? p).replace(/\/+$/, '');
+  if (own(link[1] ?? '') === own(path)) return body;
+  return body.slice(0, at) + body.slice(at + link[0].length);
+};
 const wayBack = (locale: Locale, path: string, body: string): string => {
   const to = BACK_TO[(settingsHref(path).split(/[?#]/)[0] ?? path).replace(/\/+$/, '')] ?? BACK_TO[path];
   return to && !body.includes('class="back"') ? back(to.href, t(locale, to.label)) : '';
@@ -3247,7 +3267,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     ${chooser}
     ${helpDoor(locale, input.path)}
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(area && isSectionPage(area, input.path) ? withoutLeadingBack(input.path, input.bodyHtml) : input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }

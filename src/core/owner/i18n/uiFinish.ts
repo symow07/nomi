@@ -45,7 +45,7 @@ export const UI_FINISH_EN = {
   'state.billing.h': 'Billing is not open yet',
   'state.billing.p': 'Plans cannot be chosen here yet.',
   'state.billing.next': 'See what is left in Setup',
-  'state.channel.h': 'Not offered on this installation yet',
+  'state.channel.h': 'Not available here yet',
 } as const;
 
 type FinishKey = keyof typeof UI_FINISH_EN;
@@ -106,7 +106,7 @@ export const UI_FINISH_ZH: Pack = {
   'state.billing.h': '收费功能还没开放',
   'state.billing.p': '这里还不能选择套餐。',
   'state.billing.next': '在基本设置里看看还剩什么',
-  'state.channel.h': '这个安装还不提供这个渠道',
+  'state.channel.h': '这里暂时还不能用',
 };
 
 export const UI_FINISH_AR: Pack = {
@@ -162,7 +162,7 @@ export const UI_FINISH_AR: Pack = {
   'state.billing.h': 'الفوترة غير متاحة بعد',
   'state.billing.p': 'لا يمكن اختيار باقة هنا بعد.',
   'state.billing.next': 'ما تبقّى في الإعداد',
-  'state.channel.h': 'غير متاحة في هذا التثبيت بعد',
+  'state.channel.h': 'غير متاحة هنا بعد',
 };
 
 export const UI_FINISH_ES: Pack = {
@@ -218,7 +218,7 @@ export const UI_FINISH_ES: Pack = {
   'state.billing.h': 'La facturación aún no está abierta',
   'state.billing.p': 'Aquí aún no se puede elegir un plan.',
   'state.billing.next': 'Ver lo que falta en la puesta en marcha',
-  'state.channel.h': 'Aún no se ofrece en esta instalación',
+  'state.channel.h': 'Aún no está disponible aquí',
 };
 
 export const UI_FINISH_FR: Pack = {
@@ -274,5 +274,5 @@ export const UI_FINISH_FR: Pack = {
   'state.billing.h': 'La facturation n’est pas encore ouverte',
   'state.billing.p': 'Aucune formule ne peut encore être choisie ici.',
   'state.billing.next': 'Voir ce qui reste dans la mise en route',
-  'state.channel.h': 'Pas encore proposé sur cette installation',
+  'state.channel.h': 'Pas encore disponible ici',
 };

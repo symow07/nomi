@@ -332,7 +332,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     ${flashBanner(flash)}
     ${issued}
     <section class="block team-members">
-      <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
+      ${v.people.length < 2 ? '' : `<p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>`}
       ${table}
     </section>
     ${/* Phase 9 (V1-509, V1-519); F36 — adding someone is a task of its own, opened when wanted (open while nobody else is here). */ ''}<section class="block" id="add">

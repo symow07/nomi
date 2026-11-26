@@ -10,6 +10,8 @@ import { workspaceZone } from './zone.js';
 import { assistantName } from './say.js';
 /** UI Block 6 (F30, F39) — the same pages above a list and below it; each its own named landmark. */
 export function assistantPager<T>(page:AssistantPage<T>,locale:Locale,href:(n:number)=>string,where:'above'|'below'='below'):string {
+ // The text pass (2026-11-26): a list that fits on one page has no pager ("1–7 of 7" said nothing).
+ if(!page.prev&&!page.next)return '';
  return `<nav class="aa-pager aa-pager-${where}" aria-label="${esc(t(locale,where==='above'?'assistantArea.pagesAbove':'assistantArea.pagesBelow'))}">${page.prev?`<a href="${esc(href(page.prev))}">${esc(t(locale,'assistantArea.previous'))}</a>`:''}<span class="caption">${esc(t(locale,'assistantArea.range',{from:page.from,to:page.to,total:page.total}))}</span>${page.next?`<a href="${esc(href(page.next))}">${esc(t(locale,'assistantArea.next'))}</a>`:''}</nav>`;
 }
 /**

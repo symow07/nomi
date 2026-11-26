@@ -162,7 +162,8 @@ describe('w4-settings-a-22 · Your sign-in says what to do when the code or the 
     for (const l of LOCALES) {
       expect(renderAccount({ email: null, passwordMin: 10 }, l, null, 'Setup'), l).toContain(esc(t(l, 'account.lost.code')));
       const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null, 'Setup');
-      expect(mailed, l).toContain(`${esc(t(l, 'account.lost.password'))} <a href="/login/forgot">${esc(t(l, 'login.forgot'))}</a>`);
+      // The text pass (2026-11-26): the link says it alone ("Forgot your password?"); the sentence before it said it twice.
+      expect(mailed, l).toContain(`<a href="/login/forgot">${esc(t(l, 'login.forgot'))}</a>`);
       const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null, 'Setup');
       expect(asked, l).toContain(esc(t(l, 'account.lost.passwordAsk')));
       expect(asked, l).not.toContain('/login/forgot');
@@ -214,7 +215,8 @@ describe('settings-a-new-09 · w4-settings-a-20 · closures and forbidden words:
   it('the second intro paragraph keeps the lede\'s measure; the fixed list is set apart from the empty panel', async () => {
     const { renderClosures, renderForbidden } = await import('../../src/api/web/settings.js');
     const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
-    expect(renderClosures({ closures: [] }, 'en', null)).toContain('<p class="muted small closure-said measure-prose">');
+    // The text pass (2026-11-26): the example folds under its own name, and keeps the lede's measure when opened.
+    expect(renderClosures({ closures: [] }, 'en', null)).toMatch(/<details class="note-fold closure-said"><summary>[^<]+<\/summary><p class="measure-prose">/);
     expect(renderForbidden({ own: [], floor: [] }, 'en', null)).toMatch(/<p class="muted small measure-prose">[^<]*familiar/);
     const sheet = /href="\/assets\/(app\.[0-9a-f]+\.css)"/.exec(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app', bodyHtml: '' }))![1]!;
     expect(stylesheetAt(sheet)!.css).toContain('.block.floor { margin-top:var(--space-24); }');

@@ -121,7 +121,9 @@ describe('F47 · a page in a state says which state, why, and the one next step'
 
   it('a range of "0–0 of 0" is not drawn under nothing', () => {
     expect(booksPager('en', { from: 0, to: 0, total: 0, next: null, prev: null }, () => '/x')).toBe('');
-    expect(booksPager('en', { from: 1, to: 1, total: 1, next: null, prev: null }, () => '/x')).toContain('class="ba-pager"');
+    // The text pass (the owner, 2026-11-26): nor is "1–1 of 1" under a list that fits on one page.
+    expect(booksPager('en', { from: 1, to: 1, total: 1, next: null, prev: null }, () => '/x')).toBe('');
+    expect(booksPager('en', { from: 1, to: 20, total: 21, next: 2, prev: null }, () => '/x')).toContain('class="ba-pager"');
     for (const l of LOCALES) expect(plain(renderInvoices(l, owner, [], { q: 'zzz', page: noPage })), l).not.toContain('bd-pager');
   });
 

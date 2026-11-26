@@ -190,6 +190,10 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary { flex-wrap:wrap; }
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary .c.check { flex:1 1 100%; padding-inline-start:calc(16px + var(--space-8)); }
 }
+/* The text pass (2026-11-26) — an explanation that is wanted sometimes, never always: folded under its own name, opened by a tap, a click or the keyboard (a title attribute reaches no finger). One look on every page. */
+.owner-shell details.note-fold { margin:0; padding:0; border:0; }
+.owner-shell details.note-fold > summary { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+.owner-shell details.note-fold > :not(summary) { margin:0 0 var(--space-8); color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
 /* The framed box under a conversation holds its contents a step in from its edge, like every other card. */
 @media (min-width: 1100px) { .conversation-workspace .conv-acts:not(:empty) { padding-inline:var(--space-16); } }
 

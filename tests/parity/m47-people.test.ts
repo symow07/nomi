@@ -193,7 +193,8 @@ describe('M47 · the page', () => {
     expect(html).toContain('Signs in with an access code');
     const never = renderPeople({ people: [{ ...staff, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null }], justIssued: null }, 'en', null, NOW);
     expect(never).toContain('Not seen here yet');
-    expect(never).toContain('1 person here, 0 online now.');   // phase 9 (V1-516): the count in its own form
+    // The text pass (the owner, 2026-11-26): one person is not counted back to themselves; the row says the rest.
+    expect(never).not.toContain('1 person here');
   });
 
   it('lists everyone, marks the owner, and offers to remove only the others', () => {

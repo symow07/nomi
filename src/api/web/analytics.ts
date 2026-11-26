@@ -182,11 +182,13 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   // UI Block 6 · F39 — ONE REPORT HEADER: the period (its tabs, and where it starts) and what is counted, together.
   const header = `<header class="results-header">
     <h1 class="page">${wordsHtml(locale, 'area1.results.title')}</h1>
-    <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}<p class="caption muted results-scope">${wordsHtml(locale, 'area1.results.intro')}</p></header>`;
+    <div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}${
+      d.hasActivity ? `<p class="caption muted results-scope">${wordsHtml(locale, 'area1.results.intro')}</p>` : ''}</header>`;
   if (!d.hasActivity) {
+    // The text pass (2026-11-26) — an empty period is ONE line: no scope line over figures that are not there, and no
+    // heading over the sentence that says the same.
     return `<div class="results-page">${header}<section class="empty results-empty">
-      <h2 class="stated-now">${esc(t(locale, 'analytics.empty.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during, name }))}</p>
+      <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during }))}</p>
       </section></div>`;
   }
 
