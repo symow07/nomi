@@ -2307,13 +2307,17 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
    *   - a reply waiting for the owner's OK is the draft card's own line, directly under the thread: the head is silent;
    *   - "Gone quiet" is the whole state where the assistant holds the conversation (the day is the thread's own
    *     divider, and the pill's hover); where a person holds it, who holds it stays and "Gone quiet" follows;
-   *   - "Last message · who · when" restated the thread's last bubble: the pill alone.
+   *   - "Last message · who · when" restated the thread's last bubble: the pill alone;
+   *   - ONE state: where the assistant holds the conversation and the rows tell where things stand (an order, a quote
+   *     waiting, who spoke last), that is the state; "Answered" beside it said two things. Who holds it, where a
+   *     person does, stays.
    */
   const reviewOnly = play.kind === 'needs' && row.awaitingReview && !row.orderWaiting && !row.deletionWaiting && d.ownership === 'AI';
   const quietSince = play.kind === 'quiet' ? t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }) : '';
   const pill = reviewOnly ? ''
     : play.kind === 'needs' ? `<span class="pill warn">${esc(t(locale, 'inbox.filter.pending'))}</span>`
     : play.kind === 'quiet' && d.ownership === 'AI' && c ? `<span class="pill" title="${esc(quietSince)}">${esc(t(locale, 'catchup.state.quiet'))}</span>`
+    : d.ownership === 'AI' && c && d.status !== 'paused' && (play.kind === 'ordered' || play.kind === 'quoted' || play.kind === 'talking' || play.kind === 'none') ? ''
     : headerPill(d, locale, viewer);
 
   // A sentence around something already drawn (a list, a figure): the words escaped, then the piece put in.
@@ -2363,8 +2367,9 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   return `<header class="catchup${c ? '' : ' bare'}">
       ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
-      ${/* Where they write, in the channel's word: the address is the panel's (and the profile's), not said twice. */ ''}${c ? `<p class="cu-where">${reachedOn(locale, c.channel, null)}</p>` : ''}
-      ${facts.length || regular || pill || story ? `<div class="cu-line">${
+      ${/* One line under the name, from the name's own edge: where they write (the channel's word; the address is the
+          panel's), what they bought or asked about, and where things stand. */ ''}${c || pill || story ? `<div class="cu-line">${
+        c ? `<p class="cu-where">${reachedOn(locale, c.channel, null)}</p>` : ''}${
         facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}${
         pill || story ? `<p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>` : ''}</div>` : ''}
     </header>`;
@@ -2439,7 +2444,7 @@ export function renderConversationDetail(
     && Math.abs(b.at.getTime() - a.at.getTime()) <= RUN_GAP_MS;
   const timeline = d.messages.length
     ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}<span id="message-${i}"></span>
-        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}${sameRun(m, d.messages[i + 1]) ? ' mid' : ''}">
+        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}${sameRun(m, d.messages[i + 1]) ? ' mid" tabindex="0' : ''}">
           ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
                meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${
             m.direction === 'outbound' && m.by !== 'owner' && !sameRun(d.messages[i - 1], m) ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}

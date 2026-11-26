@@ -82,17 +82,16 @@ const ROWS: AssistantActivityRow[] = [
 const PAGE: AssistantPage<AssistantActivityRow> = { rows: ROWS, total: 61, page: 2, pageSize: 50, from: 51, to: 51, next: null, prev: 1 };
 
 describe('UI Block 6 fix 1 · F39 — the Results scope, the assistant area and the pager translated', () => {
-  it('area1.results.intro and every assistantArea.* key are translated in zh / ar / es / fr', () => {
+  it('every assistantArea.* key is translated in zh / ar / es / fr', () => {
     const area = (Object.keys(messages.en) as MessageKey[]).filter((k) => k.startsWith('assistantArea.'));
     expect(area.length).toBeGreaterThan(20);   // six descriptions and hints left in the text cleanup (2026-11-26)
-    for (const k of ['area1.results.intro' as MessageKey, ...area]) translated(k);
+    for (const k of area) translated(k);
   });
-  it('the report header\'s scope is in the page\'s language', () => {
-    for (const l of OTHER) {
+  it('the report header is its title and its period: no sentence says what the rows under it already name', () => {
+    for (const l of ['en', ...OTHER] as const) {
       const html = renderAnalytics(DATA, l);
-      const scope = html.slice(html.indexOf('results-scope'), html.indexOf('</p>', html.indexOf('results-scope')));
-      expect(scope, l).not.toContain('lang="en"');
-      expect(scope, l).toContain(t(l, 'area1.results.intro'));
+      expect(html, l).not.toContain('results-scope');
+      expect(html, l).toContain('class="results-header"');
     }
   });
   it('the pager says its range in the page\'s language: no English "of"', () => {

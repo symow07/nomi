@@ -150,7 +150,7 @@ describe('V2 · the calendar page, by structure', () => {
       const html = renderCalendar(view({ entries: [], categories: [], buyers: [] }), locale);
       expect(html).toContain('<div class="empty cal-empty">');
       expect(html).toContain(t(locale, 'calendar.empty.month'));
-      expect(html).toContain(t(locale, 'calendar.empty.how'));
+      expect(html).not.toContain('<p class="muted">');   // one line: no sentence under it (2026-11-26)
       expect(html).toContain('<details class="cal-add">');
       expect(html).not.toContain('<li class="dl-row');
       for (const bad of ['error', 'failed', 'null', 'undefined', 'N/A']) expect(html.toLowerCase()).not.toContain(bad.toLowerCase());

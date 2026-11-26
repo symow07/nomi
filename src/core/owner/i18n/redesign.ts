@@ -71,7 +71,6 @@ export const REDESIGN_EN = {
   'area1.setup.help': 'Read the steps',
   'area1.setup.name.location': 'Find the name confirmation in the checklist below.',
   'area1.results.title': 'Sales results',
-  'area1.results.intro': 'Customer activity, quotes and confirmed orders for the selected period.',
   'area1.results.sales': 'Sales',
   'area1.results.assistant': 'Assistant',
   'area1.results.setup': 'Getting started',

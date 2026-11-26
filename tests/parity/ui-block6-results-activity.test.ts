@@ -28,18 +28,17 @@ const DATA: AnalyticsData = {
 };
 
 describe('UI Block 6 · F39 — Results: one report header', () => {
-  it('the period (tabs and its start) and what is counted sit together under the tabs, not split by the title', () => {
+  it('the period (tabs and its start) sits under the title; what is counted is the rows\' own labels (the tester\'s pass, 2026-11-26)', () => {
     for (const l of LOCALES) {
       const html = renderAnalytics(DATA, l);
       const header = html.slice(at(html, '<header class="results-header">'), at(html, '</header>'));
-      expect(header, l).toMatch(/<div class="tabs">.*<\/div><p class="caption muted an-since">[^<]*<\/p><p class="caption muted results-scope">/s);
+      expect(header, l).toMatch(/<div class="tabs">.*<\/div><p class="caption muted an-since">[^<]*<\/p>$/s);
       // the scope no longer stands between the title and the period
       expect(header, l).not.toContain('<p class="muted">');
-      expect(at(header, 'class="tabs"'), l).toBeLessThan(at(header, 'results-scope'));
       expect(html.match(/class="tab /g), l).toHaveLength(3);
-      expect(html.match(/results-scope/g), l).toHaveLength(1);
+      expect(html, l).not.toContain('results-scope');
     }
-    expect(split).toContain('.results-page .results-header > .an-since, .results-page .results-header > .results-scope { display:inline; margin:0; }');
+    expect(split).toContain('.results-page .results-header > .an-since { display:inline; margin:0; }');
     expect(split).toContain('.results-page .results-header > .tabs { flex-wrap:wrap; }');
   });
 });

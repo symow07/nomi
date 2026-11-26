@@ -59,7 +59,7 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
  // The text pass (2026-11-26) — the day is said once, under the title; a figure says a period only when it has one of
  // its own ("This month", the year's span); and a source three figures share is linked once, under them.
  const sourceLink=(href:string,source:MessageKey)=>`<p class="ba-source"><a class="deeper" href="${esc(href)}">${text(source)}${GO}</a></p>`;
- const figure=(key:MessageKey,value:string,period:string|null,source:readonly [href:string,key:MessageKey]|null,note='')=>`<div class="ba-fig"><dt>${text(key)}</dt><dd>${value}</dd>${period===null?'':`<p class="ba-period">${period}</p>`}${note}${source?sourceLink(source[0],source[1]):''}</div>`;
+ const figure=(key:MessageKey,value:string,period:string|null,source:readonly [href:string,key:MessageKey]|null,note='',hover='')=>`<div class="ba-fig"><dt${hover?` title="${hover}"`:''}>${text(key)}</dt><dd>${value}</dd>${period===null?'':`<p class="ba-period">${period}</p>`}${note}${source?sourceLink(source[0],source[1]):''}</div>`;
  // Before the books have a year, nothing can be saved to them: a figure with nothing behind it is "Not on record",
  // never a zero that reads as a real one. A figure that HAS something behind it (an issued invoice) is still shown.
  const isZero=(amount:string)=>Number(amount)===0;
@@ -81,7 +81,9 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
   figure('booksArea.customerOwed',owed,null,['/app/books/invoices?state=unpaid','booksHome.srcUnpaid'])}${
   figure('booksArea.supplierOwed',o.supplierOwed.owed===null?missing(o.supplierOwed.state,supplierHref):amountOf(o.supplierOwed.owed),null,[supplierHref,'booksArea.supplierDetails'])}</dl></section>`;
  const profit=`<section class="ba-group" aria-labelledby="ba-profit"><h2 id="ba-profit">${text('booksHome.profit')}</h2><dl>${
-  figure('booksArea.profit',amountOf(o.profit.amount),span(o.profit.from,o.profit.to),['/app/books/reports/profit','booksArea.profitDetails'],`<p class="ba-period ba-note">${text('booksHome.notCash')}</p>`)}</dl></section>`;
+  figure('booksArea.profit',amountOf(o.profit.amount),span(o.profit.from,o.profit.to),['/app/books/reports/profit','booksArea.profitDetails'],`<p class="ba-period ba-note sr">${text('booksHome.notCash')}</p>`,text('booksHome.notCash'))}</dl></section>`;
+ // The tester's pass (2026-11-26): "not cash received" is the figure's hover and a reader's line; in sight it is said once,
+ // in the figure's basis under "How these figures are worked out" (booksArea.profitBasis), which a finger opens.
  // The basis of each figure, word for word as before (t1r, 2026-11-18): kept, behind one disclosure.
  const basis:readonly [MessageKey,string][]=[
   ['booksArea.cashToday',text('booksArea.cashTodayBasis',{date:asOf})+(o.cashToday.defaulted?` ${text('booksArea.ownAccounts')}`:'')],

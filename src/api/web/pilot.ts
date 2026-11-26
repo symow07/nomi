@@ -920,7 +920,9 @@ export function renderPilotScreen(
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + afterSection(locale);
+    // The text pass (2026-11-26) — under Reports (the month) the page ends with what happened: the three doors to
+    // Assistant and Knowledge are the rail's and the sidebar's, one press away on every page.
+    + (rb.operations.range === 'month' ? '' : afterSection(locale));
 }
 
 /**

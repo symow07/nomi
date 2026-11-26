@@ -366,8 +366,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .results-page .results-header > .tabs { flex-wrap:wrap; }
 .results-page .results-header > .tabs > .tab { white-space:nowrap; }
 /* UI Block 6 · F39 — the period and what is counted, one line under the period's tabs. */
-.results-page .results-header > .an-since, .results-page .results-header > .results-scope { display:inline; margin:0; }
-.results-page .results-header > .results-scope::before { content:"· "; }
+.results-page .results-header > .an-since { display:inline; margin:0; }
 .results-page .results-header > .tabs { margin-block-end:var(--space-8); }
 .results-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-32); }
 .results-section { min-inline-size:0; }
@@ -409,7 +408,7 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 /* F40: a week grows only for its own names. Equal fractional tracks made one
    crowded day stretch all six weeks. The 2026-11-16 owner decision caps grid
    names at two lines; the three-item cap / +N door and whole agenda names remain.
-   On narrow screens this grid scrolls inside its shaded frame. */
+   On a phone the seven days fit the screen (the phone sheet below). */
 .calendar-page .mo { min-inline-size:371px; }
 .calendar-page .mo tbody { display:block; }
 .calendar-page .mo tr { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); }
@@ -441,6 +440,9 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .calendar-page .cal-grid-label { display:none; }
 }
 @media (max-width:720px) {
+  /* The seven days fit the screen: a day keeps its 44 px and the cell gives up its side padding (Sunday sat 20 px past the edge). */
+  .calendar-page .mo { min-inline-size:0; }
+  .calendar-page .mo th, .calendar-page .mo td { padding-inline:0; }
   .content:has(.sp, .il-page) > .help-door { inset-block-start:var(--space-8); }
   /* Focus brings the reply plus the following answer row above the layer tab bar. */
   .sp-decide textarea { scroll-margin-block-end:calc(152px + env(safe-area-inset-bottom)); }
@@ -491,6 +493,8 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .content:has(.sp-head) > .area-nav > .area-chooser[data-titled] .ac-area { display:none; }
   .content:has(> .area-nav > .area-chooser[data-titled]:not([open])) .sp-head { margin-block-start:calc(-44px - var(--space-12)); pointer-events:none; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head * { pointer-events:auto; }
+  /* ...and it stops short of the "?" at the page's head: the button stands beside it, never under it. */
+  .content:has(> .help-door):has(> .area-nav > .area-chooser[data-titled]) .sp-head { padding-inline-end:calc(44px + var(--space-16) + var(--space-8)); }
   /* A row with no stage to say: the name stands in the middle of the row, not over an empty line. */
   .sp-row > .sp-chip:empty { display:none; }
   .sp-row:has(> .sp-chip:empty) { grid-template-areas:"face thumb name val go" "face thumb name day go"; }

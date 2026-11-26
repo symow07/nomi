@@ -109,7 +109,9 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pr-missing{font-weight:600;}
 .pr-id .pr-door{display:inline-flex;align-items:center;min-height:44px;font-weight:400;white-space:nowrap;align-self:flex-start;}
 /* The text audit (2026-11-26): a row's own door shows when the row is pointed at or holds the focus; under a finger it is always there. */
-@media(hover:hover){.pr-table .pr-row:not(:hover):not(:focus-within) .pr-door{opacity:0;}}
+@media(hover:hover){.pr-table .pr-row:not(:hover):not(:focus-within) .pr-door{opacity:0;}
+/* ...and it stands beside the name, in the name's own line: a row at rest keeps no empty line for it. */
+.pr-id{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:var(--space-16);row-gap:0;}.pr-id .pr-door{align-self:center;}}
 .pr-table .pr-row.has-form{border-bottom:0;}
 .pr-form-row>td{padding-bottom:var(--space-24);}
 .pr-form-row .pform{max-width:var(--measure-prose);}

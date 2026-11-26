@@ -25,10 +25,15 @@ describe('a run of messages: one time, one name', () => {
     { direction: 'outbound', by: 'owner', text: 'I can call you too.', at: at(26) },
     { direction: 'inbound', text: 'thanks', at: at(10) },
   ]), 'en', NOW, null);
-  const classes = [...html.matchAll(/class="msg ([a-z ]+)">/g)].map((m) => m[1]);
+  const classes = [...html.matchAll(/class="msg ([a-z ]+)"(?: tabindex="0")?>/g)].map((m) => m[1]);
 
   it('every message of a run but its last is marked; a new speaker, or a gap, ends the run', () => {
     expect(classes).toEqual(['inbound mid', 'inbound', 'outbound mid', 'outbound', 'outbound', 'inbound']);
+  });
+
+  it('a message inside a run takes the focus, so its time is reached by a key or a press, not by a pointer alone', () => {
+    expect([...html.matchAll(/class="msg [a-z]+ mid" tabindex="0">/g)]).toHaveLength(2);
+    expect(html).not.toMatch(/class="msg (?:inbound|outbound)" tabindex/);
   });
 
   it('the assistant is named over the first bubble of its run only; every message keeps its own time for a reader', () => {

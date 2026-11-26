@@ -59,6 +59,8 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
 .owner-shell .field-search > input { flex:1 1 auto; inline-size:100%; min-inline-size:0; margin:0; }
 .owner-shell .field-search::before { content:""; position:absolute; z-index:1; inset-block:0; inset-inline-start:var(--space-12); inline-size:16px;
   margin-block:auto; block-size:16px; background:var(--color-ink-secondary); pointer-events:none; ${iconMask('search', 16, 1.5)} }
+/* A list in the search's place is not a search: no magnifier is drawn over its first letter. */
+.owner-shell .field-search:has(> select)::before { content:none; }
 /* A select draws the same arrow as the rest of the app (not the browser's own), set in from the edge like the search's mark. */
 ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:none; padding-inline-end:calc(var(--space-12) + 16px + var(--space-12));
   background-image:${iconImage('pick', 16, 1.5)}; background-repeat:no-repeat; background-size:16px 16px; background-position:right 14px center; }
@@ -136,7 +138,9 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
 .owner-shell .il-compact-list .si-row.is-selected, .owner-shell .il-page .si-row.is-selected { background:var(--color-sand); border-inline-start-color:transparent; }
 /* The text audit (2026-11-26): a product's row and a customer's row are the same row as every other list's. A product's
    tile is the field's height, and the row's words sit level with it (they sat at the row's top beside a centred tile). */
-.owner-shell .pa-products .prod { min-block-size:var(--control-header); padding-block:var(--space-8); align-items:center; }
+.owner-shell .pa-products .prod { min-block-size:var(--control-header); padding-block:var(--space-4); align-items:center; }
+.owner-shell .pa-products .p-tag { margin-block:0; }
+.owner-shell .products-page > .block { border:0; padding:0; margin-block:var(--space-16); }
 .owner-shell .pa-products .pa-thumb { inline-size:var(--control-field); block-size:var(--control-field); }
 .owner-shell .pa-products .pa-initial { font-size:var(--font-size-base); }
 .owner-shell .pa-products .prod-b { margin-block-start:0; }
@@ -156,7 +160,6 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell .conversation-workspace .catchup > .face-link { order:0; align-self:center; }
   .owner-shell .conversation-workspace .catchup .face-l { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
   .owner-shell .conversation-workspace .catchup > h1.who { order:1; margin:0; font-size:var(--font-size-title); }
-  .owner-shell .conversation-workspace .catchup > .cu-where { order:2; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   /* One line under the name, as wide as the head: the tools beside the name are one row tall, so the line runs under them. */
   .owner-shell .conversation-workspace .conv-top { container-type:inline-size; }
   .owner-shell .conversation-workspace .catchup > .cu-line { order:4; flex:0 0 auto; inline-size:max-content; max-inline-size:calc(100cqi - 32px - var(--space-8)); margin:0; margin-block-start:var(--space-4); margin-inline-start:calc(32px + var(--space-8)); }

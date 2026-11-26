@@ -1174,9 +1174,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .msg { position:relative; }
   .msg.mid { margin-block-end:calc(-1 * var(--space-8)); }
   .msg.mid > .ts, .ts .sr, .pn-facts.sr { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; margin:0; }
-  .msg.mid:is(:hover, :focus-within, :active) > .ts { inline-size:auto; block-size:auto; overflow:visible; clip-path:none; z-index:1;
-    inset-block-start:100%; padding-inline:var(--space-4); border-radius:var(--radius-chip); background:var(--color-surface); }
-  .msg.mid.inbound > .ts { inset-inline-start:0; } .msg.mid.outbound > .ts { inset-inline-end:0; }
+  /* The tester's pass (2026-11-26) - a message inside a run takes the focus (a key, or a finger's press), so its time
+     is reached with no pointer; the time shows beside the message, at its foot, clear of the bubble under it. */
+  .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { inline-size:auto; block-size:auto; overflow:visible; clip-path:none; z-index:1;
+    inset-block-end:0; padding-inline:var(--space-4); border-radius:var(--radius-chip); background:var(--color-surface); }
+  .msg.mid.inbound > .ts { inset-inline-start:calc(100% + var(--space-4)); } .msg.mid.outbound > .ts { inset-inline-end:calc(100% + var(--space-4)); }
+  .msg.mid:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; border-radius:var(--radius-card); }
+  .msg.mid:focus:not(:focus-visible) { outline:0; }
+  /* A phone has no room beside a wide bubble: the time takes its own line under it while the message is held. */
+  @media (max-width:720px) {
+    .msg.mid:is(:hover, :focus, :focus-within, :active) { margin-block-end:0; }
+    .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { position:static; }
+  }
+  .pn-head:is(:hover, :focus-within) > .pn-facts.sr { position:static; inline-size:auto; block-size:auto; overflow:visible; clip-path:none; white-space:normal; margin:var(--space-4) 0 0; }
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
   .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
@@ -2380,6 +2390,10 @@ const STYLE_PAGES = `
   .cu-facts { color:var(--color-ink-secondary); }
   /* The cleanup (2026-11-26) - what they bought and where things stand share ONE line under the name. */
   .cu-line { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-8); min-width:0; }
+  /* The tester's pass (2026-11-26) - the channel's word opens that line, so the line starts at the name's own edge
+     and wraps there; a dot stands between its parts. */
+  .catchup:not(.bare) > .cu-line { grid-column:2; }
+  .cu-line > p:not(:last-child)::after { content:"·"; margin-inline-start:var(--space-8); color:var(--color-ink-secondary); }
   .cu-facts bdi { color:var(--color-ink); }
   .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
     background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);
