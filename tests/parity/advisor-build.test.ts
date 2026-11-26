@@ -109,6 +109,7 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
       '../core/conversation/disclosure.js: autonomyReleased',
       '../core/owner/i18n/format.js: addDays',
       '../core/owner/i18n/format.js: dayKey',
+      '../core/owner/i18n/format.js: formatWeekday',
       '../core/owner/i18n/messages.js: messages',
       '../core/owner/i18n/messages.js: orderStatusName',
       '../core/scoring/signals.js: PROBLEM_SIGNAL_KINDS',
@@ -139,6 +140,8 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
       '../db/opsFlags.js: loadKillSwitches',
       '../db/ramp.js: rampState',
       '../db/zone.js: zoneOf',
+      // The picture of an answer (2026-11-26): how many people a picture draws — a number, from a file that imports nothing.
+      './picture.js: PEOPLE_DRAWN',
       'kysely: sql',
     ]);
   });
@@ -234,14 +237,15 @@ describe('the catalogue · every question has a read or a fixed sentence; opinio
   const kinds = (k: string) => CATALOGUE.filter((e) => e.kind === k).map((e) => e.id);
 
   // Phase 2b (the owner's word, 2026-10-13): C5 leaves "not stored" — the deals that went nowhere, from evidence on record.
-  it('the approved shape: 37 grounded and 3 split (built as grounded), 9 new, 2 metrics, 8 not stored, 7 opinions — 66 entries, 51 reads', () => {
+  // The picture of an answer (the owner, 2026-11-26): B10, where the business stands, is the read the flow is drawn from.
+  it('the approved shape: 37 grounded and 3 split (built as grounded), 10 new, 2 metrics, 8 not stored, 7 opinions — 67 entries, 52 reads', () => {
     expect(new Set(CATALOGUE.map((e) => e.id)).size).toBe(CATALOGUE.length);
     expect(kinds('grounded')).toHaveLength(40);
-    expect(kinds('new')).toHaveLength(9);
+    expect(kinds('new')).toHaveLength(10);
     expect(kinds('metric')).toEqual(['B8', 'D8']);
     expect(kinds('notStored')).toEqual(['A9', 'B6', 'D6', 'D9', 'D10', 'F5', 'F6', 'H2n']);
     expect(kinds('opinion')).toEqual(['G9', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6']);
-    expect(Object.keys(READS)).toHaveLength(51);
+    expect(Object.keys(READS)).toHaveLength(52);
     expect(Object.keys(READS).sort()).toEqual([...kinds('grounded'), ...kinds('new'), ...kinds('metric')].sort());
   });
 

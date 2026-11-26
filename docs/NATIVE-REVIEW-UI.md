@@ -17117,3 +17117,11 @@ states, all written by Claude and not yet read by a native speaker (`src/core/ow
   - Arabic uses verbal nouns and «يمكن تجربة…», never an imperative («الاستعداد لأول عميل»); French
     `state.customers.next` is an infinitive (« Se préparer pour le premier client »); Spanish uses tú («Prepárate»).
   - Each line says "customer" (客户, عميل, cliente, client), never "buyer"; none has a pronoun for a person.
+- The picture of an answer (Ask Nomi, 2026-11-26), eighteen lines `askPicture.*` and two `advisor.k.*`
+  (`ordersWaitingCount`, `quietAfterPriceCount`) in zh, ar, es and fr. To read first:
+  - The five box labels of the flow (`askPicture.flow.*`) are short on purpose: each sits in a small box over a
+    figure. 有对话的客户, 发出的报价, 等你确认的订单; «في محادثة», «أسعار أُرسلت»; "En conversación"; « En conversation ».
+  - `askPicture.people.wrote` carries a date in `{when}` and must read as one phrase with it (11月26日周四发来消息，还没回复).
+  - `askPicture.picture` / `askPicture.words` are the two choices of one control (图示 / 文字, رسم / كلمات); they must
+    read as a pair.
+  - Each line says "customer", never "buyer"; none has a pronoun for the assistant or a person, and none says "AI".

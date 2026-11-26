@@ -102,6 +102,7 @@ Each entry gives the exact source, its kind, and what the advisor says when ther
 | B7 | Who wrote last and got no answer? | `loadInboxList(…, 'all')` rows where the customer's message is the newest (`unanswered`, `inbox.ts`). | Grounded now | "Every customer who wrote has had an answer." |
 | B8 | How fast do we reply? | Not stored. It could be computed (each inbound message to the next outbound `sent_at`), but that is a new metric: see decision 1. | **Not stored** until decided | "Nomi doesn't measure reply times." |
 | B9 | Any deletion requests? | `readBuyerCounts(…).deletion`. Definition: `deletion_asks.state = 'waiting'`. | Grounded now | "No deletion request is waiting." |
+| B10 | How is the business doing? Where do things stand? (2026-11-26, the read the flow picture is drawn from) | Nothing new is measured: `loadAnalytics(…)` for the period (`activeConvos`, `commerce.quotes`, `commerce.orders`), `order_proposals.state = 'pending'` now, and the Inbox's own "quiet since a price" (`readAttention`, kind `quote`). No rate and no share is worked out between them. | New query | "No conversations this week." |
 
 ### C · Gone quiet, and follow-ups
 
@@ -190,13 +191,13 @@ These are answered as opinion, under a line that says so ("My suggestion, not a 
 
 ## 5. The count
 
-65 questions in all.
+66 questions in all.
 
 | Kind | How many | Which |
 |---|---|---|
 | Grounded now | 37 | A1, A2, A3, A6, A7, A8; B1, B2, B3, B4, B5, B7, B9; C1, C2, C3, C4; D1, D2, D3, D4; E1, E2, E3, E4, E5; F1, F4; G1, G2, G4, G5, G6, G7, G8; H1, H3 |
 | Split in two | 3 | A4 (they wrote: grounded; we wrote: new query); E6 (a promised date: grounded; otherwise not stored); H2 (the hours as written: grounded; "open now": not stored) |
-| New query | 8 | A5, A10, D5, D7, D11, F2, F3, G3 |
+| New query | 9 | A5, A10, B10, D5, D7, D11, F2, F3, G3 |
 | Not stored | 10 | A9, B6, B8\*, C5, D6\*, D8\*, D9, D10, F5, F6 (\* until decision 1) |
 | Opinion only | 7 | G9, I1, I2, I3, I4, I5, I6 |
 

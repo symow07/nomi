@@ -1,3 +1,4 @@
+import { ASK_PICTURE_CSS } from './askPictureStyle.js';
 export const ASSISTANT_AREA_CSS=String.raw`
 main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}
@@ -177,4 +178,4 @@ a.ak-name{display:inline-flex;align-items:center;min-height:44px;}
 /* Audit F04: where the page IS the section, the chooser is its title (drawn once); the h1 stays for a reader. */
 .assistant-area:has(> .aa-chooser[data-titled]){gap:var(--space-12);}
 .assistant-area:has(> .aa-chooser[data-titled]) > .aa-content h1{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}}
-`;
+` + ASK_PICTURE_CSS;

@@ -33,7 +33,7 @@ const NAMES_CUSTOMERS = ['A2', 'A3', 'A4', 'A5', 'A7', 'A8', 'B1', 'B7', 'C1', '
 /** The entries whose lines quote what customers wrote, without naming them: G5's unanswered questions. */
 const QUOTES_CUSTOMERS = ['G5'] as const;
 /** The entries that never name or quote one: counts, totals, products, the assistant, the business. */
-const NAMES_NO_CUSTOMER = ['A1', 'A6', 'A10', 'B2', 'B3', 'B4', 'B5', 'B8', 'B9', 'D1', 'D2', 'D4', 'D5', 'D7', 'D8', 'E5',
+const NAMES_NO_CUSTOMER = ['A1', 'A6', 'A10', 'B2', 'B3', 'B4', 'B5', 'B8', 'B9', 'B10', 'D1', 'D2', 'D4', 'D5', 'D7', 'D8', 'E5',
   'F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3', 'G4', 'G6', 'G7', 'G8', 'H1', 'H2', 'H3'] as const;
 
 describe('the advisor\'s subjects · every factual entry is classified', () => {
@@ -294,6 +294,50 @@ d('the advisor\'s subjects · every customer a read names or quotes is one of it
       }
     });
   }
+
+  /**
+   * THE PICTURE OF AN ANSWER (the owner, 2026-11-26; src/advisor/picture.ts): a picture is drawn from the same read
+   * as the lines, and says nothing they do not — every figure, name and entry in it is in a line the owner can read
+   * under "Words" (a customer who wrote and has no answer wears "wrote on that day, no answer yet": the day is their
+   * line's). On this workspace each of the four pictures is drawn: who waits (people), orders to confirm
+   * (people), the week (week), this month against last (trend) and where the business stands (flow).
+   */
+  const PICTURED: Readonly<Record<string, readonly [kind: string, params: Partial<Params>]>> = {
+    B1: ['people', {}], D3: ['people', {}], E1: ['week', { period: 'week' }], D7: ['trend', {}], B10: ['flow', {}],
+  };
+  for (const [key, [kind, params]] of Object.entries(PICTURED)) {
+    it(`${key} · its picture (${kind}) says only what its lines say`, async () => {
+      for (const locale of ['en', 'zh', 'ar'] as const) {
+        const sheet = await read(key, params, locale);
+        const at = `${key} ${locale}`;
+        const lines = sheet.lines.join('\n');
+        const p = sheet.picture;
+        expect(p?.kind, `${at}: no picture\n${lines}`).toBe(kind);
+        const said: string[] = !p ? [] : p.kind === 'flow' ? p.nodes.flatMap((n) => (n.value === null ? [] : [n.value]))
+          // a customer who wrote and has no answer: the picture's words carry the day their line gives, and nothing else of fact
+          : p.kind === 'people' ? p.people.flatMap((x) => [x.name, lines.includes(x.what) ? x.what
+            : sheet.lines.filter((l) => l.includes(x.name)).map((l) => l.split(/[:：]\s*/).pop()!.trim()).find((day) => day !== '' && x.what.includes(day)) ?? x.what])
+            : p.kind === 'week' ? p.days.flatMap((day) => day.items.map((i) => i.text))
+              : [p.nowLabel, p.thenLabel];
+        expect(said.length, at).toBeGreaterThan(0);
+        for (const word of said) expect(lines, `${at}: the picture says "${word}", and no line does`).toContain(word);
+        if (p?.kind === 'people') expect(p.people.length, at).toBeLessThanOrEqual(8);
+        if (p?.kind === 'week') expect(p.days.filter((day) => day.today), at).toHaveLength(1);
+        if (p?.kind === 'trend') { expect(p.now.length, at).toBe(p.then.length); expect(p.now.length, at).toBeGreaterThanOrEqual(2); }
+        if (p?.kind === 'flow') for (const l of p.links) for (const end of [l.from, l.to]) expect(p.nodes.map((n) => n.id), at).toContain(end);
+      }
+    });
+  }
+  it('a read with nothing to show draws no picture: an empty sheet has none', async () => {
+    for (const key of Object.keys(PICTURED)) {
+      const { READS } = await import('../../src/advisor/reads.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const bid = parseBusinessId(OTHER); if (!bid.ok) throw new Error('fixture');
+      const sheet = await READS[key]!({ db: ro, businessId: bid.value, viewerId: 'owner', locale: 'en', now: new Date(),
+        params: { period: null, customer: null, product: null, reference: null } });
+      if (sheet.empty) expect(sheet.picture, key).toBeUndefined();
+    }
+  });
 
   for (const key of QUOTES_CUSTOMERS) {
     it(`${key} · every customer whose words its lines quote is a subject, and every subject is one it quotes`, async () => {

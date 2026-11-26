@@ -11,6 +11,7 @@ import { renderConversationDetail, type ConversationDetail } from '../../src/api
 import { registerWebApp, PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { shell, loginPage, signupPage, assetAt } from '../../src/api/web/layout.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
+import { ASK_PICTURE_SCRIPT } from '../../src/api/web/askPictureScript.js';
 import { SERVICE_WORKER, appManifest } from '../../src/api/web/phone.js';
 import { TYPE_CSS, TYPE_ZH_CSS } from '../../src/api/web/type.js';
 import { BOT_CHECK_WIDGET, BOT_CHECK_PROVIDERS, type BotCheck, type BotCheckProvider } from '../../src/api/web/botCheck.js';
@@ -86,6 +87,7 @@ describe('D7 · the reader sees every request a page makes, and only those', () 
       ['[data-live]', `<div data-live="${OFF}/live"></div>`],
       ['[data-orb]', `<form data-orb="${OFF}/orb.js"></form>`],
       ['[data-total]', `<form data-total="${OFF}/preview"></form>`],
+      ['[data-ap-src]', `<div data-ap-src="${OFF}/picture.js"></div>`],
       ['style attribute url()', `<div style="background:url('${OFF}.png')"></div>`],
       ['<style> url()', `<style>.a { background:url(${OFF}.png) }</style>`],
       ['<style> @import', `<style>@import "${OFF}.css";</style>`],
@@ -302,6 +304,7 @@ describe('D7 · the owner\'s pages and every file Nomi serves ask no host off th
       ['type.css', 'text/css', TYPE_CSS],
       ['typezh.css', 'text/css', TYPE_ZH_CSS],
       ['live.js', 'text/javascript', LIVE_SCRIPT],
+      ['picture.js', 'text/javascript', ASK_PICTURE_SCRIPT],
     ];
     const problems = files.flatMap(([where, type, body]) => fileProblems(where, type, body));
     expect(problems).toEqual([]);
@@ -324,6 +327,7 @@ describe('D7 · the owner\'s pages and every file Nomi serves ask no host off th
       'target.pathname + target.search',          // same-origin conversation Ask Nomi fragment, never the URL origin
       'form.action',                            // server-rendered form[data-copilot-use], read-only reply validation
       'form.getAttribute(\'data-total\')',      // form[data-total]: the invoice form's own total preview (F18), an address the reader checks
+      'p.getAttribute(\'data-ap-src\')',        // [data-ap-src]: the file that joins an answer's picture, Nomi's own
       '\'/sw.js\'',                             // the phone's worker, Nomi's own
     ]);
     const sinks = /\b(fetch|import|register|sendBeacon|importScripts|WebSocket|EventSource|Worker|SharedWorker|XMLHttpRequest)\s*\(/g;
