@@ -2,7 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc, wordsHtml } from './layout.js';
 import { GO, solarSvg } from './icons.js';
-import { brandSvg, type BrandLogo } from './brandLogos.js';
+import { allChannelsSvg, brandSvg, type BrandLogo } from './brandLogos.js';
 import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, adsShown } from './say.js';
 import { settingsHref } from './settingsNavigation.js';
 
@@ -251,6 +251,7 @@ const ITEM_LOGO: Readonly<Record<string, BrandLogo>> = {
 };
 const itemIcon = (area: AreaId, item: Item): string => {
   const logo = ITEM_LOGO[item.href];
+  if (item.href === '/app/settings/channels') return allChannelsSvg('sect-ic sect-logo', 20);
   return logo ? brandSvg('sect-ic sect-logo', logo, 20) : solarSvg('sect-ic', iconOf(area, item), 20);
 };
 

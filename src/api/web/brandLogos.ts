@@ -22,15 +22,29 @@ const fill = (token: string): string => `style="fill:var(--color-${token})"`;
  * a screen reader (the item's word names it). Every colour is a token (tokens.ts `logo*`), never a literal here.
  * TikTok is its note three times — cyan and red a step apart behind the ink one — as its own mark draws it.
  */
-export function brandSvg(className: string, name: BrandLogo, size = 20): string {
+/** One logo's drawing, unwrapped, so the "All channels" cluster can place four of them. */
+function inner(name: BrandLogo): string {
   const d = BRAND_LOGO[name];
-  if (name === 'whatsapp') return SVG(className, size, `<path ${fill('logo-whatsapp')} d="${d}"/>`);
-  if (name === 'telegram') return SVG(className, size, `<path ${fill('logo-telegram')} d="${d}"/>`);
+  if (name === 'whatsapp') return `<path ${fill('logo-whatsapp')} d="${d}"/>`;
+  if (name === 'telegram') return `<path ${fill('logo-telegram')} d="${d}"/>`;
   if (name === 'tiktok') {
-    return SVG(className, size, `<path ${fill('logo-tiktok-cyan')} transform="translate(-0.6 -0.6)" d="${d}"/>`
-      + `<path ${fill('logo-tiktok-red')} transform="translate(0.6 0.6)" d="${d}"/><path ${fill('ink')} d="${d}"/>`);
+    return `<path ${fill('logo-tiktok-cyan')} transform="translate(-0.6 -0.6)" d="${d}"/>`
+      + `<path ${fill('logo-tiktok-red')} transform="translate(0.6 0.6)" d="${d}"/><path ${fill('ink')} d="${d}"/>`;
   }
   const stop = (offset: string, n: number): string => `<stop offset="${offset}" style="stop-color:var(--color-logo-instagram${n})"/>`;
-  return SVG(className, size, `<defs><linearGradient id="logo-ig" x1="0" y1="1" x2="1" y2="0">${stop('0', 1)}${stop('0.25', 2)}${stop('0.5', 3)}${stop('0.75', 4)}${stop('1', 5)}</linearGradient></defs>`
-    + `<path fill="url(#logo-ig)" d="${d}"/>`);
+  return `<defs><linearGradient id="logo-ig" x1="0" y1="1" x2="1" y2="0">${stop('0', 1)}${stop('0.25', 2)}${stop('0.5', 3)}${stop('0.75', 4)}${stop('1', 5)}</linearGradient></defs>`
+    + `<path fill="url(#logo-ig)" d="${d}"/>`;
+}
+
+/**
+ * "All channels" (the owner, 2026-11-26: "should look more expressive"): the four logos together, two by two, each
+ * at a little under half the square, so the item says "every channel" in the channels' own marks.
+ */
+export function allChannelsSvg(className: string, size = 20): string {
+  const at = (name: BrandLogo, x: number, y: number): string => `<g transform="translate(${x} ${y}) scale(0.46)">${inner(name)}</g>`;
+  return SVG(className, size, at('whatsapp', 0, 0) + at('instagram', 13, 0) + at('telegram', 0, 13) + at('tiktok', 13, 13));
+}
+
+export function brandSvg(className: string, name: BrandLogo, size = 20): string {
+  return SVG(className, size, inner(name));
 }

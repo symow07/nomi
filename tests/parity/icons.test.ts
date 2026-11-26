@@ -467,6 +467,11 @@ describe('one family on every screen: Solar, no emoji', () => {
     for (const n of ['whatsapp', 'telegram', 'tiktok', 'instagram'] as const) expect(brandSvg('x', n)).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(brandSvg('x', 'instagram')).toContain('var(--color-logo-instagram5)');
     expect(brandSvg('x', 'tiktok')).toContain('var(--color-logo-tiktok-red)');
+    // "All channels" is the four together (the owner, 2026-11-26: "more expressive")
+    const { allChannelsSvg } = await import('../../src/api/web/brandLogos.js');
+    const all = allChannelsSvg('x');
+    for (const t of ['logo-whatsapp', 'logo-instagram1', 'logo-telegram', 'logo-tiktok-red']) expect(all).toContain(t);
+    expect(all.match(/<g transform=/g)).toHaveLength(4);
     expect(read('assets/icons/SIMPLE-ICONS-LICENSE.txt')).toContain('CC0');
   });
 
