@@ -685,7 +685,7 @@ function owedList(locale: Locale, v: CalendarView, ask: CalendarAsk, now: Date):
   // Phase 9 (w4-customers-15) — the list says where its dates stop, once the month is not all behind today.
   const lastHeld = ahead.at(-1) ?? (todayIn ? addDays(v.today, -1) : null);
   const rest = last >= v.today && lastHeld !== null && lastHeld < last
-    ? `<p class="muted cal-rest">${esc(t(locale, 'calendar.rest', { date: show.date(locale, dayStart(last, workspaceZone())) }))}</p>` : '';
+    ? '' : '';
   const otherPart = keys.length || rest
     ? `<section class="cal-part">
       <h2 class="cal-lh">${esc(t(locale, 'calendar.list.other', { month: monthName }))}</h2>

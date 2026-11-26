@@ -7,7 +7,7 @@ main:has(.books-area){max-width:var(--measure-column);}
 .books-area .btn{min-height:44px;}
 .books-area a[href]{min-width:44px;}
 .books-area .btn.send{color:var(--color-surface);background:var(--color-ink);border-color:var(--color-ink);}
-.books-area input:not([type=checkbox]):not([type=radio]),.books-area select,.books-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
+.books-area input:not([type=checkbox]):not([type=radio]),.books-area select,.books-area textarea{max-width:100%;}
 .books-area .imp-table{max-width:100%;}
 .books-area .imp-table table{font-size:var(--font-size-small);}
 .books-area .imp-table th,.books-area .imp-table td{padding:var(--space-12);}
@@ -32,9 +32,9 @@ main:has(.entry-form){max-width:100%;}
 .entry-lines td::before{content:attr(data-label);font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
 .entry-lines .el-account,.entry-lines .el-party,.entry-lines .el-label{grid-column:1/-1;}
 .entry-lines .el-account::before{content:attr(data-n) " · " attr(data-label);font-weight:600;color:var(--color-ink);}
-.entry-lines select,.entry-lines input:not([type="checkbox"]){width:100%;min-height:44px;padding:var(--space-8);font:inherit;font-size:var(--font-size-small);
+.entry-lines select,.entry-lines input:not([type="checkbox"]){width:100%;
   background:var(--color-surface);color:var(--color-ink);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
-.books-area .entry-lines .el-amount input{text-align:end;font-variant-numeric:tabular-nums;padding-inline:var(--space-8);}
+.books-area .entry-lines .el-amount input{text-align:end;font-variant-numeric:tabular-nums;}
 .entry-lines .el-fx{flex-direction:row;align-items:center;min-height:44px;}
 .entry-lines .el-fx input{inline-size:20px;block-size:20px;flex:none;}
 .entry-lines .el-fx-hit{display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;cursor:pointer;}

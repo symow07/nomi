@@ -1,3 +1,4 @@
+import { CONTROLS_CSS } from '../../src/api/web/controlsStyle.js';
 // UI Block 6 · F30 — the knowledge lists: adding comes first, rows say type / source / status, the pages are above and
 // below the list, recent changes are short with a door to the whole list. Every form the page had is kept.
 import { describe, it, expect } from 'vitest';
@@ -93,7 +94,10 @@ describe('UI Block 6 · F30 — the knowledge lists', () => {
     const phone = ASSISTANT_AREA_CSS.slice(ASSISTANT_AREA_CSS.indexOf('@media(max-width:650px){'));
     expect(phone).toContain('.ak-head{display:none;}');
     expect(phone).toMatch(/\.ak-k\{position:static;/);
-    for (const sel of ['.ak-add>summary{', 'a.ak-name{', '.ak-row .knowledge-change>summary{', '.ki-older>summary{', '.ak-addproduct{']) {
+    // The controls pass (2026-11-25): "Add a fact" is the shared button (`<summary class="btn">`), 44 px under a finger
+    // or on a phone through controlsStyle.ts, not a size of its own.
+    expect(CONTROLS_CSS).toMatch(/@media \(max-width: 720px\), \(pointer: coarse\) \{[^@]*:is\(\.btn, \.sp-btn\)[^@]*--control-touch/);
+    for (const sel of ['a.ak-name{', '.ak-row .knowledge-change>summary{', '.ki-older>summary{', '.ak-addproduct{']) {
       const rule = ASSISTANT_AREA_CSS.slice(ASSISTANT_AREA_CSS.indexOf(sel)).split('}')[0]!;
       expect(rule, sel).toContain('min-height:44px');
     }

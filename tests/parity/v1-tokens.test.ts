@@ -27,22 +27,25 @@ const walk = (dir: string): string[] =>
 const SRC = walk('src').map((f) => ({ f, s: readFileSync(join(ROOT, f), 'utf8') }));
 
 describe('V1 · type — decision 1', () => {
-  it('the shared scale includes overview headings and keeps the body at 17', () => {
+  it('the shared scale includes overview headings and keeps the body at 15', () => {
     // THE UI CORRECTION (the owner, 2026-11-13; audit F01/F02) supersedes this pin's look: the overview title, its phone size and the overview figure came down from
-    // 44 / 36 / 40 (a display serif that competed with the work) to 26 / 24 / 32. The six-step scale and the 17 px body stay.
-    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 15, 17, 20, 24, 26, 26, 32, 34]);
-    expect(DESIGN_TOKENS.font.sizePx.base).toBe(17);
+    // 44 / 36 / 40 (a display serif that competed with the work) to 26 / 24 / 32.
+    // THE CONTROLS PASS (the owner's "start" on the Intercom comparison, 2026-11-25) set the workspace scale; the owner then chose a 15 px
+    // body (Intercom's size, 2026-11-25, design-system.test.ts), 14 px lists and labels, a 20 px section and a 24 px page title.
+    expect(Object.values(DESIGN_TOKENS.font.sizePx).sort((a, b) => a - b)).toEqual([13, 14, 15, 16, 20, 22, 24, 24, 28, 28]);
+    expect(DESIGN_TOKENS.font.sizePx.base).toBe(15);
   });
 
-  // The type pass (2026-10-04) opened Latin up from 1.5 to 1.6; Chinese and Arabic were already that open.
-  it('a line-height per script: 1.6 Latin, 1.7 Chinese, 1.75 Arabic, one for every locale', () => {
-    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 });
+  // The type pass (2026-10-04) opened Latin up from 1.5 to 1.6; Chinese and Arabic were already that open. The controls
+  // pass (2026-11-25) closed Latin back to 1.5 for the workspace (rows Intercom's density); the public pages keep 1.6.
+  it('a line-height per script: 1.5 Latin, 1.7 Chinese, 1.75 Arabic, one for every locale', () => {
+    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.5, zh: 1.7, ar: 1.75, es: 1.5, fr: 1.5 });
     for (const l of LOCALES) expect(DESIGN_TOKENS.font.lineHeight[l], l).toBeGreaterThan(1);
   });
 
   it('the emitter keys the override on the lang the shell writes on <html>', () => {
     const css = cssVariables();
-    expect(css).toContain('--line-height: 1.6;');
+    expect(css).toContain('--line-height: 1.5;');
     expect(css).toContain('html[lang="zh"] { --line-height: 1.7; ');
     expect(css).toContain('html[lang="ar"] { --line-height: 1.75; ');
     for (const locale of LOCALES) {

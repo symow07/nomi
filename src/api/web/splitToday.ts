@@ -284,11 +284,10 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
   const newMessage = outreachShown()
     ? `<form class="sp-new" method="get" action="/app/contacts/write"><button class="sp-btn" type="submit">${esc(t(locale, 'split.new'))}</button></form>`
     : `<form class="sp-new" method="get" action="/app/inbox"><input type="hidden" name="filter" value="all" /><button class="sp-btn" type="submit">${esc(t(locale, 'split.new'))}</button></form>`;
-  const sub = [business ? `<bdi>${esc(business)}</bdi>` : '', esc(show.dayLong(locale, today.now))].filter(Boolean).join(' · ');
   return `<div class="sp">
   <header class="sp-head">
     <span class="sp-headmark">${markSmall(32, null)}</span>
-    <div class="sp-headt"><h1 class="page">${esc(t(locale, 'split.title'))}</h1><p class="sp-sub">${sub}</p>${LIVE_SLOT}</div>
+    <div class="sp-headt"><h1 class="page">${esc(t(locale, 'split.title'))}</h1>${LIVE_SLOT}</div>
     ${newMessage}
   </header>
   <div class="sp-priority">

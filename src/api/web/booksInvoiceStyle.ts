@@ -3,7 +3,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .books-invoices,.book-doc-page,.book-doc-editor{font-size:var(--font-size-base);line-height:var(--line-height);}
 .bd-filters{display:flex;flex-wrap:wrap;gap:var(--space-16);align-items:end;margin-block:var(--space-24);}
 .bd-filters label{display:grid;gap:var(--space-8);min-width:0;flex:1;}
-.bd-filters input,.bd-filters select{font-size:var(--font-size-base);min-height:44px;width:100%;}
+.bd-filters input,.bd-filters select{width:100%;}
 .bd-filters a,.bd-pager a{min-height:44px;display:flex;align-items:center;}
 .bd-pager a{justify-content:center;min-width:44px;}
 .bd-invoices{list-style:none;margin:0;padding:0;}
@@ -62,7 +62,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
 .bd-actions{margin-block:var(--space-32);padding-top:var(--space-24);border-top:1px solid var(--color-border);}
 .bd-actions>.pform{margin-top:var(--space-16);}
 .book-doc-page .pq,.book-doc-editor .pq{font-size:var(--font-size-base);gap:var(--space-8);}
-.book-doc-page .pq input,.book-doc-page .pq select,.book-doc-editor input,.book-doc-editor select,.book-doc-editor textarea{font-size:var(--font-size-base);min-height:44px;max-width:100%;}
+.book-doc-page .pq input,.book-doc-page .pq select,.book-doc-editor input,.book-doc-editor select,.book-doc-editor textarea{max-width:100%;}
 .book-doc-page .btn.send,.book-doc-editor .btn.send,.bd-filters .btn{background:var(--color-ink);border-color:var(--color-ink);color:var(--color-surface);min-height:44px;}
 .book-doc-editor .bd-editor-form{max-width:100%;gap:var(--space-32);}
 .bd-header-fields{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-24);min-width:0;}
@@ -132,7 +132,7 @@ export const BOOKS_INVOICE_CSS = String.raw`
 /* Statement evidence stays beside its available match on wide screens. */
 .books-bank,.bank-mapping{font-size:var(--font-size-base);line-height:var(--line-height);}
 .books-bank .pq,.bank-mapping .pq{font-size:var(--font-size-base);gap:var(--space-8);min-width:0;}
-.books-bank .pform input,.books-bank .pform select,.bank-mapping .pform select{min-height:44px;font-size:var(--font-size-base);width:100%;max-width:100%;}
+.books-bank .pform input,.books-bank .pform select,.bank-mapping .pform select{width:100%;max-width:100%;}
 .books-bank .bb-account{display:flex;flex-direction:row;align-items:end;flex-wrap:wrap;gap:var(--space-16);max-width:100%;margin-block:var(--space-24);}
 .bb-account .pq{flex:1 1 20rem;}
 .books-bank .btn{min-height:44px;}

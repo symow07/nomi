@@ -61,7 +61,7 @@ export const SECTIONS_CSS = String.raw`
    raised white card in the list, the head's buttons are pills, and what you can do next sits in a rounded card. */
 @media (min-width:721px) {
   .listpane.il-compact-list .si-row { margin-inline:var(--space-8); border-radius:var(--radius-card); border-inline-start:0; }
-  .listpane.il-compact-list .si-row.is-selected { background:var(--color-surface); box-shadow:0 0 0 1px var(--color-border), 0 2px 6px var(--color-rail-shadow); }
+  .owner-shell .content .listpane.il-compact-list .si-row.is-selected { background:var(--color-surface); box-shadow:0 0 0 1px var(--color-border), 0 2px 6px var(--color-rail-shadow); }
   .conversation-workspace .conversation-actions .btn { border-radius:var(--radius-chip); padding-inline:var(--space-16); }
 }
 @media (min-width:1100px) {

@@ -417,7 +417,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     for (const l of LOCALES) {
       const composed = withoutIsolates(renderKnowledgeOps(ops(), l, NOW)) + withoutIsolates(renderKnowledgeIndex({ products: [], business: [] }, l));
       expect(composed.match(/<h1[\s>]/g), l).toHaveLength(1);
-      expect(composed, l).toContain(`<p class="lede">${esc(t(l, 'knowledge.intro'))}</p>`);
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(composed, l).not.toContain(`<p class="lede">${esc(t(l, 'knowledge.intro'))}</p>`);
     }
   });
 

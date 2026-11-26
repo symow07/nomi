@@ -1786,7 +1786,6 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
   const cid = encodeURIComponent(d.conversationId);
   if (!d.proof.token) {
     return `<form method="post" action="/app/inbox/${cid}/proof" class="proofrow">
-      <span class="muted">${esc(t(locale, 'proof.owner.none'))}</span>
       <button class="btn" type="submit">${esc(t(locale, 'proof.owner.issue'))}</button>
     </form>`;
   }

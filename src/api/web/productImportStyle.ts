@@ -16,7 +16,7 @@ export const PRODUCT_IMPORT_CSS = String.raw`
 .product-import .imp-warn,.product-import .imp-note,.product-import .rev-src{font-size:var(--font-size-small);line-height:var(--line-height);overflow-wrap:anywhere;}
 .product-import .imp-warn{margin-top:var(--space-12);}
 .product-import .imp-edit summary{color:var(--color-accent);}
-.product-import .imp-edit input:not([type=checkbox]),.product-import .imp-edit textarea,.product-import .imp-edit select{width:100%;min-width:0;font-size:var(--font-size-base);}
+.product-import .imp-edit input:not([type=checkbox]),.product-import .imp-edit textarea,.product-import .imp-edit select{width:100%;min-width:0;}
 .product-import .imp-edit label{margin-block:var(--space-16);}
 .product-import .imp-edit .pcheck,.product-import .imp-tick,.product-import .imp-floor{min-height:44px;align-items:flex-start;}
 .product-import .imp-typed{align-items:flex-start;flex-direction:column;padding-block:var(--space-12);}
@@ -26,7 +26,7 @@ export const PRODUCT_IMPORT_CSS = String.raw`
 .product-import .imp-sources{position:static;border-top:1px solid var(--color-border);padding-top:var(--space-24);scroll-margin-block-start:var(--space-24);}
 .product-import .imp-sources h2{margin-top:0;}
 .product-import .imp-photo{padding-block:var(--space-16);}
-.product-import .imp-photo textarea{width:100%;font-size:var(--font-size-base);}
+.product-import .imp-photo textarea{width:100%;}
 .product-import .imp-photo summary{min-height:44px;display:flex;align-items:center;}
 .product-import .import-reading{display:flex;align-items:center;gap:var(--space-8);color:var(--color-accent);font-size:var(--font-size-small);font-weight:600;}
 .product-import .imp-rows.is-read,.product-import .imp-row.is-read,.product-import .rev:has(.import-reading){background:var(--color-assistant-wash);padding:var(--space-24);}
@@ -37,7 +37,7 @@ export const PRODUCT_IMPORT_CSS = String.raw`
 .product-import-columns .imp-table table{font-size:var(--font-size-small);}
 .product-import-columns .imp-table th,.product-import-columns .imp-table td{padding:var(--space-12);}
 .product-import-columns .imp-cols{max-width:var(--measure-prose);}
-.product-import-columns .imp-cols select{width:100%;min-width:0;font-size:var(--font-size-base);}
+.product-import-columns .imp-cols select{width:100%;min-width:0;}
 .product-import-floors .imp-floor{padding-block:var(--space-24);gap:var(--space-12);}
 .product-import-floors .imp-floor>span>span{display:block;margin-top:var(--space-8);}
 .product-import-floors .block{max-width:var(--measure-prose);}

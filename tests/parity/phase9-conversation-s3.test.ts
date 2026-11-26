@@ -245,7 +245,8 @@ describe('V1-244, V1-247 · making the link says it sends nothing, and where the
   it('before: what pressing does; after: the link to copy, never "sent"', () => {
     for (const l of LOCALES) {
       const before = renderConversationDetail(draft({ proof: { quoteId: 'q-1', token: null } }), l, NOW, null);
-      expect(before, l).toContain(esc(t(l, 'proof.owner.none')));
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. The button's own words say what it does.
+      expect(before, l).not.toContain(esc(t(l, 'proof.owner.none')));
       expect(before, l).toContain(`>${esc(t(l, 'proof.owner.issue'))}</button>`);
       const after = renderConversationDetail(draft({ proof: { quoteId: 'q-1', token: 'tok', url: 'https://app.nomidoes.com/p/tok' } }), l, NOW, null);
       expect(after, l).toContain(esc(t(l, 'proof.owner.live')));

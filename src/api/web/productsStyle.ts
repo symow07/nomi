@@ -10,7 +10,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .product-area .btn.send,.pa-search .btn{background:var(--color-ink);border-color:var(--color-ink);color:var(--color-surface);}
 .pa-search{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-16);margin-block:var(--space-24);}
 .pa-search label{display:grid;gap:var(--space-8);flex:1 1 24rem;min-width:0;font-size:var(--font-size-small);}
-.pa-search input{width:100%;min-height:44px;font-size:var(--font-size-base);}
+.pa-search input{width:100%;}
 .pa-search>a,.pa-pager a{display:flex;align-items:center;min-height:44px;}
 .pa-pager a{justify-content:center;min-width:44px;}
 .pa-products{max-width:100%;}
@@ -33,7 +33,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .product-detail .pform,.product-limits .pform{max-width:var(--measure-prose);}
 .product-area .pq,.product-area .fld,.product-area .pcheck,.product-area .choices legend{font-size:var(--font-size-base);}
 .product-area .pq{gap:var(--space-8);}
-.product-area .pq input,.product-area .pq select,.product-area .pq textarea{font-size:var(--font-size-base);min-height:44px;max-width:100%;width:100%;}
+.product-area .pq input,.product-area .pq select,.product-area .pq textarea{max-width:100%;width:100%;}
 .product-area .pcheck{min-height:44px;align-items:center;}
 .product-area .pcheck input{flex:none;}
 .product-area .pform .caption,.product-area .fdesc{font-size:var(--font-size-small);line-height:var(--line-height);}
@@ -81,7 +81,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .product-add .block{max-width:100%;}
 .product-add form{display:flex;flex-direction:column;gap:var(--space-16);}
 .product-add form>.btn{align-self:flex-start;}
-.product-add textarea{width:100%;font-size:var(--font-size-base);}
+.product-add textarea{width:100%;}
 .product-add .imp-open{border-block:1px solid var(--color-border);padding-block:var(--space-16);}
 .product-add .pa-choose-h{margin-top:var(--space-32);margin-bottom:var(--space-16);font-size:var(--font-size-title);font-weight:600;line-height:var(--line-height-tight);}
 .pa-methods{border-top:1px solid var(--color-border);margin-bottom:var(--space-32);}

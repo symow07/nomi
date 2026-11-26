@@ -132,9 +132,9 @@ export function renderInboxViews(data: InboxList, locale: Locale, options: { rea
     `<a class="si-tab${data.filter === f ? ' on' : ''}"${data.filter === f ? ' aria-current="true"' : ''} href="${esc(hrefOf(view, { filter: f }))}">${esc(viewWord(locale, f))}${viewCount(data, f) === null ? '' : `<span class="si-tabn">${esc(show.count(locale, viewCount(data, f)!))}</span>`}</a>`).join('')}</nav>`;
   const chooser = `<form class="il-view-form" method="get" action="/app/inbox">
       ${hidden('q', view.q)}${hidden('stage', view.stage)}${hidden('lens', view.lens === 'value' ? 'value' : null)}${hidden('label', view.label)}
-      <label><span>${esc(t(locale, 'area2.inbox.views'))}</span><select name="filter">${choices.map((f) =>
+      <label><span>${esc(t(locale, 'area2.inbox.views'))}</span><select name="filter" onchange="(this.form.requestSubmit || this.form.submit).call(this.form)">${choices.map((f) =>
         `<option value="${f}"${data.filter === f ? ' selected' : ''}>${esc(viewWord(locale, f))}${viewCount(data, f) === null ? '' : ` · ${esc(show.count(locale, viewCount(data, f)!))}`}</option>`).join('')}</select></label>
-      <button class="sp-btn" type="submit">${esc(t(locale, 'area2.inbox.show'))}</button>
+      <noscript><button class="sp-btn" type="submit">${esc(t(locale, 'area2.inbox.show'))}</button></noscript>
     </form>`;
   return options.compact ? `<div class="il-views is-compact">${chooser}</div>` : `<div class="il-views">${tabs}${chooser}</div>`;
 }
@@ -179,8 +179,8 @@ export function renderSplitInbox(data: InboxList, locale: Locale, now: Date, peo
   // Search deliberately expands to everyone, preserving the selected stage, ranking and label.
   const search = `<form class="si-search" method="get" action="/app/inbox" role="search">
       <input type="hidden" name="filter" value="all" />${hidden('stage', view.stage)}${hidden('lens', lens === 'value' ? 'value' : null)}${hidden('label', view.label)}
-      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
-      <button class="sp-btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+      <span class="field-search"><input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" /></span>
+      <button class="sp-btn find-quiet" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
     </form>`;
   const fil = (on: boolean, href: string, words: string): string =>
     `<a class="si-fil${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(href)}">${words}</a>`;

@@ -1,3 +1,4 @@
+import { CONTROLS_CSS } from '../../src/api/web/controlsStyle.js';
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { sectionSidebar } from '../../src/api/web/sections.js';
 import { describe, it, expect } from 'vitest';
@@ -211,7 +212,10 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(h).toContain('class="si-tab on" aria-current="true" href="/app/inbox?filter=all"');
     expect(CSS).toContain('.il-views .si-tab.on { color:var(--color-accent); background:var(--color-assistant-wash); }');
     expect(CSS).toContain('.il-page .si-search .sp-btn { min-block-size:44px; }');
-    expect(CSS).toContain('min-block-size:44px; margin:0; font-size:var(--font-size-base)');
+    // The controls pass (2026-11-25): the search box is the shared text box (controlsStyle.ts) — 40 px with a mouse,
+    // 44 px under a finger or on a phone.
+    expect(CONTROLS_CSS).toMatch(/block-size:var\(--control-field\)/);
+    expect(CONTROLS_CSS).toMatch(/@media \(max-width: 720px\), \(pointer: coarse\) \{[^@]*block-size:var\(--control-touch\)/);
   });
 
   it('the rail\'s number is a figure, and its link says what it counts', () => {
@@ -576,7 +580,8 @@ describe('the settings pages', () => {
   });
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
-    for (const p of ['alerts', 'billing', 'business', 'closures', 'forbidden']) {
+    // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
+    for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
       const h = draw(p, 'en');
       expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
     }
@@ -630,7 +635,8 @@ describe('the settings pages', () => {
       expect(/<h1 class="page">([^<]*)<\/h1>/.exec(h)![1], l).toBe(shown(l, 'business.kind.title'));
       expect(t(l, 'business.kind.title'), l).toBe(t(l, 'setup.desc.kind'));
       expect(t(l, 'business.kind.title'), l).not.toBe(t(l, 'signup.kind'));
-      expect(h, l).toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(h, l).not.toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
       expect(h, l).toContain(esc(t(l, 'settings.field.location')));
       expect(h, l).toContain(esc(t(l, 'settings.profile.title')));
     }

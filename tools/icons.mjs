@@ -48,8 +48,9 @@ export const SOLAR_WANTED = [
   'list', 'hand-money', 'global', 'banknote', 'calendar-mark', 'chart-2', 'delivery',
   // UI Block 7 (F34): every channel row has its own shape — web chat, Telegram, TikTok — and the chat page's Copy
   'chat-round-dots', 'send-square', 'music-note', 'copy',
-  // The sidebar's look (2026-11-26): its search, and an area's overview (a grid of what is in it)
-  'magnifier', 'widget-2',
+  // The controls pass (2026-11-25): the search box's own mark, drawn inside the box; the sidebar's look (2026-11-26):
+  // an area's overview (a grid of what is in it)
+  'magnifier', 'alt-arrow-down', 'widget-2',
 ];
 
 

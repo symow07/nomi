@@ -233,10 +233,11 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
     }
   });
 
-  it('w4-customers-15 · the list says where its dates stop', () => {
+  it('w4-customers-15 · the list no longer says where its dates stop (the owner, 2026-11-25)', () => {
     for (const l of LOCALES) {
       const h = draw(l, [price('q1', 'given', 'Carlos Mendes')]);
-      expect(h, l).toContain('<p class="muted cal-rest">');
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(h, l).not.toContain('<p class="muted cal-rest">');
     }
   });
 

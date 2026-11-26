@@ -13,7 +13,7 @@ export const SETTINGS_AREA_CSS=`
 .settings-area .srow{padding-inline:0;}
 .settings-area .setrow{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-12);padding-block:var(--space-24);}
 .settings-area .setrow .fr-c{width:100%;min-width:0;}
-.settings-area input:not([type=checkbox]):not([type=radio]),.settings-area select,.settings-area textarea{max-width:100%;min-height:44px;font-size:var(--font-size-base);}
+.settings-area input:not([type=checkbox]):not([type=radio]),.settings-area select,.settings-area textarea{max-width:100%;}
 .settings-area textarea{width:100%;}
 .settings-area .btn{min-height:44px;background:var(--color-ink);color:var(--color-surface);border-color:var(--color-ink);}
 .settings-area .ch-screen .code{font-size:var(--font-size-small);letter-spacing:normal;white-space:pre-wrap;overflow-wrap:anywhere;}

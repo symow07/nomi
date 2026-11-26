@@ -46,8 +46,9 @@ export interface FilterBar {
   extra?: string;
 }
 
+// The controls pass (2026-11-25): the search field carries its mark inside it (controlsStyle.ts, `.field-search`).
 const field = (f: FilterField, q = false): string =>
-  `<label class="fbar-f${q ? ' fbar-q' : ''}${f.cls ? ' ' + f.cls : ''}"><span class="fbar-l">${esc(f.label)}</span>${f.control}</label>`;
+  `<label class="fbar-f${q ? ' fbar-q' : ''}${f.cls ? ' ' + f.cls : ''}"><span class="fbar-l">${esc(f.label)}</span>${q ? `<span class="field-search">${f.control}</span>` : f.control}</label>`;
 
 export function filterBar(o: FilterBar): string {
   const fields = o.fields ?? [];
@@ -56,5 +57,8 @@ export function filterBar(o: FilterBar): string {
     ? `<details class="fbar-more" data-fbar data-fbar-on="${active}" open><summary class="fbar-toggle">${esc(t(o.locale, 'filters.more'))}${active ? ` <span class="fbar-n"><bdi>${active}</bdi></span>` : ''}</summary><div class="fbar-fields">${fields.map((f) => field(f)).join('')}</div></details>`
     : '';
   const clear = o.clear ? `<a class="fbar-clear" href="${esc(o.clear.href)}">${esc(o.clear.label)}</a>` : '';
-  return `<form method="get" action="${esc(o.action)}" class="fbar${o.cls ? ' ' + o.cls : ''}" role="search" aria-label="${esc(o.name)}">${o.hidden ?? ''}${o.search ? field(o.search, true) : ''}${more}<div class="fbar-acts"><button class="btn" type="submit">${esc(o.submit)}</button>${clear}</div>${o.extra ?? ''}</form>`;
+  // The controls pass (2026-11-25): a bar that is only a search box searches on Enter, as Intercom's does; its button
+  // stays in the form for a keyboard and a screen reader, out of sight, and its label is the box's accessible name.
+  const alone = !fields.length && Boolean(o.search);
+  return `<form method="get" action="${esc(o.action)}" class="fbar${alone ? ' fbar-alone' : ''}${o.cls ? ' ' + o.cls : ''}" role="search" aria-label="${esc(o.name)}">${o.hidden ?? ''}${o.search ? field(o.search, true) : ''}${more}<div class="fbar-acts"><button class="btn${alone ? ' find-quiet' : ''}" type="submit">${esc(o.submit)}</button>${clear}</div>${o.extra ?? ''}</form>`;
 }

@@ -690,7 +690,7 @@ export function renderProfile(
     v && v.trim() ? (long ? `<span class="ef-long"><bdi>${esc(v)}</bdi></span>` : `<bdi>${esc(v)}</bdi>`) : '';
   const sellsValue = p.whatYouSell ? `<span class="fr-value">${p.whatYouSell.category
       ? esc(t(locale, `hs.category.${p.whatYouSell.category}` as MessageKey))
-      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span> <span class="caption muted">${esc(t(locale, 'settings.whatYouSell.from'))}</span> ${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` : '';
+      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span> ${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` : '';
   const aboutFacts = factList(locale, [
     [t(locale, 'settings.field.name'), text(p.name)],
     [t(locale, 'settings.field.description'), text(p.description, true)],
@@ -753,7 +753,6 @@ export function renderProfile(
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
     ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
-    <p class="caption biz-scope">${esc(t(locale, 'biz.scopeNote'))}</p>
     ${form}
     ${p.identifiers ? identifiersCard(p.identifiers, locale, viewer, ids.draft ?? null, ids.errors ?? {}) : ''}`;
 }

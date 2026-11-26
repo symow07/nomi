@@ -30,9 +30,9 @@ export const SPLIT_CSS = `
 .split nav.side { background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
 .split nav.side a.navlink.active { background:var(--color-sand); box-shadow:none; color:var(--color-ink); }
 .split nav.side a.navlink.active .ni { color:var(--color-ink); }
-.split .sp-me { display:flex; align-items:center; gap:var(--space-8); min-height:44px; padding:var(--space-4) var(--space-8); color:var(--color-ink);
+.owner-shell .sp-me { display:flex; align-items:center; gap:var(--space-8); min-height:44px; padding:var(--space-4) var(--space-8); color:var(--color-ink);
   font-size:var(--font-size-small); text-decoration:none; border-radius:var(--radius-control); }
-.split .sp-me:hover { background:var(--color-sand); }
+.owner-shell .sp-me:hover { background:var(--color-sand); }
 
 /* The page: a keyboard's focus never lands under the phone's tab bar */
 html:has(body.split) { scroll-padding-block-end:96px; }
@@ -160,7 +160,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-tabn { font-size:var(--font-size-caption); font-weight:400; font-variant-numeric:lining-nums tabular-nums; }
 .si-tools { display:grid; gap:var(--space-8); padding:var(--space-16) var(--space-20) var(--space-8); border-block-end:1px solid var(--color-border); }
 .si-search { display:flex; gap:var(--space-8); margin:0; }
-.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; block-size:44px; min-block-size:44px; margin:0; padding:0 var(--space-12); box-shadow:none; font:inherit; font-size:var(--font-size-small); color:var(--color-ink); background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); }
+.split .si-search input[type="search"] { flex:1 1 auto; inline-size:auto; min-inline-size:0; margin:0; box-shadow:none; background:var(--color-paper); }
 .split .si-search input[type="search"]:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .si-filters { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:0 var(--space-16); }
 .si-fils { display:flex; align-items:center; gap:var(--space-4); min-inline-size:0; overflow-x:auto; scrollbar-width:none; }
@@ -403,7 +403,6 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .cal-context .cal-legend { margin:0; gap:var(--space-4) var(--space-12); }
 .cal-context .cal-chosen, .cal-context .cal-legend { grid-column:1 / -1; }
 .cal-date-choice label { grid-column:1 / -1; font-size:var(--font-size-small); }
-.cal-date-choice input { min-block-size:44px; }
 .calendar-page .cal-grid { margin:0; border:0; padding:0; }
 .calendar-page .cal-grid-label { font-size:var(--font-size-base); min-block-size:44px; }
 /* F40: a week grows only for its own names. Equal fractional tracks made one

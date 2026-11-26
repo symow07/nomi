@@ -262,7 +262,7 @@ const link = (locale: Locale, area: AreaId, item: Item, here: Item | null): stri
 const search = (locale: Locale): string => notAccountant()
   ? `<form class="sect-search" method="get" action="/app/inbox" role="search"><input type="hidden" name="filter" value="all" />`
     + `<label>${solarSvg('sect-ic', 'magnifier', 20)}<span class="sr">${esc(t(locale, 'buyers.search.label'))}</span>`
-    + `<input type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" /></label></form>`
+    + `<input class="bare" type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" /></label></form>`
   : '';
 
 /** True when this page has a section sidebar to draw. */
