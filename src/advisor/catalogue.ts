@@ -55,6 +55,8 @@ export const CATALOGUE: readonly Entry[] = [
   g('B7', 'Customers who wrote last and have had no answer yet.'),
   { id: 'B8', kind: 'metric', ask: 'How fast the business replies to customers; reply time in a period.' },
   g('B9', 'Customers\' requests to delete their data that wait.'),
+  // The owner, 2026-11-26 — the picture of the business now: existing figures side by side, nothing newly defined.
+  n('B10', 'An overview of how the business is doing or where customers stand, now or in a period: customers in conversation, prices sent, orders, and what waits.'),
   // C · Gone quiet, and follow-ups
   g('C1', 'Customers who have gone quiet or stopped replying.'),
   g('C2', 'Customers who have not answered since they were given a price.'),

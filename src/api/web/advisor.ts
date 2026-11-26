@@ -12,6 +12,8 @@ import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 import { answerFollowUp, type AdvisorAnswer, type AdvisorSpent } from '../../advisor/answer.js';
 import type { AdvisorMemory, KeptTurn, ThreadRow, MemoryState } from '../../advisor/memory.js';
+import type { Picture } from '../../advisor/picture.js';
+import { pictureHtml } from './askPicture.js';
 
 /**
  * THE ADVISOR (the advisor batch, 2026-10-06; docs/ADVISOR-GROUNDING.md, approved). The owner asks; the
@@ -98,6 +100,8 @@ export type HistoryView = {
   readonly card?: { readonly processor: string } | null;
   /** A conversation the key cannot open (D8). */
   readonly unreadable?: boolean;
+  /** The picture of the answer just given, for the newest of `turns`: a kept turn keeps its words, never a picture. */
+  readonly picture?: Picture;
   readonly flash?: Flash | null;
 };
 
@@ -116,6 +120,8 @@ const EXAMPLES: readonly MessageKey[] = ['advisor.example.1', 'advisor.example.2
 function answerHtml(locale: Locale, a: AdvisorAnswer): string {
   switch (a.kind) {
     case 'fact':
+      // A picture of the same facts (the owner, 2026-11-26): the sentence, then the picture, its words one press away.
+      if (a.picture) return `<p>${words(a.phrased ? a.text : t(locale, 'advisor.fallback.head'))}</p>${pictureHtml(locale, a.picture, list(a.lines))}`;
       return a.phrased ? `<p>${words(a.text)}</p>${a.lines.length?`<details class="ask-sources"><summary>${esc(t(locale,'assistantAsk.sources'))}</summary>${list(a.lines)}</details>`:''}` : `<p>${words(t(locale, 'advisor.fallback.head'))}</p>${list(a.lines)}`;
     case 'opinion':
       return `<p class="adv-label">${esc(t(locale, 'advisor.opinion.label'))}</p>${a.phrased || a.lines.length === 0
@@ -188,7 +194,7 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
     <div class="ask-workspace"><div class="ask-conversation">
     ${atRest?`<p dir="auto">${esc(greeting)}</p><details class="ask-examples"><summary>${esc(t(locale,'assistantAsk.examples'))}</summary><ul>${EXAMPLES.map(k=>`<li>${esc(t(locale,k))}</li>`).join('')}</ul></details>`:''}
     <div class="timeline ask-line">${history.unreadable?bubble('advisor',`<p>${words(t(locale,'advisor.thread.unreadable'))}</p>`,name,exchange===null):''}
-      ${turns.map((k,i)=>exchangeHtml(locale,k.question,asAnswer(k),exchange===null&&i===turns.length-1)).join('')}
+      ${turns.map((k,i)=>{const newest=exchange===null&&i===turns.length-1,a=asAnswer(k);return exchangeHtml(locale,k.question,newest&&history.picture&&a.kind==='fact'?{...a,picture:history.picture}:a,newest);}).join('')}
       ${exchange===null?'':exchangeHtml(locale,exchange.asked,exchange.answer,true)}
       ${history.card&&exchange!==null?consentCard(locale,history.card.processor):''}
     </div>
@@ -307,7 +313,8 @@ export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
       }, now);
       const opened = thread ? await memory.open(viewer.businessId, viewer.viewerId, thread) : null;
       if (opened && opened !== 'unreadable') {
-        return draw(req, reply, null, { turns: opened.turns, threadId: opened.id, earlier: await earlierOf(viewer, state) });
+        return draw(req, reply, null, { turns: opened.turns, threadId: opened.id, earlier: await earlierOf(viewer, state),
+          ...(a.kind === 'fact' && a.picture ? { picture: a.picture } : {}) });
       }
     }
     return draw(req, reply, { asked: q, answer }, {

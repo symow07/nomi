@@ -5,7 +5,7 @@ import type { Locale } from '../core/owner/i18n/locale.js';
 import { orderStatusName, messages, type MessageKey } from '../core/owner/i18n/messages.js';
 import { t, assistantName } from '../api/web/say.js';
 import * as show from '../api/web/values.js';
-import { dayKey, addDays } from '../core/owner/i18n/format.js';
+import { dayKey, addDays, formatWeekday } from '../core/owner/i18n/format.js';
 import { zoneOf } from '../db/zone.js';
 import { needsOwnerFor, IS_BLOCKED, DELETION_WAITING } from '../db/buyersList.js';
 import { SPEND_STATUSES, customerValues } from '../db/customerValue.js';
@@ -30,6 +30,7 @@ import type { ConversationContext } from './conversation.js';
 import type { HandoffFacts } from './handoff.js';
 import type { Product, PriceTier, PricingPolicy, NegotiationRule } from '../core/types/commerce.js';
 import { chosenName } from '../db/assistants.js';
+import { PEOPLE_DRAWN, type Picture } from './picture.js';
 
 /**
  * THE ADVISOR'S READS — the ONLY place an advisor fact comes from (the owner, 2026-10-06: "every factual
@@ -89,6 +90,11 @@ export type Sheet = {
   readonly must?: readonly string[];
   /** The page that shows the same thing. */
   readonly door?: Door;
+  /**
+   * The same facts as a picture (src/advisor/picture.ts; the owner, 2026-11-26): every figure and name in it is in
+   * `lines`. Drawn by the page for the answer just given; never kept, never the model's.
+   */
+  readonly picture?: Picture;
 };
 
 /** Each read in its own tenant transaction, read-only twice over (the pool's default, and here). */
@@ -445,6 +451,13 @@ async function channels(ctx: ReadCtx): Promise<Sheet> {
 
 // ── B · Conversations, and what waits ────────────────────────────────────────
 
+/** A picture of people: the first few the sheet's lines name, each with what its line says of them; the rest counted. */
+const peoplePicture = (ctx: ReadCtx, all: readonly { readonly id: string | null; readonly name: string | null; readonly what: string; readonly waits: boolean }[]): Picture => ({
+  kind: 'people',
+  people: all.slice(0, PEOPLE_DRAWN).map((p) => ({ name: nameOf(ctx, p.name), what: p.what, waits: p.waits, ...(p.id ? { href: cardDoor(p.id).href } : {}) })),
+  ...(all.length > PEOPLE_DRAWN ? { more: L(ctx, 'advisor.k.more', { n: count(ctx, all.length - PEOPLE_DRAWN) }) } : {}),
+});
+
 /** B1 — the Inbox's "Needs you", as this reader sees it (`needsOwnerFor`), by customer. */
 async function waiting(ctx: ReadCtx): Promise<Sheet> {
   const rows = await ro(ctx, async (tx) => (await sql<{ client_id: string; name: string | null; review: boolean; order: boolean; deletion: boolean; reason: string | null }>`
@@ -470,8 +483,13 @@ async function waiting(ctx: ReadCtx): Promise<Sheet> {
   const wroteLines = wrote.length === 0 ? []
     : [L(ctx, 'advisor.k.unansweredCount', { n: count(ctx, wrote.length) }),
       ...cap(ctx, wrote.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })))];
+  // The picture draws the customers the lines name (`shown`: the first fifteen of each), with the words of their line.
+  const picture = peoplePicture(ctx, [
+    ...shown(rows).map((r) => ({ id: r.client_id, name: r.name, what: why(r), waits: r.order })),
+    ...shown(wrote).map((r) => ({ id: r.client_id, name: r.name, what: L(ctx, 'askPicture.people.wrote', { when: when(ctx, r.at) }), waits: false })),
+  ]);
   return sheet([...waitingLines, ...wroteLines], [...rows, ...wrote].map((r) => r.name ?? ''), WAITING,
-    { subjects: [...shown(rows), ...shown(wrote)].map((r) => r.client_id) });
+    { subjects: [...shown(rows), ...shown(wrote)].map((r) => r.client_id), picture });
 }
 
 /** B2 · B3 · B4 · B9 — a count by one of the Inbox's own definitions. */
@@ -497,6 +515,48 @@ async function conversations(ctx: ReadCtx): Promise<Sheet> {
   if (r.summary.activeConvos === 0) return nothing('advisor.none.conversations', { period: L(ctx, `advisor.when.${range}`) }, resultsDoor(range));
   return sheet([periodSince(ctx, range, r.since), L(ctx, 'advisor.k.inTouch', { n: count(ctx, r.summary.activeConvos) }),
     L(ctx, 'advisor.k.inbound', { n: count(ctx, r.activity.inbound) })], [], resultsDoor(range));
+}
+
+/**
+ * B10 — WHERE THINGS STAND (the owner, 2026-11-26: the picture of "the current state" of the business). Nothing new
+ * is defined here: Results' own figures for the period (`loadAnalytics`: customers in conversation, prices sent,
+ * confirmed orders), and two of the Inbox's own that stand NOW, each said as what it is — orders waiting for the
+ * owner's OK (`order_proposals.state = 'pending'`, D3's) and customers quiet since a price (`readAttention`'s
+ * "quote", C2's, 3 to 30 days). The picture joins them in the order they happen; it is not a funnel, and no box is
+ * a share of another (they count different things, and each line says which).
+ */
+async function standing(ctx: ReadCtx): Promise<Sheet> {
+  const range = rangeOf(ctx, 'week');
+  const r = await results(ctx, range);
+  const now = await ro(ctx, async (tx) => {
+    const tests = await testing(tx);
+    const quiet = (await readAttention(tx, ctx.now, ctx.viewerId)).filter((i) => i.kind === 'quote' && !tests.has(i.conversationId)).length;
+    const waitingOk = (await sql<{ n: number }>`
+      select count(*)::int as n from order_proposals op join conversations c on c.id = op.conversation_id and not c.owner_testing
+       where op.state = 'pending'`.execute(tx)).rows[0]!.n;
+    return { quiet, waitingOk };
+  });
+  if (r.summary.activeConvos === 0 && r.commerce.quotes === 0 && r.commerce.orders === 0 && now.quiet === 0 && now.waitingOk === 0) {
+    return nothing('advisor.none.conversations', { period: L(ctx, `advisor.when.${range}`) }, resultsDoor(range));
+  }
+  const n = { inTouch: count(ctx, r.summary.activeConvos), prices: count(ctx, r.commerce.quotes), orders: count(ctx, r.commerce.orders),
+    waitingOk: count(ctx, now.waitingOk), quiet: count(ctx, now.quiet) };
+  const results_ = resultsDoor(range).href;
+  const picture: Picture = {
+    kind: 'flow',
+    nodes: [
+      { id: 'inTouch', label: L(ctx, 'askPicture.flow.inTouch'), value: n.inTouch, col: 0, row: 'mid', href: results_ },
+      { id: 'prices', label: L(ctx, 'askPicture.flow.prices'), value: n.prices, col: 1, row: 'mid', href: results_ },
+      { id: 'waitingOk', label: L(ctx, 'askPicture.flow.waitingOk'), value: n.waitingOk, col: 2, row: 0, href: WAITING.href, ...(now.waitingOk > 0 ? { tone: 'waits' as const } : {}) },
+      { id: 'quiet', label: L(ctx, 'askPicture.flow.quiet'), value: n.quiet, col: 2, row: 1, href: INBOX.href },
+      { id: 'orders', label: L(ctx, 'askPicture.flow.orders'), value: n.orders, col: 3, row: 0, href: results_ },
+    ],
+    links: [{ from: 'inTouch', to: 'prices' }, { from: 'prices', to: 'waitingOk', ...(now.waitingOk > 0 ? { tone: 'waits' as const } : {}) },
+      { from: 'prices', to: 'quiet' }, { from: 'waitingOk', to: 'orders' }],
+  };
+  return sheet([periodSince(ctx, range, r.since), L(ctx, 'advisor.k.inTouch', { n: n.inTouch }), L(ctx, 'advisor.k.prices', { n: n.prices }),
+    L(ctx, 'advisor.k.orders', { n: n.orders }), L(ctx, 'advisor.k.ordersWaitingCount', { n: n.waitingOk }),
+    L(ctx, 'advisor.k.quietAfterPriceCount', { n: n.quiet })], [], resultsDoor(range), { picture });
 }
 
 /** B7's rows — customers whose newest message, on any conversation, is theirs: the Inbox's "unanswered". */
@@ -629,12 +689,13 @@ async function dated(ctx: ReadCtx, days: number, category: CalendarCategory | nu
     .filter((e) => e.day >= today || e.kind === 'reply_due' || e.kind === 'sample_asked' || e.kind.startsWith('promise_'))
     .sort((a, b) => a.day.localeCompare(b.day) || a.at.getTime() - b.at.getTime());
 }
+/** What an entry is, without its day: the words its dated line carries after the date. */
+const entryWhat = (ctx: ReadCtx, e: CalendarEntry): string => L(ctx, `advisor.k.cal.${e.kind}`, {
+  name: nameOf(ctx, e.buyer?.name ?? null), ref: e.detail.orderReference ?? '', state: e.detail.orderState ? orderStatusName(ctx.locale, e.detail.orderState) : '',
+  label: e.detail.closureLabel ?? '', title: e.detail.title ?? '',
+});
 const entryLine = (ctx: ReadCtx, e: CalendarEntry): string => {
-  const who = nameOf(ctx, e.buyer?.name ?? null);
-  const what = L(ctx, `advisor.k.cal.${e.kind}`, {
-    name: who, ref: e.detail.orderReference ?? '', state: e.detail.orderState ? orderStatusName(ctx.locale, e.detail.orderState) : '',
-    label: e.detail.closureLabel ?? '', title: e.detail.title ?? '',
-  });
+  const what = entryWhat(ctx, e);
   return L(ctx, e.detail.overdue ? 'advisor.k.datedOverdue' : 'advisor.k.dated', { when: e.allDay ? show.dayMonth(ctx.locale, e.day) : when(ctx, e.at), what });
 };
 /**
@@ -647,6 +708,25 @@ const datedSheet = (ctx: ReadCtx, entries: readonly CalendarEntry[], none: Messa
   entries.length === 0 ? nothing(none, undefined, door)
     : sheet(cap(ctx, entries.map((e) => entryLine(ctx, e)), n), entries.map((e) => e.buyer?.name ?? ''), door,
       { subjects: shown(entries, n).filter((e) => namesBuyer(ctx, e)).map((e) => e.buyer?.id) });
+
+/**
+ * E1 — the same entries on the days they fall: the seven days from today. An entry from before today (a reply
+ * owed, a promise) stands on today, with its own dated line, so nothing the lines say is left off the picture.
+ */
+const WEEK_ITEMS = 12;
+async function weekPicture(ctx: ReadCtx, entries: readonly CalendarEntry[]): Promise<Picture> {
+  const today = dayKey(ctx.now, await ro(ctx, (tx) => zoneOf(tx, ctx.businessId)));
+  const drawn = shown(entries, WEEK_ITEMS);
+  return {
+    kind: 'week',
+    days: Array.from({ length: 7 }, (_, i) => addDays(today, i)).map((day, i) => ({
+      label: `${formatWeekday(ctx.locale, day)} ${show.dayMonth(ctx.locale, day)}`, today: i === 0,
+      // On its own day an entry is its words alone (the column says the day); one from before today keeps its dated line.
+      items: drawn.filter((e) => (e.day < today ? today : e.day) === day)
+        .map((e) => ({ text: e.day < today ? entryLine(ctx, e) : entryWhat(ctx, e), late: e.day < today || e.detail.overdue === true })),
+    })),
+  };
+}
 
 // ── D · Sales and orders ─────────────────────────────────────────────────────
 
@@ -688,10 +768,17 @@ async function ordersWaiting(ctx: ReadCtx): Promise<Sheet> {
       left join clients cl on cl.id = c.client_id
      where op.state = 'pending' order by op.created_at`.execute(tx)).rows);
   if (rows.length === 0) return nothing('advisor.none.ordersWaiting', undefined, WAITING);
-  return sheet(rows.map((r) => {
+  const amountOf = (r: typeof rows[number]): string | null => {
     const m = r.total !== null && r.currency ? moneyFromRow(r.total, r.currency) : null;
-    return m ? L(ctx, 'advisor.k.orderWaiting', { name: nameOf(ctx, r.name), amount: money(ctx, m) }) : L(ctx, 'advisor.k.orderWaitingBare', { name: nameOf(ctx, r.name) });
-  }), rows.map((r) => r.name ?? ''), WAITING, { subjects: rows.map((r) => r.client_id) });
+    return m ? money(ctx, m) : null;
+  };
+  return sheet(rows.map((r) => {
+    const amount = amountOf(r);
+    return amount ? L(ctx, 'advisor.k.orderWaiting', { name: nameOf(ctx, r.name), amount }) : L(ctx, 'advisor.k.orderWaitingBare', { name: nameOf(ctx, r.name) });
+  }), rows.map((r) => r.name ?? ''), WAITING, {
+    subjects: rows.map((r) => r.client_id),
+    picture: peoplePicture(ctx, rows.map((r) => ({ id: r.client_id, name: r.name, what: amountOf(r) ?? t(ctx.locale, 'advisor.k.why.order'), waits: true }))),
+  });
 }
 
 async function pricesSent(ctx: ReadCtx): Promise<Sheet> {
@@ -746,11 +833,38 @@ async function againstLastMonth(ctx: ReadCtx): Promise<Sheet> {
       const r = rows.find((x) => x.currency === c);
       return r ? moneyOr(ctx, r.sum, c) ?? L(ctx, 'advisor.k.noSales') : L(ctx, 'advisor.k.noSales');
     };
+    // The picture, for a workspace that sold in ONE currency in both: the same orders, summed day by day (two
+    // currencies are never added, so they are never drawn on one scale either: the lines alone answer then).
+    let picture: Picture | undefined;
+    if (currencies.length === 1) {
+      const c = currencies[0]!;
+      const days = Math.max(2, Number(dayKey(ctx.now, zone).slice(8, 10)));
+      const running = async (start: Date, until: Date | null): Promise<number[]> => {
+        const by = new Map((await dailySince(tx, start, until, zone, c)).map((r) => [r.day, r.sum]));
+        let total = 0;
+        return Array.from({ length: days }, (_, i) => (total += by.get(i + 1) ?? 0));
+      };
+      picture = {
+        kind: 'trend', now: await running(b.this_start, null), then: await running(b.last_start, b.last_until),
+        nowLabel: said(now, c), thenLabel: said(then, c),
+        from: show.date(ctx.locale, b.this_start), to: show.date(ctx.locale, ctx.now),
+      };
+    }
     return sheet(currencies.flatMap((c) => [
       L(ctx, 'advisor.k.thisMonth', { since: show.date(ctx.locale, b.this_start), amount: said(now, c) }),
       L(ctx, 'advisor.k.lastMonth', { from: show.date(ctx.locale, b.last_start), until: show.date(ctx.locale, b.last_until), amount: said(then, c) }),
-    ]), [], resultsDoor('month'));
+    ]), [], resultsDoor('month'), picture ? { picture } : {});
   });
+}
+/** D7's picture — `totalsSince`'s own orders in one currency, by the day of the month they stood on (the workspace's zone). For drawing only. */
+async function dailySince(tx: Tx, start: Date, until: Date | null, zone: string, currency: string): Promise<{ day: number; sum: number }[]> {
+  return (await sql<{ day: number; sum: number }>`
+    select extract(day from (coalesce(o.confirmed_at, o.created_at) at time zone ${zone}))::int as day,
+           coalesce(sum(o.total_value_usd), 0)::float8 as sum from orders o
+     where o.status = any(${[...SPEND_STATUSES]}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${start}
+       and (${until}::timestamptz is null or coalesce(o.confirmed_at, o.created_at) < ${until}::timestamptz)
+       and o.currency = ${currency} and ${notOwnerTesting('o.conversation_id')}
+     group by 1`.execute(tx)).rows;
 }
 async function everSoldTx(tx: Tx): Promise<boolean> {
   return (await sql<{ any: boolean }>`select exists (select 1 from orders o where o.status = any(${[...SPEND_STATUSES]}::text[]) and ${notOwnerTesting('o.conversation_id')}) as any`.execute(tx)).rows[0]!.any;
@@ -1061,7 +1175,7 @@ export const READS: Readonly<Record<string, (ctx: ReadCtx) => Promise<Sheet>>> =
   B2: counted('advisor.k.reviewCount', 'advisor.none.review', WAITING, 'review'),
   B3: counted('advisor.k.handedCount', 'advisor.none.handed', WAITING, 'handed'),
   B4: counted('advisor.k.blockedCount', 'advisor.none.blocked', { href: '/app/inbox?filter=blocked', label: 'nav.inbox' }, 'blocked'),
-  B5: conversations, B7: unanswered, B8: replyTimes,
+  B5: conversations, B7: unanswered, B8: replyTimes, B10: standing,
   B9: counted('advisor.k.deletionCount', 'advisor.none.deletion', { href: '/app/inbox?filter=deletion', label: 'nav.inbox' }, 'deletion'),
   C1: (ctx) => attention(ctx, null, 'advisor.none.quiet'),
   C2: (ctx) => attention(ctx, 'quote', 'advisor.none.quietAfterPrice'),
@@ -1071,7 +1185,9 @@ export const READS: Readonly<Record<string, (ctx: ReadCtx) => Promise<Sheet>>> =
   D1: sales, D2: ordersByState, D3: ordersWaiting, D4: pricesSent, D5: averageOrder, D7: againstLastMonth, D8: salesAtRate, D11: orderByReference,
   E1: async (ctx) => {
     const days = rangeOf(ctx, 'week') === 'today' ? 0 : 6;
-    return datedSheet(ctx, await dated(ctx, days, null), days === 0 ? 'advisor.none.today' : 'advisor.none.calendar');
+    const entries = await dated(ctx, days, null);
+    const s = datedSheet(ctx, entries, days === 0 ? 'advisor.none.today' : 'advisor.none.calendar');
+    return s.empty || days === 0 ? s : { ...s, picture: await weekPicture(ctx, entries) };
   },
   E2: async (ctx) => {
     const soon = (await dated(ctx, 15, null)).slice(0, 4);
