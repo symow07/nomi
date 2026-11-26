@@ -8,6 +8,7 @@ import { CATALOGUE, entryOf } from './catalogue.js';
 import { READS, knownNames, type Door, type ReadCtx, type Sheet, type Params } from './reads.js';
 import { checkPhrasing } from './check.js';
 import type { Earlier } from './memory.js';
+import type { Picture } from './picture.js';
 
 /**
  * THE ADVISOR, question to answer (docs/ADVISOR-GROUNDING.md, section 2):
@@ -28,7 +29,9 @@ import type { Earlier } from './memory.js';
  */
 
 export type AdvisorAnswer =
-  | { readonly kind: 'fact'; readonly text: string; readonly lines: readonly string[]; readonly phrased: boolean; readonly door?: Door }
+  | { readonly kind: 'fact'; readonly text: string; readonly lines: readonly string[]; readonly phrased: boolean; readonly door?: Door;
+      /** The same facts as a picture (src/advisor/picture.ts): of this answer, now; a kept turn has none. */
+      readonly picture?: Picture }
   | { readonly kind: 'none'; readonly text: string; readonly door?: Door }
   | { readonly kind: 'notStored'; readonly text: string }
   | { readonly kind: 'opinion'; readonly text: string; readonly lines: readonly string[]; readonly phrased: boolean; readonly based: readonly string[] }
@@ -134,8 +137,8 @@ export async function answerFollowUp(a: AskContext, question: string, earlier: r
       entry.id, params, sheet.subjects);
   }
   const text = await phrase(a, ctx, question, sheet.lines, sheet.names, sheet.must ?? [], false, counted);
-  return done({ kind: 'fact', text: text ?? '', lines: sheet.lines, phrased: text !== null, ...(sheet.door ? { door: sheet.door } : {}) },
-    entry.id, params, sheet.subjects);
+  return done({ kind: 'fact', text: text ?? '', lines: sheet.lines, phrased: text !== null, ...(sheet.door ? { door: sheet.door } : {}),
+    ...(sheet.picture ? { picture: sheet.picture } : {}) }, entry.id, params, sheet.subjects);
 }
 
 /** The model's sentence, if it passes rule 4's check; null otherwise (the facts are then the answer). */

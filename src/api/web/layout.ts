@@ -30,6 +30,7 @@ import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { LIVE_SCRIPT } from './liveScript.js';
+import { ASK_PICTURE_SCRIPT } from './askPictureScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { SPLIT_CSS } from './splitStyle.js';
 import { INBOX_LIST_CSS } from './inboxListStyle.js';
@@ -2988,6 +2989,12 @@ const ORB_DIR = new URL('../../../assets/vendor/thinking-orbs/0.3.2/', import.me
 /** Every copy carries the library's notice (its MIT licence asks it): the licence, then the core, unchanged. */
 const ORB_JS = asset('orb', 'js', `/*! thinking-orbs 0.3.2 — its drawing core, unchanged below this note.\n${
   readFileSync(new URL('LICENSE', ORB_DIR), 'utf8')}*/\n${readFileSync(new URL('index-B8WsUNf5.js', ORB_DIR), 'utf8')}`);
+/**
+ * THE PICTURE OF AN ANSWER (2026-11-26) — the file that joins a picture's boxes with ribbons and moves them
+ * (askPictureScript.ts). Served like the orb, at an address named by its content, and linked by NO page: the one
+ * script asks for it on a page that drew a picture (askPicture.ts names it there). tests/parity/ask-picture.test.ts.
+ */
+export const ASK_PICTURE_JS = asset('picture', 'js', ASK_PICTURE_SCRIPT);
 const scriptTo = (href: string): string => `<script src="${href}" defer></script>`;
 
 /**

@@ -17142,3 +17142,14 @@ zh / ar / es / fr and not yet read by a native speaker (`src/core/owner/i18n/nav
 - `side.settingsMoved` is now two lines: the assistant's (to everyone but an accountant) and `side.settingsMovedBooks`
   (to the owner, only where the books are on). Books › Setup is 初始设置 / Mise en place, so it does not read as the
   Settings area (设置 / Réglages).
+
+## Ask Nomi's pictures
+
+- The picture of an answer (Ask Nomi, 2026-11-26), eighteen lines `askPicture.*` and two `advisor.k.*`
+  (`ordersWaitingCount`, `quietAfterPriceCount`) in zh, ar, es and fr. To read first:
+  - The five box labels of the flow (`askPicture.flow.*`) are short on purpose: each sits in a small box over a
+    figure. 有对话的客户, 发出的报价, 等你确认的订单; «في محادثة», «أسعار أُرسلت»; "En conversación"; « En conversation ».
+  - `askPicture.people.wrote` carries a date in `{when}` and must read as one phrase with it (11月26日周四发来消息，还没回复).
+  - `askPicture.picture` / `askPicture.words` are the two choices of one control (图示 / 文字, رسم / كلمات); they must
+    read as a pair.
+  - Each line says "customer", never "buyer"; none has a pronoun for the assistant or a person, and none says "AI".

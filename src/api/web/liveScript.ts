@@ -1,4 +1,11 @@
 import { COPILOT_SCRIPT } from './copilotScript.js';
+
+/**
+ * An answer's picture (askPicture.ts) has a file of its own for its ribbons and its motion: asked for here, from the
+ * address the picture names, on a page that has one and on no other.
+ */
+const ASK_PICTURE_LOADER = `(function(){var p=document.querySelector('[data-ap-src]');p&&import(p.getAttribute('data-ap-src'));})();
+`;
 /**
  * CC-26 — THE ONE SCRIPT, as the browser receives it.
  *
@@ -1125,4 +1132,4 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     try { if (history.scrollRestoration === 'manual') history.scrollRestoration = 'auto'; } catch (e) { /* the browser keeps its own */ }
   });
 })();
-` + COPILOT_SCRIPT;
+` + COPILOT_SCRIPT + ASK_PICTURE_LOADER;

@@ -13,7 +13,7 @@ import { mayLoad } from '../../src/api/web/thirdParty.js';
  *   moves every relative address), <a ping>, a `style` attribute's or a
  *   <style> block's url(…), image-set(…) and @import, and the addresses the
  *   page's own script fetches (`data-live`, `data-rail`, `data-push-save`,
- *   `data-orb`, `data-total`, and an `<a data-card>`'s href: liveScript.ts reads exactly these).
+ *   `data-orb`, `data-total`, `data-ap-src`, and an `<a data-card>`'s href: liveScript.ts reads exactly these).
  * In a script: any absolute address at all (http, https, ws, wss, or a string
  *   starting `//`), comments included: none of the scripts Nomi serves names one.
  *
@@ -48,7 +48,8 @@ const DESCRIBES_ONLY = new Set(['canonical', 'alternate', 'author', 'license', '
 
 /** The attributes the page's own script turns into a fetch (liveScript.ts). */
 // `data-total` (F18, 2026-11-13): the invoice form's own preview route, asked by the page's script as its lines change.
-const SCRIPT_ADDRESSES = ['data-live', 'data-rail', 'data-push-save', 'data-orb', 'data-total'] as const;
+// `data-ap-src` (2026-11-26): the file that joins an answer's picture, named by the picture and imported by the page's script.
+const SCRIPT_ADDRESSES = ['data-live', 'data-rail', 'data-push-save', 'data-orb', 'data-total', 'data-ap-src'] as const;
 
 /** What a stylesheet asks the browser to fetch: url(…), image-set("…"), @import. */
 export function cssRequests(css: string): PageRequest[] {

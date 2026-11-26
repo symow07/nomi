@@ -1,3 +1,4 @@
+import { ASK_PICTURE_CSS } from './askPictureStyle.js';
 export const ASSISTANT_AREA_CSS=String.raw`
 main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}
@@ -171,4 +172,4 @@ a.ak-name{display:inline-flex;align-items:center;min-height:44px;}
 .aa-content .pform{max-width:100%;}.aa-pager{flex-wrap:wrap;}
 /* Audit F04: where the page IS the section, the chooser is its title (drawn once); the h1 stays for a reader. */
 }
-`;
+` + ASK_PICTURE_CSS;

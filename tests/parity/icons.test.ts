@@ -452,6 +452,7 @@ describe('one family on every screen: Solar, no emoji', () => {
         if (/viewBox='0 0 16 16'|viewBox='0 0 24 24'/.test(t)) continue;   // a mark's shape (marks.ts) and the fold's mask, drawn as images
         if (f === 'splitToday.ts' && /role="img"/.test(t)) continue;       // the Split Today trend: a chart of the books' figures, not an icon
         if (f === 'brandLogos.ts' && /viewBox="0 0 24 24"/.test(t)) continue; // a channel's own logo (the owner, 2026-11-26), below
+        if (f === 'askPicture.ts' && /class="ap-(wires|chart)"/.test(t)) continue; // an answer's picture: its ribbons and its trend, drawings of figures, not icons
         found.push(`${f}: ${t.slice(0, 70)}`);
       }
     }
