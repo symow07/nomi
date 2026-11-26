@@ -1184,9 +1184,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* A phone has no room beside a wide bubble: the time takes its own line under it while the message is held. */
   @media (max-width:720px) {
     .msg.mid:is(:hover, :focus, :focus-within, :active) { margin-block-end:0; }
-    .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { position:static; }
+    .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { position:static; padding-inline:0; background:none; }
   }
   .pn-head:is(:hover, :focus-within) > .pn-facts.sr { position:static; inline-size:auto; block-size:auto; overflow:visible; clip-path:none; white-space:normal; margin:var(--space-4) 0 0; }
+  @media (hover:none) { .pn-head > .pn-facts.sr { position:static; inline-size:auto; block-size:auto; overflow:visible; clip-path:none; white-space:normal; margin:var(--space-4) 0 0; font-size:var(--font-size-caption); } }
+  .pn-who:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; border-radius:var(--radius-chip); }
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
   .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
@@ -2389,11 +2391,16 @@ const STYLE_PAGES = `
   .cu-facts, .cu-state { grid-column:1 / -1; margin:0; font-size:var(--font-size-small); }
   .cu-facts { color:var(--color-ink-secondary); }
   /* The cleanup (2026-11-26) - what they bought and where things stand share ONE line under the name. */
-  .cu-line { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-8); min-width:0; }
+  .cu-line { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-16); min-width:0; }
   /* The tester's pass (2026-11-26) - the channel's word opens that line, so the line starts at the name's own edge
-     and wraps there; a dot stands between its parts. */
+     and wraps there. The second test - the dot between two parts stands in the gap BEFORE the later one, and the
+     line clips what falls outside its own edge: a part that opens a new line has no dot, and no line ends on one. */
   .catchup:not(.bare) > .cu-line { grid-column:2; }
-  .cu-line > p:not(:last-child)::after { content:"·"; margin-inline-start:var(--space-8); color:var(--color-ink-secondary); }
+  .cu-line { overflow-x:clip; }
+  .cu-line > p { position:relative; }
+  .cu-line > p:not(:first-child)::before { content:"·"; position:absolute; inset-inline-start:calc(-1 * var(--space-12)); color:var(--color-ink-secondary); }
+  .cu-state { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-8); }
+  .cu-state > .pill { margin:0; }
   .cu-facts bdi { color:var(--color-ink); }
   .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
     background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);

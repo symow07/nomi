@@ -257,8 +257,9 @@ describe('the state of play, drawn — one line, from the rows', () => {
       expect(mine, l).not.toContain('cu-story');
       const none = stateLine(page(detail({}, { lastMessage: null, lastFromThemAt: null }), l));
       expect(none, l).toContain(head('catchup.state.none'));
-      // away from "needs you", the pill says who holds the conversation, as the header did
-      expect(last, l).toContain(`<span class="pill ok">${esc(t(l, 'inbox.status.handled'))}</span>`);
+      // The second test (2026-11-26): a calm conversation the assistant holds says so ONCE, on the card under the
+      // thread; the header no longer says "Answered" over it.
+      expect(last, l).not.toContain(`<span class="pill ok">${esc(t(l, 'inbox.status.handled'))}</span>`);
       expect(last, l).not.toContain(needsPill(l));
     }
   });

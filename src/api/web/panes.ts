@@ -155,9 +155,9 @@ export function renderCustomerPanel(
   return `<aside class="panel" id="customer" aria-label="${esc(t(locale, 'panel.label'))}">
       <a class="panel-close" href="#latest">${esc(t(locale, 'panel.close'))}</a>
       <header class="pn-head">
-        ${/* The warmth pass — the customer's face beside their name, as everywhere they are named; the panel is already about them, so it opens nothing. */ ''}<div class="pn-who"${since ? ` title="${since}"` : ''}>${face({ clientId: p.clientId, name: p.name, photo: p.photo ?? null }, 'm')}<h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2></div>
+        ${/* The warmth pass — the customer's face beside their name, as everywhere they are named; the panel is already about them, so it opens nothing. */ ''}<div class="pn-who"${since ? ` title="${since}" tabindex="0"` : ''}>${face({ clientId: p.clientId, name: p.name, photo: p.photo ?? null }, 'm')}<h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2></div>
         ${facts ? `<p class="pn-facts">${facts}</p>` : ''}
-        ${/* The cleanup (2026-11-26) — when they first wrote is said on hover and to a screen reader, not as a standing line. */ ''}${since ? `<p class="pn-facts sr">${since}</p>` : ''}
+        ${/* The cleanup (2026-11-26) — when they first wrote is said on hover, on focus (the name takes it) and to a screen reader, not as a standing line; a screen with no hover shows it small. */ ''}${since ? `<p class="pn-facts sr">${since}</p>` : ''}
       </header>
       ${labelsBlock(p, locale, conversationId)}
       ${block('panel.askedAbout', asked)}

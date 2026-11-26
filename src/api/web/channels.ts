@@ -949,7 +949,7 @@ function metaScreen(locale: Locale, viewer: Viewer, parts: ChannelScreenParts): 
     return `<div class="card reach" id="${channel}">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
         <span class="pill ${tone}">${esc(t(locale, state))}</span></div>
-      ${here || link?.connected ? inboundConnect(locale, channel, link, viewer) : `<div class="muted win">${esc(t(locale, 'reach.notHere'))}</div>`}
+      ${/* The second test (2026-11-26) - the pill above says "not set up here yet"; nothing under it says it again. */ ''}${here || link?.connected ? inboundConnect(locale, channel, link, viewer) : ''}
     </div>`;
   };
   const instead = CHANNEL_REGISTRY.instagram.instead;

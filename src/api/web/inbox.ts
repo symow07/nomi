@@ -2318,6 +2318,8 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : play.kind === 'needs' ? `<span class="pill warn">${esc(t(locale, 'inbox.filter.pending'))}</span>`
     : play.kind === 'quiet' && d.ownership === 'AI' && c ? `<span class="pill" title="${esc(quietSince)}">${esc(t(locale, 'catchup.state.quiet'))}</span>`
     : d.ownership === 'AI' && c && d.status !== 'paused' && (play.kind === 'ordered' || play.kind === 'quoted' || play.kind === 'talking' || play.kind === 'none') ? ''
+    // The second test (2026-11-26) - "Answered" over "{name} is handling this": the card under the thread says it, once.
+    : d.ownership === 'AI' && d.status === 'handled' && d.pendingDraft === null ? ''
     : headerPill(d, locale, viewer);
 
   // A sentence around something already drawn (a list, a figure): the words escaped, then the piece put in.

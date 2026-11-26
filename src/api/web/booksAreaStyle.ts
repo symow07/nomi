@@ -163,6 +163,11 @@ main:has(.bk-tb){max-width:100%;}
 .ba-fig dt{font-size:var(--font-size-small);color:var(--color-ink-secondary);}
 .ba-fig dd{margin:0;font-size:var(--font-size-title);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 .ba-fig dd p{font-size:var(--font-size-small);margin:0;}
+/* The second test (2026-11-26): a figure's note (profit is not cash) shows on hover, on focus and on a press of its
+   name - never a standing line, never out of a reader's reach. */
+.ba-fig>.ba-note{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.ba-fig:is(:hover,:focus-within,:active)>.ba-note{position:static;inline-size:auto;block-size:auto;overflow:visible;clip-path:none;white-space:normal;}
+.ba-fig dt[tabindex]:focus-visible{outline:2px solid var(--color-brand);outline-offset:2px;}
 .ba-period{font-size:var(--font-size-caption);color:var(--color-ink-secondary);margin:0;}
 .ba-source{font-size:var(--font-size-small);margin:0;}
 .ba-source a{display:inline-flex;align-items:center;min-height:44px;margin:0;}

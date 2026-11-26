@@ -360,6 +360,8 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
 .sp-priority .sp-decide + .sp-attention { margin-block-start:var(--space-24); }
 /* With one panel the head ends where the column ends: "New message" stands over the column, not at the screen's edge. */
 @media (min-width:721px) { .sp:has(> .sp-panels.is-one) > .sp-head { box-sizing:content-box; max-inline-size:840px; } }
+/* The second test (2026-11-26) - the title, "New message" and the "?" at the page's head stand on one line. */
+@media (min-width:721px) { .sp-head { align-items:flex-start; padding-block-start:var(--space-24); } .sp-head > .sp-new { margin-block-start:calc(-1 * var(--space-4)); } }
 .sp-priority .sp-reply { background:var(--color-assistant-wash); }
 .results-page, .setup-page { max-inline-size:960px; }
 .results-header, .setup-intro { max-inline-size:70ch; margin-block-end:var(--space-32); }
@@ -489,12 +491,16 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > .live { grid-column:1 / -1; grid-row:3; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new { grid-column:2; }
   /* The cleanup (2026-11-26) - Today's title is said once (no area name over the same word), and "New message" stands
-     in the title's row: the head is drawn up beside the chooser while it is closed, and lets a press through to it. */
+     in the title's row. Only the button is lifted there, out of the head's flow: the head itself stays below the
+     chooser and covers no part of it, so a press on the title always reaches the title. */
   .content:has(.sp-head) > .area-nav > .area-chooser[data-titled] .ac-area { display:none; }
-  .content:has(> .area-nav > .area-chooser[data-titled]:not([open])) .sp-head { margin-block-start:calc(-44px - var(--space-12)); pointer-events:none; }
-  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head * { pointer-events:auto; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head { padding-block-start:0; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new { position:absolute; inset-block-start:calc(-44px - var(--space-8)); inset-inline-end:var(--space-16); margin:0; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new .sp-btn { min-block-size:44px; }
   /* ...and it stops short of the "?" at the page's head: the button stands beside it, never under it. */
-  .content:has(> .help-door):has(> .area-nav > .area-chooser[data-titled]) .sp-head { padding-inline-end:calc(44px + var(--space-16) + var(--space-8)); }
+  .content:has(> .help-door):has(> .area-nav > .area-chooser[data-titled]) .sp-new { inset-inline-end:calc(44px + var(--space-16) + var(--space-8)); }
+  /* An open chooser lists its pages where the button stood: the button waits below until it closes. */
+  .content:has(> .area-nav > .area-chooser[data-titled][open]) .sp-new { position:static; justify-self:end; margin-block:var(--space-8); }
   /* A row with no stage to say: the name stands in the middle of the row, not over an empty line. */
   .sp-row > .sp-chip:empty { display:none; }
   .sp-row:has(> .sp-chip:empty) { grid-template-areas:"face thumb name val go" "face thumb name day go"; }

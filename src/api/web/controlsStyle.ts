@@ -159,7 +159,9 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell .conversation-workspace .catchup > * { align-self:center; }
   .owner-shell .conversation-workspace .catchup > .face-link { order:0; align-self:center; }
   .owner-shell .conversation-workspace .catchup .face-l { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
-  .owner-shell .conversation-workspace .catchup > h1.who { order:1; margin:0; font-size:var(--font-size-title); }
+  .owner-shell .conversation-workspace .catchup > h1.who { order:1; flex:1 1 0%; min-inline-size:0; overflow-wrap:anywhere; margin:0; font-size:var(--font-size-title); }
+  /* The second test (2026-11-26) - a long name stays beside the face, in its own column, on two lines at most (the panel has it whole). */
+  .owner-shell .conversation-workspace .catchup > h1.who { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
   /* One line under the name, as wide as the head: the tools beside the name are one row tall, so the line runs under them. */
   .owner-shell .conversation-workspace .conv-top { container-type:inline-size; }
   .owner-shell .conversation-workspace .catchup > .cu-line { order:4; flex:0 0 auto; inline-size:max-content; max-inline-size:calc(100cqi - 32px - var(--space-8)); margin:0; margin-block-start:var(--space-4); margin-inline-start:calc(32px + var(--space-8)); }
@@ -215,4 +217,7 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell ${BUTTON}, ${AT} ${BUTTON}:not(.find-quiet) { min-block-size:var(--control-touch); }
   .owner-shell :is(.il-views .si-tab, :is(.sa-nav, .aa-nav, .ba-nav) a:not(.sa-index)) { min-block-size:var(--control-touch); }
 }
+
+/* The second test (2026-11-26) - a search box narrower than its hint ends the hint with an ellipsis, not mid-letter. */
+.owner-shell input[type="search"] { text-overflow:ellipsis; }
 `;
