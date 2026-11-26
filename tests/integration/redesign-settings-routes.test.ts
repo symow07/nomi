@@ -33,14 +33,14 @@ d('Grouped Settings preserve command and permission ownership',()=>{
    expect((await get(old,'')).headers.location).toBe('/login');
   }
   const question=await get('/app/settings/business/selling/price');
-  expect(question.body).toMatch(/sa-page-chooser[\s\S]*?<summary>How you sell/);
+  expect(question.body).toMatch(/area-chooser[\s\S]*?<summary>How you sell/); // the navigation block: the shell's one chooser
   const invalid=await get('/app/settings/business/selling/not-a-question');expect(invalid.headers.location).toBe('/app/business/selling');
   const originalPost=await post('/app/business/selling/product-claims',{answer:'Not an original command name'});
   expect([originalPost.statusCode,originalPost.headers.location]).toEqual([302,'/app/business/selling']);
  });
  it('opens one focused page per subject with the original forms and role boundaries',async()=>{
   const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/terms','/app/settings/business/samples','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/assistant/history-policy','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/language','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
-  for(const path of paths){const r=await get(path);expect(r.statusCode,path).toBe(200);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);expect(r.body,path).toContain('settings-area');expect(r.body,path).toContain('data-nav="settings" aria-current="page"');}
+  for(const path of paths){const r=await get(path);expect(r.statusCode,path).toBe(200);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);expect(r.body,path).toContain('settings-area');expect(r.body,path).toContain(`data-nav="${path.startsWith('/app/settings/assistant')?'assistant':'settings'}" aria-current="page"`);} // the assistant's settings sit in its area (the navigation block)
   expect((await get('/app/settings/team',staff)).statusCode).toBe(302);
   expect((await get('/app/settings/assistant/history-policy',staff)).headers.location).toBe('/app/settings/personal/advisor-history');
   for(const path of ['/app/settings/personal/account','/app/settings/personal/language'])expect((await get(path,accountant)).statusCode,path).toBe(200);

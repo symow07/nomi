@@ -1163,7 +1163,11 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
           const got = copies.get(key) ?? [];
           if (got.length < 6) { if (got.length === 0) forms.push(f); copies.set(key, [...got, f]); }
         }
-        for (const h of res.body.matchAll(/href="(\/app[^"#]*)/g)) {
+        // The navigation block (2026-11-25): the section sidebar and its chooser list only addresses the walk queued at
+        // the start (each a route with no id of its own), and the same twenty of them on every page filled the queue's
+        // budget before a conversation's own page was reached. They are read from the page's own body, not its menus.
+        const own = res.body.replace(/<aside class="sect"[\s\S]*?<\/aside>/, '').replace(/<nav class="area-nav"[\s\S]*?<\/nav>/, '');
+        for (const h of own.matchAll(/href="(\/app[^"#]*)/g)) {
           const u = unescape(h[1]!);
           if (!pages.has(u) && !/logout/.test(u) && pages.size + queue.length < 3000) queue.push(u);
         }
@@ -1238,6 +1242,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     for (const [, all] of reachC.copies) {
       const f = all[all.length - 1]!;
       const r = routeOf('POST', f.action); if (!r) continue;
+      // A route pinned to one value (`=hours`) is reached with that value only: How you sell's confirm asks for the
+      // answer its own question's form saved, and another question's form reaching `:q` first left none to confirm.
+      const pinned = ROUTE_OWN[r.url] ?? {}; const segs = r.url.split('/'); const got = f.action.split('?')[0]!.split('/');
+      if (segs.some((s, k) => s.startsWith(':') && pinned[s.slice(1)]?.startsWith('=') && got[k] !== pinned[s.slice(1)]!.slice(1))) continue;
       attempts.push({ r, method: 'POST', url: f.action, body: { kind: 'form', data: new URLSearchParams(typed(f.fields)).toString() }, where: `reach form ${f.action}`, late: lateness(r.url) });
     }
     for (const r of walk) {

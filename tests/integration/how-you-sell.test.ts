@@ -253,7 +253,9 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     // CK (0110) added "What you sell" to a shop's questions: nine now.
     expect(menu.body).toContain('href="/app/settings/business/selling"');
     expect(how.body).toContain('6 of 9 answered');
-    expect((await get('/app/settings')).body).not.toContain('href="/app/settings/business/selling"');
+    // The Settings page itself does not repeat it; its sidebar (the navigation block) lists every Settings page.
+    const index = (await get('/app/settings')).body;
+    expect(index.slice(index.indexOf('<main'), index.indexOf('</main>'))).not.toContain('href="/app/settings/business/selling"');
   });
 
   it('A REFUSED ANSWER is shown back with its problem, and nothing is kept', async () => {

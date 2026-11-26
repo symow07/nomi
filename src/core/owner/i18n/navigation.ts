@@ -29,7 +29,6 @@ export const NAVIGATION_EN = {
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Customers',
   'nav.assistant': 'Assistant',
-  'igComments.title': 'Instagram comments',
   'customers.all': 'All customers',
   'customers.orders': 'Orders',
   'customers.followups': 'Follow-ups',
@@ -87,7 +86,6 @@ export const NAVIGATION_ZH: Record<NavigationKey, string> = {
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': '客户',
   'nav.assistant': '助手',
-  'igComments.title': 'Instagram 评论',
   'customers.all': '全部客户',
   'customers.orders': '订单',
   'customers.followups': '跟进',
@@ -143,7 +141,6 @@ export const NAVIGATION_AR: Record<NavigationKey, string> = {
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'العملاء',
   'nav.assistant': 'المساعد',
-  'igComments.title': 'تعليقات Instagram',
   'customers.all': 'كل العملاء',
   'customers.orders': 'الطلبات',
   'customers.followups': 'المتابعات',
@@ -199,7 +196,6 @@ export const NAVIGATION_ES: Record<NavigationKey, string> = {
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Clientes',
   'nav.assistant': 'Asistente',
-  'igComments.title': 'Comentarios de Instagram',
   'customers.all': 'Todos los clientes',
   'customers.orders': 'Pedidos',
   'customers.followups': 'Seguimientos',
@@ -255,7 +251,6 @@ export const NAVIGATION_FR: Record<NavigationKey, string> = {
   // The words the sidebar lists that were still English in this language (the tester's finding, 2026-11-25).
   'nav.customers': 'Clients',
   'nav.assistant': 'Assistant',
-  'igComments.title': 'Commentaires Instagram',
   'customers.all': 'Tous les clients',
   'customers.orders': 'Commandes',
   'customers.followups': 'Relances',
