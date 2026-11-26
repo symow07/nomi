@@ -51,7 +51,7 @@ describe('M9.6 · employee profile (localized)', () => {
   it('card: headlined by the name in force (else "your assistant"); stage/role localized', () => {
     const zh = everyScreen(base, 'zh', null);
     expect(zh).toContain('<h1 class="page">你的助手</h1>');   // no name chosen: the fallback, never an invented name
-    expect(zh).toContain(t('zh', 'employee.stage.partial')); expect(zh).toContain(t('zh', 'employee.role.reception')); expect(zh).toContain('入职');
+    expect(zh).toContain(t('zh', 'employee.stage.partial')); expect(zh).toContain(t('zh', 'employee.role.reception')); expect(zh).not.toContain('入职');   // the hire date is no longer drawn (2026-11-26)
     const en = withAssistantName('Lily', () => everyScreen(base, 'en', null));
     expect(en).toContain('<h1 class="page">Lily</h1>');      // the headline IS the chosen name
     expect(en).toContain('Answers your customers');

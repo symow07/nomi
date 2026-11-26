@@ -1064,7 +1064,6 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
-       <p class="fdesc">${esc(t(locale, 'activation.stop.differs', { name }))}</p>
        ${elsewhereNames && !s.held ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
        <div class="facts">${confirmBtn('deactivate', s.stoppedAt ? '' : 'danger',
           t(locale, 'activation.action.deactivate'),
@@ -1113,9 +1112,9 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
     ? `<h2 class="sub3" data-golive="every" id="stop">${esc(t(locale, 'assistant.stop.title', { name }))}</h2>${silencedNote}${everyBody}` : '';
   // G3 — today's allowance, always visible: what is used, and when it renews.
   const a = r.allowance;
-  const allowanceBlock = a ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
-       ${a.pctUsed === null ? `<p class="fdesc">${esc(t(locale, 'business.allowance.none'))}</p>`
-         : `<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
+  // The text audit (2026-11-26, the owner's approval): no limit is no block; a limit, or a limit used up, is said as before.
+  const allowanceBlock = a && a.pctUsed !== null ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
+       ${`<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
             ${a.used ? `<p class="fdesc">${esc(t(locale, 'business.allowance.waiting'))}</p>
             <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>` : ''}`}` : '';
   const readyBody = everyBlock + (s.waRelevant
@@ -1201,7 +1200,7 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
     <section class="fblock" id="certs" aria-labelledby="certs-h">
       <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
       <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
-      ${certRows(locale, f.promises.certs, f.products.total)}
+      ${certRows(locale, f.promises.certs, f.products.total, '', true)}
       <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
     </section>
     <section class="fblock">

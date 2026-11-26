@@ -19,8 +19,9 @@ describe('Assistant daily work has a distinct home',()=>{
   const stopped=renderAssistantOverview({...employee,stopped:true,answering:true},'en',owner,null);
   expect(stopped).toContain('stopped');expect(stopped).not.toContain('action="/app/business/stop-assistant"');
   const answering=renderAssistantOverview({...employee,answering:true},'en',owner,null);
-  expect(answering).toContain('action="/app/business/stop-assistant"');expect(answering).toContain('value="assistant"');
-  expect(renderAssistantOverview({...employee,answering:true},'en',{...owner,isOwner:false},null)).not.toContain('action="/app/business/stop-assistant"');
+  // The text cleanup (2026-11-26, the owner's approval): the Stop is drawn once, on Going live; the overview is one press from it.
+  expect(answering).toContain('<p class="stop-here"><a class="aa-go" href="/app/settings/assistant/ready#stop">');expect(answering).not.toContain('action="/app/business/stop-assistant"');
+  expect(renderAssistantOverview({...employee,answering:true},'en',{...owner,isOwner:false},null)).not.toContain('ready#stop');
   expect(answering).not.toContain('action="/app/settings/assistant/autonomy"');
  });
 });

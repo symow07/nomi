@@ -30,24 +30,25 @@ const page = (e: EmployeeProfile, l: (typeof LOCALES)[number], owner = true, ope
 const css = SETTINGS_AREA_CSS.replace(/\s+/g, ' ');
 
 describe('UI Block 6 · F32 — the assistant\'s settings page', () => {
-  it('Stop is its own named panel after the levels, outside them, with the same form and question; owner only, while answering', () => {
+  it('the way to Stop is one line after the levels, outside them, before the folds; owner only, while answering', () => {
     for (const l of LOCALES) {
       const html = page(set, l);
       const levels = html.indexOf('<section class="block level-control"');
       const levelsEnd = html.indexOf('</section>', levels);
-      const panel = html.indexOf('<section class="stop-panel" aria-labelledby="stop-h">');
+      // The text cleanup (2026-11-26, the owner's approval): the Stop itself is drawn once, on Going live.
+      const panel = html.indexOf('<p class="stop-here" id="stop">');
       expect(levels, l).toBeGreaterThan(0);
       expect(panel, l).toBeGreaterThan(levelsEnd);
       expect(html.slice(levels, levelsEnd), l).not.toContain('stop-assistant');
-      const stop = html.slice(panel, html.indexOf('</section>', panel));
-      expect(stop, l).toContain(`<h2 id="stop-h">${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.title')))}</h2>`);
-      expect(stop, l).toContain('<form method="post" action="/app/business/stop-assistant" class="inline">');
-      expect(stop, l).toContain(`data-confirm="${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stopConfirm')))}"`);
+      const stop = html.slice(panel, html.indexOf('</p>', panel));
+      expect(stop, l).toContain('href="/app/settings/assistant/ready#stop"');
+      expect(stop, l).toContain(esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop'))));
+      expect(html, l).not.toContain('action="/app/business/stop-assistant"');
       // …and before the folded decisions.
       expect(panel, l).toBeLessThan(html.indexOf('<details class="sa-subject"'));
-      expect(page(set, l, false), l).not.toContain('stop-panel');
-      expect(page({ ...set, stopped: true }, l), l).not.toContain('stop-panel');
-      expect(page({ ...set, answering: false }, l), l).not.toContain('stop-panel');
+      expect(page(set, l, false), l).not.toContain('stop-here');
+      expect(page({ ...set, stopped: true }, l), l).not.toContain('stop-here');
+      expect(page({ ...set, answering: false }, l), l).not.toContain('stop-here');
     }
   });
   it('each folded decision says its name and where it stands; the link target is inside the fold and can take focus', () => {
@@ -102,6 +103,6 @@ describe('UI Block 6 · F32 — the assistant\'s settings page', () => {
     expect(css).toContain('.settings-area .btn.danger{background:transparent;');
     expect(css).toMatch(/\.sa-subject>summary\{min-height:44px;/);
     expect(css).toContain('.sa-body:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;}');
-    expect(css).toContain('.stop-panel{');
+    expect(css).not.toContain('.stop-panel');
   });
 });

@@ -107,22 +107,23 @@ describe('V1-417 · one function decides what goes out without the owner', () =>
   }
 });
 
-describe('rule 13 · while the assistant answers, its Stop is on its own page; owner only', () => {
+// The text cleanup (2026-11-26, the owner's approval): the Stop is drawn once, on Going live; the assistant's page is one press from it.
+describe('rule 13 · while the assistant answers, the way to its Stop is on its own page; owner only', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const landing = (e: EmployeeProfile, owner = true) => withAssistantName('Lily', () => renderEmployee(e, l, null, undefined, { isOwner: owner }));
       const on = landing(set);
-      expect(on).toContain('<form method="post" action="/app/business/stop-assistant" class="inline">');
-      expect(on).toContain('<input type="hidden" name="from" value="employee" />');
+      expect(on).toContain('<p class="stop-here" id="stop">');
+      expect(on).toContain('href="/app/settings/assistant/ready#stop"');
       expect(on).toContain(esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop'))));
-      expect(on).toContain(`data-confirm="${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stopConfirm')))}"`);
+      expect(on).not.toContain('action="/app/business/stop-assistant"');
       // …under the levels, and the levels first after the name.
-      expect(on.indexOf('name="level"')).toBeLessThan(on.indexOf('stop-assistant'));
+      expect(on.indexOf('name="level"')).toBeLessThan(on.indexOf('stop-here'));
       // Not for staff (rule 11); not while already stopped (Start's door instead); not while nothing is connected.
-      expect(landing(set, false)).not.toContain('stop-assistant');
-      expect(landing({ ...set, stopped: true })).not.toContain('stop-assistant');
+      expect(landing(set, false)).not.toContain('stop-here');
+      expect(landing({ ...set, stopped: true })).not.toContain('stop-here');
       expect(landing({ ...set, stopped: true })).toContain('href="/app/settings/assistant/ready#stop"');
-      expect(landing({ ...set, answering: false })).not.toContain('stop-assistant');
+      expect(landing({ ...set, answering: false })).not.toContain('stop-here');
     });
   }
 });

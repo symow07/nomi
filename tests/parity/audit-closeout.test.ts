@@ -194,11 +194,11 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     expect(withUnit('zh', '2000+', '个')).toBe('2000+个');
   });
 
-  it("the assistant's page: \"Hired: …\" in each language's own colon", () => {
+  it("the assistant's page: the novelty \"Hired\" line is gone, and no Chinese colon stands in another language", () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(everyScreen(employee, l, null));   // phase 7 — the Name row's screen
-      const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : l === 'fr' ? '\u00a0: ' : ': '}`;
-      expect(html, l).toContain(hired);
+      // The text cleanup (2026-11-26, the owner's approval): the hire date is no longer drawn.
+      expect(html, l).not.toContain('emp-hired');
       if (l !== 'zh') { expect(html, l).not.toContain('：'); expect(html, l).not.toContain('　'); }
     }
   });

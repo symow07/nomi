@@ -254,8 +254,8 @@ const inSentence = (l: Locale, name: string): string =>
  * The warmth run, phase 9 (w4-products-knowledge-02) — drawn on My business ›
  * What you promise customers, the one place they are switched.
  */
-export function certRows(l: Locale, certs: readonly string[], n: number, productId = ''): string {
-  return `<ul class="rows certlist">${CERT_KEYS.map((k) => {
+export function certRows(l: Locale, certs: readonly string[], n: number, productId = '', foldOff = false): string {
+  const row = (k: typeof CERT_KEYS[number]) => {
     const on = certs.includes(k);
     const label = claimName(l, k);
     const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n });
@@ -267,7 +267,12 @@ export function certRows(l: Locale, certs: readonly string[], n: number, product
         <input type="hidden" name="allowed" value="${on ? '0' : '1'}" />
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(q)}">${esc(t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn'))}</button>
       </form></li>`;
-  }).join('')}</ul>`;
+  };
+  if (!foldOff) return `<ul class="rows certlist">${CERT_KEYS.map(row).join('')}</ul>`;
+  // The text audit (2026-11-26): what is ON stays in view; the ones never turned on wait behind one press, all of them.
+  const on = CERT_KEYS.filter((k) => certs.includes(k)), off = CERT_KEYS.filter((k) => !certs.includes(k));
+  return `${on.length ? `<ul class="rows certlist">${on.map(row).join('')}</ul>` : ''}${off.length
+    ? `<details class="cert-more"><summary class="btn">${esc(t(l, 'knowledge.cert.add'))}</summary><ul class="rows certlist">${off.map(row).join('')}</ul></details>` : ''}`;
 }
 
 /**

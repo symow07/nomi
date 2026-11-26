@@ -84,7 +84,7 @@ const PAGE: AssistantPage<AssistantActivityRow> = { rows: ROWS, total: 61, page:
 describe('UI Block 6 fix 1 · F39 — the Results scope, the assistant area and the pager translated', () => {
   it('area1.results.intro and every assistantArea.* key are translated in zh / ar / es / fr', () => {
     const area = (Object.keys(messages.en) as MessageKey[]).filter((k) => k.startsWith('assistantArea.'));
-    expect(area.length).toBeGreaterThan(25);
+    expect(area.length).toBeGreaterThan(20);   // six descriptions and hints left in the text cleanup (2026-11-26)
     for (const k of ['area1.results.intro' as MessageKey, ...area]) translated(k);
   });
   it('the report header\'s scope is in the page\'s language', () => {

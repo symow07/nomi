@@ -389,11 +389,13 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
     it(`${l} · offers visible examples, a native question and the history door`, () => {
       const html=renderAdvisor(l);
       expect(html).toContain(`<h1 class="page">${esc(t(l,'assistantArea.ask'))}</h1>`);
-      expect(html).toContain(esc(t(l,'advisor.greeting.plain')));
+      // the text cleanup (2026-11-26): no greeting, and with nothing earlier to show, no history column either
+      expect(html).not.toContain('ask-history');
+      expect(html).toContain('class="ask-workspace is-alone"');
       expect(html).toContain(esc(t(l,'advisor.example.1')));
       expect(html).toContain(`<label for="advisor-q">${esc(t(l,'advisor.label'))}</label>`);
       expect(html).toContain('action="/app/advisor"');
-      expect(html).toContain('href="/app/assistant/ask/history"');
+      expect(renderAdvisor(l, null, { earlier: [{ id: 't1', title: 'x', startedAt: new Date('2026-11-01T00:00:00Z'), lastTurnAt: new Date('2026-11-01T00:00:00Z') }] })).toContain('href="/app/assistant/ask/history"');
       expect(html.match(/<form\b/g)).toHaveLength(1);
       expect(html.match(/<textarea\b/g)).toHaveLength(1);
       expect(html.match(/<button\b/g)).toHaveLength(1);
@@ -473,7 +475,7 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
   it('signed in: the page, under the advisor\'s own entry; the routes log quietly (a question is the owner\'s words)', async () => {
     const r = await ask('GET', io());
     expect(r.drawn?.active).toBe('advisor');
-    expect(r.drawn?.title).toBe('Advisor');
+    expect(r.drawn?.title).toBe('Ask Nomi');
     expect(r.logLevel).toBe('warn');
     expect((await ask('POST', io(), { q: 'x' })).logLevel).toBe('warn');
     expect(NAV.find((n) => n.id === 'assistant')?.href).toBe('/app/assistant');

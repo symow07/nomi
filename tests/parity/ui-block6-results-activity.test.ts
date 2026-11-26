@@ -60,9 +60,10 @@ describe('UI Block 6 · F39 — Activity: compact dated events', () => {
       expect(html.match(/<h2 class="aa-day">/g), l).toHaveLength(2);
       expect(html.match(/<li class="aa-event" id="event-/g), l).toHaveLength(3);
       expect(html, l).toContain('<li class="aa-event" id="event-capability:9"><time datetime="2026-11-23T10:15:00.000Z">');
-      expect(html, l).toContain(`<span class="aa-actor">${esc(t(l, 'aaActivity.actor.team'))}</span><p class="aa-what">`);
+      // The text cleanup (2026-11-26, the owner's approval): "Your team" is not repeated on every row; only the assistant's own step names who.
+      expect(html.match(/<span class="aa-actor">/g), l).toHaveLength(1);
       expect(html, l).toContain('<span class="aa-actor">Lily</span>');
-      expect(html.match(/class="aa-body"><span class="aa-actor">[^<]+<\/span><p class="aa-what">[^<]+<\/p><a href="\/app\/inbox\//g), l).toHaveLength(1);
+      expect(html.match(/class="aa-body"><p class="aa-what">[^<]+<\/p><a href="\/app\/inbox\//g), l).toHaveLength(1);
       expect(html, l).not.toContain('<article class="aa-event"');
     }
     expect(area).toContain('.aa-event{display:grid;grid-template-columns:4.5rem minmax(0,1fr);');
@@ -91,7 +92,7 @@ describe('UI Block 6 · F39 — Activity: compact dated events', () => {
   });
 
   it('every new label is in all five catalogues, the French its own', () => {
-    for (const k of ['aaActivity.filter.label', 'aaActivity.filter.all', 'aaActivity.filter.sending', 'aaActivity.filter.checks', 'aaActivity.filter.edits', 'aaActivity.actor.team'] as MessageKey[]) {
+    for (const k of ['aaActivity.filter.label', 'aaActivity.filter.all', 'aaActivity.filter.sending', 'aaActivity.filter.checks', 'aaActivity.filter.edits'] as MessageKey[]) {
       for (const l of LOCALES) expect(t(l, k), `${l} ${k}`).not.toBe('');
       expect(t('fr', k)).not.toBe(t('en', k));
     }
@@ -120,7 +121,7 @@ describe('UI Block 6 — targets 44 px both ways, and figures isolated, on the a
     expect(src('followUpStyle.ts')).toContain('.follow-up-settings .follow-up-check{display:flex;gap:var(--space-8);align-items:center;min-block-size:44px}');
     expect(area).toContain('.aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}');
     expect(src('assistantOverview.ts')).toContain('<a class="aa-go" href="/app/results?view=assistant">');
-    expect(src('assistantOverview.ts')).toContain('<p>${status}</p><a class="aa-go" href="/app/settings/assistant">');
+    expect(src('assistantOverview.ts')).toContain(' ${status}</p><a class="aa-go" href="/app/settings/assistant">');
     expect(src('assistantKnowledge.ts')).toContain('<a class="aa-go" href="/app/assistant/knowledge?view=facts&amp;open=teach#teach">');
   });
   it('a saved fact\'s figures are isolated on a right-to-left page, and left as they are elsewhere', () => {

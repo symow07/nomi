@@ -1,14 +1,14 @@
 /** Owner-facing procedures presentation (Block 3 PR 2; 0229). English only, listed in docs/NATIVE-REVIEW-UI.md. */
 export const PROCEDURES_EN = {
   'procedures.title': 'Procedures',
-  'procedures.lede': 'Your own steps for one situation, in your words. The assistant does one step per message and the conversation shows which. A step that hands to you is where it stops and you take over.',
+  'procedures.lede': 'Your own steps for one situation. The assistant does one step per message; a step that hands to you is where you take over.',
   'procedures.door': 'Procedures: your step-by-step for a situation',
   'procedures.none': 'No procedures yet.',
   'procedures.step': 'Step {n}',
   'procedures.handsOff': 'hands to you',
   'procedures.add': 'Add a procedure',
   'procedures.field.title': 'What it is for',
-  'procedures.field.title.hint': 'Up to 120 characters: "A sample request", "A return", "An order over the minimum".',
+  'procedures.field.title.hint': 'Up to 120 characters: "A return", "A size exchange", "A late delivery".',
   'procedures.field.steps': 'The steps, one per line',
   'procedures.field.steps.hint': 'Up to 8 steps of up to 200 characters. A step is an instruction to the assistant, never words to repeat. No figure: prices and quantities come from your catalogue. The last step may hand to you ("hand to me to confirm").',
   'procedures.save': 'Save the procedure',
