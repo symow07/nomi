@@ -86,7 +86,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('unanswered questions say so and assistant-authored previews name their speaker', () => {
     for (const l of LOCALES) {
       const h = withAssistantName('Noor', () => list(l));
-      expect(rowOf(h, 'c-new'), l).toContain(`<span class="si-why"><bdi>${shown(l, 'buyers.row.noReply')}</bdi>`);
+      // (the cleanup, 2026-11-26: beside a preview the reason is kept for a reader; the row shows name, preview, time)
+      expect(rowOf(h, 'c-new'), l).toContain(`<span class="si-why is-quiet"><bdi>${shown(l, 'buyers.row.noReply')}</bdi>`);
       for (const id of ['c-closed', 'c-old', 'c-answered']) expect(rowOf(h, id), l).not.toContain(shown(l, 'buyers.row.noReply'));
       expect(rowOf(h, 'c-answered'), l).toContain('<span class="si-by"><bdi>Noor</bdi>');
       expect(rowOf(h, 'c-new'), l).not.toContain('class="si-by"');

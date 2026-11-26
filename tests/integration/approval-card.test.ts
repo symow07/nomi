@@ -110,7 +110,7 @@ d('the approval card (requires DATABASE_URL)', () => {
     expect(html).toMatch(/<span class="k">Understood as:<\/span> <span><bdi>a price question<\/bdi> · <bdi>50\u00a0ml<\/bdi> · <bdi>English<\/bdi><\/span>/);
     expect(html).toContain('checked twice');
     expect(html).toContain('a second, separate reading found the same');
-    expect(html).toContain('<span class="k">goes on Instagram, as written</span>');
+    expect(html).toContain('<span class="k">Instagram</span>');
     expect(html).toMatch(/Instagram takes replies until \d\d:\d\d/);
     expect(html.split('Shall I send the link?')).toHaveLength(2);
     expect(html.match(/name="command" value="send"/g)).toHaveLength(1);

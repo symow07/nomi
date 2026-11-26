@@ -152,7 +152,8 @@ describe('the customer panel', () => {
     expect(html).toContain('<h3>Promised</h3>');
     expect(html).toContain('' + agentMark(16, 'am as') + ' <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
-    expect(html).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span> Needs you');
+    // The cleanup (2026-11-26): "Needs you" is the draft card's and the list's; Activity is what happened.
+    expect(html).not.toContain('s-waiting');
     expect(html).toContain('' + agentMark(16, 'am as') + ' Lily replied');
     expect(html).toContain('<span class="shape s-you pn-you" aria-hidden="true"></span> You sent Lily’s draft');
     expect(html).toContain('Lily’s reply didn’t reach them <span class="dot bad shape s-failed" aria-hidden="true"></span>');

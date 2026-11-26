@@ -46,10 +46,13 @@ export const CONVERSATION_CSS = `
 @media (max-width:1099px) {
   .conversation-workspace .conv-top .conversation-actions { display:contents; }
   .conversation-workspace .conv-top .dhead > .back { order:1; margin-inline-end:auto; }
-  .conversation-workspace .conv-top .conversation-actions > form { order:2; }
   .conversation-workspace .conv-top .conv-more { order:3; }
   .conversation-workspace .conv-top .dhead > .live { order:4; flex-basis:100%; }
-  .conversation-workspace .conv-top .conversation-actions > .file-door { order:5; flex-basis:100%; margin:0; }
+  .conversation-workspace .conv-top .conversation-actions > .file-door { order:2; margin:0; }
+  /* The cleanup (2026-11-26) - the head's first row is the page's first: the workspace's name is not drawn over it,
+     and the row keeps clear of the help door, which stands at its end. */
+  main:has(.conversation-workspace) > .business-name { display:none; }
+  .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); column-gap:var(--space-4); }
 }
 /* A phone (the fix rounds of 2026-11-13; the owner's rule: no control rests under the tab bar, no control covers
    content). Held by CONSTRUCTION, not by measuring a conversation:
@@ -150,7 +153,7 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .catchup .face-l { inline-size:44px; block-size:44px; font-size:var(--font-size-base); }
 .conversation-workspace .catchup h1.who { font-size:var(--font-size-base); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
 .conversation-workspace .catchup .cu-where { line-height:1.3; }
-.conversation-workspace .catchup .cu-facts { margin-block-start:var(--space-8); }
+.conversation-workspace .catchup .cu-line { grid-column:2; }
 .conversation-workspace .conv-top .subline { margin:var(--space-4) 0 0; }
 .conv-more { position:relative; }
 .conv-more > summary { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; padding-inline:var(--space-8); cursor:pointer; list-style:none;
@@ -269,6 +272,15 @@ export const CONVERSATION_CSS = `
 
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
   .conversation-workspace > .conversation-tools { grid-column:3; }
+  /* The cleanup (2026-11-26) - beside the conversation the pane is closed by a mark at the end of its tabs: the
+     conversation is on screen, so "Back to conversation" is its name for a reader, not a line of its own. */
+  .conversation-workspace .ct-head { display:flex; align-items:stretch; padding-inline-end:calc(44px + var(--space-8)); }
+  .conversation-workspace .ct-head > .ct-tabs { order:1; flex:1 1 auto; }
+  .conversation-workspace .ct-head > a.back { order:2; flex:none; inline-size:44px; margin:0; justify-content:center; font-size:0; text-decoration:none;
+    color:var(--color-ink-secondary); border-block-end:1px solid var(--color-border); }
+  .conversation-workspace .ct-head > a.back > * { display:none; }
+  .conversation-workspace .ct-head > a.back::after { content:"×"; font-size:var(--font-size-title); line-height:1; }
+  .conversation-workspace .ct-head > a.back:hover { color:var(--color-ink); }
 }
 @media (max-width:1099px) {
   .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { display:none; }

@@ -123,7 +123,7 @@ describe('the card, drawn', () => {
   it('phase 2 · decision first: who drafted it and where it goes; the reply once; the acts; how it was read, last and closed', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
-    expect(c).toMatch(/<div class="top"><span class="as"><svg class="mark"[\s\S]*?<\/svg> Your assistant drafted<\/span><span class="k">goes on Instagram, as written<\/span><\/div>/);
+    expect(c).toMatch(/<div class="top"><span class="as"><svg class="mark"[\s\S]*?<\/svg> Your assistant drafted<\/span><span class="k">Instagram<\/span><\/div>/);
     // The plain "for 10" has no unit; inspection does not invent a unit or repeat unrelated evidence.
     expect(c).not.toContain('how much for 10 of the rose serum?');
     expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);

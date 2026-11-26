@@ -1169,6 +1169,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* The cleanup (2026-11-26) - messages one speaker sends within minutes are a run: the time stands once, under the
+     run's last message. Each other caption is still there for a reader, and shows under the pointer. */
+  .msg { position:relative; }
+  .msg.mid { margin-block-end:calc(-1 * var(--space-8)); }
+  .msg.mid > .ts, .ts .sr, .pn-facts.sr { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; margin:0; }
+  .msg.mid:is(:hover, :focus-within, :active) > .ts { inline-size:auto; block-size:auto; overflow:visible; clip-path:none; z-index:1;
+    inset-block-start:100%; padding-inline:var(--space-4); border-radius:var(--radius-chip); background:var(--color-surface); }
+  .msg.mid.inbound > .ts { inset-inline-start:0; } .msg.mid.outbound > .ts { inset-inline-end:0; }
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
   .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
@@ -2368,6 +2376,8 @@ const STYLE_PAGES = `
   .cu-where { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); align-self:start; }
   .cu-facts, .cu-state { grid-column:1 / -1; margin:0; font-size:var(--font-size-small); }
   .cu-facts { color:var(--color-ink-secondary); }
+  /* The cleanup (2026-11-26) - what they bought and where things stand share ONE line under the name. */
+  .cu-line { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-8); min-width:0; }
   .cu-facts bdi { color:var(--color-ink); }
   .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
     background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);
@@ -2382,13 +2392,14 @@ const STYLE_PAGES = `
      stays in view at the foot of the conversation while the messages above
      it scroll; on a narrow one it sits in the page's own order. */
   #approve, #approve .draft-dock { display:flex; flex-direction:column; gap:var(--space-8); }
-  #approve .top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-4) var(--space-16);
+  #approve .top { display:flex; justify-content:flex-start; align-items:baseline; gap:var(--space-4) var(--space-8);
     flex-wrap:wrap; font-size:var(--font-size-small); }
   #approve .top b { font-weight:600; }
   #approve .said { font-family:var(--font-voice); margin:0; white-space:pre-wrap; word-break:break-word; }
   /* Phase 9 (V1-240) — one sentence: "Understood as: a price question · …", its values running on after the label. */
   #approve .und { margin:0; font-size:var(--font-size-small); }
   #approve .k { color:var(--color-ink-secondary); }
+  #approve .top > .k::before { content:"·"; margin-inline-end:var(--space-8); }
   #approve details { font-size:var(--font-size-small); border-top:1px solid var(--color-border); padding-top:var(--space-4); }
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
