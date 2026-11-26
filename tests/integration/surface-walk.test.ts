@@ -490,6 +490,8 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; every drawing Solar\'s', async () => {
     const { SOLAR } = await import('../../src/api/web/solar.js');
     const solarDrawings = new Set<string>(Object.values(SOLAR));
+    const { BRAND_LOGO } = await import('../../src/api/web/brandLogos.js');
+    const logoDrawings = new Set<string>(Object.values(BRAND_LOGO));
     const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
     // what a customer or the owner wrote is theirs (an emoji in a message stays): only the page's own drawing is held
     const chrome = (html: string) => html
@@ -537,6 +539,13 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         for (const m of html.replace(nav, ' ').matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/g)) {
           const [whole, attrs, body] = [m[0], m[1]!, m[2]!];
           if (/class="mark"/.test(attrs)) continue;                     // the brand's mark (brand.ts), drawn on its own grid
+          // A channel's or a store's own logo beside its item in the sidebar (the owner, 2026-11-26; brandLogos.ts):
+          // held to the logos' own drawings, so nothing else passes as one.
+          if (/class="sect-ic sect-logo"/.test(attrs)) {
+            const drawn = [...body.matchAll(/ d="([^"]+)"/g)].map((x) => x[1]!);
+            if (!drawn.length || drawn.some((d) => !logoDrawings.has(d))) problems.push(`${at}: a logo that is not one of the channels' own: ${whole.slice(0, 80)}`);
+            continue;
+          }
           // Today's accessible data chart is a plot, not an icon. Its real values and time direction are
           // checked in split-today.test.ts; every actual icon still belongs to the one family.
           if (target === '/app' && /role="img"/.test(attrs) && /aria-label="[^"]+"/.test(attrs)

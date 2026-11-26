@@ -68,7 +68,7 @@ describe('the palette', () => {
       // The rail (the owner, 2026-11-26): a soft gradient of the magenta behind the icon rail, and its tile's shadow.
       'railTop', 'railBottom', 'railShadow',
       // The channels' own colours (the owner, 2026-11-26), for their logos alone (brandLogos.ts).
-      'logoWhatsapp', 'logoTelegram', 'logoTiktokCyan', 'logoTiktokRed',
+      'logoWhatsapp', 'logoTelegram', 'logoShopify', 'logoTiktokCyan', 'logoTiktokRed',
       'logoInstagram1', 'logoInstagram2', 'logoInstagram3', 'logoInstagram4', 'logoInstagram5',
     ].sort());
     expect(C['ink']).toBe('#171717');
@@ -114,7 +114,7 @@ describe('the palette', () => {
   });
 
   it('the channels\' logo colours are the logos\' alone: named only by the tokens and the logos, never a role', async () => {
-    const naming = (await sources(SRC)).filter(({ src }) => /\blogo(?:Whatsapp|Telegram|Tiktok|Instagram)|--color-logo-|color-logo-/.test(src)).map(({ f }) => f).sort();
+    const naming = (await sources(SRC)).filter(({ src }) => /\blogo(?:Whatsapp|Telegram|Shopify|Tiktok|Instagram)|--color-logo-|color-logo-/.test(src)).map(({ f }) => f).sort();
     expect(naming).toEqual(['brandLogos.ts', 'tokens.ts']);
     for (const k of Object.keys(C).filter((x) => x.startsWith('logo'))) expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain(k);
   });

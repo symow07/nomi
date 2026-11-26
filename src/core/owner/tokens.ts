@@ -209,6 +209,7 @@ export const DESIGN_TOKENS = {
     // logos alone (brandLogos.ts): WhatsApp's green, Telegram's blue, TikTok's cyan and red, Instagram's gradient.
     logoWhatsapp: '#25D366',
     logoTelegram: '#26A5E4',
+    logoShopify: '#95BF47',
     logoTiktokCyan: '#25F4EE',
     logoTiktokRed: '#FE2C55',
     logoInstagram1: '#FFD600',

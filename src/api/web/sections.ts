@@ -248,6 +248,7 @@ const iconOf = (area: AreaId, item: Item): Shape =>
 const ITEM_LOGO: Readonly<Record<string, BrandLogo>> = {
   '/app/settings/channels/whatsapp': 'whatsapp', '/app/settings/channels/meta': 'instagram',
   '/app/settings/channels/telegram': 'telegram', '/app/settings/channels/tiktok': 'tiktok', '/app/products/whatsapp': 'whatsapp',
+  '/app/settings/business/shopify': 'shopify',
 };
 const itemIcon = (area: AreaId, item: Item): string => {
   const logo = ITEM_LOGO[item.href];
