@@ -836,7 +836,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .pform input:not([type="checkbox"]):not([type="radio"]), .pform textarea, .pform select {
     background:var(--color-surface); border:1px solid var(--color-control-line);
     border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit;
-    min-height:44px; resize:vertical; }
+    min-height:44px; resize:none; }
   .pform label.check { display:flex; align-items:center; gap:var(--space-8); min-height:44px; }
   /* Phase 9 (cross-new-03) — a field sent back is marked by its edge on every form, the calendar's too, not only a settings row. */
   main input[aria-invalid="true"], main textarea[aria-invalid="true"], main select[aria-invalid="true"] { border-color:var(--color-warn); }
@@ -1306,7 +1306,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {
     background:var(--color-surface); border:1px solid var(--color-control-line);
     border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  main textarea { resize:vertical; }
+  main textarea { resize:none; }
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
@@ -1805,7 +1805,7 @@ const STYLE_PAGES = `
   .filepick:focus-within .btn { outline:2px solid var(--color-brand); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
-  textarea { width:100%; resize:vertical; margin:var(--space-12) 0; }
+  textarea { width:100%; resize:none; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
   /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
   .imp { display:block; }
@@ -2409,7 +2409,7 @@ const STYLE_PAGES = `
   .approve { display:flex; flex-direction:column; gap:var(--space-8); }
   .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
     background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:var(--radius-control); padding:10px 14px;
-    width:100%; min-height:4.5em; max-height:50vh; resize:vertical; margin:0; field-sizing:content; }
+    width:100%; min-height:4.5em; max-height:50vh; resize:none; margin:0; field-sizing:content; }
   .approve .acts { align-items:center; margin:0; }
   /* Phase 9 (V1-237) — the quiet act on its own line under the two answers, the window at its far end. */
   .acts-more { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
@@ -2702,7 +2702,7 @@ const STYLE_PAGES = `
   .sbx-total input { max-width:var(--measure-form); }
   .sbx-total p { margin:0; font-size:var(--font-size-caption); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  textarea { width:100%; resize:vertical; }
+  textarea { width:100%; resize:none; }
   .sbx-trust { border-color:var(--color-border); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }

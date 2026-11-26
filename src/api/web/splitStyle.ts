@@ -104,7 +104,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .sp-q { margin:var(--space-16) 0 var(--space-8) !important; font-size:var(--font-size-display) !important; font-weight:400 !important; line-height:1.25 !important; }
 .sp-form { margin:0; }
 .sp-reply { display:block; inline-size:100%; margin:0 0 var(--space-12); padding:var(--space-12); font:inherit; font-size:var(--font-size-small); line-height:1.55; color:var(--color-ink);
-  background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); resize:vertical; field-sizing:content; }
+  background:var(--color-paper); border:1px solid var(--color-control-line); border-radius:var(--radius-control); resize:none; field-sizing:content; }
 .sp-reply:focus { outline:2px solid var(--color-ink); outline-offset:1px; background:var(--color-surface); }
 .sp-acts { display:flex; flex-wrap:wrap; gap:var(--space-8); }
 .sp-window { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }

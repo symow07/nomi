@@ -7,7 +7,7 @@ export const SETUP_MINUTES_CSS = String.raw`
 .contact-import pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:var(--font-size-small);margin-block:var(--space-16)}
 .contact-import label:not(.ci-check),.store-token label:not(.st-check){display:block;margin-block:var(--space-12) var(--space-8)}
 .contact-import input:not([type=checkbox]),.contact-import select,.contact-import textarea,.store-token input:not([type=checkbox]){font:inherit;display:block;inline-size:100%;max-inline-size:100%;min-inline-size:0;box-sizing:border-box}
-.contact-import textarea{resize:vertical}
+.contact-import textarea{resize:none}
 .ci-form,.store-token form{max-inline-size:var(--measure-form)}
 .ci-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-8) var(--space-16);align-items:center}
 .contact-import .ci-columns label{margin:0}

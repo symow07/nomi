@@ -33,7 +33,21 @@ ${AT} ${FIELD} { box-sizing:border-box; min-block-size:var(--control-field); pad
   font-size:var(--font-size-base); line-height:1.4; color:var(--color-ink); background:var(--color-surface);
   border:1px solid var(--color-control-line); border-radius:var(--radius-control); box-shadow:none; }
 ${AT} :is(${LINE}) { block-size:var(--control-field); padding-block:0; }
-${AT} textarea:not(.bare) { min-block-size:calc(2 * var(--control-field)); line-height:var(--line-height); resize:vertical; }
+/* A text box grows with its words and is never pulled by hand (the owner, 2026-11-26): two lines to start, half the window
+   at most, then it scrolls. No margin of its own, so the gap under its label is the same as an input's. */
+${AT} textarea:not(.bare) { inline-size:100%; min-block-size:calc(2 * var(--control-field)); max-block-size:50vh; margin-block:0;
+  line-height:var(--line-height); resize:none; field-sizing:content; overflow-y:auto; }
+/* One width for a form's fields: a line long enough for an address, never the whole page across. A search, and the
+   reply boxes (Today, the conversation, a question to the assistant), keep their row's full width. */
+${AT} ${FIELD}:not([type=search], .sp-form *, .approve *, .replyform *, .ask-form *, .cp-question *, .adv-box *, td *) { max-inline-size:var(--measure-prose); }
+.owner-shell .pform { max-inline-size:var(--measure-prose); }
+/* A field with its one button (a label to add): one row, the field taking the room, the button drawn as a button. */
+.owner-shell form.label-add { display:flex; align-items:center; gap:var(--space-8); }
+.owner-shell form.label-add > input { flex:1 1 auto; inline-size:auto; min-inline-size:0; margin:0; }
+.owner-shell form.label-add > .btn { flex:none; border-color:var(--color-control-line); }
+/* A group of fields is a heading and its fields, not a drawn box. */
+${AT} fieldset:not(.bare) { border:0; padding:0; margin-inline:0; min-inline-size:0; }
+${AT} fieldset:not(.bare) > legend { padding:0; margin-block-end:var(--space-8); font-weight:600; }
 ${AT} ${FIELD}:hover { border-color:var(--color-ink-secondary); }
 ${AT} ${FIELD}:focus, ${AT} ${FIELD}:focus-visible { border-color:var(--color-ink); }
 ${AT} ${FIELD}::placeholder { color:var(--color-ink-secondary); opacity:1; }
@@ -53,7 +67,9 @@ ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:no
    button keeps the corner every other page gives it. */
 .owner-shell .sp-panels.is-one { justify-content:center; }
 .owner-shell .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:auto; }
-@media (min-width:721px) { .owner-shell .sp:has(> .sp-panels.is-one) > .sp-head { margin-inline:auto; } }
+@media (min-width:721px) { .owner-shell .sp:has(> .sp-panels.is-one) > :is(.sp-head, .sp-setup) { box-sizing:content-box; max-inline-size:840px; margin-inline:auto; padding-inline:var(--space-24); } }
+/* Its title starts on the column's edge, and its button ends on it once the "?" in the corner is clear of the column. */
+@media (min-width:1320px) { .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:0; } }
 .owner-shell .content:has(.sp > .sp-panels.is-one) > .help-door { inset-inline-start:auto; inset-inline-end:var(--space-16); }
 /* The view chooser is one column, so its select ends on the search box's edge (its Show button is only for no-script). */
 .owner-shell .il-view-form { grid-template-columns:minmax(0, 1fr); }
@@ -154,8 +170,7 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
 @media (min-width: 721px) {
   .owner-shell :is(form.sp-form, .conv-acts form.approve) { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .owner-shell :is(form.sp-form, .conv-acts form.approve) > :not(.sp-acts, .acts, .sp-acts-more, input[type=hidden], label.sr) { flex:1 1 100%; }
-  ${AT} :is(form.sp-form, .conv-acts form.approve) > textarea { box-sizing:border-box; inline-size:100%; margin:0 0 var(--space-4);
-    min-block-size:calc(3 * var(--control-field)); resize:vertical; }
+  ${AT} :is(form.sp-form, .conv-acts form.approve) > textarea { box-sizing:border-box; inline-size:100%; margin:0 0 var(--space-4); }
   .owner-shell :is(form.sp-form > .sp-acts, .conv-acts form.approve > .acts) { display:flex; flex-wrap:wrap; gap:var(--space-8); margin:0; margin-inline-start:auto; order:2; }
   .owner-shell :is(form.sp-form > .sp-acts, .conv-acts form.approve > .acts) > :is(.send, .sp-send) { order:2; }
   .owner-shell form.sp-form > .sp-acts-more { display:contents; }
@@ -164,7 +179,12 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell form.sp-form > .sp-acts-more .sp-window, .owner-shell .conv-acts #approve .acts-more .src { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:0; }
   .owner-shell .conv-acts #approve .acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin-block:var(--space-8) 0; }
   .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 auto; text-align:end; }
+  /* What to check before sending: each on its own line, starting where the fold's words start (not under its arrow). */
+  .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary { flex-wrap:wrap; }
+  .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary .c.check { flex:1 1 100%; padding-inline-start:calc(16px + var(--space-8)); }
 }
+/* The framed box under a conversation holds its contents a step in from its edge, like every other card. */
+@media (min-width: 1100px) { .conversation-workspace .conv-acts:not(:empty) { padding-inline:var(--space-16); } }
 
 /* Under a finger (a phone's width, or any touch screen): every field, button and menu row grows to the 44 px target, and a field's words stay 16 px (below that a phone zooms the page on a field). */
 @media (max-width: 720px), (pointer: coarse) {
