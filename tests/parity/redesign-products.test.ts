@@ -21,7 +21,7 @@ describe('Products area presentation',()=>{
   expect(productArea('<h1>Products</h1>','en','limits')).toBe('<div class="product-area"><h1>Products</h1></div>');
   const path='/app/products/price-limits';
   const html=sectionSidebar('en','products',path)+sectionChooser('en','products',path,'<h1>Products</h1>');
-  expect(html).toContain('<details class="area-chooser"><summary>Price limits');
+  expect(html).toContain('<details class="area-chooser"><summary><span class="ac-name"><span class="ac-area">Products</span><span class="ac-page">Price limits</span></span>');
   expect(html.match(/href="\/app\/products\/price-limits" aria-current="page"/g)).toHaveLength(2);
   for (const href of ['/app/products/add','/app/settings/business/shopify','/app/payments/stripe']) expect(html).toContain(`href="${href}"`);
   const limited=withWorkspace({name:null,several:false,outreach:false,setup:null,viewerRole:'team'},()=>sectionSidebar('en','products','/app/products'));

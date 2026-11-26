@@ -1,8 +1,8 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc, wordsHtml } from './layout.js';
-import { GO } from './icons.js';
-import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, businessName, adsShown } from './say.js';
+import { GO, solarSvg } from './icons.js';
+import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, adsShown } from './say.js';
 import { settingsHref } from './settingsNavigation.js';
 
 /**
@@ -206,8 +206,52 @@ const ownColumn = (area: AreaId, path: string): boolean => {
   return area === 'inbox' && (url === '/app/inbox' || (/^\/app\/inbox\/[^/]+$/.test(url) && url !== '/app/inbox/replies'));
 };
 
-const link = (locale: Locale, item: Item, here: Item | null): string =>
-  `<a href="${esc(item.href)}"${item === here ? ' aria-current="page"' : ''}>${wordsHtml(locale, item.label)}</a>`;
+type Shape = Parameters<typeof solarSvg>[1];
+/**
+ * The sidebar's look (2026-11-26, the owner's reference): every item carries its own line icon. One shape per meaning,
+ * the same shapes the rest of the app already uses for that thing (a channel, billing, the calendar).
+ */
+const ITEM_ICON: Readonly<Record<string, Shape>> = {
+  '/app': 'home-2', '/app/calendar': 'calendar', '/app/get-started': 'checklist',
+  '/app/inbox?filter=pending': 'bell', '/app/inbox?filter=quiet': 'history', '/app/inbox?filter=assistant': 'chat-round-dots',
+  '/app/inbox?filter=all': 'inbox', '/app/channels/instagram/comments': 'chat-square', '/app/inbox/replies': 'copy',
+  '/app/customers': 'users-group-rounded', '/app/customers/orders': 'delivery', '/app/customers/samples': 'gift',
+  '/app/customers/outreach': 'restart', '/app/customers/labels': 'tag', '/app/customers/feedback': 'quote',
+  '/app/customers/import': 'download-minimalistic',
+  '/app/products': 'box', '/app/products/add': 'download-minimalistic', '/app/products/price-limits': 'banknote',
+  '/app/products/whatsapp': 'chat-round-line', '/app/settings/business/shopify': 'shop', '/app/payments/stripe': 'card',
+  '/app/assistant': 'widget-2', '/app/assistant/knowledge': 'notebook-minimalistic', '/app/assistant/knowledge/procedures': 'checklist',
+  '/app/assistant/practice': 'play-circle', '/app/assistant/review': 'check-circle', [ASSISTANT_SETTINGS]: 'tuning-2',
+  [`${ASSISTANT_SETTINGS}/name`]: 'user-id', [`${ASSISTANT_SETTINGS}/promises`]: 'shield-check', [`${ASSISTANT_SETTINGS}/ready`]: 'power',
+  [`${ASSISTANT_SETTINGS}/words`]: 'forbidden-circle', [`${ASSISTANT_SETTINGS}/history-policy`]: 'history', '/app/assistant/activity': 'flag',
+  '/app/books': 'widget-2', '/app/books/invoices': 'hand-money', '/app/books/spending': 'banknote', '/app/books/bank': 'transfer-horizontal',
+  '/app/books/reports': 'chart-2', '/app/books/year-end': 'calendar-mark', '/app/books/advanced': 'settings',
+  [BOOKS_SETTINGS]: 'checklist', [`${BOOKS_SETTINGS}/country`]: 'global', [`${BOOKS_SETTINGS}/starting-balances`]: 'flag',
+  [`${BOOKS_SETTINGS}/accounts`]: 'folder', [`${BOOKS_SETTINGS}/tax`]: 'file-text', [`${BOOKS_SETTINGS}/invoices-out`]: 'letter',
+  [`${BOOKS_SETTINGS}/connections`]: 'transfer-horizontal', [`${BOOKS_SETTINGS}/fields`]: 'tuning-2',
+  '/app/results': 'chart-2', '/app/results?view=assistant': 'chat-round-dots', '/app/results?view=setup': 'checklist',
+  '/app/results/month': 'letter', '/app/results#ad-spend': 'banknote',
+  '/app/settings/business/profile': 'shop', '/app/settings/business/selling': 'hand-money', '/app/settings/business/hours': 'calendar-mark',
+  '/app/settings/business/currency': 'transfer-horizontal', '/app/settings/business/terms': 'file-text', '/app/settings/business/samples': 'gift',
+  '/app/settings/channels': 'dialog', '/app/settings/channels/whatsapp': 'chat-round-line', '/app/settings/channels/meta': 'chat-square',
+  '/app/settings/channels/email': 'letter', '/app/settings/channels/chat': 'chat-round-dots', '/app/settings/channels/telegram': 'send-square',
+  '/app/settings/channels/tiktok': 'music-note', '/app/settings/team': 'users-group-two-rounded', '/app/settings/billing': 'card',
+  '/app/settings/business/data': 'folder', '/app/settings/personal/account': 'key', '/app/settings/personal/notifications': 'bell',
+  '/app/settings/personal/language': 'global', '/app/settings/personal/advisor-history': 'history',
+};
+/** The books' reports, listed under Reports too: the same chart as under Books would read as a second copy. */
+const iconOf = (area: AreaId, item: Item): Shape =>
+  area === 'reports' && item.href === '/app/books/reports' ? 'notebook-minimalistic' : ITEM_ICON[item.href] ?? 'list';
+
+const link = (locale: Locale, area: AreaId, item: Item, here: Item | null): string =>
+  `<a href="${esc(item.href)}"${item === here ? ' aria-current="page"' : ''}>${solarSvg('sect-ic', iconOf(area, item), 20)}<span>${wordsHtml(locale, item.label)}</span></a>`;
+
+/** The search at the top of the sidebar: customers, by name, e-mail or phone — the Inbox's own search. */
+const search = (locale: Locale): string => notAccountant()
+  ? `<form class="sect-search" method="get" action="/app/inbox" role="search"><input type="hidden" name="filter" value="all" />`
+    + `<label>${solarSvg('sect-ic', 'magnifier', 20)}<span class="sr">${esc(t(locale, 'buyers.search.label'))}</span>`
+    + `<input type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" /></label></form>`
+  : '';
 
 /** True when this page has a section sidebar to draw. */
 export const hasSections = (area: AreaId, path: string): boolean => !ownColumn(area, path) && visible(area).length > 0;
@@ -219,11 +263,12 @@ export const hasSections = (area: AreaId, path: string): boolean => !ownColumn(a
 export function sectionSidebar(locale: Locale, area: AreaId, path: string): string {
   if (!hasSections(area, path)) return '';
   const here = currentItem(area, path);
-  const business = businessName();
+  // A group with no name of its own (an area's first, its overview) is headed by the area's name: the rail's icons
+  // carry no words, so the sidebar says where you are.
   const groups = visible(area).map((g) =>
-    `<div class="sect-group">${g.label ? `<p class="sect-head">${wordsHtml(locale, g.label)}</p>` : ''}${g.items.map((i) => link(locale, i, here)).join('')}</div>`).join('');
-  return `<aside class="sect" aria-label="${esc(t(locale, 'side.label'))}">${business ? `<p class="sect-business"><bdi>${esc(business)}</bdi></p>` : ''}`
-    + `<p class="sect-title">${wordsHtml(locale, AREA_TITLE[area])}</p><nav aria-label="${esc(t(locale, AREA_TITLE[area]))}">${groups}</nav></aside>`;
+    `<div class="sect-group"><p class="sect-head">${wordsHtml(locale, g.label ?? AREA_TITLE[area])}</p>${g.items.map((i) => link(locale, area, i, here)).join('')}</div>`).join('');
+  return `<aside class="sect" aria-label="${esc(t(locale, 'side.label'))}">${search(locale)}`
+    + `<nav aria-label="${esc(t(locale, AREA_TITLE[area]))}">${groups}</nav></aside>`;
 }
 
 /**
@@ -237,8 +282,8 @@ export function sectionChooser(locale: Locale, area: AreaId, path: string, bodyH
   const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(bodyHtml)?.[1]?.replace(/<[^>]+>/g, '').trim();
   const titled = h1 !== undefined && h1 === esc(name) ? ' data-titled' : '';
   const groups = visible(area).map((g) =>
-    `${g.label ? `<p class="sect-head">${wordsHtml(locale, g.label)}</p>` : ''}${g.items.map((i) => link(locale, i, here)).join('')}`).join('');
-  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><details class="area-chooser"${titled}><summary>${wordsHtml(locale, here?.label ?? AREA_TITLE[area])}${GO}</summary><div>${groups}</div></details></nav>`;
+    `${g.label ? `<p class="sect-head">${wordsHtml(locale, g.label)}</p>` : ''}${g.items.map((i) => link(locale, area, i, here)).join('')}`).join('');
+  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><details class="area-chooser"${titled}><summary><span class="ac-name"><span class="ac-area">${wordsHtml(locale, AREA_TITLE[area])}</span>${here ? `<span class="ac-page">${wordsHtml(locale, here.label)}</span>` : ''}</span>${GO}</summary><div>${groups}</div></details></nav>`;
 }
 
 /** Is this address one of the area's own entries (so it needs no "‹ back" link: the sidebar is the way)? */

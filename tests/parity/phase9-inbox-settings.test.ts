@@ -183,7 +183,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     // the door says the page's own name (V1-548, settings-b's fix)
     // (the navigation block, 2026-11-25: the door is in Customers' sidebar now, its one home)
     expect(h).not.toContain('href="/app/customers/outreach"');
-    expect(withWorkspace(SCOPE, () => sectionSidebar('en', 'customers', '/app/customers'))).toContain(`href="/app/customers/outreach">${esc(t('en', 'customers.followups'))}`);
+    expect(withWorkspace(SCOPE, () => sectionSidebar('en', 'customers', '/app/customers'))).toMatch(new RegExp(`href="/app/customers/outreach">(?:<svg[^]*?</svg>)?<span>${esc(t('en', 'customers.followups'))}</span>`));
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {

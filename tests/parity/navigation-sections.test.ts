@@ -127,12 +127,13 @@ describe('you are here', () => {
 });
 
 describe('where it is drawn', () => {
-  it('beside the rail, inside the layout, with the business\'s and the area\'s names; the chooser first in the content', () => {
+  it('beside the rail, inside the layout, with search on top and the area\'s name over its first group; the chooser first in the content', () => {
     const html = page('/app/settings/business/hours');
     const layout = html.slice(html.indexOf('<div class="layout'));
     expect(layout.indexOf('<nav class="side"')).toBeLessThan(layout.indexOf('<aside class="sect"'));
     expect(layout.indexOf('<aside class="sect"')).toBeLessThan(layout.indexOf('class="content'));
-    expect(html).toMatch(/<aside class="sect" aria-label="In this area"><p class="sect-business"><bdi>Atlas Studio<\/bdi><\/p><p class="sect-title">Settings<\/p>/);
+    expect(html).toMatch(/<aside class="sect" aria-label="In this area"><form class="sect-search" method="get" action="\/app\/inbox" role="search">/);
+    expect(html).toMatch(/<\/form><nav aria-label="[^"]+"><div class="sect-group"><p class="sect-head">[^<]+<\/p>/);
     expect(html).toMatch(/class="content[^"]*"[^>]*>(?:<a class="help-door[\s\S]*?<\/a>)?\s*<nav class="area-nav"/);
   });
 
@@ -146,7 +147,7 @@ describe('where it is drawn', () => {
   });
 
   it('desktop: a narrow rail, then the sidebar from 961 px; between, the chooser, clear of the "?"; never printed', () => {
-    expect(SECTIONS_CSS).toContain('.owner-shell .layout:has(> .sect) { grid-template-columns:88px 240px minmax(0, 1fr); }');
+    expect(SECTIONS_CSS).toContain('.owner-shell .layout:has(> .sect) { grid-template-columns:72px 264px minmax(0, 1fr); }');
     expect(SECTIONS_CSS).toMatch(/@media \(min-width:961px\) \{\n {2}\.sect \{ display:block;/);
     expect(SECTIONS_CSS).toContain('margin-inline-end:calc(44px + var(--space-16) + var(--space-8))');
     expect(SECTIONS_CSS).toContain('@media print { .sect, .owner-shell .content > .area-nav { display:none; } }');
