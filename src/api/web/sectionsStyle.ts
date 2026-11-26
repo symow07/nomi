@@ -19,7 +19,16 @@ export const SECTIONS_CSS = String.raw`
   .owner-shell nav.side .nl-body { display:contents; }
   /* A little bubbly (the owner, 2026-11-26): the rail on a soft magenta gradient, round tiles, the one you are on
      lifted in white. */
-  .owner-shell .layout > nav.side { background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)); border-inline-end-color:var(--color-rail-shadow); }
+  /* The frame (the owner, 2026-11-26, after Intercom's inbox): the rail's ground is the whole screen, and the work sits
+     on it as one window — the sidebar and the page together, inset on every side, rounded, with a thin edge and a soft
+     shadow. The rail has no edge of its own: it is the frame. */
+  .owner-shell .layout { min-block-size:100vh; background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)) fixed; }
+  .owner-shell .layout > nav.side { background:transparent; border-inline-end:0; }
+  .owner-shell .layout > .content { margin-block:var(--space-8); margin-inline-end:var(--space-8); min-block-size:calc(100vh - var(--space-16));
+    background:var(--color-paper); border:1px solid var(--color-border); border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
+    box-shadow:0 2px 12px var(--color-rail-shadow); }
+  /* Alone (no sidebar beside it, or a tablet's width), the page is the whole window: its first corners round too. */
+  .owner-shell .layout:not(:has(> .sect)) > .content { border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel); }
   .owner-shell .layout > nav.side :is(a,button).navlink { border-radius:var(--radius-panel); }
   .owner-shell .layout > nav.side .navlink:hover { background:var(--color-surface); }
   .owner-shell .layout > nav.side a.navlink.active { background:var(--color-surface); box-shadow:0 2px 8px var(--color-rail-shadow); }
@@ -40,6 +49,11 @@ export const SECTIONS_CSS = String.raw`
 .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:calc(44px + var(--space-8)); }
 @media (min-width:961px) {
   .owner-shell .layout:has(> .sect) { grid-template-columns:72px 264px minmax(0, 1fr); }
+  /* With a sidebar, the window is the two of them: the sidebar its first part, the page the rest, one edge round both. */
+  .owner-shell .layout > .sect { inset-block-start:var(--space-8); margin-block:var(--space-8); block-size:calc(100vh - var(--space-16));
+    border:1px solid var(--color-border); border-inline-end-color:var(--color-border); border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel);
+    box-shadow:0 2px 12px var(--color-rail-shadow); }
+  .owner-shell .layout:has(> .sect) > .content { border-inline-start:0; }
 }
 .sect { display:none; }
 @media (min-width:961px) {
@@ -47,6 +61,7 @@ export const SECTIONS_CSS = String.raw`
     background:var(--color-surface); border-inline-end:1px solid var(--color-border); }
 }
 @media (min-width:721px) and (max-width:960px) {
+  .owner-shell .layout > .content { border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel); }
   .owner-shell .content > .area-nav { display:block; padding:var(--space-8) var(--space-24); }
   .owner-shell .content > .area-nav .area-links { display:none; }
   .owner-shell .content > .area-nav .area-chooser { display:block; margin:0; margin-inline-end:calc(44px + var(--space-16) + var(--space-8)); }
