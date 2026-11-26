@@ -33,7 +33,7 @@ d('Grouped Settings preserve command and permission ownership',()=>{
    expect((await get(old,'')).headers.location).toBe('/login');
   }
   const question=await get('/app/settings/business/selling/price');
-  expect(question.body).toMatch(/area-chooser[\s\S]*?<summary>How you sell/); // the navigation block: the shell's one chooser
+  expect(question.body).toMatch(/area-chooser[\s\S]*?<summary><span class="ac-name"><span class="ac-area">[^<]+<\/span><span class="ac-page">How you sell<\/span>/); // the navigation block: the shell's one chooser
   const invalid=await get('/app/settings/business/selling/not-a-question');expect(invalid.headers.location).toBe('/app/business/selling');
   const originalPost=await post('/app/business/selling/product-claims',{answer:'Not an original command name'});
   expect([originalPost.statusCode,originalPost.headers.location]).toEqual([302,'/app/business/selling']);

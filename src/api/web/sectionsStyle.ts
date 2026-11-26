@@ -45,6 +45,16 @@ export const SECTIONS_CSS = String.raw`
   /* The page's head keeps clear of the "?" now that no row of tabs pushes it down: the door, its inset and a gap. */
   .owner-shell .content:has(> .help-door) .sp-head { padding-inline-end:max(var(--space-24), calc((100% - 1240px) / 2), calc(44px + var(--space-16) + var(--space-8))); }
 }
+/* The inbox, after the same reference (the owner, 2026-11-26: "check all the details"): the conversation you are in is a
+   raised white card in the list, the head's buttons are pills, and what you can do next sits in a rounded card. */
+@media (min-width:721px) {
+  .listpane.il-compact-list .si-row { margin-inline:var(--space-8); border-radius:var(--radius-card); border-inline-start:0; }
+  .listpane.il-compact-list .si-row.is-selected { background:var(--color-surface); box-shadow:0 0 0 1px var(--color-border), 0 2px 6px var(--color-rail-shadow); }
+  .conversation-workspace .conversation-actions .btn { border-radius:var(--radius-chip); padding-inline:var(--space-16); }
+}
+@media (min-width:1100px) {
+  .conversation-workspace .conv-acts:not(:empty) { margin-block-end:var(--space-16); border:1px solid var(--color-border); border-radius:var(--radius-panel); background:var(--color-surface); }
+}
 /* Today's head when it is one column: the "?" sits at the column's end, so its button keeps clear of it. */
 .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:calc(44px + var(--space-8)); }
 @media (min-width:961px) {

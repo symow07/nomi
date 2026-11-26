@@ -330,10 +330,10 @@ d('Block 4.3 · the month page\'s routes (requires DATABASE_URL + MIGRATE_DATABA
     // The navigation block (2026-11-25): the Results tabs became the Reports area's sidebar.
     const results = await get(ownerCookie, '/app/results');
     expect(results.statusCode).toBe(200);
-    expect(results.body).toContain('<a href="/app/results/month">Monthly report</a>');
+    expect(results.body).toMatch(/<a href="\/app\/results\/month"><svg[^>]*>[\s\S]*?<\/svg><span>Monthly report<\/span><\/a>/); // the sidebar's item: its icon, then its word
     const month = await get(ownerCookie, '/app/results/month');
     expect(month.statusCode).toBe(200);
-    expect(month.body).toContain('<a href="/app/results/month" aria-current="page">Monthly report</a>');
+    expect(month.body).toMatch(/<a href="\/app\/results\/month" aria-current="page"><svg[^>]*>[\s\S]*?<\/svg><span>Monthly report<\/span><\/a>/);
     expect(month.body).toContain('<a href="/app/results">');
   });
 
