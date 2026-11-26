@@ -93,7 +93,7 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   // The advisor run — the owner's choice: Solar's round chat bubble; since 2026-10-09 without its three dots; since
   // 2026-10-11 unlit, a plain rail icon like the others.
   advisor: 'chat-round', assistant: 'chat-round', customers: 'users-group-rounded', products: 'box', books: 'notebook-minimalistic',
-  reports: 'chart-2', ask: 'chat-round-dots',
+  reports: 'chart-2', ask: 'chat-square-line',
 };
 
 /**
@@ -2685,7 +2685,6 @@ const STYLE_PAGES = `
   .ptitle { color:var(--color-ink-secondary); }
   .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
   .sbx-banner { background:var(--color-sand); color:var(--color-ink); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
-  .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
   /* Phase 9 (conversation-missed-15) — the card's gap is its only space: a heading's and a paragraph's own margins left a 35 px band. */

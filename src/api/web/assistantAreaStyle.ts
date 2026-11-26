@@ -15,12 +15,16 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-area .pform{min-width:0;}
 .assistant-area .pcheck{min-height:44px;}
 .aa-status{padding-block:var(--space-16);border-block:1px solid var(--color-border);margin-block:var(--space-24) var(--space-32);}
+.aa-status{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-8) var(--space-24);}
 .aa-status p{margin-block:var(--space-8);}
-.aa-work{padding-block:var(--space-16);}
+.aa-k{color:var(--color-ink-secondary);margin-inline-end:var(--space-8);}
+.aa-work{padding-block:0;}
+.aa-work .aa-doors{margin-block:var(--space-8) 0;}
+.aa-work .aa-doors li:last-child{border-bottom:1px solid var(--color-border);}
+.aa-facts{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4) var(--space-24);margin-block:var(--space-32) 0;}
 .aa-doors{list-style:none;padding:0;margin-block:var(--space-24);}
 .aa-doors li{border-top:1px solid var(--color-border);}
 .aa-doors a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-24);min-height:64px;padding-block:var(--space-16);}
-.aa-doors .caption{display:block;color:var(--color-ink-secondary);font-weight:400;margin-top:var(--space-8);}
 .aa-overview h2{font-size:var(--font-size-title);}
 .aa-overview blockquote{margin-inline:0;margin-block:var(--space-24) var(--space-8);}
 /* N-1 (the third fix round) — the overview quotes the same customers' words Knowledge does, and holds them the same way (F29): the column may shrink, an unbroken address breaks, a long message folds with the whole of it one press away. */
@@ -44,6 +48,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-body a{display:inline-flex;align-items:center;min-height:44px;}
 .ask-business{display:none;}
 .ask-workspace{display:grid;grid-template-columns:minmax(0,1fr) 13rem;gap:var(--space-32);}
+.ask-workspace.is-alone{grid-template-columns:minmax(0,1fr);}
 .ask-conversation,.ask-history{min-width:0;}
 .ask-history{border-inline-start:1px solid var(--color-border);padding-inline-start:var(--space-24);}
 .ask-history h2{font-size:var(--font-size-base);margin-top:var(--space-32);}
@@ -61,7 +66,6 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ask-sources{margin-top:var(--space-16);font-size:var(--font-size-small);}
 .assistant-practice .card{background:transparent;border:0;border-radius:0;border-top:1px solid var(--color-border);padding:var(--space-24) 0;}
 .assistant-practice .sbx-note{font-size:var(--font-size-small);margin-block:var(--space-16);}
-.assistant-practice .sbx-intro{font-size:var(--font-size-small);}
 .assistant-practice .msgbar,.assistant-practice .scenariobar{max-width:100%;}
 .assistant-practice .msgbar textarea{width:100%;}
 .assistant-practice .scenariobar{display:flex;flex-wrap:wrap;gap:var(--space-12);align-items:end;}
