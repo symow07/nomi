@@ -569,7 +569,6 @@ export function renderPriceRules(
     <h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'prices.lede', { name }))}</p>
-    <p class="fdesc pr-how">${esc(t(locale, v.volume.length ? 'prices.table.how' : 'prices.table.noneWritten', { name }))}</p>
 
     <section class="fblock pr-block" id="everything">
       <h2>${esc(t(locale, 'prices.default.title'))}</h2>

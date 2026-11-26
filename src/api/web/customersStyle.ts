@@ -21,6 +21,8 @@ main:has(.customer-area){max-width:var(--measure-column);}
 .ca-person .face{flex:none;width:44px;height:44px;border-radius:50%;}
 .ca-person-state{display:flex;align-content:start;align-items:center;flex-wrap:wrap;gap:var(--space-8);}
 .ca-wait{color:var(--color-accent);font-weight:600;}
+.ca-who{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-4) var(--space-8);}
+.ca-who .ca-wait{font-size:var(--font-size-small);}
 .ca-label{font-size:var(--font-size-small);padding:var(--space-4) var(--space-8);border:1px solid var(--color-border);border-radius:var(--radius-control);min-height:44px;display:inline-flex;align-items:center;}
 .ca-row-facts{display:grid;grid-template-columns:1fr .5fr 1fr;gap:var(--space-16);margin:0;align-items:start;}
 .ca-row-facts dt,.ca-order-facts dt{font-size:var(--font-size-small);margin-bottom:var(--space-4);}

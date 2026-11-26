@@ -580,7 +580,7 @@ export const customerFileTitle = (locale: Locale, f: Pick<CustomerFile, 'buyer'>
 
 export function renderCustomerFile(
   f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
-  opts: { readonly embedded?: boolean; readonly returnHref?: string } = {},
+  opts: { readonly embedded?: boolean; readonly returnHref?: string; readonly needSaid?: boolean } = {},
 ): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
@@ -643,7 +643,7 @@ export function renderCustomerFile(
     : '';
 
   if (opts.embedded) return `<p class="record-channel">${esc(channelName(locale, f.channel))}${f.address ? ` <bdi dir="ltr">${esc(f.channel === 'whatsapp' && /^\d+$/.test(f.address) ? `+${f.address}` : f.address)}</bdi>` : ''}</p>
-    ${flashBanner(flash)}${actLink}
+    ${flashBanner(flash)}${/* The text audit (2026-11-26): the overview's own door already says a reply waits. */ opts.needSaid ? '' : actLink}
     <details class="record-section" id="record-profile"><summary>${esc(t(locale, 'record.profileEdit'))}</summary>${profile}</details>
     <details class="record-section" id="record-activity"><summary>${esc(t(locale, 'record.activity'))}</summary><p class="ca-scope">${esc(t(locale,'customers.scope'))}</p><p class="ca-scope">${esc(t(locale,'customers.recentHistory'))}</p>${timeline}</details>
     ${context ? `<details class="record-section" id="record-prices"><summary>${esc(t(locale, 'conv.ctx.title'))}</summary>${context}</details>` : ''}

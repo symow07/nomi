@@ -1776,7 +1776,6 @@ const STYLE_PAGES = `
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .prod-b { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .p-tag { display:block; color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .prod-add { margin:0 0 var(--space-16); }
   /* w4-products-knowledge-12 — "printed or handwritten?" is a question, at the size of the page's other labels. */
   .choices.hand legend { font-size:var(--font-size-small); color:var(--color-ink); }
   /* The warmth run, phase 9 (V1-305) — the larger orders' prices: a group of the form's own fields, under their name. */

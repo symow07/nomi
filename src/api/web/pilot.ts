@@ -8,6 +8,7 @@ import { defaultAssistantName, validateAssistant, NAME_MAX } from '../../core/ow
 import { renameMainAssistant } from '../../db/assistants.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
@@ -463,8 +464,8 @@ const DETECTED_LINK: Record<DetectedKey, string> = {
 function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, `pilot.item.${key}` as MessageKey));
   if (done) {
-    return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
-      <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))}</span></div>`;
+    // The text audit (2026-11-26) — the tick says done; who checked it is said on pointing at the row, not on every row.
+    return `<div class="pr done" title="${esc(t(locale, 'pilot.verifiedBySystem'))}">${mk(true)} <span class="lbl">${label}</span></div>`;
   }
   const extra = key === 'claims' && viewer.isOwner
     ? `<form method="post" action="/app/onboarding/attest" class="inline"><input type="hidden" name="which" value="claims_reviewed" /><button class="btn" type="submit">${esc(t(locale, 'pilot.claims.none'))}</button></form>`
@@ -560,6 +561,18 @@ export function renderPilotReadiness(
     // Phase 9 (V1-123) — the practice check is listed once, under the final checks, with its button.
     : ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale, viewer)).join('');
+  // The text audit (2026-11-26) — a checklist that is not done NAMES what is left. "A few steps left" stood under a
+  // guide that said "5 of 5 steps done": two lists, one word, and the page contradicted itself.
+  const mine = [
+    ...detectedOrder.filter((k) => !d.detected[k]).map((k) => t(locale, `pilot.item.${k}` as MessageKey)),
+    ...(d.ready ? (d.ready.complete ? [] : [t(locale, 'pilot.item.ready')]) : (d.detected.sandbox ? [] : [t(locale, 'pilot.item.sandbox')])),
+    ...(d.attest.assistantNamedAt ? [] : [t(locale, 'pilot.attest.assistant_named')]),
+    ...(d.attest.ownerReadyAt ? [] : [t(locale, 'pilot.attest.owner_ready')]),
+  ];
+  // What Nomi's team checks is not the owner's chore (w4-today-setup-06): it is named only when nothing of the owner's is left.
+  const nomis = d.ready || ((d.backupVerifiedAt ?? d.attest.backupTestedAt) && d.attest.secretsRotatedAt) ? [] : [t(locale, 'pilot.nomiChecks')];
+  const left = mine.length ? mine : nomis;
+  const notReady = left.length ? t(locale, 'pilot.notReady.left', { items: formatList(locale, left) }) : t(locale, 'pilot.notReady');
 
   const v = d.validation;
   const valLine = v.at && v.pass !== null && v.total !== null
@@ -583,7 +596,7 @@ export function renderPilotReadiness(
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
       ? `<p class="verdict ok">${shape('ok')} ${esc(t(locale, 'pilot.allReady'))}</p>`
-      : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+      : `<p class="verdict">${todoMark()} ${esc(notReady)}</p>`;
     return `
     ${title}
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
@@ -607,7 +620,7 @@ export function renderPilotReadiness(
   // Phase 9 (V1-130) — a state line, not a box that looks pressable.
   const verdict = d.readyToLaunch
     ? `<p class="verdict ok">${shape('ok')} ${esc(t(locale, 'pilot.allReady'))}</p>`
-    : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+    : `<p class="verdict">${todoMark()} ${esc(notReady)}</p>`;
 
   // Phase 9 (w4-today-setup-19) — where the page stands is said under its
   // intro, the first thing read, not above the next section's rule.

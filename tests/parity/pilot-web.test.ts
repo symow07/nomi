@@ -72,7 +72,13 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
 
   it('verdict: ready vs not-ready; channel stays honest; never a percentage', () => {
     const notReady = renderPilotReadiness(pr(), 'en', null);
-    expect(notReady).toContain(t('en', 'pilot.notReady'));
+    // The text audit (2026-11-26): what is left is named, each open item of the owner's, and Nomi's own checks are not among them.
+    const line = /<p class="verdict">[\s\S]*?<\/p>/.exec(notReady)![0];
+    expect(line).toContain('Left before going live: ');
+    for (const k of ['pilot.item.claims', 'pilot.item.channel', 'pilot.item.sandbox', 'pilot.attest.assistant_named', 'pilot.attest.owner_ready'] as const) expect(line, k).toContain(t('en', k));
+    expect(line).not.toContain(t('en', 'pilot.item.profile'));
+    expect(line).not.toContain(t('en', 'pilot.nomiChecks'));
+    expect(notReady).not.toContain(t('en', 'pilot.notReady'));
     expect(notReady).toContain(t('en', 'pilot.blocker.channel'));   // Phase 4b: any channel buyers write to
 
     const ready = renderPilotReadiness(pr({

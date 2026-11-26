@@ -514,12 +514,11 @@ const addFields = (locale: Locale, day: string, kept: Kept | null): string => `<
       <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.day'))}</span>
         <input type="date" name="day" required value="${kept ? keptValue(kept, 'day') : esc(day)}"${keptInvalid(kept, 'day', 'ca-day-err')} /></label>
       ${keptError(kept, 'day', 'ca-day-err') ?? ''}
-      <div class="cal-times">
+      <div class="cal-times" title="${esc(t(locale, 'calendar.add.hint'))}">
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.from'))}</span><input type="time" name="from" value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'ca-from-err')} /></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.to'))}</span><input type="time" name="to" value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'ca-to-err')} /></label>
       </div>
       ${keptError(kept, 'from', 'ca-from-err') ?? ''}${keptError(kept, 'to', 'ca-to-err') ?? ''}
-      <p class="muted">${esc(t(locale, 'calendar.add.hint'))}</p>
       <button class="btn" type="submit">${esc(t(locale, 'calendar.add.save'))}</button>
     </form>`;
 

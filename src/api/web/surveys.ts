@@ -1,7 +1,7 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import type { Viewer } from '../../core/conversation/people.js';
-import { SURVEY_LOCALES, SURVEY_SIGNED, surveyText, surveyThanksText, type SurveyLocale } from '../../core/conversation/survey.js';
+import { SURVEY_LOCALES, SURVEY_SIGNED, surveyText, surveyThanksText, withBusiness, type SurveyLocale } from '../../core/conversation/survey.js';
 import type { SurveyAnswer, SurveyFacts } from '../../db/surveys.js';
 import { t, tn } from './say.js';
 import { conversationUrl, esc } from './layout.js';
@@ -37,8 +37,8 @@ export function renderSurveys(locale: Locale, f: SurveyFacts, answers: readonly 
     <div class="feedback-layout"><div class="block"><p><span class="pill${f.on ? ' ok' : ''}">${esc(t(locale, f.on ? 'surveys.on' : 'surveys.off'))}</span></p>
       <p class="fdesc">${esc(languages)}</p>
       <p class="caption">${esc(t(locale, 'surveys.asWritten'))}</p>
-      <blockquote dir="auto">${esc(surveyText(own).split('{business}').join(f.business || '…'))}</blockquote>
+      <blockquote dir="auto">${esc(withBusiness(surveyText(own), f.business || '…'))}</blockquote>
       <p class="caption">${esc(t(locale, 'surveys.thanksWritten'))}</p>
-      <blockquote dir="auto">${esc(surveyThanksText(own).split('{business}').join(f.business || '…'))}</blockquote>${control}</div>
+      <blockquote dir="auto">${esc(withBusiness(surveyThanksText(own), f.business || '…'))}</blockquote>${control}</div>
     <div class="block"><h2>${esc(t(locale, 'surveys.lastNinety'))}</h2>${counts}${latest}</div></div></section>`;
 }

@@ -132,6 +132,13 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
 .owner-shell .il-compact-list .si-row { min-block-size:var(--control-header); }
 .owner-shell .ca-person .face-m { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
 .owner-shell .il-compact-list .si-row.is-selected, .owner-shell .il-page .si-row.is-selected { background:var(--color-sand); border-inline-start-color:transparent; }
+/* The text audit (2026-11-26): a product's row and a customer's row are the same row as every other list's. A product's
+   tile is the field's height, and the row's words sit level with it (they sat at the row's top beside a centred tile). */
+.owner-shell .pa-products .prod { min-block-size:var(--control-header); padding-block:var(--space-8); align-items:center; }
+.owner-shell .pa-products .pa-thumb { inline-size:var(--control-field); block-size:var(--control-field); }
+.owner-shell .pa-products .pa-initial { font-size:var(--font-size-base); }
+.owner-shell .pa-products .prod-b { margin-block-start:0; }
+.owner-shell .ca-customers .ca-customer { min-block-size:var(--control-header); padding-block:var(--space-8); }
 
 /* The open conversation's head, on a desk: who on the left and the tools on the right, in ONE row, with the facts and
    the state on the line under the name. The list beside it is the way back, so "Inbox" is not drawn twice. */

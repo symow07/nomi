@@ -369,7 +369,7 @@ describe('Phase 9 · Getting started', () => {
       expect(h, l).not.toContain('<video');
       expect(h, l).toContain('<details class="gs-help" open>');
       expect(h, l).toContain(`<ol class="gs-words"><li>${esc(t(l, 'guide.profile.cap.1'))}</li>`);
-      expect(h.match(/<summary>/g), l).toHaveLength(5);
+      expect(h.match(/<summary>/g), l).toHaveLength(2);   // the text audit (2026-11-26): only the two steps still to do carry their words
     }
     expect('guide.read' in messages.en).toBe(false);
   });
@@ -427,7 +427,10 @@ describe('Phase 9 · Before going live', () => {
   });
   it('V1-130, today-onboarding-missed-17 · where the page stands is a state line with its mark, not a box that looks pressable', () => {
     // The warmth run's re-audit (w4-whole-06): a page not ready yet is a chore, drawn with the to-do ○ — magenta's is a customer waiting.
-    expect(renderPilotReadiness(pr(), 'en', null)).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${t('en', 'pilot.notReady')}</p>`);
+    // The text audit (2026-11-26): the line NAMES what is left, so it cannot contradict the guide's own count.
+    const stands = renderPilotReadiness(pr(), 'en', null);
+    expect(stands).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> Left before going live: ${esc(t('en', 'pilot.item.profile'))}, `);
+    expect(stands).not.toContain(t('en', 'pilot.notReady'));
     const meta: MetaReadiness = { credentials: [], allCredentialsOk: false, provider: 'disabled', channelStatus: 'not_connected', live: false, blockers: [] };
     expect(inScope(() => renderPilotTechnical('en', { meta, templateState: 'none' }))).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t('en', 'meta.notLive'))}</p>`);
     const v = /\.verdict \{([^}]*)\}/.exec(css)![1]!;

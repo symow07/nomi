@@ -26,6 +26,10 @@ const errorWords=(locale:Locale,error:string):string=>{
 const field=(locale:Locale,key:MessageKey,name:string,value:string,max:number,type='text')=>`<label class="pq">${words(locale,key)}<input type="${type}" name="${name}" value="${esc(value)}" maxlength="${max}" dir="auto"></label>`;
 const price=(locale:Locale,p:CatalogueRow)=>{const m=p.amount===null?null:moneyFromRow(p.amount,p.currency);return m?show.money(locale,m):'';};
 const reasons=(locale:Locale,p:CatalogueRow)=>p.reasons.map(r=>`<li>${words(locale,`waCatalog.reason.${r}` as MessageKey)}</li>`).join('');
+/** The text audit (2026-11-26): what a product still needs is counted on its row and listed behind one tap. It was up to
+ * six sentences under every product, the same six down the whole page. Nothing is dropped: the list is one tap away. */
+const missing=(locale:Locale,p:CatalogueRow,state:MessageKey)=>`<details class="wc-why"><summary>${words(locale,state)} · <bdi lang="en" dir="ltr" class="wc-words">${
+  esc(t(locale,p.reasons.length===1?'waCatalog.toFix.one':'waCatalog.toFix.other',{n:p.reasons.length}))}</bdi></summary><ul>${reasons(locale,p)}</ul></details>`;
 const status=(p:CatalogueRow):MessageKey=>p.state==='pending'?'waCatalog.pending':p.state==='unknown'?'waCatalog.unknown':
   p.acceptedFingerprint&&p.reasons.length?'waCatalog.removal':p.acceptedFingerprint&&(p.fingerprint!==p.acceptedFingerprint||p.state!=='synced')?'waCatalog.changed':
     p.state==='synced'?'waCatalog.synced':p.state==='error'?'waCatalog.error':p.state==='removed'?'waCatalog.removed':p.reasons.length?'waCatalog.notPushed':'waCatalog.ready';
@@ -36,7 +40,7 @@ export function renderCatalogue(locale:Locale,rows:CatalogueRow[],owner:boolean,
     ${editable?`<form method="post" action="/app/products/whatsapp/preview"><button class="btn send" type="submit">${words(locale,'waCatalog.update')}</button></form>`:''}
     ${latest?`<p><a href="/app/products/whatsapp/review/${esc(latest)}">${words(locale,'waCatalog.latest')}</a></p>`:''}
     ${!rows.length?`<p class="pa-empty">${words(locale,'waCatalog.empty')}</p>`:rows.map(p=>`<section class="wc-item"><h2><bdi>${esc(p.name)}</bdi></h2>
-      <p>${price(locale,p)}</p><p>${words(locale,status(p))}</p>${p.reasons.length?`<ul>${reasons(locale,p)}</ul>`:''}
+      <p>${price(locale,p)}</p>${p.reasons.length?missing(locale,p,status(p)):`<p>${words(locale,status(p))}</p>`}
       ${p.error?`<p>${errorWords(locale,p.error)}</p>`:''}
       <p><a href="/app/products/${esc(p.id)}">${words(locale,'waCatalog.product')}</a></p>
       ${editable?`<details><summary>${words(locale,'waCatalog.details')}</summary><form class="wc-form" method="post" action="/app/products/${esc(p.id)}/whatsapp">

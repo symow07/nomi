@@ -5,7 +5,6 @@ export const SETUP_MINUTES_EN = {
   'contactImport.columns.title': 'Which column is which?',
   'contactImport.check.title': 'Check before adding',
   'contactImport.done.title': 'Import complete',
-  'contactImport.door': 'Add customers from a file',
   'contactImport.example': 'Your file can have these columns. Only phone is needed.',
   'contactImport.phoneHint': 'Use international phone numbers starting with + or 00. We never guess a country code.',
   'contactImport.file': 'Choose a file (CSV or Excel)',

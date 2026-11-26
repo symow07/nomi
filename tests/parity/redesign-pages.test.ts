@@ -105,7 +105,9 @@ describe('Area 1 working page controls', () => {
     expect(html.match(/class="pill ok"/g)).toHaveLength(5);
     expect(html).not.toContain('data-first-step');
     expect(html).not.toContain('<video');
-    expect(html).toContain('Your setup steps are complete.');
+    // The text audit (2026-11-26): "5 of 5 steps done" says it once; no second line, and no folded instructions under a finished step.
+    expect(html).not.toContain('setup-complete');
+    expect(html).not.toContain('class="gs-help"');
   });
 
   it('priority approval preserves exact words, the same command targets and the no-reply confirmation', () => {
