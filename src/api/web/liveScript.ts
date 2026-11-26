@@ -308,10 +308,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     }).catch(function () { show(region, what || 'reply'); });
   }
 
-  /* One question, asked again and again: every so often while the tab is in
-     view, at once when it is shown again, longer after each failure (up to
-     five minutes), let go after fifteen seconds without an answer, and never
-     again once the answer says the session or the page is gone. */
+  /* One question, asked while the tab is seen; slower after each failure (to five minutes); dropped after 15 s
+     unanswered; never again once the session or page is gone. */
   function asker(address, every, use, before) {
     var wait = every;
     var timer = 0;
