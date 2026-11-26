@@ -16,7 +16,10 @@ const options: MonthPageOptions = {
 };
 const draw = (report: MonthReport = FIXTURE_MONTH_REPORT, locale: Locale = 'en', opts: Partial<MonthPageOptions> = {}) =>
   withAssistantName('Lily', () => renderMonthReport(report, locale, { ...options, ...opts }));
-const plain = (html: string) => withoutIsolates(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// The text pass (2026-11-26): a figure's definition is folded under its name; a row is read as it shows, closed.
+const closed = (html: string) => html.replace(/(<details class="mr-def"><summary>[\s\S]*?<\/summary>)<p>[\s\S]*?<\/p>/g, '$1');
+const plain = (html: string) => withoutIsolates(closed(html)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+const plainOpen = (html: string) => withoutIsolates(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 const section = (html: string, id: string) => html.match(new RegExp(`<section[^>]*aria-labelledby="${id}"[^>]*>([\\s\\S]*?)</section>`))?.[1] ?? '';
 const form = (html: string, action: string) => [...html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/g)]
   .find((m) => m[1]!.includes(`action="${action}"`))?.[0] ?? '';
@@ -97,9 +100,9 @@ describe('Block 4.3 · the month report page', () => {
     expect(section(html, 'month-estimate')).not.toBe('');
     expect(section(html, 'month-invoices')).toBe('');
     expect(section(html, 'month-mail')).toBe('');
-    expect(html).not.toContain('<details');
+    expect(html).not.toContain('class="mr-minutes"'); // the owner's disclosure; a figure's own definition still folds
     expect(html).not.toContain('method="post"');
-    expect(plain(html)).toContain('Orders confirmed this month that still stand.');
+    expect(plainOpen(html)).toContain('Orders confirmed this month that still stand.');
     expect(plain(html)).not.toContain('Orders you confirmed');
     expect(draw({ ...FIXTURE_MONTH_REPORT, estimate: null }, 'ar', { canSetMinutes: false })).not.toContain('month-estimate');
   });
@@ -149,10 +152,13 @@ describe('Block 4.3 · the month report page', () => {
       if (locale === 'ar') expect(unisolatedFigures(html)).toEqual([]);
     });
 
-    it(`${locale}: keeps the median's sample and waiting captions within its definition row`, () => {
+    it(`${locale}: the median's definition opens under its name; its sample and waiting captions stay in sight in its row`, () => {
       const speed = section(draw(undefined, locale), 'month-speed');
+      // The text pass (2026-11-26): the definition is kept word for word, folded under the figure's own name.
+      const folded = speed.match(/<dt><details class="mr-def"><summary>[\s\S]*?<\/summary><p>([\s\S]*?)<\/p><\/details><\/dt>/)?.[1] ?? '';
+      expect(plainOpen(folded)).toContain('Clock time, nights and weekends included');
       const definition = speed.match(/<dd class="mr-definition caption muted">([\s\S]*?)<\/dd>/)?.[1] ?? '';
-      expect(plain(definition)).toContain('Clock time, nights and weekends included');
+      expect(plain(definition)).not.toContain('Clock time');
       expect(plain(definition)).toContain('Measured on 40 customers.');
       expect(plain(definition)).toContain('3 customers who wrote this month are still waiting');
       const afterRows = speed.slice(speed.indexOf('</dl>') + 5);
@@ -196,7 +202,7 @@ describe('Block 4.3 · the month report page', () => {
   it('shows running and first-month lines in the workspace zone, with the setup door only when useful', () => {
     const running = { ...empty, month: '2026-11', running: true };
     const html = draw(running, 'en', { setupDone: false, months: ['2026-11'], startedAt: new Date('2026-11-04T14:00:00Z') });
-    expect(plain(html)).toContain('November 2026 so far');
+    expect(plain(html)).toContain('November 2026 So far, up to today.');
     expect(plain(html)).toContain('Counted from');
     expect(html).toContain('href="/app/get-started"');
     expect(draw(running)).not.toContain('href="/app/get-started"');

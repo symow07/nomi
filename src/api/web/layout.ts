@@ -1546,6 +1546,9 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-127, V1-128) — a count follows its label; a door (Open, with its caret) ends the row, as on every row of this page. */
   .rbrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:4px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
+  a.rbrow, a.pr { color:inherit; text-decoration:none; }
+  a.rbrow:hover .lbl, a.rbrow:focus-visible .lbl, a.pr:hover .lbl, a.pr:focus-visible .lbl { text-decoration:underline; text-underline-offset:3px; }
+  .rbgo { display:inline-flex; color:var(--color-brand); }
   .rbrow .lbl { font-size:var(--font-size-small); text-wrap:pretty; }
   .rbrow .n { font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); font-variant-numeric:tabular-nums; }
   .rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }

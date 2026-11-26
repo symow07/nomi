@@ -407,7 +407,7 @@ describe('Results', () => {
     expect(results('es')).toContain('<p class="sub">Esto abarca esta semana.</p>');
     expect(results('en', { range: 'today' })).toContain('This covers today so far.');
     const empty = withoutIsolates(renderAnalytics({ ...RESULTS, hasActivity: false, range: 'month' }, 'en'));
-    expect(empty).toContain('Not enough activity for this month yet.');
+    expect(empty).toContain('Nothing for this month yet.');
   });
 
   it('V1-207 · Results is the Reports area\'s own page (the navigation block): no way back to Today; its period chip is not a second "Today"', () => {

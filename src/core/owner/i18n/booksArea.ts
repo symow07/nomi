@@ -19,7 +19,7 @@ export const BOOKS_AREA_EN = {
   'booksArea.chooseAccounts':'Choose accounts', 'booksArea.reviewNeeded':'Check the supporting entries',
   'booksArea.notAvailable':'Not available from these records', 'booksArea.asOf':'As of {date}',
   'booksArea.range':'{from}–{to} of {total}', 'booksArea.previous':'Previous', 'booksArea.next':'Next',
-  'booksArea.noWork':'Nothing waiting in these lists.', 'booksArea.noActivity':'No activity recorded yet.',
+  'booksArea.noActivity':'No activity recorded yet.',
   'booksArea.advancedHint':'Detailed entries and accounting reports for you or your accountant.',
   'booksArea.reportsHint':'Read the figures or take a copy of the records behind them.',
   'booksArea.fullDownload':'Download the full books', 'booksArea.workbook':'Download the workbook',

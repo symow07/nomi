@@ -42,11 +42,15 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
     `<p class="caption muted">${words(say(key, params))}</p>`;
   const row = (label: string, value: string | readonly string[], definition?: MessageKey,
     detail: { readonly english?: boolean; readonly captions?: readonly string[]; readonly subrow?: boolean } = {}): string =>
-    `<div class="result-row${detail.subrow ? ' mr-subrow' : ''}"><dt>${detail.english === false ? `<bdi>${esc(label)}</bdi>` : words(label)}</dt>${
+    // The text pass (2026-11-26) — what a figure counts is kept word for word, and opens under the figure's own name
+    // (a tap, a click or the keyboard) instead of standing under every row. What was measured (the sample, who still
+    // waits) is data, and stays in sight.
+    `<div class="result-row${detail.subrow ? ' mr-subrow' : ''}"><dt>${detail.english === false ? `<bdi>${esc(label)}</bdi>`
+      : definition ? `<details class="mr-def"><summary>${words(label)}</summary><p>${words(say(definition))}</p></details>` : words(label)}</dt>${
       typeof value === 'string' ? `<dd>${esc(value)}</dd>`
         : `<dd class="mr-amounts">${value.map((amount) => `<span>${esc(amount)}</span>`).join('')}</dd>`}${
-      definition ? `<dd class="mr-definition caption muted">${words(say(definition))}${
-        (detail.captions ?? []).map((caption) => `<p>${words(caption)}</p>`).join('')}</dd>` : ''}</div>`;
+      detail.captions?.length ? `<dd class="mr-definition caption muted">${
+        detail.captions.map((caption) => `<p>${words(caption)}</p>`).join('')}</dd>` : ''}</div>`;
   const countRow = (key: MessageKey, n: number, definition: MessageKey) =>
     row(say(key), show.count(locale, n), definition);
   const list = (rows: string) => `<dl class="result-rows">${rows}</dl>`;
@@ -79,7 +83,7 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
       date: withZone(report.zone, () => show.date(locale, options.startedAt)),
     }) : '');
   const head = `<header class="results-header">
-    <h1 class="page">${words(say('monthReport.title'))}</h1><p class="muted">${words(say('monthReport.intro'))}</p></header>
+    <h1 class="page">${words(say('monthMail.tab'))}</h1><p class="muted">${words(say('monthReport.intro'))}</p></header>
     ${flashBanner(options.flash)}<section class="mr-month" aria-labelledby="month-period"><h2 id="month-period">${esc(selectedMonth)}</h2>${states}${picker}</section>`;
 
   const knownReason = (reason: string) => Object.hasOwn(messages.en, `takeover.reason.${reason}`);

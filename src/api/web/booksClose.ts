@@ -124,8 +124,7 @@ export function renderClose(locale: Locale, viewer: Who, v: CloseView, mode:'yea
     ${owner(viewer) ? `<li class="block" id="lock-month"><h2>${esc(t(locale, 'yearEnd.stageLock'))}</h2>${lockForm}</li>` : ''}
     <li class="block" id="close-year"><h2>${esc(t(locale, 'yearEnd.stageYear'))}</h2>${closeStage}</li>
     </ol>
-    ${reopen}${years}${history}
-    <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+    ${reopen}${years}${history}`;
 }
 
 /** The year after one ending on `endsOn`: the next day, for twelve months. */

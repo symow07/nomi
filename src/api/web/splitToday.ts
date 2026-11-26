@@ -213,6 +213,9 @@ function entryRow(e: BooksEntry, locale: Locale): string {
 function booksPanel(b: SplitBooks, locale: Locale): string {
   const money = (amount: string): string => booksMoney(locale, amount, b.currency);
   const down = b.profit.startsWith('-');
+  // The text pass (2026-11-26) — books with no year yet have no figure to show: three zeros read as a record of
+  // nothing earned. "Not on record" is said instead, as on the books' own page; the door below says there is no year.
+  const unset = !b.year && [b.moneyIn, b.moneyOut, b.profit].every((amount) => Number(amount) === 0);
   const w = b.owed.worst;
   const remind = w
     ? `<form class="sp-remind" method="get" action="${w.conversationId ? conversationUrl(w.conversationId) : `/app/books/invoices/${esc(w.invoiceId)}`}"><button class="sp-btn sp-quiet" type="submit">${esc(t(locale, 'split.remind'))}</button></form>`
@@ -240,11 +243,11 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     <div class="sp-sheet">
     <section class="sp-card sp-money" aria-labelledby="sp-mt">
       <h3 id="sp-mt">${esc(t(locale, 'area1.money.title'))}</h3>
-      <div>
+      ${unset ? `<p class="sp-inout">${esc(t(locale, 'askPicture.notOnRecord'))}</p>` : `<div>
         <p class="sp-inout">${esc(t(locale, 'area1.money.income', { money: money(b.moneyIn) }))} · ${esc(t(locale, 'area1.money.expenses', { money: money(b.moneyOut) }))}</p>
         <p class="sp-profit${down ? ' is-down' : ''}"><span>${esc(t(locale, 'split.money.profit'))}</span> <span class="sp-big">${esc(money(b.profit))}</span></p>
       </div>
-      ${trendChart(b, locale)}
+      ${trendChart(b, locale)}`}
     </section>
     <section class="sp-card" aria-labelledby="sp-ot">
       <h3 id="sp-ot">${esc(t(locale, 'split.owed.title'))}</h3>

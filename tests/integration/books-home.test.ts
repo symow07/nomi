@@ -125,7 +125,7 @@ d('Block 2 PR 4 · the Books home: each figure is the sum of its rows (requires 
     const o = await read(f);
     const scope = { today: TODAY };
     const home = renderBooksOverview('en', owner, o, scope, [], [], { year: true, accounts: true });
-    expect(home).toContain('Cash today'); expect(home).toContain('$5,040.00'); expect(home).toContain('href="/app/books/reports/cash#today"');
+    expect(home).toContain('Cash today'); expect(home).toContain('$5,040.00'); expect(home).toContain('href="/app/books/reports/cash"'); // the text pass: the cash group's three figures share one link
     expect(home).toContain('as the chart marks them');                                        // the default is said
     expect(home).not.toContain('Choose accounts');
     const report = renderBooksCashReport('en', o, scope, [], await tx(f, (t) => overview.readOverviewCashEntries(t, f.biz, scope, {})));

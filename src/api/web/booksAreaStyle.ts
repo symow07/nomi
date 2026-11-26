@@ -165,9 +165,9 @@ main:has(.bk-tb){max-width:100%;}
 .ba-fig dd p{font-size:var(--font-size-small);margin:0;}
 .ba-period{font-size:var(--font-size-caption);color:var(--color-ink-secondary);margin:0;}
 .ba-source{font-size:var(--font-size-small);margin:0;}
-.ba-source a{text-decoration:underline;text-underline-offset:3px;}
-.ba-source a{display:inline-flex;align-items:center;min-height:44px;}
-.ba-note{font-size:var(--font-size-small);color:var(--color-ink-secondary);margin:0;}
+.ba-source a{display:inline-flex;align-items:center;min-height:44px;margin:0;}
+.ba-none{font-size:var(--font-size-base);color:var(--color-ink-secondary);}
+.ba-overview .ba-asof{margin:calc(-1 * var(--space-16)) 0 var(--space-16);font-size:var(--font-size-small);}
 .ba-overview>.caption a{display:inline-flex;align-items:center;min-height:44px;}
 .ba-overview .rows a{display:inline-flex;flex-wrap:wrap;align-items:center;column-gap:var(--space-4);min-height:44px;}
 .ba-how{border-top:1px solid var(--color-border);padding-block:var(--space-8);}

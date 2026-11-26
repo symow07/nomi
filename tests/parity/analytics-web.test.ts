@@ -80,9 +80,12 @@ describe('M9.8 · business review (localized)', () => {
   });
 
   it('empty range: honest data-collecting state per locale, no fake chart', () => {
-    expect(renderAnalytics(empty, 'zh')).toContain('还没什么可看的');
-    expect(renderAnalytics(empty, 'en')).toContain('Nothing to show yet');
-    expect(renderAnalytics(empty, 'ar')).toContain('لا شيء لعرضه بعد');
+    // The text pass (the owner, 2026-11-26): an empty period is one line — no scope line, no heading over it.
+    expect(renderAnalytics(empty, 'zh')).toContain('还没有记录');
+    expect(renderAnalytics(empty, 'en')).toContain('Nothing for ');
+    expect(renderAnalytics(empty, 'ar')).toContain('لا شيء ');
+    expect(renderAnalytics(empty, 'en')).not.toContain('results-scope');
+    expect(renderAnalytics(empty, 'en')).not.toContain('<h2');
     const en = renderAnalytics(empty, 'en');
     expect(en).not.toContain('Overview');   // no number cards
     // no chart: the only drawings are the doors' carets (the icons run)

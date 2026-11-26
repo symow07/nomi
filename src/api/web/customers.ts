@@ -21,7 +21,8 @@ export function customerArea(body:string,_locale:Locale,_current:CustomerSection
  return `<div class="customer-area">${body}</div>`;
 }
 export function customerPager(page:CustomerPage<unknown>,locale:Locale,href:(direction:'after'|'before',cursor:string)=>string,where?:'above'|'below'):string {
- if(where==='above'&&!page.prev&&!page.next) return '';
+ // The text pass (2026-11-26): a list that fits on one page has no pager ("1–7 of 7" said nothing).
+ if(!page.prev&&!page.next) return '';
  return `<nav class="ca-pager${where?` ca-pager-${where}`:''}" aria-label="${esc(where?t(locale,where==='above'?'assistantArea.pagesAbove':'assistantArea.pagesBelow'):t(locale,'customers.pages'))}">${page.prev?`<a href="${esc(href('before',page.prev))}">${esc(t(locale,'customers.previous'))}</a>`:'<span></span>'}<span>${esc(t(locale,'customers.range',{from:show.count(locale,page.from),to:show.count(locale,page.to),total:show.count(locale,page.total)}))}</span>${page.next?`<a href="${esc(href('after',page.next))}">${esc(t(locale,'customers.next'))}</a>`:'<span></span>'}</nav>`;
 }
 export function renderCustomers(data:CustomersPage,locale:Locale,now:Date,opts:{readonly labels?:readonly {readonly id:string;readonly name:string}[];readonly returnHref?:string}={}):string {

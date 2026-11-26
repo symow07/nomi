@@ -259,8 +259,14 @@ const itemIcon = (area: AreaId, item: Item): string => {
 const link = (locale: Locale, area: AreaId, item: Item, here: Item | null): string =>
   `<a href="${esc(item.href)}"${item === here ? ' aria-current="page"' : ''}>${itemIcon(area, item)}<span>${wordsHtml(locale, item.label)}</span></a>`;
 
-/** The search at the top of the sidebar: customers, by name, e-mail or phone — the Inbox's own search. */
-const search = (locale: Locale): string => notAccountant()
+/**
+ * The search at the top of the sidebar: customers, by name, e-mail or phone — the Inbox's own search. The text pass
+ * (2026-11-26): it is drawn where a customer is what one looks for (Today's pages, the Inbox's tools). On Products,
+ * Books, Reports, the assistant's pages and Settings it searched for something the page is not about, and the
+ * Customers list has its own search on the page.
+ */
+const SEARCH_AREAS: ReadonlySet<AreaId> = new Set<AreaId>(['home', 'inbox']);
+const search = (locale: Locale, area: AreaId): string => SEARCH_AREAS.has(area) && notAccountant()
   ? `<form class="sect-search" method="get" action="/app/inbox" role="search"><input type="hidden" name="filter" value="all" />`
     + `<label>${solarSvg('sect-ic', 'magnifier', 20)}<span class="sr">${esc(t(locale, 'buyers.search.label'))}</span>`
     + `<input class="bare" type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" /></label></form>`
@@ -280,7 +286,7 @@ export function sectionSidebar(locale: Locale, area: AreaId, path: string): stri
   // carry no words, so the sidebar says where you are.
   const groups = visible(area).map((g) =>
     `<div class="sect-group"><p class="sect-head">${wordsHtml(locale, g.label ?? AREA_TITLE[area])}</p>${g.items.map((i) => link(locale, area, i, here)).join('')}</div>`).join('');
-  return `<aside class="sect" aria-label="${esc(t(locale, 'side.label'))}">${search(locale)}`
+  return `<aside class="sect" aria-label="${esc(t(locale, 'side.label'))}">${search(locale, area)}`
     + `<nav aria-label="${esc(t(locale, AREA_TITLE[area]))}">${groups}</nav></aside>`;
 }
 
