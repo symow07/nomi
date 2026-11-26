@@ -65,6 +65,8 @@ describe('the palette', () => {
       'coinGround',
       // The UI correction (2026-11-13): a field's or a quiet button's edge, 3:1 or better on white (a separator need not be).
       'controlLine',
+      // The rail (the owner, 2026-11-26): a soft gradient of the magenta behind the icon rail, and its tile's shadow.
+      'railTop', 'railBottom', 'railShadow',
     ].sort());
     expect(C['ink']).toBe('#171717');
     expect(C['inkSecondary']).toBe('#5E5E5A');

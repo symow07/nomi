@@ -196,6 +196,11 @@ export const DESIGN_TOKENS = {
     warnWash: '#FFFFFF',
     warnLine: '#E4E4E1',
     orbGlow: '#9A0F5E',
+    // The rail's ground (the owner, 2026-11-26): a soft gradient of the brand magenta, so the rail reads apart from
+    // the page; the tile you are on sits on it in white with a faint magenta shadow. inkSecondary on railBottom 5.0:1.
+    railTop: '#FCF3F8',
+    railBottom: '#F3D9E7',
+    railShadow: '#E2B8CF',
     // Seal artwork and favicon retain their supplied colours.
     coin: '#5A0A2E',
     coinGround: '#F5F1EA',

@@ -1,0 +1,4 @@
+The channel logos in src/api/web/brandLogos.ts (WhatsApp, Instagram, Telegram, TikTok) are copied from
+Simple Icons (https://simpleicons.org, npm simple-icons 13.21.0), released under CC0 1.0 Universal
+(https://creativecommons.org/publicdomain/zero/1.0/). The marks are trademarks of their respective owners and are
+used only to identify the channel each item connects.

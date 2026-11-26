@@ -17,6 +17,12 @@ export const SECTIONS_CSS = String.raw`
   .owner-shell .layout > nav.side :is(a,button).navlink { position:relative; display:flex; align-items:center; justify-content:center; inline-size:48px;
     min-block-size:48px; margin-inline:auto; padding:0; gap:0; border-radius:var(--radius-control); }
   .owner-shell nav.side .nl-body { display:contents; }
+  /* A little bubbly (the owner, 2026-11-26): the rail on a soft magenta gradient, round tiles, the one you are on
+     lifted in white. */
+  .owner-shell .layout > nav.side { background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)); border-inline-end-color:var(--color-rail-shadow); }
+  .owner-shell .layout > nav.side :is(a,button).navlink { border-radius:var(--radius-panel); }
+  .owner-shell .layout > nav.side .navlink:hover { background:var(--color-surface); }
+  .owner-shell .layout > nav.side a.navlink.active { background:var(--color-surface); box-shadow:0 2px 8px var(--color-rail-shadow); }
   .owner-shell nav.side .nl-text { position:absolute; inset-inline-start:calc(100% + var(--space-8)); inset-block-start:50%; z-index:20; translate:0 -50%;
     padding:var(--space-4) var(--space-8); border-radius:var(--radius-chip); background:var(--color-ink); color:var(--color-surface);
     font-size:var(--font-size-caption); font-weight:500; line-height:1.3; white-space:nowrap; letter-spacing:0; pointer-events:none;

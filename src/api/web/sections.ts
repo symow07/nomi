@@ -2,6 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc, wordsHtml } from './layout.js';
 import { GO, solarSvg } from './icons.js';
+import { brandSvg, type BrandLogo } from './brandLogos.js';
 import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, adsShown } from './say.js';
 import { settingsHref } from './settingsNavigation.js';
 
@@ -243,8 +244,18 @@ const ITEM_ICON: Readonly<Record<string, Shape>> = {
 const iconOf = (area: AreaId, item: Item): Shape =>
   area === 'reports' && item.href === '/app/books/reports' ? 'notebook-minimalistic' : ITEM_ICON[item.href] ?? 'list';
 
+/** A channel's item carries the channel's own logo (the owner, 2026-11-26); everything else its Solar icon. */
+const ITEM_LOGO: Readonly<Record<string, BrandLogo>> = {
+  '/app/settings/channels/whatsapp': 'whatsapp', '/app/settings/channels/meta': 'instagram',
+  '/app/settings/channels/telegram': 'telegram', '/app/settings/channels/tiktok': 'tiktok', '/app/products/whatsapp': 'whatsapp',
+};
+const itemIcon = (area: AreaId, item: Item): string => {
+  const logo = ITEM_LOGO[item.href];
+  return logo ? brandSvg('sect-ic sect-logo', logo, 20) : solarSvg('sect-ic', iconOf(area, item), 20);
+};
+
 const link = (locale: Locale, area: AreaId, item: Item, here: Item | null): string =>
-  `<a href="${esc(item.href)}"${item === here ? ' aria-current="page"' : ''}>${solarSvg('sect-ic', iconOf(area, item), 20)}<span>${wordsHtml(locale, item.label)}</span></a>`;
+  `<a href="${esc(item.href)}"${item === here ? ' aria-current="page"' : ''}>${itemIcon(area, item)}<span>${wordsHtml(locale, item.label)}</span></a>`;
 
 /** The search at the top of the sidebar: customers, by name, e-mail or phone — the Inbox's own search. */
 const search = (locale: Locale): string => notAccountant()

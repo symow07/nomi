@@ -449,11 +449,21 @@ describe('one family on every screen: Solar, no emoji', () => {
         if (f === 'icons.ts' && /viewBox="0 0 24 24"/.test(t)) continue;   // solarSvg
         if (/viewBox='0 0 16 16'|viewBox='0 0 24 24'/.test(t)) continue;   // a mark's shape (marks.ts) and the fold's mask, drawn as images
         if (f === 'splitToday.ts' && /role="img"/.test(t)) continue;       // the Split Today trend: a chart of the books' figures, not an icon
+        if (f === 'brandLogos.ts' && /viewBox="0 0 24 24"/.test(t)) continue; // a channel's own logo (the owner, 2026-11-26), below
         found.push(`${f}: ${t.slice(0, 70)}`);
       }
     }
     expect(found).toEqual([]);
     expect(read('src/api/web/icons.ts')).not.toMatch(/stroke-width="1\.8"/);   // the old hand-drawn lines
+  });
+
+  it('the one exception: a channel\'s own logo, for the four channels that have one, and nothing else', async () => {
+    // The owner (2026-11-26): "use the real socials icons (instagram - telegram - whatsapp…)". Simple Icons' drawings
+    // (CC0), one path each, in the text's colour; e-mail and web chat have no brand and keep their Solar shapes.
+    const { BRAND_LOGO, brandSvg } = await import('../../src/api/web/brandLogos.js');
+    expect(Object.keys(BRAND_LOGO).sort()).toEqual(['instagram', 'telegram', 'tiktok', 'whatsapp']);
+    expect(brandSvg('x', 'whatsapp')).toMatch(/^<svg class="x" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="[^"]+"\/><\/svg>$/);
+    expect(read('assets/icons/SIMPLE-ICONS-LICENSE.txt')).toContain('CC0');
   });
 
   it('on a page, every icon is Solar\'s', () => {
