@@ -11,7 +11,7 @@ export const COPILOT_SCRIPT = String.raw`
   var status = tools.querySelector('[data-tool-status]');
   var recovery = tools.querySelector('[data-tool-recovery]'), retryRequest = null;
   var opener = null, viewScroll = null, readingScroll = [], loaded = false, pending = 0, useGeneration = 0, using = false;
-  /* On a phone the page's own region scrolls, not the window: the reading place is kept there too. */
+  /* A phone scrolls the page's region: keep its place too. */
   var region = doc.querySelector('.content');
   var home = location.pathname + location.search + location.hash;
   function say(key) {
@@ -20,7 +20,7 @@ export const COPILOT_SCRIPT = String.raw`
   }
   function invalidateUse() {
     ++useGeneration;
-    /* A newer panel request owns its own status until it settles. */
+    /* A newer request owns the status. */
     if (using && !slot.hasAttribute('aria-busy')) say('');
   }
   function composer() {
@@ -30,6 +30,7 @@ export const COPILOT_SCRIPT = String.raw`
     var f = box && box.form, d = f && f.querySelector('input[name="draftId"]');
     return d ? d.value : '';
   }
+  function shut(v) { try { var k = 'nomi-panel-shut', t = sessionStorage; return v == null ? t.getItem(k) : v ? t.setItem(k, '1') : t.removeItem(k); } catch (_) {} }
   function focus(el) { if (el) { try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); } } }
   function expose() {
     slot.querySelectorAll('[data-use-reply]').forEach(function (button) { button.hidden = false; });
@@ -44,7 +45,7 @@ export const COPILOT_SCRIPT = String.raw`
     root.querySelectorAll('[data-open-tool]').forEach(function (el) { el.setAttribute('aria-expanded', String(el.getAttribute('data-open-tool') === which)); });
   }
   function restorePlace(restore) {
-    /* Settle the restored pane and pending fragment layout before applying its saved scroll. */
+    /* Settle layout before the saved scroll. */
     if (viewScroll) root.getBoundingClientRect();
     if (viewScroll && window.scrollTo) window.scrollTo(viewScroll[0], viewScroll[1]);
     if (viewScroll && region) region.scrollTop = viewScroll[2];
@@ -52,6 +53,7 @@ export const COPILOT_SCRIPT = String.raw`
     if (restore !== false) focus(opener);
   }
   function close(restore) {
+    if (root.hasAttribute('data-tool-open')) shut(1);
     invalidateUse();
     root.removeAttribute('data-tool-open');
     root.style.removeProperty('--conversation-acts-height');
@@ -60,13 +62,12 @@ export const COPILOT_SCRIPT = String.raw`
   }
   function open(which, link, remember) {
     var already = root.hasAttribute('data-tool-open'), draftTop = null;
-    if (!already && remember !== false) {
+    if ((!already || !opener) && remember !== false) {
       opener = link;
       viewScroll = [window.scrollX, window.scrollY, region ? region.scrollTop : 0];
       readingScroll = Array.from(root.querySelectorAll('.conv-thread, .conv-acts, .listpane')).map(function (el) { return [el, el.scrollTop, el.scrollLeft]; });
       home = location.pathname + location.search + location.hash;
-      /* F13: keep the decision's existing height while its width changes. Extra wrapped context scrolls inside
-         that same region, so opening the neighbouring pane does not lift the owner's unsent draft. */
+      /* F13: the decision keeps its height while its width changes; the draft stays put. */
       var acts = root.querySelector('.conv-acts');
       if (acts && window.matchMedia && window.matchMedia('(min-width:1300px)').matches) {
         root.style.setProperty('--conversation-acts-height', acts.getBoundingClientRect().height + 'px');
@@ -75,15 +76,15 @@ export const COPILOT_SCRIPT = String.raw`
       }
     }
     setTab(which);
-    /* A translated attribution can gain a line at the narrower width. Keep the same draft edge inside the
-       held region; its contextual lines remain reachable just above it, and close restores the original scroll. */
+    /* Keep the draft's edge (a label may wrap). */
     if (draftTop !== null && acts && box) acts.scrollTop += box.getBoundingClientRect().top - draftTop;
     if (window.matchMedia && window.matchMedia('(max-width:1099px)').matches && window.scrollTo) { window.scrollTo(0, 0); if (region) region.scrollTop = 0; }
-    if (remember !== false) {
+    if (remember !== false && remember !== 'quiet') {
       try { history[already ? 'replaceState' : 'pushState']({ nomiTool: which }, '', '#nomi-' + which); } catch (_) {}
     }
+    if (remember !== false) shut(0);
     if (which === 'ask' && !loaded) loadPanel(tools.getAttribute('data-copilot-url'), null);
-    else focus(tools.querySelector(which === 'ask' ? '#copilot-title' : '[data-close-tool]'));
+    else if (remember !== 'quiet') focus(tools.querySelector(which === 'ask' ? '#copilot-title' : '[data-close-tool]'));
   }
   function loadPanel(url, body) {
     retryRequest = [url, body];
@@ -137,8 +138,7 @@ export const COPILOT_SCRIPT = String.raw`
     if (e.state && (e.state.nomiTool === 'ask' || e.state.nomiTool === 'customer')) open(e.state.nomiTool, null, false);
     else {
       close(false);
-      /* B2-V02: the browser restores #latest AFTER popstate, including its own focus/scroll reset.
-         Restore in the next event-loop turn, once that native history traversal is complete. */
+      /* B2-V02: restore after the browser's own #latest reset, next turn. */
       setTimeout(function () { if (!root.hasAttribute('data-tool-open')) restorePlace(); }, 0);
     }
   });
@@ -175,6 +175,9 @@ export const COPILOT_SCRIPT = String.raw`
     var initial = location.hash === '#nomi-ask' ? 'ask' : 'customer';
     opener = root.querySelector('[data-open-tool="' + initial + '"]');
     open(initial, opener, false);
+  } else {
+    /* Wide screen: the customer is open from the start unless closed in this tab (2026-11-26). */
+    if (!shut() && window.matchMedia && window.matchMedia('(min-width:1300px)').matches) open('customer', null, 'quiet');
   }
 })();
 `;

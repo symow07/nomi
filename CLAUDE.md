@@ -349,6 +349,7 @@ Every rule below is in force; read its full text in docs/team/rules.md before wo
 100. **Procedures** — `docs/team/rules.md`
 101. **Before it goes live — "did teaching break anything?"** — `docs/team/rules.md`
 102. **The hand-off that carries context** — `docs/team/rules.md`
+103. **Two layers everywhere: the rail and each area's section sidebar** — `docs/team/rules.md`
 
 ## 6 · What's next
 

@@ -1,4 +1,5 @@
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { withZone } from '../../src/api/web/zone.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -83,7 +84,8 @@ describe('A · one list, with a search box', () => {
       expect(bare, l).toContain('<input type="search" name="q" value=""');
       expect(bare, l).toContain(`placeholder="${shown(l, 'buyers.search.placeholder')}"`);
       expect(bare, l).toContain(`aria-label="${shown(l, 'buyers.search.label')}"`);
-      expect(bare, l).toContain(`<button class="sp-btn" type="submit">${shown(l, 'buyers.search.go')}</button>`);
+      // The controls pass (2026-11-25): Enter searches, as Intercom's box does; the button stays for a keyboard and a screen reader.
+      expect(bare, l).toContain(`<button class="sp-btn find-quiet" type="submit">${shown(l, 'buyers.search.go')}</button>`);
       expect(bare, `${l}: nothing to clear`).not.toContain('class="clear"');
 
       const found = html(l, { query: 'Ahmed "Al" <Rashid>', page: { from: 1, to: 6, total: 6, next: null, prev: null } });
@@ -341,7 +343,9 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     const off = withWorkspace({ name: null, several: false, outreach: false, setup: null }, () => html('en'));
     const on = withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => html('en'));
     expect(off).not.toContain('href="/app/customers/outreach"');
-    expect(on).toContain('href="/app/customers/outreach"');
+    // The navigation block (2026-11-25): the contacts door moved again, to Customers' sidebar, its one home.
+    expect(on).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => sectionSidebar('en', 'customers', '/app/customers'))).toContain('href="/app/customers/outreach"');
     // phase 9 of the warmth run (V1-166) — no calendar door: the rail has Calendar on every width
     expect(on).not.toContain('class="deeper on-phone"');
   });

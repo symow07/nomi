@@ -137,7 +137,7 @@ export const CONVERSATION_CSS = `
   ${ACTS}[data-band="approve"]:has(.approval-warnings) #approve .acts-more .btn { position:static; block-size:auto; inline-size:auto; }
   ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve { padding:0; }
   ${WARNINGS} { padding:0; border:0; }
-  ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve textarea { flex:none; min-block-size:96px; resize:vertical; }
+  ${ACTS}[data-band="approve"]:has(.approval-warnings) form.approve textarea { flex:none; min-block-size:96px; resize:none; }
 }
 .order-action-note { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink-secondary); }
 /* A desk: the page's help door sits in the corner; the row keeps clear of it. */
@@ -217,7 +217,7 @@ export const CONVERSATION_CSS = `
 .ct-head { position:relative; }
 .ct-status { margin:0 0 var(--space-12); }
 .cp-question { display:grid; gap:var(--space-8); margin-block:var(--space-16); }
-.cp-question textarea { width:100%; min-width:0; resize:vertical; }
+.cp-question textarea { width:100%; min-width:0; resize:none; }
 .cp-question button { justify-self:start; }
 .cp-answer, .cp-suggestion blockquote { margin-block:var(--space-24); padding:var(--space-16); background:var(--color-assistant-wash); color:var(--color-ink); border:0; border-radius:var(--radius-panel); }
 .cp-answer p, .cp-suggestion blockquote { white-space:pre-wrap; }
@@ -263,6 +263,8 @@ export const CONVERSATION_CSS = `
      visible for successive frames after their button has hidden, including in loading/error states. */
   .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition:none; }
   .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
+  .conversation-workspace [data-open-tool="customer"], .conversation-workspace [data-open-tool="customer"] * { transition:none; }
+  .conversation-workspace[data-tool-open="customer"] [data-open-tool="customer"] { visibility:hidden; }
   .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
 
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }

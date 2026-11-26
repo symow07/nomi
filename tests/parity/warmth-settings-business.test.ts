@@ -263,9 +263,10 @@ describe('phase 7 · two doors, one data', () => {
     // the profile page is the only form for the facts: no screen of My business repeats a field of it
     for (const s of ['channels', 'allowlist', 'ready', 'promises', 'how'] as const)
       expect(screen(s, 'en'), s).not.toMatch(/name="(description|location|working_hours|contact_email|contact_phone)"/);
-    // Product records have their own area; business configuration stays in Settings.
+    // Product records have their own area; business configuration stays in Settings; the assistant's own settings
+    // are the assistant area's (the navigation block, 2026-11-25).
     for (const path of [BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH, '/app/products/abc', ...Object.values(BUSINESS_SCREEN_PATH)])
-      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') || path === '/app/products/price-limits' ? 'products' : 'settings');
+      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') ? 'products' : path.startsWith('/app/settings/assistant') ? 'assistant' : 'settings');
   });
 });
 

@@ -56,16 +56,18 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
   });
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('Settings opens on the assistant\'s row, and the row opens the assistant\'s page, the control first', async () => {
+  it('the assistant\'s page opens in the assistant\'s area (the navigation block), the control first', async () => {
     const settings = await get('/app/settings');
     expect(settings.statusCode).toBe(200);
-    expect(settings.body).toContain('href="/app/settings/assistant"');
+    // The navigation block (2026-11-25): the assistant's settings live in the assistant's own area; Settings says so.
+    expect(settings.body).not.toContain('href="/app/settings/assistant"');
     const page = await get('/app/settings/assistant');
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="on-her-own"');
     expect(page.body).toContain('action="/app/settings/assistant/autonomy"');
-    // Configuration stays in Settings; daily tools and Ask Nomi are reached through Assistant.
-    expect(page.body).toMatch(/<a href="\/app\/settings" class="navlink nav-desktop active"/);
+    // Configuration is the assistant area's "Go live" group, lit in its sidebar; Ask Nomi has its own slot in the rail.
+    expect(page.body).toMatch(/<a href="\/app\/assistant" class="navlink nav-desktop active"/);
+    expect(page.body).toContain('<a href="/app/settings/assistant" aria-current="page">');
     expect(page.body).toContain('href="/app/assistant"');
     expect(page.body).not.toContain('href="/app/employee');
   });
@@ -95,7 +97,7 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
   it('the advisor: signed in under Assistant; a question writes nothing anywhere (a real save is the control)', async () => {
     const page = await get('/app/advisor');
     expect(page.statusCode).toBe(200);
-    expect(page.body).toMatch(/<a href="\/app\/assistant" class="navlink nav-desktop active" data-nav="assistant" aria-current="page"/);
+    expect(page.body).toMatch(/<a href="\/app\/assistant\/ask" class="navlink nav-desktop active" data-nav="ask" aria-current="page"/);
     expect(page.body).toContain('<form method="post" action="/app/advisor" class="ask-form"');
     // the access code's owner is a row born with the business's name: the page greets a person, never the business
     expect(page.body).toContain('<p dir="auto">Hello</p>');

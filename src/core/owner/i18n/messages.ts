@@ -2,6 +2,7 @@ import { isCountryCode } from '../business.js';
 import { type Locale, DEFAULT_LOCALE } from './locale.js';
 import { REDESIGN_EN } from './redesign.js';
 import { UI_FINISH_ZH, UI_FINISH_AR, UI_FINISH_ES, UI_FINISH_FR } from './uiFinish.js';
+import { NAVIGATION_ZH, NAVIGATION_AR, NAVIGATION_ES, NAVIGATION_FR } from './navigation.js';
 import { ASK_PICTURE_EN, ASK_PICTURE_ZH, ASK_PICTURE_AR, ASK_PICTURE_ES, ASK_PICTURE_FR } from './askPicture.js';
 
 /**
@@ -5938,6 +5939,7 @@ export type MessageKey = keyof typeof EN;
 const ZH: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_ZH,
+  ...NAVIGATION_ZH,
   ...ASK_PICTURE_ZH,
   'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
@@ -11885,6 +11887,7 @@ const ZH: Record<MessageKey, string> = {
 const AR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_AR,
+  ...NAVIGATION_AR,
   ...ASK_PICTURE_AR,
   'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
@@ -17834,6 +17837,7 @@ const AR: Record<MessageKey, string> = {
 const ES: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_ES,
+  ...NAVIGATION_ES,
   ...ASK_PICTURE_ES,
   'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
@@ -23723,6 +23727,7 @@ const ES: Record<MessageKey, string> = {
 const FR: Record<MessageKey, string> = {
   ...REDESIGN_EN,
   ...UI_FINISH_FR,
+  ...NAVIGATION_FR,
   ...ASK_PICTURE_FR,
   'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',

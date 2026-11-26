@@ -1,4 +1,6 @@
+import { CONTROLS_CSS } from '../../src/api/web/controlsStyle.js';
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import { type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
@@ -180,7 +182,9 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(h).not.toContain('href="/app/calendar"');
     expect(CSS).not.toContain('.deeper.on-phone');
     // the door says the page's own name (V1-548, settings-b's fix)
-    expect(h).toContain(`href="/app/customers/outreach">${esc(t('en', 'customers.followups'))}`);
+    // (the navigation block, 2026-11-25: the door is in Customers' sidebar now, its one home)
+    expect(h).not.toContain('href="/app/customers/outreach"');
+    expect(withWorkspace(SCOPE, () => sectionSidebar('en', 'customers', '/app/customers'))).toMatch(new RegExp(`href="/app/customers/outreach">(?:<svg[^]*?</svg>)?<span>${esc(t('en', 'customers.followups'))}</span>`));
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {
@@ -208,7 +212,10 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(h).toContain('class="si-tab on" aria-current="true" href="/app/inbox?filter=all"');
     expect(CSS).toContain('.il-views .si-tab.on { color:var(--color-accent); background:var(--color-assistant-wash); }');
     expect(CSS).toContain('.il-page .si-search .sp-btn { min-block-size:44px; }');
-    expect(CSS).toContain('min-block-size:44px; margin:0; font-size:var(--font-size-base)');
+    // The controls pass (2026-11-25): the search box is the shared text box (controlsStyle.ts) — 40 px with a mouse,
+    // 44 px under a finger or on a phone.
+    expect(CONTROLS_CSS).toMatch(/block-size:var\(--control-field\)/);
+    expect(CONTROLS_CSS).toMatch(/@media \(max-width: 720px\), \(pointer: coarse\) \{[^@]*block-size:var\(--control-touch\)/);
   });
 
   it('the rail\'s number is a figure, and its link says what it counts', () => {
@@ -403,10 +410,10 @@ describe('Results', () => {
     expect(empty).toContain('Not enough activity for this month yet.');
   });
 
-  it('V1-207 · Results is Today\'s page and says so; its period chip is not a second "Today"', () => {
+  it('V1-207 · Results is the Reports area\'s own page (the navigation block): no way back to Today; its period chip is not a second "Today"', () => {
     for (const l of LOCALES) {
       const h = results(l);
-      expect(h, l).toContain(`<a class="back" href="/app">${BACK}${shown(l, 'split.title')}</a>`);
+      expect(h, l).not.toContain('class="back"');
       expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'split.title'));
     }
   });
@@ -573,7 +580,8 @@ describe('the settings pages', () => {
   });
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
-    for (const p of ['alerts', 'billing', 'business', 'closures', 'forbidden']) {
+    // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
+    for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
       const h = draw(p, 'en');
       expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
     }
@@ -627,7 +635,8 @@ describe('the settings pages', () => {
       expect(/<h1 class="page">([^<]*)<\/h1>/.exec(h)![1], l).toBe(shown(l, 'business.kind.title'));
       expect(t(l, 'business.kind.title'), l).toBe(t(l, 'setup.desc.kind'));
       expect(t(l, 'business.kind.title'), l).not.toBe(t(l, 'signup.kind'));
-      expect(h, l).toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(h, l).not.toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
       expect(h, l).toContain(esc(t(l, 'settings.field.location')));
       expect(h, l).toContain(esc(t(l, 'settings.profile.title')));
     }

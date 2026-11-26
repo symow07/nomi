@@ -441,9 +441,12 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     }
   });
 
-  it('the Buyers page links the calendar', async () => {
-    const r = await get('/app/inbox');
-    expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('href="/app/calendar"');
+  it('Today\'s sidebar links the calendar, on Today and on the calendar itself', async () => {
+    // The navigation block (2026-11-25): the calendar is a Today section, one click from every Today page.
+    for (const path of ['/app', '/app/calendar']) {
+      const r = await get(path);
+      expect(r.statusCode, path).toBe(200);
+      expect(r.body, path).toMatch(/<aside class="sect"[\s\S]*href="\/app\/calendar"[\s\S]*<\/aside>/);
+    }
   });
 });

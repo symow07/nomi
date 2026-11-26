@@ -250,7 +250,6 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date,
   // The page's one title and its lede; the list of what was taught follows
   // (`renderKnowledgeIndex`), under this same heading.
   return `${options.embedded?'':`<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>${flashBanner(flash)}`}
-    <p class="lede">${esc(t(locale, 'knowledge.intro'))}</p>
     ${gaps}`;
 }
 

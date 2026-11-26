@@ -1,3 +1,4 @@
+import { CONTROLS_CSS } from '../../src/api/web/controlsStyle.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { filterBar } from '../../src/api/web/filterBar.js';
@@ -28,7 +29,8 @@ const bar = (active = 0) => filterBar({
 describe('UI Block 9 · F07 — the shared filter bar', () => {
   it('each field is a label that wraps its words and its control', () => {
     const html = bar();
-    const labels = html.match(/<label class="fbar-f[^"]*"><span class="fbar-l">[^<]+<\/span><(input|select)[^]*?<\/label>/g) ?? [];
+    // The controls pass (2026-11-25): the search control sits in its mark's frame (`field-search`), still inside its label.
+    const labels = html.match(/<label class="fbar-f[^"]*"><span class="fbar-l">[^<]+<\/span>(?:<span class="field-search">)?<(input|select)[^]*?<\/label>/g) ?? [];
     expect(labels).toHaveLength(2);
     expect(html).not.toMatch(/<label[^>]*for=/);
     expect(html).toMatch(/^<form method="get" action="\/app\/books\/invoices" class="fbar bd-filters" role="search" aria-label="Search invoices">/);
@@ -54,8 +56,12 @@ describe('UI Block 9 · F07 — the shared filter bar', () => {
   it('one height and one bottom edge on a desk; the words above, full width, and the fold on a phone', () => {
     expect(FILTER_BAR_CSS).toMatch(/\.fbar \{ display:flex; flex-wrap:wrap; align-items:flex-end;/);
     expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-f \{ display:flex; flex-direction:column;/);
-    expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-f input, \.fbar \.fbar-f select \{ flex:none; box-sizing:border-box; inline-size:100%; block-size:44px;/);
-    expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-acts \.btn \{ box-sizing:border-box; block-size:44px;/);
+    // The controls pass (2026-11-25): the height is the shared field's and the shared button's (controlsStyle.ts), 40 and
+    // 36 on a desk, 44 under a finger; the bar keeps its bottom edge (align-items:flex-end) and sizes nothing itself.
+    expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-f input, \.fbar \.fbar-f select \{ flex:none; box-sizing:border-box; inline-size:100%; \}/);
+    expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-acts \.btn \{ box-sizing:border-box; padding-block:0;/);
+    expect(CONTROLS_CSS).toMatch(/block-size:var\(--control-field\)/);
+    expect(CONTROLS_CSS).toMatch(/@media \(max-width: 720px\), \(pointer: coarse\) \{[^@]*block-size:var\(--control-touch\)/);
     expect(FILTER_BAR_CSS).toMatch(/\.fbar \.fbar-more > summary \{ display:none; \}/);
     const phone = FILTER_BAR_CSS.slice(FILTER_BAR_CSS.indexOf('@media (max-width:720px)'));
     expect(phone).toMatch(/\.fbar \{ flex-direction:column; align-items:stretch;/);

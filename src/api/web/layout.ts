@@ -5,6 +5,7 @@ import { FOLLOW_UP_CSS } from './followUpStyle.js';
 import { FILTER_BAR_CSS } from './filterBarStyle.js';
 import { LISTS_CSS } from './listsStyle.js';
 import { EDIT_FOLD_CSS } from './editFoldStyle.js';
+import { CONTROLS_CSS } from './controlsStyle.js';
 import { STATE_CSS } from './stateBlockStyle.js';
 import { pageFrom } from './helpTopics.js';
 import { settingsHref } from './settingsNavigation.js';
@@ -39,6 +40,8 @@ import { CUSTOMER_TOOLS_CSS } from './customerToolsStyle.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
+import { SECTIONS_CSS } from './sectionsStyle.js';
+import { AREAS, sectionSidebar, sectionChooser, isSectionPage, type AreaId } from './sections.js';
 import { mayLoad } from './thirdParty.js';
 
 /**
@@ -57,8 +60,11 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   { href: '/app/inbox', id: 'inbox' },
   { href: '/app/customers', id: 'customers' },
   { href: '/app/products', id: 'products' },
-  { href: '/app/books', id: 'books' },
   { href: '/app/assistant', id: 'assistant' },
+  { href: '/app/books', id: 'books' },
+  // The navigation block (2026-11-25): Reports is its own area; Ask Nomi sits at the rail's foot, by Settings.
+  { href: '/app/results', id: 'reports' },
+  { href: '/app/assistant/ask', id: 'ask' },
   { href: '/app/settings', id: 'settings' },
 ];
 
@@ -87,6 +93,7 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   // The advisor run — the owner's choice: Solar's round chat bubble; since 2026-10-09 without its three dots; since
   // 2026-10-11 unlit, a plain rail icon like the others.
   advisor: 'chat-round', assistant: 'chat-round', customers: 'users-group-rounded', products: 'box', books: 'notebook-minimalistic',
+  reports: 'chart-2', ask: 'chat-round-dots',
 };
 
 /**
@@ -108,18 +115,22 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
-  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data','shopify'].map(s=>'/app/settings/business/'+s) },
-  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s) },
+  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s) },
+  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email','chat','telegram','tiktok'].map(s=>'/app/settings/channels/'+s) },
   { hub: ASSISTANT_HOME, routes: ['alone','name','words','promises','ready','history-policy'].map(s=>ASSISTANT_HOME+'/'+s) },
-  { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/practice','/app/assistant/review','/app/assistant/activity','/app/assistant/ask'] },
+  // The navigation block (2026-11-25): the assistant's settings are the assistant area's "Go live" group.
+  { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/knowledge/procedures','/app/assistant/practice','/app/assistant/review','/app/assistant/activity',ASSISTANT_HOME] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/customers', routes: ['/app/customers/outreach'], outreach: true },
   // S1 (0195) — the saved replies a person answers buyers with: kept under Buyers.
   { hub: '/app/inbox', routes: ['/app/inbox/replies'] },
   { hub: '/app/customers', routes: ['/app/customers/orders', '/app/customers/labels', '/app/customers/feedback'] },
-  { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits'] },
-  { hub: '/app/settings', routes: ['business','channels','assistant','books','team','billing','personal'].map(s=>'/app/settings/'+s) },
+  // The navigation block: what you sell through (Shopify orders, payment links) sits under Products.
+  { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits', '/app/products/whatsapp', '/app/settings/business/shopify', '/app/payments/stripe'] },
+  // ...and the books' settings are the books area's "Setup" group.
+  { hub: '/app/books', routes: ['/app/settings/books'] },
+  { hub: '/app/settings', routes: ['business','channels','team','billing','personal'].map(s=>'/app/settings/'+s) },
   { hub: '/app/settings/personal', routes: ['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s) },
   { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
@@ -127,7 +138,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // Writing and suppression remain per-contact workflows requiring an identity, not bare hub doors.
   // Their canonical and legacy route guards are covered by outreach-area and command integration tests.
   { hub: '/app/customers/outreach', routes: ['/app/customers/outreach/sequences', '/app/customers/outreach/find'], outreach: true },
-  { hub: '/app', routes: ['/app/analytics'] },
+  // The navigation block: Reports is its own area; the older address of its first page is still reached from it.
+  { hub: '/app/results', routes: ['/app/analytics', '/app/results/month'] },
 ];
 
 /**
@@ -404,11 +416,11 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  * rule's selector is one the pages really draw.
  */
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    .btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
+    .btn, .sp-btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
         box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
         transform var(--motion-fast) var(--motion-ease); }
-    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side :is(a,button).navlink:active { transform:scale(var(--motion-scale-press)); }
+    .btn:active, .sp-btn:active, a.srow:active, button.srow:active, .tab:active, nav.side :is(a,button).navlink:active { transform:scale(var(--motion-scale-press)); }
     nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
     nav.side :is(a,button).navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
@@ -825,7 +837,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .pform input:not([type="checkbox"]):not([type="radio"]), .pform textarea, .pform select {
     background:var(--color-surface); border:1px solid var(--color-control-line);
     border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit;
-    min-height:44px; resize:vertical; }
+    min-height:44px; resize:none; }
   .pform label.check { display:flex; align-items:center; gap:var(--space-8); min-height:44px; }
   /* Phase 9 (cross-new-03) — a field sent back is marked by its edge on every form, the calendar's too, not only a settings row. */
   main input[aria-invalid="true"], main textarea[aria-invalid="true"], main select[aria-invalid="true"] { border-color:var(--color-warn); }
@@ -1295,7 +1307,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {
     background:var(--color-surface); border:1px solid var(--color-control-line);
     border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  main textarea { resize:vertical; }
+  main textarea { resize:none; }
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
@@ -1437,12 +1449,7 @@ const STYLE_PAGES = `
      (6.1's check: at 390 px the "?" sat on the area menu's arrow on Today, Calendar and Results; between a phone and a
      laptop it sat on the last link of the Books, Assistant, Customers and Settings rows). Each stops short of the "?"
      by the door and a gap. tools/check-help-door.mjs measures every shell page against every control. */
-  .content .ca-nav, .content .pa-nav, .content .sa-pages { padding-inline-end:calc(44px + var(--space-8)); }
-  @media (max-width:1100px) { .content .aa-nav, .content .ba-nav, .content .sa-nav { padding-inline-end:calc(44px + var(--space-8)); } }
   @media (max-width:720px) { .content .area-nav .area-chooser { margin-inline-end:calc(44px + var(--space-8)); } }
-  @media (max-width:600px) {
-    .content .sa-chooser, .content .aa-chooser, .content .ca-chooser, .content .pa-chooser, .content .ba-chooser { margin-inline-end:calc(44px + var(--space-8)); }
-  }
   .help-door:hover { color:var(--color-ink); background:var(--color-sand); }
   .help-door:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .help { display:flex; flex-direction:column; gap:var(--space-16); }
@@ -1532,7 +1539,6 @@ const STYLE_PAGES = `
   .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
   .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
   .sreq-a { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); max-width:var(--measure-form); }
-  .sreq-a textarea { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
@@ -1745,7 +1751,6 @@ const STYLE_PAGES = `
   .fgap-s { margin:0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
-  .alform input { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
@@ -1801,7 +1806,7 @@ const STYLE_PAGES = `
   .filepick:focus-within .btn { outline:2px solid var(--color-brand); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
+  textarea { width:100%; resize:none; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
   /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
   .imp { display:block; }
@@ -1818,7 +1823,6 @@ const STYLE_PAGES = `
   .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .imp-warn { display:block; color:var(--color-ink-secondary); font-weight:600; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
-  .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
   .imp-typed input, .imp-pct input { width:8em; }
   /* Phase 9 (V1-340) — the figure and its sign stay on one line, in either direction. */
   .imp-pct { display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap; }
@@ -1840,7 +1844,6 @@ const STYLE_PAGES = `
   .imp-table tfoot th, .imp-table tfoot td { font-weight:600; border-bottom:0; }
   .imp-cols label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-12) 0; }
   .imp-cols label.pcheck { flex-direction:row; }
-  .imp-cols select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
 
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
@@ -1881,7 +1884,6 @@ const STYLE_PAGES = `
   .prob { background:var(--color-sand); color:var(--color-ink); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
-  .ownerform input { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   /* ── howYouSell.ts — Phase 9: the hub and its questions. */
   .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
   .hs-start { margin:0 0 var(--space-8); }
@@ -1919,7 +1921,6 @@ const STYLE_PAGES = `
   .hs-lines .pcheck { align-items:flex-start; padding-block:var(--space-8); }
   .hs-lines .pcheck input { flex:none; margin-block-start:0.3em; }
   @media (max-width:600px) {
-    .sa-content:has(> .hs-step) > .sa-page-chooser { margin-bottom:var(--space-8); padding-bottom:var(--space-4); }
     .hs-step { margin-bottom:0; flex-wrap:nowrap; }
     .hs-step > .back { flex:none; }
     .hs-step > .hs-where { min-inline-size:0; justify-content:flex-end; text-align:end; }
@@ -1960,7 +1961,7 @@ const STYLE_PAGES = `
   .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   .teach h3 { margin:0; font-size:var(--font-size-small); }
-  input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; }
+  input[type=text], textarea, select { width:100%; }
   .kbtns { display:flex; gap:var(--space-8); }
   /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
   .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
@@ -2013,7 +2014,7 @@ const STYLE_PAGES = `
   /* The warmth run (-18) — the way back, which holds the focus on arrival, is a control's size and corner, so its ring is too. */
   .confirm > .back { padding:0 var(--space-12); border-radius:var(--radius-control); }
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-  .wform textarea { width:100%; font:inherit; }
+  .wform textarea { width:100%; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
   /* Phase 9 (V1-543, V1-544) — the list grouped by its answer, the reason said once at each group's head. */
   .ctgroup { margin-top:var(--space-24); }
@@ -2409,7 +2410,7 @@ const STYLE_PAGES = `
   .approve { display:flex; flex-direction:column; gap:var(--space-8); }
   .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
     background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:var(--radius-control); padding:10px 14px;
-    width:100%; min-height:4.5em; max-height:50vh; resize:vertical; margin:0; field-sizing:content; }
+    width:100%; min-height:4.5em; max-height:50vh; resize:none; margin:0; field-sizing:content; }
   .approve .acts { align-items:center; margin:0; }
   /* Phase 9 (V1-237) — the quiet act on its own line under the two answers, the window at its far end. */
   .acts-more { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
@@ -2667,7 +2668,7 @@ const STYLE_PAGES = `
   .en .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
   .en-a { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-8); }
   .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-  .sqform textarea { width:100%; font:inherit; }
+  .sqform textarea { width:100%; }
   .pill.wait { background:var(--color-sand); color:var(--color-ink-secondary); }
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
@@ -2695,14 +2696,14 @@ const STYLE_PAGES = `
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  select { background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
+  select { max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
   /* The fix wave (w4-conversation-22) — the total's label, its field and the hint under it, one group. */
   .sbx-total { display:flex; flex-direction:column; gap:var(--space-4); }
   .sbx-total input { max-width:var(--measure-form); }
   .sbx-total p { margin:0; font-size:var(--font-size-caption); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-control-line); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
+  textarea { width:100%; resize:none; }
   .sbx-trust { border-color:var(--color-border); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
@@ -2952,7 +2953,7 @@ export const PUBLIC_TOP_CSS = `${LANGSW_CSS}${LANGMENU_CSS}
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 /** The Split Today preview's sheet: linked by the one page drawn with `split`, after the app's own. */
-const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS + FILTER_BAR_CSS + LISTS_CSS + EDIT_FOLD_CSS + STATE_CSS);
+const SPLIT_SHEET = sheet('split', SPLIT_CSS + INBOX_LIST_CSS + CONVERSATION_CSS + CUSTOMERS_CSS + CUSTOMER_TOOLS_CSS + PRODUCT_IMPORT_CSS + PRODUCTS_CSS + WA_CATALOGUE_CSS + BOOKS_AREA_CSS + BOOKS_INVOICE_CSS + BOOKS_SPENDING_CSS + ASSISTANT_AREA_CSS + SETTINGS_AREA_CSS + MONTH_REPORT_CSS + SETUP_MINUTES_CSS + FOLLOW_UP_CSS + FILTER_BAR_CSS + LISTS_CSS + EDIT_FOLD_CSS + STATE_CSS + SECTIONS_CSS + CONTROLS_CSS);
 
 /**
  * The type (the design pass, 2026-09-29): the faces a page's language needs,
@@ -3026,11 +3027,15 @@ export function hubFor(path: string, active: string): string {
   const url = (path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '') || '/app';
   // Transitional addresses stay in the destination that will own their content.
   const belongs: readonly [string, readonly string[]][] = [
-    ['home', ['/app/calendar', '/app/results', '/app/analytics', '/app/get-started', '/app/guide', '/app/onboarding', '/app/ready', '/app/settings/assistant/month']],
+    ['home', ['/app/calendar', '/app/get-started', '/app/guide', '/app/onboarding', '/app/ready']],
+    // The navigation block (2026-11-25): each area owns what its sidebar lists, wherever its address happens to be.
+    ['reports', ['/app/results', '/app/analytics', '/app/settings/assistant/month']],
+    ['inbox', ['/app/channels/instagram/comments', '/app/inbox/replies', '/app/replies']],
     ['customers', ['/app/customers', '/app/conversations', '/app/orders', '/app/contacts', '/app/prospects', '/app/sequences', '/app/labels', '/app/surveys']],
-    ['products', ['/app/products', '/app/business/prices']],
-    ['assistant', ['/app/assistant', '/app/advisor', '/app/knowledge', '/app/sandbox', '/app/settings/assistant/checks', '/app/settings/assistant/history']],
-    ['books', ['/app/books']],
+    ['products', ['/app/products', '/app/business/prices', '/app/settings/business/shopify', '/app/payments/stripe']],
+    ['ask', ['/app/assistant/ask', '/app/advisor']],
+    ['assistant', ['/app/assistant', '/app/knowledge', '/app/sandbox', '/app/settings/assistant']],
+    ['books', ['/app/books', '/app/settings/books']],
   ];
   for (const [area, routes] of belongs) if (routes.some((r) => url === r || url.startsWith(`${r}/`))) return area;
 
@@ -3080,22 +3085,13 @@ export function hubFor(path: string, active: string): string {
  * other page reached from a hub already starts with its "‹". The shell adds
  * it only where the page has none, so a page that draws its own keeps it.
  */
+// The navigation block (2026-11-25): a page that is one of its area's own entries needs no "‹ back" — the section
+// sidebar (and the chooser on a phone) is the way, so those entries left this list (`isSectionPage`). What is left is a
+// page reached from one entry and listed nowhere itself.
 export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
-  ...Object.fromEntries(['hours','currency','samples','terms'].map(s=>['/app/settings/business/'+s,{href:'/app/settings/business',label:'settingsArea.business' as MessageKey}])),
-  '/app/settings/assistant/words': { href: ASSISTANT_HOME, label: 'nav.employee' },
-  [ASSISTANT_HOME]: { href: '/app/settings', label: 'nav.settings' },
-  '/app/settings/team': { href: '/app/settings', label: 'nav.settings' },
-  '/app/settings/business': { href: '/app/settings', label: 'nav.settings' },
   '/app/settings/channels/technical': { href: '/app/settings/channels', label: 'settingsArea.channels' },
-  '/app/knowledge': { href: '/app/assistant', label: 'nav.assistant' },
-  '/app/replies': { href: '/app/inbox', label: 'nav.inbox' },
-  '/app/labels': { href: '/app/customers', label: 'nav.customers' },
-  '/app/surveys': { href: '/app/customers', label: 'nav.customers' },
-  '/app/guide': { href: '/app', label: 'nav.home' },
-  '/app/onboarding': { href: '/app', label: 'nav.home' },
-  '/app/ready': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
   '/app/onboarding/practice': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
-  '/app/onboarding/activity': { href: '/app/results', label: 'nav.home' },
+  '/app/onboarding/activity': { href: '/app/results', label: 'nav.reports' },
 };
 const wayBack = (locale: Locale, path: string, body: string): string => {
   const to = BACK_TO[(settingsHref(path).split(/[?#]/)[0] ?? path).replace(/\/+$/, '')] ?? BACK_TO[path];
@@ -3146,6 +3142,8 @@ export function shell(input: {
   readonly wide?: boolean;
   /** The Split Today preview (`SPLIT_TODAY=on`), only ever on Today: its sheet, its rail, and who is signed in at the rail's foot. */
   readonly split?: { readonly me: string };
+  /** Who is signed in, at the rail's foot — on every page (the owner, 2026-11-25), not only the Split ones. */
+  readonly me?: string;
 }): string {
   const { locale } = input;
   const here = hubFor(input.path, input.active);
@@ -3165,13 +3163,19 @@ export function shell(input: {
     return shellWith(input, `<div class="navgroup">${books}${account}</div><div class="navfoot">${logout}</div>`);
   }
   const visible = NAV.filter((n) => n.id !== 'books' || (role === 'owner' && booksShown()));
-  const labelFor = (id: string): MessageKey => id === 'home' ? 'split.title' : `nav.${id}` as MessageKey;
-  const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', ['products', 'assistant', 'settings'].includes(n.id) ? ' nav-desktop' : '');
-  const moreLinks = [...visible.filter((n) => ['products', 'assistant'].includes(n.id)), { href: '/app/calendar', id: 'calendar' }, ...visible.filter((n) => n.id === 'settings')];
-  const more = `<details class="nav-more"><summary class="navlink${['products', 'assistant', 'settings'].includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${wordsHtml(locale, 'nav.more')}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${wordsHtml(locale, labelFor(n.id))}</a>`).join('')}</div></details>`;
-  return shellWith(input, `<div class="navgroup">${visible.filter((n) => n.id !== 'settings').map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => n.id === 'settings').map(draw).join('')}${input.split?.me ?? ''}</div>${more}`);
+  const labelFor = (id: string): MessageKey => id === 'home' ? 'split.title' : id === 'ask' ? 'assistantArea.ask' : `nav.${id}` as MessageKey;
+  // The navigation block: on a phone the bar keeps Today, Inbox, Customers and Books (where shown); the rest is under More.
+  const behindMore = ['products', 'assistant', 'reports', 'ask', 'settings'];
+  const foot = ['ask', 'settings'];
+  const draw = (n: typeof NAV[number]) => entry(n.id, n.href, labelFor(n.id), NAV_ICON[n.id] ?? 'home-2', behindMore.includes(n.id) ? ' nav-desktop' : '');
+  const moreLinks = visible.filter((n) => behindMore.includes(n.id));
+  const more = `<details class="nav-more"><summary class="navlink${behindMore.includes(here) ? ' active' : ''}" data-nav="more">${railIcon('list')}<span class="nl-text">${wordsHtml(locale, 'nav.more')}</span></summary><div class="nav-more-menu">${moreLinks.map((n) => `<a href="${n.href}"${n.id === here ? ' aria-current="page"' : ''}>${railIcon(NAV_ICON[n.id] ?? 'home-2')}${wordsHtml(locale, labelFor(n.id))}</a>`).join('')}</div></details>`;
+  return shellWith(input, `<div class="navgroup">${visible.filter((n) => !foot.includes(n.id)).map(draw).join('')}</div><div class="navfoot">${visible.filter((n) => foot.includes(n.id)).map(draw).join('')}${input.me ?? input.split?.me ?? ''}</div>${more}`);
 
 }
+
+/** The navigation block — the area a rail entry opens, when it has a section sidebar (sections.ts). */
+const areaOfHub = (hub: string): AreaId | null => hub === 'account' ? 'settings' : hub in AREAS ? hub as AreaId : null;
 
 /** A6 — is this address the books' mode? */
 export const isBooksPath = (path: string): boolean => {
@@ -3179,30 +3183,15 @@ export const isBooksPath = (path: string): boolean => {
   return url === '/app/books' || url.startsWith('/app/books/');
 };
 
-/** The area menu is a row on desktop and a native, keyboard-safe chooser on phones. */
-function areaNavigation(locale: Locale, path: string, active: string, bodyHtml = ''): string {
-  if (viewerRole() === 'accountant' || hubFor(path, active) !== 'home') return '';
-  const url = path.split(/[?#]/)[0] ?? path;
-  const sections: readonly { href: string; label: MessageKey; aliases: readonly string[] }[] = [
-    { href: '/app', label: 'split.title', aliases: ['/app'] },
-    { href: '/app/calendar', label: 'nav.calendar', aliases: ['/app/calendar'] },
-    { href: '/app/results', label: 'nav.results', aliases: ['/app/results', '/app/analytics'] },
-    { href: '/app/get-started', label: 'nav.getStarted', aliases: ['/app/get-started', '/app/guide', '/app/onboarding', '/app/ready'] },
-  ];
-  const current = sections.find((s) => s.aliases.some((a) => url === a || (a !== '/app' && url.startsWith(`${a}/`)))) ?? sections[0]!;
-  const links = sections.map((s) => `<a href="${s.href}"${s === current ? ' aria-current="page"' : ''}>${wordsHtml(locale, s.label)}</a>`).join('');
-  // The UI correction, Block 2 (audit F04): on a phone the chooser is the page's title where the page IS the section
-  // (its one h1 says what the chooser says) — drawn once, not as a row and then a heading. The h1 stays for a reader.
-  const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(bodyHtml)?.[1]?.replace(/<[^>]+>/g, '').trim();
-  const titled = h1 !== undefined && h1 === esc(t(locale, current.label)) ? ' data-titled' : '';
-  return `<nav class="area-nav" aria-label="${esc(t(locale, 'nav.sections'))}"><div class="area-links">${links}</div><details class="area-chooser"${titled}><summary>${wordsHtml(locale, current.label)}${GO}</summary><div>${links}</div></details></nav>`;
-}
-
 /** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
 function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
   const { locale } = input;
   const name = assistantName(locale);
   const here = hubFor(input.path, input.active);
+  // The navigation block (2026-11-25) — the second layer: the area's section sidebar beside the page (a chooser on a phone).
+  const area = areaOfHub(here);
+  const sidebar = area ? sectionSidebar(locale, area, input.path) : '';
+  const chooser = area ? sectionChooser(locale, area, input.path, input.bodyHtml) : '';
   /**
    * CC-14 — whose workspace this is, in the owner's own words. It read
    * "Nomi · Lily's workspace" to everyone, and a new owner never saw the name
@@ -3255,11 +3244,11 @@ ${scriptTo(LIVE_JS)}</head>
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(32, null)}</span>${brandname}</div>
     ${nav}
-  </nav>
+  </nav>${sidebar}
   <div class="content">
-    ${areaNavigation(locale, input.path, input.active, input.bodyHtml)}
+    ${chooser}
     ${helpDoor(locale, input.path)}
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }

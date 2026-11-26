@@ -213,7 +213,8 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     const named = withAssistantName('Lily', () =>
       shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '' }));
     expect(named).toContain("Lily's workspace");
-    for (const n of NAV.filter((n) => n.id !== 'books')) expect(html).toContain(t('en', n.id === 'home' ? 'split.title' : `nav.${n.id}` as MessageKey));
+    // (Ask Nomi's rail word is its area's own name, the navigation block, 2026-11-25)
+    for (const n of NAV.filter((n) => n.id !== 'books')) expect(html).toContain(t('en', n.id === 'home' ? 'split.title' : n.id === 'ask' ? 'assistantArea.ask' : `nav.${n.id}` as MessageKey));
     expect(html).toContain('href="/app/inbox" class="navlink active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
     // V1 · option A (2026-09-24): the shell has no header band. The switcher

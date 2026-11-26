@@ -23,7 +23,7 @@ export const MONTH_REPORT_CSS = String.raw`
 .month-report .mr-month-form label{margin:0}
 .month-report .mr-month-controls{display:flex;flex:1;min-inline-size:0;gap:var(--space-8);align-items:baseline}
 .month-report select{flex:1;min-inline-size:0;inline-size:0}
-.month-report input,.month-report select{font:inherit;min-block-size:44px;max-inline-size:100%;box-sizing:border-box}
+.month-report input,.month-report select{max-inline-size:100%;box-sizing:border-box}
 .month-report a,.month-report summary{min-block-size:44px;align-content:center}
 .month-report .mr-minutes{border-block-start:1px solid var(--color-border);padding-block:var(--space-16);margin-block-end:var(--space-24)}
 .month-report .results-section[aria-labelledby="month-handed"]+.mr-minutes{border-block-start:0}

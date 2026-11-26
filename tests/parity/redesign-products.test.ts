@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { withWorkspace } from '../../src/api/web/say.js';
+import { sectionSidebar, sectionChooser } from '../../src/api/web/sections.js';
 import { renderProductList, renderProductDetail, renderAddForm, type ProductDetail, type ProductListItem } from '../../src/api/web/products.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { productArea } from '../../src/api/web/productArea.js';
@@ -14,16 +16,20 @@ const from = source+'#p-'+id;
 
 describe('Products area presentation',()=>{
  it('shows native section choices and current state, with owner controls absent for staff',()=>{
-  const html=productArea('<h1>Products</h1>','en','limits');
-  expect(html).toContain('<details class="area-chooser pa-chooser"><summary>Price limits</summary>');
+  // The navigation block (2026-11-25): the area's sections are the shell's sidebar and chooser, drawn from one map;
+  // what you sell through (Shopify orders, payment links) sits here too, the owner's.
+  expect(productArea('<h1>Products</h1>','en','limits')).toBe('<div class="product-area"><h1>Products</h1></div>');
+  const path='/app/products/price-limits';
+  const html=sectionSidebar('en','products',path)+sectionChooser('en','products',path,'<h1>Products</h1>');
+  expect(html).toContain('<details class="area-chooser"><summary><span class="ac-name"><span class="ac-area">Products</span><span class="ac-page">Price limits</span></span>');
   expect(html.match(/href="\/app\/products\/price-limits" aria-current="page"/g)).toHaveLength(2);
-  expect(html).toContain('href="/app/products/add"');
-  const limited=productArea('<h1>Products</h1>','en','all',staff);
-  expect(limited).not.toContain('/app/products/add');expect(limited).not.toContain('/app/products/price-limits');
+  for (const href of ['/app/products/add','/app/settings/business/shopify','/app/payments/stripe']) expect(html).toContain(`href="${href}"`);
+  const limited=withWorkspace({name:null,several:false,outreach:false,setup:null,viewerRole:'team'},()=>sectionSidebar('en','products','/app/products'));
+  for (const href of ['/app/products/add','/app/products/price-limits','/app/payments/stripe','/app/settings/business/shopify']) expect(limited).not.toContain(href);
   // Block 4 (supervisor approved 2026-11-18): the product area is now translated, so this pin held the English
   // fallback; French reads French. The WhatsApp catalogue keeps its lang="en" label as before.
-  expect(productArea('', 'fr', 'all')).toContain('Tous les produits');
-  expect(productArea('', 'fr', 'all')).not.toContain('All products');
+  expect(sectionSidebar('fr','products','/app/products')).toContain('Tous les produits');
+  expect(sectionSidebar('fr','products','/app/products')).not.toContain('All products');
  });
  it('keeps search, page and row anchor through the product record',()=>{
   const html=renderProductList([item],'en',null,OWNER_VIEW,null,{page:{items:[item],q:'canvas',total:121,page:3,pageSize:50,next:null,prev:'/app/products?q=canvas&page=2'},returnHref:source});

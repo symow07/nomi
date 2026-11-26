@@ -26,11 +26,13 @@ const translated = (k: MessageKey) => {
 describe('UI Block 6 fix 1 · F33 — a selling question and its Next fit a phone', () => {
   it('the step row stays one row; spacing and the told box at rest are tightened, on a phone only', () => {
     const layout = src('../../src/api/web/layout.ts');
-    const at = layout.indexOf('  @media (max-width:600px) {\n    .sa-content:has(> .hs-step) > .sa-page-chooser');
+    // The navigation block (2026-11-25): Settings' page chooser above the step is gone (the shell's chooser is the one),
+    // so its tightening went with it.
+    expect(layout).not.toContain('sa-page-chooser');
+    const at = layout.indexOf('  @media (max-width:600px) {\n    .hs-step { margin-bottom:0;');
     expect(at).toBeGreaterThan(0);
     const block = layout.slice(at, layout.indexOf('\n  }\n', at));
     for (const rule of [
-      '.sa-content:has(> .hs-step) > .sa-page-chooser { margin-bottom:var(--space-8); padding-bottom:var(--space-4); }',
       '.hs-step { margin-bottom:0; flex-wrap:nowrap; }',
       '.hs-step > .back { flex:none; }',
       '.hs-step > .hs-where { min-inline-size:0; justify-content:flex-end; text-align:end; }',

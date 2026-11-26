@@ -141,6 +141,8 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // kept, and a #link to a part opens its fold (editFolds() and the deep link, 1,084 characters) — 61,378 measured;
     // 60,400 became 61,500, deliberately.
     expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(61_500);
+    // The Intercom pass (2026-11-26): Cmd/Ctrl+Enter in a reply presses that form's Send, through its usual busy state.
+    expect(LIVE_SCRIPT).toContain("if (e.key == 'Enter' && (e.metaKey || e.ctrlKey)) { var s = e.target.form && e.target.form.querySelector('.send,.sp-send'); if (s) e.preventDefault(), s.click(); return; }");
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

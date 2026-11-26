@@ -49,7 +49,8 @@ describe('F35 · the profile is three subjects, each saved by its own Save', () 
       // the business details' Save is filled, the other two outlined.
       expect(fs.map(fills), l).toEqual([1, 0, 0]);
       expect(html, l).toContain('<button class="btn second" type="submit">');
-      expect(html, l).toContain(esc(t(l, 'biz.scopeNote')));
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Each Save still names what it saves.
+      expect(html, l).not.toContain(esc(t(l, 'biz.scopeNote')));
     }
   });
   it('each field is shown in exactly one subject; every form carries the whole profile, so no Save blanks another', () => {

@@ -2,21 +2,17 @@
 export const CUSTOMERS_CSS = String.raw`
 main:has(.customer-area){max-width:var(--measure-column);}
 .customer-area{font-size:var(--font-size-base);color:var(--color-ink);}
-.ca-nav{display:flex;flex-wrap:wrap;gap:var(--space-24);border-bottom:1px solid var(--color-border);margin-block-end:var(--space-32);}
-.ca-nav a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding-block:var(--space-12);color:var(--color-ink);text-decoration:none;border-bottom:2px solid transparent;}
-.ca-nav a[aria-current="page"]{color:var(--color-accent);border-bottom-color:var(--color-accent);}
-.ca-chooser{display:none;}
 .ca-heading{margin-block-end:var(--space-24);}
 .ca-heading h1{margin:0 0 var(--space-12);font-family:var(--font-family);font-size:var(--font-size-overview-title);font-weight:600;line-height:var(--line-height-tight);}
 .ca-heading p,.ca-scope,.ca-basis{max-width:var(--measure-prose);line-height:var(--line-height);}
 .ca-filters{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-16);margin-block-end:var(--space-24);}
 .ca-filters label{display:grid;gap:var(--space-8);font-size:var(--font-size-small);min-width:0;}
 .ca-search{flex:1 1 22rem;}
-.ca-filters input,.ca-filters select{min-height:44px;width:100%;font-size:var(--font-size-base);}
+.ca-filters input,.ca-filters select{width:100%;}
 .ca-filters button{min-height:44px;background:var(--color-ink);color:var(--color-surface);border-color:var(--color-ink);}
 .ca-filters>a{display:flex;align-items:center;min-height:44px;}
 .ca-customers,.ca-orders,.ca-conversations ul{list-style:none;padding:0;margin:0;}
-.ca-customer{display:grid;grid-template-columns:minmax(14rem,1fr) minmax(8rem,.6fr) minmax(22rem,1.4fr);gap:var(--space-12) var(--space-24);padding-block:var(--space-24);border-top:1px solid var(--color-border);scroll-margin-block-start:var(--space-24);}
+.ca-customer{display:grid;grid-template-columns:minmax(14rem,1fr) minmax(8rem,.6fr) minmax(22rem,1.4fr);gap:var(--space-12) var(--space-24);padding-block:var(--space-8);border-top:1px solid var(--color-border);align-items:center;scroll-margin-block-start:var(--space-24);}
 .ca-person{display:flex;align-items:center;gap:var(--space-12);color:var(--color-ink);text-decoration:none;min-width:0;min-height:44px;}
 .ca-person:hover .ca-name{text-decoration:underline;text-underline-offset:.2em;}
 .ca-person>span:last-child{min-width:0;}
@@ -126,9 +122,6 @@ main:has(.customer-area){max-width:var(--measure-column);}
  .ca-order-facts{grid-column:1;grid-row:auto;}
 }
 @media(max-width:720px){
- .ca-nav{display:none;}.ca-chooser{display:block;margin-bottom:var(--space-8);}
- .ca-chooser summary{min-height:44px;display:flex;align-items:center;cursor:pointer;}
- .ca-chooser nav a{display:flex;align-items:center;min-height:44px;}
  .order-record .ord-head,.order-record .stated-now{margin-block-end:var(--space-8);}
  .order-overview>.order-editor:not([open]){padding-block:0;margin-block-end:var(--space-8);}
  .order-overview .order-facts{margin-block-start:var(--space-8);}

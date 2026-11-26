@@ -25,7 +25,9 @@ d('Approved daily Assistant destinations preserve grants and commands',()=>{
  });
  it('offers daily pages to owner and staff, keeps accountant in Books, and opens without a model or send',async()=>{
   for(const path of ['/app/assistant','/app/assistant/knowledge','/app/assistant/knowledge?view=products','/app/assistant/knowledge?view=readings','/app/assistant/practice','/app/assistant/review','/app/assistant/activity','/app/assistant/ask','/app/assistant/ask/history']){
-   for(const cookie of [owner,staff]){const r=await get(path,cookie);expect(r.statusCode,path).toBe(200);expect(r.body,path).toContain('data-nav="assistant" aria-current="page"');expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);}
+   // The navigation block (2026-11-25): Ask Nomi has its own slot in the rail.
+   const lit=path.startsWith('/app/assistant/ask')?'ask':'assistant';
+   for(const cookie of [owner,staff]){const r=await get(path,cookie);expect(r.statusCode,path).toBe(200);expect(r.body,path).toContain(`data-nav="${lit}" aria-current="page"`);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);}
    expect((await get(path,accountant)).headers.location,path).toBe('/app/books');
   }
   expect(calls).toBe(0);
@@ -38,8 +40,8 @@ d('Approved daily Assistant destinations preserve grants and commands',()=>{
   const corrected=await post('/app/knowledge/correct',{from,id:missing,content:'   '});expect(corrected.statusCode).toBe(422);expect(corrected.body).toContain('>   </textarea>');expect(corrected.body).toContain('action="/app/knowledge/correct"');
   const external=await post('/app/knowledge/teach',{from:'https://example.test',kind:'faq',label:'Kept',content:''});expect(external.headers.location).toBe('/app/assistant/knowledge?view=facts');
  });
- it('keeps Settings authority controls separate and returns old employee GETs directly',async()=>{
-  const settings=await get('/app/settings/assistant');expect(settings.statusCode).toBe(200);expect(settings.body).toContain('data-nav="settings" aria-current="page"');expect(settings.body).toContain('action="/app/settings/assistant/autonomy"');
+ it('keeps the authority controls on their own page (Assistant › Go live) and returns old employee GETs directly',async()=>{
+  const settings=await get('/app/settings/assistant');expect(settings.statusCode).toBe(200);expect(settings.body).toContain('data-nav="assistant" aria-current="page"');expect(settings.body).toContain('<a href="/app/settings/assistant" aria-current="page">');expect(settings.body).toContain('action="/app/settings/assistant/autonomy"');
   const overview=await get('/app/assistant');expect(overview.body).not.toContain('action="/app/settings/assistant/autonomy"');
   expect((await get('/app/employee/checks?q=kept')).headers.location).toBe('/app/assistant/review?q=kept');
   expect((await post('/app/employee/spot-check/'+missing,{answer:'好'})).statusCode).toBe(308);

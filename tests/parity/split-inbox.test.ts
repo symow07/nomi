@@ -181,7 +181,10 @@ describe('the page', () => {
 
   it('keeps every door of the plain page, and paging', () => {
     const html = draw(list({ page: { from: 51, to: 100, total: 120, next: '6_1_x', prev: { cursor: null } }, conversations: [conv('1')] }), 'en', true);
-    for (const door of ['/app/customers/outreach', '/app/inbox/replies', '/app/customers/labels', '/app/customers/feedback']) expect(html).toContain(`href="${door}"`);
+    // The navigation block (2026-11-25): the Inbox's tools are its own (saved replies, Instagram comments); follow-ups,
+    // labels and feedback have one home, Customers' sidebar.
+    for (const door of ['/app/inbox/replies', '/app/channels/instagram/comments']) expect(html).toContain(`href="${door}"`);
+    for (const door of ['/app/customers/outreach', '/app/customers/labels', '/app/customers/feedback']) expect(html).not.toContain(`href="${door}"`);
     expect(html).toContain('action="/app/customers/outreach/write"');
     expect(html).toContain('after=6_1_x');
     expect(html).toContain('href="/app/inbox?filter=all"');

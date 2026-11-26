@@ -2,12 +2,7 @@ import { ASK_PICTURE_CSS } from './askPictureStyle.js';
 export const ASSISTANT_AREA_CSS=String.raw`
 main:has(.assistant-area){max-width:var(--measure-column);}
 .aa-go{display:inline-flex;align-items:center;min-block-size:44px;min-inline-size:44px;}
-.assistant-area{display:grid;grid-template-columns:11rem minmax(0,1fr);gap:var(--space-32);font-size:var(--font-size-base);}
-.aa-nav{display:flex;flex-direction:column;align-self:start;position:sticky;top:var(--space-24);}
-.aa-nav a{display:flex;align-items:center;min-height:44px;padding:var(--space-12);color:var(--color-ink);text-decoration:none;border-inline-start:2px solid transparent;}
-.aa-nav a[aria-current=page]{color:var(--color-accent);border-inline-start-color:var(--color-accent);}
-.aa-nav .aa-settings{margin-top:var(--space-24);}
-.aa-chooser{display:none;}
+.assistant-area{font-size:var(--font-size-base);}
 .aa-content{min-width:0;}
 .aa-content>h1.page{margin-top:0;}
 .assistant-area .btn,.assistant-area summary{min-height:44px;}
@@ -16,7 +11,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-practice #approve .btn:not(.send),.assistant-practice .takeover .btn:not(.send),.assistant-practice .sbx-log-h .btn{color:var(--color-ink);background:var(--color-surface);border-color:var(--color-control-line);}
 .assistant-practice .sbx-log-h .btn.danger{border-color:var(--color-control-line);border-width:1px;font-weight:400;}
 .assistant-practice #approve .btn:not(.send):not(:disabled):hover,.assistant-practice .takeover .btn:not(.send):not(:disabled):hover,.assistant-practice .sbx-log-h .btn:not(:disabled):hover{background:var(--color-sand);border-color:var(--color-ink);}
-.assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{min-height:44px;font-size:var(--font-size-base);max-width:100%;}
+.assistant-area input:not([type=checkbox]):not([type=radio]),.assistant-area select,.assistant-area textarea{max-width:100%;}
 .assistant-area .pform{min-width:0;}
 .assistant-area .pcheck{min-height:44px;}
 .aa-status{padding-block:var(--space-16);border-block:1px solid var(--color-border);margin-block:var(--space-24) var(--space-32);}
@@ -56,7 +51,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ask-history li{margin-bottom:var(--space-16);overflow-wrap:anywhere;}
 .ask-history a{min-height:44px;display:flex;align-items:center;}
 .ask-form{display:flex;flex-direction:column;gap:var(--space-12);margin-block:var(--space-24);}
-.ask-form textarea{width:100%;resize:vertical;min-height:96px;padding:var(--space-16);background:var(--color-surface);border:1px solid var(--color-control-line);border-radius:var(--radius-control);}
+.ask-form textarea{width:100%;resize:none;}
 .ask-form .btn{align-self:flex-start;}
 .ask-line .msg{max-width:100%;margin-block:var(--space-24);}
 .ask-line .bubble{max-width:100%;}
@@ -88,7 +83,7 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .assistant-practice #readiness{border-top:1px solid var(--color-border);padding-top:var(--space-24);margin-top:var(--space-32);}
 .assistant-area .scheck{padding-block:var(--space-24);border-top:1px solid var(--color-border);}
 .assistant-area .scheck .proposed{border:0;font-family:inherit;font-size:var(--font-size-base);background:var(--color-assistant-wash);padding:var(--space-24);}
-.assistant-area .scfix textarea{width:100%;min-height:96px;}
+.assistant-area .scfix textarea{width:100%;}
 .assistant-area .scfix label{display:block;margin-block:var(--space-16);}
 .ak-tabs{display:flex;flex-wrap:wrap;gap:var(--space-16);border-bottom:1px solid var(--color-border);margin-block:var(--space-24);}
 .ak-tabs a{display:flex;align-items:center;min-height:44px;border-bottom:2px solid transparent;text-decoration:none;color:var(--color-ink);}
@@ -101,7 +96,8 @@ main:has(.assistant-area){max-width:var(--measure-column);}
 .ak-list a{display:flex;flex-direction:column;gap:var(--space-8);padding-block:var(--space-24);overflow-wrap:anywhere;}
 .ak-list .caption{color:var(--color-ink-secondary);}
 .ak-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-8) var(--space-16);margin-block:var(--space-16) var(--space-8);}
-.ak-add>summary{display:inline-flex;align-items:center;min-height:44px;min-width:44px;padding-inline:var(--space-16);border:1px solid var(--color-ink);border-radius:var(--radius-control);cursor:pointer;color:var(--color-ink);background:var(--color-surface);}
+/* The controls pass (2026-11-25): the summary is the shared button (class btn); only its fold behaviour is here. */
+.ak-add>summary{cursor:pointer;list-style:none;}
 .ak-add[open]{flex-basis:100%;}
 
 .ak-add .teach>.sub3,.ak-add #from-page>h2{display:none;}
@@ -170,12 +166,10 @@ a.ak-name{display:inline-flex;align-items:center;min-height:44px;}
 .reading-review .reading-line label>span{min-width:0;}
 
 @media(max-width:650px){.ak-head{display:none;}.ak-row{display:flex;flex-wrap:wrap;gap:var(--space-4) var(--space-16);}.ak-row>.ak-main,.ak-row>.knowledge-change{flex-basis:100%;}.ak-k{position:static;width:auto;height:auto;overflow:visible;clip-path:none;white-space:normal;color:var(--color-ink-secondary);}.ak-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-8);}.ak-search label,.ak-search select,.ak-found{grid-column:1/-1;}.reading-heads{display:none;}.reading-review .reading-line{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.reading-review .reading-line blockquote,.reading-review .reading-line label,.reading-review .reading-line .reading-fact{grid-column:auto;grid-row:auto;}.reading-review .reading-line blockquote{order:-1;}.reading-review .rl-name{position:static;width:auto;height:auto;overflow:visible;clip-path:none;white-space:normal;display:block;}.reading-review .reading-line label,.reading-review .reading-line .reading-fact{border-inline-start:2px solid var(--color-border);padding-inline-start:var(--space-12);}.reading-review .reading-line blockquote{border-inline-start:2px solid var(--color-border);padding-inline-start:var(--space-12);}.reread-confirm{padding:var(--space-16);}}
-@media(max-width:1100px){.assistant-area{grid-template-columns:minmax(0,1fr);}.aa-nav{position:static;flex-direction:row;flex-wrap:wrap;border-bottom:1px solid var(--color-border);}.aa-nav a{border-inline-start:0;border-bottom:2px solid transparent;}.aa-nav a[aria-current=page]{border-bottom-color:var(--color-accent);}.aa-nav .aa-settings{margin-top:0;}}
 @media(max-width:800px){.ask-workspace{grid-template-columns:minmax(0,1fr);}.ask-history{border-inline-start:0;padding-inline-start:0;border-top:1px solid var(--color-border);padding-top:var(--space-24);}}
 @media(max-width:600px){main:has(.ask-page)>.business-name{display:none;}
 .ask-business{display:block;margin:0 0 var(--space-12);font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
-.assistant-area{gap:var(--space-24);}.aa-nav{display:none;}.aa-chooser{display:block;}.aa-chooser summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;}.aa-chooser nav a{display:flex;align-items:center;min-height:44px;}.aa-content .pform{max-width:100%;}.aa-pager{flex-wrap:wrap;}
+.aa-content .pform{max-width:100%;}.aa-pager{flex-wrap:wrap;}
 /* Audit F04: where the page IS the section, the chooser is its title (drawn once); the h1 stays for a reader. */
-.assistant-area:has(> .aa-chooser[data-titled]){gap:var(--space-12);}
-.assistant-area:has(> .aa-chooser[data-titled]) > .aa-content h1{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}}
+}
 ` + ASK_PICTURE_CSS;

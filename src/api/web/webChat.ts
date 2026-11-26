@@ -87,7 +87,7 @@ const CSS = `
   .chat-again a { display:inline-flex; align-items:center; min-height:44px; }
   .chat-form { padding-block:var(--space-12) var(--space-16); border-block-start:1px solid var(--color-border); }
   .chat-form label { display:block; font-weight:600; margin-bottom:var(--space-4); }
-  .chat-form textarea { width:100%; min-height:4.5em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); resize:vertical; }
+  .chat-form textarea { width:100%; min-height:4.5em; font:inherit; padding:var(--space-12); box-sizing:border-box; border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); background:var(--color-surface); color:var(--color-ink); resize:none; }
   .chat-send { display:flex; justify-content:flex-end; margin-top:var(--space-8); }
   .chat-form button { min-height:44px; padding:0 var(--space-24); font:inherit; font-weight:600; }
   .chat-status { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }

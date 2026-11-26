@@ -17117,6 +17117,34 @@ states, all written by Claude and not yet read by a native speaker (`src/core/ow
   - Arabic uses verbal nouns and «يمكن تجربة…», never an imperative («الاستعداد لأول عميل»); French
     `state.customers.next` is an infinitive (« Se préparer pour le premier client »); Spanish uses tú («Prepárate»).
   - Each line says "customer" (客户, عميل, cliente, client), never "buyer"; none has a pronoun for a person.
+
+## Navigation
+
+**The navigation block (2026-11-25):** the rail's new area and the section sidebar's group names, written by Claude in
+zh / ar / es / fr and not yet read by a native speaker (`src/core/owner/i18n/navigation.ts`):
+- The area: `nav.reports` (报告, التقارير, Informes, Rapports).
+- The sidebar's own name for a screen reader, `side.label` (本栏内容, محتوى هذا القسم, En esta sección, Dans cette rubrique).
+- Group headings: `side.teach / .test / .goLive / .watch` (the assistant), `side.catalogue / .sell` (products),
+  `side.setup` (books), `side.views / .tools` (inbox), `side.workspace / .teamBilling / .you` (settings),
+  `side.reportsBooks` (the books' reports inside Reports). To read first: each is a short heading, no verb where the
+  language allows; `side.goLive` (上线, بدء العمل, Empezar a atender, Mise en service) must read as "start answering
+  customers", not as publishing a site. `side.reportsBooks` matches the rail's Books word in each language.
+- Items: `side.channelsAll`, `side.ch.*`, `side.booksReports`, `side.import`.
+- The line on Settings, `side.settingsMoved`, says where the assistant's and the books' settings went; it uses no
+  pronoun for the assistant.
+- Words the sidebar lists that were still English in zh / ar / es / fr until this block (the tester's finding), now
+  written in `navigation.ts`: `nav.customers`, `nav.assistant`, `customers.all / .orders / .followups / .feedback`,
+  `waCatalog.title`, `shopifyOrders.nav`, `procedures.title`, every `booksArea.*` label of the
+  sidebar, `area1.results.sales / .assistant / .setup`, `monthMail.tab`, `adSpend.title`. To read first: the books'
+  words (年终结账, إقفال السنة, Cierre del año, Clôture de l’exercice) are an accountant's; `customers.followups`
+  (跟进, المتابعات, Seguimientos, Relances) names the outreach list. `paymentLinks.title` and `igComments.title` stay
+  English: their pages are English only, so their headings must match.
+- `side.settingsMoved` is now two lines: the assistant's (to everyone but an accountant) and `side.settingsMovedBooks`
+  (to the owner, only where the books are on). Books › Setup is 初始设置 / Mise en place, so it does not read as the
+  Settings area (设置 / Réglages).
+
+## Ask Nomi's pictures
+
 - The picture of an answer (Ask Nomi, 2026-11-26), eighteen lines `askPicture.*` and two `advisor.k.*`
   (`ordersWaitingCount`, `quietAfterPriceCount`) in zh, ar, es and fr. To read first:
   - The five box labels of the flow (`askPicture.flow.*`) are short on purpose: each sits in a small box over a

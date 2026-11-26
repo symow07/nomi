@@ -21,7 +21,8 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   // (Inbox, Calendar); the assistant; Settings.
   // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's.
   it('the nav is exactly Home, Inbox, Calendar, the advisor, Settings', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/books', '/app/assistant', '/app/settings']);
+    // The navigation block (2026-11-25, the owner's decision): Reports is its own area; Ask Nomi has its own slot.
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/customers', '/app/products', '/app/assistant', '/app/books', '/app/results', '/app/assistant/ask', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {

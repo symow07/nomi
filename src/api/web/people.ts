@@ -332,7 +332,6 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     ${flashBanner(flash)}
     ${issued}
     <section class="block team-members">
-      <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
       ${table}
     </section>
@@ -391,6 +390,5 @@ function renderRotationSection(r: RotationView, locale: Locale, now: Date): stri
         <span class="pill${r.on ? ' stop' : ''}">${esc(t(locale, r.on ? 'turn.isOn' : 'turn.isOff'))}</span>
         <button class="btn${r.on ? ' ghost' : ''}" type="submit">${esc(t(locale, r.on ? 'turn.switchOff' : 'turn.switchOn'))}</button></form>
       <ul class="rows team">${rows}</ul>
-      <p class="caption muted">${esc(t(locale, 'turn.rules'))}</p>
     </section>`;
 }

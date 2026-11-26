@@ -106,6 +106,5 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
     </form>`;
   return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
     ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
     ${embedded ? `${facts}${editFold(t(locale, 'edit.change.kind'), !v.kind || !country || !!kept, form)}` : form}`;
 }

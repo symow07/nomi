@@ -78,7 +78,7 @@ export function renderMonthReport(report: MonthReport, locale: Locale, options: 
     + (firstMonth ? paragraph('monthReport.state.firstMonth', {
       date: withZone(report.zone, () => show.date(locale, options.startedAt)),
     }) : '');
-  const head = `<header class="results-header">${back('/app', say('split.title'))}
+  const head = `<header class="results-header">
     <h1 class="page">${words(say('monthReport.title'))}</h1><p class="muted">${words(say('monthReport.intro'))}</p></header>
     ${flashBanner(options.flash)}<section class="mr-month" aria-labelledby="month-period"><h2 id="month-period">${esc(selectedMonth)}</h2>${states}${picker}</section>`;
 

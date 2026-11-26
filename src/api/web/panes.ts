@@ -65,8 +65,8 @@ export function renderListPane(
       ${renderInboxViews(data, locale, { compact: true })}
       <form class="search" method="get" action="/app/inbox" role="search">
         <input type="hidden" name="filter" value="all" />
-        <input type="search" name="q" value="${esc(data.query ?? '')}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
-        <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+        <span class="field-search"><input type="search" name="q" value="${esc(data.query ?? '')}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" /></span>
+        <button class="btn find-quiet" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
       </form>
       ${here}${empty}${renderInboxRows(shown, locale, now, people, { selectedId: data.conversations.find(isCurrent)?.conversationId ?? currentId })}${more}
     </aside>`;

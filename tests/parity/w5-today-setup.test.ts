@@ -278,7 +278,7 @@ describe('w4-today-setup-15 · the checklist is the owner\'s chores; what follow
     expect(app).toContain("app.get('/app/onboarding/practice',movedPage('/app/assistant/practice#checklist'))");
     expect(app).toContain("renderPilotScreen('activity', runbook");
     expect(BACK_TO[PILOT_SCREEN_PATH.practice]).toEqual({ href: '/app/assistant/practice', label: 'assistantArea.practice' });
-    expect(BACK_TO[PILOT_SCREEN_PATH.activity]).toEqual({ href: '/app/results', label: 'nav.home' });
+    expect(BACK_TO[PILOT_SCREEN_PATH.activity]).toEqual({ href: '/app/results', label: 'nav.reports' }); // Reports is its own area (the navigation block)
   });
 });
 

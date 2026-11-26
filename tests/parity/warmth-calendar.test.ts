@@ -176,7 +176,8 @@ describe('nothing chosen: the list is what is owed, then the month\'s other date
     for (const l of LOCALES) {
       const html = draw(l, {}, { entries: DATES.filter((x) => !OWED.includes(`${x.source.table}:${x.source.id}`)) });
       expect(withoutIsolates(html), l).toContain(`<p class="muted cal-none">${withoutIsolates(t(l, 'calendar.owed.none', { month: withZone(ZONE, () => show.month(l, '2026-10-01')) }))}</p>`);
-      expect(html, l).toContain('<p class="muted cal-rest">');
+      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
+      expect(html, l).not.toContain('<p class="muted cal-rest">');
     }
   });
 });

@@ -40,11 +40,11 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  */
 /** What `cssVariables` walks: the app's tokens, or the public pages' (a palette and roles of their own keys). */
 export type TokenSet = Omit<typeof DESIGN_TOKENS, 'color' | 'colorRole' | 'radiusPx' | 'font'> & {
-  readonly font: Omit<typeof DESIGN_TOKENS.font, 'sizePx'> & { readonly sizePx: Readonly<Record<string, number>> };
+  readonly font: Omit<typeof DESIGN_TOKENS.font, 'sizePx' | 'lineHeight'> & { readonly sizePx: Readonly<Record<string, number>>; readonly lineHeight: Readonly<Record<keyof typeof DESIGN_TOKENS.font.lineHeight, number>> };
   readonly color: Readonly<Record<string, string>>; readonly colorRole: Readonly<Record<string, string>>; readonly radiusPx: Readonly<Record<string, number>>;
 };
 export function cssVariables(tokens: TokenSet = DESIGN_TOKENS): string {
-  const { font, color, colorRole, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint } = tokens;
+  const { font, color, colorRole, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint, controlPx } = tokens;
 
   // Typed, not cast: a job that names no colour of the palette does not compile.
   // A job that names no colour of its palette is refused by `design-system.test.ts` (the walk is typed loosely so two palettes can pass through it).
@@ -74,6 +74,8 @@ export function cssVariables(tokens: TokenSet = DESIGN_TOKENS): string {
     // M49 — one column, one prose measure, one form measure. Every width in
     // the product derives from these three; nothing declares its own.
     ...Object.entries(measure).map(([k, v]) => decl(`measure-${kebab(k)}`, v)),
+    // The controls pass — one height per shared control (controlsStyle.ts reads them).
+    ...Object.entries(controlPx ?? {}).map(([k, v]) => decl(`control-${kebab(k)}`, `${v}px`)),
     ...Object.entries(shadow).map(([k, v]) => decl(`shadow-${kebab(k)}`, v)),
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
     decl('motion-ease', motionEase),

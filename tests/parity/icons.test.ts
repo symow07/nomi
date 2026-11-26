@@ -48,6 +48,8 @@ const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
   'date-promise': 'quote',
   kinds: 'list', sell: 'hand-money', language: 'global', prices: 'banknote', closures: 'calendar-mark',
   month: 'chart-2', 'date-order': 'delivery', 'date-closure': 'calendar-mark',
+  // The controls pass (2026-11-25): the search box's own mark, inside the box.
+  search: 'magnifier', pick: 'alt-arrow-down',
   // UI Block 7 (F34): the Channels rows without a shape got one (one icon column, one size), and the chat page's Copy.
   // An addition to the table, not a loosening: each new meaning is still held to its own Solar drawing.
   'ch-chat': 'chat-round-dots', 'ch-telegram': 'send-square', 'ch-tiktok': 'music-note', copy: 'copy',
@@ -449,12 +451,31 @@ describe('one family on every screen: Solar, no emoji', () => {
         if (f === 'icons.ts' && /viewBox="0 0 24 24"/.test(t)) continue;   // solarSvg
         if (/viewBox='0 0 16 16'|viewBox='0 0 24 24'/.test(t)) continue;   // a mark's shape (marks.ts) and the fold's mask, drawn as images
         if (f === 'splitToday.ts' && /role="img"/.test(t)) continue;       // the Split Today trend: a chart of the books' figures, not an icon
+        if (f === 'brandLogos.ts' && /viewBox="0 0 24 24"/.test(t)) continue; // a channel's own logo (the owner, 2026-11-26), below
         if (f === 'askPicture.ts' && /class="ap-(wires|chart)"/.test(t)) continue; // an answer's picture: its ribbons and its trend, drawings of figures, not icons
         found.push(`${f}: ${t.slice(0, 70)}`);
       }
     }
     expect(found).toEqual([]);
     expect(read('src/api/web/icons.ts')).not.toMatch(/stroke-width="1\.8"/);   // the old hand-drawn lines
+  });
+
+  it('the one exception: a channel\'s own logo, for the four channels that have one, and nothing else', async () => {
+    // The owner (2026-11-26): "use the real socials icons (instagram - telegram - whatsapp…)". Simple Icons' drawings
+    // (CC0), one path each, in each channel's own colours ("use the exact colors", the same day); e-mail and web chat have no brand and keep their Solar shapes.
+    const { BRAND_LOGO, brandSvg } = await import('../../src/api/web/brandLogos.js');
+    expect(Object.keys(BRAND_LOGO).sort()).toEqual(['instagram', 'shopify', 'telegram', 'tiktok', 'whatsapp']); // Shopify too (the owner, the same day)
+    expect(brandSvg('x', 'whatsapp')).toMatch(/^<svg class="x" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path style="fill:var\(--color-logo-whatsapp\)" d="[^"]+"\/><\/svg>$/);
+    // each in its own colours, every one a token: no literal colour in a logo
+    for (const n of ['whatsapp', 'telegram', 'tiktok', 'instagram'] as const) expect(brandSvg('x', n)).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(brandSvg('x', 'instagram')).toContain('var(--color-logo-instagram5)');
+    expect(brandSvg('x', 'tiktok')).toContain('var(--color-logo-tiktok-red)');
+    // "All channels" is the four together (the owner, 2026-11-26: "more expressive")
+    const { allChannelsSvg } = await import('../../src/api/web/brandLogos.js');
+    const all = allChannelsSvg('x');
+    for (const t of ['logo-whatsapp', 'logo-instagram1', 'logo-telegram', 'logo-tiktok-red']) expect(all).toContain(t);
+    expect(all.match(/<g transform=/g)).toHaveLength(4);
+    expect(read('assets/icons/SIMPLE-ICONS-LICENSE.txt')).toContain('CC0');
   });
 
   it('on a page, every icon is Solar\'s', () => {

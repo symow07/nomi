@@ -19,7 +19,7 @@ export const INBOX_LIST_CSS = `
 .il-view-form { display:none; grid-template-columns:minmax(0, 1fr) auto; align-items:end; gap:var(--space-8); margin:0; }
 .il-view-form label { display:grid; gap:var(--space-8); min-inline-size:0; margin:0; }
 .il-view-form label > span { font-size:var(--font-size-small); }
-.il-view-form select { inline-size:100%; min-inline-size:0; min-block-size:44px; block-size:44px; padding-block:0; margin:0; color:var(--color-ink); background:var(--color-surface); }
+.il-view-form select { inline-size:100%; min-inline-size:0; margin:0; }
 .il-view-form .sp-btn { min-block-size:44px; margin:0; }
 .il-views.is-compact .il-view-form { display:grid; }
 .il-menu .si-doors { display:grid; gap:var(--space-4); margin-block-start:var(--space-24); padding-block-start:var(--space-16); border-block-start:1px solid var(--color-border); }
@@ -27,7 +27,7 @@ export const INBOX_LIST_CSS = `
 .il-page .si-tools { padding:var(--space-16); }
 /* The search form is a grid item: it must shrink before a longer translated button widens the page. */
 .il-page .si-search { min-inline-size:0; }
-.il-page .si-search input { flex:1; min-inline-size:0; min-block-size:44px; margin:0; font-size:var(--font-size-base); }
+.il-page .si-search input { flex:1; min-inline-size:0; margin:0; }
 .il-page .si-search .sp-btn { min-block-size:44px; }
 .il-filter { margin:0; }
 .il-filter > summary { min-block-size:44px; display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); font-size:var(--font-size-small); }
@@ -60,10 +60,9 @@ export const INBOX_LIST_CSS = `
 .listpane.il-compact-list .lp-h { display:flex; align-items:center; min-block-size:44px; margin:0 var(--space-12) var(--space-8); }
 .listpane.il-compact-list .il-view-form { margin:0 var(--space-12) var(--space-8); align-items:center; }
 .listpane.il-compact-list .il-view-form label > span { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-.listpane.il-compact-list .il-view-form select { font-size:var(--font-size-small); padding-block:0; }
 .listpane.il-compact-list .il-view-form .sp-btn, .listpane.il-compact-list .search .btn { min-block-size:44px; padding-inline:var(--space-12); font-size:var(--font-size-small); white-space:nowrap; }
 .listpane.il-compact-list .search { display:flex; flex-wrap:nowrap; gap:var(--space-8); margin:0 var(--space-12) var(--space-8); }
-.listpane.il-compact-list .search input { flex:1 1 0; inline-size:auto; min-inline-size:0; min-block-size:44px; margin:0; font-size:var(--font-size-small); }
+.listpane.il-compact-list .search input { flex:1 1 0; inline-size:auto; min-inline-size:0; margin:0; }
 .il-compact-list .si-row { grid-template-columns:8px 36px minmax(0, 1fr) auto; grid-template-areas:"dot face name day" "dot face line line"; align-items:center; gap:0 var(--space-8);
   min-block-size:60px; padding:var(--space-8) var(--space-12) var(--space-8) var(--space-8); border-inline-start:2px solid transparent; }
 .il-compact-list .si-dot { grid-area:dot; }
@@ -95,8 +94,6 @@ export const INBOX_LIST_CSS = `
 .saved-reply-editor { max-inline-size:70ch; margin-block-start:var(--space-32); padding-block-start:var(--space-24); border-block-start:1px solid var(--color-border); }
 .saved-reply-form { gap:var(--space-24); }
 .saved-reply-form .pq { margin:0; }
-.saved-reply-form input, .saved-reply-form textarea { font-size:var(--font-size-base); }
-.saved-reply-form input { min-block-size:44px; }
 .saved-languages { min-inline-size:0; margin:0; padding:0; border:0; }
 .saved-languages legend { padding-inline:0; font-weight:600; margin-block-end:var(--space-8); }
 .saved-languages > .caption { font-size:var(--font-size-small); }
@@ -108,7 +105,7 @@ export const INBOX_LIST_CSS = `
 .saved-replies-page .btn { min-block-size:44px; }
 .saved-search { display:flex; align-items:end; flex-wrap:wrap; gap:var(--space-12); margin-block:0 var(--space-24); }
 .saved-search label { display:grid; gap:var(--space-8); flex:1 1 16rem; min-inline-size:0; font-size:var(--font-size-small); }
-.saved-search input { inline-size:100%; min-block-size:44px; font-size:var(--font-size-base); }
+.saved-search input { inline-size:100%; }
 .saved-search>a, .saved-editor-actions>a { display:inline-flex; align-items:center; min-inline-size:44px; min-block-size:44px; }
 .saved-reply-focus { max-inline-size:var(--measure-prose); }
 .saved-reply-focus .saved-reply-editor { margin-block-start:0; padding-block-start:var(--space-16); max-inline-size:none; }

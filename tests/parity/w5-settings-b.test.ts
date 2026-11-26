@@ -254,7 +254,8 @@ describe('w4-settings-b-outreach-15, -16, -18 · the fold apart from the search;
 describe('V1-548, V1-552, w4-settings-b-outreach-17 · one name for the page; "e-mail"; Arabic genders nobody', () => {
   it('the Inbox\'s door says the page\'s name: its separate wording is gone', () => {
     expect(read('src/core/owner/i18n/messages.ts')).not.toContain("'contacts.door'");
-    expect(read('src/api/web/splitInbox.ts')).toContain("deeper('/app/customers/outreach', t(locale, 'customers.followups'))");
+    // The navigation block (2026-11-25): the door is Customers' sidebar item, under the page's own name.
+    expect(read('src/api/web/sections.ts')).toContain("{ label: 'customers.followups', href: '/app/customers/outreach'");
   });
   it('the add form writes e-mail the product\'s way', () => {
     expect(t('en', 'contacts.add.identity')).toBe('Phone number or e-mail address');

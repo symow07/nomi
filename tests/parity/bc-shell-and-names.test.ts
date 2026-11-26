@@ -63,7 +63,8 @@ describe('B · every page knows which hub it belongs to', () => {
   it('longest match wins — /app is a prefix of everything', () => {
     // A plain startsWith would light Today on every page in the product.
     expect(hubFor('/app/knowledge', 'nonsense')).toBe('assistant');   // D — what it knows sits under the assistant, a row of Settings since the advisor run
-    expect(hubFor('/app/analytics', 'nonsense')).toBe('home');
+    // The navigation block (2026-11-25): Reports is its own area, and the older address of its first page lights it.
+    expect(hubFor('/app/analytics', 'nonsense')).toBe('reports');
   });
 
   it('a query string and a trailing slash change nothing', () => {
@@ -106,7 +107,7 @@ describe('the advisor run · the rail\'s slot is the advisor\'s; the assistant i
   for (const several of [false, true]) {
     it(`${several ? 'several assistants' : 'one assistant'}: the rail names the advisor, never the assistant`, () => {
       const html = withAssistantName('Sara', () => page('/app'), several);
-      expect(rail(html).match(/class="navlink/g)).toHaveLength(6);
+      expect(rail(html).match(/class="navlink/g)).toHaveLength(8); // the navigation block: Reports and Ask Nomi joined the rail
       expect(rail(html)).toContain('href="/app/assistant"');
       expect(rail(html)).toContain(`<span class="nl-text">${plainT('en', 'nav.assistant')}</span>`);
       expect(rail(html)).not.toContain('Sara');

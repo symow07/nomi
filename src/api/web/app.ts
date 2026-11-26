@@ -1086,7 +1086,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const who = personOf(s);
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
     const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null; readonly exportTrade?: boolean }) => {
-      const f = { ...f0, viewerRole };
+      const f = { ...f0, viewerRole, ads: adsReady() !== null };
       // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
       if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
@@ -1231,7 +1231,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   /** The Split rail's foot: who is signed in. */
   const splitRail = (person: { readonly id: string; readonly name: string }): { readonly me: string } => ({
-    me: `<a class="sp-me" href="/app/settings/personal/account">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
+    me: `<a class="sp-me" href="/app/settings/personal/account" aria-label="${esc(person.name)}">${face({ clientId: person.id, name: person.name }, 'xs')}<span dir="auto">${esc(person.name)}</span></a>`,
   });
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; booksPath?:string; live?: string; wide?: boolean; split?: { readonly me: string } }): string => {
     const locale = localeOf(req), s = sessionOf(req), path = o.booksPath??req.url.split('?')[0]!;
@@ -1243,7 +1243,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // UI correction, Block 5 (check 6) — on the Books pages and their settings, every option's words are isolated on a
     // right-to-left page (an option cannot hold a <bdi>; `isolateOptions`).
     const books = /^\/app\/(?:settings\/)?books(?:\/|$)/.test(path);
-    return shell({ ...o, bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
+    // The rail's foot names who is signed in on every page, not only Today and the Inbox (the owner, 2026-11-25).
+    const me = o.split?.me ?? (s ? splitRail(personOf(s)).me : undefined);
+    return shell({ ...o, ...(me ? { me } : {}), bodyHtml: books ? show.isolateOptions(locale, bodyHtml) : bodyHtml, locale, path: o.booksPath??req.url });
   };
 
   /**

@@ -123,8 +123,9 @@ describe('M30 · the rendered shell IS the design system', () => {
     expect(page).toContain(`html[lang="ar"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.ar}; `);
     // …and body actually consumes it, rather than restating a number
     expect(page).toMatch(/body \{[^}]*font: var\(--font-size-base\)\/var\(--line-height\)/);
-    // the value the product renders is the one 45+ eyes were promised
-    expect(DESIGN_TOKENS.font.sizePx.base).toBeGreaterThanOrEqual(16);
+    // the value the product renders: 15 px since the owner chose Intercom's body size (2026-11-25), which replaced the
+    // earlier 16 px floor; never smaller than that.
+    expect(DESIGN_TOKENS.font.sizePx.base).toBeGreaterThanOrEqual(15);
   });
 
   it('contains no hardcoded hex outside the emitted :root block', () => {

@@ -38,7 +38,10 @@ describe('the rail', () => {
     expect(nav).not.toContain('/logout');
     expect(nav).not.toContain('href="/app/settings/business"');
     // five entries — the phone's one row — each with its shape
-    expect(nav.match(/class="navlink[ "]/g)).toHaveLength(7);
+    // the navigation block (2026-11-25): Reports and Ask Nomi joined; Ask Nomi sits at the foot with Settings
+    expect(nav.match(/class="navlink[ "]/g)).toHaveLength(9);
+    expect(at('href="/app/results"')).toBeLessThan(at('<div class="navfoot">'));
+    expect(at('<div class="navfoot">')).toBeLessThan(at('href="/app/assistant/ask"'));
     expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni sl"'))).toBe(true);
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sectionSidebar, sectionChooser } from '../../src/api/web/sections.js';
 import { renderCustomers, renderCustomerRecord, customerArea, customerReturnHref } from '../../src/api/web/customers.js';
 import { renderCustomerOrders } from '../../src/api/web/customerOrders.js';
 import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
@@ -67,7 +68,10 @@ describe('Customers area presents the stored records without changing commands',
   expect(renderCustomerRecord(selection,{...file,conversationId:'wrong'},'en',now)).not.toContain('/wrong/name');
  });
  it('keeps outreach absent when unavailable and offers native section selection',()=>{
-  const html=customerArea('body','en','all');expect(html).not.toContain('/app/customers/outreach');expect(html).toContain('area-chooser');expect(html).toContain('aria-current="page"');
+  // The navigation block (2026-11-25): the area's sections are the shell's sidebar and chooser, drawn from one map.
+  expect(customerArea('body','en','all')).toBe('<div class="customer-area">body</div>');
+  const html=sectionChooser('en','customers','/app/customers','body');expect(html).not.toContain('/app/customers/outreach');expect(html).toContain('area-chooser');expect(html).toContain('href="/app/customers" aria-current="page"');
+  expect(sectionSidebar('en','customers','/app/customers')).not.toContain('/app/customers/outreach');
  });
  it('shows pending confirmation in operational list and detail without adding a writable state',()=>{
   const html=renderCustomerOrders({rows:[{id:'o-1',clientId:id,customerName:'A <shop>',conversationId:cid,reference:'REF-1',productId:null,productName:null,productNameZh:null,quantity:4,unit:'pcs',unitPrice:null,total:null,state:'pending_confirmation',stateAt:now,createdAt:now,confirmedAt:null}],total:1,from:1,to:1,next:null,prev:null,q:'',clientId:null,state:null},'en',now);

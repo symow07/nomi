@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SECTIONS_CSS } from '../../src/api/web/sectionsStyle.js';
 import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyRequest } from 'fastify';
@@ -126,9 +127,12 @@ describe('Block 6.1 · the "?" covers no control', () => {
       for (const m of src.matchAll(/class="area-chooser ([a-z]+-chooser)"/g)) if (m[1] !== 'sa-page-chooser') choosers.add(m[1]!);
       for (const m of src.matchAll(/<nav class="([a-z]{2}-(?:nav|pages))"/g)) rows.add(m[1]!);
     }
-    expect([...choosers].sort()).toEqual(['aa-chooser', 'ba-chooser', 'ca-chooser', 'pa-chooser', 'sa-chooser']);
+    // The navigation block (2026-11-25): every area's own chooser and row of links gave way to the one chooser the shell
+    // draws (sections.ts), so none is left to list; the shell's keeps the room on a phone and between 721 and 960 px.
+    expect([...choosers].sort()).toEqual([]);
     for (const c of [...choosers, ...rows]) expect(rule(c), c).toBe(true);
     expect(layout).toMatch(/\.content \.area-nav \.area-chooser \{ margin-inline-end:calc\(44px \+ var\(--space-8\)\)/);
+    expect(SECTIONS_CSS).toContain('.owner-shell .content > .area-nav .area-chooser { display:block; margin:0; margin-inline-end:calc(44px + var(--space-16) + var(--space-8)); }');
   });
 });
 

@@ -326,14 +326,15 @@ d('Block 4.3 · the month page\'s routes (requires DATABASE_URL + MIGRATE_DATABA
   }, 60_000);
   afterAll(async () => { await app?.close(); await db?.destroy(); await admin?.end(); });
 
-  it('Results has a fourth tab, a door to the month page; the month page draws the row with it current', async () => {
+  it('Reports lists the month page; the month page is lit in the Reports sidebar', async () => {
+    // The navigation block (2026-11-25): the Results tabs became the Reports area's sidebar.
     const results = await get(ownerCookie, '/app/results');
     expect(results.statusCode).toBe(200);
-    expect(results.body).toMatch(/<a class="tab"\s+href="\/app\/results\/month">Monthly report<\/a>/);
+    expect(results.body).toMatch(/<a href="\/app\/results\/month"><svg[^>]*>[\s\S]*?<\/svg><span>Monthly report<\/span><\/a>/); // the sidebar's item: its icon, then its word
     const month = await get(ownerCookie, '/app/results/month');
     expect(month.statusCode).toBe(200);
-    expect(month.body).toMatch(/<a class="tab on" aria-current="page"\s+href="\/app\/results\/month">Monthly report<\/a>/);
-    expect(month.body).toMatch(/<a class="tab"\s+href="\/app\/results">/);
+    expect(month.body).toMatch(/<a href="\/app\/results\/month" aria-current="page"><svg[^>]*>[\s\S]*?<\/svg><span>Monthly report<\/span><\/a>/);
+    expect(month.body).toContain('<a href="/app/results">');
   });
 
   it('the month in the address: absent is the current month; malformed, too late or too early is a 302', async () => {

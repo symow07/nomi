@@ -19,14 +19,9 @@ export function assistantSection(path:string):AssistantSection|null {
  if(p==='/app/sandbox'||p.startsWith('/app/sandbox/'))return 'practice';
  return null;
 }
-export function assistantArea(body:string,locale:Locale,path:string):string {
- const current=assistantSection(path)??'overview';
- // The UI correction, Block 2 (audit F04): on a phone the chooser is the page's title where the page IS the section.
- const h1=/<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(body)?.[1]?.replace(/<[^>]+>/g,'').trim();
- const titled=h1!==undefined&&h1===esc(t(locale,sections.find(([key])=>key===current)![2]))?' data-titled':'';
- const links=sections.map(([key,href,label])=>`<a href="${href}"${key===current?' aria-current="page"':''}>${esc(t(locale,label))}</a>`).join('');
- const settings=`<a class="aa-settings" href="/app/settings/assistant">${esc(t(locale,'assistantArea.settings'))}</a>`;
- return `<div class="assistant-area"><nav class="aa-nav" aria-label="${esc(t(locale,'nav.sections'))}">${links}${settings}</nav><details class="area-chooser aa-chooser"${titled}><summary>${esc(t(locale,sections.find(([key])=>key===current)![2]))}${GO}</summary><nav aria-label="${esc(t(locale,'nav.sections'))}">${links}${settings}</nav></details><div class="aa-content">${body}</div></div>`;
+/** The navigation block (2026-11-25): the section sidebar (sections.ts) is the area's one menu; this is the page's frame. */
+export function assistantArea(body:string,_locale:Locale,_path:string):string {
+ return `<div class="assistant-area"><div class="aa-content">${body}</div></div>`;
 }
 
 /** Daily GET destinations are separate from the authoritative Settings commands. */

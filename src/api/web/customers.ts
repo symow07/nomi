@@ -1,7 +1,6 @@
 import { customerReturnHref } from './customerNavigation.js';
 export { customerReturnHref } from './customerNavigation.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { CustomersPage, CustomerSelection, CustomerPage } from '../../db/customers.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { renderCustomerFile, type CustomerFile } from './conversations.js';
@@ -11,22 +10,15 @@ import { filterBar } from './filterBar.js';
 import { face } from './faces.js';
 import { GO } from './icons.js';
 import { channelName } from './inbox.js';
-import { t, outreachShown, exportSettingsShown, viewerRole } from './say.js';
+import { t, viewerRole } from './say.js';
 import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
 import { stateBlock, stateNext } from './stateBlock.js';
 
 export type CustomerSection = 'all'|'orders'|'outreach'|'labels'|'feedback'|'samples';
-const sections:readonly [CustomerSection,string,MessageKey][] = [
- ['all','/app/customers','customers.all'], ['orders','/app/customers/orders','customers.orders'],
- ['samples','/app/customers/samples','settingsArea.sampleRequests'],
- ['outreach','/app/customers/outreach','customers.followups'], ['labels','/app/customers/labels','customers.labels'], ['feedback','/app/customers/feedback','customers.feedback'],
-];
-export function customerArea(body:string,locale:Locale,current:CustomerSection):string {
- const visible=sections.filter(([key])=>(key!=='outreach'||outreachShown())&&(key!=='samples'||exportSettingsShown()));
- const links=visible.map(([key,href,label])=>`<a href="${href}"${key===current?' aria-current="page"':''}>${esc(t(locale,label))}</a>`).join('');
- const selected=visible.find(([key])=>key===current)??visible[0]!;
- return `<div class="customer-area"><nav class="ca-nav" aria-label="${esc(t(locale,'nav.sections'))}">${links}</nav><details class="area-chooser ca-chooser"><summary>${esc(t(locale,selected[2]))}</summary><nav aria-label="${esc(t(locale,'nav.sections'))}">${links}</nav></details>${body}</div>`;
+/** The navigation block (2026-11-25): the section sidebar (sections.ts) is the area's one menu; this is the page's frame. */
+export function customerArea(body:string,_locale:Locale,_current:CustomerSection):string {
+ return `<div class="customer-area">${body}</div>`;
 }
 export function customerPager(page:CustomerPage<unknown>,locale:Locale,href:(direction:'after'|'before',cursor:string)=>string,where?:'above'|'below'):string {
  if(where==='above'&&!page.prev&&!page.next) return '';
@@ -47,7 +39,7 @@ export function renderCustomers(data:CustomersPage,locale:Locale,now:Date,opts:{
  // UI Block 9 (F09): the columns are named once, above the list; each row keeps its keys (read aloud, and shown on a phone).
  const listHead=`<div class="ca-head" aria-hidden="true"><span>${esc(t(locale,'common.buyer'))}</span><span>${esc(t(locale,'customers.labels'))}</span><span class="num">${esc(t(locale,'customers.orderValue'))}</span><span class="num">${esc(t(locale,'customers.standingOrders'))}</span><span>${esc(t(locale,'customers.lastContact'))}</span></div>`;
  const importDoor=viewerRole()==='owner'?`<a class="deeper" href="/app/customers/import"><bdi lang="en" dir="ltr">${esc(t('en','contactImport.door'))}</bdi></a>`:'';
- return `<section class="customers-page"><header class="ca-heading"><h1>${esc(t(locale,'customers.all'))}</h1><p>${esc(t(locale,'customers.intro'))}</p></header>${filterBar({locale,action:'/app/customers',cls:'ca-filters',name:t(locale,'customers.search'),hidden:labelHidden,search:{label:t(locale,'customers.search'),cls:'ca-search',control:`<input type="search" name="q" value="${esc(data.q)}" placeholder="${esc(t(locale,'customers.searchHint'))}">`},fields:labelField,submit:t(locale,'customers.show'),clear:data.q||data.label?{href:'/app/customers',label:t(locale,'customers.clear')}:null,active:labels.length&&data.label?1:0,extra:importDoor})}${rows?`<p class="ca-basis">${esc(t(locale,'customers.valueBasis'))}</p>${customerPager(data,locale,pageHref,'above')}${listHead}<ul class="ca-customers">${rows}</ul>${pager}`:data.q||data.label?stateBlock('nomatch',{heading:t(locale,'state.customers.none.h'),body:t(locale,'state.customers.none.p'),nextHtml:stateNext('/app/customers',t(locale,'state.clearFilters'))}):stateBlock('empty',{heading:t(locale,'state.customers.h'),body:t(locale,'state.customers.p'),nextHtml:stateNext('/app/get-started',t(locale,'state.customers.next'))})}</section>`;
+ return `<section class="customers-page"><header class="ca-heading"><h1>${esc(t(locale,'customers.all'))}</h1></header>${filterBar({locale,action:'/app/customers',cls:'ca-filters',name:t(locale,'customers.search'),hidden:labelHidden,search:{label:t(locale,'customers.search'),cls:'ca-search',control:`<input type="search" name="q" value="${esc(data.q)}" placeholder="${esc(t(locale,'customers.searchHint'))}">`},fields:labelField,submit:t(locale,'customers.show'),clear:data.q||data.label?{href:'/app/customers',label:t(locale,'customers.clear')}:null,active:labels.length&&data.label?1:0,extra:importDoor})}${rows?`${customerPager(data,locale,pageHref,'above')}${listHead}<ul class="ca-customers">${rows}</ul>${pager}`:data.q||data.label?stateBlock('nomatch',{heading:t(locale,'state.customers.none.h'),body:t(locale,'state.customers.none.p'),nextHtml:stateNext('/app/customers',t(locale,'state.clearFilters'))}):stateBlock('empty',{heading:t(locale,'state.customers.h'),body:t(locale,'state.customers.p'),nextHtml:stateNext('/app/get-started',t(locale,'state.customers.next'))})}</section>`;
 }
 export function renderCustomerRecord(selection:CustomerSelection,file:CustomerFile|null,locale:Locale,now:Date,viewer:Viewer=OWNER_VIEW,opts:{readonly returnHref?:string;readonly flash?:Flash|null;readonly openedFrom?:string|null}={}):string {
  const card=selection.card;const record='/app/customers/'+encodeURIComponent(card.clientId);

@@ -308,10 +308,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     }).catch(function () { show(region, what || 'reply'); });
   }
 
-  /* One question, asked again and again: every so often while the tab is in
-     view, at once when it is shown again, longer after each failure (up to
-     five minutes), let go after fifteen seconds without an answer, and never
-     again once the answer says the session or the page is gone. */
+  /* One question, asked while the tab is seen; slower after each failure (to five minutes); dropped after 15 s
+     unanswered; never again once the session or page is gone. */
   function asker(address, every, use, before) {
     var wait = every;
     var timer = 0;
@@ -545,7 +543,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (mq.addEventListener) mq.addEventListener('change', set);
   }
 
-  /* F10: a part's Cancel puts its form back as drawn and closes its fold; Escape in an open fold closes it, words kept. */
+  /* F10: Cancel/Escape close a fold; Cmd/Ctrl+Enter sends. */
   function editFolds() {
     doc.querySelectorAll('[data-edit-cancel]').forEach(function (b) { b.hidden = false; });
     function shut(fold) { fold.open = false; var s = fold.querySelector('summary'); if (s) { s.focus(); s.scrollIntoView({ block: 'nearest' }); } }
@@ -556,6 +554,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       shut(f);
     });
     doc.addEventListener('keydown', function (e) {
+      if (e.key == 'Enter' && (e.metaKey || e.ctrlKey)) { var s = e.target.form && e.target.form.querySelector('.send,.sp-send'); if (s) e.preventDefault(), s.click(); return; }
       var f = e.key === 'Escape' && !e.defaultPrevented && e.target && e.target.closest ? e.target.closest('details[data-edit][open],details.ak-add[open]') : null;
       if (!f || doc.querySelector('dialog[open]')) return;
       e.preventDefault();

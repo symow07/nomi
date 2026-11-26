@@ -1,5 +1,6 @@
 import {settingsPageLinks} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { sectionSidebar } from '../../src/api/web/sections.js';
 import { readFileSync } from 'node:fs';
 import {
   renderEmployee, EMPLOYEE_SCREENS, screenHref,
@@ -186,9 +187,11 @@ describe('phase 7 · every former section, one tap away, its words and controls 
 
   it('the hub links every screen it lists, with daily tools and monthly results in their approved areas', () => {
     const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings/assistant')!.routes;
-    const html = landing(base, 'en') + settingsPageLinks('en','assistant','/app/settings/assistant',{isOwner:true});
+    // The navigation block (2026-11-25): the hub's own row of links is the assistant area's sidebar now, and the
+    // assistant's settings sit in that area; the month is a report.
+    const html = landing(base, 'en') + sectionSidebar('en','assistant','/app/settings/assistant');
     for (const r of routes) expect(html, r).toContain(`href="${r}"`);
-    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'home' : ['checks','history','talk','learning'].includes(s) ? 'assistant' : 'settings');
+    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'reports' : 'assistant');
   });
 });
 
@@ -266,7 +269,9 @@ describe('phase 7 · every screen starts with its way back', () => {
       // the pages that were always their own: the shell adds the way back where a page draws none
       const main = (path: string) => { const h = shell({ title: 'x', active: 'settings', locale: l, path, bodyHtml: '<h1 class="page">x</h1>' }); return h.slice(h.indexOf('<main'), h.indexOf('</main>')); };
       expect(main('/app/assistant/knowledge'), l).not.toContain('class="back"');
-      expect(BACK_TO['/app/settings/assistant/words']?.href).toBe('/app/settings/assistant');
+      // The navigation block (2026-11-25): Words is an entry of the assistant's sidebar, which is its way back.
+      expect(BACK_TO['/app/settings/assistant/words']).toBeUndefined();
+      expect(main('/app/settings/assistant/words'), l).not.toContain('class="back"');
     });
   }
   it('Practice draws its own, first — its transcript\'s "earlier" link is drawn the same way and would hide the shell\'s', () => {
