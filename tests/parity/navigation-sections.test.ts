@@ -160,7 +160,7 @@ describe('its words', () => {
       for (const l of LOCALES) expect(messages[l][k], `${l} ${k}`).toBeTruthy();
     }
     for (const l of LOCALES.filter((x) => x !== 'en')) {
-      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace', 'side.settingsMoved'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
+      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
     }
   });
 

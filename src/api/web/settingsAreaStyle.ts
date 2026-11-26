@@ -38,6 +38,7 @@ export const SETTINGS_AREA_CSS=`
 .sa-value dd{margin:var(--space-8) 0 var(--space-24);overflow-wrap:anywhere;}
 .sa-logout{margin-top:var(--space-32);}
 .ch-states{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-8) var(--space-16);margin-top:var(--space-12);}
+.ch-one{display:flex;flex-wrap:wrap;align-items:baseline;}
 .ch-state{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}
 .ch-k{font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
 .ch-state .sr-value,.ch-v{max-width:100%;margin:0;text-align:start;font-size:var(--font-size-small);overflow-wrap:anywhere;}

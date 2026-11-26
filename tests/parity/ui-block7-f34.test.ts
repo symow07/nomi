@@ -11,7 +11,9 @@ import { withoutIsolates } from './isolates.js';
 
 /**
  * UI Block 7 · F34 — Channels. Each place a customer writes says three things, each under its own label: the
- * connection, whether it can answer now, and who gets replies; then the one next step. The setup instructions fold;
+ * connection, whether it can answer now, and who gets replies; then the one next step.
+ * The text pass (the owner, 2026-11-26): a CALM row — answering with nothing to do, or a place not offered here — is
+ * its connection alone, as one pill, and no row says "nothing for you to do". A row that needs a step keeps all three. The setup instructions fold;
  * the chat page's codes have Copy (and the page Open) beside them; every row has an icon in one column. Nothing a
  * connection does changed: every confirmation, and who may press what, is held below as it was.
  */
@@ -42,37 +44,48 @@ const rows = (html: string) => [...html.matchAll(/<li class="ch-row">([\s\S]*?)<
 const said = (l: Locale, k: Parameters<typeof t>[1], p?: Record<string, string>) => esc(t(l, k, p));
 
 describe('UI Block 7 · F34 · Channels: three states, one next step', () => {
-  it('every channel row shows Connection, Ready to answer and Replies, each labelled, in every language', () => {
+  it('a row that needs a step shows Connection, Ready to answer and Replies, each labelled; a calm row is one pill; in every language', () => {
     for (const l of LOCALES) {
       const r = rows(home(base, l));
       expect(r.length, l).toBeGreaterThanOrEqual(5);
-      for (const row of r) {
+      const needsStep = r.filter((row) => row.includes('ch-next'));
+      const calm = r.filter((row) => !row.includes('ch-next'));
+      expect(needsStep.length, l).toBeGreaterThanOrEqual(2); // WhatsApp, and Instagram and Messenger: not connected
+      expect(calm.length, l).toBeGreaterThanOrEqual(3); // E-mail and web chat answering; TikTok not offered here
+      for (const row of needsStep) {
         for (const k of ['ch.k.connection', 'ch.k.ready', 'ch.k.replies'] as const) expect(row, `${l} ${k}`).toContain(`<span class="ch-k">${said(l, k)}</span>`);
+      }
+      for (const row of calm) {
+        expect(row, l).not.toContain('ch-k');
+        expect(row.match(/class="sr-value/g)?.length, l).toBe(1);
       }
     }
   });
 
-  it('each row names its one next step, or that there is nothing to do', () => {
+  it('each row names its one next step; a row with nothing to do says nothing', () => {
     const r = rows(home(base));
     const wRow = r.find((x) => x.includes('/channels/whatsapp'))!;
     expect(wRow).toContain(`<span class="ch-next">${said('en', 'ch.next.connect')}</span>`);
     expect(wRow).toContain(said('en', 'ch.ready.connectFirst'));
     const mail = r.find((x) => x.includes('/channels/email'))!;
-    expect(mail).toContain(said('en', 'ch.replies.asSet', { name: '@@' }).split('@@')[0]!);
-    expect(mail).toContain(`<span class="ch-next">${said('en', 'ch.next.none')}</span>`);
+    expect(mail).toContain(`<span class="sr-value ok"><bdi>${said('en', 'connect.state.connected')}</bdi></span>`);
+    expect(mail).not.toContain('ch-next');
+    for (const l of LOCALES) expect(home(base, l), l).not.toContain(said(l, 'ch.next.none'));
   });
 
   it('a WhatsApp connected on record but not sendable here waits for Nomi’s team, never a failure', () => {
     const wRow = rows(home(wiredHere)).find((x) => x.includes('/channels/whatsapp'))!;
     expect(wRow).toContain(said('en', 'ch.ready.team'));
-    expect(wRow).toContain(said('en', 'ch.next.none'));
+    expect(wRow).toContain(`<span class="ch-k">${said('en', 'ch.k.ready')}</span>`); // not calm: it still says all three
+    expect(wRow).not.toContain('ch-next');
     expect(wRow).not.toMatch(/sr-value (bad|warn)/);
   });
 
-  it('a place this installation does not offer is "not offered here yet", with no next step and no failure colour', () => {
+  it('a place this installation does not offer says so once ("not set up here yet"), with no next step and no failure colour', () => {
     const r = rows(home(base));
     const tk = r.find((x) => x.includes('/channels/tiktok'))!;
-    expect(tk).toContain(said('en', 'ch.ready.notHere'));
+    expect(tk).toContain(said('en', 'connect.state.notHere'));
+    expect(tk).not.toContain('ch-k');
     expect(tk).not.toContain('ch-next');
     expect(tk).not.toMatch(/sr-value (bad|warn)/);
   });

@@ -582,8 +582,10 @@ export function renderReach(
       const how: MessageKey = r === 'verified_sending_domain' && domain === null
         ? 'reach.req.verified_sending_domain.howNone' : `reach.req.${r}.how` as MessageKey;
       return `<li><span class="pill ${done ? 'ok' : 'stop'}">${esc(t(locale,
-        done ? 'reach.req.ready' : unseen ? 'reach.req.unseen' : 'reach.req.waiting'))}</span><span class="req-t">${esc(t(locale, `reach.req.${r}` as MessageKey))}${
-        done ? '' : `<span class="req-how">${esc(t(locale, how))}</span>`}</span></li>`;
+        done ? 'reach.req.ready' : unseen ? 'reach.req.unseen' : 'reach.req.waiting'))}</span><span class="req-t">${unseen
+        // The text pass — what this page cannot see is said by its pill; why, and where it shows, opens under its name.
+        ? `<details class="note-fold"><summary>${esc(t(locale, `reach.req.${r}` as MessageKey))}</summary><span class="req-how">${esc(t(locale, how))}</span></details>`
+        : `${esc(t(locale, `reach.req.${r}` as MessageKey))}${done ? '' : `<span class="req-how">${esc(t(locale, how))}</span>`}`}</span></li>`;
     }).join('')}</ul>`;
 
     const instead = cap.instead.length === 0 ? '' : `
@@ -697,8 +699,9 @@ function inboundConnect(locale: Locale, channel: OutreachChannel, link: InboundL
           <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
     : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
   return link.connected
-    ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</div>
-      ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
+    ? `${link.connectedAs
+        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>`
+        : `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</div>`}
       ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
       ${!link.connectedAs && !link.needsAttention && link.connectHref && viewer.isOwner
         // Connected through the HOST's account (C9), with the login now
