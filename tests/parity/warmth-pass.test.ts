@@ -357,6 +357,6 @@ describe('faces carry real colour, and never a signal\'s', () => {
   it('the conversation\'s customer panel leads with their face', () => {
     const p = { clientId: '5a1e0000-0000-4000-8000-0000000000aa', name: 'Aisha Bello', photo: null, country: 'NG', channel: 'whatsapp', address: null, language: 'en',
       firstWrote: null, conversations: 1, askedAbout: [], prices: [], samples: [], promised: [], orders: [], activity: [] } as CustomerPanel;
-    expect(renderCustomerPanel(p, [], 'ar', new Date(), 'conv-1')).toMatch(/<div class="pn-who"><span class="face face-m t\d" aria-hidden="true"><span class="face-i">A<\/span><\/span><h2><bdi>Aisha Bello<\/bdi><\/h2><\/div>/);
+    expect(renderCustomerPanel(p, [], 'ar', new Date(), 'conv-1')).toMatch(/<div class="pn-who"(?: title="[^"]*")?><span class="face face-m t\d" aria-hidden="true"><span class="face-i">A<\/span><\/span><h2><bdi>Aisha Bello<\/bdi><\/h2><\/div>/);
   });
 });

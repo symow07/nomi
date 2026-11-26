@@ -184,7 +184,8 @@ d('the Split Today preview (requires DATABASE_URL)', { timeout: 120_000 }, () =>
     expect(html).toContain(`formaction="/app/inbox/${aisha}/takeover"`);
     expect(html).toContain(`action="/app/inbox/${aisha}/act"`);
     expect(html).toContain('class="reading"');
-    expect(html).toContain('goes on Instagram, as written');
+    // the cleanup (2026-11-26): who drafted it, then the channel's name
+    expect(html).toContain(' drafted · Instagram</p>');
   });
 
   it('says so where sending is not switched on: the notice stays on the page', async () => {

@@ -224,6 +224,20 @@ const SHAPES: readonly RegExp[] = [...DISCLOSURE_LOCALES.map((l) => TEXT[l]), ..
 export const carriesDisclosure = (text: string): boolean => SHAPES.some((re) => re.test(text));
 
 /**
+ * The cleanup (2026-11-26) - what a message says AFTER the disclosure it opens with: a list's one-line preview shows
+ * the answer, not the sentence every first reply starts with. Reading only: the message itself is never changed, and
+ * one that is the disclosure alone, or carries it anywhere but first, is returned as it is.
+ */
+export const afterDisclosure = (text: string): string => {
+  const said = text.trimStart();
+  for (const re of SHAPES) {
+    const m = re.exec(said);
+    if (m && m.index === 0) return said.slice(m[0].length).trim() || text;
+  }
+  return text;
+};
+
+/**
  * The disclosure in front of what she was going to say anyway.
  *
  * A blank line between them: it is a separate statement, not a clause of the

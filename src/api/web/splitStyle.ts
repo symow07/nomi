@@ -186,6 +186,7 @@ html[lang="ar"] .split h1.page, html[lang="zh"] .split h1.page { letter-spacing:
 .si-row.is-new .sp-rname { font-weight:700; }
 .si-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 var(--space-8); min-inline-size:0; }
 .si-why { font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
+.owner-shell .si-row .si-why.is-quiet { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 /* The last message: one faded line, cut by the isolate that holds it. */
 .si-said { flex:1 1 40%; display:flex; align-items:baseline; gap:var(--space-4); min-inline-size:0; font-size:var(--font-size-caption); line-height:1.4; color:var(--color-ink-secondary); }
 .si-by { flex:none; }
@@ -485,6 +486,16 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > :not(h1) { grid-column:1 / -1; grid-row:2; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-headt > .live { grid-column:1 / -1; grid-row:3; }
   .content:has(> .area-nav > .area-chooser[data-titled]) .sp-new { grid-column:2; }
+  /* The cleanup (2026-11-26) - Today's title is said once (no area name over the same word), and "New message" stands
+     in the title's row: the head is drawn up beside the chooser while it is closed, and lets a press through to it. */
+  .content:has(.sp-head) > .area-nav > .area-chooser[data-titled] .ac-area { display:none; }
+  .content:has(> .area-nav > .area-chooser[data-titled]:not([open])) .sp-head { margin-block-start:calc(-44px - var(--space-12)); pointer-events:none; }
+  .content:has(> .area-nav > .area-chooser[data-titled]) .sp-head * { pointer-events:auto; }
+  /* A row with no stage to say: the name stands in the middle of the row, not over an empty line. */
+  .sp-row > .sp-chip:empty { display:none; }
+  .sp-row:has(> .sp-chip:empty) { grid-template-areas:"face thumb name val go" "face thumb name day go"; }
+  .sp-row:has(> .sp-chip:empty):has(> .sp-rval:empty) { grid-template-areas:"face thumb name day go"; }
+  .sp-row:has(> .sp-chip:empty) > .sp-rval:empty { display:none; }
   .sp-priority { padding:0 var(--space-12) var(--space-24); }
   .calendar-page .cal-screen { display:flex; flex-direction:column; }
   .calendar-page .cal-list { order:0; }

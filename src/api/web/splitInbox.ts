@@ -13,6 +13,7 @@ import * as show from './values.js';
 import type { AttentionItem } from '../../db/inboxAttention.js';
 import type { BuyersLens } from '../../db/buyersList.js';
 import { safeInboxReturn } from './inboxNavigation.js';
+import { afterDisclosure } from '../../core/conversation/disclosure.js';
 
 /**
  * The approved Inbox: scoped views, search and filters over one flat list, with a native view chooser on a phone.
@@ -72,7 +73,7 @@ function lastSaid(locale: Locale, c: ConversationSummary): string {
   const by = c.lastFrom === 'person' ? t(locale, 'conv.by.you')
     : c.lastFrom === 'assistant' ? (c.answeredBy ?? assistantName(locale)) : null;
   const speaker = by ? `<span class="si-by"><bdi>${esc(by)}</bdi>${locale === 'zh' ? '：' : ':'}</span>` : '';
-  return `<span class="si-said">${speaker}<bdi class="si-last">${esc(preview(c.latestMessage))}</bdi></span>`;
+  return `<span class="si-said">${speaker}<bdi class="si-last">${esc(preview(c.lastFrom === 'assistant' ? afterDisclosure(c.latestMessage) : c.latestMessage))}</bdi></span>`;
 }
 
 function row(locale: Locale, c: ConversationSummary, o: { readonly people: readonly Person[]; readonly attention: readonly AttentionItem[]; readonly now: Date; readonly q: string; readonly lens: BuyersLens; readonly zone: string; readonly returnHref: string; readonly selectedId?: string }): string {
@@ -84,6 +85,9 @@ function row(locale: Locale, c: ConversationSummary, o: { readonly people: reado
   const stage: Stage = c.stage ?? 'asked';
   const prod = productName(locale, c.product);
   const said = lastSaid(locale, c);
+  // The cleanup (2026-11-26) - name, preview and time. Why a row NEEDS the owner stays in sight, and so does what a
+  // search found; any other reason (gone quiet since, who holds it) is kept for a reader, out of sight beside the preview.
+  const quietWhy = !!why && !!said && !needs && !o.q;
   const returnToRow = `${o.returnHref.split('#')[0]}#inbox-${c.conversationId}`;
   const door = `${conversationUrl(c.conversationId).split('#')[0]}?from=${encodeURIComponent(returnToRow)}#latest`;
   const theFace = c.clientId
@@ -98,7 +102,8 @@ function row(locale: Locale, c: ConversationSummary, o: { readonly people: reado
     ${theFace}
     <div class="si-who"><a class="si-door" href="${esc(door)}"${o.selectedId === c.conversationId ? ' aria-current="page"' : ''}><bdi class="sp-rname">${markHit(who, o.q)}</bdi></a>${
       needs ? `<span class="sr">${esc(t(locale, 'buyers.group.needsYou'))}</span>` : ''}${isNew(c) ? `<span class="sr">${esc(t(locale, 'buyers.row.unopened'))}</span>` : ''}${
-      why || said ? `<div class="si-line">${why ? `<span class="si-why">${why}</span>` : ''}${said}</div>` : ''}</div>
+      why || said ? `<div class="si-line">${
+        why ? `<span class="si-why${quietWhy ? ' is-quiet' : ''}">${why}</span>` : ''}${said}</div>` : ''}</div>
     ${thumb}
     <span class="sp-chip${stage === 'order' ? ' is-order' : ''}">${esc(t(locale, `split.stage.${stage}`))}</span>
     <span class="sp-rval">${value ? esc(whole(show.money(locale, value))) : ''}</span>

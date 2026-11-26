@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { moneyFromRow } from '../../src/core/types/money.js';
 import { renderPanes, renderListPane, paneRowOf } from '../../src/api/web/panes.js';
+import { renderConversationTools } from '../../src/api/web/copilotPanel.js';
 const cid = '00000000-0000-0000-0000-000000000002';
 const detail: ConversationDetail = {
   conversationId: cid, buyer: 'Maya <shop>', country: null, status: 'awaiting', product: { name: null, nameZh: null }, quantity: null,
@@ -12,9 +13,11 @@ const detail: ConversationDetail = {
 describe('conversation tools preserve the command boundary', () => {
   it('opens Ask Nomi through a real GET and keeps the approval identity and actions', () => {
     const html = renderConversationDetail(detail, 'en', new Date('2026-11-05'), null);
-    expect(html).toContain(`method="get" action="/app/inbox/${cid}/copilot"`);
-    expect(html).toContain('Ask Nomi');
-    expect(html).toContain('data-open-tool="ask"');
+    // The cleanup (2026-11-26): Ask Nomi is the pane's own tab, a real link to the same GET; the head has no second button.
+    expect(html).not.toContain('data-open-tool="ask"');
+    const pane = renderConversationTools('', cid, 'en');
+    expect(pane).toContain(`<a href="/app/inbox/${cid}/copilot" data-tool-tab="ask">`);
+    expect(pane).toContain('Ask Nomi');
     expect(html).toContain('name="draftId" value="real-draft"');
     expect(html).toContain(`action="/app/inbox/${cid}/act"`);
     expect(html).toContain('value="不回"');

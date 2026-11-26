@@ -138,8 +138,9 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       expect(s, l).not.toContain('<img');
       // the name, as the header always drew it
       expect(s, l).toContain('<h1 class="who"><b><bdi>Aisha Bello</bdi></b>');
-      // where they write: the channel's word and the number as it is dialled
-      expect(s, l).toContain(`${esc(t(l, 'conv.channel.whatsapp'))} <bdi dir="ltr">+2348035550101</bdi>`);
+      // where they write: the channel's word. The number is the panel's (the cleanup, 2026-11-26): not said twice.
+      expect(s, l).toContain(`<p class="cu-where">${esc(t(l, 'conv.channel.whatsapp'))}</p>`);
+      expect(s, l).not.toContain('+2348035550101');
       // what they bought: the products of their orders that stand, with how many
       const [tote, apron] = l === 'zh' ? ['帆布袋', '围裙'] : ['Canvas tote', 'Apron'];
       expect(s, l).toContain(`<bdi>${tote}</bdi>&nbsp;<bdi dir="ltr">×2</bdi>`);
@@ -162,16 +163,16 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       const s = strip(html);
       expect(s, l).toContain(esc(t(l, 'catchup.askedQty', { product: '\u0000', qty: '\u0001' }))
         .replace('\u0000', '<bdi>Vacuum cup</bdi>').replace('\u0001', `<bdi class="fig">${plain(show.quantityOf(l, 5000, t(l, 'product.unit.pcs')))}</bdi>`));
-      expect(s, l).toContain(esc(t(l, 'catchup.none')));
+      // the cleanup (2026-11-26): that nothing was bought is not a line; what they bought shows when they have
+      expect(s, l).not.toContain('<span class="fig"></span>');
       expect(html, l).not.toContain('class="muted subline"');
       // no product of its own: the panel's reading, else the newest price worked out for them (the loader)
       const bare = strip(page(detail({ product: { name: null, nameZh: null }, quantity: null }, none), l));
       for (const side of sides(l, 'catchup.asked', 'product')) expect(bare, l).toContain(side);
       expect(bare, l).toContain(`<bdi>${l === 'zh' ? '帆布袋' : 'Canvas tote'}</bdi>`);
-      expect(bare, l).toContain(esc(t(l, 'catchup.none')));
-      // nothing asked and nothing bought still says so
+      // nothing asked and nothing bought: no line of facts at all
       expect(strip(page(detail({ product: { name: null, nameZh: null }, quantity: null }, { ...none, askedAbout: null }), l)), l)
-        .toContain(`<p class="cu-facts"><span class="fig">${esc(t(l, 'catchup.none'))}</span></p>`);
+        .not.toContain('class="cu-facts"');
       for (const side of sides(l, 'catchup.bought', 'items')) expect(s, l).not.toContain(side);
       expect(s, l).not.toContain('cu-regular');
       expect(s, l).not.toContain(esc(t(l, 'catchup.regular')));
@@ -227,6 +228,9 @@ describe('the state of play, drawn — one line, from the rows', () => {
     for (const l of LOCALES) {
       for (const [why, d] of cases) {
         const line = stateLine(page(d, l));
+        // The cleanup (2026-11-26): a reply waiting for the owner's OK is the draft card's own line, under the
+        // thread. The head does not say it a second time.
+        if (why === 'review') { expect(line, `${l} ${why}`).toBe(''); expect(page(d, l), `${l} ${why}`).toContain('id="approve"'); continue; }
         expect(line, `${l} ${why}`).toContain(needsPill(l));
         expect(line, `${l} ${why}`).toContain(`<b><bdi>${esc(plain(needsWhy(l, paneRowOf(d))))}</bdi></b>`);
       }
@@ -242,13 +246,15 @@ describe('the state of play, drawn — one line, from the rows', () => {
       const quoted = stateLine(page(detail({}, { quoteSentAt: ago(3 * DAY), lastFromThemAt: ago(4 * DAY) }), l));
       expect(quoted, l).toContain(head('catchup.state.quoted'));
       const quiet = stateLine(page(detail({}, { lastFromThemAt: ago(20 * DAY), lastMessage: { from: 'assistant', at: ago(19 * DAY) } }), l));
-      expect(quiet, l).toContain(`${head('catchup.state.quiet')}&nbsp;· ${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}`);
+      // The cleanup (2026-11-26): ONE pill, "Gone quiet"; since when is its hover (and the thread's own day line).
+      expect(quiet, l).toBe(`<p class="cu-state"><span class="pill" title="${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}">${esc(t(l, 'catchup.state.quiet'))}</span></p>`);
       const talking = stateLine(page(detail({}, { lastMessage: { from: 'assistant', at: ago(5 * MIN) } }), l));
       expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as">Mira</span></span>&nbsp;· <span class="fig">`);
       const last = stateLine(page(detail(), l));
-      expect(last, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig"><bdi>Aisha Bello</bdi></span>`);
+      // The cleanup (2026-11-26): "Last message · who · when" restated the thread's last bubble. The pill alone.
+      expect(last, l).not.toContain('cu-story');
       const mine = stateLine(page(detail({}, { lastMessage: { from: 'person', at: ago(DAY) } }), l));
-      expect(mine, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig">${esc(t(l, 'conv.by.you'))}</span>`);
+      expect(mine, l).not.toContain('cu-story');
       const none = stateLine(page(detail({}, { lastMessage: null, lastFromThemAt: null }), l));
       expect(none, l).toContain(head('catchup.state.none'));
       // away from "needs you", the pill says who holds the conversation, as the header did
@@ -323,7 +329,8 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     for (const l of LOCALES) {
       const line = `${esc(t(l, 'conv.channel.whatsapp'))} <bdi dir="ltr">+2348035550101</bdi>`;
       expect(plain(renderCustomerPanel(panel, [], l, NOW, 'c')), l).toContain(line);
-      expect(strip(page(detail(), l)), l).toContain(line);
+      // the strip says the channel in the same word; the number is the panel's alone (the cleanup, 2026-11-26)
+      expect(strip(page(detail(), l)), l).toContain(`<p class="cu-where">${esc(t(l, 'conv.channel.whatsapp'))}</p>`);
     }
   });
 });

@@ -67,6 +67,8 @@ ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:no
    button keeps the corner every other page gives it. */
 .owner-shell .sp-panels.is-one { justify-content:center; }
 .owner-shell .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:auto; }
+/* The cleanup (2026-11-26) - beside two panels the page has ONE left edge: the title's, the notices', the card's, Sales'. */
+.owner-shell .sp:has(> .sp-panels:not(.is-one)) > .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:0; }
 @media (min-width:721px) { .owner-shell .sp:has(> .sp-panels.is-one) > :is(.sp-head, .sp-setup) { box-sizing:content-box; max-inline-size:840px; margin-inline:auto; padding-inline:var(--space-24); } }
 /* Its title starts on the column's edge, and its button ends on it once the "?" in the corner is clear of the column. */
 @media (min-width:1320px) { .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:0; } }
@@ -155,9 +157,10 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell .conversation-workspace .catchup .face-l { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
   .owner-shell .conversation-workspace .catchup > h1.who { order:1; margin:0; font-size:var(--font-size-title); }
   .owner-shell .conversation-workspace .catchup > .cu-where { order:2; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .owner-shell .conversation-workspace .catchup > :is(.cu-facts, .cu-state) { order:4; margin:0; margin-block-start:var(--space-4); font-size:var(--font-size-caption); }
-  .owner-shell .conversation-workspace .catchup > :is(.cu-facts, .cu-state) { margin-inline-start:calc(32px + var(--space-8)); }
-  .owner-shell .conversation-workspace .catchup > .cu-facts + .cu-state { margin-inline-start:var(--space-8); }
+  /* One line under the name, as wide as the head: the tools beside the name are one row tall, so the line runs under them. */
+  .owner-shell .conversation-workspace .conv-top { container-type:inline-size; }
+  .owner-shell .conversation-workspace .catchup > .cu-line { order:4; flex:0 0 auto; inline-size:max-content; max-inline-size:calc(100cqi - 32px - var(--space-8)); margin:0; margin-block-start:var(--space-4); margin-inline-start:calc(32px + var(--space-8)); }
+  .owner-shell .conversation-workspace .catchup > .cu-line > p { margin:0; font-size:var(--font-size-caption); }
 }
 
 /* 5 · One "you are here" in a menu down the side: the rail's own — a sand tile, its word in weight — on the Inbox's
@@ -184,8 +187,12 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell form.sp-form > .sp-acts-more > .sp-btn { order:1; }
   .owner-shell form.sp-form > .sp-acts-more > .sp-window { order:3; flex:1 1 100%; padding-inline:var(--space-4); }
   .owner-shell form.sp-form > .sp-acts-more .sp-window, .owner-shell .conv-acts #approve .acts-more .src { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:0; }
-  .owner-shell .conv-acts #approve .acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin-block:var(--space-8) 0; }
-  .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 auto; text-align:end; }
+  /* The cleanup (2026-11-26) - "No reply needed" stands in the answers' row, at its start; the window's line under the
+     row. The form is drawn up over the row and lets a press through to the two answers beside its own button. */
+  .owner-shell .conv-acts #approve .acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin-block:calc(-44px - var(--space-8)) 0; pointer-events:none; }
+  .owner-shell .conv-acts #approve .acts-more > * { pointer-events:auto; }
+  .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 100%; text-align:start; }
+  .owner-shell .conv-acts form.approve > .acts { min-block-size:44px; }
   /* What to check before sending: each on its own line, starting where the fold's words start (not under its arrow). */
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary { flex-wrap:wrap; }
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary .c.check { flex:1 1 100%; padding-inline-start:calc(16px + var(--space-8)); }

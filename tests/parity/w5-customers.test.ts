@@ -361,7 +361,7 @@ describe('the Inbox (w4-customers-03 · -04 · -06 · -07 · V1-164 · V1-166 ·
     const band: AttentionItem[] = [{ clientId: C(5), name: 'Marco', photo: null, conversationId: V(5), kind: 'asked', since: new Date('2026-09-28T00:00:00Z'), spent: null }];
     for (const l of LOCALES) {
       const h = html(l, { filter: 'quiet', conversations: [conv(5, 'Marco')], attention: band });
-      expect(h, l).toContain(`<span class="si-why"><bdi>${shown(l, 'buyers.attention.asked', { date: '\u0000' }).split('\u0000')[0]}`);
+      expect(h, l).toContain(`<span class="si-why is-quiet"><bdi>${shown(l, 'buyers.attention.asked', { date: '\u0000' }).split('\u0000')[0]}`);
       expect(h.match(/class="si-door"/g), l).toHaveLength(1);
     }
   });

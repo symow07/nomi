@@ -63,16 +63,16 @@ describe('V1-232, V1-271 · one state, one name: the tab\'s, wherever it is said
   it('the header, the hand-over card, the draft card, the panel, the buyer file and the list say the same words', () => {
     for (const l of LOCALES) {
       const word = esc(t(l, 'inbox.filter.pending'));
-      // a reply waiting: the header pill
+      // a reply waiting: the card says it, directly under the thread; the header does not say it again (the cleanup, 2026-11-26)
       const page = plain(renderConversationDetail(draft({ pendingDraft: { ...draft().pendingDraft!, heldBecause: 'discount_needs_owner' } }), l, NOW, null));
-      expect(page, l).toContain(`<span class="pill warn">${word}</span>`);
-      // …and the card's state line
+      expect(page, l).not.toContain(`<span class="pill warn">${word}</span>`);
+      // the card's state line
       expect(page, l).toContain(`<b>${word}</b>`);
       // handed to a person: the header and the card
       const waiting = plain(renderConversationDetail(draft({ ownership: 'WAITING_HUMAN', pendingDraft: null, handoffReasons: ['human_requested'] }), l, NOW, null));
       expect(waiting.split(`<span class="pill warn">${word}</span>`).length - 1, l).toBe(2);
-      // the customer panel's activity, and the buyer file's pill
-      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).toContain(`s-waiting" aria-hidden="true"></span> ${word}`);
+      // the buyer file's pill; the panel's Activity is what happened, and does not say it again (the cleanup, 2026-11-26)
+      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).not.toContain('s-waiting');
       expect(plain(renderCustomerFile(file(), l, NOW)), l).toContain(`<span class="pill warn">${word}</span>`);
       // and the list's group says it the same way
       expect(t(l, 'buyers.group.needsYou'), l).toBe(t(l, 'inbox.filter.pending'));
@@ -330,11 +330,14 @@ describe('conversation-new-06, V1-238, V1-263 · the hand-over card reads down, 
   it('no dashed box of its own; the line is on the card; the card is a column', () => {
     for (const l of LOCALES) {
       const html = renderConversationDetail(draft({ pendingDraft: null, status: 'done' }), l, NOW, null);
-      expect(html, l).not.toContain(`<div class="empty muted">${esc(t(l, 'inbox.draft.none'))}</div>`);
+      expect(html, l).not.toContain('<div class="empty muted">');
       const takeover = html.slice(html.indexOf('<div class="card takeover"'), html.indexOf('</div>', html.indexOf('<div class="card takeover"')));
-      expect(takeover, l).toContain(`<p class="muted takeover-note">${esc(t(l, 'inbox.draft.none'))}</p>`);
-      // with a reply waiting, the card does not say none waits
-      expect(renderConversationDetail(draft(), l, NOW, null), l).not.toContain(esc(t(l, 'inbox.draft.none')));
+      // The cleanup (2026-11-26): the pill is the whole statement. "No reply is waiting for you here" said nothing had happened.
+      expect(takeover, l).toContain(`<span class="pill as">${esc(t(l, 'takeover.status.ai'))}</span>`);
+      expect(takeover, l).not.toContain('takeover-note');
+      // nothing waits, so "Hand to me" is not a phone's band over the tab bar
+      expect(html, l).not.toContain('data-band="take"');
+      expect(renderConversationDetail(draft(), l, NOW, null), l).not.toContain('takeover-note');
     }
     const sheet = css();
     expect(sheet).toContain('.takeover { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }');
