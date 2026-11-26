@@ -281,7 +281,7 @@ d('billing resilience, through production, against a provider that refuses for b
     expect(today.statusCode).toBe(200);
     expect(today.body).toContain('id="provider-billing"');
     expect(today.body).toContain('ran out of credit');
-    expect(today.body).toContain('Nothing was sent to your customers');
+    expect(today.body).toContain('Nothing was sent.');
     expect(today.body).toContain('Nomi’s team has been told');
     const page = await get(`/app/inbox/${first}`);
     expect(page.body).toContain(t('en', 'providerBilling.title'));

@@ -100,7 +100,8 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
     expect(page.body).toMatch(/<a href="\/app\/assistant\/ask" class="navlink nav-desktop active" data-nav="ask" aria-current="page"/);
     expect(page.body).toContain('<form method="post" action="/app/advisor" class="ask-form"');
     // the access code's owner is a row born with the business's name: the page greets a person, never the business
-    expect(page.body).toContain('<p dir="auto">Hello</p>');
+    // the text audit (2026-11-26): the page opens on the question box, with no greeting line at all
+    expect(page.body).not.toContain('<p dir="auto">Hello');
     expect(page.body).not.toContain('Hello, Advisor Run Co');
 
     // the control: a real save moves the counter

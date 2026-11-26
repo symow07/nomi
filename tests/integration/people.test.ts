@@ -467,7 +467,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Online now');
     expect(page.body).toContain('Signs in with an access code');
-    expect(page.body).toMatch(/\d+ (person|people) here, \d+ online now\./);
+    // the text audit (2026-11-26): the count is said when there is more than one person to count
+    if (seen.length > 1) expect(page.body).toMatch(/\d+ (person|people) here, \d+ online now\./);
+    else expect(page.body).not.toMatch(/\d+ (person|people) here, \d+ online now\./);
   });
 
   it('S1 · REMOVING SOMEONE SIGNS THEM OUT NOW — the cookie they hold stops opening anything', async () => {
