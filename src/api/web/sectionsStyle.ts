@@ -27,6 +27,18 @@ export const SECTIONS_CSS = String.raw`
   .owner-shell .layout > .content { margin-block:var(--space-8); margin-inline-end:var(--space-8); min-block-size:calc(100vh - var(--space-16));
     background:var(--color-paper); border:1px solid var(--color-border); border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
     box-shadow:0 2px 12px var(--color-rail-shadow); }
+  /* The window keeps its round corners and its inset at the top and the bottom of the SCREEN while a long page scrolls
+     under them (the owner, 2026-11-26: "the bottom side should also be like that"): two strips of the frame's own
+     colour, fixed over the window's ends, each cut to the window's corner. Nothing in them takes a click. */
+  .owner-shell .layout::before, .owner-shell .layout::after { content:""; position:fixed; z-index:4; inset-inline:72px var(--space-8); block-size:24px; pointer-events:none; }
+  .owner-shell .layout::before { inset-block-start:0;
+    background:radial-gradient(circle at 16px 16px, transparent 16px, var(--color-rail-top) 16.5px) left bottom / 16px 16px no-repeat,
+      radial-gradient(circle at 0 16px, transparent 16px, var(--color-rail-top) 16.5px) right bottom / 16px 16px no-repeat,
+      linear-gradient(var(--color-rail-top), var(--color-rail-top)) 0 0 / 16px 8px repeat-x; }
+  .owner-shell .layout::after { inset-block-end:0;
+    background:radial-gradient(circle at 16px 0, transparent 16px, var(--color-rail-bottom) 16.5px) left top / 16px 16px no-repeat,
+      radial-gradient(circle at 0 0, transparent 16px, var(--color-rail-bottom) 16.5px) right top / 16px 16px no-repeat,
+      linear-gradient(var(--color-rail-bottom), var(--color-rail-bottom)) 0 16px / 16px 8px repeat-x; }
   /* Alone (no sidebar beside it, or a tablet's width), the page is the whole window: its first corners round too. */
   .owner-shell .layout:not(:has(> .sect)) > .content { border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel); }
   .owner-shell .layout > nav.side :is(a,button).navlink { border-radius:var(--radius-panel); }
@@ -53,6 +65,11 @@ export const SECTIONS_CSS = String.raw`
   .conversation-workspace .conversation-actions .btn { border-radius:var(--radius-chip); padding-inline:var(--space-16); }
 }
 @media (min-width:1100px) {
+  /* A conversation fills the window, not the screen: the window's two insets and its edge come off each full height. */
+  .owner-shell .conversation-workspace { min-height:calc(100dvh - var(--space-16) - 2px); }
+  .owner-shell .conversation-workspace > .listpane { height:calc(100dvh - var(--space-16) - 2px); }
+  .owner-shell .conversation-workspace > .conversation-tools { block-size:calc(100dvh - var(--space-16) - 2px); max-height:calc(100dvh - var(--space-16) - 2px); }
+  .owner-shell .conversation-workspace > .conv { block-size:calc(100dvh - var(--space-16) - 2px); }
   .conversation-workspace .conv-acts:not(:empty) { margin-block-end:var(--space-16); border:1px solid var(--color-border); border-radius:var(--radius-panel); background:var(--color-surface); }
 }
 /* Today's head when it is one column: the "?" sits at the column's end, so its button keeps clear of it. */
