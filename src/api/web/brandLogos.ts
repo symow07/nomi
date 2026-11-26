@@ -1,7 +1,7 @@
 /**
  * The channels' own logos (the owner, 2026-11-26: "use the real socials icons"), as the sidebar draws them beside
  * each channel. The drawings are Simple Icons' (simple-icons 13.21.0, CC0-1.0, assets/icons/SIMPLE-ICONS-LICENSE.txt),
- * copied unchanged; each is one path on a 24-unit square, drawn in the text's colour (no literal colour here: the
+ * copied unchanged; each is one path on a 24-unit square, drawn in each channel's own colours, all tokens (no literal colour here: the
  * palette rule). The marks themselves are their owners' trademarks, shown only to name the channel they connect.
  */
 export const BRAND_LOGO = {
@@ -13,7 +13,24 @@ export const BRAND_LOGO = {
 
 export type BrandLogo = keyof typeof BRAND_LOGO;
 
-/** A logo at the size of the Solar icons beside it, hidden from a screen reader (the item's word names it). */
+const SVG = (className: string, size: number, inner: string): string =>
+  `<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${inner}</svg>`;
+const fill = (token: string): string => `style="fill:var(--color-${token})"`;
+
+/**
+ * A logo at the size of the Solar icons beside it, in the channel's own colours (the owner, 2026-11-26), hidden from
+ * a screen reader (the item's word names it). Every colour is a token (tokens.ts `logo*`), never a literal here.
+ * TikTok is its note three times — cyan and red a step apart behind the ink one — as its own mark draws it.
+ */
 export function brandSvg(className: string, name: BrandLogo, size = 20): string {
-  return `<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="${BRAND_LOGO[name]}"/></svg>`;
+  const d = BRAND_LOGO[name];
+  if (name === 'whatsapp') return SVG(className, size, `<path ${fill('logo-whatsapp')} d="${d}"/>`);
+  if (name === 'telegram') return SVG(className, size, `<path ${fill('logo-telegram')} d="${d}"/>`);
+  if (name === 'tiktok') {
+    return SVG(className, size, `<path ${fill('logo-tiktok-cyan')} transform="translate(-0.6 -0.6)" d="${d}"/>`
+      + `<path ${fill('logo-tiktok-red')} transform="translate(0.6 0.6)" d="${d}"/><path ${fill('ink')} d="${d}"/>`);
+  }
+  const stop = (offset: string, n: number): string => `<stop offset="${offset}" style="stop-color:var(--color-logo-instagram${n})"/>`;
+  return SVG(className, size, `<defs><linearGradient id="logo-ig" x1="0" y1="1" x2="1" y2="0">${stop('0', 1)}${stop('0.25', 2)}${stop('0.5', 3)}${stop('0.75', 4)}${stop('1', 5)}</linearGradient></defs>`
+    + `<path fill="url(#logo-ig)" d="${d}"/>`);
 }

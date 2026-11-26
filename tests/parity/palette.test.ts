@@ -67,6 +67,9 @@ describe('the palette', () => {
       'controlLine',
       // The rail (the owner, 2026-11-26): a soft gradient of the magenta behind the icon rail, and its tile's shadow.
       'railTop', 'railBottom', 'railShadow',
+      // The channels' own colours (the owner, 2026-11-26), for their logos alone (brandLogos.ts).
+      'logoWhatsapp', 'logoTelegram', 'logoTiktokCyan', 'logoTiktokRed',
+      'logoInstagram1', 'logoInstagram2', 'logoInstagram3', 'logoInstagram4', 'logoInstagram5',
     ].sort());
     expect(C['ink']).toBe('#171717');
     expect(C['inkSecondary']).toBe('#5E5E5A');
@@ -105,7 +108,15 @@ describe('the palette', () => {
     // A magenta: a hue from violet-magenta to raspberry, dark enough to be a colour rather than a wash.
     const light = (h: string) => { const v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255); return (Math.max(...v) + Math.min(...v)) / 2; };
     const magentas = Object.keys(C).filter((k) => { const h = hue(C[k]!); return h >= 290 && h <= 355 && light(C[k]!) <= 0.6; }).sort();
-    expect(magentas).toEqual(['brand', 'coin', 'needs', 'orbGlow']);
+    // The channels' own logo colours (the owner, 2026-11-26) are another company's, not ours: they are held below to
+    // the logos alone, so Instagram's gradient is no sixth magenta of the product.
+    expect(magentas.filter((k) => !k.startsWith('logo'))).toEqual(['brand', 'coin', 'needs', 'orbGlow']);
+  });
+
+  it('the channels\' logo colours are the logos\' alone: named only by the tokens and the logos, never a role', async () => {
+    const naming = (await sources(SRC)).filter(({ src }) => /\blogo(?:Whatsapp|Telegram|Tiktok|Instagram)|--color-logo-|color-logo-/.test(src)).map(({ f }) => f).sort();
+    expect(naming).toEqual(['brandLogos.ts', 'tokens.ts']);
+    for (const k of Object.keys(C).filter((x) => x.startsWith('logo'))) expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain(k);
   });
 
   it('the coin is the mark, and the count and dot that say someone waits: no other rule of the stylesheet, and no role', async () => {

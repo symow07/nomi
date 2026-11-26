@@ -201,6 +201,17 @@ export const DESIGN_TOKENS = {
     railTop: '#FCF3F8',
     railBottom: '#F3D9E7',
     railShadow: '#E2B8CF',
+    // The channels' own colours (the owner, 2026-11-26: "use the exact colors and icons of each channel"), for their
+    // logos alone (brandLogos.ts): WhatsApp's green, Telegram's blue, TikTok's cyan and red, Instagram's gradient.
+    logoWhatsapp: '#25D366',
+    logoTelegram: '#26A5E4',
+    logoTiktokCyan: '#25F4EE',
+    logoTiktokRed: '#FE2C55',
+    logoInstagram1: '#FFD600',
+    logoInstagram2: '#FF7A00',
+    logoInstagram3: '#FF0069',
+    logoInstagram4: '#D300C5',
+    logoInstagram5: '#7638FA',
     // Seal artwork and favicon retain their supplied colours.
     coin: '#5A0A2E',
     coinGround: '#F5F1EA',

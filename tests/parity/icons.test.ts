@@ -459,10 +459,14 @@ describe('one family on every screen: Solar, no emoji', () => {
 
   it('the one exception: a channel\'s own logo, for the four channels that have one, and nothing else', async () => {
     // The owner (2026-11-26): "use the real socials icons (instagram - telegram - whatsapp…)". Simple Icons' drawings
-    // (CC0), one path each, in the text's colour; e-mail and web chat have no brand and keep their Solar shapes.
+    // (CC0), one path each, in each channel's own colours ("use the exact colors", the same day); e-mail and web chat have no brand and keep their Solar shapes.
     const { BRAND_LOGO, brandSvg } = await import('../../src/api/web/brandLogos.js');
     expect(Object.keys(BRAND_LOGO).sort()).toEqual(['instagram', 'telegram', 'tiktok', 'whatsapp']);
-    expect(brandSvg('x', 'whatsapp')).toMatch(/^<svg class="x" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="[^"]+"\/><\/svg>$/);
+    expect(brandSvg('x', 'whatsapp')).toMatch(/^<svg class="x" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path style="fill:var\(--color-logo-whatsapp\)" d="[^"]+"\/><\/svg>$/);
+    // each in its own colours, every one a token: no literal colour in a logo
+    for (const n of ['whatsapp', 'telegram', 'tiktok', 'instagram'] as const) expect(brandSvg('x', n)).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(brandSvg('x', 'instagram')).toContain('var(--color-logo-instagram5)');
+    expect(brandSvg('x', 'tiktok')).toContain('var(--color-logo-tiktok-red)');
     expect(read('assets/icons/SIMPLE-ICONS-LICENSE.txt')).toContain('CC0');
   });
 
