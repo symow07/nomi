@@ -102,6 +102,13 @@ done
 HEALTH="$(curl -sS "$BASEURL/health" 2>/dev/null)" || fail "health never came up"
 echo "  health: $HEALTH"
 
+# SERVE_ONLY=1: stop here and leave the server running, to click through it in a browser.
+if [ -n "${SERVE_ONLY:-}" ]; then
+  echo "Running at $BASEURL — log in with \"I have an access code\" → $CODE"
+  echo "Stop everything: kill $APP_PID; pg_ctl -D $SK/pg stop"
+  exit 0
+fi
+
 echo "[6/6] drive the owner walkthrough (auth → home → runbook → sandbox rehearsal)"
 J="$SK/cookies.txt"
 FORM='content-type: application/x-www-form-urlencoded'
@@ -127,7 +134,7 @@ done
 curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE" || fail "login POST"
 
 #  the owner surfaces
-get /app            "$SK/app-home.html"   'id="home-hi"'  "Home did not render"
+get /app            "$SK/app-home.html"   'class="sp-head"'  "Home did not render"
 get /app/business   "$SK/app-factory.html" "What you promise customers" "My business did not render"
 get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Checklist' "The checklist did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
