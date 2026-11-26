@@ -841,12 +841,12 @@ describe('Phase 9 · B5 · My business', () => {
   });
 
   it('V1-389 · the allowance says what it limits, with no "workspace" and no money word', () => {
-    for (const l of LOCALES) expect(screen('ready', audit, l), l).toContain(esc(say(l, 'business.allowance.none')));
-    expect(say('en', 'business.allowance.none')).toMatch(/messages/);
-    expect(say('en', 'business.allowance.title') + say('en', 'business.allowance.none')).not.toMatch(/workspace|allowance/i);
+    // The text cleanup (2026-11-26, the owner's approval): with no daily limit set, nothing is said about one.
+    for (const l of LOCALES) expect(screen('ready', audit, l), l).not.toContain('data-golive="allowance"');
+    const limited: FactoryView = { ...audit, readiness: { ...audit.readiness, allowance: { pctUsed: 40, used: false, renewsAt: new Date('2026-10-03T00:00:00Z') } } };
+    for (const l of LOCALES) expect(screen('ready', limited, l), l).toContain(`data-golive="allowance">${esc(say(l, 'business.allowance.title'))}</h2>`);
+    expect(say('en', 'business.allowance.title')).not.toMatch(/workspace|allowance/i);
     expect(say('ar', 'business.allowance.title')).not.toContain('رصيد');
-    expect(say('zh', 'business.allowance.none')).not.toContain('工作台');
-    expect(say('es', 'business.allowance.none')).not.toContain('espacio de trabajo');
   });
 
   it('V1-390 · V1-399 · no grey sub-question in any voice, in any language', () => {

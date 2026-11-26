@@ -14,7 +14,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pa-search>a,.pa-pager a{display:flex;align-items:center;min-height:44px;}
 .pa-pager a{justify-content:center;min-width:44px;}
 .pa-products{max-width:100%;}
-.pa-products .prod{min-height:88px;gap:var(--space-24);padding-block:var(--space-16);text-decoration:none;scroll-margin-block-start:var(--space-24);}
+.pa-products .prod{gap:var(--space-16);text-decoration:none;scroll-margin-block-start:var(--space-24);}
 .pa-products .prod:hover .prod-h b{text-decoration:underline;text-underline-offset:.2em;}
 .pa-products .prod-h{font-size:var(--font-size-base);overflow-wrap:anywhere;}
 .pa-products .prod-b{font-size:var(--font-size-base);line-height:var(--line-height);font-variant-numeric:tabular-nums;}
@@ -93,7 +93,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pa-method>p,.pa-method>form,.pa-method>.caption{margin-block:var(--space-16);}
 .product-add [id],.product-limits [id]{scroll-margin-block-start:var(--space-24);}
 .product-limits{max-width:var(--measure-column);container:limits/inline-size;}
-.product-limits>.lede,.product-limits .pr-how,.product-limits .fdesc{max-width:var(--measure-prose);}
+.product-limits>.lede,.product-limits .fdesc{max-width:var(--measure-prose);}
 .product-limits .pr-block:has(.pr-table){max-width:var(--measure-column);}
 .pr-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;}
 .pr-table th,.pr-table td{padding:var(--space-12) var(--space-8);text-align:start;vertical-align:middle;}
@@ -108,6 +108,10 @@ main:has(.product-area){max-width:var(--measure-column);}
 .pr-id{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;overflow-wrap:break-word;}
 .pr-missing{font-weight:600;}
 .pr-id .pr-door{display:inline-flex;align-items:center;min-height:44px;font-weight:400;white-space:nowrap;align-self:flex-start;}
+/* The text audit (2026-11-26): a row's own door shows when the row is pointed at or holds the focus; under a finger it is always there. */
+@media(hover:hover){.pr-table .pr-row:not(:hover):not(:focus-within) .pr-door{opacity:0;}
+/* ...and it stands beside the name, in the name's own line: a row at rest keeps no empty line for it. */
+.pr-id{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:var(--space-16);row-gap:0;}.pr-id .pr-door{align-self:baseline;align-items:baseline;}}
 .pr-table .pr-row.has-form{border-bottom:0;}
 .pr-form-row>td{padding-bottom:var(--space-24);}
 .pr-form-row .pform{max-width:var(--measure-prose);}
@@ -134,9 +138,7 @@ main:has(.product-area){max-width:var(--measure-column);}
 @media(max-width:600px){
  .product-area h1.page{font-size:var(--font-size-display);}
  .pa-search{align-items:stretch;gap:var(--space-12);}.pa-search label{flex-basis:100%;}.pa-search .btn{flex:1;}
- .pa-products .prod{gap:var(--space-12);align-items:start;}
- .pa-products .prod>.go{align-self:center;}
- .pa-thumb{width:44px;height:44px;}
+ .pa-products .prod{gap:var(--space-12);}
  .pa-products .prod-h{gap:var(--space-4) var(--space-8);}
  .pa-pager{gap:var(--space-8);}
  .product-detail .imgs img{width:100%;height:auto;max-height:20rem;}

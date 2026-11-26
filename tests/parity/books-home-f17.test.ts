@@ -9,6 +9,9 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
  * F17 (UI correction, Block 5) — the Books home: what needs you, then the three actions, then one setup step, then the
  * money in three groups (cash, owed, profit), each figure with its period and the report it is read from; a figure the
  * records cannot give is its link, never a zero; each figure's basis is kept word for word under one disclosure.
+ * The text pass (the owner, 2026-11-26): the day is said ONCE, under the title; "Needs you" shows only when something
+ * waits; a figure says a period only when it has its own; the cash group's three figures share one link to their
+ * source; and before the books have a year, a figure with nothing behind it is "Not on record", never $0.00.
  */
 const owner = { id: 'o', name: 'Mei', isOwner: true };
 const accountant = { id: 'a', name: 'Amal', isOwner: false, kind: 'accountant' as const };
@@ -40,15 +43,42 @@ describe('F17 · the Books home', () => {
     expect(at('class="ba-actions"')).toBeLessThan(at('class="ba-sum"'));
     expect(at('href="/app/books/invoices?state=overdue"')).toBeLessThan(at('href="/app/books/invoices/new"'));
   });
-  it('every figure says its period and links to its source', () => {
-    const f = figures(page(base));
+  it('the day is said once; a figure says its own period only; every group links to its source', () => {
+    const html = page(base);
+    const f = figures(html);
     expect(f).toHaveLength(6);
-    for (const one of f) {
-      expect(one).toMatch(/<p class="ba-period">[^<]+/);
-      expect(one).toMatch(/<p class="ba-source"><a href="\/app\/books\/(reports\/(cash|suppliers|profit)|invoices\?state=unpaid)/);
-    }
-    expect(f[0]).toContain('As of Nov 19, 2026'); expect(f[1]).toContain('This month · Nov 1 to Nov 19, 2026');
+    expect(html.match(/As of /g)).toHaveLength(1);
+    expect(html).toContain('<p class="muted ba-asof">As of Thu, Nov 19, 2026</p>');
+    expect(f[0]).not.toContain('ba-period');
+    expect(f[1]).toContain('<p class="ba-period">This month</p>'); expect(f[2]).toContain('<p class="ba-period">This month</p>');
+    expect(f[3]).not.toContain('ba-period'); expect(f[4]).not.toContain('ba-period');
     expect(f[5]).toContain('Jan 1 to Nov 19, 2026');
+    // The source: once for the cash group's three figures, and under each of the others.
+    const cash = html.slice(html.indexOf('id="ba-cash"'), html.indexOf('id="ba-owed"'));
+    expect(cash.match(/class="ba-source"/g)).toHaveLength(1);
+    expect(cash).toMatch(/<\/dl><p class="ba-source"><a class="deeper" href="\/app\/books\/reports\/cash"/);
+    expect(f[3]).toMatch(/<p class="ba-source"><a class="deeper" href="\/app\/books\/invoices\?state=unpaid"/);
+    expect(f[4]).toMatch(/<p class="ba-source"><a class="deeper" href="\/app\/books\/reports\/suppliers"/);
+    expect(f[5]).toMatch(/<p class="ba-source"><a class="deeper" href="\/app\/books\/reports\/profit"/);
+  });
+  it('"Needs you" shows only when something waits', () => {
+    expect(page(base)).toContain('id="ba-waiting"');
+    const calm = page({ ...base, needsYou: { overdueInvoices: 0, unmatchedLines: 0, papers: { ...base.needsYou.papers, pending: 0 } } });
+    expect(calm).not.toContain('id="ba-waiting"');
+    expect(calm).not.toContain('Nothing waiting');
+    expect(calm).toContain('class="ba-actions"');
+  });
+  it('before the books have a year, a figure with nothing behind it is "Not on record", never a zero', () => {
+    const zero = decimal('0');
+    const empty: BooksOverview = { ...base, customerOwed: { byCurrency: [] }, profit: { ...base.profit, amount: zero },
+      cashToday: { ...base.cashToday, balance: zero }, cash: { ...base.cash, received: zero, paidOut: zero }, supplierOwed: { ...base.supplierOwed, owed: zero } };
+    const before = page(empty, owner, { year: false, accounts: true });
+    expect(before).not.toMatch(/\$0\.00/);
+    expect(before.match(/<span class="ba-none">Not on record<\/span>/g)).toHaveLength(6);
+    expect(before).toContain('class="ba-setup"');
+    // With a year, zero is a real figure and is shown as one; and a real amount shows even before a year.
+    expect(page(empty)).toContain('$0.00');
+    expect(page(base, owner, { year: false, accounts: true })).toContain('$24,110.00');
   });
   it('cash and profit are apart, and profit says it is not cash', () => {
     const html = page(base);

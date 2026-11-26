@@ -436,7 +436,7 @@ describe('a month with nothing: the empty grid, and one warm panel in the list\'
       const list = listOf(html);
       const panel = /<div class="empty cal-empty">([\s\S]*)<\/div>/.exec(list)?.[1] ?? '';
       expect(panel, l).toContain(`<p class="cal-empty-t">${t(l, 'calendar.empty.month')}</p>`);
-      expect(panel, l).toContain(`<p class="muted">${t(l, 'calendar.empty.how')}</p>`);
+      expect(panel, l).not.toContain('<p class="muted">');   // one line: no sentence under it (2026-11-26)
       expect(panel, l).toContain(`<details class="cal-add"><summary>${t(l, 'calendar.add')}</summary>`);
       expect(panel.match(/<a /g), l).toBeNull();
       // a future month offers its first day

@@ -8,6 +8,7 @@ import { defaultAssistantName, validateAssistant, NAME_MAX } from '../../core/ow
 import { renameMainAssistant } from '../../db/assistants.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
@@ -19,6 +20,8 @@ import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
 import { esc, deeper, back, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
+import { GO } from './icons.js';
+import { settingsHref } from './settingsNavigation.js';
 import { menuRow, menuGroup } from './settings.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -463,8 +466,8 @@ const DETECTED_LINK: Record<DetectedKey, string> = {
 function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, `pilot.item.${key}` as MessageKey));
   if (done) {
-    return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
-      <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))}</span></div>`;
+    // The text audit (2026-11-26) — the tick says done; who checked it is said on pointing at the row, not on every row.
+    return `<div class="pr done" title="${esc(t(locale, 'pilot.verifiedBySystem'))}">${mk(true)} <span class="lbl">${label}</span></div>`;
   }
   const extra = key === 'claims' && viewer.isOwner
     ? `<form method="post" action="/app/onboarding/attest" class="inline"><input type="hidden" name="which" value="claims_reviewed" /><button class="btn" type="submit">${esc(t(locale, 'pilot.claims.none'))}</button></form>`
@@ -560,6 +563,18 @@ export function renderPilotReadiness(
     // Phase 9 (V1-123) — the practice check is listed once, under the final checks, with its button.
     : ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale, viewer)).join('');
+  // The text audit (2026-11-26) — a checklist that is not done NAMES what is left. "A few steps left" stood under a
+  // guide that said "5 of 5 steps done": two lists, one word, and the page contradicted itself.
+  const mine = [
+    ...detectedOrder.filter((k) => !d.detected[k]).map((k) => t(locale, `pilot.item.${k}` as MessageKey)),
+    ...(d.ready ? (d.ready.complete ? [] : [t(locale, 'pilot.item.ready')]) : (d.detected.sandbox ? [] : [t(locale, 'pilot.item.sandbox')])),
+    ...(d.attest.assistantNamedAt ? [] : [t(locale, 'pilot.attest.assistant_named')]),
+    ...(d.attest.ownerReadyAt ? [] : [t(locale, 'pilot.attest.owner_ready')]),
+  ];
+  // What Nomi's team checks is not the owner's chore (w4-today-setup-06): it is named only when nothing of the owner's is left.
+  const nomis = d.ready || ((d.backupVerifiedAt ?? d.attest.backupTestedAt) && d.attest.secretsRotatedAt) ? [] : [t(locale, 'pilot.nomiChecks')];
+  const left = mine.length ? mine : nomis;
+  const notReady = left.length ? t(locale, 'pilot.notReady.left', { items: formatList(locale, left) }) : t(locale, 'pilot.notReady');
 
   const v = d.validation;
   const valLine = v.at && v.pass !== null && v.total !== null
@@ -583,7 +598,7 @@ export function renderPilotReadiness(
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
       ? `<p class="verdict ok">${shape('ok')} ${esc(t(locale, 'pilot.allReady'))}</p>`
-      : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+      : `<p class="verdict">${todoMark()} ${esc(notReady)}</p>`;
     return `
     ${title}
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
@@ -607,7 +622,7 @@ export function renderPilotReadiness(
   // Phase 9 (V1-130) — a state line, not a box that looks pressable.
   const verdict = d.readyToLaunch
     ? `<p class="verdict ok">${shape('ok')} ${esc(t(locale, 'pilot.allReady'))}</p>`
-    : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+    : `<p class="verdict">${todoMark()} ${esc(notReady)}</p>`;
 
   // Phase 9 (w4-today-setup-19) — where the page stands is said under its
   // intro, the first thing read, not above the next section's rule.
@@ -630,10 +645,16 @@ export function renderPilotReadiness(
 // sections. ✓ / ○ and real counts only — no scores, percentages, or grades.
 
 function rbCount(label: MessageKey, n: number, href: string | null, locale: Locale): string {
-  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${esc(show.count(locale, n))}</b>${href ? deeper(href, t(locale, 'pilot.open'), 'rbgo') : ''}</div>`;
+  // The text pass (2026-11-26) — a row that leads somewhere IS its door (its caret at the row's end): the word "Open"
+  // on every row said nothing the caret does not.
+  const inner = `<span class="lbl">${esc(t(locale, label))}</span><b class="n">${esc(show.count(locale, n))}</b>`;
+  return href ? `<a class="rbrow" href="${settingsHref(href)}">${inner}<span class="rbgo">${GO}</span></a>` : `<div class="rbrow">${inner}</div>`;
 }
 
 function duringSection(ops: OperationsSnapshot, locale: Locale): string {
+  // The text pass (2026-11-26) — the block is headed by the span it was counted over. Under Reports it is the month,
+  // as the assistant's view beside it: "1 reply prepared" there and "Replies prepared 0" here were a month and a week.
+  const month = ops.range === 'month';
   const quiet = !ops.hasAttention
     && ops.activity.handled === 0 && ops.activity.draftsCreated === 0 && ops.activity.corrections === 0
     && ops.knowledge.openGaps === 0 && ops.knowledge.recentCorrections === 0 && ops.knowledge.recentlyTaught === 0;
@@ -644,7 +665,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       ${rbCount('ops.card.waiting', ops.attention.handoffs, '/app/inbox', locale)}
       ${rbCount('ops.card.approvals', ops.attention.pendingApprovals, '/app/inbox?filter=pending', locale)}
       ${rbCount('knowledge.ops.gaps', ops.knowledge.openGaps, '/app/knowledge', locale)}
-      <h3 class="rbsub">${esc(t(locale, 'runbook.during.activity'))}</h3>
+      <h3 class="rbsub">${esc(t(locale, month ? 'ops.activity.title' : 'runbook.during.activity'))}</h3>
       ${rbCount('ops.activity.handled', ops.activity.handled, '/app/analytics', locale)}
       ${rbCount('ops.activity.drafts', ops.activity.draftsCreated, '/app/inbox', locale)}
       ${rbCount('ops.activity.corrections', ops.activity.corrections, '/app/knowledge', locale)}
@@ -652,7 +673,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       ${rbCount('knowledge.report.corrected', ops.knowledge.recentCorrections, null, locale)}
       ${rbCount('knowledge.report.facts', ops.knowledge.recentlyTaught, '/app/knowledge', locale)}`;
   // Phase 9 — on its own screen, headed "How it is going": this block is the week.
-  return `<div class="block"><h2>${esc(t(locale, 'runbook.during.week'))}</h2>${body}</div>`;
+  return `<div class="block"><h2>${esc(t(locale, month ? 'her.recent.title' : 'runbook.during.week'))}</h2>${body}</div>`;
 }
 
 /**
@@ -685,10 +706,9 @@ function practiceSection(rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>, loca
 
 function afterSection(locale: Locale): string {
   const link = (label: MessageKey, href: string) =>
-    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span>${deeper(href, t(locale, 'pilot.open'), 'rbgo')}</div>`;
+    `<a class="pr" href="${settingsHref(href)}"><span class="lbl">${esc(t(locale, label))}</span><span class="rbgo">${GO}</span></a>`;
   return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
     ${link('runbook.after.promotion', ASSISTANT_HOME)}
     ${link('runbook.after.autonomy', ASSISTANT_HOME)}
     ${link('runbook.after.gaps', '/app/knowledge')}
@@ -900,7 +920,9 @@ export function renderPilotScreen(
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + afterSection(locale);
+    // The text pass (2026-11-26) — under Reports (the month) the page ends with what happened: the three doors to
+    // Assistant and Knowledge are the rail's and the sidebar's, one press away on every page.
+    + (rb.operations.range === 'month' ? '' : afterSection(locale));
 }
 
 /**

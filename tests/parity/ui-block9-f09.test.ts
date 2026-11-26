@@ -38,7 +38,8 @@ describe('F09 — long lists: one header, figures in columns, the pager at the t
     expect(html.indexOf('ca-pager-above')).toBeLessThan(html.indexOf('class="ca-head"'));
     expect(html).toContain(`aria-label="${esc(t('en', 'assistantArea.pagesAbove'))}"`);
     const one = renderCustomers({ ...customers, next: null, prev: null }, 'en', now);
-    expect(one).not.toContain('ca-pager-above');expect(one).toContain('ca-pager-below');
+    // The text pass (the owner, 2026-11-26): a list that fits on one page draws no pager at all.
+    expect(one).not.toContain('ca-pager');
   });
   it('Orders: a header with the amount as a figure column; three fact columns when no state time is recorded', () => {
     const html = renderCustomerOrders({ rows: [order], total: 1, from: 1, to: 1, next: null, prev: null, q: '', clientId: null, state: null }, 'en', now);

@@ -93,7 +93,7 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   // The advisor run — the owner's choice: Solar's round chat bubble; since 2026-10-09 without its three dots; since
   // 2026-10-11 unlit, a plain rail icon like the others.
   advisor: 'chat-round', assistant: 'chat-round', customers: 'users-group-rounded', products: 'box', books: 'notebook-minimalistic',
-  reports: 'chart-2', ask: 'chat-round-dots',
+  reports: 'chart-2', ask: 'chat-square-line',
 };
 
 /**
@@ -1169,6 +1169,26 @@ ${SIGNAL_CSS}${MOTION_CSS}
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* The cleanup (2026-11-26) - messages one speaker sends within minutes are a run: the time stands once, under the
+     run's last message. Each other caption is still there for a reader, and shows under the pointer. */
+  .msg { position:relative; }
+  .msg.mid { margin-block-end:calc(-1 * var(--space-8)); }
+  .msg.mid > .ts, .ts .sr, .pn-facts.sr { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; margin:0; }
+  /* The tester's pass (2026-11-26) - a message inside a run takes the focus (a key, or a finger's press), so its time
+     is reached with no pointer; the time shows beside the message, at its foot, clear of the bubble under it. */
+  .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { inline-size:auto; block-size:auto; overflow:visible; clip-path:none; z-index:1;
+    inset-block-end:0; padding-inline:var(--space-4); border-radius:var(--radius-chip); background:var(--color-surface); }
+  .msg.mid.inbound > .ts { inset-inline-start:calc(100% + var(--space-4)); } .msg.mid.outbound > .ts { inset-inline-end:calc(100% + var(--space-4)); }
+  .msg.mid:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; border-radius:var(--radius-card); }
+  .msg.mid:focus:not(:focus-visible) { outline:0; }
+  /* A phone has no room beside a wide bubble: the time takes its own line under it while the message is held. */
+  @media (max-width:720px) {
+    .msg.mid:is(:hover, :focus, :focus-within, :active) { margin-block-end:0; }
+    .msg.mid:is(:hover, :focus, :focus-within, :active) > .ts { position:static; padding-inline:0; background:none; }
+  }
+  .pn-head:is(:hover, :focus-within) > .pn-facts.sr { position:static; inline-size:auto; block-size:auto; overflow:visible; clip-path:none; white-space:normal; margin:var(--space-4) 0 0; }
+  @media (hover:none) { .pn-head > .pn-facts.sr { position:static; inline-size:auto; block-size:auto; overflow:visible; clip-path:none; white-space:normal; margin:var(--space-4) 0 0; font-size:var(--font-size-caption); } }
+  .pn-who:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; border-radius:var(--radius-chip); }
   /* Audit F14 — a long message: its opening, then the whole of it by one press, closed again by the same press. */
   .bubble.long { white-space:normal; }
   .msg-long > summary { display:block; cursor:pointer; list-style:none; border-radius:var(--radius-control); font:inherit; }
@@ -1546,6 +1566,9 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-127, V1-128) — a count follows its label; a door (Open, with its caret) ends the row, as on every row of this page. */
   .rbrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:4px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
+  a.rbrow, a.pr { color:inherit; text-decoration:none; }
+  a.rbrow:hover .lbl, a.rbrow:focus-visible .lbl, a.pr:hover .lbl, a.pr:focus-visible .lbl { text-decoration:underline; text-underline-offset:3px; }
+  .rbgo { display:inline-flex; color:var(--color-brand); }
   .rbrow .lbl { font-size:var(--font-size-small); text-wrap:pretty; }
   .rbrow .n { font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); font-variant-numeric:tabular-nums; }
   .rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }
@@ -1776,7 +1799,6 @@ const STYLE_PAGES = `
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .prod-b { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .p-tag { display:block; color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .prod-add { margin:0 0 var(--space-16); }
   /* w4-products-knowledge-12 — "printed or handwritten?" is a question, at the size of the page's other labels. */
   .choices.hand legend { font-size:var(--font-size-small); color:var(--color-ink); }
   /* The warmth run, phase 9 (V1-305) — the larger orders' prices: a group of the form's own fields, under their name. */
@@ -2368,6 +2390,17 @@ const STYLE_PAGES = `
   .cu-where { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); align-self:start; }
   .cu-facts, .cu-state { grid-column:1 / -1; margin:0; font-size:var(--font-size-small); }
   .cu-facts { color:var(--color-ink-secondary); }
+  /* The cleanup (2026-11-26) - what they bought and where things stand share ONE line under the name. */
+  .cu-line { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-16); min-width:0; }
+  /* The tester's pass (2026-11-26) - the channel's word opens that line, so the line starts at the name's own edge
+     and wraps there. The second test - the dot between two parts stands in the gap BEFORE the later one, and the
+     line clips what falls outside its own edge: a part that opens a new line has no dot, and no line ends on one. */
+  .catchup:not(.bare) > .cu-line { grid-column:2; }
+  .cu-line { overflow-x:clip; }
+  .cu-line > p { position:relative; }
+  .cu-line > p:not(:first-child)::before { content:"·"; position:absolute; inset-inline-start:calc(-1 * var(--space-12)); color:var(--color-ink-secondary); }
+  .cu-state { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-8); }
+  .cu-state > .pill { margin:0; }
   .cu-facts bdi { color:var(--color-ink); }
   .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
     background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);
@@ -2382,13 +2415,14 @@ const STYLE_PAGES = `
      stays in view at the foot of the conversation while the messages above
      it scroll; on a narrow one it sits in the page's own order. */
   #approve, #approve .draft-dock { display:flex; flex-direction:column; gap:var(--space-8); }
-  #approve .top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-4) var(--space-16);
+  #approve .top { display:flex; justify-content:flex-start; align-items:baseline; gap:var(--space-4) var(--space-8);
     flex-wrap:wrap; font-size:var(--font-size-small); }
   #approve .top b { font-weight:600; }
   #approve .said { font-family:var(--font-voice); margin:0; white-space:pre-wrap; word-break:break-word; }
   /* Phase 9 (V1-240) — one sentence: "Understood as: a price question · …", its values running on after the label. */
   #approve .und { margin:0; font-size:var(--font-size-small); }
   #approve .k { color:var(--color-ink-secondary); }
+  #approve .top > .k::before { content:"·"; margin-inline-end:var(--space-8); }
   #approve details { font-size:var(--font-size-small); border-top:1px solid var(--color-border); padding-top:var(--space-4); }
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
@@ -2685,7 +2719,6 @@ const STYLE_PAGES = `
   .ptitle { color:var(--color-ink-secondary); }
   .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
   .sbx-banner { background:var(--color-sand); color:var(--color-ink); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
-  .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
   /* Phase 9 (conversation-missed-15) — the card's gap is its only space: a heading's and a paragraph's own margins left a 35 px band. */
@@ -3093,6 +3126,23 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/onboarding/practice': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
   '/app/onboarding/activity': { href: '/app/results', label: 'nav.reports' },
 };
+/**
+ * The text pass (2026-11-26) — a page that is one of its area's own entries carries no link above its title: the
+ * sidebar (the chooser on a phone) already says where it is, and such a link read as a second, often wrong, title
+ * ("My business" over a channel's page). Pages still draw theirs, for the places they are shown outside the shell;
+ * the shell takes it off here. Only a link that stands before the page's title and leads to ANOTHER page goes: a
+ * calendar's or a report's "previous month" leads to the page itself and stays.
+ */
+export const withoutLeadingBack = (path: string, body: string): string => {
+  const at = body.search(/<a class="back"/);
+  const title = body.search(/<h1\b/);
+  if (at < 0 || at > (title < 0 ? 400 : title)) return body;
+  const link = /^<a class="back" href="([^"]*)"[^>]*>[\s\S]*?<\/a>/.exec(body.slice(at));
+  if (!link) return body;
+  const own = (p: string): string => (settingsHref(p).split(/[?#]/)[0] ?? p).replace(/\/+$/, '');
+  if (own(link[1] ?? '') === own(path)) return body;
+  return body.slice(0, at) + body.slice(at + link[0].length);
+};
 const wayBack = (locale: Locale, path: string, body: string): string => {
   const to = BACK_TO[(settingsHref(path).split(/[?#]/)[0] ?? path).replace(/\/+$/, '')] ?? BACK_TO[path];
   return to && !body.includes('class="back"') ? back(to.href, t(locale, to.label)) : '';
@@ -3248,7 +3298,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     ${chooser}
     ${helpDoor(locale, input.path)}
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(area && isSectionPage(area, input.path) ? withoutLeadingBack(input.path, input.bodyHtml) : input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }

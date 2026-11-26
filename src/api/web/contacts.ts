@@ -335,7 +335,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
     switch (g) {
       case 'outreach_not_enabled': case 'channel_cannot_initiate':
         return `<p class="muted">${esc(t(locale, `contacts.why.${g}` as MessageKey))}</p>${deeper('/app/channels', t(locale, 'nav.channels'))}`;
-      case 'outreach_ceiling': case 'reply_only': return `<p class="muted">${esc(t(locale, `contacts.why.${g}` as MessageKey))}</p>`;
+      case 'outreach_ceiling': return `<p class="muted">${esc(t(locale, `contacts.why.${g}` as MessageKey))}</p>`;
+      // The tester's pass (2026-11-26) — the group's own head already says "they write first": the rule is one press away.
+      case 'reply_only': return `<details class="note-fold"><summary>${esc(t(locale, 'contacts.why.reply_only.sum'))}</summary><p>${esc(t(locale, 'contacts.why.reply_only'))}</p></details>`;
       default: return '';
     }
   };

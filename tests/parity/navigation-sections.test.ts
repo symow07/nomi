@@ -127,13 +127,15 @@ describe('you are here', () => {
 });
 
 describe('where it is drawn', () => {
-  it('beside the rail, inside the layout, with search on top and the area\'s name over its first group; the chooser first in the content', () => {
+  it('beside the rail, inside the layout, the area\'s name over its first group; the chooser first in the content; the customer search only where a customer is looked for', () => {
     const html = page('/app/settings/business/hours');
     const layout = html.slice(html.indexOf('<div class="layout'));
     expect(layout.indexOf('<nav class="side"')).toBeLessThan(layout.indexOf('<aside class="sect"'));
     expect(layout.indexOf('<aside class="sect"')).toBeLessThan(layout.indexOf('class="content'));
-    expect(html).toMatch(/<aside class="sect" aria-label="In this area"><form class="sect-search" method="get" action="\/app\/inbox" role="search">/);
-    expect(html).toMatch(/<\/form><nav aria-label="[^"]+"><div class="sect-group"><p class="sect-head">[^<]+<\/p>/);
+    // The text pass (the owner, 2026-11-26): "Search customers" is not drawn on a page that is not about customers.
+    expect(html).not.toContain('class="sect-search"');
+    expect(html).toMatch(/<aside class="sect" aria-label="In this area"><nav aria-label="[^"]+"><div class="sect-group"><p class="sect-head">[^<]+<\/p>/);
+    expect(page('/app/calendar')).toMatch(/<aside class="sect" aria-label="In this area"><form class="sect-search" method="get" action="\/app\/inbox" role="search">/);
     expect(html).toMatch(/class="content[^"]*"[^>]*>(?:<a class="help-door[\s\S]*?<\/a>)?\s*<nav class="area-nav"/);
   });
 
@@ -160,7 +162,7 @@ describe('its words', () => {
       for (const l of LOCALES) expect(messages[l][k], `${l} ${k}`).toBeTruthy();
     }
     for (const l of LOCALES.filter((x) => x !== 'en')) {
-      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace', 'side.settingsMoved'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
+      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
     }
   });
 

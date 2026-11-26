@@ -117,7 +117,8 @@ describe('the advisor run · the rail\'s slot is the advisor\'s; the assistant i
   }
 
   it('the owner\'s words for the advisor, in all five languages — the service, never a gendered person', () => {
-    const CHOSEN = { en: 'Advisor', zh: '顾问', ar: 'المستشار', es: 'Asesoría', fr: 'Conseil' } as const;
+    // The text cleanup (2026-11-26, the owner's approval): in English the page has one name, the one on its rail entry.
+    const CHOSEN = { en: 'Ask Nomi', zh: '顾问', ar: 'المستشار', es: 'Asesoría', fr: 'Conseil' } as const;
     for (const locale of LOCALES) {
       expect(messages[locale]['nav.advisor'], locale).toBe(CHOSEN[locale]);
       expect(plainT(locale, 'nav.advisor')).not.toContain('{name}');

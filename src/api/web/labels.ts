@@ -21,6 +21,6 @@ export function renderLabels(locale: Locale, rows: readonly Label[]): string {
         ? `<form method="post" action="/app/labels/${esc(l.id)}/restore" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'labels.restore'))}</button></form>`
         : `<form method="post" action="/app/labels/${esc(l.id)}/archive" class="inline"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'labels.archiveAsk', { name: l.name }))}">${esc(t(locale, 'labels.archive'))}</button></form>`}</span></li>`;
   return `<section class="customer-tools tool-labels"><h1 class="page">${esc(t(locale, 'labels.pageTitle'))}</h1>
-    <p class="lede">${esc(t(locale, 'labels.lede'))}</p>
+    ${/* The text audit (2026-11-26): with no label yet, the empty state says what a label is; the lede said it first. */ rows.length === 0 ? '' : `<p class="lede">${esc(t(locale, 'labels.lede'))}</p>`}
     ${rows.length === 0 ? stateBlock('empty', { heading: t(locale, 'state.labels.h'), body: t(locale, 'state.labels.p'), nextHtml: stateNext('/app/customers', t(locale, 'customers.back')) }) : `<ul class="rows">${rows.map(row).join('')}</ul>`}</section>`;
 }

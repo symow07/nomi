@@ -2,7 +2,7 @@
 export const PAYMENT_LINKS_EN={
  'paymentLinks.title':'Payment links',
  'paymentLinks.lede':'Let a customer pay an issued invoice through your own Stripe account. Nomi records the payment and the fee when Stripe confirms them.',
- 'paymentLinks.country':'not available in your country',
+ 'paymentLinks.country':'Payment links are not available in your country yet.',
  'paymentLinks.unavailable':'Payment links are not available on this installation yet.',
  'paymentLinks.practice':'Practice has no payment connection. No payment link can be made here.',
  'paymentLinks.test':'Test payments — no real money is collected.',

@@ -135,6 +135,10 @@ export const INBOX_LIST_CSS = `
   .il-page .si-row { grid-template-columns:8px 36px minmax(0, 1fr) 28px auto 16px; grid-template-areas:"dot face name name val go" "dot face chip thumb day go" "dot face why why why go" "dot face said said said go"; gap:var(--space-4) var(--space-8); }
   .il-page .si-row .sp-thumb { grid-area:thumb; }
   .il-page .si-why { grid-area:why; }
+  /* A row that needs nothing is two lines: the name and its day, then where it stands and the last words. */
+  .il-page .si-row:not(:has(.si-why:not(.is-quiet))) { grid-template-columns:8px 36px auto minmax(0, 1fr) auto auto 16px; grid-template-areas:"dot face name name thumb day go" "dot face chip said thumb val go"; }
+  .il-page .si-row:not(:has(.si-why:not(.is-quiet))) .sp-thumb-none { display:none; }
+  .il-page .si-row:not(:has(.si-why:not(.is-quiet))) .si-why { grid-area:said; }
   .saved-reply-row { grid-template-columns:minmax(0, 1fr) 16px; gap:var(--space-8) var(--space-12); }
   .saved-reply-copy { grid-column:1; }
   .saved-reply-row .go { grid-column:2; grid-row:1 / 3; }

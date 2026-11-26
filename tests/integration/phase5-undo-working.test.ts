@@ -152,7 +152,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     const pageNow = (await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body;
     expect(pageNow).toContain('class="block working" role="status"');
     expect(pageNow).toContain('data-live-working="1"');
-    expect(pageNow).not.toContain(t('en', 'inbox.draft.none'));
+    expect(pageNow).toContain('class="card takeover"');
     const mark = /data-live="\/app\/live\/conversation\/[^?]+\?since=([^"]+)"/.exec(pageNow)?.[1] ?? '';
     expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).toMatchObject({ news: false, working: true });
 
@@ -166,7 +166,7 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).toMatchObject({ working: true });
     await admin.query(`update message_fragments set received_at = now() - interval '16 minutes' where id = $1`, [fid]);
     expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).not.toHaveProperty('working');   // fifteen minutes and no turn: not "writing"
-    expect((await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body).toContain(t('en', 'inbox.draft.none'));
+    expect((await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body).not.toContain('class="block working"');
 
     // A message still in the queue — before the worker records it, or a voice note, which never becomes a
     // fragment — is the assistant at work too. Held back an hour so no worker takes it during the test.

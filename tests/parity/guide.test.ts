@@ -35,7 +35,10 @@ describe('Guide · the page', () => {
       const html = renderGuide(half, 'es', 'tu asistente', available);
       expect(html).not.toContain('<video');
       expect(html).not.toContain('/assets/guide/');
-      expect(html).toContain(esc(t('es', 'guide.products.cap.2')));
+      // The text audit (2026-11-26): the words are under a step still to do; a finished step is its heading and its tick.
+      expect(html).toContain(esc(t('es', 'guide.name.cap.2')));
+      expect(html).not.toContain(esc(t('es', 'guide.products.cap.2')));
+      expect(html.match(/<details class="gs-help"/g)).toHaveLength(3);
       expect(html).toContain('<details class="gs-help" open>');
       expect(html).toContain(`href="${STEP_LINK.name}"`);
     }

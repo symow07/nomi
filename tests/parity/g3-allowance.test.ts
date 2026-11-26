@@ -99,9 +99,11 @@ describe('G3 · what the owner reads', () => {
       expect(waitsInApp(k), k).toBe(true);
     }
   });
-  it('My business shows the allowance always: none, how much, or used up with a door to who waits', () => {
+  it('My business shows the allowance where there is one: how much, or used up with a door to who waits', () => {
     const f = src('src/api/web/factory.ts');
-    expect(f).toContain("'business.allowance.none'");
+    // The text cleanup (2026-11-26, the owner's approval): a workspace with no daily limit is told nothing about one.
+    expect(f).not.toContain("'business.allowance.none'");
+    expect(f).toContain('const allowanceBlock = a && a.pctUsed !== null ?');
     expect(f).toContain("'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }");
     expect(f).toContain("deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))");
     // Phase 7 — on the going-live screen, after the Stop. Phase 9 (w4-business-assistant-14) — and

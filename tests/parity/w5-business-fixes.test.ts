@@ -85,8 +85,8 @@ describe('rule 13 · w4-business-assistant-12, -13 · the Stop says Stop; the pa
       const live: FactoryView = { ...SET_UP, readiness: { ...SET_UP.readiness, lifecycle: 'active', live: true } };
       const ready = screen('ready', live, l);
       expect(ready).toContain(`<h2 class="sub3" data-golive="every" id="stop">${say(l, 'assistant.stop.title', { name: 'Lily' })}</h2>`);
-      // WhatsApp's own switch says how it differs from the Stop
-      expect(ready).toContain(say(l, 'activation.stop.differs', { name: 'Lily' }));
+      // WhatsApp's own switch says what it stops, once (2026-11-26: the second sentence saying how it differs is gone)
+      expect(ready).toContain(say(l, 'activation.stop.what', { name: 'Lily' }));
       // while stopped, WhatsApp's switch is not a second red button beside "let it answer again"
       const stopped = screen('ready', { ...live, readiness: { ...live.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } }, l);
       expect(stopped).toContain('action="/app/business/start-assistant"');
@@ -114,7 +114,10 @@ describe('w4-business-assistant-14 · nothing connected is said once, and never 
       const html = screen('ready', nothing, l);
       expect(html).toContain(say(l, 'factory.ready.answer.nothing', { name: 'Lily' }));
       expect(html).not.toContain(say(l, 'golive.none', { name: 'Lily' }));
-      expect(html.indexOf('data-golive="allowance"')).toBeGreaterThan(html.indexOf(`href="${BUSINESS_SCREEN_PATH.channels}"`));
+      // The text cleanup (2026-11-26, the owner's approval): with no daily limit there is no heading for one at all.
+      expect(html).not.toContain('data-golive="allowance"');
+      const limited = screen('ready', { ...nothing, readiness: { ...nothing.readiness, allowance: { pctUsed: 40, used: false, renewsAt: new Date() } } }, l);
+      expect(limited.indexOf('data-golive="allowance"')).toBeGreaterThan(limited.indexOf(`href="${BUSINESS_SCREEN_PATH.channels}"`));
     });
   }
 });

@@ -99,7 +99,7 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
         <p class="sp-from">${markSmall(16, null)} ${esc(t(locale, 'card.drafted', { name: assistantName(locale) }))}${channel ? ` · ${esc(t(locale, 'card.goes', { channel }))}` : ''}</p>
       </div>
     </div>
-    <h2 class="sp-q" id="sp-q">${esc(question)}</h2>
+    ${/* The cleanup (2026-11-26) - "Send them this reply?" over a Send button said it twice: it is the card's name, for a reader. */ ''}<h2 class="sp-q sr" id="sp-q">${esc(question)}</h2>
     ${closing}${state}${foreign}
     <form method="post" action="${esc(to.act)}" class="sp-form">
       <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
@@ -108,7 +108,6 @@ function decisionCard(d: ConversationDetail, extras: DecisionExtras, locale: Loc
       <textarea id="reply" class="sp-reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
       <div class="sp-acts">
         <button class="sp-btn sp-send needs" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
-        <label class="sp-btn" for="reply">${esc(t(locale, 'split.edit'))}</label>
         <button class="sp-btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
       </div>
       <div class="sp-acts-more">
@@ -154,8 +153,10 @@ export function quietWords(locale: Locale, lastAt: Date | null, now: Date, zone:
 function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Locale, now: Date, zone: string): string {
   const name = r.name ?? t(locale, 'common.buyer');
   const isWaiting = waiting.has(r.conversationId);
+  // The cleanup (2026-11-26) - "Asked" stood on every row: a stage is said once a customer is past asking.
   const chip = isWaiting
     ? `<span class="sp-chip is-waiting">${esc(t(locale, 'split.chip.waiting'))}</span>`
+    : r.stage === 'asked' ? '<span class="sp-chip" aria-hidden="true"></span>'
     : `<span class="sp-chip${r.stage === 'order' ? ' is-order' : ''}">${esc(t(locale, `split.stage.${r.stage}`))}</span>`;
   const when = quietWords(locale, r.lastAt, now, zone);
   return `<li><a class="sp-row" href="${conversationUrl(r.conversationId)}">
@@ -173,7 +174,8 @@ function recentRow(r: RecentCustomer, waiting: ReadonlySet<string>, locale: Loca
 
 /** The year's profit, month by month: one line, in jade, the last month marked. Time runs left to right on every page: a time chart never flips right to left. */
 function trendChart(b: SplitBooks, locale: Locale): string {
-  if (b.trend.length < 2) return '';
+  // The cleanup (2026-11-26) - a year with nothing in it draws no line: a flat rule at zero is not a chart.
+  if (b.trend.length < 2 || b.trend.every((p) => p.value === 0)) return '';
   const W = 160, H = 76, PAD = 5;
   const values = b.trend.map((p) => p.value);
   const lo = Math.min(0, ...values), hi = Math.max(0, ...values);
@@ -213,6 +215,9 @@ function entryRow(e: BooksEntry, locale: Locale): string {
 function booksPanel(b: SplitBooks, locale: Locale): string {
   const money = (amount: string): string => booksMoney(locale, amount, b.currency);
   const down = b.profit.startsWith('-');
+  // The text pass (2026-11-26) — books with no year yet have no figure to show: three zeros read as a record of
+  // nothing earned. "Not on record" is said instead, as on the books' own page; the door below says there is no year.
+  const unset = !b.year && [b.moneyIn, b.moneyOut, b.profit].every((amount) => Number(amount) === 0);
   const w = b.owed.worst;
   const remind = w
     ? `<form class="sp-remind" method="get" action="${w.conversationId ? conversationUrl(w.conversationId) : `/app/books/invoices/${esc(w.invoiceId)}`}"><button class="sp-btn sp-quiet" type="submit">${esc(t(locale, 'split.remind'))}</button></form>`
@@ -224,8 +229,9 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
       <span class="sp-late-d">${esc(tn(locale, 'split.owed.late', w.daysLate))}</span>
       ${remind}
     </div>` : '';
+  // The cleanup (2026-11-26) - nothing owed and no year yet are not cards: each is drawn when there is something in it.
   const owed = b.owed.count === 0 && b.owed.otherCurrency === 0
-    ? `<p class="sp-owed">${esc(t(locale, 'split.owed.none'))}</p>`
+    ? ''
     : `<p class="sp-owed">${esc(tn(locale, 'split.owed.invoices', b.owed.count))} · ${esc(money(b.owed.total))}</p>
        ${b.owed.otherCurrency > 0 ? `<p class="sp-note">${esc(tn(locale, 'split.owed.other', b.owed.otherCurrency))}</p>` : ''}
        ${b.owed.overdue > 0 ? `<p class="sp-over">${esc(tn(locale, 'split.owed.overdue', b.owed.overdue))}</p>` : ''}
@@ -234,24 +240,24 @@ function booksPanel(b: SplitBooks, locale: Locale): string {
     ? b.year.state === 'open'
       ? t(locale, 'split.year.open', { year: b.year.startsOn.slice(0, 4), month: show.month(locale, b.year.endsOn) })
       : t(locale, 'split.year.closed', { year: b.year.startsOn.slice(0, 4) })
-    : t(locale, 'split.year.none');
+    : '';
   return `<section class="sp-panel sp-books" aria-labelledby="sp-books">
     <div class="sp-phead"><h2 id="sp-books">${solarSvg('ni', 'notebook-minimalistic', 22)}${esc(t(locale, 'nav.books'))}</h2>${deeper('/app/books', t(locale, 'split.viewAll'))}</div>
     <div class="sp-sheet">
     <section class="sp-card sp-money" aria-labelledby="sp-mt">
       <h3 id="sp-mt">${esc(t(locale, 'area1.money.title'))}</h3>
-      <div>
+      ${unset ? `<p class="sp-inout">${esc(t(locale, 'askPicture.notOnRecord'))}</p>` : `<div>
         <p class="sp-inout">${esc(t(locale, 'area1.money.income', { money: money(b.moneyIn) }))} · ${esc(t(locale, 'area1.money.expenses', { money: money(b.moneyOut) }))}</p>
         <p class="sp-profit${down ? ' is-down' : ''}"><span>${esc(t(locale, 'split.money.profit'))}</span> <span class="sp-big">${esc(money(b.profit))}</span></p>
       </div>
-      ${trendChart(b, locale)}
+      ${trendChart(b, locale)}`}
     </section>
-    <section class="sp-card" aria-labelledby="sp-ot">
+    ${owed ? `<section class="sp-card" aria-labelledby="sp-ot">
       <h3 id="sp-ot">${esc(t(locale, 'split.owed.title'))}</h3>
       ${owed}
-    </section>
+    </section>` : ''}
     ${b.matched > 0 ? `<a class="sp-card sp-door" href="/app/books/bank">${signalMark('ok')}<span>${esc(tn(locale, 'split.matched', b.matched))}</span>${GO}</a>` : ''}
-    <a class="sp-card sp-door" href="/app/books/closing">${solarSvg('ni', 'calendar', 22)}<span>${esc(year)}</span>${GO}</a>
+    ${year ? `<a class="sp-card sp-door" href="/app/books/closing">${solarSvg('ni', 'calendar', 22)}<span>${esc(year)}</span>${GO}</a>` : ''}
     ${b.entries.length ? `<section class="sp-card sp-entries" aria-labelledby="sp-et">
       <div class="sp-phead"><h3 class="sp-cap" id="sp-et">${esc(t(locale, 'split.entries'))}</h3>${deeper('/app/books/invoices', t(locale, 'split.viewAll'))}</div>
       <ul class="sp-rows">${b.entries.map((e) => entryRow(e, locale)).join('')}</ul>
@@ -301,11 +307,12 @@ export function renderSplitToday(s: OperationsSnapshot, locale: Locale, today: T
       <div class="sp-sheet">
       ${stageStrip(data.sales, ordersWaiting, locale)}
       ${recent.length ? `<section class="sp-card" aria-labelledby="sp-recent">
-        <div class="sp-phead"><h3 class="sp-cap" id="sp-recent">${esc(t(locale, 'split.recent'))}</h3>${deeper('/app/inbox?filter=all', t(locale, 'split.viewAll'))}</div>
+        <div class="sp-phead"><h3 class="sp-cap" id="sp-recent">${esc(t(locale, 'split.recent'))}</h3></div>
         <ul class="sp-rows">${recent.map((r) => recentRow(r, waiting, locale, now, zone)).join('')}</ul>
       </section>` : ''}
       ${lead ? `<div class="sp-card today-worth">${lead}</div>` : ''}
-      ${parts.live ? `<div class="sp-card">${renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced))}</div>` : ''}
+      ${/* The cleanup (2026-11-26) - which channels send is Settings' to say; here only when sending is paused. */ ''}${
+        parts.live && (s.assistantStoppedAt || s.opsSilenced) && today.sending.length > 0 ? `<div class="sp-card">${renderSending(today, locale, true)}</div>` : ''}
       </div>
     </section>
     ${data.books ? booksPanel(data.books, locale) : ''}

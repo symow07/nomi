@@ -35,7 +35,7 @@ import * as show from './values.js';
  *   - the door is the graphite primary action (w4-customers-26), its words
  *     inside its own padding.
  */
-export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null, opts: { readonly fullRecordHref?: string; readonly overview?: boolean; readonly stage?: StageFacts | null; readonly latestOrder?: { readonly id?: string; readonly reference: string; readonly status: string } | null } = {}): string {
+export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, openedFrom: string | null = null, opts: { readonly fullRecordHref?: string; readonly overview?: boolean; readonly stage?: StageFacts | null; readonly latestOrder?: { readonly id?: string; readonly reference: string; readonly status: string } | null; readonly replyWaits?: boolean } = {}): string {
   const name = c.name ?? t(locale, 'common.buyer');
   const where = c.channels.length > 0
     ? t(locale, 'pcard.on', { channels: c.channels.map((ch) => channelName(locale, ch)).join(' · ') }) : '';
@@ -52,18 +52,28 @@ export function renderCustomerCard(c: CustomerCard, locale: Locale, now: Date, o
       : `<p class="pc-none">${esc(t(locale, 'pcard.nothingYet'))}</p>`;
   const spent = c.value.spent ? show.money(locale, c.value.spent) : t(locale, opts.overview ? (c.value.orders ? 'customers.noAmount' : 'customers.noOrders') : 'pcard.nothingSpent');
   const latestOrder = opts.latestOrder?.id ? `<a class="record-latest-order" href="/app/orders/${esc(opts.latestOrder.id)}">${esc(t(locale, 'record.latestOrder', { reference: show.isolate(locale, opts.latestOrder.reference), state: orderStatusName(locale, opts.latestOrder.status) }))}${GO}</a>` : '';
+  // The text audit (2026-11-26) — the overview says each thing once. A customer who waits has ONE line, the door itself
+  // ("Needs you · Review the reply"): it was a flag, a door, a sentence and a second door. Nothing bought and nothing
+  // asked about is not a sentence beside a stage that says "Asked"; with no order the count stands alone (an amount
+  // of "No confirmed orders" beside "Orders 0" said it twice, over a fold explaining a value that is not there).
+  const hasThings = c.bought.length > 0 || c.askedAbout.length > 0;
+  const door = c.conversationId && c.conversationId !== openedFrom
+    ? (c.waiting
+      ? `<a class="deeper pc-open" href="${conversationUrl(c.conversationId)}"><span class="pc-wait">${esc(t(locale, 'inbox.filter.pending'))}</span> · ${esc(t(locale, opts.replyWaits ? 'conv.needCardCta' : 'pcard.open'))}${GO}</a>`
+      : deeper(conversationUrl(c.conversationId), t(locale, 'pcard.open'), 'pc-open'))
+    : '';
   if (opts.overview) return `<article class="pcard record-overview" data-card-body aria-labelledby="pc-name">
     <div class="pc-top">${face({ clientId: c.clientId, name: c.name, photo: c.photo }, 'xl')}
       <h1 class="pc-name" id="pc-name"><bdi>${esc(name)}</bdi></h1>
       <p class="pc-meta">${where ? `<span>${esc(where)}</span>` : ''}<span>${esc(wrote)}</span></p>
-      <div class="record-state">${opts.stage ? `<span>${esc(t(locale, 'record.stage'))}: <b>${esc(t(locale, `split.stage.${opts.stage.stage}`))}</b></span>` : ''}${c.waiting ? `<span class="pc-wait">${esc(t(locale, 'inbox.filter.pending'))}</span>` : ''}${c.value.regular ? `<span>${esc(t(locale, 'pcard.regular'))}</span>` : ''}</div>
+      <div class="record-state">${opts.stage ? `<span>${esc(t(locale, 'record.stage'))}: <b>${esc(t(locale, `split.stage.${opts.stage.stage}`))}</b></span>` : ''}${c.waiting && !door ? `<span class="pc-wait">${esc(t(locale, 'inbox.filter.pending'))}</span>` : ''}${c.value.regular ? `<span>${esc(t(locale, 'pcard.regular'))}</span>` : ''}</div>
     </div>
-    ${c.conversationId && c.conversationId !== openedFrom ? deeper(conversationUrl(c.conversationId), t(locale, 'pcard.open'), 'pc-open') : ''}
-    <div class="record-summary"><section class="pc-things">${things}${latestOrder}</section>
-      <dl class="pc-facts"><div><dt>${esc(t(locale, 'customers.orderValue'))}</dt><dd>${esc(spent)}</dd></div><div><dt>${esc(t(locale, 'customers.standingOrders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div></dl>
+    ${door}
+    <div class="record-summary">${hasThings || latestOrder ? `<section class="pc-things">${hasThings ? things : ''}${latestOrder}</section>` : ''}
+      <dl class="pc-facts">${c.value.orders > 0 ? `<div><dt>${esc(t(locale, 'customers.orderValue'))}</dt><dd>${esc(spent)}</dd></div>` : ''}<div><dt>${esc(t(locale, 'customers.standingOrders'))}</dt><dd>${esc(show.count(locale, c.value.orders))}</dd></div></dl>
     </div>
     ${c.value.orders > 0 ? `<p class="ca-basis">${esc(t(locale, 'record.valueBasis'))}</p>` : ''}${customerValueNote(c.value, locale)}
-    <details class="record-value-basis"><summary>${esc(t(locale, 'record.valueDetails'))}</summary><p class="ca-basis">${esc(t(locale, 'customers.valueBasis'))}</p></details>
+    ${c.value.orders > 0 ? `<details class="record-value-basis"><summary>${esc(t(locale, 'record.valueDetails'))}</summary><p class="ca-basis">${esc(t(locale, 'customers.valueBasis'))}</p></details>` : ''}
     ${opts.fullRecordHref ? `<a class="pc-full" href="${esc(opts.fullRecordHref)}">${esc(t(locale,'customers.fullRecord'))}</a>` : ''}
   </article>`;
   return `<article class="pcard" data-card-body aria-labelledby="pc-name">

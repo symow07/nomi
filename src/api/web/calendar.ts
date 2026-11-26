@@ -514,12 +514,11 @@ const addFields = (locale: Locale, day: string, kept: Kept | null): string => `<
       <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.day'))}</span>
         <input type="date" name="day" required value="${kept ? keptValue(kept, 'day') : esc(day)}"${keptInvalid(kept, 'day', 'ca-day-err')} /></label>
       ${keptError(kept, 'day', 'ca-day-err') ?? ''}
-      <div class="cal-times">
+      <div class="cal-times" title="${esc(t(locale, 'calendar.add.hint'))}">
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.from'))}</span><input type="time" name="from" value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'ca-from-err')} /></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.to'))}</span><input type="time" name="to" value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'ca-to-err')} /></label>
       </div>
       ${keptError(kept, 'from', 'ca-from-err') ?? ''}${keptError(kept, 'to', 'ca-to-err') ?? ''}
-      <p class="muted">${esc(t(locale, 'calendar.add.hint'))}</p>
       <button class="btn" type="submit">${esc(t(locale, 'calendar.add.save'))}</button>
     </form>`;
 
@@ -628,18 +627,17 @@ function periodMove(locale: Locale, span: string, prev: string, here: string, ne
 }
 
 /**
- * A WARM PANEL (the warmth run): what is clear, said plainly, and one door —
+ * A WARM PANEL (the warmth run): what is clear, said plainly in ONE line (the tester's pass, 2026-11-26), and one door —
  * adding a date (on the chosen day, or the month's), or, when one kind or one
  * customer is chosen, showing everything. The month's grid stays beside it.
  */
-function emptyPanel(locale: Locale, v: CalendarView, title: MessageKey, clear: string, day: string, kept: Kept | null, how = true): string {
+function emptyPanel(locale: Locale, v: CalendarView, title: MessageKey, clear: string, day: string, kept: Kept | null): string {
   const narrowed = v.category !== null || v.buyer !== null;
   return `<div class="empty cal-empty">
       <span class="cal-empty-i">${icon('calendar', 'cal-empty-ic')}</span>
       <p class="cal-empty-t">${esc(t(locale, narrowed ? 'calendar.empty.filtered' : title))}</p>
       ${narrowed ? deeper(esc(clear), t(locale, 'calendar.empty.clear'))
-        : `${how ? `<p class="muted">${esc(t(locale, 'calendar.empty.how'))}</p>` : ''}
-      <details class="cal-add"${kept ? ' open' : ''}><summary>${esc(t(locale, 'calendar.add'))}</summary>${addFields(locale, day, kept)}</details>`}
+        : `<details class="cal-add"${kept ? ' open' : ''}><summary>${esc(t(locale, 'calendar.add'))}</summary>${addFields(locale, day, kept)}</details>`}
     </div>`;
 }
 
@@ -706,7 +704,7 @@ function dayList(locale: Locale, v: CalendarView, ask: CalendarAsk, day: string,
   return `<div class="cal-lhead">${back(esc(toMonth), t(locale, 'calendar.day.month', { month: show.month(locale, ask.month) }))}
       <h2 class="cal-day cal-lh"${day === v.today ? ' aria-current="date"' : ''}>${dayName(locale, v, day)}</h2></div>
     ${here.length ? `<ol class="dl">${here.map((e) => dateRow(locale, e, now)).join('')}</ol>`
-      : emptyPanel(locale, v, 'calendar.empty.day', clear, day, kept, false)}`;
+      : emptyPanel(locale, v, 'calendar.empty.day', clear, day, kept)}`;
 }
 
 /**

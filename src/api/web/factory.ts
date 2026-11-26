@@ -847,10 +847,13 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const said = (k: MessageKey): string => t(locale, k, { name, page });
   const heldNow = s.r.opsSilenced ? said('business.live.paused') : said('business.live.stopped');
   // A step that is the owner's own; a sales assistant reads whose it is.
-  const step = (k: MessageKey | null): string | null => (k === null ? null : !viewer.isOwner && k !== 'ch.next.none' ? said('staff.ownerDecides') : said(k));
-  const states = (connection: string, ready: string, replies: string, next: MessageKey | null) => ({
+  // The text pass (2026-11-26) — a row with nothing to do says so by saying nothing: no "nothing for you to do" line.
+  const step = (k: MessageKey | null): string | null => (k === null || k === 'ch.next.none' ? null : !viewer.isOwner ? said('staff.ownerDecides') : said(k));
+  // A calm row (answering with nothing to do, or a place not offered here) is its connection alone, one pill; `note`
+  // is the one fact a calm row must still say (WhatsApp answering only the listed numbers).
+  const states = (connection: string, ready: string, replies: string, next: MessageKey | null, calm: { note?: string } | null = null) => ({
     items: [[said('ch.k.connection'), connection], [said('ch.k.ready'), ready], [said('ch.k.replies'), replies]] as const,
-    next: step(next) });
+    next: step(next), ...(calm ? { calm: true as const, ...(calm.note ? { note: calm.note } : {}) } : {}) });
   const pilotOn = f.readiness.pilotMode ?? true;
   const waNext: MessageKey | null = s.lc === 'not_connected' && !s.waWired ? 'ch.next.connect'
     : s.lc === 'paused' && !s.waWired ? 'ch.next.reconnect'
@@ -872,14 +875,15 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
         : s.r.live ? said('business.live.on')
         : said(s.r.canActivate ? 'business.live.ready' : 'business.live.notYet'),
       s.held ? said('ch.replies.none') : s.r.live && !wired ? said(pilotOn ? 'ch.replies.listed' : 'ch.replies.everyone') : said('ch.replies.notYet'),
-      waNext) });
+      waNext, s.r.live && !wired && !s.held ? (pilotOn ? { note: said('ch.replies.listed') } : {}) : null) });
   // Every other place: connected, waiting for the owner, not connected, or not offered on this installation.
   const otherStates = (st: ReachChannel['state'] | 'none', connection: string) => states(connection,
     st === 'none' ? said('ch.ready.notHere') : st === 'not_connected' ? said('ch.ready.connectFirst')
       : st === 'attention' ? said('ch.ready.reconnect') : s.held ? heldNow : said('business.live.on'),
     st === 'connected' ? said(s.held ? 'ch.replies.none' : 'ch.replies.asSet') : said('ch.replies.notYet'),
     st === 'none' ? null : st === 'not_connected' ? 'ch.next.connect' : st === 'attention' ? 'ch.next.reconnect'
-      : s.held && s.stoppedAt ? 'ch.next.resume' : 'ch.next.none');
+      : s.held && s.stoppedAt ? 'ch.next.resume' : 'ch.next.none',
+    st === 'none' || (st === 'connected' && !s.held) ? {} : null);
 
   // Instagram and Messenger: one Facebook Page connects both, so one row and one screen.
   const meta = (['instagram', 'messenger'] as const).map((ch) => s.others.find((o) => o.channel === ch)).filter((o): o is ReachChannel => o !== undefined);
@@ -1060,7 +1064,6 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
-       <p class="fdesc">${esc(t(locale, 'activation.stop.differs', { name }))}</p>
        ${elsewhereNames && !s.held ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
        <div class="facts">${confirmBtn('deactivate', s.stoppedAt ? '' : 'danger',
           t(locale, 'activation.action.deactivate'),
@@ -1109,9 +1112,9 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
     ? `<h2 class="sub3" data-golive="every" id="stop">${esc(t(locale, 'assistant.stop.title', { name }))}</h2>${silencedNote}${everyBody}` : '';
   // G3 — today's allowance, always visible: what is used, and when it renews.
   const a = r.allowance;
-  const allowanceBlock = a ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
-       ${a.pctUsed === null ? `<p class="fdesc">${esc(t(locale, 'business.allowance.none'))}</p>`
-         : `<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
+  // The text audit (2026-11-26, the owner's approval): no limit is no block; a limit, or a limit used up, is said as before.
+  const allowanceBlock = a && a.pctUsed !== null ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
+       ${`<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
             ${a.used ? `<p class="fdesc">${esc(t(locale, 'business.allowance.waiting'))}</p>
             <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>` : ''}`}` : '';
   const readyBody = everyBlock + (s.waRelevant
@@ -1197,7 +1200,7 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
     <section class="fblock" id="certs" aria-labelledby="certs-h">
       <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
       <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
-      ${certRows(locale, f.promises.certs, f.products.total)}
+      ${certRows(locale, f.promises.certs, f.products.total, '', true)}
       <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
     </section>
     <section class="fblock">

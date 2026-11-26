@@ -333,7 +333,9 @@ export type MenuRow = {
    * value's tone), then whether it can answer now and who gets replies; and the one next step, if there is one.
    * They stand under the name, inside the same door.
    */
-  readonly states?: { readonly items: readonly (readonly [label: string, value: string])[]; readonly next: string | null };
+  readonly states?: { readonly items: readonly (readonly [label: string, value: string])[]; readonly next: string | null;
+    /** The text pass — a calm row shows its connection alone, as one pill, with at most one note beside it. */
+    readonly calm?: true; readonly note?: string };
 };
 
 export const menuRow = (r: MenuRow): string => {
@@ -342,7 +344,9 @@ export const menuRow = (r: MenuRow): string => {
     const [first, ...rest] = r.states.items;
     const pair = (label: string, value: string, cls: string) =>
       `<span class="ch-state"><span class="ch-k">${esc(label)}</span><span class="${cls}"><bdi>${esc(value)}</bdi></span></span>`;
-    const states = `<span class="ch-states">${first ? pair(first[0], first[1], `sr-value${r.tone ? ` ${r.tone}` : ''}`) : ''}${rest.map(([k, v]) => pair(k, v, 'ch-v')).join('')}</span>`;
+    const states = r.states.calm
+      ? `<span class="ch-states ch-one">${first ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(first[1])}</bdi></span>` : ''}${r.states.note ? `<span class="ch-v"><bdi>${esc(r.states.note)}</bdi></span>` : ''}</span>`
+      : `<span class="ch-states">${first ? pair(first[0], first[1], `sr-value${r.tone ? ` ${r.tone}` : ''}`) : ''}${rest.map(([k, v]) => pair(k, v, 'ch-v')).join('')}</span>`;
     return `<li class="ch-row"><a class="srow sr-menu sr-two" href="${settingsHref(r.href)}">${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}${states}${r.states.next ? `<span class="ch-next">${esc(r.states.next)}</span>` : ''}</span>${GO}</a></li>`;
   }
   // Phase 9 of the warmth run (w4-today-setup-24, w4-whole-08) — the value's
@@ -874,7 +878,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
     <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p>
+    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<details class="floor-fold how-fold"><summary>${esc(t(locale, 'forbidden.howMatched.title'))}</summary><p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p></details>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
@@ -1181,7 +1185,7 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
     ${embedded ? `<h2>${esc(t(locale,'closures.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'closures.title'))}</h1>`}
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
-    <p class="muted small closure-said measure-prose">${esc(example)}</p>
+    <details class="note-fold closure-said"><summary>${esc(t(locale, 'closures.example.sum'))}</summary><p class="measure-prose">${esc(example)}</p></details>
     ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.now'))}</h3>${closureList}` : ''}
     <form method="post" action="/app/settings/closures" class="biz-form">
       ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.add'))}</h3>` : ''}

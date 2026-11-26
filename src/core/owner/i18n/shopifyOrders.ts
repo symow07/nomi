@@ -1,9 +1,9 @@
 /** Owner-facing words for Shopify order questions (0237). English only, listed in docs/NATIVE-REVIEW-UI.md. */
 export const SHOPIFY_ORDERS_EN = {
   'shopifyOrders.nav': 'Shopify orders',
-  'shopifyOrders.title': 'Order questions from Shopify',
-  'shopifyOrders.lede': 'Connect your Shopify store and the assistant can tell a customer where their order is. Nomi only reads; it never changes an order.',
-  'shopifyOrders.rule': 'A customer is told about an order only when their message gives the order number (like #1001) and the e-mail on that order, and both match. On e-mail, the address they write from counts. A phone number is never used. Any other case gets the same reply: "I couldn\'t find an order with those details".',
+  'shopifyOrders.title': 'Shopify orders',
+  'shopifyOrders.lede': 'Connect your Shopify store and the assistant can tell a customer where their order is. Nomi only reads an order, never changes one.',
+  'shopifyOrders.rule': 'A customer is told about an order only when they give its number (like #1001) and the e-mail on it; on e-mail, the address they write from counts. Anything else gets: "I couldn\'t find an order with those details".',
   'shopifyOrders.drafts': 'Every reply that uses an order waits for you to send it.',
   'shopifyOrders.notConnected': 'No Shopify store is connected.',
   'shopifyOrders.connect.title': 'Connect your store',

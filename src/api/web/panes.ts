@@ -141,22 +141,23 @@ export function renderCustomerPanel(
     `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}">${GO}<span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}">${GO}<span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
-  const act = p.activity.map((a) => {
+  // The cleanup (2026-11-26) — "Needs you · now" is the draft's own line under the thread; the activity lists what happened.
+  const act = p.activity.filter((a) => a.kind !== 'waiting').map((a) => {
     const mark = MARK[a.kind];
     const glyph = mark === 'as' ? agentMark(16, 'am as')
       : mark === 'you' ? shape('you', 'pn-you') : signalMark('waiting');
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`
       : esc(t(locale, `panel.act.${a.kind}` as MessageKey, { name }));
-    return li(`${glyph} ${said}`, esc(a.kind === 'waiting' ? t(locale, 'panel.now') : show.shortWhen(locale, a.at, now)));
+    return li(`${glyph} ${said}`, esc(show.shortWhen(locale, a.at, now)));
   });
 
   return `<aside class="panel" id="customer" aria-label="${esc(t(locale, 'panel.label'))}">
       <a class="panel-close" href="#latest">${esc(t(locale, 'panel.close'))}</a>
       <header class="pn-head">
-        ${/* The warmth pass — the customer's face beside their name, as everywhere they are named; the panel is already about them, so it opens nothing. */ ''}<div class="pn-who">${face({ clientId: p.clientId, name: p.name, photo: p.photo ?? null }, 'm')}<h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2></div>
+        ${/* The warmth pass — the customer's face beside their name, as everywhere they are named; the panel is already about them, so it opens nothing. */ ''}<div class="pn-who"${since ? ` title="${since}" tabindex="0"` : ''}>${face({ clientId: p.clientId, name: p.name, photo: p.photo ?? null }, 'm')}<h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2></div>
         ${facts ? `<p class="pn-facts">${facts}</p>` : ''}
-        ${since ? `<p class="pn-facts">${since}</p>` : ''}
+        ${/* The cleanup (2026-11-26) — when they first wrote is said on hover, on focus (the name takes it) and to a screen reader, not as a standing line; a screen with no hover shows it small. */ ''}${since ? `<p class="pn-facts sr">${since}</p>` : ''}
       </header>
       ${labelsBlock(p, locale, conversationId)}
       ${block('panel.askedAbout', asked)}
@@ -183,7 +184,7 @@ function labelsBlock(p: CustomerPanel, locale: Locale, conversationId: string): 
         <button class="btn ghost small" type="submit" aria-label="${esc(t(locale, 'labels.takeOff', { name: l.name }))}">×</button></form></li>`).join('');
   const list = `labels-${client}`;
   return `<section class="pn-block" id="labels"><h3>${esc(t(locale, 'labels.title'))}</h3>
-      ${on ? `<ul class="chips">${on}</ul>` : `<p class="muted small">${esc(t(locale, 'labels.none'))}</p>`}
+      ${on ? `<ul class="chips">${on}</ul>` : ''}
       <form method="post" action="/app/buyers/${client}/labels" class="inline label-add">${back}
         <input name="name" maxlength="40" required list="${list}" aria-label="${esc(t(locale, 'labels.add'))}" placeholder="${esc(t(locale, 'labels.placeholder'))}" dir="auto" />
         <datalist id="${list}">${(p.allLabels ?? []).map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>

@@ -12,6 +12,9 @@ const ORDER = `${ACTS}[data-band="order"] #order .answer`;
 const TAKE = `${ACTS}[data-band="take"] .takeover > form.answer`;
 const WARNINGS = `${ACTS}[data-band="approve"] .approval-warnings`;
 const KEPT_WARNINGS = `${ACTS}[data-band="approve"]:has(form.approve > p) .approval-warnings`;
+/** Why a reply waits (its first state line): on a phone it stands on the band, above the warnings, so it is read on arrival. */
+const STATE = `${ACTS}[data-band="approve"] .draft-dock > .stateline:first-of-type`;
+const STATE_ROOM = '56px';
 const ORDER_FACTS = `${ACTS}[data-band="order"] .order-facts`;
 const APPROVAL_HEIGHT = { phone: 'clamp(232px, 40dvh, 340px)', kept: 'clamp(288px, 46dvh, 380px)', wide: 'clamp(168px, 40dvh, 300px)', wideKept: 'clamp(224px, 46dvh, 340px)' };
 const BAND = [APPROVE, REPLY, ORDER, TAKE];
@@ -23,6 +26,21 @@ const sized = (name: string, sel: string, size: string, more = ''): string =>
 /** Context touches the action band; the scroll region gives up their sum, with no script or overlay. */
 const contextSized = (name: string, sel: string, context: string, actions: string, more = '', requires = ''): string =>
   `${shown(name, more)}${requires ? `:has(${requires})` : ''} > .content { margin-block-end:calc(${actions} + ${context}); }\n  ${sel} { block-size:${context}; inset-block-end:calc(${BAR} + ${actions}); }`;
+
+/** The state row's four places: with or without the owner's kept words, with or without warnings under it. */
+const stateSized = (plain: string, kept: string, warnings: string): string => {
+  const has = ' .draft-dock > .stateline:first-of-type';
+  const one = (more: string, requires: string, under: string, sel: string): string =>
+    `${shown('approve', has + more)}${requires} > .content { margin-block-end:calc(${under} + ${STATE_ROOM}); }\n  ${sel} { inset-block-end:calc(${BAR} + ${under}); }`;
+  const acts = `${ACTS}[data-band="approve"]`;
+  const row = ' .draft-dock > .stateline:first-of-type';
+  return [
+    one('', '', plain, `${acts}${row}`),
+    one('', ':has(form.approve > p)', kept, `${acts}:has(form.approve > p)${row}`),
+    one('', ':has(.approval-warnings)', `${plain} + ${warnings}`, `${acts}:has(.approval-warnings)${row}`),
+    one('', ':has(form.approve > p):has(.approval-warnings)', `${kept} + ${warnings}`, `${acts}:has(form.approve > p):has(.approval-warnings)${row}`),
+  ].join('\n  ');
+};
 
 /** Shared Inbox conversation layout. All state colors and type come from the owner theme. */
 export const CONVERSATION_CSS = `
@@ -46,10 +64,13 @@ export const CONVERSATION_CSS = `
 @media (max-width:1099px) {
   .conversation-workspace .conv-top .conversation-actions { display:contents; }
   .conversation-workspace .conv-top .dhead > .back { order:1; margin-inline-end:auto; }
-  .conversation-workspace .conv-top .conversation-actions > form { order:2; }
   .conversation-workspace .conv-top .conv-more { order:3; }
   .conversation-workspace .conv-top .dhead > .live { order:4; flex-basis:100%; }
-  .conversation-workspace .conv-top .conversation-actions > .file-door { order:5; flex-basis:100%; margin:0; }
+  .conversation-workspace .conv-top .conversation-actions > .file-door { order:2; margin:0; }
+  /* The cleanup (2026-11-26) - the head's first row is the page's first: the workspace's name is not drawn over it,
+     and the row keeps clear of the help door, which stands at its end. */
+  main:has(.conversation-workspace) > .business-name { display:none; }
+  .conversation-workspace .conv-top .dhead { padding-inline-end:var(--space-48); column-gap:var(--space-4); }
 }
 /* A phone (the fix rounds of 2026-11-13; the owner's rule: no control rests under the tab bar, no control covers
    content). Held by CONSTRUCTION, not by measuring a conversation:
@@ -129,6 +150,20 @@ export const CONVERSATION_CSS = `
   ${contextSized('order', ORDER_FACTS, '128px', '104px')}
   ${ORDER_FACTS} { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-content:center; gap:var(--space-4) var(--space-24); }
 }
+/* The cleanup (2026-11-26) - why a reply waits is on the band too: one more row of a set height above the warnings (or
+   above the answers when there are none), and the region gives up that room as well. A longer sentence scrolls in its
+   row. A short screen keeps it in the region, in the page's order. */
+@media (max-width:480px) and (min-height:520px) {
+  ${stateSized(APPROVAL_HEIGHT.phone, APPROVAL_HEIGHT.kept, '96px')}
+}
+@media (min-width:481px) and (max-width:720px) and (min-height:520px) {
+  ${stateSized(APPROVAL_HEIGHT.wide, APPROVAL_HEIGHT.wideKept, '64px')}
+}
+@media (max-width:720px) and (min-height:520px) {
+  ${STATE} { position:fixed; z-index:3; inset-inline:0; box-sizing:border-box; block-size:${STATE_ROOM}; max-inline-size:none; margin:0; overflow-y:auto;
+    padding:var(--space-8) var(--space-16); background:var(--color-surface); border-block-start:1px solid var(--color-border);
+    font-size:var(--font-size-caption); line-height:1.4; }
+}
 /* A narrow, very short screen cannot hold warnings, an editable box and three whole answers plus a reading
    region. Keep that complete decision in the existing scroll region, still above the tab bar. */
 @media (max-width:480px) and (min-height:400px) and (max-height:519px) {
@@ -150,7 +185,7 @@ export const CONVERSATION_CSS = `
 .conversation-workspace .catchup .face-l { inline-size:44px; block-size:44px; font-size:var(--font-size-base); }
 .conversation-workspace .catchup h1.who { font-size:var(--font-size-base); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
 .conversation-workspace .catchup .cu-where { line-height:1.3; }
-.conversation-workspace .catchup .cu-facts { margin-block-start:var(--space-8); }
+.conversation-workspace .catchup .cu-line { grid-column:2; }
 .conversation-workspace .conv-top .subline { margin:var(--space-4) 0 0; }
 .conv-more { position:relative; }
 .conv-more > summary { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; padding-inline:var(--space-8); cursor:pointer; list-style:none;
@@ -269,6 +304,15 @@ export const CONVERSATION_CSS = `
 
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }
   .conversation-workspace > .conversation-tools { grid-column:3; }
+  /* The cleanup (2026-11-26) - beside the conversation the pane is closed by a mark at the end of its tabs: the
+     conversation is on screen, so "Back to conversation" is its name for a reader, not a line of its own. */
+  .conversation-workspace .ct-head { display:flex; align-items:stretch; padding-inline-end:calc(44px + var(--space-8)); }
+  .conversation-workspace .ct-head > .ct-tabs { order:1; flex:1 1 auto; }
+  .conversation-workspace .ct-head > a.back { order:2; flex:none; inline-size:44px; margin:0; justify-content:center; font-size:0; text-decoration:none;
+    color:var(--color-ink-secondary); border-block-end:1px solid var(--color-border); }
+  .conversation-workspace .ct-head > a.back > * { display:none; }
+  .conversation-workspace .ct-head > a.back::after { content:"×"; font-size:var(--font-size-title); line-height:1; }
+  .conversation-workspace .ct-head > a.back:hover { color:var(--color-ink); }
 }
 @media (max-width:1099px) {
   .conversation-workspace[data-tool-open] > .conv, .conversation-workspace:has(#customer:target) > .conv { display:none; }

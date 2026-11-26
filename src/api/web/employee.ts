@@ -13,7 +13,7 @@ import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capabilit
 import { AUTONOMY_LEVELS, levelOf, isAutonomyLevel, type AutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
-import { STRICT_LOCALES, STRICT_SIGNED, proposedSentences } from '../../core/conversation/strict.js';
+import { STRICT_LOCALES, STRICT_SIGNED } from '../../core/conversation/strict.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, claimName, languageDisplay, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
@@ -592,9 +592,8 @@ function holdLine(e: EmployeeProfile, locale: Locale, hold: AloneHold | null): s
 function strictLine(locale: Locale, hold: AloneHold | null): string {
   if (hold !== null || !autonomyReleased()) return '';
   const strict = STRICT_LOCALES.filter((l) => STRICT_SIGNED[l] !== undefined);
-  return `<p class="small">${esc(strict.length === 0
-    ? t(locale, 'autonomy.strict.none', { n: String(proposedSentences('en').length) })
-    : t(locale, 'autonomy.strict.some', { list: formatList(locale, strict.map((l) => languageName(locale, l))) }))}</p>`;
+  // The text audit (2026-11-26): where no language is strict there is nothing to say; a strict language is still named.
+  return strict.length === 0 ? '' : `<p class="small">${esc(t(locale, 'autonomy.strict.some', { list: formatList(locale, strict.map((l) => languageName(locale, l))) }))}</p>`;
 }
 
 /** 2026-09-30 — per language: which customers get replies sent alone, and which always wait. Only while something goes alone at all. */
@@ -614,15 +613,9 @@ function languagesLine(locale: Locale, hold: AloneHold | null): string {
 function stopHere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
   if (!viewer.isOwner || e.stopped || !e.answering) return '';
   const name = assistantName(locale);
-  // UI Block 6 (F32) — its own panel, after the levels and apart from them, named; the same line, form and question.
-  return `<section class="stop-panel" aria-labelledby="stop-h"><h2 id="stop-h">${esc(t(locale, 'assistant.stop.title', { name }))}</h2><div class="stop-here" id="stop">
-      <p class="small">${esc(t(locale, 'her.stop.lede', { name }))}</p>
-      <form method="post" action="/app/business/stop-assistant" class="inline">
-        <input type="hidden" name="from" value="employee" />
-        <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-          data-confirm="${esc(t(locale, 'assistant.stop.action.stopConfirm', { name }))}">${esc(t(locale, 'assistant.stop.action.stop', { name }))}</button>
-      </form>
-    </div></section>`;
+  // The text audit (2026-11-26, the owner's approval): the Stop is drawn once, on Going live; here it is one press away,
+  // under the levels, for the owner alone and only while something could be sent.
+  return `<p class="stop-here" id="stop">${deeper('/app/settings/assistant/ready#stop', t(locale, 'assistant.stop.action.stop', { name }))}</p>`;
 }
 
 /**
@@ -689,7 +682,7 @@ export type SetupFold = typeof SETUP_FOLDS[number];
 export const setupFoldOf = (raw: unknown): SetupFold | null => SETUP_FOLDS.find((f) => f === raw) ?? null;
 /** One folded decision: its name and where it stands in the summary (both already escaped); the target id inside. */
 export const setupFold = (id: SetupFold, open: SetupFold | null, nameHtml: string, nowHtml: string, body: string, extraClass = '', force = false): string =>
-  `<details class="sa-subject${extraClass ? ` ${extraClass}` : ''}"${open === id || force ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${nameHtml}</span><span class="sa-now">${nowHtml}</span></span></summary><div class="sa-body" id="${id}" tabindex="-1">${body}</div></details>`;
+  `<details class="sa-subject${extraClass ? ` ${extraClass}` : ''}"${open === id || force ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${nameHtml}</span>${nowHtml?`<span class="sa-now">${nowHtml}</span>`:''}</span></summary><div class="sa-body" id="${id}" tabindex="-1">${body}</div></details>`;
 
 /**
  * A row of the menu: the settings pattern's own row (`settings.ts` menuRow —
@@ -735,8 +728,8 @@ export function renderEmployee(
   // UI Block 6 (F32) — each decision folded under its name and where it stands now; the fold a link names is open
   // (?open=), and the link's target is inside the fold, so a browser opens it for #progress without any script.
   if(focused) return `<h1 class="page">${esc(t(locale,'settingsArea.permissions'))}</h1>${flashBanner(flash)}<p class="lede">${esc(t(locale,'settingsArea.permissionHint'))}</p>${levelControl(e,locale,viewer)}${stopHere(e,locale,viewer)}
-    ${setupFold('progress',open,esc(t(locale,'employee.promo.title')),esc(e.conditions.length?t(locale,'nav.setup.progress',{done:met,total:e.conditions.length}):st.alone.length?t(locale,'employee.promo.done'):labelled(locale,t(locale,'employee.promo.next'),t(locale,'employee.stage.partial'))),renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true}))}
-    ${setupFold('reply-types',open,esc(t(locale,'her.handles.title')),esc(st.nowLabel),renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})+renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true}))}`;
+    ${setupFold('progress',open,esc(t(locale,'employee.promo.title')),esc(e.conditions.length?t(locale,'nav.setup.progress',{done:met,total:e.conditions.length}):st.alone.length?'':labelled(locale,t(locale,'employee.promo.next'),t(locale,'employee.stage.partial'))),renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true}))}
+    ${setupFold('reply-types',open,esc(t(locale,'her.handles.title')),esc(st.level===null?st.nowLabel:''),renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})+renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true}))}`;
   const nothingYet = t(locale, 'her.menu.nothingYet');
   const capList = (caps: readonly string[]) => formatList(locale, caps.map((c) => capabilityName(locale, c)));
 
@@ -876,16 +869,13 @@ export function renderEmployeeScreen(
             <input type="text" name="name" maxlength="${NAME_MAX}" required value="${esc(pending)}" aria-label="${esc(t(locale, 'pilot.attest.assistant_named'))}" />
             <button class="btn send" type="submit">${esc(t(locale, 'autonomy.confirmName'))}</button>
           </form>`;
-      const door = viewer.isOwner && e.assistantNamed ? deeper('/app/settings/people#assistants', t(locale, 'people.title')) : '';
       return `${head}
         <p class="emp-called"><bdi>${esc(shown)}</bdi></p>
         ${e.assistantNamed ? '' : `<p>${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
         ${confirm}
         <div class="card emp">
           <div class="emp-stage">${esc(t(locale, 'employee.role.reception'))}</div>
-          ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted emp-hired">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
-        </div>
-        ${door}`;
+        </div>`;
     }
     // 2 · What can she handle? Permission and trust boundaries — never a
     //     measure of how good she is. Promotion LOGIC is untouched; only the framing.
@@ -940,7 +930,7 @@ export function renderEmployeeScreen(
                 </form>
                 <details class="scfix"><summary>${esc(t(locale, 'spotcheck.fix'))}</summary>
                   <form method="post" action="${act}">
-                    <label for="check-${esc(s.id)}">${esc(t(locale, 'spotcheck.fix'))}</label><textarea id="check-${esc(s.id)}" name="answer" rows="2" required
+                    <textarea id="check-${esc(s.id)}" name="answer" rows="2" required aria-label="${esc(t(locale, 'spotcheck.fix'))}"
                       placeholder="${esc(t(locale, 'spotcheck.fixPlaceholder'))}"></textarea>
                     <button class="btn" type="submit">${esc(t(locale, 'spotcheck.fixSave'))}</button>
                   </form>

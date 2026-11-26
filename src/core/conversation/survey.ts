@@ -39,6 +39,13 @@ export const SURVEY_SIGNED: SurveySigned = Object.freeze(Object.fromEntries(
 /** The sentence as written, for a reader to sign (and for the tests). */
 export const surveyText = (l: SurveyLocale): string => TEXT[l];
 
+/**
+ * The business's name in a sentence. A name that ends in a full stop ("Westlake Canvas Co.") is not followed by the
+ * sentence's own: "…with Westlake Canvas Co.. How did we do?" read as a typing mistake (the text audit, 2026-11-26).
+ */
+export const withBusiness = (text: string, name: string): string =>
+  text.split('{business}').map((part, i) => (i > 0 && name.endsWith('.') && part.startsWith('.') ? part.slice(1) : part)).join(name);
+
 /** The question in the buyer's language, or null: no language known, none of the five, or not signed. */
 export function surveyFor(language: string | null | undefined, business: string, signed: SurveySigned = SURVEY_SIGNED):
   { readonly locale: SurveyLocale; readonly text: string } | null {
@@ -47,7 +54,7 @@ export function surveyFor(language: string | null | undefined, business: string,
   const name = business.replace(/\s+/g, ' ').trim();
   if (!locale || !name) return null;
   const text = signed[locale];
-  return text ? { locale, text: text.split('{business}').join(name) } : null;
+  return text ? { locale, text: withBusiness(text, name) } : null;
 }
 
 /** The channels a survey may be asked on: chat, where inside the buyer's 24 hours a message costs nothing. */

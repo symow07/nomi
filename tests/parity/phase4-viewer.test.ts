@@ -38,7 +38,7 @@ const pilot: PilotReadiness = {
 
 /** Each page, rendered for a viewer, and the controls only the owner may use. */
 const PAGES: ReadonlyArray<readonly [string, (v: Viewer) => string, RegExp]> = [
-  ['product list', (v) => renderProductList(items, 'en', null, v), /href="\/app\/(products\/add|factory\/prices)"/],
+  ['product list', (v) => renderProductList(items, 'en', null, v), /href="\/app\/products\/price-limits"/],
   ['product list, empty', (v) => renderProductList([], 'en', null, v), /href="\/app\/products\/add"/],
   ['product detail', (v) => renderProductDetail(detail, 'en', null, {}, {}, v), /action="\/app\/products\/p1\/edit"/],
   ['product detail, no price', (v) => renderProductDetail({ ...detail, tiers: [] }, 'en', null, {}, {}, v), /action=|href="\/app\/products\/add"/],

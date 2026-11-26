@@ -1,4 +1,4 @@
-import {icon} from './icons.js';
+import {icon, GO} from './icons.js';
 import {formatDateYear} from '../../core/owner/i18n/format.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
@@ -18,7 +18,8 @@ export function booksScopeQuery(o:BooksOverviewOptions):URLSearchParams {const q
 export function booksHref(path:string,o:BooksOverviewOptions,extra:Record<string,string>={}):string {const q=booksScopeQuery(o);for(const [k,v] of Object.entries(extra))q.set(k,v);return path+(q.size?'?'+q.toString():'');}
 export function booksPager(locale:Locale,p:Pick<OverviewPage<unknown>,'from'|'to'|'total'|'next'|'prev'>,href:(page:number)=>string):string {
  // F47 — "0–0 of 0" under nothing is not a range: with no row there is no pager
- if(p.total===0)return '';
+ // The text pass (2026-11-26): a list that fits on one page has no pager ("1–7 of 7" said nothing).
+ if(p.total===0||(!p.prev&&!p.next))return '';
  return `<nav class="ba-pager" aria-label="${esc(t(locale,'booksArea.support'))}">${p.prev?`<a rel="prev" href="${esc(href(p.prev))}">${esc(t(locale,'booksArea.previous'))}</a>`:'<span></span>'}<span class="caption"><bdi>${esc(t(locale,'booksArea.range',{from:p.from,to:p.to,total:p.total}))}</bdi></span>${p.next?`<a rel="next" href="${esc(href(p.next))}">${esc(t(locale,'booksArea.next'))}</a>`:'<span></span>'}</nav>`;
 }
 export function booksScope(locale:Locale,accounts:readonly ScopeAccount[],o:BooksOverviewOptions,action='/app/books'):string {
@@ -55,25 +56,34 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
  const cashHref=booksHref('/app/books/reports/cash',scope),supplierHref=booksHref('/app/books/reports/suppliers',scope);
  const profitFrom=booksDay(locale,o.profit.from),profitTo=booksDay(locale,o.profit.to);
  // One figure: its name, its value, then its period and the report it is read from (the source, a door).
- const figure=(key:MessageKey,value:string,period:string,href:string,source:MessageKey)=>`<div class="ba-fig"><dt>${text(key)}</dt><dd>${value}</dd><p class="ba-period">${period}</p><p class="ba-source"><a href="${esc(href)}">${text(source)}</a></p></div>`;
+ // The text pass (2026-11-26) — the day is said once, under the title; a figure says a period only when it has one of
+ // its own ("This month", the year's span); and a source three figures share is linked once, under them.
+ const sourceLink=(href:string,source:MessageKey)=>`<p class="ba-source"><a class="deeper" href="${esc(href)}">${text(source)}${GO}</a></p>`;
+ const figure=(key:MessageKey,value:string,period:string|null,source:readonly [href:string,key:MessageKey]|null,note='',hover='')=>`<div class="ba-fig"><dt${hover?` title="${hover}" tabindex="0"`:''}>${text(key)}</dt><dd>${value}</dd>${period===null?'':`<p class="ba-period">${period}</p>`}${note}${source?sourceLink(source[0],source[1]):''}</div>`;
+ // Before the books have a year, nothing can be saved to them: a figure with nothing behind it is "Not on record",
+ // never a zero that reads as a real one. A figure that HAS something behind it (an issued invoice) is still shown.
+ const isZero=(amount:string)=>Number(amount)===0;
+ const amountOf=(amount:Decimal)=>!setup.year&&isZero(String(amount))?`<span class="ba-none">${text('askPicture.notOnRecord')}</span>`:booksMoney(locale,amount,o.bookCurrency);
  // A period said short: "Nov 1 to Nov 19, 2026" (the first day's year only when it is not the last's).
  const span=(a:string,b:string)=>text('booksHome.span',{from:a.slice(0,4)===b.slice(0,4)?show.dayMonth(locale,a):show.dayMonthYear(locale,a),to:show.dayMonthYear(locale,b)});
- const onDay=text('booksArea.asOf',{date:show.dayMonthYear(locale,o.today)}),month=`${text('booksArea.month')} · ${span(o.month.from,o.month.to)}`;
+ const month=text('booksArea.month');
  const needs:readonly [number,string,MessageKey][]=[[o.needsYou.overdueInvoices,'/app/books/invoices?state=overdue','booksArea.overdue'],[o.needsYou.unmatchedLines,'/app/books/bank?view=unmatched','booksArea.unmatched'],[o.needsYou.papers.pending,'/app/books/spending?state=pending','booksArea.receipts']];
- const owed=o.customerOwed.byCurrency.length?o.customerOwed.byCurrency.map(r=>`<div>${booksMoney(locale,r.owed,r.currency)}${r.refundDue!=='0'?`<p>${text('booksArea.refundDue',{amount:(moneyFromRow(r.refundDue,r.currency)?show.money(locale,moneyFromRow(r.refundDue,r.currency)!):r.refundDue+' '+r.currency)})}</p>`:''}</div>`).join(''):booksMoney(locale,decimal('0'),o.bookCurrency);
+ const owed=o.customerOwed.byCurrency.length?o.customerOwed.byCurrency.map(r=>`<div>${booksMoney(locale,r.owed,r.currency)}${r.refundDue!=='0'?`<p>${text('booksArea.refundDue',{amount:(moneyFromRow(r.refundDue,r.currency)?show.money(locale,moneyFromRow(r.refundDue,r.currency)!):r.refundDue+' '+r.currency)})}</p>`:''}</div>`).join(''):amountOf(decimal('0'));
  const setupRows: [string,MessageKey][]=[];if(!setup.year)setupRows.push(['/app/settings/books/starting-balances','booksArea.setupYear']);if(!setup.accounts)setupRows.push(['/app/settings/books/accounts','booksArea.setupAccounts']);
  // One setup notice: the first step still missing, as a door. The rest wait in Books settings.
  const setupNotice=viewer.isOwner&&setupRows.length?`<p class="ba-setup"><strong>${text('booksArea.setup')}</strong> <a href="${esc(setupRows[0]![0])}">${text(setupRows[0]![1])}</a></p>`:'';
  const actions=viewer.isOwner?`<div class="ba-actions" role="group" aria-label="${text('booksHome.actions')}"><a class="btn" data-books-action href="/app/books/invoices/new">${text('booksArea.newInvoice')}</a><a class="btn" data-books-action href="/app/books/spending#receipt-upload">${text('booksArea.addReceipt')}</a><a class="btn" data-books-action href="/app/books/bank#read-statement">${text('booksArea.readStatement')}</a></div>`:'';
  const cash=`<section class="ba-group" aria-labelledby="ba-cash"><h2 id="ba-cash">${text('booksHome.cash')}</h2><dl>${
-  figure('booksArea.cashToday',o.cashToday.balance===null?missing(o.cashToday.state,cashHref):booksMoney(locale,o.cashToday.balance,o.bookCurrency),onDay,cashHref+'#today','booksArea.cashDetails')}${
-  figure('booksArea.received',o.cash.received===null?missing(o.cash.state,cashHref):booksMoney(locale,o.cash.received,o.bookCurrency),month,cashHref,'booksArea.cashDetails')}${
-  figure('booksArea.paidOut',o.cash.paidOut===null?missing(o.cash.state,cashHref):booksMoney(locale,o.cash.paidOut,o.bookCurrency),month,cashHref,'booksArea.cashDetails')}</dl></section>`;
+  figure('booksArea.cashToday',o.cashToday.balance===null?missing(o.cashToday.state,cashHref):amountOf(o.cashToday.balance),null,null)}${
+  figure('booksArea.received',o.cash.received===null?missing(o.cash.state,cashHref):amountOf(o.cash.received),month,null)}${
+  figure('booksArea.paidOut',o.cash.paidOut===null?missing(o.cash.state,cashHref):amountOf(o.cash.paidOut),month,null)}</dl>${sourceLink(cashHref,'booksArea.cashDetails')}</section>`;
  const owedGroup=`<section class="ba-group" aria-labelledby="ba-owed"><h2 id="ba-owed">${text('booksHome.owed')}</h2><dl>${
-  figure('booksArea.customerOwed',owed,onDay,'/app/books/invoices?state=unpaid','booksHome.srcUnpaid')}${
-  figure('booksArea.supplierOwed',o.supplierOwed.owed===null?missing(o.supplierOwed.state,supplierHref):booksMoney(locale,o.supplierOwed.owed,o.bookCurrency),onDay,supplierHref,'booksArea.supplierDetails')}</dl></section>`;
+  figure('booksArea.customerOwed',owed,null,['/app/books/invoices?state=unpaid','booksHome.srcUnpaid'])}${
+  figure('booksArea.supplierOwed',o.supplierOwed.owed===null?missing(o.supplierOwed.state,supplierHref):amountOf(o.supplierOwed.owed),null,[supplierHref,'booksArea.supplierDetails'])}</dl></section>`;
  const profit=`<section class="ba-group" aria-labelledby="ba-profit"><h2 id="ba-profit">${text('booksHome.profit')}</h2><dl>${
-  figure('booksArea.profit',booksMoney(locale,o.profit.amount,o.bookCurrency),span(o.profit.from,o.profit.to),'/app/books/reports/profit','booksArea.profitDetails')}</dl><p class="ba-note">${text('booksHome.notCash')}</p></section>`;
+  figure('booksArea.profit',amountOf(o.profit.amount),span(o.profit.from,o.profit.to),['/app/books/reports/profit','booksArea.profitDetails'],`<p class="ba-period ba-note">${text('booksHome.notCash')}</p>`,text('booksHome.notCash'))}</dl></section>`;
+ // The tester's pass (2026-11-26): "not cash received" is the figure's hover and a reader's line; in sight it is said once,
+ // in the figure's basis under "How these figures are worked out" (booksArea.profitBasis), which a finger opens.
  // The basis of each figure, word for word as before (t1r, 2026-11-18): kept, behind one disclosure.
  const basis:readonly [MessageKey,string][]=[
   ['booksArea.cashToday',text('booksArea.cashTodayBasis',{date:asOf})+(o.cashToday.defaulted?` ${text('booksArea.ownAccounts')}`:'')],
@@ -81,7 +91,7 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
   ['booksArea.customerOwed',text('booksArea.owedBasis',{date:asOf})],['booksArea.supplierOwed',text('booksArea.supplierBasis',{date:asOf})],
   ['booksArea.profit',text('booksArea.profitBasis',{from:profitFrom,to:profitTo})+(o.profit.basis==='calendar'?` ${text('booksArea.calendarBasis')}`:'')]];
  const how=`<details class="ba-how"><summary>${text('booksHome.how')}</summary><dl>${basis.map(([k,b])=>`<div><dt>${text(k)}</dt><dd>${b}</dd></div>`).join('')}</dl></details>`;
- return `<div class="ba-overview"><h1 class="page">${text('books.home.title')}</h1>${viewer.kind==='accountant'?`<p class="lede">${text('books.home.accountant')}</p>`:''}<section class="ba-work" aria-labelledby="ba-waiting"><div class="ba-work-head"><h2 id="ba-waiting">${text('booksArea.needsYou')}</h2><p class="muted">${text('booksArea.asOf',{date:asOf})}</p></div>${needs.some(([n])=>n>0)?`<ul class="ba-waiting">${needs.filter(([n])=>n>0).map(([n,href,key])=>`<li><a href="${href}">${text(key)}<span class="pill warn">${show.count(locale,n)}</span></a></li>`).join('')}</ul>`:`<p>${text('booksArea.noWork')}</p>`}</section>${actions}${setupNotice}<div class="ba-sum">${cash}${owedGroup}${profit}</div>${how}${booksScope(locale,accounts,scope)}<section><h2>${text('booksArea.recent')}</h2>${recent.length?`<ul class="rows">${recent.slice(0,5).map(r=>`<li class="row"><a href="/app/books/advanced/entries/${esc(r.id)}"><bdi>${esc(r.label)}</bdi><span class="caption muted"> · <bdi>${esc(booksDay(locale,r.date))}</bdi></span></a><span class="pill ${r.state==='posted'?'ok':''}">${text(r.state==='posted'?'booksArea.saved':r.state==='draft'?'booksArea.draft':'booksArea.paper.set_aside')}</span></li>`).join('')}</ul>`:`<p>${text('booksArea.noActivity')}</p>`}</section>${viewer.isOwner?`<p class="caption"><a href="/app/settings/books/connections">${text('booksArea.settingsMoved')}</a></p>`:''}</div>${viewer.isOwner?BOOKS_LEGACY_HASH:''}`;
+ return `<div class="ba-overview"><h1 class="page">${text('books.home.title')}</h1>${viewer.kind==='accountant'?`<p class="lede">${text('books.home.accountant')}</p>`:''}<p class="muted ba-asof">${text('booksArea.asOf',{date:asOf})}</p>${needs.some(([n])=>n>0)?`<section class="ba-work" aria-labelledby="ba-waiting"><div class="ba-work-head"><h2 id="ba-waiting">${text('booksArea.needsYou')}</h2></div><ul class="ba-waiting">${needs.filter(([n])=>n>0).map(([n,href,key])=>`<li><a href="${href}">${text(key)}<span class="pill warn">${show.count(locale,n)}</span></a></li>`).join('')}</ul></section>`:''}${actions}${setupNotice}<div class="ba-sum">${cash}${owedGroup}${profit}</div>${how}${booksScope(locale,accounts,scope)}<section><h2>${text('booksArea.recent')}</h2>${recent.length?`<ul class="rows">${recent.slice(0,5).map(r=>`<li class="row"><a href="/app/books/advanced/entries/${esc(r.id)}"><bdi>${esc(r.label)}</bdi><span class="caption muted"> · <bdi>${esc(booksDay(locale,r.date))}</bdi></span></a><span class="pill ${r.state==='posted'?'ok':''}">${text(r.state==='posted'?'booksArea.saved':r.state==='draft'?'booksArea.draft':'booksArea.paper.set_aside')}</span></li>`).join('')}</ul>`:`<p>${text('booksArea.noActivity')}</p>`}</section>${viewer.isOwner?`<p class="caption"><a href="/app/settings/books/connections">${text('booksArea.settingsMoved')}</a></p>`:''}</div>${viewer.isOwner?BOOKS_LEGACY_HASH:''}`;
 }
 
 /** Known bookmark fragments from the former all-in-one Books home. No arbitrary URL is accepted. */

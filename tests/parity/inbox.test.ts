@@ -127,7 +127,9 @@ describe('M9.3 · conversation detail (localized)', () => {
 
   it('no pending draft → honest "nothing to confirm" state', () => {
     const html = renderConversationDetail({ ...detailWithDraft, pendingDraft: null }, 'en', NOW, null);
-    expect(html).toContain('No reply is waiting');
+    // The cleanup (2026-11-26): the pill says who holds it; no sentence under it says that nothing waits.
+    expect(html).toContain(`<span class="pill as">${shown('en', 'takeover.status.ai')}</span>`);
+    expect(html).not.toContain('takeover-note');
     expect(html).not.toContain(shown('en', 'buyers.review.title'));
   });
 
@@ -410,7 +412,10 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     const owned = renderConversationDetail(detailIn('OWNER_CONTROLLED'), 'en', NOW, null);
     expect(owned).not.toContain('Paused');
     // while the assistant holds it, the conversation's own state is still worth stating
-    expect(renderConversationDetail(detailIn('AI'), 'en', NOW, null)).toContain('<span class="pill warn">Needs you</span>');
+    // (the cleanup, 2026-11-26: a reply waiting for the owner's OK is the draft card's to say, once, under the thread)
+    const held = renderConversationDetail(detailIn('AI'), 'en', NOW, null);
+    expect(held).not.toContain('<span class="pill warn">Needs you</span>');
+    expect(held).toContain('id="approve"');
   });
 
   it('what the assistant used to answer: a reason on the card while a reply waits, its own section once one went, hidden once a human holds the pen', () => {

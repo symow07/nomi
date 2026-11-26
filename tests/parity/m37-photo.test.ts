@@ -195,8 +195,10 @@ describe('M37 · the owner can reach it', () => {
       expect(visible, locale).toContain(t(locale, 'product.add.photoButton'));
       expect(html).toContain('action="/app/products/add/photo"');
       expect(html).toContain('enctype="multipart/form-data"');
-      // and she is told the all-or-nothing rule BEFORE she takes the photo
-      expect(visible).toContain(t(locale, 'product.photo.allOrNothing'));
+      // The text audit (2026-11-26) — the all-or-nothing rule is said when it happens (the refusal, pinned above),
+      // not under the form before any photo is chosen.
+      expect(visible).not.toContain(t(locale, 'product.photo.allOrNothing'));
+      expect(renderPhotoRefusal('unreadable', locale).replace(/<[^>]+>/g, ' ')).toContain(t(locale, 'product.photo.allOrNothing'));
     }
   });
 

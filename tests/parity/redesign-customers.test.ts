@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { sectionSidebar, sectionChooser } from '../../src/api/web/sections.js';
 import { renderCustomers, renderCustomerRecord, customerArea, customerReturnHref } from '../../src/api/web/customers.js';
 import { renderCustomerOrders } from '../../src/api/web/customerOrders.js';
@@ -16,14 +17,15 @@ const selection:CustomerSelection={card:{clientId:id,name:'A <shop>',photo:null,
 const file:CustomerFile={conversationId:cid,buyer:'A <shop>',country:null,channel:'email',status:{t:'talking'},statusTone:'muted',needsOwner:false,profile:{firstContact:null,products:[],quoteCount:0,orderCount:0},timeline:[],context:{products:[],latestQuote:null,order:null,corrections:[]},customer:{clientId:id,photo:null,value}};
 describe('Customers area presents the stored records without changing commands',()=>{
  for (const locale of ['en','ar'] as const) {
-  it(`${locale}: offers the import door beside search to owners only, including an empty directory`,()=>{
+  it(`${locale}: the text audit (2026-11-26): the way to import is the section menu's (owners only), not a second door beside search`,()=>{
    const empty:CustomersPage={...page,rows:[],total:0,from:0,to:0,next:null,prev:null,q:'',label:null};
    for (const data of [page,empty]) {
     const draw=(viewerRole:'owner'|'team'|'accountant')=>withWorkspace({name:null,several:false,outreach:false,setup:null,viewerRole},()=>renderCustomers(data,locale,now));
     const owner=draw('owner');
     const search=owner.match(/<form\b[^>]*action="\/app\/customers"[^>]*>[\s\S]*?<\/form>/)?.[0]??'';
-    expect(search).toContain('<a class="deeper" href="/app/customers/import"><bdi lang="en" dir="ltr">Add customers from a file</bdi></a>');
-    expect(owner.match(/href="\/app\/customers\/import"/g)).toHaveLength(1);
+    expect(search).not.toBe('');
+    expect(owner).not.toContain('/app/customers/import');
+    expect(readFileSync(new URL('../../src/api/web/sections.ts', import.meta.url), 'utf8')).toContain("{ label: 'side.import', href: '/app/customers/import', show: owner }");
     expect(buttonsAndDoors(owner)).toEqual([]);
     for (const role of ['team','accountant'] as const) expect(draw(role)).not.toContain('/app/customers/import');
    }

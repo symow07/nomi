@@ -332,7 +332,7 @@ export function renderDataRights(
       <span>${esc(t(locale, 'advisor.history.mine'))}</span>
       <a class="dl-get" href="/app/settings/advisor-history/history.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
     </li></ul>
-    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.title'))}</div>
+    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.manage'))}</div>
   </section>`;
   const files = `<section class="block" id="copy">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>

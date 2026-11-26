@@ -121,10 +121,10 @@ export function renderGuide(
         <span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span>
         ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
       </div>
-      <details class="gs-help"${v.next === step ? ' open' : ''}>
+      ${/* The text audit (2026-11-26): a finished step is its heading and its tick; how to do it is for a step still to do. */ done ? '' : `<details class="gs-help"${v.next === step ? ' open' : ''}>
         <summary>${wordsHtml(locale, 'area1.setup.help')}</summary>
         <ol class="gs-words">${words.map((w) => `<li>${w}</li>`).join('')}</ol>
-      </details>
+      </details>`}
       ${step === 'products' && !done ? namesWantedLines(locale, v.names ?? []) : ''}
     </li>`;
   }).join('');
@@ -138,7 +138,6 @@ export function renderGuide(
       ? `<details class="gs-progress"><summary>${progress} · ${esc(t(locale, 'guide.progress.times'))}</summary>${
           renderSetupMilestones(options.milestones, locale, { now: options.now, canManage: options.canManage })}</details>`
       : `<p class="gs-progress">${progress}</p>`}
-    ${v.next === null ? `<p class="fok setup-complete">${wordsHtml(locale, 'area1.setup.complete')}</p>` : ''}
     <ol class="guide setup-steps">${items}</ol>
     <div class="block"><h2>${esc(t(locale, 'guide.after.title'))}</h2><p>${esc(t(locale, 'guide.after.body', { name }))}</p></div>`;
 }

@@ -469,7 +469,6 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
 }): string {
   const name = assistantName(locale);
   const banner = `<p class="sbx-note">${esc(t(locale, 'sandbox.banner'))}</p>`;
-  const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
   // CC-25 — the notice is where every practice action lands, as on a
   // conversation: under the newest line, carrying the `latest` mark itself.
   // That is also what brings Reset — which empties the transcript — onto its
@@ -543,7 +542,6 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
         data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>`;
   return `
     ${banner}
-    ${intro}
     <div class="block"><div class="dhead spread sbx-log-h"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${reset}</div>${log}</div>
     ${flashHtml}
     ${acts}

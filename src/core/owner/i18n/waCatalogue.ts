@@ -1,7 +1,7 @@
 /** English fallback until reviewed translations are supplied. */
 export const WA_CATALOGUE_EN = {
   'waCatalog.title': 'WhatsApp catalogue',
-  'waCatalog.intro': 'Choose the products to show in your linked WhatsApp catalogue. Review every change before anything is added or removed.',
+  'waCatalog.intro': 'Choose the products to show in your WhatsApp catalogue. You review every change before it is made.',
   'waCatalog.update': 'Update the WhatsApp catalogue',
   'waCatalog.review': 'Review the changes',
   'waCatalog.confirm': 'Apply the ticked changes',
@@ -31,6 +31,8 @@ export const WA_CATALOGUE_EN = {
   'waCatalog.removal': 'Needs removal from WhatsApp',
   'waCatalog.changed': 'Needs an update on WhatsApp',
   'waCatalog.notPushed': 'Not added',
+  'waCatalog.toFix.one': '{n} thing to fix',
+  'waCatalog.toFix.other': '{n} things to fix',
   'waCatalog.synced': 'Accepted by Meta',
   'waCatalog.pending': 'Waiting for Meta to finish. This is not yet confirmed.',
   'waCatalog.unknown': 'The result is not known. No second attempt was made.',

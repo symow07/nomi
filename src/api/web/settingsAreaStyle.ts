@@ -28,16 +28,18 @@ export const SETTINGS_AREA_CSS=`
 .sa-body{padding-top:var(--space-16);}
 .sa-body:focus{outline:none;}
 .sa-body:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;}
-.stop-panel{margin-block:var(--space-24);padding:var(--space-16) var(--space-24);border:1px solid var(--color-ink);border-radius:var(--radius-card);}
-.stop-panel h2{margin:0 0 var(--space-8);font-size:var(--font-size-base);}
-.stop-panel .stop-here{margin:0;padding:0;border:0;}
 .settings-area .btn.danger{background:transparent;color:var(--color-ink);border-color:var(--color-ink);}
 .settings-area :is(.certlist,.actrow) .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
+.cert-more{margin-block:var(--space-16);}
+.cert-more>summary{cursor:pointer;list-style:none;inline-size:fit-content;}
+.cert-more>summary::-webkit-details-marker{display:none;}
+.cert-more[open]>summary{margin-block-end:var(--space-8);}
 .sa-value{margin-block:var(--space-24);}
 .sa-value dt{color:var(--color-ink-secondary);font-size:var(--font-size-small);}
 .sa-value dd{margin:var(--space-8) 0 var(--space-24);overflow-wrap:anywhere;}
 .sa-logout{margin-top:var(--space-32);}
 .ch-states{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-8) var(--space-16);margin-top:var(--space-12);}
+.ch-one{display:flex;flex-wrap:wrap;align-items:baseline;}
 .ch-state{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}
 .ch-k{font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
 .ch-state .sr-value,.ch-v{max-width:100%;margin:0;text-align:start;font-size:var(--font-size-small);overflow-wrap:anywhere;}

@@ -57,11 +57,12 @@ describe('w4-conversation-05, -13 · the strip says what they asked about, that 
     for (const l of LOCALES) {
       const html = page(carlos, l);
       expect(stateLine(html), l).toContain(`<b>${esc(t(l, 'catchup.state.quoted'))}</b>`);
-      expect(stateLine(html), l).not.toContain(esc(t(l, 'catchup.state.last')));
+      expect(stateLine(html).match(/<b>/g), l).toHaveLength(1);
       const f = facts(html);
       expect(f, l).toContain('<bdi>' + (l === 'zh' ? 'LED灯串' : 'LED String Lights 10m') + '</bdi>');
       expect(f, l).toContain(`<bdi class="fig">${plain(show.quantityOf(l, 2000, t(l, 'product.unit.pcs')))}</bdi>`);
-      expect(f, l).toContain(esc(t(l, 'catchup.none')));
+      // the cleanup (2026-11-26): what they asked about is the whole line; "nothing bought yet" is not said
+      expect(f, l).not.toContain('·');
     }
   });
 
@@ -79,7 +80,7 @@ describe('w4-conversation-05, -13 · the strip says what they asked about, that 
       const name = l === 'zh' ? '保温杯' : 'Stainless Steel Thermos 500ml';
       expect(strip(html).split(`<bdi>${name}</bdi>`).length - 1, l).toBe(1);
       expect(html, l).not.toContain('class="muted subline"');
-      expect(facts(html), l).not.toContain(esc(t(l, 'catchup.none')));
+      for (const side of [esc(t(l, 'catchup.bought', { items: '\u0000' })).split('\u0000')[0]!]) expect(facts(html), l).toContain(side);
     }
   });
 

@@ -1638,7 +1638,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   // One control per act: while the approval card is up, its "Hand to me" is the take-over.
-  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline answer"><button class="${d.ownership !== 'WAITING_HUMAN' ? 'btn' : NEEDS_ACT}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline${d.ownership === 'WAITING_HUMAN' ? ' answer' : ''}"><button class="${d.ownership !== 'WAITING_HUMAN' ? 'btn' : NEEDS_ACT}" type="submit"${d.orderProposal ? ' aria-describedby="order-keep-waiting-note"' : ''}>${esc(t(locale, 'takeover.action.take'))}</button>${d.orderProposal ? `<p id="order-keep-waiting-note" class="order-action-note" dir="auto">${esc(t(locale, 'order.action.keepWaitingHint'))}</p>` : ''}</form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is
@@ -1691,8 +1691,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
       if (d.pendingDraft) return '';
       // Phase 9 (conversation-new-06) — with nothing waiting, the card says so itself: in a dashed box
       // of its own the line read as an empty drop zone, narrower than the cards around it.
-      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${
-        d.working === true ? '' : `<p class="muted takeover-note">${esc(t(locale, 'inbox.draft.none'))}</p>`}${last}${takeBtn}</div>`;
+      // The cleanup (2026-11-26) - the pill is the whole statement; "No reply is waiting for you here" added nothing.
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
@@ -2301,8 +2301,25 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     lastOrder: c?.lastOrder ?? null, quoteSentAt: c?.quoteSentAt ?? null,
     lastFromThemAt: c?.lastFromThemAt ?? null, lastMessage: c?.lastMessage ?? null,
   }, now);
-  const pill = play.kind === 'needs'
-    ? `<span class="pill warn">${esc(t(locale, 'inbox.filter.pending'))}</span>`
+  /*
+   * The cleanup (2026-11-26, the owner: "nothing bought yet, answered, gone quiet, nothing since, Wed Oct 28") — ONE
+   * line under the name, and nothing the page says again lower down:
+   *   - a reply waiting for the owner's OK is the draft card's own line, directly under the thread: the head is silent;
+   *   - "Gone quiet" is the whole state where the assistant holds the conversation (the day is the thread's own
+   *     divider, and the pill's hover); where a person holds it, who holds it stays and "Gone quiet" follows;
+   *   - "Last message · who · when" restated the thread's last bubble: the pill alone;
+   *   - ONE state: where the assistant holds the conversation and the rows tell where things stand (an order, a quote
+   *     waiting, who spoke last), that is the state; "Answered" beside it said two things. Who holds it, where a
+   *     person does, stays.
+   */
+  const reviewOnly = play.kind === 'needs' && row.awaitingReview && !row.orderWaiting && !row.deletionWaiting && d.ownership === 'AI';
+  const quietSince = play.kind === 'quiet' ? t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }) : '';
+  const pill = reviewOnly ? ''
+    : play.kind === 'needs' ? `<span class="pill warn">${esc(t(locale, 'inbox.filter.pending'))}</span>`
+    : play.kind === 'quiet' && d.ownership === 'AI' && c ? `<span class="pill" title="${esc(quietSince)}">${esc(t(locale, 'catchup.state.quiet'))}</span>`
+    : d.ownership === 'AI' && c && d.status !== 'paused' && (play.kind === 'ordered' || play.kind === 'quoted' || play.kind === 'talking' || play.kind === 'none') ? ''
+    // The second test (2026-11-26) - "Answered" over "{name} is handling this": the card under the thread says it, once.
+    : d.ownership === 'AI' && d.status === 'handled' && d.pendingDraft === null ? ''
     : headerPill(d, locale, viewer);
 
   // A sentence around something already drawn (a list, a figure): the words escaped, then the piece put in.
@@ -2315,14 +2332,14 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   // before one, and never inside a time, a name or a reference: "Last message ·
   // Your assistant" over "· 16:31", and "USAB-de300000-" over "0001", read as broken.
   const when = (at: Date): string => `<span class="fig">${esc(show.shortWhen(locale, at, now))}</span>`;
-  const story = !c ? '' : ((): string => {
+  const story = !c || reviewOnly ? '' : ((): string => {
     switch (play.kind) {
       case 'needs': return `<b><bdi>${esc(needsWhy(locale, row))}</bdi></b>`;
       case 'ordered': return [head('catchup.state.ordered'), `<bdi class="fig">${esc(play.reference)}</bdi>`, when(play.at)].join(CU_SEP);
       case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(CU_SEP);
-      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(CU_SEP);
+      case 'quiet': return d.ownership === 'AI' ? '' : `<span title="${esc(quietSince)}">${head('catchup.state.quiet')}</span>`;
       case 'talking': return [head('catchup.state.talking'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
-      case 'last': return [head('catchup.state.last'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
+      case 'last': return '';
       case 'none': return head('catchup.state.none');
     }
   })();
@@ -2345,16 +2362,18 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     asked,
     // The sum and its word never wrap apart (`.fig`): "$1,240.00" at a line's end and "spent" under it read as two facts.
     c.value.spent ? `<span class="fig">${around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`)}</span>` : '',
-  ].filter(Boolean) : [asked, `<span class="fig">${esc(t(locale, 'catchup.none'))}</span>`].filter(Boolean);
+  ].filter(Boolean) : [asked].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
   // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.
   return `<header class="catchup${c ? '' : ' bare'}">
       ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
-      ${c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : ''}
-      ${facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}
-      <p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>
+      ${/* One line under the name, from the name's own edge: where they write (the channel's word; the address is the
+          panel's), what they bought or asked about, and where things stand. */ ''}${c || pill || story ? `<div class="cu-line">${
+        c ? `<p class="cu-where">${reachedOn(locale, c.channel, null)}</p>` : ''}${
+        facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}${
+        pill || story ? `<p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>` : ''}</div>` : ''}
     </header>`;
 }
 
@@ -2414,12 +2433,23 @@ export function renderConversationDetail(
   // on a wide screen only; on a phone the newest message still lands with the reply under it.
   const few = !older && !earlier && d.messages.length <= FEW_MESSAGES
     && d.messages.reduce((n, m) => n + m.text.length, 0) <= FEW_CHARS;
+  /*
+   * The cleanup (2026-11-26, the owner: "below every single message, there is date and the sender") - messages one
+   * speaker sends within a few minutes are ONE run: the assistant's name stands over the run's first bubble, the time
+   * under its last. A bubble inside a run keeps its own caption for a screen reader and shows it under the pointer or
+   * the keyboard's focus (`.msg.mid`). The customer's name is the page's heading and the side their bubbles stand on;
+   * the caption keeps it for a screen reader only. "You" stays: a person's reply and the assistant's share a side.
+   */
+  const RUN_GAP_MS = 5 * 60_000;
+  const sameRun = (a: TimelineMessage | undefined, b: TimelineMessage | undefined): boolean =>
+    !!a && !!b && speakerOf(a) === speakerOf(b) && !!a.at && !!b.at && dayOf(a) === dayOf(b)
+    && Math.abs(b.at.getTime() - a.at.getTime()) <= RUN_GAP_MS;
   const timeline = d.messages.length
     ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}<span id="message-${i}"></span>
-        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
+        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}${sameRun(m, d.messages[i + 1]) ? ' mid" tabindex="0' : ''}">
           ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
                meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${
-            m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}
+            m.direction === 'outbound' && m.by !== 'owner' && !sameRun(d.messages[i - 1], m) ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : m.photo ? `<div class="bubble sent-photo"><img src="${esc(m.photo)}" alt="${esc(t(locale, 'photo.sent.alt'))}" loading="lazy" /></div>`
@@ -2429,8 +2459,8 @@ export function renderConversationDetail(
             // The design pass (UI-PASS 5): each speaker by their name — the
             // customer's, "You", the assistant's — never a role word; a
             // customer with no name yet is just their message.
-            m.direction === 'inbound' ? (d.buyer ? `<bdi>${esc(d.buyer)}</bdi>` : '')
-            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}</div>
+            m.direction === 'outbound' && m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}${
+            m.direction === 'inbound' && d.buyer ? `<span class="sr"> · <bdi>${esc(d.buyer)}</bdi></span>` : ''}</div>
         </div>`).join('')}</div>`
     // "No messages yet" only where it is true: not on a window further back,
     // and not on one whose every message was a reaction left out (G2c).
@@ -2721,7 +2751,7 @@ export function renderConversationDetail(
       ${back(esc(options.returnHref ?? '/app/inbox'), t(locale, 'inbox.detail.back'))}
       ${LIVE_SLOT}
       <nav class="conversation-actions" aria-label="${esc(t(locale, 'inbox.tools.label'))}">
-      <form method="get" action="/app/inbox/${encodeURIComponent(d.conversationId)}/copilot" class="inline"><button class="btn" type="submit" data-open-tool="ask" aria-controls="conversation-tools" aria-expanded="false">${markSmall(20, null)}<span>${esc(t(locale, 'inbox.tools.ask'))}</span></button></form>
+      ${/* The cleanup (2026-11-26) - Ask Nomi is the pane's own tab, beside "Customer": not a second button here. */ ''}
       <a class="deeper file-door" href="${d.catchUp ? '#customer' : `/app/conversations/${encodeURIComponent(d.conversationId)}`}" data-open-tool="customer" aria-controls="conversation-tools" aria-expanded="false">${esc(t(locale, 'panel.open'))}${GO}</a>
       ${more}
     </nav>

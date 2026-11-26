@@ -73,7 +73,7 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
       ${why}
       ${mineAct}
       ${s.person ? `<ul class="scard dl-files"><li class="row">
-        <span>${say('advisor.history.mine')}</span>
+        <span>${say('advisor.thread.earlier')}</span>
         <a class="dl-get" href="${HISTORY_FILE}" download>${icon('download')}<span>${say('advisor.memory.download')}</span></a>
       </li></ul>` : ''}
       <div class="doors">${deeper('/app/advisor', t(locale, 'advisor.history.open'))}</div>

@@ -30,7 +30,7 @@ export function renderAccount(v: AccountView, locale: Locale, flash: Flash | nul
   // The warmth run, phase 9 (w4-settings-a-22) — what to do when the code or the password is lost:
   // the door's own link where it can e-mail one, else the people who can.
   const lost = v.recovery
-    ? `<p class="caption muted">${esc(t(locale, 'account.lost.password'))} <a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>`
+    ? `<p class="caption muted"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>`
     : `<p class="caption muted">${esc(t(locale, 'account.lost.passwordAsk'))}</p>`;
   const body = v.email === null
     ? `${rowsCard(null, [fieldRow({ label: t(locale, 'account.row.password'), control: `<span class="fr-value">${esc(t(locale, 'account.codeOnly'))}</span>` })])}

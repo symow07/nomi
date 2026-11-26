@@ -181,18 +181,15 @@ export function renderEarlier(locale: Locale, rows: readonly ThreadRow[], flash:
       </li>`).join('')}</ul>`}`;
 }
 
-export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null, history: HistoryView = {},
-  who: { readonly name?: string | null } = {}): string {
+export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null, history: HistoryView = {}): string {
   const name=t(locale,'assistantArea.ask'),turns=history.turns??[],thread=history.threadId??null;
   const atRest=exchange===null&&turns.length===0&&!history.unreadable;
-  const person=(who.name??'').trim(),greeting=person?t(locale,'advisor.greeting',{name:person}):t(locale,'advisor.greeting.plain');
   const earlier=(history.earlier??[]).filter(r=>r.id!==thread);
   const question=exchange?.answer.kind==='failed'?exchange.asked:'';
   const business=businessName();
   return `<div class="ask-page"><h1 class="page">${esc(name)}</h1>${business ? `<p class="ask-business"><bdi>${esc(business)}</bdi></p>` : ''}${flashBanner(history.flash??null)}
-    <p class="lede" dir="auto">${esc(t(locale,'assistantAsk.intro'))}</p>
-    <div class="ask-workspace"><div class="ask-conversation">
-    ${atRest?`<p dir="auto">${esc(greeting)}</p><details class="ask-examples"><summary>${esc(t(locale,'assistantAsk.examples'))}</summary><ul>${EXAMPLES.map(k=>`<li>${esc(t(locale,k))}</li>`).join('')}</ul></details>`:''}
+    <div class="ask-workspace${atRest&&earlier.length===0?' is-alone':''}"><div class="ask-conversation">
+    ${atRest?`<details class="ask-examples"><summary>${esc(t(locale,'assistantAsk.examples'))}</summary><ul>${EXAMPLES.map(k=>`<li>${esc(t(locale,k))}</li>`).join('')}</ul></details>`:''}
     <div class="timeline ask-line">${history.unreadable?bubble('advisor',`<p>${words(t(locale,'advisor.thread.unreadable'))}</p>`,name,exchange===null):''}
       ${turns.map((k,i)=>{const newest=exchange===null&&i===turns.length-1,a=asAnswer(k);return exchangeHtml(locale,k.question,newest&&history.picture&&a.kind==='fact'?{...a,picture:history.picture}:a,newest);}).join('')}
       ${exchange===null?'':exchangeHtml(locale,exchange.asked,exchange.answer,true)}
@@ -200,10 +197,9 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
     </div>
     <form method="post" action="/app/advisor" class="ask-form"><label for="advisor-q">${esc(t(locale,'advisor.label'))}</label>
       <textarea id="advisor-q" name="q" rows="3" dir="auto" maxlength="${ADVISOR_MAX}" required placeholder="${esc(t(locale,atRest?'assistantAsk.placeholder':'advisor.followUp'))}">${esc(question)}</textarea>
-      ${thread?`<input type="hidden" name="thread" value="${esc(thread)}">`:''}<button class="btn" type="submit">${esc(t(locale,'advisor.ask'))}</button>
-    </form></div><aside class="ask-history" aria-label="${esc(t(locale,'advisor.thread.earlier'))}"><a href="/app/assistant/ask?new=1">${esc(t(locale,'advisor.thread.new'))}</a><h2>${esc(t(locale,'advisor.thread.earlier'))}</h2>
-      ${earlier.length?`<ul>${earlier.slice(0,8).map(r=>`<li><a href="/app/assistant/ask/${esc(r.id)}#latest"><bdi>${esc(r.title===''?show.date(locale,r.startedAt):r.title??t(locale,'advisor.thread.unreadable'))}</bdi></a></li>`).join('')}</ul>`:`<p class="muted">${esc(t(locale,'advisor.thread.none'))}</p>`}<a href="/app/assistant/ask/history">${esc(t(locale,'assistantAsk.history'))}</a>
-    </aside></div></div>`;
+      ${thread?`<input type="hidden" name="thread" value="${esc(thread)}">`:''}<button class="btn send" type="submit">${esc(t(locale,'advisor.ask'))}</button>
+    </form></div>${atRest&&earlier.length===0?'':`<aside class="ask-history" aria-label="${esc(t(locale,'advisor.thread.earlier'))}"><a href="/app/assistant/ask?new=1">${esc(t(locale,'advisor.thread.new'))}</a>${earlier.length?`<h2>${esc(t(locale,'advisor.thread.earlier'))}</h2><ul>${earlier.slice(0,8).map(r=>`<li><a href="/app/assistant/ask/${esc(r.id)}#latest"><bdi>${esc(r.title===''?show.date(locale,r.startedAt):r.title??t(locale,'advisor.thread.unreadable'))}</bdi></a></li>`).join('')}</ul>`:''}<a href="/app/assistant/ask/history">${esc(t(locale,'assistantAsk.history'))}</a>
+    </aside>`}</div></div>`;
 }
 
 /**
@@ -222,10 +218,9 @@ export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
 
   const draw = (req: FastifyRequest, reply: FastifyReply, exchange: Parameters<typeof renderAdvisor>[1], history: HistoryView = {}) => {
     const locale = io.locale(req);
-    const who = io.viewer(req);
     return reply.type('text/html; charset=utf-8').send(io.page(req, {
       title: t(locale, 'nav.advisor'), active: 'advisor',
-      bodyHtml: renderAdvisor(locale, exchange, { ...history, flash: io.takeFlash(req, reply) }, { name: who?.name ?? null }),
+      bodyHtml: renderAdvisor(locale, exchange, { ...history, flash: io.takeFlash(req, reply) }),
     }));
   };
   const OFF: MemoryState = { workspaceOn: false, consent: null, since: null, keep: false, ask: false, keyProblem: null, person: false };

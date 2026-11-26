@@ -337,6 +337,7 @@ describe('phase 7 · staff read where things stand; no form that would refuse th
   }
   it('a business with several assistants keeps the same page; the owner changes names where they all are (A5)', () => {
     const named = screen('name', base, 'en', ctx);
-    expect(named).toContain(`href="/app/settings/assistant/name#assistants">${esc(t('en', 'people.title'))}`);
+    // The text cleanup (2026-11-26, the owner's approval): the list is on this page under one heading, with no link to itself above it.
+    expect(named).not.toContain('href="/app/settings/assistant/name#assistants"');
   });
 });

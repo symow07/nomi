@@ -322,7 +322,6 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
           on('store') ? `${bad('store-err')} autofocus value="${esc(refused?.address ?? '')}"` : ''} /></label>
         ${on('store') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'store-err') : ''}
         <label class="pcheck"><input type="checkbox" name="currency"${on('store') && refused?.currencyConfirmed ? ' checked' : ''} /> ${esc(t(locale, 'import.store.currency', { currency: currencyWords(locale, currency) }))}</label>
-        <p class="caption muted">${esc(t(locale, 'import.store.currency.hint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'import.store.read'))}</button>
       </form>
       ${renderShopifyCredentials(locale, currency, credentials)}

@@ -59,6 +59,8 @@ ${AT} input[type=search]:not(.bare) { padding-inline-start:calc(var(--space-12) 
 .owner-shell .field-search > input { flex:1 1 auto; inline-size:100%; min-inline-size:0; margin:0; }
 .owner-shell .field-search::before { content:""; position:absolute; z-index:1; inset-block:0; inset-inline-start:var(--space-12); inline-size:16px;
   margin-block:auto; block-size:16px; background:var(--color-ink-secondary); pointer-events:none; ${iconMask('search', 16, 1.5)} }
+/* A list in the search's place is not a search: no magnifier is drawn over its first letter. */
+.owner-shell .field-search:has(> select)::before { content:none; }
 /* A select draws the same arrow as the rest of the app (not the browser's own), set in from the edge like the search's mark. */
 ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:none; padding-inline-end:calc(var(--space-12) + 16px + var(--space-12));
   background-image:${iconImage('pick', 16, 1.5)}; background-repeat:no-repeat; background-size:16px 16px; background-position:right 14px center; }
@@ -67,6 +69,8 @@ ${AT} select:not(.bare):not([multiple]) { appearance:none; -webkit-appearance:no
    button keeps the corner every other page gives it. */
 .owner-shell .sp-panels.is-one { justify-content:center; }
 .owner-shell .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:auto; }
+/* The cleanup (2026-11-26) - beside two panels the page has ONE left edge: the title's, the notices', the card's, Sales'. */
+.owner-shell .sp:has(> .sp-panels:not(.is-one)) > .sp-priority :is(.sp-decide, .sp-attention, .sp-notices) { margin-inline:0; }
 @media (min-width:721px) { .owner-shell .sp:has(> .sp-panels.is-one) > :is(.sp-head, .sp-setup) { box-sizing:content-box; max-inline-size:840px; margin-inline:auto; padding-inline:var(--space-24); } }
 /* Its title starts on the column's edge, and its button ends on it once the "?" in the corner is clear of the column. */
 @media (min-width:1320px) { .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:0; } }
@@ -132,6 +136,15 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
 .owner-shell .il-compact-list .si-row { min-block-size:var(--control-header); }
 .owner-shell .ca-person .face-m { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
 .owner-shell .il-compact-list .si-row.is-selected, .owner-shell .il-page .si-row.is-selected { background:var(--color-sand); border-inline-start-color:transparent; }
+/* The text audit (2026-11-26): a product's row and a customer's row are the same row as every other list's. A product's
+   tile is the field's height, and the row's words sit level with it (they sat at the row's top beside a centred tile). */
+.owner-shell .pa-products .prod { min-block-size:var(--control-header); padding-block:var(--space-4); align-items:center; }
+.owner-shell .pa-products .p-tag { margin-block:0; }
+.owner-shell .products-page > .block { border:0; padding:0; margin-block:var(--space-16); }
+.owner-shell .pa-products .pa-thumb { inline-size:var(--control-field); block-size:var(--control-field); }
+.owner-shell .pa-products .pa-initial { font-size:var(--font-size-base); }
+.owner-shell .pa-products .prod-b { margin-block-start:0; }
+.owner-shell .ca-customers .ca-customer { min-block-size:var(--control-header); padding-block:var(--space-8); }
 
 /* The open conversation's head, on a desk: who on the left and the tools on the right, in ONE row, with the facts and
    the state on the line under the name. The list beside it is the way back, so "Inbox" is not drawn twice. */
@@ -146,11 +159,13 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell .conversation-workspace .catchup > * { align-self:center; }
   .owner-shell .conversation-workspace .catchup > .face-link { order:0; align-self:center; }
   .owner-shell .conversation-workspace .catchup .face-l { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
-  .owner-shell .conversation-workspace .catchup > h1.who { order:1; margin:0; font-size:var(--font-size-title); }
-  .owner-shell .conversation-workspace .catchup > .cu-where { order:2; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .owner-shell .conversation-workspace .catchup > :is(.cu-facts, .cu-state) { order:4; margin:0; margin-block-start:var(--space-4); font-size:var(--font-size-caption); }
-  .owner-shell .conversation-workspace .catchup > :is(.cu-facts, .cu-state) { margin-inline-start:calc(32px + var(--space-8)); }
-  .owner-shell .conversation-workspace .catchup > .cu-facts + .cu-state { margin-inline-start:var(--space-8); }
+  .owner-shell .conversation-workspace .catchup > h1.who { order:1; flex:1 1 0%; min-inline-size:0; overflow-wrap:anywhere; margin:0; font-size:var(--font-size-title); }
+  /* The second test (2026-11-26) - a long name stays beside the face, in its own column, on two lines at most (the panel has it whole). */
+  .owner-shell .conversation-workspace .catchup > h1.who { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
+  /* One line under the name, as wide as the head: the tools beside the name are one row tall, so the line runs under them. */
+  .owner-shell .conversation-workspace .conv-top { container-type:inline-size; }
+  .owner-shell .conversation-workspace .catchup > .cu-line { order:4; flex:0 0 auto; inline-size:max-content; max-inline-size:calc(100cqi - 32px - var(--space-8)); margin:0; margin-block-start:var(--space-4); margin-inline-start:calc(32px + var(--space-8)); }
+  .owner-shell .conversation-workspace .catchup > .cu-line > p { margin:0; font-size:var(--font-size-caption); }
 }
 
 /* 5 · One "you are here" in a menu down the side: the rail's own — a sand tile, its word in weight — on the Inbox's
@@ -177,12 +192,20 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell form.sp-form > .sp-acts-more > .sp-btn { order:1; }
   .owner-shell form.sp-form > .sp-acts-more > .sp-window { order:3; flex:1 1 100%; padding-inline:var(--space-4); }
   .owner-shell form.sp-form > .sp-acts-more .sp-window, .owner-shell .conv-acts #approve .acts-more .src { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:0; }
-  .owner-shell .conv-acts #approve .acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin-block:var(--space-8) 0; }
-  .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 auto; text-align:end; }
+  /* The cleanup (2026-11-26) - "No reply needed" stands in the answers' row, at its start; the window's line under the
+     row. The form is drawn up over the row and lets a press through to the two answers beside its own button. */
+  .owner-shell .conv-acts #approve .acts-more { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin-block:calc(-44px - var(--space-8)) 0; pointer-events:none; }
+  .owner-shell .conv-acts #approve .acts-more > * { pointer-events:auto; }
+  .owner-shell .conv-acts #approve .acts-more .src { flex:1 1 100%; text-align:start; }
+  .owner-shell .conv-acts form.approve > .acts { min-block-size:44px; }
   /* What to check before sending: each on its own line, starting where the fold's words start (not under its arrow). */
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary { flex-wrap:wrap; }
   .owner-shell :is(.conv-acts, .sp-decide) details.reading > summary .c.check { flex:1 1 100%; padding-inline-start:calc(16px + var(--space-8)); }
 }
+/* The text pass (2026-11-26) — an explanation that is wanted sometimes, never always: folded under its own name, opened by a tap, a click or the keyboard (a title attribute reaches no finger). One look on every page. */
+.owner-shell details.note-fold { margin:0; padding:0; border:0; }
+.owner-shell details.note-fold > summary { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+.owner-shell details.note-fold > :not(summary) { margin:0 0 var(--space-8); color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
 /* The framed box under a conversation holds its contents a step in from its edge, like every other card. */
 @media (min-width: 1100px) { .conversation-workspace .conv-acts:not(:empty) { padding-inline:var(--space-16); } }
 
@@ -194,4 +217,7 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   .owner-shell ${BUTTON}, ${AT} ${BUTTON}:not(.find-quiet) { min-block-size:var(--control-touch); }
   .owner-shell :is(.il-views .si-tab, :is(.sa-nav, .aa-nav, .ba-nav) a:not(.sa-index)) { min-block-size:var(--control-touch); }
 }
+
+/* The second test (2026-11-26) - a search box narrower than its hint ends the hint with an ellipsis, not mid-letter. */
+.owner-shell input[type="search"] { text-overflow:ellipsis; }
 `;

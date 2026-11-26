@@ -76,8 +76,10 @@ describe('Products — the list', () => {
       const html = renderProductList([item()], l);
       // The title stands alone in its row; the door follows it, before the list.
       expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'nav.products'))}</h1></div>`);
-      expect(html, l).toContain(`<a class="deeper prod-add" href="/app/products/add">${esc(t(l, 'product.teach'))}${GO}</a>`);
-      expect(html.indexOf('prod-add'), l).toBeLessThan(html.indexOf('class="rows pa-products"'));
+      // The text audit (2026-11-26) — the way to add is in the section menu and on the empty list, not a link over the rows.
+      expect(html, l).not.toContain('prod-add');
+      expect(html, l).not.toContain('href="/app/products/add"');
+      expect(renderProductList([], l), l).toContain('href="/app/products/add"');
     }
     expect(t('en', 'product.teach')).toBe('Add your products');
   });
@@ -91,7 +93,6 @@ describe('Products — the list', () => {
 
   it('w4-products-knowledge-11 — the rules under the list end where its rows end', () => {
     const html = renderProductList([item({ status: 'needs_limits' })], 'en');
-    expect(html).toContain('<div class="block measure-prose"><div class="doors">');
     expect(html).toContain('<div class="block measure-prose"><p class="fwarn">');
   });
 
@@ -103,13 +104,14 @@ describe('Products — the list', () => {
   it('V1-303 / V1-379 — the list leads to the price limits, to what the assistant knows, and to a copy', () => {
     for (const l of LOCALES) {
       const html = renderProductList([item()], l);
-      expect(html, l).toContain(`href="/app/products/price-limits">${esc(t(l, 'prices.title'))}`);
-      expect(html, l).toContain('href="/app/assistant/knowledge">');
-      expect(html, l).toContain(`href="/app/settings/data/products" download>${esc(t(l, 'product.list.copy'))}`);
+      // The text audit (2026-11-26) — the list ends with its rows: these three are in the menus, said once.
+      expect(html, l).not.toContain('class="doors"');
+      expect(html, l).not.toContain('/app/settings/data/products');
+      expect(html, l).not.toContain('href="/app/assistant/knowledge"');
     }
-    // Money and data are the owner's: a colleague sees none of those doors.
+    // What needs the owner is still said, with its door, when it happens.
+    expect(renderProductList([item({ status: 'needs_limits' })], 'en')).toContain('href="/app/products/price-limits"');
     const staff = renderProductList([item()], 'en', null, { isOwner: false });
-    expect(staff).not.toContain('/app/settings/data/products');
     expect(staff).not.toContain('/app/products/add');
   });
 });
@@ -362,7 +364,11 @@ describe('Products — the add page', () => {
     expect(add('en')).toContain('this business\'s currency: US Dollar (USD)');
     expect(add('zh')).toContain('美元（USD）');
     expect(add('zh')).not.toContain('价格是 USD');
-    for (const l of LOCALES) expect(add(l), l).toContain(esc(t(l, 'import.store.currency.hint')));
+    // The text audit (2026-11-26) — what a store in another currency gets is said when it happens: the refusal says it.
+    for (const l of LOCALES) {
+      expect(add(l), l).not.toContain('class="caption muted"></p>');
+      expect(t(l, 'import.store.refused.other_currency', { stated: 'EUR' }), l).toContain('EUR');
+    }
     // The refusal names the same box the same way.
     expect(t('en', 'import.store.refused.currency_unconfirmed')).toContain('this business\'s currency');
     expect(t('en', 'import.store.currency', { currency: 'X' })).toContain('this business\'s currency');

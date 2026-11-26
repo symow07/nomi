@@ -7412,6 +7412,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const [runbook, feedback] = await Promise.all([
         loadPilotRunbook(deps.db, s.businessId, {
           practiceBusinessId: bid.ok ? await practiceCopyOf(deps.db, bid.value) : null, provider: deps.provider,
+          range: 'month', // the same span as the assistant's view beside it, and as the feedback below
         }),
         loadPilotFeedback(deps.db, s.businessId, 'month'),
       ]);

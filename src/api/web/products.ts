@@ -646,7 +646,6 @@ export function renderProductList(
   // places: tests/parity/buttons-and-doors.test.ts).
   const head = `<section class="products-page"><div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1></div>
     ${flashBanner(flash)}${search}
-    ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
     ${waiting > 0 ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
       ${viewer.isOwner ? `<a class="blink" href="/app/products/price-limits">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}
     ${wanted.length ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.namesWanted', {
@@ -685,20 +684,13 @@ export function renderProductList(
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
     </span>${GO}</a>`;
   }).join('');
-  // Phase 9 (V1-303, V1-379) — what belongs to the products, one door each:
-  // their price limits, what the assistant knows about them, and a copy of
-  // the list. The copy was only under Setup › Your data.
-  // w4-products-knowledge-11 — the section's rule ends where the rows above it end.
-  const doors = viewer.isOwner ? `<div class="block measure-prose"><div class="doors">
-      ${deeper('/app/products/price-limits', t(locale, 'prices.title'))}
-      ${deeper('/app/assistant/knowledge', t(locale, 'nav.knowledge'))}
-      ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
-    </div></div>` : '';
-  const pagerAt = (where: 'above' | 'below') => page && (where === 'below' || page.prev || page.next) ? `<nav class="pa-pager pa-pager-${where}" aria-label="${esc(t(locale, where === 'above' ? 'assistantArea.pagesAbove' : 'assistantArea.pagesBelow'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
+  // The text audit (2026-11-26) — the list ends with its rows. The way to add, the price limits and what the
+  // assistant knows are in the section menu beside the list; the copy is with the other copies, under Your data.
+  const pagerAt = (where: 'above' | 'below') => page && (page.prev || page.next) ? `<nav class="pa-pager pa-pager-${where}" aria-label="${esc(t(locale, where === 'above' ? 'assistantArea.pagesAbove' : 'assistantArea.pagesBelow'))}">${page.prev ? `<a href="${esc(productReturnHref(page.prev))}">${esc(t(locale, 'products.previous'))}</a>` : '<span></span>'}<span>${esc(t(locale, 'products.range', { from: show.count(locale, productCount ? (page.page - 1) * page.pageSize + 1 : 0), to: show.count(locale, shownTo), total: show.count(locale, productCount) }))}</span>${page.next ? `<a href="${esc(productReturnHref(page.next))}">${esc(t(locale, 'products.next'))}</a>` : '<span></span>'}</nav>` : '';
   // UI Block 9 (F09): the columns are named once above the rows; the pager is drawn above them too.
   const hasMoq = byQuantity || items.some((p) => p.moq !== null);
   const listHead = `<div class="pa-head${hasMoq ? '' : ' pa-head-nomoq'}" aria-hidden="true"><span></span><span>${esc(t(locale, 'knowledgeList.product'))}</span><span class="num">${esc(t(locale, 'import.columns.price'))}</span>${hasMoq ? `<span class="num">${esc(t(locale, 'product.list.moq'))}</span>` : '<span></span>'}<span></span></div>`;
-  return `${head}${pagerAt('above')}${listHead}<div class="rows pa-products">${cards}</div>${pagerAt('below')}${doors}</section>`;
+  return `${head}${pagerAt('above')}${listHead}<div class="rows pa-products">${cards}</div>${pagerAt('below')}</section>`;
 }
 
 export function renderProductDetail(
@@ -1031,7 +1023,6 @@ export function renderAddForm(
         ${refused && 'photo' in refused ? refused.photo : ''}
         <button class="btn" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
-      <p class="caption muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </details>
     ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null, refused && 'shopify' in refused ? refused.shopify : undefined, opened)}
     </div>
