@@ -111,7 +111,8 @@ d('The IDOR audit · one business, or one person, never reaches another\'s (requ
 
   it('what {name} may promise: the owner sees the price floor and the price rules; a member of staff sees none of them', async () => {
     const owner = (await get(ownerCookie, '/app/settings/assistant/promises')).body;
-    const staff = (await get(staffCookie, '/app/settings/assistant/promises')).body;
+    // a drawing's own coordinates are not a figure on the page: the sidebar's icons (the navigation block) are left out
+    const staff = (await get(staffCookie, '/app/settings/assistant/promises')).body.replace(/<svg\b[\s\S]*?<\/svg>/g, '');
     // (with no volume discount written, the ceiling and the ask line are not stated to anyone: the list holds the
     // floor and "nothing comes off a price")
     expect(owner).toContain('7.25');
