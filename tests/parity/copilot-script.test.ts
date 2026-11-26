@@ -69,6 +69,12 @@ function fixture(phone = false, delayAsk = false, failPanel = false) {
   return {window,scrolls,timers,thread,acts,retry,recovery,root,box,id,ask,customer,close,tabs,status,calls,use,tools,fire,resolve:(x:any)=>resolveReply(x)};
 }
 describe('context panel keeps owner work',()=>{
+  it('the Intercom pass (2026-11-26): a wide screen opens the customer beside the conversation, taking no focus', () => {
+    const f=fixture();
+    expect(f.root.getAttribute('data-tool-open')).toBe('customer');
+    expect(f.box.focused).toBe(false);expect(f.calls).toHaveLength(0);
+    const p=fixture(true);expect(p.root.hasAttribute('data-tool-open')).toBe(false);
+  });
   it('holds the existing desktop decision-region height while the pane narrows it', () => {
     const f=fixture();f.fire('click',f.ask);
     expect(f.root.styleValues['--conversation-acts-height']).toBe('358px');

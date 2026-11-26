@@ -263,6 +263,8 @@ export const CONVERSATION_CSS = `
      visible for successive frames after their button has hidden, including in loading/error states. */
   .conversation-workspace [data-open-tool="ask"], .conversation-workspace [data-open-tool="ask"] * { transition:none; }
   .conversation-workspace[data-tool-open="ask"] [data-open-tool="ask"] { visibility:hidden; }
+  .conversation-workspace [data-open-tool="customer"], .conversation-workspace [data-open-tool="customer"] * { transition:none; }
+  .conversation-workspace[data-tool-open="customer"] [data-open-tool="customer"] { visibility:hidden; }
   .conversation-workspace[data-tool-open] .conv-acts { flex-basis:var(--conversation-acts-height, auto); flex-shrink:0; max-block-size:var(--conversation-acts-height, 62dvh); }
 
   .conversation-workspace[data-tool-open], .conversation-workspace:has(#customer:target) { grid-template-columns:300px minmax(0,1fr) 340px; }

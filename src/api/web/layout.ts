@@ -415,11 +415,11 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  * rule's selector is one the pages really draw.
  */
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    .btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
+    .btn, .sp-btn, .srow, :is(a,button).navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
         box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
         transform var(--motion-fast) var(--motion-ease); }
-    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side :is(a,button).navlink:active { transform:scale(var(--motion-scale-press)); }
+    .btn:active, .sp-btn:active, a.srow:active, button.srow:active, .tab:active, nav.side :is(a,button).navlink:active { transform:scale(var(--motion-scale-press)); }
     nav.side :is(a,button).navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
     nav.side :is(a,button).navlink:active .ni { transform:none; }
     nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
