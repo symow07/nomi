@@ -58,16 +58,9 @@ describe('F44 · routine work arrives still; what a person did still moves', () 
     expect(ruleFor('details[open]::details-content')).not.toContain('content-visibility');
   });
 
-  it('a link moves only what was chosen: the page and the window stay put', () => {
-    expect(ruleFor('::view-transition-group(page)')).toBe('animation:none;');
-    expect(ruleFor('::view-transition-old(page)')).toBe('animation:none; opacity:0;');
-    expect(ruleFor('::view-transition-old(root)')).toBe('animation:none; opacity:0;');
-    expect(ruleFor('::view-transition-new(page)')).toBe('animation:none;');
-    expect(ruleFor('::view-transition-new(root)')).toBe('animation:none;');
-    // selection still slides
-    expect(ruleFor('nav.side a.navlink.active')).toBe('view-transition-name:rail-on;');
-    expect(ruleFor('.si-order .si-fil.on')).toBe('view-transition-name:lens-on;');
-    expect(ruleFor('.mo td.sel .mo-d')).toBe('view-transition-name:day-on;');
+  // 2026-11-27 (the owner: page changes lag): nothing crosses from one page to the next, the rail's tile included.
+  it('a link moves nothing between pages: no page opts into a cross-document transition', () => {
+    expect(css).not.toContain('view-transition');
   });
 
   it('completion still moves: a notice, the draft drawn again, a toast, a dialog', () => {

@@ -33,7 +33,6 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const WEB = 'src/api/web';
 const files = readdirSync(join(ROOT, WEB)).filter((f) => f.endsWith('.ts')).sort();
 const read = (f: string) => readFileSync(join(ROOT, WEB, f), 'utf8');
-const NAVIGATION_OPT_IN = '@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }';
 
 /** Bare single-class selectors (`.foo`) declared in a file's CSS, comments stripped. */
 function bareClassesDefined(f: string): Set<string> {
@@ -101,26 +100,26 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     return a;
   };
 
-  it('the two source blocks are the public document and the shared navigation opt-in', () => {
+  it('the one source block is the public document\'s', () => {
     const where = files.filter((f) => read(f).includes('<style'));
     expect(where).toEqual(['layout.ts']);
-    expect(read('layout.ts').match(/<style/g)?.length).toBe(2);
+    expect(read('layout.ts').match(/<style/g)?.length).toBe(1);
     const base = JSON.parse(readFileSync(join(ROOT, 'tools/style-baseline.json'), 'utf8')) as { styleBlocks: number };
-    expect(base.styleBlocks).toBe(2);
+    expect(base.styleBlocks).toBe(1);
     const doc = publicDocument({ locale: 'en', title: 'T', body: '<p>x</p>' });
     expect(doc.match(/<style>/g)?.length).toBe(1);
     expect(doc).not.toContain('<link rel="stylesheet"');
     expect(doc).not.toContain('@view-transition');
   });
 
-  it('the shell and every door page keep their stylesheets and carry only the navigation opt-in', () => {
+  it('the shell and every door page keep their stylesheets and carry no style of their own', () => {
     const pages = [
       ['shell', shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '<p>x</p>' }), 'app'],
       ['login', loginPage({ locale: 'ar', path: '/login' }), 'door'],
       ['error', errorPage({ locale: 'zh', path: '/nope', kind: 'notfound' }), 'door'],
     ] as const;
     for (const [name, html, sheet] of pages) {
-      expect([...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]), name).toEqual([NAVIGATION_OPT_IN]);
+      expect(html, name).not.toContain('<style');
       const links = sheetLinks(html);
       expect(links, name).toHaveLength(name === 'shell' ? 3 : 2);
       expect(links[0], name).toMatch(new RegExp(`^/assets/${sheet}\\.[0-9a-f]{16}\\.css$`));
@@ -136,7 +135,8 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     expect(shellCss).not.toContain('.login .card');
   });
 
-  it('every opted-in head declares only the guarded opt-in before its first stylesheet', () => {
+  // 2026-11-27 (the owner: page changes lag) — the cross-page transition is gone, and its opt-in with it.
+  it('no head opts into a cross-document transition, and no sheet names one', () => {
     for (const locale of LOCALES) {
       const pages = [
         shell({ title: 'T', active: 'home', locale, path: '/app', bodyHtml: '' }),
@@ -149,10 +149,9 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
       ];
       for (const html of pages) {
         const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] ?? '';
-        expect([...head.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]), locale).toEqual([NAVIGATION_OPT_IN]);
-        expect(head.indexOf('<style>'), locale).toBeLessThan(head.indexOf('<link rel="stylesheet"'));
-        expect(html.match(/@view-transition/g), locale).toHaveLength(1);
-        expect(linkedCss(html), locale).not.toContain('@view-transition');
+        expect(head, locale).not.toContain('<style');
+        expect(html, locale).not.toContain('view-transition');
+        expect(linkedCss(html), locale).not.toContain('view-transition');
       }
     }
   });

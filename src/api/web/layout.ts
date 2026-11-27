@@ -400,9 +400,11 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *              phone); both sink away in 160 ms when closed, with their dimming
  *   the toast  slides in 24 px from its own edge, and back out the same way
  *   pages      the next page is simply there (UI Block 9, F44: the content's
- *              fade and 12 px rise played on every navigation); the rail
- *              stays, and its raised tile slides to the entry chosen — so do
- *              the Inbox lens and the chosen day
+ *              fade and 12 px rise played on every navigation). Nothing
+ *              crosses from one page to the next (the owner, 2026-11-27): the
+ *              cross-document transition could only start once the next page
+ *              had arrived, drew the page over the bars for its 250 ms, and
+ *              held every click until it ended. No page opts into one
  *   hand       a hover or a press settles both ways (160 ms): a control
  *              presses to 0.97 and comes back; a rail icon lifts 2 px, and
  *              a press sets it back down
@@ -410,7 +412,7 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *              filled (2 px, 220 ms)
  *
  * Every rule that moves anything sits inside `prefers-reduced-motion:
- * no-preference` — the page transitions too — so a reader who asked for less
+ * no-preference` so a reader who asked for less
  * gets none of it; the block after it stops anything else that would move.
  * `phase5-motion.test.ts` holds that, the durations by name, and that each
  * rule's selector is one the pages really draw.
@@ -453,14 +455,6 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     [dir="rtl"] .toast { animation-name:nomi-toast-in-rtl; }
     .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
     [dir="rtl"] .toast.out { animation-name:nomi-toast-out-rtl; }
-    main { view-transition-name:page; }
-    nav.side a.navlink.active { view-transition-name:rail-on; }
-    .si-order .si-fil.on { view-transition-name:lens-on; }
-    .mo td.sel .mo-d { view-transition-name:day-on; }
-    ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
-    ::view-transition-group(page) { animation:none; }
-    ::view-transition-old(page), ::view-transition-old(root) { animation:none; opacity:0; }
-    ::view-transition-new(page), ::view-transition-new(root) { animation:none; }
   }
   @media (prefers-reduced-motion: reduce) {
     /* The record disclosure margin must settle immediately, not animate through the global 1ms duration. */
@@ -2841,8 +2835,15 @@ export function assetAt(file: string): { readonly body: string | Buffer; readonl
   return font ? { body: font, type: FONT_TYPE, current: true } : null;
 }
 
-// The incoming document must opt in before its external styles arrive.
-const navigationOptIn = (): string => '<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>';
+/**
+ * The page is painted whole (2026-11-27). The browser keeps the page being left on the screen until the next one can
+ * be drawn; without this, a slow device drew the next one in pieces as it read it — the bars first, the page body a
+ * few frames later (the tester's finding once the cross-page transition, which had held the paint, was removed). The
+ * head asks the browser to wait for the mark at the document's end; a browser that does not know the request paints
+ * as it always did, and the wait ends by itself when the document has been read.
+ */
+const WHOLE_PAGE = '<link rel="expect" href="#page-end" blocking="render">';
+const PAGE_END = '<i id="page-end" hidden></i>';
 
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
 
@@ -3286,7 +3287,7 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
-${navigationOptIn()}
+${WHOLE_PAGE}
 ${linkTo(APP_SHEET)}
 ${TYPE_SLOT}\n${linkTo(SPLIT_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
@@ -3300,7 +3301,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${helpDoor(locale, input.path)}
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(area && isSectionPage(area, input.path) ? withoutLeadingBack(input.path, input.bodyHtml) : input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}${PAGE_END}</body></html>`);
 }
 
 
@@ -3465,7 +3466,6 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
-${navigationOptIn()}
 ${linkTo(DOOR_SHEET)}
 ${TYPE_SLOT}</head>
 <body class="door"><div class="login">

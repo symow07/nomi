@@ -37,7 +37,7 @@ import { parse, select, type El } from './dom-lite.js';
  *      shell's dialogs) or made by the one script (the toast, a busy button);
  *   2. the timings and distances are ones a person can see: about 220 ms on a
  *      curve that is not front-loaded, at least 10 px of travel;
- *   3. all of it, the page transitions too, only for a reader who has not
+ *   3. all of it only for a reader who has not
  *      asked for less motion.
  *
  * The frames themselves were looked at, by eye, in recordings of each motion
@@ -316,21 +316,15 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
   });
 
   // UI Block 9 (F44) — pin moved: the content's fade and 12 px rise played on every navigation (a repeated page
-  // entrance); the next page is now simply there, and what slides is what was chosen — the rail's tile, the lens, the day.
-  it('pages: the next page is simply there, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
-    const vt = calm.join('\n');
-    expect(vt).not.toContain('@view-transition');
-    expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }))
-      .toContain('<style>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation:auto; } }</style>');
-    expect(ruleOf('main')).toContain('view-transition-name:page');
-    expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
-    expect(ruleOf('.si-order .si-fil.on')).toContain('view-transition-name:lens-on');
-    expect(ruleOf('.mo td.sel .mo-d')).toContain('view-transition-name:day-on');
-    expect(ruleOf('::view-transition-new(page)').trim()).toBe('animation:none;');
-    expect(ruleOf('::view-transition-new(root)').trim()).toBe('animation:none;');
-    expect(ruleOf('::view-transition-old(page)').trim()).toBe('animation:none; opacity:0;');
-    expect(ruleOf('::view-transition-old(root)').trim()).toBe('animation:none; opacity:0;');
+  // entrance); the next page is simply there. 2026-11-27 (the owner: page changes lag) — pin moved again: the
+  // cross-document transition that slid the rail's tile, the lens and the day started only once the next page had
+  // arrived, drew the page over the bars while it ran and held clicks until it ended. Nothing crosses pages now.
+  it('pages: the next page is simply there; no page opts into a cross-document transition', () => {
+    expect(css).not.toContain('view-transition');
+    expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).not.toContain('view-transition');
     expect(css).not.toContain('nomi-page-in');
+    // arriving is still marked: the icon of the page you land on settles into its place
+    expect(ruleOf('nav.side a.navlink.active .ni')).toContain('animation:nomi-settle var(--motion-normal) var(--motion-ease)');
   });
 
   it('the hand: a press settles to 0.97 and comes back; a rail icon lifts under the pointer; colour is left to the rail\'s own rules', () => {
@@ -342,7 +336,7 @@ describe('the motion pass · each moment, as the stylesheet draws it', () => {
 });
 
 describe('the motion pass · nothing moves for a reader who asked for less', () => {
-  it('every rule that moves something sits inside prefers-reduced-motion: no-preference — the page transitions too', () => {
+  it('every rule that moves something sits inside prefers-reduced-motion: no-preference', () => {
     const rest = without(without(css, calm), still);
     // Outside those blocks: no transition and no animation (keyframes are only names).
     const loose = [...rest.matchAll(/(?:^|[;{\s])(transition|animation)(?:-[a-z-]+)?\s*:[^;}]*/g)]
