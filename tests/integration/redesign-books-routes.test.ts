@@ -49,7 +49,10 @@ d('Approved Books destinations and bounded read-only overview',()=>{
   // The settings overhaul (rule 104): "Advanced" was a page of two links; they are items of the books' sidebar now, and its address opens Entries. Staff are still turned away first.
   for(const who of [undefined,accountant]){const advanced=await get('/app/books/advanced',who);expect([advanced.statusCode,advanced.headers.location]).toEqual([302,'/app/books/advanced/entries']);}
   {const advanced=await get('/app/books/advanced',staff);expect(advanced.statusCode).toBe(302);expect(advanced.headers.location).not.toBe('/app/books/advanced/entries');}
-  for(const path of ['/app/settings/books','/app/settings/books/country','/app/settings/books/connections','/app/settings/books/accounts','/app/settings/books/tax','/app/settings/books/starting-balances']){expect((await get(path)).statusCode,path).toBe(200);for(const who of [staff,accountant])expect((await get(path,who)).statusCode,path).toBe(302);}
+  // The settings overhaul (rule 104): the checklist is a card on Books › Overview and tax is a section of Country and tax; their two addresses lead there. Staff and the accountant are still turned away from every one.
+  {const setup=await get('/app/settings/books');expect([setup.statusCode,setup.headers.location]).toEqual([302,'/app/books']);const tax=await get('/app/settings/books/tax');expect([tax.statusCode,tax.headers.location]).toEqual([302,'/app/settings/books/country#tax']);
+  for(const path of ['/app/settings/books','/app/settings/books/tax'])for(const who of [staff,accountant]){const r=await get(path,who);expect(r.statusCode,path).toBe(302);expect(r.headers.location,path).not.toBe('/app/settings/books/country#tax');}}
+  for(const path of ['/app/settings/books/country','/app/settings/books/connections','/app/settings/books/accounts','/app/settings/books/accounts/chart','/app/settings/books/starting-balances']){expect((await get(path)).statusCode,path).toBe(200);for(const who of [staff,accountant])expect((await get(path,who)).statusCode,path).toBe(302);}
   expect((await get('/app/settings/books/fields',accountant)).statusCode).toBe(200);
   for(const path of ['/app/books/fec','/app/books/reports/fec'])expect((await get(path)).statusCode,path).toBe(404);
  });

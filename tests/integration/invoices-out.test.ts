@@ -229,7 +229,9 @@ d('0226 · invoices that go out (requires DATABASE_URL)', { timeout: 240_000 }, 
     expect(settings.statusCode).toBe(200);
     expect(settings.body).toContain('name="on"');
     expect(await landed(await post('/app/settings/books/invoices-out', { on: '1' }))).toContain(esc(t('en', 'invoice.flash.switchedOn')));
-    expect((await get('/app/settings/books')).body).toContain('/app/settings/books/invoices-out');
+    // The settings overhaul (rule 104): the old index of books settings opens Books › Overview; the menu's Books group is the way in.
+    expect((await get('/app/settings/books')).headers['location']).toBe('/app/books');
+    expect((await get('/app/settings/books/country')).body).toContain('href="/app/settings/books/invoices-out"');
   });
 
   it('WHATSAPP: sent from the conversation page, the invoice goes as a DOCUMENT whose link is a PDF Nomi renders on demand', async () => {

@@ -110,8 +110,10 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     const tried = await post('MA', '/app/books/country', { country: 'MA', period: 'month', year_start: `${year()}-01-01` }, staff);
     expect(tried.statusCode).toBe(302);
     expect((await as('MA', (q) => q(`select count(*)::int as n from accounts`))).rows[0].n).toBe(0);
-    // the settings index and the Books group link to it
-    expect((await get('MA', '/app/settings/books')).body).toContain('href="/app/settings/books/country"');
+    // The settings overhaul (rule 104): the old index opens Books › Overview, and the menu's Books group links to the page.
+    const index = await get('MA', '/app/settings/books');
+    expect([index.statusCode, index.headers['location']]).toEqual([302, '/app/books']);
+    expect((await get('MA', '/app/settings/books/accounts')).body).toContain('href="/app/settings/books/country"');
     const fr = (await get('GB', '/app/settings/books/country')).body;
     expect(fr).toContain('Books for France are not ready yet.');
     expect(fr).toContain('Morocco, the United Kingdom and the United States');
@@ -218,7 +220,9 @@ d('0225 · the books\' country packs: MA, GB, US (requires DATABASE_URL + MIGRAT
     await as('GB', (q) => q(`update accounts set name = 'Barclays Current' where code = '1000'`));
     expect(await offered()).toEqual(['1000', '1010', '1020']);
     const page = (await get('GB', '/app/settings/books/accounts')).body;
-    expect(page).toContain('action="/app/books/accounts/money"');
+    // The settings overhaul (rule 104): the page lists the accounts that hold money and adds or removes ONE at a time;
+    // the route that takes the whole set of ticks is kept, and is what the rest of this test sends.
+    expect(page).toContain('action="/app/books/accounts/money/add"');
     expect(page).toContain('Barclays Current');
     const ids = Object.fromEntries((await as('GB', (q) => q(`select code, id::text as id from accounts where code in ('1000', '1010', '1020', '1100')`))).rows.map((r) => [r.code, r.id]));
     // untick 1000 (1010 "Bank savings account" and 1020 "Cash" are the rule's, and stay whatever is sent)

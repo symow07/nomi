@@ -2919,7 +2919,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
-          ...((system === 'odoo' || system === 'xero') && r.undatedTaxes?.length?{booksPath:'/app/settings/books/tax'}:{}),
+          ...((system === 'odoo' || system === 'xero') && r.undatedTaxes?.length?{booksPath:'/app/settings/books/country'}:{}),
           bodyHtml: renderWorkbookRefused(locale, r.problems, (system === 'odoo' || system === 'xero') && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined,
             system === 'sheets' && r.beforeBooks ? { ...r.beforeBooks, from: 'sheets' } : undefined) }));
     }
@@ -3271,7 +3271,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/books/accounts/chart',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
     const c=await withTenantTx(deps.db,bid,(tx)=>entryChoices(tx,bid));
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.country.chart'),active:'settings',bodyHtml:renderBooksChartPage(locale,c.accounts)}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.country.chart'),active:'settings',booksPath:'/app/settings/books/accounts',bodyHtml:renderBooksChartPage(locale,c.accounts)}));
   });
   // The settings overhaul (rule 104): tax is a section of Country and tax; this address opens it there.
   app.get('/app/settings/books/tax',async(req,reply)=>{
@@ -4319,7 +4319,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const money = await withTenantTx(deps.db, bid, (tx) => moneyAccountChoices(tx, bid));
     const hit = picked(moneyCandidates(money).map(accountOption), typed);
     if (!hit) return accountsPage(req, reply, bid, 422, { values: { account: typed }, errors: { account: t(localeOf(req), 'setBooks.acc.moneyUnknown') } });
-    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, [...money.filter((a) => a.marked && !a.byRule).map((a) => a.id), hit.value]));
+    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, [...money.filter((a) => a.marked).map((a) => a.id), hit.value]));
     return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
   });
   app.post('/app/books/accounts/money/remove', async (req, reply) => {
@@ -4327,7 +4327,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const gone = ((req.body ?? {}) as Record<string, unknown>)['account'];
     const money = await withTenantTx(deps.db, bid, (tx) => moneyAccountChoices(tx, bid));
-    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, money.filter((a) => a.marked && !a.byRule && a.id !== gone).map((a) => a.id)));
+    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, money.filter((a) => a.marked && a.id !== gone).map((a) => a.id)));
     return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
