@@ -11,7 +11,7 @@ import { renderSandbox, type SandboxView } from '../../src/api/web/sandbox.js';
 import { renderCustomerPanel } from '../../src/api/web/panes.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderComponents } from '../../src/api/web/components.js';
-import { saveBar } from '../../src/api/web/rows.js';
+import { saveActs } from '../../src/api/web/settingsPage.js';
 import type { CustomerPanel } from '../../src/db/customerPanel.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { usd } from '../../src/core/types/money.js';
@@ -204,8 +204,9 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
   });
 
   it('Save and Add are the brand fill, without the dot: the variant appears in no other renderer', () => {
-    expect(saveBar('Save')).toContain('class="btn send"');
-    expect(saveBar('Save')).not.toContain('needs');
+    // Rule 104 — the settings pages' one Save (settingsPage.ts `saveActs`) replaced the older save bar.
+    expect(saveActs('en')).toContain('class="btn send"');
+    expect(saveActs('en')).not.toContain('needs');
     const WEB = join(fileURLToPath(new URL('.', import.meta.url)), '../../src/api/web');
     const where: string[] = [];
     for (const f of readdirSync(WEB).filter((x) => x.endsWith('.ts'))) {

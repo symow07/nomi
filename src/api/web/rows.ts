@@ -34,10 +34,6 @@ export const fieldRow = (r: FieldRow): string =>
 export const rowsCard = (title: string | null, rows: readonly string[], id?: string): string =>
   `<section class="sgroup"${id ? ` id="${esc(id)}"` : ''}>${title ? `<h2 class="sgroup-h">${esc(title)}</h2>` : ''}<div class="scard">${rows.join('')}</div></section>`;
 
-/** The one save of a settings form. */
-export const saveBar = (label: string): string =>
-  `<div class="savebar"><button class="btn send" type="submit">${esc(label)}</button></div>`;
-
 /**
  * PHASE 6 OF THE UI REBUILD (2026-10-02) — A FORM SENT BACK. A refusal that is
  * about one field is said under that field, on the same page, with everything
