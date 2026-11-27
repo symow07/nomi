@@ -164,6 +164,7 @@ const OWNER_ONLY_ROUTES = [
   'GET /app/connect/:provider/start',
   'POST /app/channels/domain',
   'POST /app/channels/domain/check',
+  'POST /app/settings/channels/email',
   'POST /app/channels/outreach',
   'POST /app/channels/outreach/cap',
   'POST /app/connect/mail/disconnect',

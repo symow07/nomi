@@ -1745,8 +1745,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Phase 4b (F2/F4) — on the technical page, one door from Getting ready.
     it('the owner surface DOES show which build is running (behind login)', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical', headers: { cookie } });
+      // Rule 104 — the technical page is the last section of Channels (folded); its address opens it there.
+      const moved = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical', headers: { cookie } });
+      expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/channels?open=technical#technical']);
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels?open=technical', headers: { cookie } });
       expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('id="technical" open>');
       expect(res.body).toContain('This installation');
       expect(res.body).toContain('Running version');
       expect(res.body).toContain('Environment');

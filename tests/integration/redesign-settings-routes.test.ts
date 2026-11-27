@@ -39,11 +39,14 @@ d('Grouped Settings preserve command and permission ownership',()=>{
   expect([originalPost.statusCode,originalPost.headers.location]).toEqual([302,'/app/business/selling']);
  });
  it('opens one focused page per subject with the original forms and role boundaries',async()=>{
-  const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/terms','/app/settings/business/samples','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/assistant/history-policy','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/language','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
+  const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/terms','/app/settings/business/samples','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/assistant/history-policy','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
   for(const path of paths){const r=await get(path);expect(r.statusCode,path).toBe(200);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);expect(r.body,path).toContain('settings-area');expect(r.body,path).toContain('data-nav="settings" aria-current="page"');} // every setting is in the ONE Settings area, the assistant's too (the settings overhaul, rule 104)
   expect((await get('/app/settings/team',staff)).statusCode).toBe(302);
   expect((await get('/app/settings/assistant/history-policy',staff)).headers.location).toBe('/app/settings/personal/advisor-history');
-  for(const path of ['/app/settings/personal/account','/app/settings/personal/language'])expect((await get(path,accountant)).statusCode,path).toBe(200);
+  // Rule 104: the language is a section of Account; its older address sends there, for the owner and the accountant alike.
+  expect((await get('/app/settings/personal/account',accountant)).statusCode).toBe(200);
+  for(const who of [undefined,accountant]){const moved=await get('/app/settings/personal/language',who);expect([moved.statusCode,moved.headers.location]).toEqual([302,'/app/settings/personal/account#language']);}
+  expect((await get('/app/settings/personal/account',accountant)).body).toContain('<select id="acc-language" name="language">');
   expect((await get('/app/settings/business/profile',accountant)).headers.location).toBe('/app/books');
   const profile=await get('/app/settings/business/profile');expect(profile.body).toContain('action="/app/settings"');expect(profile.body).toContain('action="/app/settings/business"');
   expect(profile.body).toContain('name="working_hours"');expect(profile.body).toContain('name="postal_address"');

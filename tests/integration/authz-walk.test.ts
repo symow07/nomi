@@ -114,7 +114,7 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
   '/app/books/fields': { key: 'authz_g', label: 'Authz field', kind: 'text', appliesTo: 'entry', choices: '', required: '' },
   '/app/books/parties': { code: 'AUTHZ2', name: 'Authz party', country: '', ice: '', taxNumber: '', address: '' },
-  '/app/settings/alerts/channel': { channel: 'email' }, '/app/help/write': { words: 'authz' },
+  '/app/settings/alerts/channel': { channel: 'email' }, '/app/settings/personal/notifications': { channel: 'email' }, '/app/help/write': { words: 'authz' },
   '/app/books/spending/bills': { ref: 'B-2', date: '2026-04-21', gross: '12', noref: '', label: 'Bill authz', category: '@category', account: '', payFrom: '@bank', tax: '', supplier: '', newSupplier: 'Authz supplier', ads: '' },
   '/app/books/closing/start': { day: '2026-04-01', length: 'month' }, '/app/books/closing/reopen': { reason: 'authz', day: '' }, '/app/books/closing/lock': { day: '2026-10-31' }, '/app/inbox/:conversationId/maybe-yes/order': { quantity: '10' },
   // Two balanced lines of an entry; one line of an invoice; one line given back on a credit note (the other lines

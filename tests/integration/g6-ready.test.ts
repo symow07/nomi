@@ -71,7 +71,11 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
 
   it('THE MACHINE ROOM is the installation\'s: 404 for a workspace that signed itself up, and no door to it', async () => {
     expect((await get(shopCookie, '/app/settings/channels/technical')).statusCode).toBe(404);
-    expect((await get(pilotCookie, '/app/settings/channels/technical')).statusCode).toBe(200);
+    // Rule 104 — it is the last section of the installation's own Channels page; the address opens it there.
+    const moved = await get(pilotCookie, '/app/settings/channels/technical');
+    expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/channels?open=technical#technical']);
+    expect((await get(pilotCookie, '/app/settings/channels')).body).toContain('id="technical"');
+    expect((await get(shopCookie, '/app/settings/channels')).body).not.toContain('id="technical"');
     const ready = await get(shopCookie, '/app/get-started');
     expect(ready.body).not.toContain('href="/app/settings/channels/technical"');
     // Phase 9 — the installation's own workspace keeps the page, but no owner's page links to it.
