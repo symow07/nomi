@@ -104,11 +104,18 @@ export const rowSwitch = (locale: Locale, o: {
   readonly hidden?: Readonly<Record<string, string>>; readonly disabled?: boolean;
   /** The state in the row's own words, where "On" / "Off" would have to agree with what is switched (a certification: yes / no). */
   readonly words?: readonly [on: string, off: string];
+  /**
+   * The act, named by its verb, where the switch asks first: the dialog's yes says it ("Turn off"), never the state
+   * the switch shows ("On"). Default: "Turn on" / "Turn off".
+   */
+  readonly verbs?: readonly [turnOn: string, turnOff: string];
 }): string => {
   const [toOn, toOff] = o.values ?? ['1', '0'];
   const [saidOn, saidOff] = o.words ?? [t(locale, 'followUp.on'), t(locale, 'followUp.off')];
+  const [verbOn, verbOff] = o.verbs ?? [t(locale, 'set.turnOn'), t(locale, 'set.turnOff')];
   return `<form method="post" action="${esc(o.action)}" class="set-act">${hiddenFields(o.hidden)}<input type="hidden" name="${esc(o.name ?? 'on')}" value="${esc(o.on ? toOff : toOn)}" />`
-    + `<button class="set-switch" type="submit" role="switch" aria-checked="${o.on ? 'true' : 'false'}" aria-label="${esc(o.label)}"${o.disabled ? ' disabled' : ''}${asks(o.confirm)}><span class="set-track" aria-hidden="true"></span><span class="set-state">${esc(o.on ? saidOn : saidOff)}</span></button></form>`;
+    + `<button class="set-switch" type="submit" role="switch" aria-checked="${o.on ? 'true' : 'false'}" aria-label="${esc(o.label)}"${o.disabled ? ' disabled' : ''}${asks(o.confirm)}${
+      o.confirm ? ` data-verb="${esc(o.on ? verbOff : verbOn)}"` : ''}><span class="set-track" aria-hidden="true"></span><span class="set-state">${esc(o.on ? saidOn : saidOff)}</span></button></form>`;
 };
 
 /** 5 · One row of the danger zone: what the action is, what happens in one line, and its button, which asks first. */

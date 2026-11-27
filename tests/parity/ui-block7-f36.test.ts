@@ -31,7 +31,8 @@ const SCOPE = { name: null, several: false, outreach: false, setup: null, busine
 const draw = (l: Locale, v: PeopleView = view, books = true) => withWorkspace({ ...SCOPE, books }, () => renderPeople(v, l, null, NOW));
 const named = (l: Locale, k: MessageKey, who: string) => esc(t(l, k, { who: '\u0001' })).replace('\u0001', `<bdi>${esc(who)}</bdi>`);
 
-const people = (html: string) => html.slice(html.indexOf('<section class="set-sec" id="people">'), html.indexOf('<section class="set-sec" id="turn">'));
+// The people's section ends where the page's Save form begins (the workspace's own switch is drawn before the people).
+const people = (html: string) => html.slice(html.indexOf('<section class="set-sec" id="people">'), html.indexOf('<form method="post" action="/app/settings/team"'));
 const SAVE_ACTS = (l: Locale) => `<div class="set-save"><button class="btn send" type="submit">${esc(t(l, 'autonomy.save'))}</button><button class="btn" type="reset">${esc(t(l, 'common.cancel'))}</button></div>`;
 
 describe('F36 · a concise member table; removing someone is in the danger zone', () => {
@@ -129,8 +130,20 @@ describe('F36 · roles are one table to read; a person\'s place in the turn is i
     expect(html).not.toContain('/app/settings/people/p-d/in-turn');
     expect(html).not.toContain('name="away_p-d"');
     // the workspace's own switch, in its section, sent at once
-    const turn = html.slice(html.indexOf('<section class="set-sec" id="turn">'));
+    const turn = html.slice(html.indexOf('<section class="set-sec" id="turn">'), html.indexOf('<section class="set-sec" id="people">'));
     expect(turn).toContain('<form method="post" action="/app/settings/people/turn" class="set-act"><input type="hidden" name="on" value="1" /><button class="set-switch" type="submit" role="switch" aria-checked="false"');
+  });
+  it('the workspace\'s switch acts at once, so it is never drawn just above the Save: it comes before the people, whose dates the Save sends', () => {
+    for (const l of LOCALES) {
+      const html = draw(l);
+      const at = { turn: html.indexOf('<section class="set-sec" id="turn">'), people: html.indexOf('<section class="set-sec" id="people">'),
+        save: html.indexOf('<form method="post" action="/app/settings/team" class="set-form" data-save id="team-save">') };
+      expect(at.turn, l).toBeGreaterThan(-1);
+      expect(at.turn, l).toBeLessThan(at.people);
+      expect(at.people, l).toBeLessThan(at.save);
+      // between the people and the Save: no act that goes at once
+      expect(html.slice(at.people, at.save), l).not.toContain('/app/settings/people/turn"');
+    }
   });
   it('the table stacks on a phone, each value with its column\'s name', () => {
     expect(SETTINGS_AREA_CSS).toMatch(/@media\(max-width:600px\)\{\.team-table thead\{[^}]*\}\.team-table,\.team-table tbody,\.team-table tr,\.team-table th,\.team-table td\{display:block;\}/);

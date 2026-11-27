@@ -9677,6 +9677,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    // Rule 104 — a tab opened before the overhaul may still post the time zone alone here. It carries no profile, so it
+    // saves the zone (its one home now: Hours and closures) and nothing else. A form that carries the profile's name
+    // is the whole profile, and is checked whole, as it always was.
+    if (b['name'] === undefined && typeof b['zone'] === 'string' && b['zone'] !== '') {
+      const zoneSaved = await saveZone(deps.db, s.businessId, b['zone']);
+      facts.evict(s.businessId);
+      return flashTo(reply, HOURS_PAGE, zoneSaved === 'saved' ? 'ws.flash.saved' : 'settings.flash.zoneInvalid');
+    }
     const input = {
       name: String(b['name'] ?? ''), description: String(b['description'] ?? ''),
       location: String(b['location'] ?? ''), workingHours: String(b['working_hours'] ?? ''),

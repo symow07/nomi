@@ -45,9 +45,10 @@ const fieldErr = (id: string, text: string | undefined): string | undefined =>
 const invalid = (id: string, text: string | undefined): string => text ? ` aria-invalid="true" aria-describedby="${esc(id)}"` : '';
 
 /**
- * ACCOUNTS. Three subjects, in the order they are needed: the accounts Nomi posts to (the page's ONE Save), the
- * accounts that hold money (a short list: each row acts at once), and the chart itself (its state, the action that
- * loads it, a door to see it). The chart is written ONCE, as the list the four search fields complete from: the page
+ * ACCOUNTS. Three subjects, in the order they are needed: the chart itself (its state, the action that loads it, a
+ * door to see it), the accounts that hold money (a short list: each row acts at once), and LAST the accounts Nomi
+ * posts to, whose fields the page's ONE Save sends, so the Save ends the page (rule 104). An account counted by its
+ * name says so on a line of its own under the name, on every row and at every width. The chart is written ONCE, as the list the four search fields complete from: the page
  * used to write it four times as dropdowns and once more as 210 tick boxes.
  */
 export function renderBooksAccountsPage(locale: Locale, o: {
@@ -75,11 +76,11 @@ export function renderBooksAccountsPage(locale: Locale, o: {
   const can = moneyCandidates(o.money);
   const heldList = held.length === 0
     ? `<p class="muted">${esc(t(locale, o.money.length === 0 ? 'books.country.moneyNone' : 'setupList.moneyNone'))}</p>`
-    : searchList(locale, `<ul class="rows bk-held">${held.map((a) => `<li class="row"${listRow(`${a.code} ${a.name}`)}><span>${account(a)}</span>${a.byRule
-      ? `<span class="muted">${esc(t(locale, 'setBooks.acc.byName'))}</span>`
-      : rowAction({ action: '/app/books/accounts/money/remove', label: t(locale, 'setBooks.acc.remove'), hidden: { account: a.id },
+    : searchList(locale, `<ul class="rows bk-held">${held.map((a) => `<li class="row"${listRow(`${a.code} ${a.name}`)}><span class="bk-acc"><span>${account(a)}</span>${a.byRule
+      ? `<span class="caption muted">${esc(t(locale, 'setBooks.acc.byName'))}</span></span>`
+      : `</span>${rowAction({ action: '/app/books/accounts/money/remove', label: t(locale, 'setBooks.acc.remove'), hidden: { account: a.id },
         ariaLabel: t(locale, 'setBooks.acc.removeOf', { account: `${a.code} · ${a.name}` }),
-        confirm: t(locale, 'setBooks.acc.removeAsk', { account: `${a.code} · ${a.name}` }) })}</li>`).join('')}</ul>`);
+        confirm: t(locale, 'setBooks.acc.removeAsk', { account: `${a.code} · ${a.name}` }) })}`}</li>`).join('')}</ul>`);
   const addError = d?.errors['account'];
   const add = can.length === 0 ? '' : `<form method="post" action="/app/books/accounts/money/add" class="bk-addform" id="money-add">${
     setRow(locale, { label: t(locale, 'setBooks.acc.addMoney'), forId: 'acc-money',
@@ -100,11 +101,12 @@ export function renderBooksAccountsPage(locale: Locale, o: {
       control: `<a class="deeper" href="/app/books/orders" aria-label="${esc(t(locale, 'books.orders.title'))}">${esc(t(locale, 'setBooks.conn.open'))}</a>` }),
   ];
 
+  // The page's one Save ends the page: the two subjects whose rows act at once come first.
   return pageHead(t(locale, 'booksArea.accounts'), t(locale, 'setBooks.acc.lede'))
     + pickList(CHART_LIST, options)
-    + saveForm('/app/books/settings/accounts', setSection({ title: t(locale, 'setBooks.acc.posting'), rows: posting }) + saveActs(locale), { id: 'accounts' })
+    + setSection({ id: 'chart', title: t(locale, 'books.country.chart'), rows: chart })
     + setSection({ id: 'money', title: t(locale, 'books.country.money'), rows: setNotice({ text: t(locale, 'setBooks.acc.moneyRule') }) + heldList + add })
-    + setSection({ id: 'chart', title: t(locale, 'books.country.chart'), rows: chart });
+    + saveForm('/app/books/settings/accounts', setSection({ id: 'posting', title: t(locale, 'setBooks.acc.posting'), rows: posting }) + saveActs(locale), { id: 'accounts' });
 }
 
 /** THE CHART, to look at: every active account by number, 50 at a time, with a search box. Nothing is changed here. */

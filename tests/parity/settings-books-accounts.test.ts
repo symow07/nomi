@@ -8,6 +8,7 @@ import { settingsApp, drawSettingsPage, postSettingsForm, mainOf } from './setti
 import { t } from '../../src/api/web/say.js';
 import { esc as attr } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { BOOKS_AREA_CSS } from '../../src/api/web/booksAreaStyle.js';
 
 /**
  * THE SETTINGS OVERHAUL (rule 104) — ACCOUNTS, rebuilt. With the Moroccan chart the page used to write the chart four
@@ -70,7 +71,7 @@ describe('Accounts, on the Moroccan chart', () => {
     expect(count(mine, 'action="/app/books/accounts/money/remove"')).toBe(1);
     expect(mine).toMatch(/action="\/app\/books\/accounts\/money\/remove" class="set-act"><input type="hidden" name="account" value="[0-9a-f-]{36}" \/><button class="btn" type="submit"[^>]* data-confirm="/);
     // the accounts that can be added are a second, shorter list: those that can hold money and do not yet
-    expect(count(html.slice(html.indexOf('<datalist id="money-accounts">')), '<option ')).toBe(moneyCandidates(money).length);
+    expect(count(html.slice(html.indexOf('<datalist id="money-accounts">'), html.indexOf('</datalist>', html.indexOf('<datalist id="money-accounts">'))), '<option ')).toBe(moneyCandidates(money).length);
     expect(html).toContain(t('en', 'setBooks.acc.addMoneyHelp', { n: String(moneyCandidates(money).length) }));
   });
 
@@ -81,6 +82,24 @@ describe('Accounts, on the Moroccan chart', () => {
     expect(html).toContain('href="/app/settings/books/accounts/chart"');
     expect(html).toContain('href="/app/books/orders"');
     expect(page({ cgnc: false })).not.toContain('/app/books/chart/cgnc');
+  });
+
+  it('the Save ends the page: the chart and the money list (rows that act at once) come first, the posting form last', () => {
+    const at = (part: string) => html.indexOf(part);
+    const save = at('<form method="post" action="/app/books/settings/accounts" class="set-form" data-save id="accounts">');
+    expect(save).toBeGreaterThan(-1);
+    expect(at('<section class="set-sec" id="chart">')).toBeLessThan(at('<section class="set-sec" id="money">'));
+    expect(at('<section class="set-sec" id="money">')).toBeLessThan(save);
+    // after the posting form, nothing: its Save and Cancel are the page's last controls
+    expect(html.slice(html.indexOf('</form>', html.indexOf('<div class="set-save">')) + '</form>'.length).trim()).toBe('');
+  });
+
+  it('"Counted by its name" is always a line of its own under the account\'s name', () => {
+    const held = html.slice(html.indexOf('<ul class="rows bk-held">'), html.indexOf('</ul>', html.indexOf('<ul class="rows bk-held">')));
+    const rows = held.split('<li class="row"').slice(1);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r).toMatch(new RegExp(`^[^>]*><span class="bk-acc"><span><bdi dir="ltr">[^<]*</bdi> · <bdi>[^<]*</bdi></span><span class="caption muted">${t('en', 'setBooks.acc.byName')}</span></span></li>`));
+    expect(BOOKS_AREA_CSS).toContain('.bk-acc{display:flex;flex-direction:column;');
   });
 
   it('the page is a small fraction of what it was (468 KB with this chart)', () => {

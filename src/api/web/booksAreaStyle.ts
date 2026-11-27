@@ -200,6 +200,7 @@ main:has(.bk-tb){max-width:100%;}
 .bk-add .set-pick{flex:1 1 auto;min-width:0;}
 .bk-acts{display:flex;flex-wrap:wrap;gap:var(--space-8);margin-block:var(--space-16) 0;}
 .bk-held .row{align-items:center;gap:var(--space-12);}
+.bk-acc{display:flex;flex-direction:column;gap:var(--space-4);flex:1 1 12em;min-width:0;}
 .bk-sources td:last-child{text-align:end;}
 .bk-source .pform{max-width:var(--measure-form);}
 .bs-setup{margin-block:0 var(--space-24);padding:var(--space-16);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface);}

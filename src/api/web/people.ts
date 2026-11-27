@@ -274,7 +274,8 @@ export const awayDay = (awayUntil: Date | null, now: Date): string =>
  *   · People: ONE table. "In turn" is a switch in the row and acts at once (the one saving rule); "Away until" is a
  *     date, a FIELD, so every person's date waits for the page's one Save (the fields belong to the Save form by
  *     their `form` attribute: a table row cannot sit inside a form that holds other forms).
- *   · Hand-offs in turn: the workspace's switch, at once.
+ *   · Hand-offs in turn: the workspace's switch, at once — drawn BEFORE the people, never just above the Save, so it
+ *     cannot read as a field the Save sends.
  *   · Roles: ONE table of what each role can do, the nine owner-only abilities among them.
  *   · Danger zone, last: removing a person, each row saying what it does, asking first.
  */
@@ -381,8 +382,8 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     ${flashBanner(flash)}
     ${issued}
     ${add}
-    ${people}
     ${handoffs}
+    ${people}
     ${save}
     ${roles}
     ${danger}`;

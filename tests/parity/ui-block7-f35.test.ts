@@ -116,15 +116,21 @@ describe('F35 · hours, zone and currency by their names, each in its one home, 
       expect(html, l).toContain(esc(t(l, 'biz.closures.add')));
       expect(html, l).toContain('action="/app/settings/closures/00000000-0000-4000-8000-000000000001/remove"');
       // the add form is its own (it adds; it is not the page's Save), with its own button named for what it does
-      expect(html, l).toContain('<form method="post" action="/app/settings/closures" class="biz-form" id="add-closure">');
+      // its rows drawn as the Save's form draws them (one grid), so the two sections' columns line up
+      expect(html, l).toContain('<form method="post" action="/app/settings/closures" class="set-form" id="add-closure">');
+      // and the page's Save is its last control: the hours form comes after the Add
+      expect(html.indexOf('id="add-closure"'), l).toBeLessThan(html.indexOf('id="hours-form"'));
+      expect(html.slice(html.indexOf('<div class="set-save">')), l).toMatch(/^<div class="set-save">(?:(?!<form)[\s\S])*<\/div><\/form>\s*$/);
       expect(html, l).toContain(`>${esc(t(l, 'closures.add.button'))}</button>`);
     }
   });
 });
 
 describe('F35 · labels beside controls on a desk, a stack on a phone; every new line in all five', () => {
-  it('the business forms are two columns from 721 px and one below', () => {
-    expect(SETTINGS_AREA_CSS).toMatch(/@media\(min-width:721px\)\{\.settings-area \.biz-form \.setrow\{grid-template-columns:minmax\(0,2fr\) minmax\(0,3fr\)/);
+  it('the business forms are two columns from 721 px and one below, in ONE grid for every section of a page', () => {
+    expect(SETTINGS_AREA_CSS).toMatch(/@media\(min-width:721px\)\{\.settings-area \.set-rows>\.setrow\{grid-template-columns:minmax\(0,5fr\) minmax\(0,6fr\)/);
+    // the older second grid (2fr / 3fr), which put Hours' Add form out of line with its hours, is gone
+    expect(SETTINGS_AREA_CSS).not.toContain('.biz-form');
     expect(SETTINGS_AREA_CSS).toContain('.sa-vh{position:absolute;');
   });
   it('each new key is its own language in zh, ar, es and fr', () => {

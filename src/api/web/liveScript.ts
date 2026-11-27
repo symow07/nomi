@@ -504,7 +504,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       }
       pending = b;
       said.textContent = b.getAttribute('data-confirm');
-      yes.textContent = String(b.textContent || '').trim();
+      /* The yes says the act: a switch shows its state, so it names its verb in data-verb. */
+      yes.textContent = b.getAttribute('data-verb') || String(b.textContent || '').trim();
       yes.className = 'btn ' + (/(^| )danger( |$)/.test(String(b.className)) ? 'danger' : 'send');
       box.showModal();
     }, true);

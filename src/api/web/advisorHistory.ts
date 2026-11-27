@@ -94,7 +94,7 @@ export const DATA_DANGER = '/app/settings/business/data#danger-zone';
 export function historyWorkspaceRows(locale: Locale, workspaceOn: boolean): string[] {
   return [
     fieldRow({ label: t(locale, 'advisor.history.workspace'), desc: t(locale, 'advisor.history.workspaceHelp'),
-      control: rowSwitch(locale, { action: `${HISTORY_PAGE}/workspace`, on: workspaceOn, label: t(locale, 'advisor.history.workspace'), values: ['on', 'off'],
+      control: rowSwitch(locale, { action: `${HISTORY_PAGE}/workspace`, on: workspaceOn, label: t(locale, 'advisor.history.workspace'), values: ['on', 'off'], verbs: [t(locale, 'advisor.history.turnOn'), t(locale, 'advisor.history.turnOff')],
         ...(workspaceOn ? { confirm: t(locale, 'advisor.history.workspaceConfirm') } : {}) }) }),
     setNotice({ text: t(locale, workspaceOn ? 'advisor.flash.workspaceOn' : 'advisor.history.workspaceWaits') }),
     setNotice({ text: t(locale, 'advisor.history.teamHelp') }),

@@ -228,7 +228,8 @@ describe('the page, drawn for each country', () => {
       { id: 'a2', code: '1000', name: 'Barclays Current', marked: false, byRule: false },
       { id: 'a3', code: '1010', name: 'Savings account', marked: true, byRule: false },
     ]);
-    const money = html.slice(html.indexOf('id="money"'), html.indexOf('id="chart"'));
+    // Rule 104 — the money list comes before the posting accounts, whose form ends the page with its Save.
+    const money = html.slice(html.indexOf('id="money"'), html.indexOf('id="posting"'));
     const held = money.slice(money.indexOf('<ul class="rows bk-held">'), money.indexOf('</ul>'));
     expect(held).toContain('Banques');
     expect(held).toContain('Counted by its name');

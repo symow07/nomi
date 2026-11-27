@@ -115,8 +115,9 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // 0224 (Block 1 #6) — one more: a larger-order price taken off a product (the products step reads its prices).
     // 0230 (Block 3 PR 3) — one more: a check kept (a price or a fact the setup steps read, written for good).
     // Rule 104 (the settings overhaul) — three more: the profile's one Save (profile, identifiers, kind and country),
-    // Hours and closures' Save (working hours, time zone), and Currency's Save.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(32);
+    // Hours and closures' Save (working hours, time zone), and Currency's Save. One more: an older tab's post of the
+    // time zone alone to /app/settings, which saves the zone (the clock every page reads).
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(33);
   });
 });
 

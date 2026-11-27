@@ -680,11 +680,12 @@ export function renderProfile(
     + setNotice({ text: t(locale, 'ws.profile.currencyAt', { page: t(locale, 'settingsArea.currency') }), door: { href: '/app/settings/business/currency', label: t(locale, 'settingsArea.currency') } });
 
   const missing = needs.description || needs.location || needs.contact;
+  // Where the two that left are set is said BEFORE the form: the page's one Save is its last control.
   return `${pageHead(t(locale, 'settingsArea.profile'), t(locale, 'ws.profile.lede', { name }))}
     ${flashBanner(flash)}
     ${missing ? setNotice({ id: 'profile-needs', text: t(locale, 'settings.profile.needs') }) : ''}
-    ${saveForm(PROFILE_PAGE, `${about}${contact}${identifiers}${type}${saveActs(locale)}`, { id: 'profile-form' })}
-    ${elsewhere}`;
+    ${elsewhere}
+    ${saveForm(PROFILE_PAGE, `${about}${contact}${identifiers}${type}${saveActs(locale)}`, { id: 'profile-form' })}`;
 }
 
 
@@ -1086,8 +1087,9 @@ export type HoursView = { readonly workingHours: string | null; readonly zone: Z
 /**
  * THE SETTINGS OVERHAUL (rule 104) — Hours and closures: the ONE home of the working hours and the time zone (fields,
  * saved by the page's one Save: `POST HOURS_PAGE`) and of the days the business is closed (a list: each Remove acts
- * at once and asks first; "Add these days" is the list's own Add). No date is promised through closed days: that line
- * stays on the page, beside the list. `kept`: a closure refused, under its field; `hours`: working hours refused.
+ * at once and asks first; "Add these days" is the list's own Add, a section of its own). No date is promised through
+ * closed days: that line stays on the page, beside the list. The Save's form comes LAST, so Save ends the page; the
+ * Add form draws its rows as the Save's form does (`set-form`), so the two columns line up. `kept`: a closure refused, under its field; `hours`: working hours refused.
  */
 export function renderHours(
   v: HoursView, locale: Locale, flash: Flash | null, kept: Kept | null = null,
@@ -1113,7 +1115,7 @@ export function renderHours(
     `<details class="note-fold closure-said"><summary>${esc(t(locale, 'closures.example.sum'))}</summary><p class="measure-prose">${esc(example)}</p></details>`,
     `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.now'))}</h3>${closureList}`,
   ] });
-  const add = `<form method="post" action="/app/settings/closures" class="biz-form" id="add-closure">${setSection({ title: t(locale, 'biz.closures.add'), rows: [
+  const add = `<form method="post" action="/app/settings/closures" class="set-form" id="add-closure">${setSection({ title: t(locale, 'biz.closures.add'), rows: [
       fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
         control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
       // The warmth run, phase 9 (V1-008) — each date in the owner's language: day, month by name, year.
