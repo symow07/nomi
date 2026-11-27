@@ -6,7 +6,11 @@ import {
 } from '../../src/core/commerce/samples.js';
 import { usd } from '../../src/core/types/money.js';
 import { guardNumerals } from '../../src/core/safety/numerals.js';
-import { renderSamples, type SamplesView } from '../../src/api/web/settings.js';
+import { sellingTermsSections, renderSampleRequests, type SamplesView } from '../../src/api/web/settings.js';
+// Rule 104 — the sample policy is a section of How you sell; the customers waiting for a sample are on their own list
+// (Customers › sample requests). Both are drawn here, as the one page once drew them.
+const renderSamples = (v: SamplesView, locale: Locale, _flash: null, at: Date): string =>
+  `${sellingTermsSections({ terms: null }, v, locale)}${renderSampleRequests(v, locale, null, at)}`;
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';

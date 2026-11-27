@@ -13,6 +13,7 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/api/web/say.js';
 import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { BACK } from '../../src/api/web/icons.js';
+import { esc } from '../../src/api/web/layout.js';
 
 /**
  * HS (0096) — "How you sell", pure: which questions a business is asked, how
@@ -131,9 +132,10 @@ describe('HS · the pages, in every language', () => {
     it(`${l} · the hub, every question and the confirm page: no raw keys, the right forms`, () => {
       const hub = renderHub({ facts: view('price').facts, order: CATALOGUE_QUESTIONS, progress: {} }, l, null);
       expect(hub, l).not.toMatch(/\bhs\.[a-zA-Z_.]+/);
-      // Phase 7 — opened from My business › How you sell, a menu of the same name:
-      // the page is named for what it holds, and leads back to that menu.
-      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/settings/business/selling">${BACK}${t(l, 'factory.sellhow.title')}</a></div>`);
+      // Rule 104 — a page of the Settings menu: the menu is beside it, so it draws no "back" of its own; one line
+      // under the title, and what ticking does as the questions' one line of help.
+      expect(hub, l).not.toContain('class="back"');
+      expect(hub, l).toContain(`<p class="set-help">${esc(t(l, 'ws.selling.ticks'))}</p>`);
       // Rule 104: the page's title is its menu label, word for word ("How you sell"; it was "The questions").
       expect(hub, l).toContain(`<h1 class="page">${t(l, 'settingsArea.selling')}</h1>`);
       for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/settings/business/selling/${q.replaceAll('_','-')}"`);
@@ -220,7 +222,8 @@ describe('Phase 9 · B5 · How you sell', () => {
   });
 
   it('V1-406 · the tab says the page’s own name', () => {
-    expect(app).toMatch(/title: t\(locale, 'hs\.title'\), active: 'factory', bodyHtml: v \? renderHub/);
+    expect(app).toMatch(/title: t\(locale, 'hs\.title'\), active: 'factory', bodyHtml: await sellingBody\(/);
+    expect(app).toMatch(/const sellingBody = async [\s\S]{0,900}renderHub\(/);
   });
 
   it('V1-407 · every row is a question', () => {
