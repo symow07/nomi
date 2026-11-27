@@ -41,17 +41,21 @@ const wiredHere: FactoryView = { ...base, connection: { ...base.connection, conn
 
 const home = (v: FactoryView, l: Locale = 'en', viewer?: Viewer) => withoutIsolates(renderBusinessScreen('channels', v, l, null, viewer));
 const rows = (html: string) => [...html.matchAll(/<li class="ch-row">([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+// Rule 104 (the owner's condition 3) — a channel this installation cannot connect is a row with no door.
+const noDoor = (html: string) => [...html.matchAll(/<li><div class="srow sr-menu">([\s\S]*?)<\/div><\/li>/g)].map((m) => m[1]!);
 const said = (l: Locale, k: Parameters<typeof t>[1], p?: Record<string, string>) => esc(t(l, k, p));
 
 describe('UI Block 7 · F34 · Channels: three states, one next step', () => {
   it('a row that needs a step shows Connection, Ready to answer and Replies, each labelled; a calm row is one pill; in every language', () => {
     for (const l of LOCALES) {
       const r = rows(home(base, l));
-      expect(r.length, l).toBeGreaterThanOrEqual(5);
+      // WhatsApp, Instagram and Messenger, E-mail, web chat: four doors; and every channel is still on the table.
+      expect(r.length, l).toBeGreaterThanOrEqual(4);
+      expect(r.length + noDoor(home(base, l)).length, l).toBeGreaterThanOrEqual(6);
       const needsStep = r.filter((row) => row.includes('ch-next'));
       const calm = r.filter((row) => !row.includes('ch-next'));
       expect(needsStep.length, l).toBeGreaterThanOrEqual(2); // WhatsApp, and Instagram and Messenger: not connected
-      expect(calm.length, l).toBeGreaterThanOrEqual(3); // E-mail and web chat answering; TikTok not offered here
+      expect(calm.length, l).toBeGreaterThanOrEqual(2); // E-mail and web chat answering (TikTok, not offered here, is a row with no door)
       for (const row of needsStep) {
         for (const k of ['ch.k.connection', 'ch.k.ready', 'ch.k.replies'] as const) expect(row, `${l} ${k}`).toContain(`<span class="ch-k">${said(l, k)}</span>`);
       }
@@ -82,9 +86,11 @@ describe('UI Block 7 · F34 · Channels: three states, one next step', () => {
   });
 
   it('a place this installation does not offer says so once ("not set up here yet"), with no next step and no failure colour', () => {
-    const r = rows(home(base));
-    const tk = r.find((x) => x.includes('/channels/tiktok'))!;
+    // Rewritten for rule 104: the row said so and still opened an empty page. It says so and opens nothing now.
+    const tk = noDoor(home(base)).find((x) => x.includes(`<span class="sr-label">${said('en', 'reach.channel.tiktok')}</span>`))!;
     expect(tk).toContain(said('en', 'connect.state.notHere'));
+    expect(tk.split(said('en', 'connect.state.notHere')).length - 1).toBe(1);
+    expect(home(base)).not.toContain('href="/app/settings/channels/tiktok"');
     expect(tk).not.toContain('ch-k');
     expect(tk).not.toContain('ch-next');
     expect(tk).not.toMatch(/sr-value (bad|warn)/);
@@ -98,8 +104,10 @@ describe('UI Block 7 · F34 · Channels: three states, one next step', () => {
   it('F03 remainder: every channel row carries one icon in the same column', () => {
     const html = home(base);
     expect([...html.matchAll(/<a class="srow sr-menu[^"]*" href="\/app\/settings\/channels\/[a-z]+">(?!<svg)/g)].length).toBe(0);
-    expect(rows(html).length).toBeGreaterThanOrEqual(5);
+    expect(rows(html).length).toBeGreaterThanOrEqual(4);
     for (const row of rows(html)) expect(row.match(/<svg/g)?.length, row.slice(0, 80)).toBe(2); // its shape, and the door's arrow
+    expect(noDoor(html).length).toBeGreaterThanOrEqual(1);
+    for (const row of noDoor(html)) expect(row.match(/<svg/g)?.length, row.slice(0, 80)).toBe(1); // its shape, in the same column; no arrow, for it opens nothing
   });
 });
 

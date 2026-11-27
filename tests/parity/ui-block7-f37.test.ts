@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderPhoneAlerts, type AlertWaysView, type PhoneAlertsView } from '../../src/api/web/phoneAlerts.js';
+import { notificationNumberSection } from '../../src/api/web/channels.js';
 import { renderAdvisorHistory, type HistoryPage } from '../../src/api/web/advisorHistory.js';
 import { SETTINGS_AREA_CSS } from '../../src/api/web/settingsAreaStyle.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
@@ -82,7 +83,7 @@ describe('F37 · Your data: subjects named at the top; closing a review of its o
   });
 });
 
-describe('F37 · Notifications: the first control straight after the two things; each Save names its scope', () => {
+describe('F37 · Notifications: the first control straight after the two things; rule 104 · ONE Save for the page', () => {
   const ways = (over: Partial<AlertWaysView> = {}): AlertWaysView =>
     ({ choice: null, isOwner: true, email: 'owner@example.test', whatsapp: 'number', ownerPhone: null, ...over });
   const view = (w: AlertWaysView): PhoneAlertsView => ({ publicKey: 'BKEY', phones: [], ways: w });
@@ -90,25 +91,32 @@ describe('F37 · Notifications: the first control straight after the two things;
     for (const l of LOCALES) {
       const h = withoutIsolates(renderPhoneAlerts(view(ways()), l, null));
       const list = h.indexOf('</ul>', h.indexOf('class="two-ways"'));
-      const choice = h.indexOf('<section class="sgroup" aria-labelledby="alerts-way">');
-      expect(h.slice(list + 5, choice).trim(), l).toBe('');
+      const choice = h.indexOf('<section class="set-sec" id="way" aria-labelledby="alerts-way">');
+      // Only the page's one form opens between them (rule 104: the way is a field of the page's Save).
+      expect(h.slice(list + 5, choice).trim(), l).toBe('<form method="post" action="/app/settings/personal/notifications" class="set-form" data-save>');
       expect(h.indexOf(`<p class="ways-sub ways-after">${esc(t(l, 'alerts.rest'))}</p>`), l).toBeGreaterThan(choice);
       expect(h.indexOf(esc(t(l, 'alerts.alsoMail'))), l).toBeGreaterThan(choice);
     }
   });
-  it('each Save says what it saves: the way, the morning summary, the number', () => {
+  // Rewritten for rule 104 (the owner's decision, 2026-11-27): F37 gave each of the page's three forms a Save that
+  // named its scope, because three buttons all saying "Save" could not be told apart. The page has ONE form and ONE
+  // Save now, so there is nothing to tell apart: the way, the morning summary and the number are its fields, in
+  // sections that name them, and the button says exactly "Save" with Cancel beside it.
+  it('ONE Save, labelled Save, for the way, the morning summary and the number; each is a named section of the one form', () => {
     const bare: Record<string, string> = { en: 'Save', zh: '保存', ar: 'حفظ', es: 'Guardar', fr: 'Enregistrer' };
     for (const l of LOCALES) {
-      for (const k of ['alerts.way.save', 'alerts.morning.save', 'settings.alerts.save'] as MessageKey[]) {
-        expect(t(l, k), `${l} ${k}`).not.toBe(bare[l]);
-      }
+      const h = withoutIsolates(renderPhoneAlerts({ publicKey: null, phones: [], ways: { ...ways({ whatsapp: 'early', ownerPhone: '+1 555 0100' }), morning: { on: true, quietFrom: 22, quietUntil: 7 } } }, l, null,
+        { numberHtml: notificationNumberSection({ ownerPhone: '+15550100', country: null }, l, OWNER_VIEW), numberIsField: true }));
+      const form = /<form method="post" action="\/app\/settings\/personal\/notifications" class="set-form" data-save>([\s\S]*?)<\/form>/.exec(h)![1]!;
+      expect(h.match(/<form /g), l).toHaveLength(1);
+      expect(form.match(/type="submit"/g), l).toHaveLength(1);
+      expect(form, l).toContain(`<button class="btn send" type="submit">${bare[l]}</button><button class="btn" type="reset">${esc(t(l, 'common.cancel'))}</button></div>`);
+      expect(form.trimEnd().endsWith('</div>'), `${l}: Save is the last thing in the form`).toBe(true);
+      for (const field of ['name="channel"', 'name="on"', 'name="quietFrom"', 'name="quietUntil"', 'name="phone"']) expect(form, `${l} ${field}`).toContain(field);
+      for (const id of ['id="way"', 'id="morning"', 'id="whatsapp"']) expect(form, `${l} ${id}`).toContain(`<section class="set-sec" ${id}`);
+      for (const k of ['alerts.way.save', 'alerts.morning.save', 'settings.alerts.save'] as MessageKey[]) expect(h, `${l} ${k}`).not.toContain(`>${esc(t(l, k))}</button>`);
     }
-    expect([t('en', 'alerts.way.save'), t('en', 'alerts.morning.save'), t('en', 'settings.alerts.save')])
-      .toEqual(['Save how they reach you', 'Save the morning summary', 'Save the number']);
-    const h = withoutIsolates(renderPhoneAlerts({ publicKey: null, phones: [], ways: { ...ways({ whatsapp: 'early', ownerPhone: '+1 555 0100' }), morning: { on: true, quietFrom: 22, quietUntil: 7 } } }, 'en', null));
-    expect(h).toContain('>Save how they reach you</button>');
-    expect(h).toContain('>Save the morning summary</button>');
-    expect(readFileSync('src/api/web/channels.ts', 'utf8')).toContain("<button class=\"btn\">${esc(t(locale, 'settings.alerts.save'))}</button>");
+    expect(readFileSync('src/api/web/channels.ts', 'utf8')).not.toContain('settings.alerts.save');
   });
   it('quiet hours: From and Until side by side, each label on its own control', () => {
     const h = withoutIsolates(renderPhoneAlerts({ publicKey: null, phones: [], ways: { ...ways(), morning: { on: false, quietFrom: null, quietUntil: null } } }, 'en', null));
@@ -158,7 +166,7 @@ describe('F37 · the advisor\'s history: on is the lead; off and a person\'s del
 describe('F37 · every new line is its own language', () => {
   it('zh, ar, es and fr each have their own words', () => {
     const keys = ['data.index', 'data.close.short', 'data.close.review', 'data.close.reviewAsk', 'data.deletion.ask',
-      'alerts.way.save', 'alerts.morning.save', 'settings.alerts.save'] as MessageKey[];
+      'set.flash.saved'] as MessageKey[];
     for (const k of keys) for (const l of LOCALES) if (l !== 'en') expect(t(l, k), `${l} ${k}`).not.toBe(t('en', k));
   });
 });

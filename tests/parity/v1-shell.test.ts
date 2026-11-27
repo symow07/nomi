@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
-import { renderSetup, renderSettingsHome, renderLanguage } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
+import { renderAccount } from '../../src/api/web/account.js';
 import { MARK_GEOMETRY } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
@@ -105,10 +106,14 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     const setup = renderSetup({ people: 1 }, 'en', null);
     expect(setup).not.toContain('class="langsw"');
     expect(setup).not.toContain('action="/logout"');
-    expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/personal\/language">[^]*?<bdi>English<\/bdi>/);
+    // Rule 104 — the row opens You › Account at its language section.
+    expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/personal\/account#language">[^]*?<bdi>English<\/bdi>/);
     // Phase 9 (w4-today-setup-29) — the screen is five rows like every menu's; the one in force says so.
-    expect(renderLanguage('en')).toContain('<a class="srow sr-menu" href="/locale?set=zh&next=/app/settings/language" hreflang="zh">');
-    expect(renderLanguage('en')).toContain('href="/locale?set=en&next=/app/settings/language" hreflang="en" aria-current="true"');
+    // Rule 104 — the switch is ONE select on You › Account (saved with the page), each language in its own letters
+    // and the one in force selected.
+    const account = renderAccount({ email: null, passwordMin: 12 }, 'en', null);
+    expect(account).toContain('<option value="zh" lang="zh">');
+    expect(account).toContain('<option value="en" lang="en" selected>');
     const settings = renderSettingsHome('en', null);
     const lastRow = settings.indexOf('href="/app/settings"');
     const out = settings.indexOf('<form class="scard sr-foot" method="post" action="/logout">');

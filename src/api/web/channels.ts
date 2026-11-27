@@ -24,8 +24,11 @@ import { t, assistantName, outreachShown } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { back, deeper, esc, signalMark } from './layout.js';
+import { GO } from './icons.js';
+import { sayOnPage } from './shopifyOrders.js';
 import { flashBanner, type Flash } from './flash.js';
 import { icon } from './icons.js';
+import { pageHead, setSection, setRow, saveForm, saveActs, dangerZone, type DangerRow } from './settingsPage.js';
 import { connectedChannels } from '../../db/connectedChannels.js';
 import { callingCode } from '../../core/channel/callingCodes.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -451,9 +454,11 @@ function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): stri
  */
 export function renderDomain(
   locale: Locale, domain: SendingDomain | null, now: Date = new Date(), viewer: Viewer = OWNER_VIEW,
+  /** Rule 104 — on E-mail's own page the two fields are in the page's ONE Save (`domainFields`), not a form here. */
+  o: { readonly form?: boolean } = {},
 ): string {
   // G9a — the domain is hers to set and to check (the routes are owner-only).
-  const form = (d: SendingDomain | null) => viewer.isOwner
+  const form = (d: SendingDomain | null) => o.form === false && viewer.isOwner ? '' : viewer.isOwner
     ? domainForm(locale, d) : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
   if (!domain) {
     return `<div class="dom">
@@ -520,7 +525,9 @@ function domainForm(locale: Locale, domain: SendingDomain | null): string {
  * "most a day" box on the WhatsApp card, whose requirements are not met, and a
  * limit on something that cannot happen is a control connected to nothing.
  */
-function capForm(locale: Locale, channel: OutreachChannel, cap: number | null): string {
+function capForm(locale: Locale, channel: OutreachChannel, cap: number | null, page = false): string {
+  // Rule 104 — on a channel's own page the figure is a field of the page's ONE Save.
+  if (page) return saveForm('/app/channels/outreach/cap', `<input type="hidden" name="channel" value="${esc(channel)}" />${capRow(locale, cap)}${saveActs(locale)}`);
   return `<form method="post" action="/app/channels/outreach/cap" class="inline capform">
     <input type="hidden" name="channel" value="${esc(channel)}" />
     <label class="fld"><span class="muted">${esc(t(locale, 'outreach.cap.label'))}</span>
@@ -530,6 +537,33 @@ function capForm(locale: Locale, channel: OutreachChannel, cap: number | null): 
     <button class="btn" type="submit">${esc(t(locale, 'outreach.cap.save'))}</button>
   </form>`;
 }
+
+/** C4.a — the ceiling as a row of the page's one Save (rule 104): the same field, name and hint. */
+export const capRow = (locale: Locale, cap: number | null | string, error?: string): string => setRow(locale, {
+  label: t(locale, 'outreach.cap.label'), forId: 'outreach-cap', desc: t(locale, 'outreach.cap.hint', { n: String(DAILY_OUTREACH_CEILING) }),
+  control: `<input id="outreach-cap" name="cap" type="number" inputmode="numeric" min="1" max="10000" step="1" value="${cap === null ? '' : esc(String(cap))}" placeholder="${String(DAILY_OUTREACH_CEILING)}"${error ? ' aria-invalid="true"' : ''} />`,
+  ...(error ? { error: `<p class="perr" role="alert">${esc(error)}</p>` } : {}),
+});
+
+/**
+ * Rule 104 — E-mail's two fields (and, where writing first by e-mail can leave, the day's ceiling) as rows of the
+ * page's ONE Save. `kept` is what was typed when a save was refused; the refusal is said under its field.
+ */
+export type EmailKept = { readonly domain?: string; readonly selector?: string; readonly cap?: string; readonly errors?: { readonly domain?: string; readonly cap?: string } };
+export function emailSaveForm(locale: Locale, domain: SendingDomain | null, cap: { readonly shown: boolean; readonly value: number | null }, kept: EmailKept = {}): string {
+  const bad = kept.errors ?? {};
+  const rows = [
+    setRow(locale, { label: t(locale, 'domain.field.domain'), forId: 'send-domain',
+      control: `<input id="send-domain" name="domain" maxlength="253" dir="ltr" value="${esc(kept.domain ?? domain?.domain ?? '')}" placeholder="${esc(t(locale, 'domain.field.placeholder'))}"${bad.domain ? ' aria-invalid="true"' : ''} />`,
+      ...(bad.domain ? { error: `<p class="perr" role="alert">${esc(bad.domain)}</p>` } : {}) }),
+    setRow(locale, { label: t(locale, 'domain.field.selector'), forId: 'send-selector', desc: t(locale, 'domain.field.selector.hint'),
+      control: `<input id="send-selector" name="selector" maxlength="63" dir="ltr" placeholder="nomi" value="${esc(kept.selector ?? domain?.dkimSelector ?? '')}" />` }),
+    ...(cap.shown ? [capRow(locale, kept.cap ?? cap.value, bad.cap)] : []),
+  ];
+  return saveForm(EMAIL_SAVE, `${setSection({ title: t(locale, 'set.email.domain'), id: 'domain', rows })}${saveActs(locale)}`);
+}
+/** Where E-mail's one Save posts (the older `/app/channels/domain` and `/app/channels/outreach/cap` still answer). */
+export const EMAIL_SAVE = '/app/settings/channels/email';
 
 export function renderReach(
   locale: Locale, satisfied: ReadonlySet<Requirement>,
@@ -551,9 +585,13 @@ export function renderReach(
    * shows: each channel's card on the channel's own screen. Absent: all.
    */
   only?: readonly OutreachChannel[],
-  /** UI Block 7 (F34) — drawn as a fold under its name (WhatsApp's own screen). */
-  fold = false,
+  /**
+   * UI Block 7 (F34) — `true`: drawn as a fold under its name. Rule 104 — `'page'`: a section of the channel's own
+   * page, never folded; e-mail's fields and the day's ceiling are then the page's ONE Save, drawn by the page.
+   */
+  fold: boolean | 'page' = false,
 ): string {
+  const onPage = fold === 'page';
   const shown = only ? OUTREACH_CHANNELS.filter((c) => only.includes(c)) : OUTREACH_CHANNELS;
   const rows = shown.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -645,12 +683,12 @@ export function renderReach(
              takes effect once the list is done), so the switch stays; the
              line beside it says what pressing it does now. */ ''}${decision.ok ? ''
           : `<p class="muted warn-line">${esc(t(locale, on ? 'outreach.onNotYet' : 'outreach.notYet', { name: assistantName(locale) }))}</p>`}
-        ${decision.ok ? capForm(locale, channel, caps.get(channel) ?? null) : ''}
+        ${decision.ok && !(onPage && channel === 'email') ? capForm(locale, channel, caps.get(channel) ?? null, onPage) : ''}
       </div>`;
 
     // M40.1 — the domain block sits under e-mail's requirement list, because
     // that requirement is the only thing she can do anything about here.
-    const dom = channel === 'email' ? renderDomain(locale, domain, new Date(), viewer) : '';
+    const dom = channel === 'email' ? renderDomain(locale, domain, new Date(), viewer, onPage ? { form: false } : {}) : '';
 
     return `<div class="card reach">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
@@ -665,6 +703,7 @@ export function renderReach(
   const title = esc(shown.length === 1 ? t(locale, 'reach.title.one', { channel: t(locale, `reach.channel.${shown[0]!}` as MessageKey) }) : t(locale, 'reach.title'));
   // UI Block 7 (F34) — on WhatsApp's own screen what the place allows is reference: folded under its name, so the
   // connection comes first. Open whenever it holds the owner's switch for writing first, so no control is hidden.
+  if (onPage) return `<section class="set-sec" id="reach"><h2 class="set-h">${title}</h2><p class="set-help">${esc(t(locale, 'reach.intro'))}</p>${rows}</section>`;
   if (fold) {
     const holdsSwitch = shown.some((c) => canBeEnabled(c)) && outreachShown();
     return `<details class="sa-subject ch-fold" id="reach"${holdsSwitch ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${title}</span><span class="sa-now">${esc(t(locale, 'reach.intro'))}</span></span></summary>
@@ -689,7 +728,7 @@ const UNSEEN_HERE: ReadonlySet<Requirement> = new Set<Requirement>(['business_ve
  * installation offers one, else (C9) posts the host's own account. Without an
  * account in the host's settings there is no button.
  */
-function inboundConnect(locale: Locale, channel: OutreachChannel, link: InboundLink | undefined, viewer: Viewer): string {
+function inboundConnect(locale: Locale, channel: OutreachChannel, link: InboundLink | undefined, viewer: Viewer, noDisconnect = false): string {
   if (!CHANNEL_REGISTRY[channel].availableHere || !link?.configured) return '';
   const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
     ? (link.connectHref
@@ -708,7 +747,7 @@ function inboundConnect(locale: Locale, channel: OutreachChannel, link: InboundL
         // offered: she may still connect her own Page here, and the row
         // moves from the environment's account to hers.
         ? loginButton('reach.inbound.connectMeta') : ''}
-      ${link.connectedAs && viewer.isOwner && !link.needsAttention
+      ${link.connectedAs && viewer.isOwner && !link.needsAttention && !noDisconnect
         ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
             <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
               data-confirm="${esc(t(locale, 'reach.inbound.disconnectConfirm', { page: link.connectedAs }))}">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
@@ -788,6 +827,10 @@ export type ChannelScreenParts = {
   readonly yourAccountsHtml?: string;
   /** CH4 — where Nomi stands with Meta, the same for every workspace. */
   readonly metaReview?: MetaReview | null;
+  /** Rule 104 — E-mail: the mailbox connected here, which the owner may disconnect in the danger zone. */
+  readonly mailDisconnect?: { readonly address: string } | null;
+  /** Rule 104 — E-mail: what was typed when its one Save was refused, with the refusal under its field. */
+  readonly emailKept?: EmailKept;
   /** S7 — the business's chat page: its address while it is on (null: off), and whether this host can serve one. */
   readonly chatPage?: { readonly url: string | null; readonly served: boolean };
   /** S7 — Telegram: the business's start link while it is on (null: off), and whether this host has the bot. */
@@ -859,14 +902,16 @@ function chatScreen(locale: Locale, viewer: Viewer, p: { readonly url: string | 
 }
 
 /** The WhatsApp connection: where it stands, the number and its name, what to do, and writing after 24 hours. */
-function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer): string {
+function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer, page = false): string {
   const w = data.whatsapp;
   const own = data.waOwn ?? null;
+  // Rule 104 — on the channel's own page Disconnect is in the danger zone (`whatsappDanger`), last on the page.
+  const disconnectHere = !page;
   // WA — her own number: connected through Meta's window, disconnected the same way, and connected again when Meta stopped accepting it.
   const ownActions = own && viewer.isOwner
     ? (own.needsAttention
       ? `<p class="perr" role="alert">${esc(t(locale, 'channel.wa.needsAttention'))}</p>${deeper('/app/connect/whatsapp/start', t(locale, 'channel.wa.reconnect'))}`
-      : `<form method="post" action="/app/connect/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+      : !disconnectHere ? '' : `<form method="post" action="/app/connect/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
            data-confirm="${esc(t(locale, 'channel.wa.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`)
     : null;
   // w4-whole-11 — connected by the one definition, while this installation
@@ -878,9 +923,9 @@ function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer): strin
     : !viewer.isOwner && (w.connected || w.status === 'disconnected')
     ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
     : w.connected
-    ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
+    ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>${!disconnectHere ? '' : `
        <form method="post" action="/app/channels/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-         data-confirm="${esc(t(locale, 'channel.action.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
+         data-confirm="${esc(t(locale, 'channel.action.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`}`
     : w.status === 'disconnected'
       ? `<form method="post" action="/app/channels/whatsapp/reconnect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.reconnect'))}</button></form>`
       // WA — with Embedded Signup set up, every business connects its OWN
@@ -927,6 +972,20 @@ function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer): strin
 }
 
 /**
+ * Rule 104 — WhatsApp's danger zone: Disconnect, for the owner, where the card offered it — the business's own
+ * number (through Meta's window) or the installation's. The same routes and the same questions as before.
+ */
+function whatsappDanger(data: ChannelsData, locale: Locale, viewer: Viewer): DangerRow[] {
+  if (!viewer.isOwner) return [];
+  const own = data.waOwn ?? null;
+  const row = (action: string, confirm: MessageKey): DangerRow => ({
+    title: t(locale, 'reach.channel.whatsapp'), what: t(locale, 'set.wa.disconnect.what'), action,
+    verb: t(locale, 'channel.action.disconnect'), confirm: t(locale, confirm), id: 'disconnect' });
+  if (own) return own.needsAttention ? [] : [row('/app/connect/whatsapp/disconnect', 'channel.wa.disconnectConfirm')];
+  return data.whatsapp.connected ? [row('/app/channels/whatsapp/disconnect', 'channel.action.disconnectConfirm')] : [];
+}
+
+/**
  * Instagram and Messenger — one Facebook Page connects both, so they share a
  * screen. What only one of them could say is said once (w4-business-assistant-15):
  * where Meta's review stands and the two channels' rules (nobody writes first
@@ -949,11 +1008,17 @@ function metaScreen(locale: Locale, viewer: Viewer, parts: ChannelScreenParts): 
     return `<div class="card reach" id="${channel}">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
         <span class="pill ${tone}">${esc(t(locale, state))}</span></div>
-      ${/* The second test (2026-11-26) - the pill above says "not set up here yet"; nothing under it says it again. */ ''}${here || link?.connected ? inboundConnect(locale, channel, link, viewer) : ''}
+      ${/* The second test (2026-11-26) - the pill above says "not set up here yet"; nothing under it says it again. */ ''}${here || link?.connected ? inboundConnect(locale, channel, link, viewer, true) : ''}
     </div>`;
   };
   const instead = CHANNEL_REGISTRY.instagram.instead;
-  return `<div class="block" id="ig-messenger">
+  // Rule 104 — Disconnect is the page's danger zone, once (one Page carries both accounts), with its question.
+  const as = (['messenger', 'instagram'] as const).map((c) => inbound.get(c)).find((l) => l?.connectedAs && !l.needsAttention)?.connectedAs;
+  const danger = dangerZone(locale, as && viewer.isOwner ? [{
+    title: t(locale, 'meta.panel.title'), what: t(locale, 'set.meta.disconnect.what'), action: '/app/connect/meta/disconnect',
+    verb: t(locale, 'reach.inbound.disconnect'), confirm: t(locale, 'reach.inbound.disconnectConfirm', { page: as }), id: 'disconnect' }] : []);
+  return `<section class="set-sec" id="ig-messenger">
+      <h2 class="set-h">${esc(t(locale, 'set.meta.rules'))}</h2>
       ${said ? `<p class="stateline">${said}</p>` : ''}
       <ul class="frules">
         <li>${esc(t(locale, 'meta.rules.window', { name }))}</li>
@@ -961,33 +1026,16 @@ function metaScreen(locale: Locale, viewer: Viewer, parts: ChannelScreenParts): 
         <li>${esc(t(locale, 'meta.rules.media', { name }))}</li>
       </ul>
       ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}
-    </div>
-    <div class="block reach">
+    </section>
+    <section class="set-sec reach" id="connection">
+      <h2 class="set-h">${esc(t(locale, 'ch.k.connection'))}</h2>
       ${card('instagram')}${card('messenger')}
       <div class="instead"><span class="muted">${esc(t(locale, 'reach.instead.title'))}</span>
         <ul>${instead.map((i) => `<li>${esc(t(locale, `reach.instead.${i}` as MessageKey, { name }))}</li>`).join('')}</ul></div>
-    </div>
-    ${parts.yourAccountsHtml ?? ''}`;
-}
-
-/**
- * The owner's own WhatsApp number, for alerts. Where each alert goes — e-mail,
- * this browser or WhatsApp — is a setting per person (phase 8, Notifications),
- * so this screen says what the number is for, what it is now (beside the
- * field, w4-business-assistant-18) and where the way is chosen; never "you
- * are alerted on…" from the number alone (w4-business-assistant-06).
- */
-function alertsScreen(data: ChannelsData, locale: Locale, viewer: Viewer): string {
-  return `<div class="block" id="alerts">
-    <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
-    <p class="muted small">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
-    ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
-      <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
-      <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}" />
-      <button class="btn">${esc(t(locale, 'settings.alerts.save'))}</button>
-    </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
-    ${/* w4-settings-a-10 — the page it opens leads back here. */ ''}${deeper('/app/settings/alerts?from=channels', t(locale, 'meta.phoneAlerts'))}
-  </div>`;
+    </section>
+    ${parts.yourAccountsHtml ?? ''}
+    <p><a class="deeper" href="/app/channels/instagram/comments">${sayOnPage(locale, 'igComments.title')}${GO}</a></p>
+    ${danger}`;
 }
 
 /**
@@ -1015,16 +1063,30 @@ export function renderChannelScreen(
   screen: ChannelScreen, data: ChannelsData, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
   parts: ChannelScreenParts = {},
 ): string {
-  const head = `${back(CHANNELS_HOME, t(locale, 'factory.reach.title'))}<h1 class="page">${esc(channelScreenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
-  // UI Block 7 (F34) — on WhatsApp's own screen the reach block is a fold (see renderReach's `fold`).
-  const reach = (c: OutreachChannel) => renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
-    data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c], c === 'whatsapp');
+  // Rule 104 — the one template: the title is the menu's label, ONE line under it, sections, the page's one Save
+  // where it has fields, and Disconnect in the danger zone, last. The three channels that come and go keep their
+  // screens as they were (their menu items return with them).
+  const LEDE: Partial<Record<ChannelScreen, MessageKey>> = { whatsapp: 'set.wa.lede', meta: 'set.meta.lede', email: 'set.email.lede' };
+  const lede = LEDE[screen];
+  const head = `${pageHead(channelScreenTitle(locale, screen), lede ? t(locale, lede) : null)}${flashBanner(flash)}`;
+  const satisfied = satisfiedRequirements(data.templateState, data.domain, new Date());
+  const reach = (c: OutreachChannel) => renderReach(locale, satisfied,
+    data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c], 'page');
   const body = (html: string) => `${head}<div class="ch-screen">${html}</div>`;
   switch (screen) {
-    case 'whatsapp': return body(`${whatsappCard(data, locale, viewer)}${reach('whatsapp')}`);
-    case 'email': return body(`${parts.accountsHtml ?? ''}${reach('email')}`);
+    case 'whatsapp': return body(`<section class="set-sec" id="connection"><h2 class="set-h">${esc(t(locale, 'ch.k.connection'))}</h2>${whatsappCard(data, locale, viewer, true)}</section>${reach('whatsapp')}${dangerZone(locale, whatsappDanger(data, locale, viewer))}`);
+    case 'email': {
+      // The day's ceiling is a field only where a first e-mail can leave (as the card decided it before).
+      const capShown = viewer.isOwner && outreachShown() && canBeEnabled('email') && mayInitiate('email', satisfied).ok;
+      const mail = parts.mailDisconnect && viewer.isOwner ? [{
+        title: t(locale, 'reach.channel.email'), what: t(locale, 'set.email.disconnect.what'), action: '/app/connect/mail/disconnect',
+        verb: t(locale, 'connect.action.disconnect'), confirm: t(locale, 'connect.action.disconnectConfirm', { address: parts.mailDisconnect.address }), id: 'disconnect' }] : [];
+      return body(`${parts.accountsHtml ?? ''}${reach('email')}${viewer.isOwner
+        ? emailSaveForm(locale, data.domain, { shown: capShown, value: data.outreachCaps?.get('email') ?? null }, parts.emailKept ?? {}) : ''}${dangerZone(locale, mail)}`);
+    }
     case 'meta': return body(metaScreen(locale, viewer, parts));
-    case 'alerts': return body(alertsScreen(data, locale, viewer));
+    // The number's home is Notifications (its `#whatsapp` section); this draws the same section for any caller left.
+    case 'alerts': { const number = notificationNumberSection(data, locale, viewer); return body(viewer.isOwner ? saveForm('/app/settings/owner-phone', `${number}${saveActs(locale)}`) : number); }
     case 'chat': return body(chatScreen(locale, viewer, parts.chatPage ?? { url: null, served: false }, 'chat'));
     case 'telegram': return body(chatScreen(locale, viewer, parts.telegram ?? { url: null, served: false }, 'telegram'));
     case 'tiktok': return body(tiktokScreen(locale, viewer, parts.tiktok ?? { served: false, account: null }));
@@ -1099,7 +1161,16 @@ export function hostChannelsFor(businessId: string, installation: string, host: 
   return businessId === installation ? host : { number: null, instagram: null, messenger: null };
 }
 
-/** Same notification-number control, now alongside personal notification preferences. */
-export function renderNotificationNumber(data:ChannelsData,locale:Locale,viewer:Viewer):string {
- return `<section id="whatsapp" class="sa-subject"><h2>${esc(t(locale,'settingsArea.whatsapp'))}</h2>${alertsScreen(data,locale,viewer)}</section>`;
+/**
+ * Rule 104 — the owner's WhatsApp number for notifications, as a section of Notifications: its one line of what it
+ * is for, and the field (a row of that page's ONE Save) for the owner; a colleague reads whose it is.
+ */
+export function notificationNumberSection(data: Pick<ChannelsData, 'ownerPhone' | 'country'>, locale: Locale, viewer: Viewer, kept?: { readonly phone: string; readonly invalid: boolean }): string {
+  const row = viewer.isOwner ? setRow(locale, {
+    label: t(locale, 'settings.alerts.label'), forId: 'ownerphone',
+    desc: data.ownerPhone ? t(locale, 'settings.alerts.current', { phone: data.ownerPhone }) : t(locale, 'settings.alerts.none'),
+    control: `<input id="ownerphone" name="phone" type="tel" inputmode="tel" dir="ltr" value="${esc(kept?.phone ?? data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}"${kept?.invalid ? ' aria-invalid="true"' : ''} />`,
+    ...(kept?.invalid ? { error: `<p class="perr" role="alert">${esc(t(locale, 'settings.flash.invalid'))}</p>` } : {}),
+  }) : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+  return setSection({ id: 'whatsapp', title: t(locale, 'settingsArea.whatsapp'), help: t(locale, 'settings.alerts.desc', { name: assistantName(locale) }), rows: [row] });
 }

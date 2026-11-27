@@ -179,7 +179,7 @@ describe('D · the Today card', () => {
 describe('D · the doors moved, the pages did not', () => {
   it('phase 7 · Setup holds getting started, going live, alerts, the language, people, sign-in, billing, data — and none of the business', () => {
     const html = withWorkspace(facts(), () => renderSetup({ people: 3 }, 'en', null));
-    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/account#language',
       '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'])
       expect(html).toContain(`href="${href}"`);
     // the business has ONE home, My business — channels included
@@ -198,7 +198,7 @@ describe('D · the doors moved, the pages did not', () => {
     // phase 7 — a menu: no line under a row that its value already says
     expect(html).not.toContain('class="sr-desc"');
     expect(rows['/app/onboarding']).toBeDefined();
-    expect(rows['/app/settings/personal/language']).toContain('<bdi>English</bdi>');
+    expect(rows['/app/settings/personal/account#language']).toContain('<bdi>English</bdi>');
     expect(rows['/app/settings/team']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ people: 4 }, 'en', null)))

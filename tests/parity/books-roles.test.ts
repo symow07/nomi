@@ -21,7 +21,9 @@ describe('A5 · who may do what in the books', () => {
     expect(booksRouteOf('GET', '/app/books/books.csv')?.action).toBe('export');
     expect(booksRouteOf('GET', '/app/inbox')).toBeNull();
     // B18 — and their own sign-in: the password and the language.
-    expect([...ACCOUNTANT_ALSO]).toEqual(['GET /app/settings/personal/account', 'GET /app/settings/personal/language', 'POST /logout', 'GET /app/help/page', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language']);
+    expect([...ACCOUNTANT_ALSO]).toEqual(['GET /app/settings/personal/account', 'GET /app/settings/personal/language', 'POST /logout', 'GET /app/help/page', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
+      // Rule 104 — Account's one Save: their own password and their own language.
+      'POST /app/settings/personal/account']);
   });
   it('the books\' home says to an accountant that posting is the owner\'s', () => {
     const b: BooksOverview = {

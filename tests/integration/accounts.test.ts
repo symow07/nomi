@@ -376,7 +376,12 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const flash = (r: { headers: Record<string, unknown> }) => flashSaid(r, WEB_SECRET);
     expect(flash(await form('/app/settings/account/password', { current: 'not-it', next: 'a-brand-new-password' }, cookieB))).toBe(t('en', 'account.flash.wrong'));
     expect(flash(await form('/app/settings/account/password', { current: B.password, next: 'short' }, cookieB))).toBe(t('en', 'account.flash.short', { n: 10 }));
-    const changed = await form('/app/settings/account/password', { current: B.password, next: 'a-brand-new-password' }, cookieB);
+    // Rule 104 — the page's ONE Save carries the password: a wrong one comes back under its field, nothing changed.
+    const refused = await form('/app/settings/personal/account', { current: 'not-it', next: 'a-brand-new-password', language: 'en' }, cookieB);
+    expect(refused.statusCode).toBe(422);
+    expect(refused.body).toContain(t('en', 'account.flash.wrong'));
+    expect(refused.body).not.toContain('a-brand-new-password');
+    const changed = await form('/app/settings/personal/account', { current: B.password, next: 'a-brand-new-password', language: 'en' }, cookieB);
     expect(flash(changed)).toBe(t('en', 'account.flash.changed'));
     const reissued = cookieOf(changed);
     expect(reissued, 'the page she is on is re-issued a session dated after the change').not.toBe('');

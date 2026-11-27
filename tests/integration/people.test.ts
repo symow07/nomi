@@ -211,13 +211,15 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     // The owner's pages carry them, so their absence below is the viewer, not the data.
     expect(owner.factory).toContain('href="/app/products/price-limits"');
     expect(owner.channels).toContain('action="/app/channels/outreach"');
-    expect(owner.channels).toContain('action="/app/channels/domain"');
+    // Rule 104 — the sending domain is a field of the E-mail page's one Save.
+    expect(owner.channels).toContain('action="/app/settings/channels/email"');
 
     expect(staff.factory).not.toContain('href="/app/business/prices"');
     expect(staff.factory).not.toContain('href="/app/products/price-limits"');
     expect(staff.factory).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
     expect(staff.employee).not.toContain('/app/settings/assistant/capability/');
     expect(staff.channels).not.toContain('action="/app/channels/outreach"');
+    expect(staff.channels).not.toContain('action="/app/settings/channels/email"');
     expect(staff.channels).not.toContain('action="/app/channels/domain"');
     expect(staff.channels).not.toContain('action="/app/channels/whatsapp/connect"');
     // Where a control was, the reason is said instead. (A factory not yet

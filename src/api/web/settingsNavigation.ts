@@ -27,7 +27,7 @@ export const SETTINGS_MOVES: Readonly<Record<string,string>> = {
  '/app/settings/forbidden':'/app/settings/assistant/words',
  '/app/settings/people':'/app/settings/team',
  '/app/settings/account':'/app/settings/personal/account',
- '/app/settings/language':'/app/settings/personal/language',
+ '/app/settings/language':'/app/settings/personal/account#language',
  '/app/settings/alerts':'/app/settings/personal/notifications',
  '/app/settings/advisor-history':'/app/settings/personal/advisor-history',
  '/app/settings/setup':'/app/settings',

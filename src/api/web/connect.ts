@@ -98,7 +98,7 @@ type Row = { readonly name: string; readonly tone: 'ok' | 'warn' | 'stop'; reado
 type Unavailable = { readonly unavailable: string };
 const isUnavailable = (r: Row | Unavailable): r is Unavailable => 'unavailable' in r;
 
-function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewer: Viewer): Row | Unavailable {
+function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewer: Viewer, disconnectHere = true): Row | Unavailable {
   const name = t(locale, `channel.platform.${provider}` as MessageKey);
   const mine = v.mail?.provider === provider ? v.mail : null;
   // E1 — reading is a grant she makes on purpose: a box, unticked, beside the
@@ -132,7 +132,7 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
           : esc(t(locale, 'connect.mail.sendsOnly'))}</p>` : ''}
         ${offDomain ? `<p class="muted">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
         ${viewer.isOwner && provider === 'google' && !mine.readsInbox && v.connectable[provider] ? start : ''}
-        ${viewer.isOwner ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
+        ${viewer.isOwner && disconnectHere ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
           <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'connect.action.disconnectConfirm', { address: mine.address }))}">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
     };
@@ -183,8 +183,9 @@ export function renderAccounts(
   // reach her through: its key is set where it is used, on Prospects.
   const all: (Row | Unavailable)[] = [
     ...(v.smtpFrom ? [smtpRow(locale, v)] : []),
-    mailRow(locale, v, 'google', viewer),
-    mailRow(locale, v, 'microsoft', viewer),
+    // Rule 104 — on E-mail's own page Disconnect is in the page's danger zone, last.
+    mailRow(locale, v, 'google', viewer, only !== 'mail'),
+    mailRow(locale, v, 'microsoft', viewer, only !== 'mail'),
     // M39 — what the platform permits, said as the registry says it: these two
     // can only ever answer someone who wrote first. C9 made them connectable,
     // and until 2026-09-17 this row went on saying "not connected" above a
@@ -218,8 +219,8 @@ export function renderAccounts(
   const mailHere = rows.some((r) => r.name === t(locale, 'channel.platform.google') || r.name === t(locale, 'channel.platform.microsoft')
     || r.name === t(locale, 'connect.smtp.name'));
 
-  return `<div class="block" id="accounts">
-    <h2>${esc(t(locale, 'connect.title'))}</h2>
+  return `<div class="${only === 'mail' ? 'set-sec' : 'block'}" id="accounts">
+    <h2${only === 'mail' ? ' class="set-h"' : ''}>${esc(t(locale, 'connect.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: assistantName(locale) }))}${
       mailHere ? `${locale === 'zh' ? '' : ' '}${esc(t(locale, 'connect.intro.mail'))}` : ''}</p>
     ${rows.length ? `<ul class="rows">${rows.map((r) => `<li class="row lines">

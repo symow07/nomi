@@ -256,7 +256,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/get-started', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
       ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
-      ['/app/channels/alerts', /action="\/app\/settings\/owner-phone"/],
+      // Rule 104 — the number is a field of Notifications' one Save: the owner has the field, staff the sentence.
+      ['/app/channels/alerts', /<input id="ownerphone" name="phone"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
       [`/app/products/${PID}`, /action="\/app\/products\/[^"]+\/edit"/],

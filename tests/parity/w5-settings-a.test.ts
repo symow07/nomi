@@ -162,11 +162,11 @@ describe('w4-settings-a-22 · Your sign-in says what to do when the code or the 
     const { esc } = await import('../../src/api/web/layout.js');
     const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
     for (const l of LOCALES) {
-      expect(renderAccount({ email: null, passwordMin: 10 }, l, null, 'Setup'), l).toContain(esc(t(l, 'account.lost.code')));
-      const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null, 'Setup');
+      expect(renderAccount({ email: null, passwordMin: 10 }, l, null), l).toContain(esc(t(l, 'account.lost.code')));
+      const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null);
       // The text pass (2026-11-26): the link says it alone ("Forgot your password?"); the sentence before it said it twice.
       expect(mailed, l).toContain(`<a href="/login/forgot">${esc(t(l, 'login.forgot'))}</a>`);
-      const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null, 'Setup');
+      const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null);
       expect(asked, l).toContain(esc(t(l, 'account.lost.passwordAsk')));
       expect(asked, l).not.toContain('/login/forgot');
     }

@@ -63,12 +63,16 @@ describe('Phase 2a · quiet hours and the switch', () => {
     for (const l of LOCALES) {
       const owner = withoutIsolates(renderPhoneAlerts({ publicKey: null, phones: [],
         ways: { ...ways, isOwner: true, morning: { on: true, quietFrom: 22, quietUntil: 7 } } }, l, null));
-      expect(owner, l).toContain('action="/app/settings/alerts/morning"');
+      // Rule 104 — the switch and the quiet hours are fields of the page's ONE Save (the older route still answers).
+      expect(owner, l).toContain('<input type="hidden" name="morning" value="1" />');
+      expect(owner, l).toContain('<section class="set-sec" id="morning">');
       expect(owner, l).toContain(esc(t(l, 'alerts.morning.title')));
       expect(owner, l).toMatch(/name="on" value="1" checked/);
       expect(owner, l).toMatch(/<option value="22" selected>22:00<\/option>/);
       const colleague = withoutIsolates(renderPhoneAlerts({ publicKey: null, phones: [], ways: { ...ways, isOwner: false, morning: null } }, l, null));
-      expect(colleague, l).not.toContain('/app/settings/alerts/morning');
+      expect(colleague, l).not.toContain('name="morning"');
+      expect(colleague, l).not.toContain('id="morning"');
+      expect(colleague, l).not.toContain('name="quietFrom"');
     }
     expect(read('src/api/web/app.ts')).toContain("if (!quiet || !bid.ok || !personOf(s).isOwner) return flashTo(reply, '/app/settings/alerts#morning', 'alerts.flash.morningBad');");
   });

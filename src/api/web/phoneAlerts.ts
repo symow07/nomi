@@ -4,9 +4,10 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { livePhones, savePhone, archivePhone, markPhoneSent, readSubscription, type PhoneSubscription } from '../../db/pushSubscriptions.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../../net/webPush.js';
 import { t } from './say.js';
-import { esc, back } from './layout.js';
+import { esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
-import { fieldRow, rowsCard } from './rows.js';
+import { fieldRow } from './rows.js';
+import { pageHead, setSection, setRow, saveForm, saveActs, rowAction } from './settingsPage.js';
 import * as show from './values.js';
 import {
   ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppDefault, ownerWhatsAppReachable, parseAlertChannel, storedAlertChoice,
@@ -178,7 +179,7 @@ export const alertsFrom = (raw: unknown): AlertsFrom => (raw === 'channels' ? 'c
  *     to reach them, and the default the day Meta approves Nomi.
  *   · Save is drawn only where there is something to choose.
  */
-function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: AlertsFrom): string {
+function waysSection(w: AlertWaysView, v: PhoneAlertsView, locale: Locale): string {
   const pushOn = v.publicKey !== null;
   const now = alertWayNow(w, v);
   const wanted = wantedWay(w);
@@ -212,23 +213,23 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
     ? `<p class="way-foot">${esc(t(locale, 'alerts.way.instead', { way: alertWayName(locale, wanted) }))}</p>` : '';
   // E-mail as the floor, said only where there is an address and another way could be the one chosen.
   const floor = can.email && (can.browser || can.whatsapp) ? `<p class="way-foot">${esc(t(locale, 'alerts.way.fallback'))}</p>` : '';
-  const save = choosable.length > 1 || (choosable.length === 1 && now !== choosable[0])
-    ? `<div class="fr-acts"><button class="btn send" type="submit">${esc(t(locale, 'alerts.way.save'))}</button></div>` : '';
-  const card = `<fieldset class="scard ways" aria-labelledby="alerts-way">
-        ${ALERT_CHANNELS.map(option).join('')}
-        ${instead}${floor}${save}
-        </fieldset>`;
-  // The fix wave (the surface walk) — with nothing to choose there is no Save, so no form either:
-  // a form nothing can send is a dead control.
-  return `<section class="sgroup" aria-labelledby="alerts-way">
-      <h2 class="sgroup-h" id="alerts-way">${esc(t(locale, 'alerts.way.title'))}</h2>
+  // Rule 104 — the way is a field of the page's ONE Save (the page draws the form and its Save).
+  return `<section class="set-sec" id="way" aria-labelledby="alerts-way">
+      <h2 class="set-h" id="alerts-way">${esc(t(locale, 'alerts.way.title'))}</h2>
       ${none}
-      ${save ? `<form method="post" action="/app/settings/alerts/channel">
-        ${from === 'channels' ? '<input type="hidden" name="from" value="channels" />' : ''}
-        ${card}
-      </form>` : card}
+      <fieldset class="scard ways" aria-labelledby="alerts-way">
+        ${ALERT_CHANNELS.map(option).join('')}
+        ${instead}${floor}
+      </fieldset>
     </section>`;
 }
+
+/** Is there a way to choose here? With one way open and already the one in use, there is nothing to send. */
+const wayToChoose = (w: AlertWaysView, v: PhoneAlertsView): boolean => {
+  const can: Record<AlertChannel, boolean> = { email: w.email !== null, browser: v.publicKey !== null, whatsapp: whatsappReachableFor(w) };
+  const choosable = ALERT_CHANNELS.filter((c) => can[c]);
+  return choosable.length > 1 || (choosable.length === 1 && alertWayNow(w, v) !== choosable[0]);
+};
 
 /**
  * The Notifications page (it was "Alerts on your phone", G5b): what reaches
@@ -243,40 +244,52 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
  * Phase 2a (0150) — the owner's morning summary: one switch and the quiet hours, in the business's own zone. The
  * summary goes the way chosen above; this says only whether, and when not.
  */
-function morningForm(m: MorningSetting, locale: Locale): string {
-  const hours = (name: string, id: string, value: number | null) => `<select id="${id}" name="${name}">
-      <option value=""${value === null ? ' selected' : ''}>${esc(t(locale, 'alerts.morning.none'))}</option>${Array.from({ length: 24 }, (_, h) =>
-      `<option value="${h}"${value === h ? ' selected' : ''}>${esc(show.isolate(locale, `${String(h).padStart(2, '0')}:00`))}</option>`).join('')}</select>`;
-  return `<section class="sgroup" id="morning" aria-labelledby="alerts-morning">
-      <h2 class="sgroup-h" id="alerts-morning">${esc(t(locale, 'alerts.morning.title'))}</h2>
-      <p class="ways-sub">${esc(t(locale, 'alerts.morning.lede'))}</p>
-      <form method="post" action="/app/settings/alerts/morning" class="pform">
-        <label class="check"><input type="checkbox" name="on" value="1"${m.on ? ' checked' : ''} /> ${esc(t(locale, 'alerts.morning.on'))}</label>
-        <fieldset>
-          <legend>${esc(t(locale, 'alerts.morning.quiet'))}</legend>
-          <p class="caption muted">${esc(t(locale, 'alerts.morning.quietHint'))}</p>
-          ${/* UI Block 7 (F37) — From and Until side by side, each label over its own control. */ ''}<div class="quiet-pair">
-            <span class="quiet-one"><label for="quiet-from">${esc(t(locale, 'alerts.morning.from'))}</label> ${hours('quietFrom', 'quiet-from', m.quietFrom)}</span>
-            <span class="quiet-one"><label for="quiet-until">${esc(t(locale, 'alerts.morning.until'))}</label> ${hours('quietUntil', 'quiet-until', m.quietUntil)}</span>
-          </div>
-        </fieldset>
-        <button class="btn" type="submit">${esc(t(locale, 'alerts.morning.save'))}</button>
-      </form>
-    </section>`;
+function morningSection(m: MorningSetting, locale: Locale, kept: AlertsKept | undefined): string {
+  const on = kept?.morningOn ?? m.on;
+  const from = kept?.quietFrom ?? (m.quietFrom === null ? '' : String(m.quietFrom));
+  const until = kept?.quietUntil ?? (m.quietUntil === null ? '' : String(m.quietUntil));
+  const hours = (name: string, id: string, value: string) => `<select id="${id}" name="${name}"${kept?.quietBad ? ' aria-invalid="true"' : ''}>
+      <option value=""${value === '' ? ' selected' : ''}>${esc(t(locale, 'alerts.morning.none'))}</option>${Array.from({ length: 24 }, (_, h) =>
+      `<option value="${h}"${value === String(h) ? ' selected' : ''}>${esc(show.isolate(locale, `${String(h).padStart(2, '0')}:00`))}</option>`).join('')}</select>`;
+  // `morning` tells the page's one Save that these fields were on the form (an unticked box sends nothing).
+  // UI Block 7 (F37) — From and Until side by side, each label over its own control.
+  return `<input type="hidden" name="morning" value="1" />${setSection({ id: 'morning', title: t(locale, 'alerts.morning.title'), help: t(locale, 'alerts.morning.lede'), rows: [
+    setRow(locale, { label: t(locale, 'alerts.morning.on'), forId: 'morning-on',
+      control: `<input id="morning-on" type="checkbox" name="on" value="1"${on ? ' checked' : ''} />` }),
+    setRow(locale, { label: t(locale, 'alerts.morning.quiet'), desc: t(locale, 'alerts.morning.quietHint'),
+      control: `<div class="quiet-pair">
+            <span class="quiet-one"><label for="quiet-from">${esc(t(locale, 'alerts.morning.from'))}</label> ${hours('quietFrom', 'quiet-from', from)}</span>
+            <span class="quiet-one"><label for="quiet-until">${esc(t(locale, 'alerts.morning.until'))}</label> ${hours('quietUntil', 'quiet-until', until)}</span>
+          </div>`,
+      ...(kept?.quietBad ? { error: `<p class="perr" role="alert">${esc(t(locale, 'alerts.flash.morningBad'))}</p>` } : {}) }),
+  ] })}`;
 }
 
-export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null, from: AlertsFrom = 'setup'): string {
-  // Phase 9 (settings-a-new-06) — the phones as the settings pages' rows, in a card;
-  // (settings-a-new-04) none yet says where to turn them on.
+/**
+ * Rule 104 — what was sent when the page's one Save was refused: everything typed is drawn again, and each refusal
+ * is said under its own field (the quiet hours here; the number, in the section the route draws).
+ */
+export type AlertsKept = {
+  readonly channel?: string; readonly morningOn?: boolean; readonly quietFrom?: string; readonly quietUntil?: string;
+  readonly quietBad?: boolean;
+};
+/** Where the page's one Save posts. The older routes (`/app/settings/alerts/channel`, `/morning`, `/app/settings/owner-phone`) still answer. */
+export const NOTIFICATIONS_SAVE = '/app/settings/personal/notifications';
+
+export function renderPhoneAlerts(
+  v: PhoneAlertsView, locale: Locale, flash: Flash | null,
+  /** Rule 104 — the owner's notification number as a section (channels.ts), a field of this page's Save for the owner. */
+  o: { readonly numberHtml?: string; readonly numberIsField?: boolean; readonly kept?: AlertsKept } = {},
+): string {
+  // Phase 9 (settings-a-new-06) — the phones as the settings pages' rows; (settings-a-new-04) none yet says where to
+  // turn them on. Rule 104: Remove acts at once in its own small form and asks first; Test is a button by its verb.
   const phones = v.phones.length === 0
     ? `<div class="empty whole">${esc(t(locale, 'alerts.phone.none'))}</div>`
-    : `${rowsCard(null, v.phones.map((p) => fieldRow({
+    : `<div class="set-rows">${v.phones.map((p) => fieldRow({
         label: p.device ?? t(locale, 'alerts.phone.unknownDevice'),
         desc: t(locale, 'alerts.phone.since', { date: show.date(locale, p.createdAt) }),
-        control: `<form method="post" action="/app/settings/alerts/phone/${esc(p.id)}/remove" class="inline">
-          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'alerts.phone.removeConfirm'))}">${esc(t(locale, 'alerts.phone.remove'))}</button></form>` })))}
-      <form method="post" action="/app/settings/alerts/test"><button class="btn" type="submit">${esc(t(locale, 'alerts.phone.test'))}</button></form>`;
+        control: rowAction({ action: `/app/settings/alerts/phone/${p.id}/remove`, label: t(locale, 'alerts.phone.remove'), confirm: t(locale, 'alerts.phone.removeConfirm') }) })).join('')}</div>
+      ${rowAction({ action: '/app/settings/alerts/test', label: t(locale, 'alerts.phone.test') })}`;
   const turnOn = v.publicKey
     ? `<button class="btn send" type="button" hidden data-push-key="${esc(v.publicKey)}" data-push-save="/app/settings/alerts/phone">${esc(t(locale, 'alerts.phone.turnOn'))}</button>
        <p class="fwarn" hidden data-push-cannot>${esc(t(locale, 'alerts.phone.cannot'))}</p>
@@ -285,29 +298,30 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
     : '';
   // Owners with an address hear two things by e-mail whatever the way (rule 18; the account's letters).
   const also = v.ways?.isOwner && v.ways.email ? `<p class="ways-sub">${esc(t(locale, 'alerts.alsoMail'))}</p>` : '';
-  const devices = v.publicKey || v.phones.length ? `<section class="sgroup" aria-labelledby="alerts-phones">
-      <h2 class="sgroup-h" id="alerts-phones">${esc(t(locale, 'alerts.phone.title'))}</h2>
-      <p class="ways-sub">${esc(t(locale, 'alerts.phone.lede'))}</p>
+  const devices = v.publicKey || v.phones.length ? `<section class="set-sec" id="phones" aria-labelledby="alerts-phones">
+      <h2 class="set-h" id="alerts-phones">${esc(t(locale, 'alerts.phone.title'))}</h2>
+      <p class="set-help">${esc(t(locale, 'alerts.phone.lede'))}</p>
       ${turnOn}
       ${phones}
     </section>` : '';
-  // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does;
-  // (w4-settings-a-10) to the screen it was opened from.
-  const way = from === 'channels'
-    ? back('/app/channels/alerts', t(locale, 'channels.alerts.title'))
-    : back('/app/settings/setup', t(locale, 'nav.setup'));
-  return `${way}
-    <h1 class="page">${esc(t(locale, 'alerts.title'))}</h1>
+  // Where a refused Save sent the page back, the way the person ticked is ticked again.
+  const ways = v.ways ? waysSection(v.ways, v, locale) : '';
+  const keptWay = o.kept?.channel && /^[a-z]+$/.test(o.kept.channel) ? o.kept.channel : null;
+  const waysDrawn = keptWay ? ways.replace(/ checked/g, '').replace(`value="${keptWay}"`, `value="${keptWay}" checked`) : ways;
+  // Rule 104 — ONE Save for the way, the morning summary with its quiet hours, and the notification number. It is
+  // drawn only where there is something to save: a colleague with one way open, already in use, has no field here.
+  const fields = `${waysDrawn}
+    <p class="ways-sub ways-after">${esc(t(locale, 'alerts.rest'))}</p>
+    ${also}
+    ${v.ways?.morning ? morningSection(v.ways.morning, locale, o.kept) : ''}
+    ${o.numberHtml ?? ''}`;
+  const savable = (v.ways ? wayToChoose(v.ways, v) : false) || Boolean(v.ways?.morning) || o.numberIsField === true;
+  return `${pageHead(t(locale, 'alerts.title'), t(locale, 'alerts.lede'))}
     ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'alerts.lede'))}</p>
     <ul class="two-ways">
       <li>${esc(t(locale, 'alerts.two.order'))}</li>
       <li>${esc(t(locale, 'alerts.two.handover'))}</li>
     </ul>
-    ${/* UI Block 7 (F37) — the two things, then the controls at once; what stays inside Nomi, and the e-mails that
-       come whatever the way, said under the choice they qualify. */ ''}${v.ways ? waysForm(v.ways, v, locale, from) : ''}
-    <p class="ways-sub ways-after">${esc(t(locale, 'alerts.rest'))}</p>
-    ${also}
-    ${v.ways?.morning ? morningForm(v.ways.morning, locale) : ''}
+    ${savable ? saveForm(NOTIFICATIONS_SAVE, `${fields}${saveActs(locale)}`) : fields}
     ${devices}`;
 }

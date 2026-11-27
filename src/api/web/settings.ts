@@ -453,25 +453,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ${menuGroup('account', t(locale, 'setup.group.yours'), account)}`;
 }
 
-/**
- * Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force.
- * Phase 9 (w4-today-setup-29) — five rows like every menu's, each in its own language and at a row's size;
- * the one in force says so in words and to a screen reader (`aria-current`), not by a class alone.
- */
-export function renderLanguage(locale: Locale, accountant = false): string {
-  const rows = LOCALES.map((l) => {
-    const on = l === locale;
-    return `<li><a class="srow sr-menu" href="/locale?set=${l}&next=/app/settings/language" hreflang="${l}"${on ? ' aria-current="true"' : ''}>`
-      // The name keeps the page's side; its own letters' order is isolated (a `dir` on the cell would move it to the other side).
-      + `<span class="sr-main"><span class="sr-label" lang="${l}"><bdi>${esc(LOCALE_LABEL[l])}</bdi></span></span>`
-      + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
-      + `${GO}</a></li>`;
-  }).join('');
-  // B18 — an accountant reached this from their sign-in page (they have no Setup).
-  return `${accountant ? back('/app/settings/account', t(locale, 'account.title')) : back('/app/settings/setup', t(locale, 'nav.setup'))}
-    <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
-    <ul class="scard" aria-label="${esc(t(locale, 'switcher.aria'))}">${rows}</ul>`;
-}
+// The language switch is Settings › You › Account's `#language` section (rule 104): one select, saved with the page.
 
 /**
  * THE WARMTH RUN (2026-10-03), phase 1 — SETTINGS: the screen the rail's

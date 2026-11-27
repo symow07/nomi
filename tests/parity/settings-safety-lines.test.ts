@@ -41,11 +41,22 @@ export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
   // everyone, at once (the whole consequence is on the page, not behind a fold).
   '/app/settings/business/data': { lines: ['data.buyers.lead', 'data.close.short', 'data.deletion.lead', 'data.deletion.now'] },
   // ── end of Settings › Workspace ──
-  // A channel this installation cannot connect says so (the owner's condition 3: as a row on Channels once the
-  // Connections pages are converted; the line moves there with it).
-  '/app/settings/channels/tiktok': { lines: ['connect.state.notHere'] },
-  '/app/settings/channels/telegram': { lines: ['connect.state.notHere'] },
-  '/app/settings/channels/chat': { lines: ['connect.state.notHere'] },
+  // ── Settings › Connections and Settings › You ──────────────────────────────────────────────────────────────────
+  // A channel this installation cannot connect says so (the owner's condition 3) as a ROW on Channels, which opens
+  // nothing; what is not available yet, and what connecting never does, stay under the table.
+  '/app/settings/channels': { lines: ['connect.state.notHere', 'channel.soon.note', 'channel.footer'] },
+  // What the place allows: where you cannot write first that is its own rule; the 24 hours to answer freely.
+  '/app/settings/channels/whatsapp': { lines: ['reach.intro', 'reach.cold.conditional', 'reach.window'] },
+  // Replies for 24 hours then in the app; nobody writes first there; written messages only.
+  '/app/settings/channels/meta': { lines: ['meta.rules.window', 'meta.rules.first', 'meta.rules.media'] },
+  // Going around a place's rule gets accounts closed; no address of yours sends yet.
+  '/app/settings/channels/email': { lines: ['reach.intro', 'domain.none'] },
+  // Nomi only reads an order; what a customer is told and when; every such reply waits; the access is kept locked.
+  '/app/settings/business/shopify': { lines: ['shopifyOrders.lede', 'shopifyOrders.rule', 'shopifyOrders.drafts', 'shopifyOrders.connect.kept'] },
+  // No password to change with an access code, and who can give a new code.
+  '/app/settings/personal/account': { lines: ['account.codeOnly', 'account.lost.code'] },
+  // The two things that reach you; everything else waits in Nomi; what the number is for and when WhatsApp is used.
+  '/app/settings/personal/notifications': { lines: ['alerts.two.order', 'alerts.two.handover', 'alerts.rest', 'settings.alerts.desc'] },
 };
 
 /** The pages that already follow the one template (rule 104). Add a page's address when it is converted. */
@@ -53,12 +64,16 @@ export const CONVERTED: readonly string[] = [
   // Settings › Workspace
   '/app/settings/business/profile', '/app/settings/business/selling', '/app/settings/business/hours',
   '/app/settings/business/currency', '/app/settings/team', '/app/settings/billing', '/app/settings/business/data',
+  // Settings › Connections and Settings › You
+  '/app/settings/channels', '/app/settings/channels/whatsapp', '/app/settings/channels/meta', '/app/settings/channels/email',
+  '/app/settings/business/shopify', '/app/settings/personal/account', '/app/settings/personal/notifications',
 ];
 
 /** Is the line on the page? Its words, escaped as a page writes them, in order around any value they carry. */
 const hasLine = (main: string, locale: Locale, key: MessageKey): boolean => {
   const pieces = messages[locale][key].split(/\{\w+\}/).map((p) => esc(p).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter((p) => p.trim() !== '');
-  return new RegExp(pieces.join('[\\s\\S]{0,240}?')).test(main);
+  // Right to left, a page isolates each figure of a sentence ("24", "#1001"): the marks are not words.
+  return new RegExp(pieces.join('[\\s\\S]{0,240}?')).test(main.replace(/[\u2066-\u2069\u200e\u200f]/g, ''));
 };
 
 /**

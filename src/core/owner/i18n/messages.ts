@@ -6,6 +6,7 @@ import { NAVIGATION_ZH, NAVIGATION_AR, NAVIGATION_ES, NAVIGATION_FR } from './na
 import { ASK_PICTURE_EN, ASK_PICTURE_ZH, ASK_PICTURE_AR, ASK_PICTURE_ES, ASK_PICTURE_FR } from './askPicture.js';
 import { SETTINGS_OVERHAUL_EN, SETTINGS_OVERHAUL_ZH, SETTINGS_OVERHAUL_AR, SETTINGS_OVERHAUL_ES, SETTINGS_OVERHAUL_FR } from './settingsOverhaul.js';
 import { SETTINGS_WORKSPACE_EN, SETTINGS_WORKSPACE_ZH, SETTINGS_WORKSPACE_AR, SETTINGS_WORKSPACE_ES, SETTINGS_WORKSPACE_FR } from './settingsWorkspace.js';
+import { SETTINGS_CONNECTIONS_EN, SETTINGS_CONNECTIONS_ZH, SETTINGS_CONNECTIONS_AR, SETTINGS_CONNECTIONS_ES, SETTINGS_CONNECTIONS_FR } from './settingsConnections.js';
 
 /**
  * ADR-0008 — The owner-surface message catalog. English is the SOURCE OF TRUTH:
@@ -21,6 +22,7 @@ const EN = {
   ...ASK_PICTURE_EN,
   ...SETTINGS_OVERHAUL_EN,
   ...SETTINGS_WORKSPACE_EN,
+  ...SETTINGS_CONNECTIONS_EN,
   'record.latestOrder': 'Latest order {reference} · {state}',
   'savedReplies.search': 'Search replies',
   'savedReplies.clearSearch': 'Clear search',
@@ -5929,6 +5931,7 @@ const ZH: Record<MessageKey, string> = {
   ...ASK_PICTURE_ZH,
   ...SETTINGS_OVERHAUL_ZH,
   ...SETTINGS_WORKSPACE_ZH,
+  ...SETTINGS_CONNECTIONS_ZH,
   'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
   'savedReplies.clearSearch': '清除搜索',
@@ -11862,6 +11865,7 @@ const AR: Record<MessageKey, string> = {
   ...ASK_PICTURE_AR,
   ...SETTINGS_OVERHAUL_AR,
   ...SETTINGS_WORKSPACE_AR,
+  ...SETTINGS_CONNECTIONS_AR,
   'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
   'savedReplies.clearSearch': 'مسح البحث',
@@ -17797,6 +17801,7 @@ const ES: Record<MessageKey, string> = {
   ...ASK_PICTURE_ES,
   ...SETTINGS_OVERHAUL_ES,
   ...SETTINGS_WORKSPACE_ES,
+  ...SETTINGS_CONNECTIONS_ES,
   'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
   'savedReplies.clearSearch': 'Borrar búsqueda',
@@ -23672,6 +23677,7 @@ const FR: Record<MessageKey, string> = {
   ...ASK_PICTURE_FR,
   ...SETTINGS_OVERHAUL_FR,
   ...SETTINGS_WORKSPACE_FR,
+  ...SETTINGS_CONNECTIONS_FR,
   'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',
   'savedReplies.clearSearch': 'Effacer la recherche',
