@@ -107,6 +107,7 @@ const OWNER_ONLY_ROUTES = [
   'POST /app/settings/assistant/capability/:capability/promote',
   'POST /app/settings/assistant/capability/:capability/revoke',
   'POST /app/settings/assistant/follow-ups',
+  'POST /app/settings/assistant/save',
   // capability_grant,messaging_activation
   'POST /app/settings/business/shopify/disconnect',
   // data_rights

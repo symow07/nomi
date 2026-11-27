@@ -123,9 +123,11 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     await post(staff, '/app/settings/assistant/autonomy', 'level=sells');
     expect(await modes()).toEqual(before);
     const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: staff } });
-    expect(page.body).not.toContain('id="on-her-own"');
-    // THE WARMTH RUN, phase 7 — staff read where it stands, and who decides; never the form.
+    // THE WARMTH RUN, phase 7 — staff read where it stands, and who decides; never the form (rule 104: nor the
+    // page's Save, whose fields the levels are).
+    expect(page.body).not.toContain('name="level"');
     expect(page.body).not.toContain('action="/app/settings/assistant/autonomy"');
+    expect(page.body).not.toContain('action="/app/settings/assistant/save"');
     expect(page.body).toContain('The owner decides this.');
   });
 });
