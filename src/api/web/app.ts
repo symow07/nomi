@@ -40,7 +40,9 @@ import { validateProcedure } from '../../core/owner/procedures.js';
 import { spendingChoices, recordBill, payBill, addCategory, archiveCategory, addRecurring, archiveRecurring, waitingProposals, unpaidBills, listRecurring, decideProposal, spendingToday, spentBetween } from '../../db/booksSpending.js';
 import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, booksDay, type ScopeAccount } from './booksOverview.js';
-import { renderBooksSetup } from './booksSetup.js';
+import type { BooksSetupState } from './booksSetup.js';
+import { renderBooksAccountsPage, renderBooksChartPage, renderStartingBalances, renderInvoicesOutPage, renderTaxSection, accountOption, moneyCandidates, POSTING_FIELDS, type AccountsDraft } from './booksSettingsPages.js';
+import { picked } from './settingsPage.js';
 import { booksArea } from './booksArea.js';
 import { renderNameIdentity, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex } from './settingsArea.js';
@@ -321,7 +323,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { taxStartForm, moroccoStart, renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO, booksRouteOf, renderBooksConnections, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
+import { taxStartForm, renderBooksOff, ACCOUNTANT_ALSO, booksRouteOf, renderBooksConnections, renderWorkbookRefused, renderWriteConflicts, ledgerWhy, xeroWhy } from './books.js';
 import { qboAuthorizeUrl, qboConnector, type QboCall, type QboClient } from '../../books/connectors/quickbooks.js';
 import { xeroAuthorizeUrl, xeroConnector, type XeroClient } from '../../books/connectors/xero.js';
 import { booksConnector } from '../../books/connectors/registry.js';
@@ -334,7 +336,7 @@ import { readBooks, readInBooks, rememberWritten, type BeforeBooks } from '../..
 import { writeBackOdoo, writeBackQuickbooks, writeBackSheets, writeBackXero, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, draftEntryForm, entryChoices, listEntries, loadEntry, postEntry, redraftEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
-import { ENTRY_CUSTOM, ENTRY_FORM_LINES, formLines, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderInvoicesOut, renderNewEntry } from './booksEntries.js';
+import { ENTRY_CUSTOM, ENTRY_FORM_LINES, formLines, lineCustom, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
@@ -384,7 +386,7 @@ import { iceAsTyped, isIce, ICE_COUNTRY } from '../../core/books/identifiers.js'
 import { checkRegistry } from '../../core/books/registry.js';
 import { COUNTRY_PACKS, einAsTyped, isBooksCountry, isEin, taxRateOf, usStateOf } from '../../core/books/countryPacks.js';
 import { addStateTax, countryBooksOf, loadCountryPack, moneyAccountChoices, saveBooksCountry, saveCountryIdentifier, setMoneyAccounts, stateTaxesOf } from '../../db/booksCountry.js';
-import { renderBooksCountry, renderMoneyAccounts, type CountryForm } from './booksCountry.js';
+import { renderBooksCountry, type CountryForm } from './booksCountry.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -2754,7 +2756,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if(!booksShown())return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.off.title'),active:'none',bodyHtml:renderBooksOff(locale,businessName()??'')}));
     const scope=booksScopeOf(req);
     const data=await withTenantTx(deps.db,bid.value,async(tx)=>({overview:await readBooksOverview(tx,bid.value,scope),accounts:await overviewAccounts(tx,bid.value),recent:await listEntries(tx,bid.value),config:await booksAccountsOf(tx,bid.value),close:await closeState(tx,bid.value)}));
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.home.title'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderBooksOverview(locale,personOf(s),data.overview,scope,data.accounts,data.recent,{year:!!data.close.start&&data.close.years.length>0,accounts:!!data.config.salesJournalId&&!!data.config.receivableAccountId&&!!data.config.salesAccountId})}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.home.title'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+renderBooksOverview(locale,personOf(s),data.overview,scope,data.accounts,data.recent,{year:!!data.close.start&&data.close.years.length>0,accounts:!!data.config.salesJournalId&&!!data.config.receivableAccountId&&!!data.config.salesAccountId},booksMay(personOf(s),'post')?await booksSetupOf(bid.value):null)}));
   });
   app.get('/app/settings/books/connections', async (req, reply) => {
     const s = sessionOf(req);
@@ -2933,7 +2935,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
         .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
-          ...((system === 'odoo' || system === 'xero') && r.undatedTaxes?.length?{booksPath:'/app/settings/books/tax'}:{}),
+          ...((system === 'odoo' || system === 'xero') && r.undatedTaxes?.length?{booksPath:'/app/settings/books/country'}:{}),
           bodyHtml: renderWorkbookRefused(locale, r.problems, (system === 'odoo' || system === 'xero') && r.undatedTaxes ? { system, taxes: r.undatedTaxes } : undefined,
             system === 'sheets' && r.beforeBooks ? { ...r.beforeBooks, from: 'sheets' } : undefined) }));
     }
@@ -3257,24 +3259,40 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.support'),active:'settings',bodyHtml:body}));
   });
-  app.get('/app/settings/books',async(req,reply)=>{
-    const s=sessionOf(req);if(!s)return reply.redirect('/login');const locale=localeOf(req);
-    const bid=bidOf(s);if(!bid)return reply.callNotFound();
-    const st=await withTenantTx(deps.db,bid,async(tx)=>{const v=await countryBooksOf(tx,bid),c=await closeState(tx,bid),a=await booksAccountsOf(tx,bid),m=await moneyAccountChoices(tx,bid);
+  /** The books' checklist as the Overview draws it: each step's state read from what is saved. */
+  const booksSetupOf=(bid:BusinessId):Promise<BooksSetupState>=>withTenantTx(deps.db,bid,async(tx)=>{const v=await countryBooksOf(tx,bid),c=await closeState(tx,bid),a=await booksAccountsOf(tx,bid),m=await moneyAccountChoices(tx,bid);
       return {country:v.country,start:c.start?.day??null,years:c.years.length,accounts:!!a.salesJournalId&&!!a.receivableAccountId&&!!a.salesAccountId,
         identifier:!!v.ein||!!v.companyNumber||v.moroccanIds,money:m.filter(x=>x.marked||x.byRule).length};});
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.settings'),active:'settings',bodyHtml:renderBooksSetup(locale,st,[['/app/settings/books/invoices-out','invoice.settings.title'],...(booksMay(personOf(s),'post')?[['/app/payments/stripe','paymentLinks.title'] as [string,MessageKey]]:[]),['/app/settings/books/connections','booksArea.connections'],['/app/settings/books/fields','booksArea.fields']])}));
+  // The settings overhaul (rule 104): the checklist is a card on Books › Overview until its five steps are done, and
+  // the menu lists every books setting. This address, which drew both, opens the Overview.
+  app.get('/app/settings/books',async(req,reply)=>{
+    const s=sessionOf(req);if(!s)return reply.redirect('/login');if(!bidOf(s))return reply.callNotFound();
+    return reply.redirect('/app/books',302);
   });
-  app.get('/app/settings/books/accounts',async(req,reply)=>{
-    const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
+  /**
+   * ACCOUNTS (rule 104): the posting accounts are chosen by search (the chart written once on the page), the accounts
+   * that hold money are a short list whose rows act at once, the chart has its own page. A refusal draws the same
+   * page again with everything typed kept and the reason under its field.
+   */
+  const accountsPage=async(req:FastifyRequest,reply:FastifyReply,bid:BusinessId,status:number,draft:AccountsDraft|null)=>{
+    const locale=localeOf(req);
     const c=await withTenantTx(deps.db,bid,async(tx)=>({choices:await entryChoices(tx,bid),accounts:await booksAccountsOf(tx,bid),money:await moneyAccountChoices(tx,bid)}));const where=await kindAndCountryOf(bid);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.accounts'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+`<h1 class="page">${esc(t(locale,'booksArea.accounts'))}</h1>`+renderBooksAccounts(locale,c.choices,c.accounts)+renderMoneyAccounts(locale,c.money)+(keepsMoroccanBooks(where)?`<details class="ba-scope"><summary>${esc(t(locale,'booksArea.advanced'))}</summary>${renderBooksChart(locale)}</details>`:'')}));
+    return reply.code(status).type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.accounts'),active:'settings',booksPath:'/app/settings/books/accounts',
+      bodyHtml:flashBanner(takeFlash(req,reply))+renderBooksAccountsPage(locale,{accounts:c.choices.accounts,journals:c.choices.journals,chosen:c.accounts,money:c.money,cgnc:keepsMoroccanBooks(where),draft})}));
+  };
+  app.get('/app/settings/books/accounts',async(req,reply)=>{
+    const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();
+    return accountsPage(req,reply,bid,200,null);
   });
-  app.get('/app/settings/books/tax',async(req,reply)=>{
+  app.get('/app/settings/books/accounts/chart',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);
-    const confirmed=await withTenantTx(deps.db,bid,tx=>sql<{system:string;code:string;label:string;day:string}>`select d.system,d.code,coalesce((select t.label from tax_codes t where t.business_id=d.business_id and t.code=d.code order by valid_from desc limit 1),d.code) as label,d.valid_from::text as day from tax_start_dates d where d.business_id=${bid}::uuid and d.system in ('odoo','xero') order by d.system,d.code`.execute(tx).then(r=>r.rows));
-    const forms=(['odoo','xero'] as const).map(system=>{const rows=confirmed.filter(r=>r.system===system);return rows.length?taxStartForm(locale,system,rows,Object.fromEntries(rows.map(r=>[r.code,r.day])),'tax-start-'+system):'';}).join('');
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.taxDetails'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+`<h1 class="page">${esc(t(locale,'booksArea.taxDetails'))}</h1><p>${esc(t(locale,'booksArea.currentDetails'))}</p>`+booksDoors(locale,[['/app/settings/profile#identifiers','booksArea.profile']])+`<p>${esc(t(locale,'booksArea.taxHint'))}</p><section id="tax-start"><h2>${esc(t(locale,'booksArea.taxDates'))}</h2><p>${esc(t(locale,'booksArea.taxDatesHint'))}</p>`+forms+booksDoors(locale,[['/app/settings/books/connections','booksArea.connections']])+'</section>'}));
+    const c=await withTenantTx(deps.db,bid,(tx)=>entryChoices(tx,bid));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'books.country.chart'),active:'settings',booksPath:'/app/settings/books/accounts',bodyHtml:renderBooksChartPage(locale,c.accounts)}));
+  });
+  // The settings overhaul (rule 104): tax is a section of Country and tax; this address opens it there.
+  app.get('/app/settings/books/tax',async(req,reply)=>{
+    const s=sessionOf(req);if(!s)return reply.redirect('/login');if(!bidOf(s))return reply.callNotFound();
+    return reply.redirect('/app/settings/books/country#tax',302);
   });
   app.get('/app/books/reports',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);const where=await kindAndCountryOf(bid);
@@ -3290,11 +3308,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string) : '');
     const c = await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid));
-    const one = (k: string, rows: readonly { id: string }[]) => { const v = typeof f[k] === 'string' ? (f[k] as string) : ''; return rows.some((r) => r.id === v) ? v : null; };
+    const journal = c.journals.some((r) => r.id === str('salesJournal')) ? str('salesJournal') : null;
+    // A search field sends the account's number and name (an older form, its id): `picked` reads both. Words that
+    // match no account are refused under their field, and nothing is saved.
+    const options = c.accounts.map(accountOption);
+    const chosen = Object.fromEntries(POSTING_FIELDS.map(([name]) => [name, picked(options, str(name))] as const));
+    const errors = Object.fromEntries(POSTING_FIELDS.filter(([name]) => chosen[name] === undefined).map(([name]) => [name, t(localeOf(req), 'setBooks.acc.unknown')] as const));
+    if (Object.keys(errors).length > 0) {
+      return accountsPage(req, reply, bid, 422, { values: { salesJournal: journal ?? '', ...Object.fromEntries(POSTING_FIELDS.map(([name]) => [name, str(name).trim()] as const)) }, errors });
+    }
+    const id = (name: string): string | null => chosen[name]?.value ?? null;
     await withTenantTx(deps.db, bid, (tx) => saveBooksAccounts(tx, bid, {
-      salesJournalId: one('salesJournal', c.journals), receivableAccountId: one('receivable', c.accounts), salesAccountId: one('sales', c.accounts),
-      fxLossAccountId: one('fxLoss', c.accounts), fxGainAccountId: one('fxGain', c.accounts) }));
+      salesJournalId: journal, receivableAccountId: id('receivable'), salesAccountId: id('sales'),
+      fxLossAccountId: id('fxLoss'), fxGainAccountId: id('fxGain') }));
     return flashTo(reply, '/app/settings/books/accounts', 'books.flash.accountsSaved');
   });
   /**
@@ -3307,11 +3335,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const on = await withTenantTx(deps.db, bid, (tx) => invoiceSendingOn(tx, bid));
-    const owner = booksMay(personOf(s), 'post');
-    const body = `<h1 class="page">${esc(t(locale, 'side.booksInvoices'))}</h1>`
-      + (owner ? renderInvoicesOut(locale, on)
-        : `<p>${esc(t(locale, on ? 'invoice.settings.stateOn' : 'invoice.settings.stateOff'))}</p><p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`)
-      + booksDoors(locale, [['/app/settings/books', 'booksArea.settings']]);
+    const body = renderInvoicesOutPage(locale, on, booksMay(personOf(s), 'post'));
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'side.booksInvoices'), active: 'settings', bodyHtml: flashBanner(takeFlash(req, reply)) + body }));
   });
   app.post('/app/settings/books/invoices-out', async (req, reply) => {
@@ -3725,7 +3749,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const end = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const got = await withTenantTx(deps.db, bid, async (tx) => ({ state: await closeState(tx, bid), checklist: await closeChecklistFor(tx, bid, end) }));
     return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'booksArea.opening'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderClose(locale, personOf(s), { ...got.state, month, monthEnd: end, checklist: got.checklist, today }, 'setup')}${got.state.morocco?moroccoStart(locale):''}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderStartingBalances(locale, personOf(s), { ...got.state, today })}` }));
   });
   const closeForm = (req: FastifyRequest) => {
     const f = (req.body ?? {}) as Record<string, unknown>;
@@ -4218,9 +4242,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const countryPage = async (req: FastifyRequest, reply: FastifyReply, bid: BusinessId, status: number, form: CountryForm | null) => {
     const locale = localeOf(req);
-    const v = await withTenantTx(deps.db, bid, async (tx) => ({ view: await countryBooksOf(tx, bid), states: await stateTaxesOf(tx, bid) }));
+    const v = await withTenantTx(deps.db, bid, async (tx) => ({ view: await countryBooksOf(tx, bid), states: await stateTaxesOf(tx, bid),
+      // Tax, the page's second subject (rule 104): the dates the owner confirmed for a connected source's taxes.
+      confirmed: await sql<{system:string;code:string;label:string;day:string}>`select d.system,d.code,coalesce((select t.label from tax_codes t where t.business_id=d.business_id and t.code=d.code order by valid_from desc limit 1),d.code) as label,d.valid_from::text as day from tax_start_dates d where d.business_id=${bid}::uuid and d.system in ('odoo','xero') order by d.system,d.code`.execute(tx).then(r=>r.rows) }));
+    const forms=(['odoo','xero'] as const).map(system=>{const rows=v.confirmed.filter(r=>r.system===system);return rows.length?taxStartForm(locale,system,rows,Object.fromEntries(rows.map(r=>[r.code,r.day])),'tax-start-'+system):'';}).join('');
     return reply.code(status).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.country.title'), active: 'settings', booksPath: '/app/settings/books/country',
-      bodyHtml: flashBanner(takeFlash(req, reply)) + renderBooksCountry(locale, v.view, form, v.states, booksToday()) }));
+      bodyHtml: flashBanner(takeFlash(req, reply)) + renderBooksCountry(locale, v.view, form, v.states, booksToday()) + renderTaxSection(locale, forms) }));
   };
   app.get('/app/settings/books/country', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4294,6 +4321,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const ids = Object.keys((req.body ?? {}) as Record<string, unknown>).flatMap((k) => { const m = /^money_([0-9a-f-]{36})$/i.exec(k); return m ? [m[1]!] : []; });
     await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, ids));
+    return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
+  });
+  /**
+   * Rule 104 — the same ticks, one row at a time: "Add a bank or till" ticks one more account, a row's Remove unticks
+   * it. Each reads the ticks as they stand and saves the whole set through `setMoneyAccounts`, as the form above does.
+   */
+  app.post('/app/books/accounts/money/add', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const sent = ((req.body ?? {}) as Record<string, unknown>)['account'];
+    const typed = typeof sent === 'string' ? sent.trim() : '';
+    const money = await withTenantTx(deps.db, bid, (tx) => moneyAccountChoices(tx, bid));
+    const hit = picked(moneyCandidates(money).map(accountOption), typed);
+    if (!hit) return accountsPage(req, reply, bid, 422, { values: { account: typed }, errors: { account: t(localeOf(req), 'setBooks.acc.moneyUnknown') } });
+    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, [...money.filter((a) => a.marked).map((a) => a.id), hit.value]));
+    return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
+  });
+  app.post('/app/books/accounts/money/remove', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const gone = ((req.body ?? {}) as Record<string, unknown>)['account'];
+    const money = await withTenantTx(deps.db, bid, (tx) => moneyAccountChoices(tx, bid));
+    await withTenantTx(deps.db, bid, (tx) => setMoneyAccounts(tx, bid, money.filter((a) => a.marked && a.id !== gone).map((a) => a.id)));
     return flashTo(reply, '/app/settings/books/accounts#money', 'books.flash.moneySaved');
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */

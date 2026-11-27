@@ -6,7 +6,8 @@ import { renderFec } from '../../src/api/web/booksReports.js';
 import { renderFields } from '../../src/api/web/booksFields.js';
 import { renderSpending } from '../../src/api/web/booksPapers.js';
 import { renderNewEntry } from '../../src/api/web/booksEntries.js';
-import { renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
+import { renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
+import { renderBooksAccountsPage } from '../../src/api/web/booksSettingsPages.js';
 import { renderPeople, type PeopleView } from '../../src/api/web/people.js';
 import { readFileSync } from 'node:fs';
 import { renderAccount, ACCOUNT_SAVE } from '../../src/api/web/account.js';
@@ -168,8 +169,9 @@ describe('B22 · the main action is a real primary button', () => {
     expect(filled(renderSpending('en', owner, {rows:[],total:0,from:0,to:0,page:1,pageSize:50,next:null,prev:null}, true))).toEqual([t('en', 'books.papers.keep')]);
     const c = { journals: [], accounts: [], parties: [], taxCodes: [], bookCurrency: 'MAD', fields: [] };
     expect(filled(renderNewEntry('en', c as never, {}, [], '2026-04-10'))).toEqual([t('en', 'books.entry.saveDraft')]);
-    // On the books' home beside the workbook's own form: a real button, not a second filled one.
-    expect(renderBooksChart('en')).toContain(`<button class="btn" type="submit">${t('en', 'books.chart.apply')}`);
+    // The chart's action on the Accounts page (rule 104: in sight, no "Advanced" fold): a real button, not a second filled one.
+    const none = { salesJournalId: null, receivableAccountId: null, salesAccountId: null, fxLossAccountId: null, fxGainAccountId: null };
+    expect(renderBooksAccountsPage('en', { accounts: [], journals: [], chosen: none, money: [], cgnc: true })).toContain(`<button class="btn" type="submit">${t('en', 'books.chart.apply')}`);
   });
   it('People: no form\'s only button is drawn as text', () => {
     const view: PeopleView = {

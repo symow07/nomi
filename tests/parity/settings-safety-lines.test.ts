@@ -68,6 +68,22 @@ export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
   // Promises and words: what is not turned on is not said; a reply with a word to avoid is never sent; the built-in
   // list cannot be switched off.
   '/app/settings/assistant/promises': { lines: ['factory.promise.never', 'forbidden.intro', 'forbidden.floor.body'] },
+  // ── Settings › Books (the Books builder's block) ──────────────────────────────────────────────────────────────────
+  // Chosen once; once an entry is posted the country stays; the period length is kept for good; nothing is sent to
+  // any authority.
+  '/app/settings/books/country': { lines: ['setBooks.country.once', 'books.country.countryWhy', 'books.country.periodWhy'] },
+  // A payment can land only in an account that holds money (rule 91).
+  '/app/settings/books/accounts': { lines: ['setBooks.acc.moneyRule'] },
+  // Off: nothing is sent and no invoice is promised; on, the customer is told the invoice comes next.
+  '/app/settings/books/invoices-out': { lines: ['invoice.settings.stateOff', 'invoice.settings.promise'] },
+  // What is read in arrives as drafts (nothing is posted until the owner posts it); entries dated before the books are
+  // never read in; a source this installation cannot connect says so.
+  '/app/settings/books/connections': { lines: ['books.workbook.asDrafts', 'books.workbook.history', 'setupList.connNotHere', 'books.sheets.notSetUp'] },
+  // A key never changes once values are written; only a field on customers and suppliers can be required; a retired
+  // field keeps its values and nothing is ever deleted.
+  '/app/settings/books/fields': { lines: ['books.fields.keyHint', 'books.fields.requiredHint', 'books.fields.travel'] },
+  // (Starting balances: its lines are drawn for a Moroccan workspace and once the books have a year, so they are held
+  // by tests/parity/books-morocco-start.test.ts, in every language.)
 };
 
 /** The pages that already follow the one template (rule 104). Add a page's address when it is converted. */
@@ -80,6 +96,9 @@ export const CONVERTED: readonly string[] = [
   '/app/settings/business/shopify', '/app/settings/personal/account', '/app/settings/personal/notifications',
   // Settings › Assistant (one block)
   '/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises',
+  // Settings › Books
+  '/app/settings/books/country', '/app/settings/books/starting-balances', '/app/settings/books/accounts',
+  '/app/settings/books/invoices-out', '/app/settings/books/connections', '/app/settings/books/fields',
 ];
 
 /** Is the line on the page? Its words, escaped as a page writes them, in order around any value they carry. */

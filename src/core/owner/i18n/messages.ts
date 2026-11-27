@@ -8,6 +8,7 @@ import { SETTINGS_OVERHAUL_EN, SETTINGS_OVERHAUL_ZH, SETTINGS_OVERHAUL_AR, SETTI
 import { SETTINGS_WORKSPACE_EN, SETTINGS_WORKSPACE_ZH, SETTINGS_WORKSPACE_AR, SETTINGS_WORKSPACE_ES, SETTINGS_WORKSPACE_FR } from './settingsWorkspace.js';
 import { SETTINGS_CONNECTIONS_EN, SETTINGS_CONNECTIONS_ZH, SETTINGS_CONNECTIONS_AR, SETTINGS_CONNECTIONS_ES, SETTINGS_CONNECTIONS_FR } from './settingsConnections.js';
 import { SETTINGS_ASSISTANT_EN, SETTINGS_ASSISTANT_ZH, SETTINGS_ASSISTANT_AR, SETTINGS_ASSISTANT_ES, SETTINGS_ASSISTANT_FR } from './settingsAssistant.js';
+import { SETTINGS_BOOKS_EN, SETTINGS_BOOKS_ZH, SETTINGS_BOOKS_AR, SETTINGS_BOOKS_ES, SETTINGS_BOOKS_FR } from './settingsBooks.js';
 
 /**
  * ADR-0008 — The owner-surface message catalog. English is the SOURCE OF TRUTH:
@@ -25,6 +26,7 @@ const EN = {
   ...SETTINGS_WORKSPACE_EN,
   ...SETTINGS_CONNECTIONS_EN,
   ...SETTINGS_ASSISTANT_EN,
+  ...SETTINGS_BOOKS_EN,
   'record.latestOrder': 'Latest order {reference} · {state}',
   'savedReplies.search': 'Search replies',
   'savedReplies.clearSearch': 'Clear search',
@@ -5935,6 +5937,7 @@ const ZH: Record<MessageKey, string> = {
   ...SETTINGS_WORKSPACE_ZH,
   ...SETTINGS_CONNECTIONS_ZH,
   ...SETTINGS_ASSISTANT_ZH,
+  ...SETTINGS_BOOKS_ZH,
   'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
   'savedReplies.clearSearch': '清除搜索',
@@ -11870,6 +11873,7 @@ const AR: Record<MessageKey, string> = {
   ...SETTINGS_WORKSPACE_AR,
   ...SETTINGS_CONNECTIONS_AR,
   ...SETTINGS_ASSISTANT_AR,
+  ...SETTINGS_BOOKS_AR,
   'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
   'savedReplies.clearSearch': 'مسح البحث',
@@ -17807,6 +17811,7 @@ const ES: Record<MessageKey, string> = {
   ...SETTINGS_WORKSPACE_ES,
   ...SETTINGS_CONNECTIONS_ES,
   ...SETTINGS_ASSISTANT_ES,
+  ...SETTINGS_BOOKS_ES,
   'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
   'savedReplies.clearSearch': 'Borrar búsqueda',
@@ -23684,6 +23689,7 @@ const FR: Record<MessageKey, string> = {
   ...SETTINGS_WORKSPACE_FR,
   ...SETTINGS_CONNECTIONS_FR,
   ...SETTINGS_ASSISTANT_FR,
+  ...SETTINGS_BOOKS_FR,
   'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',
   'savedReplies.clearSearch': 'Effacer la recherche',

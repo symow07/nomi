@@ -6,6 +6,7 @@ import type { FieldRow } from '../../db/booksFields.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
+import { pageHead, setSection, setRow, setNotice, rowAction, searchList, listRow } from './settingsPage.js';
 
 /**
  * D7 (Phase 5, item 9) — THE OWNER'S CUSTOM FIELDS ON THE PAGE: the list (the accountant sees it), a new one, a
@@ -17,34 +18,34 @@ const owner = (v: Who) => booksMay({ id: v.id ?? '', name: '', ...v }, 'post');
 const word = (locale: Locale, k: string) => t(locale, k as MessageKey);
 
 export function renderFields(locale: Locale, viewer: Who, rows: readonly FieldRow[]): string {
-  const row = (f: FieldRow) => `<li class="row">
+  // Rule 104: a row's act is sent at once, in its own small form; retiring asks first (it stops new values).
+  const row = (f: FieldRow) => `<li class="row"${listRow(`${f.label} ${f.appliesTo}.${f.key}`)}>
       <span><bdi>${esc(f.label)}</bdi> <span class="caption muted"><bdi>${esc(`${f.appliesTo}.${f.key}`)}</bdi> · ${esc(word(locale, `books.fields.applies.${f.appliesTo}`))} · ${
         esc(word(locale, `books.fields.kind.${f.kind}`))}${f.choices ? ` · <bdi>${esc(f.choices.join(' | '))}</bdi>` : ''}</span>${
         f.required ? ` <span class="pill">${esc(t(locale, 'books.fields.required'))}</span>` : ''}${
         f.inUse ? '' : ` <span class="pill warn">${esc(t(locale, 'books.fields.retired'))}</span>`}</span>
-      ${!owner(viewer) ? '' : `<form method="post" action="/app/books/fields/${esc(f.id)}/${f.inUse ? 'retire' : 'use'}" class="pform">
-        <button class="btn ghost" type="submit">${esc(t(locale, f.inUse ? 'books.fields.retire' : 'books.fields.useAgain'))}</button></form>`}</li>`;
-  const add = !owner(viewer) ? '' : `<div class="block" id="new-field"><h2>${esc(t(locale, 'books.fields.add'))}</h2>
-      <form method="post" action="/app/books/fields" class="pform">
-        <label class="pq"><span>${esc(t(locale, 'books.fields.appliesTo'))}</span><select name="appliesTo" required>${FIELD_APPLIES.map((a) =>
-          `<option value="${a}">${esc(word(locale, `books.fields.applies.${a}`))}</option>`).join('')}</select></label>
-        <label class="pq"><span>${esc(t(locale, 'books.fields.label'))}</span><input name="label" required maxlength="80" /></label>
-        <label class="pq"><span>${esc(t(locale, 'books.fields.key'))}</span><input name="key" required maxlength="40" pattern="[a-z][a-z0-9_]{0,39}" dir="ltr" />
-          <span class="caption muted">${esc(t(locale, 'books.fields.keyHint'))}</span></label>
-        <label class="pq"><span>${esc(t(locale, 'books.fields.kindOf'))}</span><select name="kind" required>${FIELD_KINDS.map((k) =>
-          `<option value="${k}">${esc(word(locale, `books.fields.kind.${k}`))}</option>`).join('')}</select></label>
-        <label class="pq bf-choices"><span>${esc(t(locale, 'books.fields.choices'))}</span><textarea name="choices" rows="3" maxlength="2000"></textarea>
-          <span class="caption muted">${esc(t(locale, 'books.fields.choicesHint'))}</span></label>
-        <div class="bf-required"><label class="check"><input type="checkbox" name="required" value="1" aria-describedby="bf-required-hint" /> <span>${esc(t(locale, 'books.fields.required'))}</span></label>
+      ${!owner(viewer) ? '' : rowAction({ action: `/app/books/fields/${f.id}/${f.inUse ? 'retire' : 'use'}`, label: t(locale, f.inUse ? 'books.fields.retire' : 'books.fields.useAgain'),
+        confirm: f.inUse ? t(locale, 'setBooks.fields.retireAsk', { field: f.label }) : undefined })}</li>`;
+  // The list's own "Add": a form of always-visible fields, sent by its verb. Choices shows only for "One of a list".
+  const add = !owner(viewer) ? '' : setSection({ id: 'new-field', title: t(locale, 'books.fields.add'), help: t(locale, 'books.fields.lede'), rows:
+    `<form method="post" action="/app/books/fields" class="bk-form">${
+      setRow(locale, { label: t(locale, 'books.fields.appliesTo'), forId: 'bf-on', control: `<select id="bf-on" name="appliesTo" required>${FIELD_APPLIES.map((a) =>
+        `<option value="${a}">${esc(word(locale, `books.fields.applies.${a}`))}</option>`).join('')}</select>` })}${
+      setRow(locale, { label: t(locale, 'books.fields.label'), forId: 'bf-label', control: '<input id="bf-label" name="label" required maxlength="80" />' })}${
+      setRow(locale, { label: t(locale, 'books.fields.key'), forId: 'bf-key', desc: t(locale, 'books.fields.keyHint'),
+        control: '<input id="bf-key" name="key" required maxlength="40" pattern="[a-z][a-z0-9_]{0,39}" dir="ltr" />' })}${
+      setRow(locale, { label: t(locale, 'books.fields.kindOf'), forId: 'bf-kind', control: `<select id="bf-kind" name="kind" required>${FIELD_KINDS.map((k) =>
+        `<option value="${k}">${esc(word(locale, `books.fields.kind.${k}`))}</option>`).join('')}</select>` })}
+      <div class="bf-choices">${setRow(locale, { label: t(locale, 'books.fields.choices'), forId: 'bf-choices', desc: t(locale, 'books.fields.choicesHint'),
+        control: '<textarea id="bf-choices" name="choices" rows="3" maxlength="2000"></textarea>' })}</div>
+      <div class="bf-required"><label class="check"><input type="checkbox" name="required" value="1" aria-describedby="bf-required-hint" /> <span>${esc(t(locale, 'books.fields.required'))}</span></label>
           <p class="caption muted" id="bf-required-hint">${esc(t(locale, 'books.fields.requiredHint'))}</p></div>
-        <button class="btn send" type="submit">${esc(t(locale, 'books.fields.add'))}</button>
-      </form></div>`;
-  return `<h1 class="page">${esc(t(locale, 'books.fields.title'))}</h1>
-    <p class="lede">${esc(t(locale, 'books.fields.lede'))}</p>
-    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.fields.none'))}</p>` : `<ul class="rows">${rows.map(row).join('')}</ul>`}
-    ${add}
-    <p class="caption muted">${esc(t(locale, 'books.fields.travel'))}</p>
-    <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+      <div class="bk-acts"><button class="btn send" type="submit">${esc(t(locale, 'books.fields.add'))}</button></div>
+    </form>` });
+  return pageHead(t(locale, 'books.fields.title'), t(locale, 'setBooks.fields.lede'))
+    + (rows.length === 0 ? `<p class="muted">${esc(t(locale, 'books.fields.none'))}</p>` : searchList(locale, `<ul class="rows">${rows.map(row).join('')}</ul>`))
+    + setNotice({ text: t(locale, 'books.fields.travel') })
+    + add;
 }
 
 /** One input per field of this kind of row, named `<prefix><key>`, holding `values` (a form sent back keeps them). */

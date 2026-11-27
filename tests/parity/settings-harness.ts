@@ -129,6 +129,12 @@ export async function drawSettingsPage(app: FastifyInstance, path: string, local
   const r = await app.inject({ method: 'GET', url: path, headers: { accept: 'text/html', cookie: cookie(locale) } });
   return { status: r.statusCode, html: r.body, location: (r.headers['location'] as string | undefined) ?? null };
 }
+/** A form of a settings page, sent as the owner sends it: its status, its HTML and where it sends the browser. */
+export async function postSettingsForm(app: FastifyInstance, path: string, locale: Locale, fields: Readonly<Record<string, string>>): Promise<{ status: number; html: string; location: string | null }> {
+  const r = await app.inject({ method: 'POST', url: path, payload: new URLSearchParams(fields).toString(),
+    headers: { accept: 'text/html', cookie: cookie(locale), 'content-type': 'application/x-www-form-urlencoded' } });
+  return { status: r.statusCode, html: r.body, location: (r.headers['location'] as string | undefined) ?? null };
+}
 /** The page's own content: what is inside `<main>`. */
 export const mainOf = (html: string): string => html.slice(html.indexOf('<main'), html.indexOf('</main>'));
 /** The words of the page's one `<h1>`. */

@@ -50,6 +50,10 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   {method:'POST',url:'/app/books/country',action:'post'},
   {method:'POST',url:'/app/books/country/state-tax',action:'post'},
   {method:'POST',url:'/app/books/accounts/money',action:'post'},
+  // Rule 104 — the same ticks one row at a time, and the chart to look at: the owner's, like the accounts page.
+  {method:'POST',url:'/app/books/accounts/money/add',action:'post'},
+  {method:'POST',url:'/app/books/accounts/money/remove',action:'post'},
+  {method:'GET',url:'/app/settings/books/accounts/chart',action:'post'},
   {method:'GET',url:'/app/settings/books/connections',action:'post'},
   {method:'GET',url:'/app/settings/books/accounts',action:'post'},
   {method:'GET',url:'/app/settings/books/tax',action:'post'},
@@ -211,31 +215,36 @@ export function renderBooksConnections(locale:Locale,viewer:Viewer & {readonly k
   if(systems.quickbooks)methods.push([ledgerBlock(locale,'quickbooks',systems.quickbooks),state(systems.quickbooks)]);
  }
  const shown=methods.filter(([html])=>html!=='');
- const opened=shown.findIndex(([,st])=>st==='again');
- return `<h1 class="page">${esc(t(locale,'booksArea.connections'))}</h1><p class="lede">${esc(t(locale,'booksArea.connectionsHint'))}</p>${shown.length<2?shown.map(([html])=>html).join(''):`<div class="ba-methods">${shown.map(([html,st],i)=>asMethod(locale,html,st,i===opened)).join('')}</div>`}`;
+ const owner=booksMay({id:viewer.id??'',name:'',...viewer},'post');
+ // Rule 104: ONE TABLE of the five sources, each with its state and one action; under it each source's own section,
+ // every field in sight (no fold: a form's fields are never hidden on first paint). A source this installation cannot
+ // connect keeps its honest row: "Not available here yet".
+ const rows:Source[]=!owner?[]:[
+  {id:'workbook',name:t(locale,'books.workbook.title'),state:null,drawn:true},
+  {id:'sheets',name:t(locale,'books.sheets.title'),state:state(systems.sheets),drawn:true},
+  {id:'odoo',name:t(locale,'books.odoo.title'),state:state(systems.odoo),drawn:!!systems.odoo?.offered},
+  {id:'xero',name:t(locale,'books.xero.title'),state:state(systems.xero),drawn:!!systems.xero},
+  {id:'quickbooks',name:t(locale,'books.quickbooks.title'),state:state(systems.quickbooks),drawn:!!systems.quickbooks},
+ ];
+ const table=rows.length===0?'':`<table class="team-table bk-sources" id="sources"><thead><tr><th scope="col">${esc(t(locale,'setBooks.conn.source'))}</th><th scope="col">${esc(t(locale,'setBooks.conn.state'))}</th><th scope="col"><span class="sr">${esc(t(locale,'setBooks.conn.open'))}</span></th></tr></thead><tbody>${rows.map(r=>sourceRow(locale,r)).join('')}</tbody></table>`;
+ return `<h1 class="page">${esc(t(locale,'booksArea.connections'))}</h1><p class="lede set-lede">${esc(t(locale,'booksArea.connectionsHint'))}</p>${table}${shown.map(([html])=>asSection(html)).join('')}`;
 }
 
 type MethodState='connected'|'again'|'not'|'notHere';
 const METHOD_WORD:Record<MethodState,MessageKey>={connected:'setupList.connConnected',again:'books.sheets.needsAgain',not:'setupList.connNot',notHere:'setupList.connNotHere'};
-/** F46 — one method's block as a disclosure: its own title and its state in the summary, the block itself inside. */
-function asMethod(locale:Locale,html:string,st:MethodState|null,open:boolean):string{
+type Source={readonly id:string;readonly name:string;readonly state:MethodState|null;readonly drawn:boolean};
+/** One source's row: its name, its state in words, and the ONE action its state calls for (a door to its section). */
+function sourceRow(locale:Locale,r:Source):string{
+ const pill=r.state===null?`<span class="pill ok">${esc(t(locale,'setBooks.conn.ready'))}</span>`:`<span class="pill${r.state==='connected'?' ok':r.state==='again'?' warn':''}">${esc(t(locale,METHOD_WORD[r.state]))}</span>`;
+ const verb:MessageKey|null=r.state==='notHere'||!r.drawn?null:r.state==='not'?'setBooks.conn.connect':r.state==='again'?'books.sheets.again':'setBooks.conn.open';
+ return `<tr class="tm"><th scope="row"><bdi>${esc(r.name)}</bdi></th><td>${pill}</td><td>${verb?`<a class="deeper" href="#${r.id}" aria-label="${esc(`${t(locale,verb)}: ${r.name}`)}">${esc(t(locale,verb))}</a>`:''}</td></tr>`;
+}
+/** One source's block as a section of the page: its own title, and everything it holds in sight. */
+function asSection(html:string):string{
  const m=/^<div class="block" id="([a-z-]+)">\s*<h2>([\s\S]*?)<\/h2>/.exec(html);
  if(!m||!html.endsWith('</div>'))return html;
- const pill=st===null?'':`<span class="pill${st==='connected'?' ok':st==='again'?' warn':''}">${esc(t(locale,METHOD_WORD[st]))}</span>`;
- return `<details class="block ba-method" id="${m[1]}" name="books-method"${open?' open':''}><summary><h2>${m[2]}</h2>${pill}</summary><div class="ba-method-body">${html.slice(m[0].length,-'</div>'.length)}</div></details>`;
+ return `<section class="set-sec bk-source" id="${m[1]}"><h2 class="set-h">${m[2]}</h2><div class="set-rows">${html.slice(m[0].length,-'</div>'.length)}</div></section>`;
 }
-
-/**
- * The owner, 2026-10-22 — the advice an accountant would give a Moroccan shop, said where the books start, so it is
- * never learnt from a refusal: start at a fiscal year's first day; mid-year, what came before comes as one opening
- * entry of balances (Avis n° 24, 2.3 d). "Period", as the Avis says it: it sets no length.
- */
-export const moroccoStart = (locale: Locale): string => `<div class="block" id="morocco-start">
-    <h2>${esc(t(locale, 'books.morocco.title'))}</h2>
-    <p>${esc(t(locale, 'books.morocco.when'))}</p>
-    <p class="caption muted">${esc(t(locale, 'books.morocco.rule'))}</p>
-    <p class="caption muted">${esc(t(locale, 'books.morocco.systems'))}</p>
-  </div>`;
 
 /** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
 const silentLine = (locale: Locale, system: string, since: Date | null | undefined): string =>
@@ -445,15 +454,6 @@ export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo' |
     <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : system === 'xero' ? 'books.conflict.xeroLede' : system === 'quickbooks' ? 'books.conflict.quickbooksLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
     <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
     <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
-}
-
-/** D4 (0190) — the owner's door to the CGNC chart, read from the CNC's own text (docs/cgnc/README.md). */
-export function renderBooksChart(locale: Locale): string {
-  return `<div class="block" id="chart">
-      <h2>${esc(t(locale, 'books.chart.title'))}</h2>
-      <p>${esc(t(locale, 'books.chart.explain'))}</p>
-      <form method="post" action="/app/books/chart/cgnc" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.chart.apply'))}</button></form>
-    </div>`;
 }
 
 /**

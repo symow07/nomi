@@ -5,6 +5,7 @@ import {renderBooksCashReport,renderBooksProfitReport,renderBooksSupplierReport,
 import {renderBooksReportsHome} from '../../src/api/web/booksOverview.js';
 import {renderOwnerReport} from '../../src/api/web/booksOwnerReports.js';
 import {renderClose,type CloseView} from '../../src/api/web/booksClose.js';
+import {renderStartingBalances} from '../../src/api/web/booksSettingsPages.js';
 import {renderFec} from '../../src/api/web/booksReports.js';
 import {unisolatedFigures} from './isolates.js';
 import {LOCALES} from '../../src/core/owner/i18n/locale.js';
@@ -114,7 +115,8 @@ describe('F25 — year end is a staged review, separate from year setup',()=>{
    expect(html).toMatch(/<ul class="ba-doors"><li><a href="\/app\/settings\/books\/starting-balances">Starting balances/);
    expect(shown(html)).toContain('Thu, Jan 1, 2026 – Thu, Dec 31, 2026');
   }
-  const setup=renderClose('en',owner,{...close,years:[fy('y26','2026-01-01','2026-12-31')]},'setup');
+  // The settings overhaul (rule 104): Starting balances is drawn on the settings template (renderStartingBalances).
+  const setup=renderStartingBalances('en',owner,{...close,years:[fy('y26','2026-01-01','2026-12-31')]});
   expect(setup).toContain('action="/app/books/closing/open-year"');expect(setup).toContain('action="/app/books/closing/opening-journal"');
   expect(setup).not.toContain('ye-stages');expect(setup).not.toContain('action="/app/books/closing/year"');
  });
