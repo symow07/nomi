@@ -103,10 +103,12 @@ describe('M9.4 · channel center (localized)', () => {
     expect(en).toContain('action="/app/settings/owner-phone"');
     expect(en).toContain('+8613800000000');                 // current value shown
     // w4-business-assistant-18 — what it is now is said before the form, not under Save
-    expect(en.indexOf('+8613800000000')).toBeLessThan(en.indexOf('<form'));
+    // (rule 104: the page's one form wraps the section, so "before the form" is held as "before the field")
+    expect(en.indexOf('+8613800000000')).toBeLessThan(en.indexOf('name="phone"'));
     const none = one('alerts', notConnected, 'en');
     expect(none).toContain('Not set');                        // honest empty state
-    expect(none.indexOf('Not set')).toBeLessThan(none.indexOf('<form'));
+    expect(none.indexOf('Not set')).toBeGreaterThan(0);
+    expect(none.indexOf('Not set')).toBeLessThan(none.indexOf('name="phone"'));
     expect(one('alerts', connected, 'zh')).toContain(`<h1 class="page">${t('zh', 'channels.alerts.title')}</h1>`);
     expect(one('alerts', connected, 'ar')).toContain(`<h1 class="page">${t('ar', 'channels.alerts.title')}</h1>`);
   });
@@ -339,9 +341,11 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
   it('V1-444 · missed-19 · w4-business-assistant-06, -18 · the alerts screen says what the number is for and where the way is chosen, without internal words', () => {
     for (const l of LOCALES) {
       const html = page(l);
-      expect(html, l).toContain('<div class="block" id="alerts">');
-      // Phase 9 (w4-settings-a-10) — opened from here, Notifications leads back here.
-      expect(html, l).toContain(`href="/app/settings/personal/notifications?from=channels">${esc(t(l, 'meta.phoneAlerts'))}`);
+      // Rule 104 — the number is a section of Notifications (`#whatsapp`), saved with that page's one Save: it says
+      // what the number is for, and no longer carries a link that would open the page it is on.
+      expect(html, l).toContain('<section class="set-sec" id="whatsapp">');
+      expect(html, l).toContain(esc(t(l, 'settings.alerts.desc')));
+      expect(html, l).not.toContain('notifications?from=channels');
       // never "you are alerted on …" from the number alone, and no "once WhatsApp is approved"
     }
     expect(page('en')).not.toContain('You are alerted on');
