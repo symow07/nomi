@@ -3,7 +3,15 @@ import { readFileSync } from 'node:fs';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
-import { renderTerms, incotermOptions } from '../../src/api/web/settings.js';
+import { sellingTermsSections, renderHours, renderCurrency, renderSampleRequests, incotermOptions, type TermsView, type SamplesView, type RateView } from '../../src/api/web/settings.js';
+import { saveActs } from '../../src/api/web/settingsPage.js';
+import type { Kept } from '../../src/api/web/rows.js';
+// Rule 104 (the settings overhaul) — the terms and the sample policy are sections of How you sell; the rate is a
+// section of Currency; the time zone is a field of Hours and closures. Each is drawn here as the page that holds it.
+const renderTerms = (v: TermsView, l: Locale, _f: null, _viewer?: undefined, kept: Kept | null = null): string => sellingTermsSections(v, { policy: null, waiting: [] }, l, undefined, kept);
+const renderSamples = (v: SamplesView, l: Locale, _f: null, at: Date): string => `${sellingTermsSections({ terms: null }, v, l)}${renderSampleRequests(v, l, null, at)}`;
+const renderRate = (v: RateView, l: Locale, _f: null): string => renderCurrency(v, null, l, null);
+const zonePage = (l: Locale, zone = 'Asia/Shanghai', country: string | null = null): string => renderHours({ workingHours: null, zone: { zone, country }, closures: [] }, l, null);
 import { validateTradeTerms } from '../../src/core/commerce/terms.js';
 import { parseAnswer, linesFor, type SellingState } from '../../src/core/owner/howYouSell.js';
 import { renderQuestion, renderConfirm, type QuestionView } from '../../src/api/web/howYouSell.js';
@@ -120,13 +128,15 @@ describe('w4-settings-b-outreach-06, -08 · either contact detail is enough, and
     for (const l of LOCALES) {
       const html = profile(l);
       const row = (id: string) => html.slice(html.lastIndexOf('<div class="setrow', html.indexOf(`for="${id}"`)), html.indexOf('</div></div>', html.indexOf(`id="${id}"`)));
-      expect(row('pf-contact_email'), l).toContain(`<span class="fr-need">${esc(t(l, 'settings.profile.needOrPhone'))}</span>`);
-      expect(row('pf-contact_phone'), l).toContain(`<span class="fr-need">${esc(t(l, 'settings.profile.needOrEmail'))}</span>`);
+      // Rule 104 — said as the template's small mark beside the field's name.
+      expect(row('pf-contact_email'), l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orPhone'))}</span>`);
+      expect(row('pf-contact_phone'), l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orEmail'))}</span>`);
+      expect(row('pf-contact_email'), l).not.toContain(`<span class="set-need">${esc(t(l, 'set.needed'))}</span>`);
       expect(row('pf-contact_email'), l).not.toContain(esc(t(l, 'settings.profile.need')) + '<');
     }
   });
   it('one of them given, neither is marked', () => {
-    for (const l of LOCALES) expect(profile(l, { ...bare, contactPhone: '+971500000000' }), l).not.toContain(esc(t(l, 'settings.profile.needOrPhone')));
+    for (const l of LOCALES) expect(profile(l, { ...bare, contactPhone: '+971500000000' }), l).not.toContain(esc(t(l, 'ws.profile.orPhone')));
   });
   it('English writes "e-mail" one way on the page', () => {
     expect(t('en', 'settings.field.contactEmail')).toBe('Contact e-mail');
@@ -156,7 +166,7 @@ describe('V1-006 (part: categories), V1-525, w4-settings-b-outreach-07 · what t
 describe('V1-522, w4-settings-b-outreach-09, -10 · the zone list in the owner\'s language, each zone by the time it keeps now', () => {
   it('no English city in Chinese or Arabic, and no country named twice, in the whole list', () => {
     for (const l of LOCALES) {
-      const opts = zoneOptions(profile(l));
+      const opts = zoneOptions(zonePage(l));
       expect(opts.length, l).toBeGreaterThan(250);
       if (l === 'zh' || l === 'ar') expect(opts.filter((o) => /[A-Za-z]{2,}/.test(o.label)).map((o) => o.label), l).toEqual([]);
       expect(opts.filter((o) => /\([^)]*, [^)]*\)|（[^）]*，[^）]*）/.test(o.label)).map((o) => o.label), l).toEqual([]);
@@ -165,13 +175,13 @@ describe('V1-522, w4-settings-b-outreach-09, -10 · the zone list in the owner\'
     }
   });
   it('zones of a country that keep the same clock all year are one choice; the workspace\'s own zone stays chosen', () => {
-    const ar = zoneOptions(profile('en', bare, 'America/Argentina/Buenos_Aires', 'AR'));
+    const ar = zoneOptions(zonePage('en', 'America/Argentina/Buenos_Aires', 'AR'));
     expect(ar.map((o) => o.z)).toEqual(['America/Argentina/Buenos_Aires']);
-    const knox = zoneOptions(profile('en', bare, 'America/Indiana/Knox', 'US'));
+    const knox = zoneOptions(zonePage('en', 'America/Indiana/Knox', 'US'));
     expect(knox.find((o) => o.selected)?.z).toBe('America/Indiana/Knox');
     expect(knox.map((o) => o.z)).not.toContain('America/Chicago');   // the same clock: Knox stands for it here
-    expect(zoneOptions(profile('en', bare, 'America/New_York', 'US')).map((o) => o.z)).toContain('America/Chicago');
-    expect(zoneOptions(profile('zh')).map((o) => o.z)).not.toContain('America/Argentina/Cordoba');
+    expect(zoneOptions(zonePage('en', 'America/New_York', 'US')).map((o) => o.z)).toContain('America/Chicago');
+    expect(zoneOptions(zonePage('zh')).map((o) => o.z)).not.toContain('America/Argentina/Cordoba');
   });
   it('Lord Howe and Galápagos are named by the time they keep today, not by Sydney\'s and Ecuador\'s in 1970', () => {
     expect(zoneKept('en', 'Australia/Lord_Howe')).toBe('Lord Howe Time');
@@ -179,7 +189,7 @@ describe('V1-522, w4-settings-b-outreach-09, -10 · the zone list in the owner\'
     expect(zoneKept('zh', 'Australia/Lord_Howe')).not.toBe(zoneKept('zh', 'Australia/Sydney'));
   });
   it('French never falls back to "heure : …"; a city reads in the owner\'s language where this build names it', () => {
-    expect(zoneOptions(profile('fr')).filter((o) => o.label.includes('heure :')).map((o) => o.label)).toEqual([]);
+    expect(zoneOptions(zonePage('fr')).filter((o) => o.label.includes('heure :')).map((o) => o.label)).toEqual([]);
     expect(zoneCity('zh', 'America/Argentina/Cordoba')).toBe('科尔多瓦');
     expect(zoneCity('ar', 'America/Argentina/Cordoba')).toBe('كوردوبا');
     expect(zoneCity('zh', 'Europe/Madrid')).toBeNull();   // Spain's own: the country says it
@@ -305,9 +315,12 @@ describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {
   it('-02 · the owner\'s own name form sits in the owner\'s row, before the next person', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      const form = html.indexOf('action="/app/settings/people/p-you/name"');
-      expect(form, l).toBeGreaterThan(html.indexOf('<bdi>Hongfa Trading</bdi>'));
-      expect(form, l).toBeLessThan(html.indexOf('<bdi>陈莉</bdi>'));
+      // Rule 104 — the owner's own name is a field of the page's ONE Save, in a section of its own, asked of the
+      // owner only (never of the next person).
+      const field = html.indexOf('<input id="pp-name-p-you" name="name_p-you" maxlength="60" />');
+      expect(field, l).toBeGreaterThan(html.indexOf('<form method="post" action="/app/settings/team" class="set-form" data-save id="team-save">'));
+      expect(html, l).toContain(esc(t(l, 'people.name.askYou')));
+      expect(html, l).not.toContain('name="name_p-chen"');
     }
   });
   it('-03, -04 · the lists are as wide as the forms; a row\'s form takes the whole row; its act stretches on a phone', () => {
@@ -324,7 +337,6 @@ describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {
 });
 
 // ── The rate, samples, terms: the currency in a sentence, and where a form's act goes ──
-import { renderRate, renderSamples } from '../../src/api/web/settings.js';
 import { currencyInLine } from '../../src/core/owner/currencies.js';
 import { BACK } from '../../src/api/web/icons.js';
 
@@ -342,28 +354,20 @@ describe('w4-settings-b-outreach-11 · the currency said as a sentence says it',
 });
 
 describe('NEW (prev.) primary act in different places · a one-card form ends with its act inside the card', () => {
-  it('Samples, Terms and the rate: the act in the card\'s foot, as on every add form; the profile\'s one Save after its three cards', () => {
-    const one = [
+  // Rule 104 — pin moved, not loosened: a settings page has ONE act that saves, its Save, at the END of its one form,
+  // with Cancel beside it; no page draws the older save bar; and it is the page's only filled button.
+  it('How you sell\'s terms and samples, the rate, and the profile: one Save at the end of the page\'s one form', () => {
+    const pages = [
       renderSamples({ policy: null, waiting: [], currency: 'USD' }, 'en', null, NOW),
       terms('en'),
       renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null),
+      profile('en'),
     ];
-    for (const html of one) {
+    for (const html of pages) {
       expect(html).not.toContain('class="savebar"');
-      expect(html).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">[^<]+<\/button><\/div><\/div><\/section>/);
+      expect(html.match(/data-save/g)?.length).toBe(1);
+      expect(html).toContain(`${saveActs('en')}</form>`);
+      expect(html.match(/<button class="btn send" type="submit">/g)?.length).toBe(1);
     }
-    // UI Block 7 (F35) — pin moved, not loosened: the profile's cards were one form with one Save after them; F35 makes
-    // each card its own form with its own Save, so each is a one-card form and follows the same rule as Samples, Terms
-    // and the rate: its act in its card's foot, one per card (ui-block7-f35.test.ts holds what each one saves).
-    // One primary act per page (surface walk, CC-29): the first card's Save is filled, the others outlined (btn second).
-    // UI Block 9 (F10) — pin moved, not loosened: each part now reads first and its card sits in a form behind the
-    // part's "Change …" fold (section.sgroup.ef > details > form > div.scard), with a Cancel after its Save; the rule
-    // held is the same — every part's card ends with its own act.
-    const p = profile('en');
-    expect(p.match(/<section class="sgroup(?: ef)?"/g)?.length).toBeGreaterThan(1);
-    expect(p).not.toContain('class="savebar"');
-    expect(p.match(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">[^<]+<\/button>(?:<button class="btn ghost" type="button" data-edit-cancel hidden>[^<]+<\/button>)?<\/div><\/div>/g)?.length)
-      .toBe(p.match(/<section class="sgroup(?: ef)?"/g)?.length);
-    expect(p.match(/<div class="fr-acts"><button class="btn send" type="submit">/g)?.length).toBe(1);
   });
 });

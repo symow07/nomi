@@ -9,7 +9,7 @@ import { renderCurrency, type RateView } from '../../src/api/web/settings.js';
 // Rule 104 — the rate is a section of the Currency page (it was a page of its own); the page is what is drawn here.
 const renderRate = (v: RateView, locale: Locale, _flash: null): string => renderCurrency(v, null, locale, null);
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { moneyOf } from '../../src/core/types/money.js';
 import { decimal } from '../../src/core/types/decimal.js';

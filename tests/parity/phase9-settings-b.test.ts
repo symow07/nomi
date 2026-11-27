@@ -66,6 +66,7 @@ describe('V1-547, V1-562, V1-563 · a page reached from the customer list lights
 
 // ── Who works here ─────────────────────────────────────────────────────────
 import { renderPeople, type TeamMember } from '../../src/api/web/people.js';
+import { OWNER_ONLY } from '../../src/core/conversation/people.js';
 import { renderAssistantsSection } from '../../src/api/web/assistants.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -84,17 +85,18 @@ const SCOPE = { name: null, several: false, outreach: false, setup: null, busine
 const text = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 describe('V1-509, V1-519 · adding someone has its own heading, and says a code will be shown to hand over', () => {
-  it('a section of its own after the list, headed, with the hint before the button, in every locale', () => {
+  it('a section of its own, apart from the list, headed, with the hint before the button, in every locale', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      // Pin moved, not loosened (UI Block 7 · F36): the people are a table now, so the list ends at </table>; the add
-      // section still comes after it, headed, hint first, and its form is still outside the list.
+      // Pin moved, not loosened (rule 104, the settings overhaul): adding someone is the page's first section, the
+      // template's own, still headed, hint first, and its form is still outside the list of people.
       const list = html.indexOf('</table>');
       expect(list, l).toBeGreaterThan(-1);
-      const head = html.indexOf(`<h2>${esc(t(l, 'people.add.title'))}</h2>`);
+      const head = html.indexOf(`<section class="set-sec" id="add"><h2 class="set-h">${esc(t(l, 'people.add.title'))}</h2>`);
       const hint = html.indexOf(esc(t(l, 'people.add.hint')));
       const form = html.indexOf('action="/app/settings/people"');
-      expect(head, l).toBeGreaterThan(list);
+      expect(head, l).toBeGreaterThan(-1);
+      expect(html.indexOf('</section>', head), l).toBeLessThan(html.indexOf('<table class="team-table">'));
       expect(hint, l).toBeGreaterThan(head);
       expect(form, l).toBeGreaterThan(hint);
       // the form is not inside the list of people
@@ -140,12 +142,12 @@ describe('V1-511 · one name for the assistant on the page', () => {
   });
 });
 
-describe('V1-512 · Who works here names itself and leads back to Setup', () => {
-  it('the back link, and the tab is the heading', () => {
+describe('V1-512 · Team names itself; the Settings menu beside it is the way back', () => {
+  it('it starts with its title and draws no back link of its own (rule 104), and the tab is the heading', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeGreaterThan(-1);
-      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
+      expect(html.trimStart().startsWith(`<h1 class="page">${esc(t(l, 'settingsArea.team'))}</h1>`), l).toBe(true);
+      expect(html, l).not.toContain('class="back"');
       const doc = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: '/app/settings/team', bodyHtml: html }));
       // Rule 104: the page's title is its menu label, word for word ("Team"; it was "Who works here").
       expect(doc, l).toContain(`<title>${esc(t(l, 'settingsArea.team'))} · 义乌宏发日用品厂 (demo)</title>`);
@@ -169,10 +171,12 @@ describe('V1-514, V1-520 · one label style and one field width on the page', ()
       const html = people(l, { business: 'Mei' });
       expect(html, l).not.toContain('class="fld"');
       expect(html, l).not.toMatch(/<label class="fld"><span class="muted">/);
-      expect(html, l).toContain('class="sform askname"');
-      // the owner's name form and the add form are the same shape, both outside the list
-      const rows = html.slice(html.indexOf('<ul class="rows">'), html.indexOf('</ul>'));
-      expect(rows, l).not.toContain('<form method="post" action="/app/settings/people/p-you/name"');
+      // Rule 104 — the owner's own name is a field of the page's ONE Save; it and the new person's name are rows of
+      // the same shape, both outside the table of people.
+      expect(html, l).toContain('<form method="post" action="/app/settings/team" class="set-form" data-save id="team-save">');
+      const rows = html.slice(html.indexOf('<table class="team-table">'), html.indexOf('</table>'));
+      expect(rows, l).not.toContain('name="name_p-you"');
+      expect(rows, l).not.toContain('<form method="post" action="/app/settings/people"');
       // the name's row and the new person's name (A5's accountant box is drawn only where the books are on, A6)
       expect(html.match(/<div class="setrow"><div class="fr-l"><label class="fr-name" for="pp-/g)?.length, l).toBe(2);
     }
@@ -222,9 +226,12 @@ describe('V1-517 · labels are words, the one state is a pill you can see', () =
 });
 
 describe('V1-518 · what only the owner may do is a list to read', () => {
-  it('a plain list, not ruled rows; the English reads as one run of imperatives', () => {
+  it('one table to read (rule 104), not ruled rows and not a control; the English reads as one run of imperatives', () => {
     const html = people('en');
-    expect(html).toContain('<ul class="owner-only">');
+    const roles = html.slice(html.indexOf('<section class="set-sec" id="roles">'), html.indexOf('</section>', html.indexOf('id="roles"')));
+    expect(roles.match(/<table\b/g)?.length).toBe(1);
+    for (const a of OWNER_ONLY) expect(roles, a).toContain(`<th scope="row">${esc(t('en', `people.ownerOnly.${a}` as never))}</th>`);
+    expect(roles).not.toMatch(/<(form|input|button|select)\b/);
     expect(html).not.toContain('<li class="row muted">');
     expect(t('en', 'people.ownerOnly.outreach')).toMatch(/^Let /);
   });
@@ -238,7 +245,16 @@ describe('settings-b-outreach-missed-03 · Arabic: "your customers", plural', ()
 });
 
 // ── Business profile ───────────────────────────────────────────────────────
-import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.js';
+import { renderProfile, renderHours, renderCurrency, sellingTermsSections, type BusinessProfile, type RateView, type SamplesView, type TermsView } from '../../src/api/web/settings.js';
+// Rule 104 (the settings overhaul) — the time zone is a field of Hours and closures; the rate is a section of Currency;
+// the terms and the sample policy are sections of How you sell. Each is drawn here as the page that holds it.
+const zonePage = (l: (typeof LOCALES)[number], _p?: BusinessProfile, zone = 'Asia/Shanghai', country: string | null = null): string =>
+  // …read as its one control, the zone's own list (the page has the closure's month list too).
+  ((html: string) => html.slice(html.indexOf('<select id="pf-zone"'), html.indexOf('</select>', html.indexOf('<select id="pf-zone"')) + 9))(
+    renderHours({ workingHours: null, zone: { zone, country }, closures: [] }, l, null));
+const renderRate = (v: RateView, l: (typeof LOCALES)[number], _f: null): string => renderCurrency(v, { currency: v.currency ?? 'USD', fixed: true } as never, l, null);
+const renderSamples = (v: SamplesView, l: (typeof LOCALES)[number], _f: null, _at: Date): string => sellingTermsSections({ terms: null }, v, l);
+const renderTerms = (v: TermsView, l: (typeof LOCALES)[number], _f: null): string => sellingTermsSections(v, { policy: null, waiting: [] }, l);
 
 const fullProfile: BusinessProfile = {
   name: 'Yiwu Hongfa', description: 'Daily-use goods', location: 'Yiwu', workingHours: '9-18',
@@ -254,27 +270,27 @@ const optionsOf = (html: string) => [...html.matchAll(/<option value="([^"]+)"[^
 
 describe('V1-522, V1-528 · the full zone list: grouped, in the owner\'s language, no research stations', () => {
   it('without a country, the zones sit under their continent, named in the owner\'s language', () => {
-    expect(profile('zh')).toContain('<optgroup label="亚洲">');
-    expect(profile('ar')).toContain('<optgroup label="أوروبا">');
-    expect(profile('es')).toContain('<optgroup label="Europa">');
-    for (const l of LOCALES) expect(profile(l).match(/<optgroup /g)?.length, l).toBe(7);
+    expect(zonePage('zh')).toContain('<optgroup label="亚洲">');
+    expect(zonePage('ar')).toContain('<optgroup label="أوروبا">');
+    expect(zonePage('es')).toContain('<optgroup label="Europa">');
+    for (const l of LOCALES) expect(zonePage(l).match(/<optgroup /g)?.length, l).toBe(7);
   });
   it('a country with one zone is named wholly in the owner\'s language; a city only where a country has several', () => {
-    const dubai = (l: (typeof LOCALES)[number]) => optionsOf(profile(l)).find((o) => o.z === 'Asia/Dubai')!.label;
+    const dubai = (l: (typeof LOCALES)[number]) => optionsOf(zonePage(l)).find((o) => o.z === 'Asia/Dubai')!.label;
     for (const l of ['zh', 'ar'] as const) expect(dubai(l), l).not.toMatch(/[A-Za-z]/);
     // Phase 9 (V1-522) — China's two zones keep two times, so neither needs a city.
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label, 'zh Shanghai').not.toMatch(/[A-Za-z]/);
+    expect(optionsOf(zonePage('zh')).find((o) => o.z === 'Asia/Shanghai')!.label, 'zh Shanghai').not.toMatch(/[A-Za-z]/);
     // The warmth run (V1-522) — Brazil's zones on Brasília time keep the same clock all year: one choice, named by it.
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')).toBeUndefined();
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Sao_Paulo')!.label).toBe('巴西 — 巴西利亚标准时间');
-    expect(optionsOf(profile('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
+    expect(optionsOf(zonePage('zh')).find((o) => o.z === 'America/Recife')).toBeUndefined();
+    expect(optionsOf(zonePage('zh')).find((o) => o.z === 'America/Sao_Paulo')!.label).toBe('巴西 — 巴西利亚标准时间');
+    expect(optionsOf(zonePage('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
   });
   it('no station in Antarctica or Svalbard is offered — unless it is the zone already kept', () => {
-    for (const l of LOCALES) expect(optionsOf(profile(l)).filter((o) => /^(Antarctica|Arctic)\//.test(o.z)), l).toEqual([]);
-    expect(optionsOf(profile('en', bareProfile, 'Antarctica/Troll')).filter((o) => o.z === 'Antarctica/Troll')).toHaveLength(1);
+    for (const l of LOCALES) expect(optionsOf(zonePage(l)).filter((o) => /^(Antarctica|Arctic)\//.test(o.z)), l).toEqual([]);
+    expect(optionsOf(zonePage('en', bareProfile, 'Antarctica/Troll')).filter((o) => o.z === 'Antarctica/Troll')).toHaveLength(1);
   });
   it('a country\'s own zones stay a short flat list', () => {
-    const us = profile('en', bareProfile, 'America/New_York', 'US');
+    const us = zonePage('en', bareProfile, 'America/New_York', 'US');
     expect(us).not.toContain('<optgroup');
     expect(optionsOf(us).every((o) => o.z.startsWith('America/') || o.z.startsWith('Pacific/'))).toBe(true);
   });
@@ -286,13 +302,16 @@ describe('V1-523 · the page marks what the setup step still needs', () => {
       const html = profile(l);
       expect(html, l).toContain(esc(t(l, 'settings.profile.needs')));
       // The warmth run (w4-settings-b-outreach-06): the description and the location are each needed; of the e-mail and the phone, either.
-      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(2);
-      expect(html.split('<span class="fr-need">').length - 1, l).toBe(4);
+      // Rule 104 — each said as the template's small mark beside the field's name.
+      expect(html.split(`<span class="set-need">${esc(t(l, 'set.needed'))}</span>`).length - 1, l).toBe(2);
+      expect(html, l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orPhone'))}</span>`);
+      expect(html, l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orEmail'))}</span>`);
+      expect(html.split('<span class="set-need">').length - 1, l).toBe(4);
     }
   });
   it('a finished one marks nothing', () => {
     const html = profile('en', fullProfile);
-    expect(html).not.toContain('fr-need');
+    expect(html).not.toContain('set-need');
     expect(html).not.toContain(t('en', 'settings.profile.needs'));
   });
 });
@@ -331,7 +350,7 @@ describe('settings-b-outreach-missed-05 · typographic quotes around "today"', (
 });
 
 // ── The rate, samples, terms ───────────────────────────────────────────────
-import { renderRate, renderSamples, renderTerms, OFFERED_INCOTERMS } from '../../src/api/web/settings.js';
+import { OFFERED_INCOTERMS } from '../../src/api/web/settings.js';
 import { currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 
 const noRate = (l: (typeof LOCALES)[number]) => renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, l, null);
@@ -340,22 +359,29 @@ const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string | null } 
   renderTerms({ terms: stated ? { paymentTerms: '30% with order', incoterm: stated.incoterm, statedAt: NOW } : null }, l, null);
 
 describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate page is not a dead end', () => {
-  it('nothing to convert is a panel, with the currency by its name and the door to where it is set, and the way back', () => {
+  it('nothing to convert is a panel, with the currency by its name; where the currency is set is the section above it', () => {
     for (const l of LOCALES) {
       const html = noRate(l);
-      expect(html.indexOf('<a class="back" href="/app/settings/business/selling">'), l).toBe(0);
+      // Rule 104 — a page of the Settings menu: it starts with its title, and the menu beside it is the way back.
+      expect(html.trimStart().startsWith(`<h1 class="page">${esc(t(l, 'settingsArea.currency'))}</h1>`), l).toBe(true);
+      expect(html, l).not.toContain('class="back"');
       expect(html, l).toContain('<div class="empty notset" role="status">');
       expect(html, l).toContain(esc(currencyInLine(l, 'USD')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/business\/profile#zone"/);
+      // The door it had led to where the currency is set. That is this page now: its section comes first.
+      const set = html.indexOf('<section class="set-sec" id="currency">');
+      expect(set, l).toBeGreaterThan(-1);
+      expect(set, l).toBeLessThan(html.indexOf('<section class="set-sec" id="rate">'));
     }
     expect(text(noRate('en'))).toContain('Your prices are in US dollars (USD)');   // the warmth run (-11): as a sentence says it
     // ar: the last two words never part
     expect(t('ar', 'rate.none', { from: 'x' })).toContain('سعر صرف');
     expect(rulesFor('.empty.notset').join(';')).toContain('text-wrap:pretty');
   });
-  it('with a rate to set, the way back too', () => {
+  it('with a rate to set, the same page, and its one Save', () => {
     const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
-    expect(html.indexOf('<a class="back" href="/app/settings/business/selling">')).toBe(0);
+    expect(html.trimStart().startsWith('<h1 class="page">Currency</h1>')).toBe(true);
+    expect(html).not.toContain('class="back"');
+    expect(html.match(/data-save/g)?.length).toBe(1);
   });
 });
 
@@ -368,13 +394,17 @@ describe('V1-533 · Chinese: no stray spaces around the stand-in name on Samples
   });
 });
 
-// Phase 7 — opened from My business › How you sell, and back there.
-describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where they are opened from', () => {
+// Rule 104 — they are SECTIONS of How you sell now, in its one form, so there is nowhere to lead back to.
+describe('V1-534, V1-541 · Samples and Terms are sections of How you sell, saved by its one Save', () => {
   it('in every locale', () => {
     for (const l of LOCALES) {
-      for (const html of [samples(l), terms(l)]) {
-        expect(html.indexOf(`<a class="back" href="/app/settings/business/selling">${BACK}${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
-      }
+      const html = terms(l);
+      const form = html.indexOf('<form method="post" action="/app/settings/business/selling" class="set-form" data-save id="selling-form">');
+      expect(form, l).toBe(0);
+      expect(html.indexOf(`<section class="set-sec" id="terms"><h2 class="set-h">${esc(t(l, 'terms.title'))}</h2>`), l).toBeGreaterThan(form);
+      expect(html.indexOf('<section class="set-sec" id="samples"><h2 class="set-h">'), l).toBeGreaterThan(html.indexOf('id="terms"'));
+      expect(html, l).not.toContain('class="back"');
+      expect(html.match(/<button class="btn send" type="submit">/g)?.length, l).toBe(1);
     }
   });
 });
@@ -697,7 +727,8 @@ describe('settings-b-outreach-new-09 · one place for a form\'s act on every pag
     for (const html of pages) {
       for (const cls of ['pform', 'cform', 'sqform']) expect(html).not.toContain(`class="${cls}"`);
       const acts = html.match(/<button class="btn send" type="submit">/g)?.length ?? 0;
-      const ended = (html.match(/<div class="(fr-acts|savebar)"><button class="btn send" type="submit">/g)?.length ?? 0);
+      // Rule 104 — a settings page's one Save sits in the template's own closing row.
+      const ended = (html.match(/<div class="(fr-acts|savebar|set-save)"><button class="btn send" type="submit">/g)?.length ?? 0);
       expect(ended, html.slice(0, 80)).toBe(acts);
     }
     for (const l of LOCALES) expect(t(l, 'terms.save'), l).toBe(t(l, 'samples.save'));

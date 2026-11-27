@@ -12,7 +12,7 @@ import { sellingTermsSections, renderSampleRequests, type SamplesView } from '..
 const renderSamples = (v: SamplesView, locale: Locale, _flash: null, at: Date): string =>
   `${sellingTermsSections({ terms: null }, v, locale)}${renderSampleRequests(v, locale, null, at)}`;
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { emptyState } from './fixtures.js';
 

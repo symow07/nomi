@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Locale } from '../../src/core/owner/i18n/locale.js';
 import { readFileSync } from 'node:fs';
 import { currencyOfCountry, currencyForSignup, asksCurrency, currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 import { readTypedAmount } from '../../src/core/commerce/amount.js';

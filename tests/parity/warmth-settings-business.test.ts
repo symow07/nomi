@@ -1,14 +1,14 @@
 import {renderSettingsIndex} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect } from 'vitest';
+import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { readFileSync } from 'node:fs';
 import {
   renderFactory, renderBusinessScreen, BUSINESS_SCREEN_PATH, BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH,
   type BusinessScreen, type FactoryView,
 } from '../../src/api/web/factory.js';
 import {
-  renderSetup, renderLanguage, renderProfile, renderTerms, renderSamples, renderClosures, renderRate, type SetupView,
+  renderSetup, renderLanguage, renderProfile, renderHours, renderCurrency, type SetupView,
 } from '../../src/api/web/settings.js';
-import { renderBusinessKind } from '../../src/api/web/businessKind.js';
 import { renderPriceRules } from '../../src/api/web/priceRules.js';
 import { shell, esc, CONTEXTUAL_ROUTES_BY_HUB, BACK_TO, hubFor } from '../../src/api/web/layout.js';
 import { renderChannelScreen, CHANNEL_SCREENS } from '../../src/api/web/channels.js';
@@ -223,16 +223,20 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
       }
       const from = (html: string, href: string) => expect(withoutIsolates(html).trimStart().startsWith(`<a class="back" href="${href}">`), `${l} → ${href}`).toBe(true);
       inScope(() => {
-        from(renderProfile(SET_UP.profile, l, null), '/app/settings/business');
-        from(renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.factory')), '/app/settings/business');
+        // Rule 104 — a page of the Settings menu has the menu beside it (and the chooser on a phone): it draws no
+        // "back" of its own, and starts with its title, the menu's label, once.
+        const menuPage = (html: string, title: MessageKey) => {
+          expect(html.trimStart().startsWith(`<h1 class="page">${esc(t(l, title))}</h1>`), `${l} ${title}`).toBe(true);
+          expect(html, `${l} ${title}`).not.toContain('class="back"');
+          expect(html.match(/<h1 /g), `${l} ${title}: one heading`).toHaveLength(1);
+        };
+        menuPage(renderProfile(SET_UP.profile, l, null, {}, {}, null, null, undefined, {}, { view: { kind: 'manufacturer', country: 'CN', website: null } }), 'settingsArea.profile');
+        menuPage(renderHours({ workingHours: null, zone: null, closures: [] }, l, null), 'settingsArea.hours');
+        menuPage(renderCurrency({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, null, l, null), 'settingsArea.currency');
         // Price limits now belong to Products; the wrapper preserves a first-child back link.
         const limits = renderPriceRules(SET_UP.prices, l);
         expect(limits).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
         expect(limits.match(/<h1 /g)).toHaveLength(1);
-        from(renderTerms({ terms: null }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderSamples({ policy: null, waiting: [] }, l, null, new Date()), BUSINESS_SCREEN_PATH.how);
-        from(renderClosures({ closures: [] }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, l, null), BUSINESS_SCREEN_PATH.how);
         from(renderLanguage(l), '/app/settings');
       });
     });
@@ -327,6 +331,6 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
     const empty = rowsOf(screen('how', 'en', FIRST_DAY, { isOwner: true }));
     expect(empty.map((r) => r.value)).toEqual(['0 of 9 answered', 'Not set up', 'Not set up', 'None planned']);
     const waiting = rowsOf(screen('how', 'en', { ...SET_UP, menu: { ...SET_UP.menu!, samples: { price: usd('5'), waiting: 2 } } }));
-    expect(waiting.find((r) => r.href === '/app/settings/business/samples')!.value).toBe('2 requests waiting');
+    expect(waiting.find((r) => r.href === '/app/settings/business/selling#samples')!.value).toBe('2 requests waiting');
   });
 });

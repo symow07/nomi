@@ -114,7 +114,7 @@ describe('V1-008 · a closure\'s dates are drawn in the owner\'s language, not t
   it('ar and zh: no browser date control; the parts in the order the language writes a date; the months by their names', async () => {
     // Rule 104 — the closures are a section of Hours and closures.
     const { renderHours } = await import('../../src/api/web/settings.js');
-    const renderClosures = (v: { closures: Parameters<typeof renderHours>[0]['closures'] }, l: Locale, _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
+    const renderClosures = (v: { closures: Parameters<typeof renderHours>[0]['closures'] }, l: 'en' | 'zh' | 'ar', _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const ar = renderClosures(view, 'ar', null);
     const zh = renderClosures(view, 'zh', null);
@@ -216,7 +216,7 @@ describe('w4-settings-a-19 · how a word is matched is shown with an example in 
 describe('settings-a-new-09 · w4-settings-a-20 · closures and forbidden words: one width for the intro, and room above the fixed list', () => {
   it('the second intro paragraph keeps the lede\'s measure; the fixed list is set apart from the empty panel', async () => {
     const { renderHours, renderForbidden } = await import('../../src/api/web/settings.js');
-    const renderClosures = (v: { closures: [] }, l: Locale, _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
+    const renderClosures = (v: { closures: [] }, l: 'en' | 'zh' | 'ar', _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
     const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
     // The text pass (2026-11-26): the example folds under its own name, and keeps the lede's measure when opened.
     expect(renderClosures({ closures: [] }, 'en', null)).toMatch(/<details class="note-fold closure-said"><summary>[^<]+<\/summary><p class="measure-prose">/);
