@@ -876,12 +876,12 @@ const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '�
  * The settings overhaul (rule 104) — WORDS TO AVOID, a section of Settings › Assistant › Promises and words (it was a
  * page of its own). The rule is on the page in one line; a word is ADDED with the list's own Add form and REMOVED by
  * its row, at once (the notice that follows offers Undo); the built-in list is read-only, folded. How a word is
- * matched is in the page's help (helpTopics.ts).
+ * matched is said under the field it concerns (V1-504: on the page itself).
  */
 export function forbiddenSection(v: ForbiddenView, locale: Locale, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const add = `<form method="post" action="/app/settings/forbidden" class="set-add">
-      ${fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
+      ${fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', desc: t(locale, 'forbidden.howMatched'), error: keptError(kept, 'term', 'fb-term-err'),
         control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` })}
       ${fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
         control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` })}

@@ -434,7 +434,7 @@ export function homeParts(
     s.supervision?.demoted.length ? deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'today.demoted', {
       caps: formatList(locale, s.supervision.demoted.map((c) => steppedName(locale, c))),
     })) : '',
-    s.supervision?.spotChecks ? deeper(`${ASSISTANT_HOME}#spot-checks`, tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
+    s.supervision?.spotChecks ? deeper('/app/assistant/review', tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
   ].filter(Boolean).join('');
   // THE QUIET-DAY RUN (2026-10-05) — the card never says "caught up" over its own contents. Production
   // said "You're all caught up" and, under it, "1 reply to check": the calm test counted who waits, the

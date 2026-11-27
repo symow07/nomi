@@ -189,7 +189,7 @@ export function renderNameIdentity(
     `${setSection({ id: 'identity', title: t(locale, 'as.name.section'), rows: fields(locale, editing, 'as') })}${saveActs(locale)}`);
   const list = `<table class="team-table as-team"><tbody>${assistants.map((a) => `<tr class="tm"><th scope="row"><bdi>${esc(a.name)}</bdi></th>
       <td>${about(a)}${a.isDefault && !v.named ? ` ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}` : ''}</td>
-      <td class="as-act">${a === editing ? '' : `<a class="btn" href="${NAME_PAGE}${a.isDefault ? '' : `?edit=${esc(a.id)}`}#identity" aria-label="${esc(`${t(locale, 'as.name.edit')}: ${a.name}`)}">${esc(t(locale, 'as.name.edit'))}</a>`}${a.isDefault ? '' : rowAction({
+      <td class="as-act">${a === editing ? '' : deeper(`${NAME_PAGE}${a.isDefault ? '' : `?edit=${a.id}`}#identity`, t(locale, 'as.name.edit'), '', `aria-label="${esc(`${t(locale, 'as.name.edit')}: ${a.name}`)}"`)}${a.isDefault ? '' : rowAction({
         action: `/app/settings/people/assistants/${a.id}/archive`, label: t(locale, 'assistants.archive'),
         confirm: t(locale, 'assistants.archive.confirm', { who: a.name }), ariaLabel: `${t(locale, 'assistants.archive')}: ${a.name}` })}</td></tr>`).join('')}</tbody></table>`;
   const add = `<form method="post" action="/app/settings/people/assistants" class="set-add">${fields(locale, null, 'as-new').join('')}${

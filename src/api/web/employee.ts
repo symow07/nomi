@@ -698,7 +698,7 @@ function kindsSection(e: EmployeeProfile, locale: Locale, viewer: Viewer, st: Re
     ? ` · ${esc(t(locale, 'employee.promo.done'))}`
     : ` · ${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}`}</p>${e.conditions.length
     ? `<ul class="conds as-conds">${e.conditions.map((c) => `<li class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</li>`).join('')}</ul>` : ''}`;
-  const table = `<table class="team-table as-kinds"><thead><tr><th scope="col">${esc(t(locale, 'as.perm.kind'))}</th><th scope="col">${esc(t(locale, 'employee.promo.current'))}</th><th scope="col">${viewer.isOwner ? esc(t(locale, 'as.perm.action')) : ''}</th></tr></thead>
+  const table = `<table class="team-table as-kinds"><thead><tr><th scope="col">${esc(t(locale, 'as.perm.kind'))}</th><th scope="col">${esc(t(locale, 'employee.promo.current'))}</th><th scope="col"></th></tr></thead>
       <tbody>${rows.join('')}${always.join('')}</tbody></table>`;
   return setSection({ id: 'reply-types', title: t(locale, 'her.handles.title'),
     help: e.canDo.length === 0 && e.needConfirm.length === 0 ? t(locale, 'her.handles.none') : undefined,
@@ -775,7 +775,7 @@ export function renderEmployee(
   const st = standing(e, locale);
   const rule = extra.followUps ?? DEFAULT_FOLLOW_UP_RULE;
   // The template's section, written out: its heading and its line are English where the catalogue has no other.
-  const follow = `<section class="set-sec" id="follow-ups"><h2 class="set-h">${wordsHtml(locale, 'followUp.title')}</h2><p class="set-help">${wordsHtml(locale, 'followUp.intro')}</p><div class="set-rows">${followUpRows(locale, rule, viewer.isOwner, extra.followUpError ?? null)}</div></section>`;
+  const follow = `<section class="set-sec" id="follow-ups"><h2 class="set-h">${wordsHtml(locale, 'followUp.title')}</h2><p class="set-help">${wordsHtml(locale, 'followUp.intro')}</p><div class="set-rows">${followUpRows(locale, rule, viewer.isOwner, extra.followUpError ?? null)}${viewer.isOwner ? `<p class="set-help">${wordsHtml(locale, 'followUp.future')}</p>` : ''}</div></section>`;
   return `${pageHead(t(locale, 'settingsArea.permissions'), t(locale, 'as.perm.lede', { name }))}${flashBanner(flash)}
     ${standingNotices(e, locale, viewer, st)}
     ${levelsSection(e, locale, viewer, st, extra)}

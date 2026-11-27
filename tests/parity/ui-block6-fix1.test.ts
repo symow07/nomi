@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
-import { renderFollowUpRule } from '../../src/api/web/followUps.js';
+import { followUpSection as renderFollowUpRule } from './employee-screens.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderAssistantActivity } from '../../src/api/web/assistantActivity.js';
 import type { AssistantActivityRow } from '../../src/db/assistantActivity.js';
@@ -55,11 +55,19 @@ describe('UI Block 6 fix 1 · F32 — the Follow-ups summary in the page\'s lang
   it('on a non-English page the summary carries no English and no lang="en" mark', () => {
     for (const l of OTHER) {
       for (const rule of [{ enabled: false, delayDays: 2, wording: '' }, { enabled: true, delayDays: 1, wording: 'Hi' }]) {
-        const html = withoutIsolates(renderFollowUpRule(l, rule, true));
-        const summary = html.slice(html.indexOf('<summary>'), html.indexOf('</summary>'));
-        expect(summary, l).not.toContain('lang="en"');
-        for (const word of ['Follow-ups after a quote', 'Off', 'On', 'days', '1 day']) expect(summary, `${l} ${word}`).not.toContain(word);
-        expect(summary, l).toContain(t(l, 'followUp.title'));
+        // Rule 104 — the rule is a section of Reply permissions, nothing folded: what the summary said is the section's
+        // heading, and (to staff, who are given no fields) its state and its days in words.
+        const html = withoutIsolates(renderFollowUpRule(l, rule, false));
+        const heading = html.slice(html.indexOf('<h2 class="set-h">'), html.indexOf('</h2>'));
+        expect(heading, l).not.toContain('lang="en"');
+        expect(heading, l).toContain(t(l, 'followUp.title'));
+        const values = [...html.matchAll(/<span class="fr-value">([\s\S]*?)<\/span>/g)].map((m) => m[1]!);
+        expect(values, l).toHaveLength(2);
+        for (const v of values) {
+          expect(v, l).not.toContain('lang="en"');
+          for (const word of ['Off', 'On', 'days', '1 day']) expect(v, `${l} ${word}`).not.toContain(word);
+        }
+        expect(values[0], l).toBe(t(l, rule.enabled ? 'followUp.on' : 'followUp.off'));
       }
     }
   });

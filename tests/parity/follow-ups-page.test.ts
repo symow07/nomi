@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { renderFollowUpRule, renderFollowUps } from '../../src/api/web/followUps.js';
+import { renderFollowUps } from '../../src/api/web/followUps.js';
+import { renderEmployee, PERMISSIONS_SAVE } from '../../src/api/web/employee.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
+import { NEW_PROFILE as profile, followUpSection as renderFollowUpRule } from './employee-screens.js';
 import type { FollowUpRun } from '../../src/db/followUps.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
 import { FOLLOW_UPS_EN } from '../../src/core/owner/i18n/followUps.js';
@@ -13,6 +16,8 @@ const run: FollowUpRun = {
   channel: 'whatsapp', quoted_at: new Date('2031-05-01T09:00:00Z'), due_at: now, delay_days: 2, wording: 'My words',
   state: 'scheduled', reason: null, draft_id: null, presented_at: null, answered_after_approval: false,
 };
+// Rule 104 — the follow-up rule is a section of Settings › Assistant › Reply permissions: its three fields wait for
+// the page's one Save (`PERMISSIONS_SAVE`, which calls the same `readFollowUpRule` and `saveFollowUpRule`).
 describe('Follow-up owner states', () => {
   it('lists every new English-only sentence for native review, with no invented translations', () => {
     const doc = readFileSync(new URL('../../docs/NATIVE-REVIEW-UI.md', import.meta.url), 'utf8');
@@ -21,16 +26,25 @@ describe('Follow-up owner states', () => {
   for (const locale of ['en', 'ar'] as const) {
     it(`${locale}: the off rule has labelled controls, exact preview, and no grant promise`, () => {
       const html = renderFollowUpRule(locale, { enabled: false, delayDays: 2, wording: 'My <exact> words' }, true);
-      expect(html).toContain('action="/app/settings/assistant/follow-ups"');
+      const whole = renderEmployee(profile, locale, null, OWNER_VIEW, { followUps: { enabled: false, delayDays: 2, wording: 'My <exact> words' } });
+      // The section is inside the page's one form, which the one Save sends.
+      const form = whole.slice(whole.indexOf(`<form method="post" action="${PERMISSIONS_SAVE}"`));
+      expect(form).toContain('data-save');
+      expect(form.indexOf('id="follow-ups"')).toBeGreaterThan(0);
+      expect(form.indexOf('id="follow-ups"')).toBeLessThan(form.indexOf('</form>'));
+      expect(html).toContain('for="follow-up-enabled"');
       expect(html).toContain('for="follow-up-wording"');
       expect(html).toContain('for="follow-up-delay"');
-      expect(html).toContain('My &lt;exact&gt; words');
+      // The words exactly as saved, in the field that holds them: escaped, nothing added.
+      expect(html).toContain('dir="auto" aria-describedby="follow-up-words-help">My &lt;exact&gt; words</textarea>');
       expect(html).toContain('You choose Send');
+      expect(html).toContain('Nothing goes on its own');
+      expect(html).toContain('Follow-ups already planned keep their words and date');
       expect(html).not.toContain('checked');
-      expect(html).toContain('<bdi lang="en" dir="ltr">');
-      expect(html).not.toMatch(/class="btn send\b/);
-      expect(html).toContain('<button class="btn" type="submit">');
-      expect(buttonsAndDoors(html)).toEqual([]);
+      // English is marked as English only on a page in another language (layout.ts `wordsHtml`).
+      expect(html.includes('<bdi lang="en" dir="ltr">')).toBe(locale !== 'en');
+      expect(html.match(/<button[^>]*type="submit"[^>]*>/g)).toHaveLength(1);   // the page's Save (the template's), and no other
+      expect(buttonsAndDoors(whole)).toEqual([]);
     });
     it(`${locale}: staff can read the rule and run but cannot save or skip`, () => {
       const html = renderFollowUpRule(locale, { enabled: true, delayDays: 2, wording: 'My words' }, false)

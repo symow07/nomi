@@ -8,7 +8,7 @@ import { guardNumerals } from '../../src/core/safety/numerals.js';
 import { guardClaims } from '../../src/core/safety/claims.js';
 import { guardForbidden, FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
-import { renderForbidden } from '../../src/api/web/settings.js';
+import { forbiddenSection } from '../../src/api/web/settings.js';
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -100,10 +100,10 @@ describe('G8 · the owner sees them', () => {
 
 describe('G8 · her note on a forbidden word', () => {
   it('is shown to her beside the term, and the form asks for it', () => {
-    const html = renderForbidden({
+    const html = forbiddenSection({
       own: [{ id: 'a1', term: 'Guangzhou Textile', note: 'they copied our catalogue' }],
       floor: [...FORBIDDEN_FLOOR],
-    }, 'en', null);
+    }, 'en');
     expect(html).toContain('they copied our catalogue');
     expect(html).toMatch(/<input id="fb-note" name="note"/);
     for (const l of LOCALES) {

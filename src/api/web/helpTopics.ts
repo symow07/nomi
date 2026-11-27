@@ -133,13 +133,10 @@ export function helpFor(path: string): readonly GuideId[] {
  */
 export type PageNote = { readonly title: MessageKey; readonly lines: readonly MessageKey[] };
 export const PAGE_NOTES: Readonly<Record<string, readonly PageNote[]>> = {
-  // Reply permissions: the page "How sending without you works", whole; and what a change to the follow-up rule reaches.
+  // Reply permissions: the page "How sending without you works", whole.
   '/app/settings/assistant': [
     { title: 'her.alone.title', lines: ['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure'] },
-    { title: 'followUp.title', lines: ['followUp.future'] },
   ],
-  // Promises and words: how a word to avoid is matched.
-  '/app/settings/assistant/promises': [{ title: 'forbidden.howMatched.title', lines: ['forbidden.howMatched'] }],
 };
 /** The notes of a page, by its path (a query or fragment is ignored); none for most pages. */
 export const notesFor = (path: string): readonly PageNote[] =>

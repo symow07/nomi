@@ -90,9 +90,8 @@ export const SETTINGS_AREA_CSS=`
 .set-rows>.set-act{margin-block-start:var(--space-8);}
 .set-rows>.team-table{margin-top:var(--space-8);}
 .team-table .as-act{text-align:end;white-space:nowrap;}
-.team-table .as-act .set-act+.set-act,.team-table .as-act .btn+.set-act{margin-inline-start:var(--space-8);}
+.team-table .as-act .set-act+.set-act,.team-table .as-act .deeper+.set-act{margin-inline-start:var(--space-8);}
 .settings-area .as-act .btn,.settings-area .set-note .set-act .btn,.settings-area .set-rows>.set-act .btn,.settings-area .set-add .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}
-.settings-area .set-note .set-act .btn.danger{color:var(--color-warn);border-color:var(--color-warn);}
 .as-lock{font-size:var(--font-size-small);color:var(--color-ink-secondary);white-space:normal;}
 .as-earned{display:block;margin-top:var(--space-4);font-size:var(--font-size-caption);color:var(--color-ink-secondary);}
 .as-conds{list-style:none;margin:var(--space-8) 0 0;padding:0;font-size:var(--font-size-small);}

@@ -261,10 +261,10 @@ export function certTable(l: Locale, certs: readonly string[], n: number): strin
   return `<table class="team-table as-certs"><tbody>${CERT_KEYS.map((k) => {
     const on = certs.includes(k);
     const label = claimName(l, k);
-    const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n });
     return `<tr class="tm"><th scope="row"><bdi>${esc(label)}</bdi></th><td class="as-act">${rowSwitch(l, {
-      action: '/app/knowledge/cert', on, label: `${t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn')}: ${label}`, confirm: q,
-      name: 'allowed', hidden: { productId: '', key: k } })}</td></tr>`;
+      action: '/app/knowledge/cert', on, label: `${t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn')}: ${label}`,
+      name: 'allowed', hidden: { productId: '', key: k }, words: [t(l, 'knowledge.cert.on'), t(l, 'knowledge.cert.off')],
+      confirm: t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n }) })}</td></tr>`;
   }).join('')}</tbody></table>`;
 }
 

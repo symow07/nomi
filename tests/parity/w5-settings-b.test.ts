@@ -288,6 +288,8 @@ describe('w4-settings-b-outreach-12, -19, -20 · wide empties; the credit said o
 // ── Who works here ─────────────────────────────────────────────────────────
 import { renderPeople, type TeamMember } from '../../src/api/web/people.js';
 import type { Assistant } from '../../src/core/owner/assistants.js';
+import { renderNameIdentity } from '../../src/api/web/assistants.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 
 const you: TeamMember = { id: 'p-you', name: 'Hongfa Trading', isOwner: true, addedAt: NOW, signsInWithEmail: false, lastSeenAt: NOW };
 const chen: TeamMember = { id: 'p-chen', name: '陈莉', isOwner: false, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null };
@@ -311,12 +313,17 @@ describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {
     }
   });
   it('-03, -04 · the lists are as wide as the forms; a row\'s form takes the whole row; its act stretches on a phone', () => {
-    expect(people('en')).toContain('<ul class="rows team">');
-    expect(css).toContain('.rows.team { max-width:100%; }');
-    expect(css).toContain('.rows.team > .row > .askname, .rows.team > .row > .act-fold { flex-basis:100%; }');
-    expect(css).toMatch(/@media \(max-width: 720px\) \{ \.rows\.team \.fr-acts \.btn \{ flex:1 1 auto; \} \}/);
-    // The assistant's fold is the row's own child, not squeezed in the name's column.
-    expect(people('en')).toMatch(/<\/span>\s*<form method="post" action="\/app\/settings\/people\/assistants\/[^"]+\/archive"[\s\S]*?<\/form>\s*<details class="act-fold">/);
+    // Rule 104 — who answers customers is a table on Settings › Assistant › Name and identity: as wide as its section,
+    // each row's acts in the row's own last cell (never squeezed in the name's column), and nothing folded.
+    const lily: Assistant = { ...noor, id: '00000000-0000-4000-8000-000000000001', name: 'Lily', role: 'sales', channels: [], isDefault: true };
+    const html = renderNameIdentity({ named: true, pending: 'Lily' }, [lily, noor], 'en', null, OWNER_VIEW);
+    expect(people('en')).not.toContain('/assistants/');
+    expect(html).toContain('<table class="team-table as-team">');
+    expect(html).toMatch(/<td class="as-act"><a class="deeper"[^>]*>[\s\S]*?<\/a><form method="post" action="\/app\/settings\/people\/assistants\/[^"]+\/archive" class="set-act">/);
+    expect(html).not.toContain('act-fold');
+    expect(css).toContain('.team-table{width:100%;');
+    expect(css).toContain('@media(max-width:600px){.team-table .as-act{text-align:start;white-space:normal;}');
+    expect(css).toContain('.set-save .btn{flex:1 1 auto;}');   // the page's Save stretches on a phone
   });
   it('-05 · Arabic does not say "entering with an entry code"', () => {
     expect(t('ar', 'people.via.code')).toBe('الدخول برمز خاص');
