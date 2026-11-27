@@ -70,7 +70,8 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: ownerCookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="on-her-own"');
-    expect(page.body).toMatch(/name="level" value="waits" checked/);
+    expect(page.body).toMatch(/<input type="radio" name="level" value="waits"[^>]*\bchecked\b/); // the chosen level is the checked radio (it names its form since rule 104)
+    expect(page.body.match(/name="level" value="[a-z]+"[^>]*\bchecked\b/g)?.length).toBe(1);
   });
 
   it('THE PRODUCTION CALLER: she chooses "talks" — four kinds of reply go out alone, prices and orders still wait', async () => {
@@ -86,7 +87,8 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     expect(e.map((x) => x.capability).sort()).toEqual(['follow_up', 'greet', 'qualify', 'recommend']);
     expect(e.every((x) => x.reasons.includes('owner_chose_talks') && x.to_mode === 'auto' && x.actor !== '')).toBe(true);
     const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: ownerCookie } });
-    expect(page.body).toMatch(/name="level" value="talks" checked/);
+    expect(page.body).toMatch(/<input type="radio" name="level" value="talks"[^>]*\bchecked\b/); // the chosen level is the checked radio (it names its form since rule 104)
+    expect(page.body.match(/name="level" value="[a-z]+"[^>]*\bchecked\b/g)?.length).toBe(1);
   });
 
   it('"sells" adds quoting and negotiating, writes ONLY those two, and never an order', async () => {

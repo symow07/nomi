@@ -2294,7 +2294,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // (w4-products-knowledge-02) the promises screen is where each certification is switched, so it is
       // listed there either way — now off, with the act that turns it on; the menu no longer names it.
       const on = await html();
-      expect(on).toMatch(/<bdi>ISO 9001 quality system<\/bdi><\/b> <span class="pill">Off<\/span>/);
+      // Rule 104 — the row is Promises and words' certification table: the name, then its own switch, off.
+      expect(on).toMatch(/<th scope="row"><bdi>ISO 9001 quality system<\/bdi><\/th><td class="as-act"><form method="post" action="\/app\/knowledge\/cert"[^>]*>(?:<input [^>]*\/>)*<button class="set-switch" type="submit" role="switch" aria-checked="false"[^>]*><span class="set-track" aria-hidden="true"><\/span><span class="set-state">Off<\/span>/);
       const { renderFactory } = await import('../../src/api/web/factory.js');
       expect(renderFactory(await view(), 'en')).not.toContain('ISO 9001 quality system');
     });

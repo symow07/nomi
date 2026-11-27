@@ -127,6 +127,13 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((i) => [[`account${i}`, ''], [`quantity${i}`, ''], [`price${i}`, ''], [`label${i}`, ''], [`tax${i}`, '']])) }])),
   ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/credit-notes/preview', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
   '/app/settings/closures': { from: '2026-12-01', to: '2026-12-02' },
+  // Rule 104 — no page draws the follow-up rule's older form (Reply permissions saves it with its one Save), so the walk
+  // sends that command what the form sent: on, after two days, in the owner's words.
+  '/app/settings/assistant/follow-ups': { enabled: '1', delayDays: '2', wording: 'Following up: authz' },
+  // Rule 104 — the accounts that hold money gain one row at a time, by a search field: an asset account not yet among
+  // them (the seeded bank is counted by its number, so it is no choice); and the posting accounts, as the page draws them.
+  '/app/books/accounts/money/add': { account: '@deposit' },
+  '/app/books/settings/accounts': { salesJournal: '@journal_sales', receivable: '@receivable', sales: '@income', fxLoss: '', fxGain: '' },
   // Rule 104 — no page draws the older terms form any more (the terms are a section of How you sell, saved by its one
   // Save), so the walk sends that command what the form sent: how customers pay, and a delivery term.
   '/app/settings/terms': { payment: 'authz terms', incoterm: 'FOB' },
@@ -678,6 +685,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('receivable', `insert into accounts (business_id, code, name, kind) values ($W, '3421', 'Customers ' || $MARK, 'asset') returning id::text as id`);
     await one('expense', `insert into accounts (business_id, code, name, kind) values ($W, '6111', 'Costs ' || $MARK, 'expense') returning id::text as id`);
     await one('income', `insert into accounts (business_id, code, name, kind) values ($W, '7111', 'Sales ' || $MARK, 'income') returning id::text as id`);
+    // An asset account neither ticked nor counted by its name: the one "Add a bank or till" may add (rule 104).
+    await one('deposit', `insert into accounts (business_id, code, name, kind) values ($W, '3489', 'Deposits ' || $MARK, 'asset') returning id::text as id`);
     await one('journal', `insert into journals (business_id, code, name, kind) values ($W, 'BQ', 'Banque', 'bank') returning id::text as id`);
     for (const [k, code, kind] of [['purchases', 'AC', 'purchases'], ['sales', 'VT', 'sales'], ['cash', 'CA', 'cash'], ['general', 'OD', 'general']] as const) {
       await one(`journal_${k}`, `insert into journals (business_id, code, name, kind) values ($W, '${code}', '${kind} ' || $MARK, '${kind}') returning id::text as id`);
@@ -1125,7 +1134,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // An id's box drawn empty stays empty ("none chosen"; `label` is words as often as an id, and is typed): a person
     // cannot type into a hidden box, and words in one are
     // not an id (the prices form's empty `productId` answered 500 to 'authz': reported, not this walk's to judge).
-    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : n in WORDS ? WORDS[n]! : n !== 'label' && (idFields.includes(n) || /(Id|_id)$/.test(n)) ? '' : 'authz']);
+    // Rule 104 — the posting accounts are search boxes that choose an account by its number and name (they were lists):
+    // an id's box too. Drawn empty (`fxLoss`), it is "none chosen"; words typed in it match no account and are refused.
+    const PICKS = new Set(['receivable', 'sales', 'fxLoss', 'fxGain']);
+    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : n in WORDS ? WORDS[n]! : n !== 'label' && (idFields.includes(n) || /(Id|_id)$/.test(n) || PICKS.has(n)) ? '' : 'authz']);
     const routeOf = (method: string, action: string) => {
       const path = action.split('?')[0]!;
       return walk.filter((r) => r.method === method && new RegExp(`^${r.url.replace(/:\w+/g, '[^/]+')}$`).test(path))
@@ -1246,8 +1258,14 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const attempts: { r: { method: string; url: string }; method: string; url: string; body: Body; where: string; late: number }[] = [];
     const reachC = await crawl(ws.C);
     for (const [, all] of reachC.copies) {
-      const f = all[all.length - 1]!;
-      const r = routeOf('POST', f.action); if (!r) continue;
+      const r = routeOf('POST', all[all.length - 1]!.action); if (!r) continue;
+      // A route pinned to its own row (`ROUTE_OWN`), or one that ends or undoes something: the drawn copy that names
+      // the rows the walk's own call names, where one is drawn; else (and for every other route) the last copy. Which
+      // copy is last is the crawl's order: since rule 104 it reaches the live sequence's page and the second check's,
+      // and their last copies archived the sequence whose enrolment "stop" needs and kept the check "revert" needs —
+      // refusals that proved nothing.
+      const ownUrl = ROUTE_OWN[r.url] || lateness(r.url) >= 3 ? r.url.replace(/:(\w+)/g, (_m, name: string) => ownParam(ws.C, r.url, name) ?? '') : '';
+      const f = all.find((x) => ownUrl !== '' && x.action.split('?')[0] === ownUrl) ?? all[all.length - 1]!;
       // A route pinned to one value (`=hours`) is reached with that value only: How you sell's confirm asks for the
       // answer its own question's form saved, and another question's form reaching `:q` first left none to confirm.
       const pinned = ROUTE_OWN[r.url] ?? {}; const segs = r.url.split('/'); const got = f.action.split('?')[0]!.split('/');
