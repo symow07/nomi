@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { validateTradeTerms, MAX_PAYMENT_TERMS } from '../../src/core/commerce/terms.js';
 import { INCOTERM_KEYS } from '../../src/core/safety/claims.js';
-import { renderTerms } from '../../src/api/web/settings.js';
+import { sellingTermsSections, type TermsView } from '../../src/api/web/settings.js';
+import type { Locale } from '../../src/core/owner/i18n/locale.js';
+// Rule 104 — the terms are a section of How you sell (they were a page of their own); the section is what is drawn here.
+const renderTerms = (v: TermsView, locale: Locale, _flash: null): string => sellingTermsSections(v, { policy: null, waiting: [] }, locale);
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -96,7 +99,9 @@ describe('G6 · the settings page', () => {
     // Phase 9 (V1-537): every one the guard knows except DDU, retired in 2010 —
     // still the guard's, kept for a workspace that chose it (phase9-settings-b).
     expect([...offered].sort()).toEqual(INCOTERM_KEYS.filter((k) => k !== 'DDU').sort());
-    expect(html).toContain('action="/app/settings/terms"');
+    // …and is saved by the page's ONE Save.
+    expect(html).toContain('<form method="post" action="/app/settings/business/selling" class="set-form" data-save id="selling-form">');
+    expect(html).toContain('<section class="set-sec" id="terms">');
   });
 
   it('with nothing stated it says so — no option is pre-chosen for her', () => {
@@ -119,7 +124,9 @@ describe('G6 · the settings page', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/terms'");
     const app = await src('src/api/web/app.ts');
-    expect(app).toContain("app.get('/app/settings/business/terms'");
+    // Rule 104 — the older address opens the section on How you sell.
+    expect(app).toContain("app.get('/app/settings/business/terms', movedPage(`${SELLING_PAGE}#terms`))");
+    expect(app).toMatch(/app\.post\(SELLING_PAGE,[\s\S]{0,200}ownerOnly\(req, reply, 'price_rules'/);
     expect(app).toMatch(/app\.post\('\/app\/settings\/terms'[\s\S]{0,200}ownerOnly\(req, reply, 'price_rules'/);
   });
 

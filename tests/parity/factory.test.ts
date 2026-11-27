@@ -869,7 +869,7 @@ describe('Phase 9 · B5 · My business', () => {
       expect(html, l).toMatch(new RegExp(`href="/app/settings/business/selling">[^]*?<span class="sr-label">${esc(say(l, 'hs.questions.title'))}</span></span>`));
       expect(say(l, 'hs.questions.title'), l).not.toBe(say(l, 'factory.sellhow.title'));
       expect(html, l).toContain(esc(say(l, 'factory.sellhow.direct')));
-      for (const href of ['/app/settings/business/terms', '/app/settings/business/samples', '/app/settings/business/hours']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
+      for (const href of ['/app/settings/business/selling#terms', '/app/settings/business/selling#samples', '/app/settings/business/hours']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
     }
     expect(page('en')).not.toContain('exchange rate</p>');
     // the questions are the owner's (rule 11): a sales assistant sees the facts, never a door that refuses
@@ -884,14 +884,14 @@ describe('Phase 9 · B5 · My business', () => {
     for (const l of LOCALES) {
       for (const kind of ['brand', 'online_shop', 'retail', 'startup', 'agency', 'services', 'other']) {
         const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
-        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/terms"');
-        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/samples"');
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/selling#terms"');
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/selling#samples"');
         expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/hours"');
       }
       for (const kind of ['manufacturer', 'trading', 'wholesale', null]) {
         const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
-        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/terms"');
-        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/samples"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/selling#terms"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/selling#samples"');
       }
     }
   });

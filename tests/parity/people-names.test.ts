@@ -34,17 +34,18 @@ describe('a person called by the business\'s name is asked for their own', () =>
   it('the owner named after the business: asked, with a form that posts the name', () => {
     for (const l of LOCALES) {
       const html = renderPeople(view([owner, chen]), l, null, NOW);
-      expect(html, l).toContain('action="/app/settings/people/p-owner/name"');
+      // Rule 104 — the name is a field of the page's ONE Save (the Team page's form), not a form of its own.
+      expect(html, l).toMatch(/<form method="post" action="\/app\/settings\/team" class="set-form" data-save id="team-save">[\s\S]*?name="name_p-owner"[\s\S]*?<\/form>/);
       expect(html, l).toContain(esc(t(l, 'people.name.askYou')));
-      expect(html, l).not.toContain('action="/app/settings/people/p-chen/name"');
+      expect(html, l).not.toContain('name="name_p-chen"');
     }
   });
 
   it('a colleague given the business\'s name is asked about in the third person', () => {
     const html = renderPeople(view([{ ...owner, name: 'Mrs Wang' }, { ...chen, name: 'westlake  canvas co.' }]), 'en', null, NOW);
-    expect(html).toContain('action="/app/settings/people/p-chen/name"');
+    expect(html).toContain('name="name_p-chen"');
     expect(html).toContain(esc(t('en', 'people.name.askThem')));
-    expect(html).not.toContain('action="/app/settings/people/p-owner/name"');
+    expect(html).not.toContain('name="name_p-owner"');
   });
 
   it('nobody is asked when the names differ, or the business has none', () => {

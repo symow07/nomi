@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateProfile, renderProfile, type ProfileInput, type BusinessProfile,
+  validateProfile, renderProfile, renderHours, type ProfileInput, type BusinessProfile,
 } from '../../src/api/web/settings.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -57,7 +57,10 @@ describe('M11.1 · settings renderer (localized)', () => {
     // The warmth run (V1-006): what it sells is How you sell's answer, in words, with the door to that question.
     expect(html).toContain('What you sell'); expect(html).toContain('Something else');
     expect(html).toContain('href="/app/settings/business/selling/product-claims"');
-    expect(html).toContain('action="/app/settings"');
+    // Rule 104 — the page's ONE Save sends the whole profile to the page's own address.
+    expect(html).toContain('<form method="post" action="/app/settings/business/profile" class="set-form" data-save id="profile-form">');
+    // …and working hours and the time zone are set on Hours and closures, named here with its door.
+    expect(html).toContain('href="/app/settings/business/hours"');
   });
 
   it('Phase F: this page no longer keeps its own answer to “what is missing”', () => {
@@ -131,8 +134,11 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
     const stored: BusinessProfile = { ...bare, name: 'OLD NAME' };
     const html = withoutIsolates(renderProfile(stored, 'zh', null, typed, { contactPhone: 'phoneShape' }));
     for (const v of ['义乌宏发保温杯厂', '不锈钢保温杯、饭盒、竹砧板。', '浙江义乌',
-                     '周一至周六 9:00-18:00', 'sales@hongfa.example', '8657985001234'])
+                     'sales@hongfa.example', '8657985001234'])
       expect(html, v).toContain(v);
+    // Rule 104 — working hours are a field of Hours and closures now; what was typed there comes back there.
+    expect(withoutIsolates(renderHours({ workingHours: 'OLD HOURS', zone: null, closures: [] }, 'zh', null, null, { typed: '周一至周六 9:00-18:00', error: 'tooLong' })))
+      .toContain('value="周一至周六 9:00-18:00"');
     // UI Block 9 (F10): each part now reads first — its summary lists what is STORED (the refused save changed nothing,
     // and says so). The submission still wins in every form: no field of any form carries the stored row.
     const forms = [...html.matchAll(/<form\b[\s\S]*?<\/form>/g)].map((m) => m[0]).join('');

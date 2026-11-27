@@ -34,28 +34,32 @@ describe('F37 · Your data: subjects named at the top; closing a review of its o
       expect(h.indexOf('class="dr-index"'), l).toBeLessThan(h.indexOf('id="copy"'));
     }
   });
-  it('closing: one line under the heading, then a closed review holding the whole consequence beside the unchanged form', () => {
+  // Rule 104 — closing is the LAST row of the page's danger zone: the one line, the whole consequence under it (on the
+  // page, no longer behind a fold), then the unchanged form.
+  it('closing: one line, then the whole consequence, beside the unchanged form, last in the danger zone', () => {
     for (const l of LOCALES) {
       const h = withoutIsolates(renderDataRights({ businessName: 'Juniper Skin', requests: [] }, l, null, OWNER_VIEW, 'x'));
       const close = h.slice(h.indexOf('id="close"'));
-      expect(close, l).toContain(`<p class="dr-short">${esc(t(l, 'data.close.short'))}</p>`);
-      const fold = close.indexOf(`<details class="sa-subject data-review"><summary><span>${esc(t(l, 'data.close.review'))}</span></summary>`);
-      expect(fold, l).toBeGreaterThan(-1);
+      expect(h.indexOf('id="close"'), l).toBeGreaterThan(h.indexOf('<section class="set-sec" id="danger-zone">'));
+      expect(close, l).not.toContain('<section');   // nothing follows the danger zone
+      const short = close.indexOf(`<span class="fr-desc">${esc(t(l, 'data.close.short'))}</span>`);
+      expect(short, l).toBeGreaterThan(-1);
       const both = l === 'zh' ? `${t(l, 'data.deletion.lead')}${t(l, 'data.deletion.now')}` : `${t(l, 'data.deletion.lead')} ${t(l, 'data.deletion.now')}`;
-      const at = close.indexOf(`<p class="lede">${esc(both)}</p>`);
-      const form = close.indexOf('<form method="post" action="/app/settings/data/close">');
-      expect(at, l).toBeGreaterThan(fold);
+      const at = close.indexOf(`<span class="fr-desc">${esc(both)}</span>`);
+      const form = close.indexOf('<form method="post" action="/app/settings/data/close" class="set-act">');
+      expect(at, l).toBeGreaterThan(short);
       expect(form, l).toBeGreaterThan(at);
+      expect(close, l).not.toContain('<details');
       // Unchanged: the typed name, the red button, its words, its confirmation.
       expect(close, l).toContain('<input id="dr-name" name="name" required');
       expect(close, l).toContain(`data-confirm="${esc(t(l, 'data.deletion.confirm'))}">${esc(t(l, 'data.deletion.close'))}</button>`);
       expect(close, l).toContain('<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"');
     }
   });
-  it('the installation\'s own workspace: the button says what it asks for, in a review of its own, with its confirmation', () => {
+  it('the installation\'s own workspace: the button says what it asks for, with its confirmation', () => {
     for (const l of LOCALES) {
       const h = withoutIsolates(renderDataRights({ businessName: 'Juniper Skin', requests: [], closable: false }, l, null, OWNER_VIEW, 'x'));
-      expect(h, l).toContain(`<summary><span>${esc(t(l, 'data.close.reviewAsk'))}</span></summary>`);
+      expect(h, l).toContain('<form method="post" action="/app/settings/data/delete" class="set-act">');
       expect(h, l).toContain(`data-confirm="${esc(t(l, 'data.deletion.askConfirm'))}">${esc(t(l, 'data.deletion.ask'))}</button>`);
       expect(h, l).toContain(esc(t(l, 'data.deletion.protected')));
     }
@@ -121,19 +125,31 @@ describe('F37 · the advisor\'s history: on is the lead; off and a person\'s del
   const page = (s: HistoryPage['state'], team: HistoryPage['team'] = []): HistoryPage => ({ state: s, isOwner: true, team, processor: 'X' });
   it('Turn on is a filled button; Turn off is outlined and keeps its confirmation', () => {
     for (const l of LOCALES) {
-      const on = renderAdvisorHistory(l, page(state()), null, 'mine');
+      const on = renderAdvisorHistory(l, page(state()), null);
       expect(on, l).toContain(`<button class="btn" type="submit" name="on" value="on">${esc(t(l, 'advisor.history.turnOn'))}</button>`);
-      const off = renderAdvisorHistory(l, page(state({ keep: true, since: NOW })), null, 'mine');
+      const off = renderAdvisorHistory(l, page(state({ keep: true, since: NOW })), null);
       expect(off, l).toContain(`<button class="btn hist-quiet" type="submit" name="on" value="off" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'advisor.memory.confirm', { processor: 'X' }))}">${esc(t(l, 'advisor.history.turnOff'))}</button>`);
     }
   });
-  it('the history policy: the workspace switch off and each person\'s delete are outlined, on their row, still asked first', () => {
+  // Rule 104 — the workspace's history policy is a section of Data and privacy: the switch is a row that acts at once
+  // (turning it OFF asks first), and deleting a person's history is a row of the danger zone, asked first.
+  it('the history policy: the workspace switch off and each person\'s delete still ask first', () => {
     for (const l of LOCALES) {
-      const h = renderAdvisorHistory(l, page(state(), [{ id: 'p-s', name: 'Sam Rivera' }]), null, 'workspace');
-      expect(h, l).toContain('<ul class="rows hist-team">');
-      expect(h, l).toContain(`<button class="btn hist-quiet" type="submit" name="go" value="1" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'advisor.memory.ownerDeleteConfirm', { name: 'Sam Rivera' }))}">${esc(t(l, 'advisor.memory.ownerDelete', { name: 'Sam Rivera' }))}</button>`);
-      expect(h, l).toContain(`value="off" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'advisor.history.workspaceConfirm'))}"`);
-      expect(h, l).not.toMatch(/<button class="btn" [^>]*data-confirm/);
+      const h = renderDataRights({ businessName: 'Juniper Skin', requests: [], history: { workspaceOn: true, team: [{ id: 'p-s', name: 'Sam Rivera' }] } }, l, null, OWNER_VIEW);
+      const policy = h.slice(h.indexOf('<section class="set-sec" id="advisor-history">'), h.indexOf('id="buyers"'));
+      expect(policy, l).toContain(`<form method="post" action="/app/settings/advisor-history/workspace" class="set-act"><input type="hidden" name="on" value="off" /><button class="set-switch" type="submit" role="switch" aria-checked="true"`);
+      expect(policy, l).toContain(`onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'advisor.history.workspaceConfirm'))}"`);
+      expect(policy, l).toContain(esc(t(l, 'advisor.history.teamHelp')));
+      const danger = h.slice(h.indexOf('id="danger-zone"'));
+      expect(danger, l).toContain(`<span class="fr-name">${esc(t(l, 'advisor.memory.ownerDelete', { name: 'Sam Rivera' }))}</span>`);
+      expect(danger, l).toContain(`<form method="post" action="/app/settings/advisor-history/team/p-s/delete" class="set-act"><input type="hidden" name="go" value="1" /><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'advisor.memory.ownerDeleteConfirm', { name: 'Sam Rivera' }))}">`);
+      // Turning it ON does not ask; someone who is not the owner is shown neither.
+      const off = renderDataRights({ businessName: 'Juniper Skin', requests: [], history: { workspaceOn: false, team: [] } }, l, null, OWNER_VIEW);
+      expect(off, l).toContain('name="on" value="on" /><button class="set-switch" type="submit" role="switch" aria-checked="false" aria-label');
+      expect(off.slice(off.indexOf('id="advisor-history"'), off.indexOf('id="buyers"')), l).not.toContain('data-confirm');
+      const staff = renderDataRights({ businessName: 'Juniper Skin', requests: [], history: { workspaceOn: true, team: [{ id: 'p-s', name: 'Sam Rivera' }] } }, l, null, { isOwner: false, id: 'p-1' });
+      expect(staff, l).not.toContain('/app/settings/advisor-history/workspace');
+      expect(staff, l).not.toContain('/app/settings/advisor-history/team/');
     }
     expect(SETTINGS_AREA_CSS).toContain('.settings-area .btn.hist-quiet{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}');
   });
