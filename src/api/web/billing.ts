@@ -1,10 +1,10 @@
-import { stateBlock, stateNext } from './stateBlock.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { back, esc, atWork } from './layout.js';
+import { esc, atWork } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
-import { fieldRow, rowsCard } from './rows.js';
+import { fieldRow } from './rows.js';
+import { pageHead, setSection, setNotice } from './settingsPage.js';
 import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
 import type { BillingHold, BillingState, Plan } from '../../db/billing.js';
@@ -32,27 +32,25 @@ export type BillingView = {
   readonly trialEndHolds?: boolean;
 };
 
-export function renderBilling(v: BillingView, locale: Locale, flash: Flash | null, backLabel: string): string {
-  const head = `${back('/app/settings/setup', backLabel)}
-    <h1 class="page">${esc(t(locale, 'billing.title'))}</h1>
+export function renderBilling(v: BillingView, locale: Locale, flash: Flash | null, _backLabel = ''): string {
+  // The settings overhaul (rule 104) — the one template: the title is the menu's, one line under it, then sections.
+  const head = `${pageHead(t(locale, 'settingsArea.billing'), t(locale, 'ws.billing.lede'))}
     ${flashBanner(flash)}`;
-  // Phase 9 (settings-a-new-05, -06) — what Setup's row promises, the plan and
-  // what is charged, as the settings pages' rows: one grey line said neither.
-  const nothing = (lede: MessageKey): string => `${head}
-    <p class="lede">${esc(t(locale, lede))}</p>
-    ${rowsCard(null, [
-      fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
-      fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
-    ])}`;
-  // F47 — not offered on this installation: said as a state of its own, the plan and the charge still shown as none
+  // Phase 9 (settings-a-new-05, -06) — the plan and what is charged, as the settings pages' rows.
+  const none = setSection({ id: 'plan', title: t(locale, 'billing.row.plan'), rows: [
+    fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
+    fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
+  ] });
+  // F47 — not offered on this installation: said ON the page as its own line (billing is not open, payments are not
+  // switched on, plans cannot be chosen), with the door to what is left of setting up; the plan and the charge as none.
   if (!v.configured) return `${head}
-    <p class="lede">${esc(t(locale, 'billing.notConfigured'))}</p>
-    ${stateBlock('unavailable', { heading: t(locale, 'state.billing.h'), body: t(locale, 'state.billing.p'), nextHtml: stateNext('/app/settings/setup', t(locale, 'state.billing.next')) })}
-    ${rowsCard(null, [
-      fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
-      fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
-    ])}`;
-  if (!v.state.billed) return nothing('billing.notBilled');
+    ${setNotice({ id: 'billing-closed', html: `<strong>${esc(t(locale, 'state.billing.h'))}</strong> · ${esc(t(locale, 'billing.notConfigured'))} ${esc(t(locale, 'state.billing.p'))}`,
+      door: { href: '/app/get-started', label: t(locale, 'state.billing.next') } })}
+    ${none}`;
+  if (!v.state.billed) return `${head}
+    ${setNotice({ text: t(locale, 'billing.notBilled') })}
+    ${none}`;
+
   const s = v.state;
   const date = (d: Date | null) => (d ? show.date(locale, d) : '—');
   const plan = v.plans.find((p) => p.id === s.planId) ?? null;
@@ -99,16 +97,18 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
         ${trialOver ? '' : `<p class="muted">${esc(t(locale, 'billing.noChargeYet'))}</p>`}
       </form>`;
 
-  const usage = plan ? `<section class="block"><h2>${esc(t(locale, 'billing.usage.title'))}</h2><ul class="rows">
+  const usage = plan ? setSection({ id: 'usage', title: t(locale, 'billing.usage.title'), rows: `<ul class="rows">
       <li class="row">${esc(t(locale, 'billing.usage.customers', { n: s.customersThisMonth, limit: plan.customersAMonth }))}</li>
       <li class="row">${esc(plan.seats ? t(locale, 'billing.usage.seats', { n: v.people, limit: plan.seats }) : t(locale, 'billing.usage.seatsAny', { n: v.people }))}</li>
       <li class="row">${esc(plan.assistants ? t(locale, 'billing.usage.assistants', { n: v.assistants, limit: plan.assistants }) : t(locale, 'billing.usage.assistantsAny', { n: v.assistants }))}</li>
-    </ul></section>` : '';
+    </ul>` }) : '';
 
   const portal = s.hasCustomer ? `<form method="post" action="/app/settings/billing/portal">
       <button class="btn" type="submit">${esc(t(locale, 'billing.portal'))}</button></form>` : '';
 
+  // Choosing a plan and opening the card's page are acts named by their verb (they lead to the payment provider's own
+  // page): neither is a field of this page, so the page has no Save.
   return `${head}
-    <section class="block">${returned}${status}${trial}${cardFirst}${trialEnd}${plans}${portal}</section>
+    ${setSection({ id: 'plan', title: t(locale, 'billing.row.plan'), rows: `${returned}${status}${trial}${cardFirst}${trialEnd}${plans}${portal}` })}
     ${usage}`;
 }

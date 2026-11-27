@@ -182,7 +182,7 @@ import {
 } from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName, orderTitle } from './orders.js';
 import {
-  loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
+  loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode, TEAM_PAGE, awayDay,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
 import {
@@ -227,7 +227,7 @@ import {
   confirmFollowUpById, loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
   updateStepFrom,
 } from './sequences.js';
-import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
+import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay, validatePerson } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, setupFoldOf, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
@@ -242,10 +242,14 @@ import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { markPromiseKept } from '../../db/promisedDates.js';
-import { settingsProfileValue } from './settings.js';
-import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
-  loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
-  loadTerms, saveTerms, renderTerms } from './settings.js';
+import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderCurrency, loadClosures, addClosure, removeClosure, restoreClosure, renderHours, closureDateField,
+  loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSampleRequests,
+  loadTerms, saveTerms, sellingTermsSections, sellingAnswers, validateProfile,
+  PROFILE_PAGE, HOURS_PAGE, CURRENCY_PAGE, SELLING_PAGE } from './settings.js';
+import { validateIdentifiers } from '../../core/books/identifiers.js';
+import { isZone } from '../../core/owner/zones.js';
+import { validateTradeTerms } from '../../core/commerce/terms.js';
+import { validateSamplePolicy } from '../../core/commerce/samples.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
@@ -308,7 +312,7 @@ import {
   OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
 } from '../../security/otp.js';
 import { renderAccount } from './account.js';
-import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
+import { loadBusinessKind, saveBusinessKind, businessKindProblem, businessKindUnchanged, type BusinessKindView } from './businessKind.js';
 import { tradesForExport } from '../../core/owner/sellingStyle.js';
 import { keepsMoroccanBooks } from '../../core/books/identifiers.js';
 import { makeThrottle, callerKey } from './throttle.js';
@@ -406,7 +410,7 @@ import { endSession, sessionEnded } from '../../db/endedSessions.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { countryName, type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, needsYouCount, outreachShown, booksShown, viewerRole, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, needsYouCount, outreachShown, booksShown, exportSettingsShown, viewerRole, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 import { saveMorningSetting } from '../../db/morningSummary.js';
@@ -2665,11 +2669,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * is rather than shown a form that turns them away.
    */
   app.get('/app/settings/business/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
-    async (s, req, reply, locale) => renderDataRights(
-      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null,
-        // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.
-        closable: s.businessId !== deps.businessId && personOf(s).id !== 'owner' },
-      locale, takeFlash(req, reply), personOf(s), t(locale, 'nav.setup'))));
+    async (s, req, reply, locale) => {
+      // Rule 104 — the workspace's Ask Nomi history policy is a section of this page: whether the workspace allows
+      // history, and the team (never what anyone kept). Read through the same narrow port; without it, not drawn.
+      const mem = deps.advisorMemory, me = personOf(s).id;
+      const history = mem ? {
+        workspaceOn: await mem.state(s.businessId, me, new Date()).then((st) => st.workspaceOn).catch(() => false),
+        team: await mem.team(s.businessId, me).catch(() => []),
+      } : null;
+      return renderDataRights(
+        { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null, history,
+          // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.
+          closable: s.businessId !== deps.businessId && personOf(s).id !== 'owner' },
+        locale, takeFlash(req, reply), personOf(s));
+    }));
 
   /**
    * One file, streamed as an attachment.
@@ -6743,11 +6756,55 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/business/selling', async (req, reply) => {
     const s = sessionOf(req);if(!s)return reply.redirect('/login');
     const locale = localeOf(req);
-    if(!personOf(s).isOwner){const view=await loadFactory(deps.db,s.businessId,whatsappConfigured,await businessOffer(s.businessId),{rehearse:false});const menu=await loadBusinessMenu(deps.db,s.businessId,false);return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'hs.title'),active:'settings',bodyHtml:renderBusinessScreen('how',{...view,menu},locale,takeFlash(req,reply),personOf(s))}));}
-    const v = await loadHub(deps.db, s.businessId);
+    if(!personOf(s).isOwner){const view=await loadFactory(deps.db,s.businessId,whatsappConfigured,await businessOffer(s.businessId),{rehearse:false});const menu=await loadBusinessMenu(deps.db,s.businessId,false);return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'hs.title'),active:'settings',bodyHtml:renderBusinessScreen('how',{...view,menu},locale,takeFlash(req,reply),personOf(s))
+      // Rule 104 — the terms and the sample policy as they are stated, for someone who may read and not change them.
+      +(exportSettingsShown()?sellingTermsSections(await loadTerms(deps.db,s.businessId),await loadSamples(deps.db,s.businessId),locale,personOf(s)):'')}));}
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderHub(v, locale, takeFlash(req, reply)) : '',
+      title: t(locale, 'hs.title'), active: 'factory', bodyHtml: await sellingBody(s, locale, takeFlash(req, reply)),
     }));
+  });
+  /**
+   * Rule 104 — How you sell as the owner sees it: the questions, and (only where the workspace keeps export settings)
+   * the payment and delivery terms and the sample policy as its sections, with the page's one Save.
+   */
+  const sellingBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, kept: Kept | null = null): Promise<string> => {
+    const v = await loadHub(deps.db, s.businessId);
+    if (!v) return '';
+    return renderHub(v, locale, flash, exportSettingsShown()
+      ? sellingTermsSections(await loadTerms(deps.db, s.businessId), await loadSamples(deps.db, s.businessId), locale, personOf(s), kept) : '');
+  };
+  /**
+   * Rule 104 — the one Save of the terms and the sample policy (the owner's: price rules). Both answers are validated
+   * first, as their own saves validate them; then each that says something new is stated with its own save
+   * (`saveTerms`, `saveSamplePolicy`: both INSERT). A refusal returns the page with everything typed kept.
+   */
+  app.post(SELLING_PAGE, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', SELLING_PAGE);
+    if (!s) return reply;
+    if (!exportSettingsShown()) return reply.redirect(SELLING_PAGE);
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const now = new Date();
+    const samplesNow = await loadSamples(deps.db, s.businessId);
+    const answers = sellingAnswers(await loadTerms(deps.db, s.businessId), samplesNow, b);
+    const terms = answers.terms ? validateTradeTerms({ payment: answers.terms.payment, incoterm: answers.terms.incoterm || null, now }) : null;
+    const samples = answers.samples && samplesNow.currency
+      ? validateSamplePolicy({ price: answers.samples.price, creditedOnFirstOrder: answers.samples.credited, currency: samplesNow.currency, now }) : null;
+    const refused = terms && !terms.ok ? `terms.flash.${terms.error}` : samples && !samples.ok ? `samples.flash.${samples.error}` : null;
+    if (refused) {
+      const kept = keptFrom(locale, refused, b);
+      if (kept) return sentBack(req, reply, 'settings', await sellingBody(s, locale, null, kept));
+      return flashTo(reply, SELLING_PAGE, refused as MessageKey);
+    }
+    if (answers.terms) {
+      const r = await saveTerms(deps.db, s.businessId, { payment: answers.terms.payment, incoterm: answers.terms.incoterm || null, actor: personOf(s).id, now });
+      if (r.code !== 'saved') return flashTo(reply, `${SELLING_PAGE}#terms`, `terms.flash.${r.code}` as MessageKey);
+    }
+    if (answers.samples) {
+      const r = await saveSamplePolicy(deps.db, s.businessId, { price: answers.samples.price, credited: answers.samples.credited, now });
+      if (r.code !== 'saved') return flashTo(reply, `${SELLING_PAGE}#samples`, `samples.flash.${r.code}` as MessageKey);
+    }
+    return flashTo(reply, SELLING_PAGE, 'ws.flash.saved');
   });
   const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? ''));
   const hsPageQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? '').replaceAll('-','_'));
@@ -7854,11 +7911,73 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/settings/alerts', n > 0 ? 'alerts.flash.tested' : 'alerts.flash.testNone');
   });
 
-  app.get('/app/settings/business/profile', authed('settings', async (s, req, locale, reply) => ({
-    title: t(locale, 'settings.profile.title'),
-    bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},
-      await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)) + `<section id="business-kind" class="sa-subject">${renderBusinessKind(await loadBusinessKind(deps.db,s.businessId),locale,null,t(locale,'settingsArea.business'),null,true)}</section>`,
+  /**
+   * Rule 104 — Business profile as it is drawn: the profile and, as its last section, the kind, the country and the
+   * website. `o` is a refused save: what was typed, and each refusal under its field.
+   */
+  const profileBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, o: {
+    readonly draft?: Parameters<typeof renderProfile>[3]; readonly errors?: Parameters<typeof renderProfile>[4];
+    readonly ids?: Parameters<typeof renderProfile>[8]; readonly kind?: { readonly view: BusinessKindView; readonly kept: Kept | null };
+  } = {}): Promise<string> =>
+    renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, flash, o.draft ?? {}, o.errors ?? {}, null, null, personOf(s), o.ids ?? {},
+      o.kind ?? { view: await loadBusinessKind(deps.db, s.businessId) });
+  app.get(PROFILE_PAGE, authed('settings', async (s, req, locale, reply) => ({
+    title: t(locale, 'settingsArea.profile'),
+    bodyHtml: await profileBody(s, locale, takeFlash(req, reply)),
   })));
+  /**
+   * Rule 104 — the page's ONE Save: the profile, the legal identifiers (the owner's, where they are asked) and the
+   * kind, country and website, in one submission. Everything is validated first; then the save functions that were
+   * always there are called, each keeping its own rule. A refusal returns the page with everything typed kept and
+   * the refusal under its field. Working hours are not on this page (Hours and closures): they are left as stored.
+   */
+  app.post(PROFILE_PAGE, async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const stored = await loadBusinessProfile(deps.db, s.businessId);
+    const input = {
+      name: String(b['name'] ?? ''), description: String(b['description'] ?? ''),
+      location: String(b['location'] ?? ''), workingHours: stored.workingHours ?? '',
+      contactEmail: String(b['contact_email'] ?? ''), contactPhone: String(b['contact_phone'] ?? ''),
+      languagesServed: SERVED_LANGUAGES.filter((l) => b[`lang_${l}`] !== undefined),
+      // 0133 — only when the form carries it: a form without the field leaves the address as it is.
+      ...(typeof b['postal_address'] === 'string' ? { postalAddress: b['postal_address'] } : {}),
+    };
+    // The identifiers are the owner's (`business_identifiers`), and only where the page asks them.
+    const idsSent = mayDo(personOf(s), 'business_identifiers') && !!stored.identifiers && typeof b['ice'] === 'string';
+    const idsInput = { ice: String(b['ice'] ?? ''), taxId: String(b['tax_id'] ?? ''), rc: String(b['rc'] ?? ''), rcCourt: String(b['rc_court'] ?? '') };
+    // The kind, country and website: an answer to save only when one of the three was changed.
+    const kindNow = await loadBusinessKind(deps.db, s.businessId);
+    const kindSent = typeof b['kind'] === 'string' || typeof b['country'] === 'string' || typeof b['website'] === 'string';
+    const typedKind = { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') };
+    const kindChanged = kindSent && !businessKindUnchanged(kindNow, typedKind);
+
+    const profile = validateProfile(input);
+    const ids = idsSent ? validateIdentifiers(idsInput) : null;
+    const kindProblem = kindChanged ? businessKindProblem(typedKind) : null;
+    if (!profile.ok || (ids !== null && !ids.ok) || kindProblem) {
+      return sentBack(req, reply, 'settings', await profileBody(s, locale, saidFlash(locale, 'settings.flash.profileFix'), {
+        draft: {
+          name: input.name, description: input.description, location: input.location,
+          contactEmail: input.contactEmail, contactPhone: input.contactPhone, languagesServed: input.languagesServed,
+          ...(input.postalAddress !== undefined ? { postalAddress: input.postalAddress } : {}),
+        },
+        errors: profile.ok ? {} : profile.errors,
+        ...(idsSent ? { ids: { draft: idsInput, errors: ids !== null && !ids.ok ? ids.errors : {} } } : {}),
+        kind: {
+          view: kindSent ? { kind: typedKind.kind || null, country: typedKind.country || null, website: typedKind.website } : kindNow,
+          kept: kindProblem ? keptFrom(locale, `business.kind.bad.${kindProblem}`, typedKind) : null,
+        },
+      }));
+    }
+    const saved = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
+    if (idsSent) await saveIdentifiers(deps.db, s.businessId, idsInput, personOf(s).id);
+    if (kindChanged) await saveBusinessKind(deps.db, s.businessId, typedKind, personOf(s).id);
+    facts.evict(s.businessId);   // D — a complete profile is a setup step done; the country decides how an amount is written
+    return flashTo(reply, PROFILE_PAGE, saved.code === 'saved' ? 'settings.flash.profileSaved' : 'settings.flash.profileFix');
+  });
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.
@@ -7872,8 +7991,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const problem = businessKindProblem(typed);
     const kept = problem ? keptFrom(localeOf(req), `business.kind.bad.${problem}`, typed) : null;
     if (kept) {
-      return sentBack(req, reply, 'settings', renderBusinessKind({ kind: typed.kind, country: typed.country || null, website: typed.website },
-        localeOf(req), null, t(localeOf(req), 'nav.factory'), kept));
+      return sentBack(req, reply, 'settings', await profileBody(s, localeOf(req), null,
+        { kind: { view: { kind: typed.kind || null, country: typed.country || null, website: typed.website }, kept } }));
     }
     const r = await saveBusinessKind(deps.db, s.businessId, typed, personOf(s).id);
     facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
@@ -7899,8 +8018,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
-  app.get('/app/settings/business/currency', authed('settings', async (sess, req, locale, reply) =>
-    `${settingsProfileValue(locale,'currency',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),await loadCurrencyChoice(deps.db,sess.businessId),personOf(sess))}${renderRate(await loadRates(deps.db, sess.businessId), locale,takeFlash(req, reply), personOf(sess),null,true)}`));
+  /** Rule 104 — Currency as it is drawn: the selling currency and the rate, one page. */
+  const currencyBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, kept: Kept | null = null): Promise<string> =>
+    renderCurrency(await loadRates(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), locale, flash, personOf(s), kept);
+  app.get(CURRENCY_PAGE, authed('settings', async (sess, req, locale, reply) => ({
+    title: t(locale, 'settingsArea.currency'), bodyHtml: await currencyBody(sess, locale, takeFlash(req, reply)) })));
+  /**
+   * Rule 104 — the page's ONE Save: the currency (the owner's, only until the first price: `saveCurrency` decides)
+   * and the rate (`setRate`, which validates and INSERTS). A rate typed in the same Save that changes the currency
+   * was typed for the old pair: the currency is saved, the rate is not, and the notice says so.
+   */
+  app.post(CURRENCY_PAGE, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', CURRENCY_PAGE);
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const raw = String(b['rate'] ?? '').trim();
+    const before = await loadCurrencyChoice(deps.db, s.businessId);
+    const wanted = typeof b['currency'] === 'string' ? b['currency'].trim().toUpperCase() : '';
+    if (wanted !== '' && before !== null && wanted !== before.currency) {
+      const c = await saveCurrency(deps.db, s.businessId, wanted);
+      if (c !== 'saved') return flashTo(reply, CURRENCY_PAGE, c === 'fixed' ? 'settings.flash.currencyFixed' : 'settings.flash.currencyInvalid');
+      facts.evict(s.businessId);
+      return flashTo(reply, CURRENCY_PAGE, raw === '' ? 'ws.flash.saved' : 'ws.flash.rateAgain');
+    }
+    if (raw === '') return flashTo(reply, CURRENCY_PAGE, 'ws.flash.saved');
+    const r = await setRate(deps.db, s.businessId, raw, new Date());
+    if (r.code === 'set') return flashTo(reply, CURRENCY_PAGE, 'rate.flash.set', { rate: r.rate.rate, from: r.rate.from, to: r.rate.to });
+    const kept = keptFrom(locale, `rate.flash.${r.code}`, { rate: raw });
+    if (kept) return sentBack(req, reply, 'settings', await currencyBody(s, locale, null, kept));
+    return flashTo(reply, CURRENCY_PAGE, `rate.flash.${r.code}` as MessageKey);
+  });
 
   app.post('/app/settings/rate', async (req, reply) => {
     // Phase 4 — the rate she honours converts every price: money, hers.
@@ -7911,13 +8059,48 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await setRate(deps.db, s.businessId, raw, new Date());
     if (r.code === 'set') return flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate, from: r.rate.from, to: r.rate.to });
     const kept = keptFrom(locale, `rate.flash.${r.code}`, { rate: raw ?? '' });
-    if (kept) return sentBack(req, reply, 'settings', renderRate(await loadRates(deps.db, s.businessId), locale, null, personOf(s), kept));
+    if (kept) return sentBack(req, reply, 'settings', await currencyBody(s, locale, null, kept));
     return flashTo(reply, '/app/settings/rate', `rate.flash.${r.code}` as MessageKey);
   });
 
   // M44 — the days her factory is shut. She states them; nothing is assumed.
-  app.get('/app/settings/business/hours', authed('settings', async (sess, req, locale, reply) =>
-    `${settingsProfileValue(locale,'hours',await loadBusinessProfile(deps.db,sess.businessId),await loadZoneChoice(deps.db,sess.businessId),null)}${renderClosures(await loadClosures(deps.db, sess.businessId), locale,takeFlash(req, reply),null,true)}`));
+  /** Rule 104 — Hours and closures as it is drawn: the closed days, then the working hours and the time zone. */
+  const hoursBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, kept: Kept | null = null,
+    hours: Parameters<typeof renderHours>[4] = null): Promise<string> =>
+    renderHours({ workingHours: (await loadBusinessProfile(deps.db, s.businessId)).workingHours, zone: await loadZoneChoice(deps.db, s.businessId),
+      closures: (await loadClosures(deps.db, s.businessId)).closures }, locale, flash, kept, hours);
+  app.get(HOURS_PAGE, authed('settings', async (sess, req, locale, reply) => ({
+    title: t(locale, 'settingsArea.hours'), bodyHtml: await hoursBody(sess, locale, takeFlash(req, reply)) })));
+  /**
+   * Rule 104 — the page's ONE Save: the working hours and the time zone, which have their one home here. Both are
+   * checked first; then the working hours are saved with the profile's own save (the rest of the profile as it is
+   * stored, the postal address untouched) and the zone with its own.
+   */
+  app.post(HOURS_PAGE, async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const p = await loadBusinessProfile(deps.db, s.businessId);
+    const typed = String(b['working_hours'] ?? '');
+    const input = {
+      name: p.name, description: p.description ?? '', location: p.location ?? '', workingHours: typed,
+      contactEmail: p.contactEmail ?? '', contactPhone: p.contactPhone ?? '', languagesServed: p.languagesServed,
+    };
+    const v = validateProfile(input);
+    if (!v.ok && v.errors.workingHours) {
+      return sentBack(req, reply, 'settings', await hoursBody(s, locale, null, null,
+        { typed, error: t(locale, `settings.err.${v.errors.workingHours}` as MessageKey, { n: 200 }) }));
+    }
+    // Something else in the stored profile no longer passes: it is fixed where it is drawn.
+    if (!v.ok) return flashTo(reply, PROFILE_PAGE, 'settings.flash.profileFix');
+    const zone = typeof b['zone'] === 'string' && b['zone'] !== '' ? b['zone'] : null;
+    if (zone !== null && !isZone(zone)) return flashTo(reply, HOURS_PAGE, 'settings.flash.zoneInvalid');
+    if (typed.trim() !== (p.workingHours ?? '')) await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
+    if (zone !== null && (await saveZone(deps.db, s.businessId, zone)) !== 'saved') return flashTo(reply, HOURS_PAGE, 'settings.flash.zoneInvalid');
+    facts.evict(s.businessId);
+    return flashTo(reply, HOURS_PAGE, 'ws.flash.saved');
+  });
 
   app.post('/app/settings/closures', async (req, reply) => {
     const s = sessionOf(req);
@@ -7930,7 +8113,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (r.code === 'added') return flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label });
     const kept = keptFrom(locale, `closures.flash.${r.code}`, b);
-    if (kept) return sentBack(req, reply, 'settings', renderClosures(await loadClosures(deps.db, s.businessId), locale, null, kept));
+    if (kept) return sentBack(req, reply, 'settings', await hoursBody(s, locale, null, kept));
     return flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
   });
 
@@ -8100,6 +8283,53 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const awayUntil = day ? dayStart(addDays(day, 1), workspaceZone()) : null;
     const done = await withTenantTx(deps.db, bid, (tx) => setPersonTurn(tx, bid, (req.params as { id: string }).id, { inRotation: f.inTurn === '1', awayUntil }));
     return flashTo(reply, '/app/settings/people#turn', done ? 'turn.flash.saved' : 'turn.flash.notSaved');
+  });
+
+  /**
+   * Rule 104 — "In turn" is a switch in a person's row: it acts at once, and leaves the day they are away until as
+   * it is (the older route above sets both, for a form that carries both).
+   */
+  app.post('/app/settings/people/:id/in-turn', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people#turn');
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect('/app/settings/people');
+    const id = (req.params as { id: string }).id;
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    const done = await withTenantTx(deps.db, bid, async (tx) => {
+      const person = (await rotationOf(tx, bid)).people.find((p) => p.id === id);
+      return person ? setPersonTurn(tx, bid, id, { inRotation: on, awayUntil: person.awayUntil }) : false;
+    });
+    return flashTo(reply, `${TEAM_PAGE}#people`, done ? 'turn.flash.saved' : 'turn.flash.notSaved');
+  });
+  /**
+   * Rule 104 — Team's ONE Save: every person's "Away until" (a date is a field), and a name asked of someone called
+   * by the business's name. The names are checked first; then only what was changed is saved, each with the save it
+   * always had (`setPersonTurn`, which keeps the person in turn or not as they are; `renamePerson`).
+   */
+  app.post(TEAM_PAGE, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', TEAM_PAGE);
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect(TEAM_PAGE);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const now = new Date();
+    const names = Object.entries(b).flatMap(([k, v]) => /^name_[0-9a-f-]{36}$/i.test(k) && typeof v === 'string' && v.trim() !== '' ? [{ id: k.slice(5), name: v }] : []);
+    for (const n of names) {
+      const v = validatePerson(n.name);
+      if (!v.ok) return flashTo(reply, TEAM_PAGE, `people.flash.${v.error}` as MessageKey);
+    }
+    let failed = false;
+    await withTenantTx(deps.db, bid, async (tx) => {
+      for (const p of (await rotationOf(tx, bid)).people) {
+        const sent = b[`away_${p.id}`];
+        if (p.accountant || typeof sent !== 'string') continue;
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(sent) ? sent : '';
+        if (day === awayDay(p.awayUntil, now)) continue;
+        // Away until the END of that day, in the workspace's own day; an empty box is "here".
+        if (!await setPersonTurn(tx, bid, p.id, { inRotation: p.inRotation, awayUntil: day ? dayStart(addDays(day, 1), workspaceZone()) : null })) failed = true;
+      }
+    });
+    for (const n of names) if ((await renamePerson(deps.db, s.businessId, n.id, n.name)).code !== 'renamed') failed = true;
+    return flashTo(reply, TEAM_PAGE, failed ? 'turn.flash.notSaved' : 'ws.flash.saved');
   });
 
   app.post('/app/settings/people', async (req, reply) => {
@@ -9111,9 +9341,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // G6 — her terms on a proforma. Owner-only under the price-rules decision:
   // staff negotiate inside her commercial terms, they do not set them.
-  app.get('/app/settings/business/terms', authed('settings', async (sess, req, locale, reply) =>
-    renderTerms(await loadTerms(deps.db, sess.businessId), locale,
-      takeFlash(req, reply), personOf(sess))));
+  // Rule 104 — the terms are a section of How you sell: the older page's address opens it there.
+  app.get('/app/settings/business/terms', movedPage(`${SELLING_PAGE}#terms`));
 
   app.post('/app/settings/terms', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/terms');
@@ -9125,17 +9354,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       actor: personOf(s).id, now: new Date(),
     });
     const kept = keptFrom(locale, `terms.flash.${r.code}`, b);
-    if (kept) return sentBack(req, reply, 'settings', renderTerms(await loadTerms(deps.db, s.businessId), locale, null, personOf(s), kept));
-    return flashTo(reply, '/app/settings/terms', `terms.flash.${r.code}` as MessageKey);
+    if (kept) return sentBack(req, reply, 'settings', await sellingBody(s, locale, null, kept));
+    return flashTo(reply, `${SELLING_PAGE}#terms`, `terms.flash.${r.code}` as MessageKey);
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.
-  app.get('/app/settings/business/samples', authed('settings', async (sess, req, locale, reply) =>
-    renderSamples(await loadSamples(deps.db, sess.businessId), locale,
-      takeFlash(req, reply),
-      new Date(), personOf(sess), null, 'policy')));
+  // Rule 104 — the sample policy is a section of How you sell: the older page's address opens it there.
+  app.get('/app/settings/business/samples', movedPage(`${SELLING_PAGE}#samples`));
   app.get('/app/customers/samples', authed('customers', async (sess, req, locale, reply) =>
-    customerArea(renderSamples(await loadSamples(deps.db, sess.businessId), locale, takeFlash(req, reply), new Date(), personOf(sess), null, 'requests'), locale, 'samples')));
+    customerArea(renderSampleRequests(await loadSamples(deps.db, sess.businessId), locale, takeFlash(req, reply), new Date()), locale, 'samples')));
 
   app.post('/app/settings/samples', async (req, reply) => {
     // Phase 4 — what a sample costs is a price. Recording an address or
@@ -9148,8 +9375,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
     });
     const kept = keptFrom(locale, `samples.flash.${r.code}`, b);
-    if (kept) return sentBack(req, reply, 'settings', renderSamples(await loadSamples(deps.db, s.businessId), locale, null, new Date(), personOf(s), kept, 'policy'));
-    return flashTo(reply, '/app/settings/business/samples', `samples.flash.${r.code}` as MessageKey);
+    if (kept) return sentBack(req, reply, 'settings', await sellingBody(s, locale, null, kept));
+    return flashTo(reply, `${SELLING_PAGE}#samples`, `samples.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/samples/:id/address', async (req, reply) => {
@@ -9223,15 +9450,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // M20.4 (F-07) — a rejected save re-RENDERS the owner's own submission with
     // the bad field marked. Redirecting would reload from the database and throw
     // away everything she typed, which is the M21 defect.
-    const profile = await loadBusinessProfile(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'settings.profile.title'), active: 'settings',
-      bodyHtml: renderProfile(profile, locale, saidFlash(locale, 'settings.flash.profileFix'), {
+      title: t(locale, 'settingsArea.profile'), active: 'settings',
+      bodyHtml: await profileBody(s, locale, saidFlash(locale, 'settings.flash.profileFix'), { draft: {
         name: input.name, description: input.description, location: input.location,
         workingHours: input.workingHours, contactEmail: input.contactEmail,
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
         ...(input.postalAddress !== undefined ? { postalAddress: input.postalAddress } : {}),
-      }, r.errors, await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
+      }, errors: r.errors }),
     }));
   });
 
@@ -9248,9 +9474,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveIdentifiers(deps.db, s.businessId, input, personOf(s).id);
     if (r.code === 'saved') return flashTo(reply, '/app/settings/profile#identifiers', 'settings.flash.identifiersSaved');
     return reply.code(422).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'settings.profile.title'), active: 'settings',
-      bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, saidFlash(locale, 'settings.flash.profileFix'), {}, {},
-        await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s), { draft: input, errors: r.errors }),
+      title: t(locale, 'settingsArea.profile'), active: 'settings',
+      bodyHtml: await profileBody(s, locale, saidFlash(locale, 'settings.flash.profileFix'), { ids: { draft: input, errors: r.errors } }),
     }));
   });
 

@@ -54,6 +54,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'alerts.flash.bad', 'alerts.flash.testNone',
   // The warmth run, phase 8 — a way that cannot be chosen here: nothing was saved.
   'alerts.flash.wayBad',
+  // Rule 104 (Currency) — the currency changed in the same Save a rate was typed for the old one: the rate was not set.
+  'ws.flash.rateAgain',
   'account.flash.failed', 'account.flash.short', 'account.flash.wrong', 'allowlist.flash.invalid',
   // 0080 — the order still waits, or was already decided; and like
   // `inbox.flash.sentNotLive`, recorded but nothing sent.
@@ -199,7 +201,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.booksStarted',
   'books.flash.fecFilenameSaved',
   'books.flash.workbookReadHistory',
-  'books.flash.readLeftThere', 'channels.chat.flash.on', 'channels.chat.flash.off', 'channels.telegram.flash.on', 'channels.telegram.flash.off', 'surveys.flash.on', 'surveys.flash.off', 'knowledge.given.flash.taught', 'knowledge.given.flash.dismissed', 'savedReplies.flash.inserted', 'turn.flash.on', 'turn.flash.off', 'turn.flash.saved', 'labels.flash.put', 'labels.flash.already', 'labels.flash.off', 'labels.flash.renamed', 'labels.flash.archived', 'labels.flash.restored', 'savedReplies.flash.added', 'savedReplies.flash.saved', 'savedReplies.flash.archived', 'savedReplies.flash.restored', 'books.flash.xeroConnected', 'books.flash.xeroDisconnected', 'books.flash.quickbooksConnected', 'books.flash.quickbooksDisconnected', 'books.flash.quickbooksDisconnectedThere', 'books.flash.connectedStale', 'books.flash.sheetsConnectedStale', 'connect.tiktok.flash.connected', 'connect.tiktok.flash.disconnected', 'connect.tiktok.flash.disconnectedHere', 'books.flash.disconnectedStale', 'books.flash.staleEnded', 'books.flash.fieldAdded', 'books.flash.fieldRetired', 'books.flash.fieldInUse',
+  'books.flash.readLeftThere', 'channels.chat.flash.on', 'channels.chat.flash.off', 'channels.telegram.flash.on', 'channels.telegram.flash.off', 'surveys.flash.on', 'surveys.flash.off', 'knowledge.given.flash.taught', 'knowledge.given.flash.dismissed', 'savedReplies.flash.inserted', 'turn.flash.on', 'turn.flash.off', 'turn.flash.saved', 'ws.flash.saved', 'labels.flash.put', 'labels.flash.already', 'labels.flash.off', 'labels.flash.renamed', 'labels.flash.archived', 'labels.flash.restored', 'savedReplies.flash.added', 'savedReplies.flash.saved', 'savedReplies.flash.archived', 'savedReplies.flash.restored', 'books.flash.xeroConnected', 'books.flash.xeroDisconnected', 'books.flash.quickbooksConnected', 'books.flash.quickbooksDisconnected', 'books.flash.quickbooksDisconnectedThere', 'books.flash.connectedStale', 'books.flash.sheetsConnectedStale', 'connect.tiktok.flash.connected', 'connect.tiktok.flash.disconnected', 'connect.tiktok.flash.disconnectedHere', 'books.flash.disconnectedStale', 'books.flash.staleEnded', 'books.flash.fieldAdded', 'books.flash.fieldRetired', 'books.flash.fieldInUse',
   'books.flash.statementRead', 'books.flash.matched', 'books.flash.unmatched', 'books.flash.written',
   // EXT — lines read more closely.
   'import.flash.extracted',
