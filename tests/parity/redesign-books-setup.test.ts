@@ -71,11 +71,16 @@ describe('F46 · the tab row is not repeated on the hub', () => {
   it('the hub has the checklist instead; a step page keeps its row', () => {
     withWorkspace(scope, () => {
       expect(settingsPageLinks('en', 'books', '/app/settings/books', { isOwner: true })).toBe('');
-      // The navigation block (2026-11-25): no area draws its own row; a step page is lit in the books' sidebar, under Setup.
+      // The navigation block (2026-11-25): no area draws its own row. The settings overhaul (2026-11-27, rule 104): a
+      // step page is lit in the SETTINGS sidebar, under its Books group; tax is a section of Country and tax.
       expect(settingsPageLinks('en', 'books', '/app/settings/books/tax', { isOwner: true })).toBe('');
-      const side = sectionSidebar('en', 'books', '/app/settings/books/tax');
-      expect(side).toContain('href="/app/settings/books/tax" aria-current="page"');
-      expect(side).toContain(`<p class="sect-head">${t('en', 'side.setup')}</p>`);
+      const side = sectionSidebar('en', 'settings', '/app/settings/books/tax');
+      expect(side).toContain('href="/app/settings/books/country" aria-current="page"');
+      expect(side).toContain(`<p class="sect-head">${t('en', 'settingsArea.books')}</p>`);
+      // The books' own sidebar keeps one "Settings" shortcut, and no Setup group.
+      const books = sectionSidebar('en', 'books', '/app/books');
+      expect(books.match(/href="\/app\/settings\/[^"]*"/g)).toEqual(['href="/app/settings/books/country"']);
+      expect(books).not.toContain(`<p class="sect-head">${t('en', 'side.setup')}</p>`);
     });
   });
 });

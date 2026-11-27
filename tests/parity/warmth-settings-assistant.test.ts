@@ -186,12 +186,16 @@ describe('phase 7 · every former section, one tap away, its words and controls 
   });
 
   it('the hub links every screen it lists, with daily tools and monthly results in their approved areas', () => {
-    const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings/assistant')!.routes;
-    // The navigation block (2026-11-25): the hub's own row of links is the assistant area's sidebar now, and the
-    // assistant's settings sit in that area; the month is a report.
-    const html = landing(base, 'en') + sectionSidebar('en','assistant','/app/settings/assistant');
+    // The settings overhaul (2026-11-27, rule 104): the assistant's settings are a group of the ONE Settings area, whose
+    // menu page is their hub; the Settings sidebar lists them. Its daily tools stay in the assistant's area; the
+    // month is a report.
+    const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings')!.routes.filter((r) => r.startsWith('/app/settings/assistant'));
+    expect(routes).toEqual(['/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises']);
+    const html = landing(base, 'en') + sectionSidebar('en','settings','/app/settings/assistant');
     for (const r of routes) expect(html, r).toContain(`href="${r}"`);
-    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'reports' : 'assistant');
+    const area = (s: (typeof EMPLOYEE_SCREENS)[number]) => s === 'month' ? 'reports' : screenHref(s).startsWith('/app/assistant') ? 'assistant' : 'settings';
+    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(area(s));
+    expect(EMPLOYEE_SCREENS.filter((s) => area(s) === 'assistant')).toEqual(['talk', 'learning', 'checks', 'history']);
   });
 });
 

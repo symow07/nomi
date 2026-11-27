@@ -43,7 +43,7 @@ import { renderBooksOverview, renderBooksReportsHome, booksDoors, booksDay, type
 import { renderBooksSetup } from './booksSetup.js';
 import { booksArea } from './booksArea.js';
 import { renderAssistantsSection, channelsFromForm } from './assistants.js';
-import { settingsArea,settingsPageLinks,renderSettingsIndex,renderSettingsGroup } from './settingsArea.js';
+import { settingsArea,settingsPageLinks,renderSettingsIndex } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
 import { compareDecimal, decimal, mulDecimal, roundDecimal, signOf, type Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
@@ -1086,7 +1086,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const who = personOf(s);
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
     const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null; readonly exportTrade?: boolean }) => {
-      const f = { ...f0, viewerRole, ads: adsReady() !== null };
+      const f = { ...f0, viewerRole, ads: adsReady() !== null,
+        channelsHere: { chat: deps.chatIngest !== undefined, telegram: deps.telegramBot !== undefined, tiktok: tiktokReady() !== null } };
       // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
       if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
@@ -3259,9 +3260,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const forms=(['odoo','xero'] as const).map(system=>{const rows=confirmed.filter(r=>r.system===system);return rows.length?taxStartForm(locale,system,rows,Object.fromEntries(rows.map(r=>[r.code,r.day])),'tax-start-'+system):'';}).join('');
     return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.taxDetails'),active:'settings',bodyHtml:flashBanner(takeFlash(req,reply))+`<h1 class="page">${esc(t(locale,'booksArea.taxDetails'))}</h1><p>${esc(t(locale,'booksArea.currentDetails'))}</p>`+booksDoors(locale,[['/app/settings/profile#identifiers','booksArea.profile']])+`<p>${esc(t(locale,'booksArea.taxHint'))}</p><section id="tax-start"><h2>${esc(t(locale,'booksArea.taxDates'))}</h2><p>${esc(t(locale,'booksArea.taxDatesHint'))}</p>`+forms+booksDoors(locale,[['/app/settings/books/connections','booksArea.connections']])+'</section>'}));
   });
-  for(const advanced of [false,true]) app.get(advanced?'/app/books/advanced':'/app/books/reports',async(req,reply)=>{
+  app.get('/app/books/reports',async(req,reply)=>{
     const s=sessionOf(req);if(!s)return reply.redirect('/login');const bid=bidOf(s);if(!bid)return reply.callNotFound();const locale=localeOf(req);const where=await kindAndCountryOf(bid);
-    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,advanced?'booksArea.advanced':'booksArea.reports'),active:'settings',bodyHtml:renderBooksReportsHome(locale,advanced,keepsMoroccanBooks(where))}));
+    return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'booksArea.reports'),active:'settings',bodyHtml:renderBooksReportsHome(locale,false,keepsMoroccanBooks(where))}));
+  });
+  // The settings overhaul (rule 104): "Advanced" was a page of two links. Entries and Trial balance are items of the
+  // books' sidebar now ("For your accountant"), and this address opens the first of them.
+  app.get('/app/books/advanced',async(req,reply)=>{
+    const s=sessionOf(req);if(!s)return reply.redirect('/login');if(!bidOf(s))return reply.callNotFound();
+    return reply.redirect('/app/books/advanced/entries',302);
   });
   app.post('/app/books/settings/accounts', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3285,11 +3292,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const on = await withTenantTx(deps.db, bid, (tx) => invoiceSendingOn(tx, bid));
     const owner = booksMay(personOf(s), 'post');
-    const body = `<h1 class="page">${esc(t(locale, 'invoice.settings.title'))}</h1>`
+    const body = `<h1 class="page">${esc(t(locale, 'side.booksInvoices'))}</h1>`
       + (owner ? renderInvoicesOut(locale, on)
         : `<p>${esc(t(locale, on ? 'invoice.settings.stateOn' : 'invoice.settings.stateOff'))}</p><p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`)
       + booksDoors(locale, [['/app/settings/books', 'booksArea.settings']]);
-    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'invoice.settings.title'), active: 'settings', bodyHtml: flashBanner(takeFlash(req, reply)) + body }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'side.booksInvoices'), active: 'settings', bodyHtml: flashBanner(takeFlash(req, reply)) + body }));
   });
   app.post('/app/settings/books/invoices-out', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -6143,8 +6150,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // unchanged in substance: where customers reach you (the channels' one
   // home), who may be messaged, going live, what is promised, how you sell.
   const BUSINESS_SCREEN_TITLE: Readonly<Record<BusinessScreen, (locale: Locale) => string>> = {
-    channels: (l) => t(l, 'factory.reach.title'), allowlist: (l) => t(l, 'allowlist.title'),
-    ready: (l) => t(l, 'business.row.live'), promises: (l) => t(l, 'factory.promise.title'),
+    channels: (l) => t(l, 'side.channelsAll'), allowlist: (l) => t(l, 'allowlist.title'),
+    ready: (l) => t(l, 'business.row.live'), promises: (l) => t(l, 'settingsArea.promises'),
     how: (l) => t(l, 'factory.sellhow.title'),
   };
   for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
@@ -7785,7 +7792,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     return reply.type('text/html; charset=utf-8').send(page(req,{title:t(locale,'nav.settings'),active:'settings',bodyHtml:renderSettingsIndex(locale,takeFlash(req,reply),personOf(s))}));
   });
-  app.get('/app/settings/personal', authed('settings',(s,req,locale,reply)=>({title:t(locale,'settingsArea.personal'),bodyHtml:renderSettingsGroup(locale,'personal',personOf(s),takeFlash(req,reply))})));
+  // Rule 104: the older group addresses show the one Settings menu page.
+  app.get('/app/settings/personal', authed('settings',(s,req,locale,reply)=>({title:t(locale,'nav.settings'),bodyHtml:renderSettingsIndex(locale,takeFlash(req,reply),personOf(s))})));
   // Phase 7 — the language switch, a tap down from Setup's Language row.
   app.get('/app/settings/personal/language', authed('settings', (_s, _req, locale) => ({
     title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale, viewerRole() === 'accountant'),
@@ -7854,7 +7862,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.
-  app.get('/app/settings/business', authed('settings', (s,req,locale,reply) => ({title:t(locale,'settingsArea.business'),bodyHtml:renderSettingsGroup(locale,'business',personOf(s),takeFlash(req,reply))})));
+  app.get('/app/settings/business', authed('settings', (s,req,locale,reply) => ({title:t(locale,'nav.settings'),bodyHtml:renderSettingsIndex(locale,takeFlash(req,reply),personOf(s))})));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
@@ -9497,7 +9505,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return missingPage(locale, t(locale, 'shopifyOrders.notConnected'), { href: '/app/settings/business', label: t(locale, 'settingsArea.business') });
     const [connection, lookups] = await withTenantTx(deps.db, bid.value, async (tx) =>
       [await liveShopifyConnection(tx, bid.value), await recentOrderLookups(tx, bid.value)] as const);
-    return { title: t(locale, 'shopifyOrders.title'), bodyHtml: renderShopifyOrdersPage(locale, {
+    return { title: t(locale, 'side.shopify'), bodyHtml: renderShopifyOrdersPage(locale, {
       owner: mayDo(personOf(s), 'messaging_activation'), connection, lookups, flash: takeFlash(req, reply),
     }) };
   }));
@@ -9506,7 +9514,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId); if (!bid.ok) return flashTo(reply, SHOPIFY_ORDERS_PAGE, 'people.flash.failed');
     const again = (code: ShopifyConnectRefusal, address: string) => reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'shopifyOrders.title'), active: 'settings',
+      title: t(locale, 'side.shopify'), active: 'settings',
       bodyHtml: renderShopifyOrdersPage(locale, { owner: true, connection: null, lookups: [], flash: null, refused: { code, address } }),
     }));
     const f = readShopifyForm((req.body ?? {}) as Record<string, unknown>);

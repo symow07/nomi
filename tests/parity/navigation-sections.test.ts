@@ -2,6 +2,12 @@
  * The navigation block (2026-11-25, the owner's decision) — two layers everywhere, as Intercom has them: the rail names
  * the areas; inside each area a section sidebar lists ALL of it. This file holds the map (sections.ts) to what the owner
  * approved: one home per feature, the four moves, who sees what, and where the sidebar is drawn.
+ *
+ * THE SETTINGS OVERHAUL (2026-11-27, the owner's decision; rule 104) rewrote the tests here that pinned three menus of
+ * settings (Settings, Assistant › Go live, Books › Setup): every setting is in the ONE Settings area now, in five
+ * groups and 23 pages; the Assistant and Books areas keep one "Settings" shortcut each, and Products one to Shopify.
+ * What each rewritten test guarded is kept: an item lights the area its page belongs to, an address has one home, and
+ * nobody is shown a door they may not open.
  */
 import { describe, expect, it } from 'vitest';
 import { AREAS, currentItem, sectionSidebar, sectionChooser, hasSections, isSectionPage, type AreaId } from '../../src/api/web/sections.js';
@@ -11,6 +17,7 @@ import { withWorkspace, t, type RequestScope } from '../../src/api/web/say.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { messages } from '../../src/core/owner/i18n/messages.js';
 import { NAVIGATION_EN } from '../../src/core/owner/i18n/navigation.js';
+import { SETTINGS_OVERHAUL_EN } from '../../src/core/owner/i18n/settingsOverhaul.js';
 
 const OWNER: RequestScope = { name: 'Lily', several: false, outreach: true, setup: null, books: true, viewerRole: 'owner', ads: true, business: 'Atlas Studio' };
 const as = <T>(facts: Partial<RequestScope>, fn: () => T): T => withWorkspace({ ...OWNER, ...facts }, fn);
@@ -27,36 +34,96 @@ describe('the map: every area of the rail has its sidebar, and each feature one 
     for (const id of Object.keys(AREAS) as AreaId[]) if (id !== 'ask') expect(AREAS[id].length, id).toBeGreaterThan(0);
   });
 
-  it('every item lights the area that lists it — except the books\' reports, which the owner asked to see in Reports too', () => {
+  /** A shortcut is a second door to a page that belongs to another area (rule 104): never "here" where it is listed. */
+  const SHORTCUTS: Readonly<Record<string, readonly string[]>> = {
+    products: ['/app/settings/business/shopify'], assistant: ['/app/settings/assistant'], books: ['/app/settings/books/country'],
+  };
+
+  it('every item lights the area that lists it — except the books\' reports, shown in Reports too, and the three shortcuts into Settings', () => {
     for (const [area, groups] of Object.entries(AREAS) as [AreaId, (typeof AREAS)[AreaId]][]) {
       for (const g of groups) for (const item of g.items) {
         const lit = hubFor(item.href.split('#')[0]!, 'none');
         if (area === 'reports' && item.href === '/app/books/reports') expect(lit).toBe('books');
-        else expect(lit, `${area} › ${item.href}`).toBe(area);
+        else if (SHORTCUTS[area]?.includes(item.href)) { expect(lit, `${area} › ${item.href}`).toBe('settings'); expect(item.shortcut, item.href).toBe(true); }
+        else { expect(lit, `${area} › ${item.href}`).toBe(area); expect(item.shortcut ?? false, item.href).toBe(false); }
       }
     }
   });
 
-  it('no address is listed twice, but for that one deliberate second door', () => {
+  it('no address is listed twice, but for the books\' reports in Reports and the three shortcuts', () => {
     const all = Object.values(AREAS).flatMap((gs) => gs.flatMap((g) => g.items.map((i) => i.href)));
     const twice = all.filter((h, i) => all.indexOf(h) !== i);
-    expect(twice).toEqual(['/app/books/reports']);
+    expect(twice.sort()).toEqual(['/app/books/reports', '/app/settings/assistant', '/app/settings/books/country', '/app/settings/business/shopify']);
   });
 
-  it('the owner\'s four choices, as drawn', () => {
-    const settings = as({}, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/business/profile')));
-    // Settings keeps only the workspace: nothing of the assistant's or the books' settings is listed there.
-    expect(settings.filter((h) => h.startsWith('/app/settings/assistant') || h.startsWith('/app/settings/books'))).toEqual([]);
+  it('ONE Settings area: five groups, 23 pages, in the approved order', () => {
+    const groups = (facts: Partial<RequestScope> = {}) => as(facts, () => sectionSidebar('en', 'settings', '/app/settings/business/profile'));
+    expect([...groups().matchAll(/<p class="sect-head">([^<]+)<\/p>/g)].map((m) => m[1])).toEqual(['Workspace', 'Connections', 'Assistant', 'Books', 'You']);
+    expect(hrefs(groups())).toEqual([
+      '/app/settings/business/profile', '/app/settings/business/selling', '/app/settings/business/hours', '/app/settings/business/currency',
+      '/app/settings/team', '/app/settings/billing', '/app/settings/business/data',
+      '/app/settings/channels', '/app/settings/channels/whatsapp', '/app/settings/channels/meta', '/app/settings/channels/email', '/app/settings/business/shopify',
+      '/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises',
+      '/app/settings/books/country', '/app/settings/books/starting-balances', '/app/settings/books/accounts', '/app/settings/books/invoices-out',
+      '/app/settings/books/connections', '/app/settings/books/fields',
+      '/app/settings/personal/account', '/app/settings/personal/notifications',
+    ]);
+    expect(hrefs(groups())).toHaveLength(23);
+    // The renames, as the menu says them.
+    const words = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span><\/a>/g)].map((m) => m[1]);
+    expect(words(groups())).toEqual(['Business profile', 'How you sell', 'Hours and closures', 'Currency', 'Team', 'Billing', 'Data and privacy',
+      'Channels', 'WhatsApp', 'Instagram and Messenger', 'E-mail', 'Shopify', 'Reply permissions', 'Name and identity', 'Promises and words',
+      'Country and tax', 'Starting balances', 'Accounts', 'Invoices', 'Accounting connections', 'Custom fields', 'Account', 'Notifications']);
+    // What merged into another page is not an item, and its address lights the page that took it in.
+    for (const [gone, home] of [['/app/settings/business/terms', '/app/settings/business/selling'], ['/app/settings/business/samples', '/app/settings/business/selling'],
+      ['/app/settings/assistant/words', '/app/settings/assistant/promises'], ['/app/settings/assistant/alone', '/app/settings/assistant'],
+      ['/app/settings/assistant/history-policy', '/app/settings/business/data'], ['/app/settings/books/tax', '/app/settings/books/country'],
+      ['/app/settings/personal/language', '/app/settings/personal/account'], ['/app/settings/channels/technical', '/app/settings/channels']] as const) {
+      expect(hrefs(groups()), gone).not.toContain(gone);
+      expect(currentItem('settings', gone)?.href, gone).toBe(home);
+    }
+    // A person's Ask Nomi history and the books' checklist are not settings pages: nothing in the menu is "here".
+    expect(currentItem('settings', '/app/settings/personal/advisor-history')).toBeNull();
+    expect(currentItem('settings', '/app/settings/books')).toBeNull();
+  });
+
+  it('the Assistant and Books areas keep their work and ONE "Settings" shortcut each; Products one to Shopify', () => {
     const assistant = as({}, () => hrefs(sectionSidebar('en', 'assistant', '/app/assistant')));
-    for (const h of ['/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises', '/app/settings/assistant/words']) expect(assistant).toContain(h);
-    const books = as({}, () => hrefs(sectionSidebar('en', 'books', '/app/books')));
-    for (const h of ['/app/settings/books', '/app/settings/books/tax', '/app/settings/books/connections']) expect(books).toContain(h);
+    // Going live is a checklist, not a setting: it is the one address under /app/settings the assistant's area keeps.
+    expect(assistant.filter((h) => h.startsWith('/app/settings'))).toEqual(['/app/settings/assistant/ready', '/app/settings/assistant']);
+    const side = as({}, () => sectionSidebar('en', 'assistant', '/app/settings/assistant/ready'));
+    expect(side).toContain('<p class="sect-head">Go live</p><a href="/app/settings/assistant/ready" aria-current="page">');
+    expect(side).toMatch(/<div class="sect-group"><a href="\/app\/settings\/assistant">[\s\S]*?<span>Settings<\/span><\/a><\/div>/);
+    const books = as({}, () => sectionSidebar('en', 'books', '/app/books'));
+    expect(hrefs(books).filter((h) => h.startsWith('/app/settings'))).toEqual(['/app/settings/books/country']);
+    // "Advanced" was a page of two links: they are items now, under "For your accountant".
+    expect(books).toContain('<p class="sect-head">For your accountant</p><a href="/app/books/advanced/entries">');
+    expect(hrefs(books)).toEqual(expect.arrayContaining(['/app/books/advanced/entries', '/app/books/advanced/trial-balance']));
+    expect(hrefs(books)).not.toContain('/app/books/advanced');
+    for (const [path, home] of [['/app/books/advanced', '/app/books/advanced/entries'], ['/app/books/entries', '/app/books/advanced/entries'],
+      ['/app/books/advanced/entries/e-1', '/app/books/advanced/entries'], ['/app/books/trial-balance', '/app/books/advanced/trial-balance']] as const)
+      expect(currentItem('books', path)?.href, path).toBe(home);
     // Reports is its own area, and the books' reports appear there too.
     const reports = as({}, () => hrefs(sectionSidebar('en', 'reports', '/app/results')));
     for (const h of ['/app/results', '/app/results?view=assistant', '/app/results/month', '/app/results#ad-spend', '/app/books/reports']) expect(reports).toContain(h);
-    // Payment links (and Shopify orders) sit under Products.
+    // Payment links sit under Products, with the shortcut to Shopify's page (Settings › Connections).
     const products = as({}, () => hrefs(sectionSidebar('en', 'products', '/app/products')));
     for (const h of ['/app/payments/stripe', '/app/settings/business/shopify', '/app/products/whatsapp']) expect(products).toContain(h);
+    // A shortcut is never "here": on Shopify's page the Settings sidebar is drawn, and lights its own item.
+    expect(currentItem('products', '/app/settings/business/shopify')).toBeNull();
+    expect(currentItem('settings', '/app/settings/business/shopify')?.label).toBe('side.shopify');
+  });
+
+  it('web chat, Telegram and TikTok are items only where they can be connected; elsewhere their pages light Channels', () => {
+    const three = ['/app/settings/channels/chat', '/app/settings/channels/telegram', '/app/settings/channels/tiktok'];
+    const none = as({}, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/channels')));
+    for (const h of three) expect(none, h).not.toContain(h);
+    as({}, () => { for (const h of three) expect(currentItem('settings', h)?.href, h).toBe('/app/settings/channels'); });
+    const here = { channelsHere: { chat: true, telegram: true, tiktok: true } };
+    expect(as(here, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/channels'))).filter((h) => three.includes(h))).toEqual(three);
+    as(here, () => { for (const h of three) expect(currentItem('settings', h)?.href, h).toBe(h); });
+    const one = as({ channelsHere: { chat: false, telegram: true, tiktok: false } }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/channels')));
+    expect(one.filter((h) => three.includes(h))).toEqual(['/app/settings/channels/telegram']);
   });
 
   it('the features that were hidden are one click from their area', () => {
@@ -76,20 +143,37 @@ describe('who sees what', () => {
     expect(team('customers', '/app/customers')).not.toContain('/app/customers/import');
     expect(team('books', '/app/books').filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
     expect(team('reports', '/app/results')).not.toContain('/app/books/reports');
-    for (const h of ['/app/settings/team', '/app/settings/billing', '/app/settings/business/data']) expect(team('settings', '/app/settings/personal/account')).not.toContain(h);
+    const settings = team('settings', '/app/settings/personal/account');
+    for (const h of ['/app/settings/team', '/app/settings/billing', '/app/settings/business/data', '/app/settings/business/shopify']) expect(settings).not.toContain(h);
+    // The Books group of Settings is the owner's, as Books › Setup was.
+    expect(settings.filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+    // The assistant's settings are shown to a team member, as they were under Assistant.
+    for (const h of ['/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises']) expect(settings).toContain(h);
   });
 
   it('an accountant\'s Settings is only their own', () => {
     const acc = as({ viewerRole: 'accountant' }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/personal/account')));
-    expect(acc).toEqual(['/app/settings/personal/account', '/app/settings/personal/language']);
+    // Language is part of Account (rule 104); its address lights Account.
+    expect(acc).toEqual(['/app/settings/personal/account']);
+    expect(currentItem('settings', '/app/settings/personal/language')?.href).toBe('/app/settings/personal/account');
+    // The assistant's area offers an accountant no shortcut into settings they may not see.
+    expect(as({ viewerRole: 'accountant' }, () => hrefs(sectionSidebar('en', 'assistant', '/app/assistant')))).not.toContain('/app/settings/assistant');
+  });
+
+  it('the Books group of Settings exists only where the books are on', () => {
+    expect(as({ books: false }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/team'))).filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+    expect(as({ books: true }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/team'))).filter((h) => h.startsWith('/app/settings/books'))).toHaveLength(6);
   });
 
   it('a feature that is off is not listed: follow-ups, the books\' reports, ad spend, the export trade\'s pages', () => {
     expect(as({ outreach: false }, () => hrefs(sectionSidebar('en', 'customers', '/app/customers')))).not.toContain('/app/customers/outreach');
     expect(as({ books: false }, () => hrefs(sectionSidebar('en', 'reports', '/app/results')))).not.toContain('/app/books/reports');
     expect(as({ ads: false }, () => hrefs(sectionSidebar('en', 'reports', '/app/results')))).not.toContain('/app/results#ad-spend');
-    const shop = as({ exportTrade: false }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/business/profile')));
-    for (const h of ['/app/settings/business/terms', '/app/settings/business/samples']) expect(shop).not.toContain(h);
+    // Terms and samples are sections of How you sell now (rule 104): no item for anyone, export trade or not.
+    for (const exportTrade of [false, true]) {
+      const shop = as({ exportTrade }, () => hrefs(sectionSidebar('en', 'settings', '/app/settings/business/profile')));
+      for (const h of ['/app/settings/business/terms', '/app/settings/business/samples']) expect(shop).not.toContain(h);
+    }
     expect(as({ exportTrade: false }, () => hrefs(sectionSidebar('en', 'customers', '/app/customers')))).not.toContain('/app/customers/samples');
   });
 });
@@ -110,7 +194,7 @@ describe('you are here', () => {
   });
 
   it('one aria-current in the sidebar and one in the chooser', () => {
-    for (const [area, path] of [['settings', '/app/settings/business/hours'], ['books', '/app/settings/books/tax'], ['assistant', '/app/settings/assistant/words'], ['inbox', '/app/inbox/replies']] as const) {
+    for (const [area, path] of [['settings', '/app/settings/business/hours'], ['settings', '/app/settings/books/tax'], ['settings', '/app/settings/assistant/words'], ['assistant', '/app/settings/assistant/ready'], ['books', '/app/books/advanced/entries'], ['inbox', '/app/inbox/replies']] as const) {
       const side = as({}, () => sectionSidebar('en', area, path));
       const chooser = as({}, () => sectionChooser('en', area, path, ''));
       for (const part of [side, chooser]) expect(part.match(/aria-current="page"/g), `${area} ${path}`).toHaveLength(1);
@@ -162,8 +246,9 @@ describe('its words', () => {
       for (const l of LOCALES) expect(messages[l][k], `${l} ${k}`).toBeTruthy();
     }
     for (const l of LOCALES.filter((x) => x !== 'en')) {
-      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
+      for (const k of ['nav.reports', 'side.label', 'side.goLive', 'side.workspace', 'side.connections', 'side.forAccountant', 'side.you', 'side.booksInvoices'] as const) expect(messages[l][k], `${l} ${k}`).not.toBe(messages.en[k]);
     }
+    for (const k of Object.keys(SETTINGS_OVERHAUL_EN) as (keyof typeof SETTINGS_OVERHAUL_EN)[]) for (const l of LOCALES) expect(messages[l][k], `${l} ${k}`).toBeTruthy();
   });
 
   it('the books\' reports group in Reports says Books as the rail does', () => {

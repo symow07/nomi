@@ -426,7 +426,7 @@ export function renderDataRights(
   const index = `<nav class="dr-index" aria-labelledby="dr-index-h"><p class="dr-index-h" id="dr-index-h">${esc(t(locale, 'data.index'))}</p><ul>${subjects.map(([id, k]) =>
     `<li><a href="#${id}">${esc(t(locale, k))}</a></li>`).join('')}</ul></nav>`;
   return `${back('/app/settings/setup', backLabel)}
-    <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
+    <h1 class="page">${esc(t(locale, 'settingsArea.data'))}</h1>
     ${flashBanner(flash)}
     ${index}
     ${files}

@@ -1,4 +1,4 @@
-import {renderSettingsGroup,renderSettingsIndex} from '../../src/api/web/settingsArea.js';
+import {renderSettingsIndex} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
@@ -263,10 +263,11 @@ describe('phase 7 · two doors, one data', () => {
     // the profile page is the only form for the facts: no screen of My business repeats a field of it
     for (const s of ['channels', 'allowlist', 'ready', 'promises', 'how'] as const)
       expect(screen(s, 'en'), s).not.toMatch(/name="(description|location|working_hours|contact_email|contact_phone)"/);
-    // Product records have their own area; business configuration stays in Settings; the assistant's own settings
-    // are the assistant area's (the navigation block, 2026-11-25).
+    // Product records have their own area; every setting is in Settings, the assistant's too (the settings overhaul,
+    // 2026-11-27, rule 104); Going live, a checklist, stays in the assistant's area.
     for (const path of [BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH, '/app/products/abc', ...Object.values(BUSINESS_SCREEN_PATH)])
-      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') ? 'products' : path.startsWith('/app/settings/assistant') ? 'assistant' : 'settings');
+      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') ? 'products' : path === '/app/settings/assistant/ready' ? 'assistant' : 'settings');
+    expect(Object.values(BUSINESS_SCREEN_PATH)).toContain('/app/settings/assistant/ready');
   });
 });
 
@@ -275,19 +276,42 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
   // every route the map names under it. The same, for the hubs this phase drew,
   // without a database: the owner's view of a business that sells in dollars
   // from China (so the rate has something to convert, as the walk's tenant).
-  const drawn: Record<string, string> = {
-    '/app/settings/business': inScope(()=>renderSettingsGroup('en','business',{isOwner:true},null)),
-    [BUSINESS_SCREEN_PATH.channels]: screen('channels', 'en'),
-    '/app/settings': withWorkspace({...SCOPE,books:true},()=>renderSettingsIndex('en',null,{isOwner:true})),
-    '/app/settings/personal':inScope(()=>renderSettingsGroup('en','personal',{isOwner:true},null)),
-  };
+  // The settings overhaul (2026-11-27, rule 104): ONE hub, the Settings menu page, which lists every settings page
+  // in five groups (it was three menus: Settings' groups, a Business page and a Personal page).
+  const menu = (facts: Partial<RequestScope> = {}) => withWorkspace({...SCOPE,books:true,viewerRole:'owner',...facts},()=>renderSettingsIndex('en',null,{isOwner:true}));
+  const menuHrefs = (html: string) => [...html.matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]!);
+  const drawn: Record<string, string> = { '/app/settings': menu() };
   for (const [hub, html] of Object.entries(drawn)) {
     it(`${hub} links to every route the map names under it`, () => {
       const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-      expect(routes.length, hub).toBeGreaterThan(0);
+      expect(routes).toHaveLength(23);
       for (const r of routes) expect(html, `${r} must stay linked from ${hub}`).toContain(`href="${r}"`);
+      // ...and nothing else: the menu page is the 23 pages, in the menu's order, under its five headings.
+      expect([...menuHrefs(html)].sort()).toEqual([...routes].sort());
+      expect([...html.matchAll(/<section class="sa-menu" id="([a-z]+)">/g)].map((m) => m[1])).toEqual(['workspace', 'connections', 'assistant', 'books', 'you']);
+      expect(html).toContain('<form method="post" action="/logout" class="sa-logout">');
     });
   }
+
+  it('the menu page keeps who-sees-what: an accountant only You; a team member no owner-only page; Books only where it is on', () => {
+    expect(menuHrefs(menu({ viewerRole: 'accountant' }))).toEqual(['/app/settings/personal/account']);
+    const team = menuHrefs(menu({ viewerRole: 'team' }));
+    for (const h of ['/app/settings/team', '/app/settings/billing', '/app/settings/business/data', '/app/settings/business/shopify']) expect(team, h).not.toContain(h);
+    expect(team.filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+    expect(team).toContain('/app/settings/assistant');
+    expect(menuHrefs(menu({ books: false })).filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+  });
+
+  it('web chat, Telegram and TikTok are on the menu only where this installation can connect them (the owner\'s condition 3)', () => {
+    const three = ['/app/settings/channels/chat', '/app/settings/channels/telegram', '/app/settings/channels/tiktok'];
+    for (const h of three) expect(menuHrefs(menu()), h).not.toContain(h);
+    expect(menuHrefs(menu({ channelsHere: { chat: true, telegram: false, tiktok: true } })).filter((h) => three.includes(h))).toEqual([three[0], three[2]]);
+  });
+
+  it('Channels still opens the three channels every installation offers', () => {
+    const html = screen('channels', 'en');
+    for (const r of ['whatsapp', 'meta', 'email']) expect(html).toContain(`href="/app/settings/channels/${r}"`);
+  });
 
   it('the rate row is there only where something converts, as before', () => {
     expect(screen('how', 'en', { ...SET_UP, connection: { ...SET_UP.connection, country: 'US' } })).not.toContain('href="/app/settings/business/currency"');

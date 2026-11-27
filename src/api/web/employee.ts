@@ -291,7 +291,7 @@ export const screenHref = (s: EmployeeScreen): string => dailyAssistantScreen(s)
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
   // Phase 9 (w4-business-assistant-26) — what used to stand before the levels on the landing, one level down.
   alone: 'her.alone.title',
-  talk: 'her.talk.title', learning: 'her.teach.title', name: 'her.menu.name', replies: 'her.handles.title',
+  talk: 'her.talk.title', learning: 'her.teach.title', name: 'settingsArea.identity', replies: 'her.handles.title',
   'one-kind': 'employee.actions.title', checks: 'spotcheck.title', month: 'her.recent.title',
   next: 'employee.promo.title', history: 'employee.growth.title',
 };

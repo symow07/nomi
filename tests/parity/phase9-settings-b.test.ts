@@ -147,7 +147,8 @@ describe('V1-512 · Who works here names itself and leads back to Setup', () => 
       expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeGreaterThan(-1);
       expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
       const doc = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: '/app/settings/team', bodyHtml: html }));
-      expect(doc, l).toContain(`<title>${esc(t(l, 'people.title'))} · 义乌宏发日用品厂 (demo)</title>`);
+      // Rule 104: the page's title is its menu label, word for word ("Team"; it was "Who works here").
+      expect(doc, l).toContain(`<title>${esc(t(l, 'settingsArea.team'))} · 义乌宏发日用品厂 (demo)</title>`);
     }
   });
 });

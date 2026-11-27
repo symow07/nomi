@@ -63,6 +63,12 @@ export type RequestScope = {
   readonly viewerRole?: 'owner' | 'team' | 'accountant';
   /** The navigation block — this installation can read a Meta ad account, so Reports offers Ad spend. */
   readonly ads?: boolean;
+  /**
+   * The settings overhaul (rule 104, the owner's condition 3) — which of web chat, Telegram and TikTok this installation
+   * can connect today. Each has a page and a menu item only while it can; otherwise it is a row on Channels that says
+   * "Not set up here yet". The same facts the channel screens read (`served`).
+   */
+  readonly channelsHere?: { readonly chat: boolean; readonly telegram: boolean; readonly tiktok: boolean };
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -113,6 +119,14 @@ export const viewerRole = (): 'owner' | 'team' | 'accountant' => scope.getStore(
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
 export const adsShown = (): boolean => scope.getStore()?.ads ?? false;
 export const outreachShown = (): boolean => scope.getStore()?.outreach ?? false;
+/**
+ * Rule 104 — can this installation connect the channel today? False outside a workspace and wherever the host has not
+ * set it up: the reason the channel's own screen prints "Not set up here yet". One function per channel, read by the
+ * Settings menu and by the Channels table.
+ */
+export const webChatConnectable = (): boolean => scope.getStore()?.channelsHere?.chat ?? false;
+export const telegramConnectable = (): boolean => scope.getStore()?.channelsHere?.telegram ?? false;
+export const tiktokConnectable = (): boolean => scope.getStore()?.channelsHere?.tiktok ?? false;
 
 /** CC-14 — the business's name for this request, or null outside a workspace. Never blank. */
 export const businessName = (): string | null => {

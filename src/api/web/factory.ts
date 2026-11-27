@@ -947,7 +947,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const alerts = menuGroup('alerts', null, [menuRow({ href: channelScreenHref('alerts'), icon: 'alerts', label: channelScreenTitle(locale, 'alerts'),
     value: f.connection.ownerPhone ?? t(locale, 'setup.value.notSetUp') })]);
 
-  return `${head(locale, t(locale, 'factory.reach.title'), flash)}
+  return `${head(locale, t(locale, 'side.channelsAll'), flash)}
     ${approvalHtml}
     ${menuGroup('channels', null, rows)}
     ${allowlist}
@@ -1196,7 +1196,7 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
       : null,
   ].filter((x): x is string => x !== null);
 
-  return `${head(locale, t(locale, 'factory.promise.title'), flash)}
+  return `${head(locale, t(locale, 'settingsArea.promises'), flash)}
     <section class="fblock" id="certs" aria-labelledby="certs-h">
       <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
       <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>

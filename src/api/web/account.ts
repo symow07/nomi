@@ -47,7 +47,7 @@ export function renderAccount(v: AccountView, locale: Locale, flash: Flash | nul
        </form>
        ${lost}`;
   return `${back(v.accountant ? '/app/books' : '/app/settings/setup', backLabel)}
-    <h1 class="page">${esc(t(locale, 'account.title'))}</h1>
+    <h1 class="page">${esc(t(locale, 'settingsArea.account'))}</h1>
     ${flashBanner(flash)}
     ${body}
     ${v.accountant ? `<p>${deeper('/app/settings/language', t(locale, 'settings.language.title'))}</p>` : ''}`;

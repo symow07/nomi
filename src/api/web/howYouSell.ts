@@ -149,7 +149,7 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
   // Phase 7 — reached from My business › How you sell, a menu of the same
   // name: the page is named for what it holds, the questions, and leads back.
   return `<div class="dhead">${back('/app/business/how-you-sell', t(locale, 'factory.sellhow.title'))}</div>
-    <h1 class="page">${esc(t(locale, 'hs.questions.title'))}</h1>
+    <h1 class="page">${esc(t(locale, 'settingsArea.selling'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'hs.lede', { name }))}</p>
     <p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>

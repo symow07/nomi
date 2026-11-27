@@ -328,7 +328,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
 
   // Phase 9 (V1-512) — the way back to Setup, as Business profile has.
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
-    <h1 class="page">${esc(t(locale, 'people.title'))}</h1>
+    <h1 class="page">${esc(t(locale, 'settingsArea.team'))}</h1>
     ${flashBanner(flash)}
     ${issued}
     <section class="block team-members">

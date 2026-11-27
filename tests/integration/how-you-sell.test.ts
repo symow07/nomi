@@ -253,9 +253,9 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     // CK (0110) added "What you sell" to a shop's questions: nine now.
     expect(menu.body).toContain('href="/app/settings/business/selling"');
     expect(how.body).toContain('6 of 9 answered');
-    // The Settings page itself does not repeat it; its sidebar (the navigation block) lists every Settings page.
+    // The Settings page IS the menu now (the settings overhaul, rule 104): every Settings page is listed on it, this one too.
     const index = (await get('/app/settings')).body;
-    expect(index.slice(index.indexOf('<main'), index.indexOf('</main>'))).not.toContain('href="/app/settings/business/selling"');
+    expect(index.slice(index.indexOf('<main'), index.indexOf('</main>'))).toContain('href="/app/settings/business/selling"');
   });
 
   it('A REFUSED ANSWER is shown back with its problem, and nothing is kept', async () => {

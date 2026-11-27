@@ -52,7 +52,7 @@ export function renderShopifyOrdersPage(locale: Locale, view: {
 }): string {
   const text = (k: MessageKey, p?: Record<string, string | number>) => sayOnPage(locale, k, p);
   const c = view.connection;
-  const head = `<h1 class="page">${text('shopifyOrders.title')}</h1>${flashBanner(view.flash)}
+  const head = `<h1 class="page">${text('side.shopify')}</h1>${flashBanner(view.flash)}
     <p class="lede">${text('shopifyOrders.lede')}</p><p>${text('shopifyOrders.rule')}</p><p class="caption">${text('shopifyOrders.drafts')}</p>`;
   if (!c) return `${head}<p><span class="pill">${text('shopifyOrders.notConnected')}</span></p>${view.owner ? connectForm(locale, view.refused ?? null) : `<p class="caption">${text('staff.ownerDecides')}</p>`}`;
 

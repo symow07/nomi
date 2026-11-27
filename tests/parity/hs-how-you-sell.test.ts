@@ -134,7 +134,8 @@ describe('HS · the pages, in every language', () => {
       // Phase 7 — opened from My business › How you sell, a menu of the same name:
       // the page is named for what it holds, and leads back to that menu.
       expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/settings/business/selling">${BACK}${t(l, 'factory.sellhow.title')}</a></div>`);
-      expect(hub, l).toContain(`<h1 class="page">${t(l, 'hs.questions.title')}</h1>`);
+      // Rule 104: the page's title is its menu label, word for word ("How you sell"; it was "The questions").
+      expect(hub, l).toContain(`<h1 class="page">${t(l, 'settingsArea.selling')}</h1>`);
       for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/settings/business/selling/${q.replaceAll('_','-')}"`);
       for (const q of [...CATALOGUE_QUESTIONS, ...SERVICE_QUESTIONS]) {
         const html = renderQuestion(view(q, q === 'offered' || q === 'area' || q === 'duration' || q === 'next_step'
