@@ -37,10 +37,30 @@ export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
   '/app/settings/channels/tiktok': { lines: ['connect.state.notHere'] },
   '/app/settings/channels/telegram': { lines: ['connect.state.notHere'] },
   '/app/settings/channels/chat': { lines: ['connect.state.notHere'] },
+  // ── Settings › Books (the Books builder's block) ──────────────────────────────────────────────────────────────────
+  // Chosen once; once an entry is posted the country stays; the period length is kept for good; nothing is sent to
+  // any authority.
+  '/app/settings/books/country': { lines: ['setBooks.country.once', 'books.country.countryWhy', 'books.country.periodWhy'] },
+  // A payment can land only in an account that holds money (rule 91).
+  '/app/settings/books/accounts': { lines: ['setBooks.acc.moneyRule'] },
+  // Off: nothing is sent and no invoice is promised; on, the customer is told the invoice comes next.
+  '/app/settings/books/invoices-out': { lines: ['invoice.settings.stateOff', 'invoice.settings.promise'] },
+  // What is read in arrives as drafts (nothing is posted until the owner posts it); entries dated before the books are
+  // never read in; a source this installation cannot connect says so.
+  '/app/settings/books/connections': { lines: ['books.workbook.asDrafts', 'books.workbook.history', 'setupList.connNotHere', 'books.sheets.notSetUp'] },
+  // A key never changes once values are written; only a field on customers and suppliers can be required; a retired
+  // field keeps its values and nothing is ever deleted.
+  '/app/settings/books/fields': { lines: ['books.fields.keyHint', 'books.fields.requiredHint', 'books.fields.travel'] },
+  // (Starting balances: its lines are drawn for a Moroccan workspace and once the books have a year, so they are held
+  // by tests/parity/books-morocco-start.test.ts, in every language.)
 };
 
 /** The pages that already follow the one template (rule 104). Add a page's address when it is converted. */
-export const CONVERTED: readonly string[] = [];
+export const CONVERTED: readonly string[] = [
+  // Settings › Books
+  '/app/settings/books/country', '/app/settings/books/starting-balances', '/app/settings/books/accounts',
+  '/app/settings/books/invoices-out', '/app/settings/books/connections', '/app/settings/books/fields',
+];
 
 /** Is the line on the page? Its words, escaped as a page writes them, in order around any value they carry. */
 const hasLine = (main: string, locale: Locale, key: MessageKey): boolean => {

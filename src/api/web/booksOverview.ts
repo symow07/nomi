@@ -10,6 +10,7 @@ import { decimal, type Decimal } from '../../core/types/decimal.js';
 import { esc } from './layout.js';
 import { t } from './say.js';
 import * as show from './values.js';
+import { booksSetupCard, type BooksSetupState } from './booksSetup.js';
 
 export type ScopeAccount={readonly id:string;readonly code:string;readonly name:string;readonly kind:string;readonly active:boolean};
 export const booksMoney=(locale:Locale,value:Decimal,currency:string):string=>{const money=moneyFromRow(value,currency);return `<bdi>${money?esc(show.money(locale,money)):`${esc(value)} ${esc(currency)}`}</bdi>`;};
@@ -49,7 +50,7 @@ export function renderBooksReportsHome(locale:Locale,advanced=false,moroccanBook
  * one group: profit says it is not cash. A figure the records cannot give is its "choose / check / not available"
  * link, never a zero. Each figure's full basis is kept word for word under "How these figures are worked out".
  */
-export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind?:'team'|'accountant'},o:BooksOverview,scope:BooksOverviewOptions,accounts:readonly ScopeAccount[],recent:readonly EntryRow[],setup:{year:boolean;accounts:boolean}):string {
+export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind?:'team'|'accountant'},o:BooksOverview,scope:BooksOverviewOptions,accounts:readonly ScopeAccount[],recent:readonly EntryRow[],setup:{year:boolean;accounts:boolean},checklist:BooksSetupState|null=null):string {
  const text=(key:MessageKey,p:Record<string,string|number>={})=>esc(t(locale,key,p));
  const asOf=booksDay(locale,o.today),from=booksDay(locale,o.month.from),to=booksDay(locale,o.month.to);
  const missing=(state:BooksOverview['cash']['state'],href:string)=>`<a href="${esc(state==='needs_setup'?'#figure-accounts':href)}">${text(state==='needs_setup'?'booksArea.chooseAccounts':state==='needs_review'?'booksArea.reviewNeeded':'booksArea.notAvailable')}</a>`;
@@ -71,7 +72,9 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
  const owed=o.customerOwed.byCurrency.length?o.customerOwed.byCurrency.map(r=>`<div>${booksMoney(locale,r.owed,r.currency)}${r.refundDue!=='0'?`<p>${text('booksArea.refundDue',{amount:(moneyFromRow(r.refundDue,r.currency)?show.money(locale,moneyFromRow(r.refundDue,r.currency)!):r.refundDue+' '+r.currency)})}</p>`:''}</div>`).join(''):amountOf(decimal('0'));
  const setupRows: [string,MessageKey][]=[];if(!setup.year)setupRows.push(['/app/settings/books/starting-balances','booksArea.setupYear']);if(!setup.accounts)setupRows.push(['/app/settings/books/accounts','booksArea.setupAccounts']);
  // One setup notice: the first step still missing, as a door. The rest wait in Books settings.
- const setupNotice=viewer.isOwner&&setupRows.length?`<p class="ba-setup"><strong>${text('booksArea.setup')}</strong> <a href="${esc(setupRows[0]![0])}">${text(setupRows[0]![1])}</a></p>`:'';
+ // Rule 104: where the route gives the checklist (the owner's), the whole of it is drawn as a card until its five steps
+ // are done, and the one-line notice is not said twice.
+ const setupNotice=viewer.isOwner&&checklist?booksSetupCard(locale,checklist):viewer.isOwner&&setupRows.length?`<p class="ba-setup"><strong>${text('booksArea.setup')}</strong> <a href="${esc(setupRows[0]![0])}">${text(setupRows[0]![1])}</a></p>`:'';
  const actions=viewer.isOwner?`<div class="ba-actions" role="group" aria-label="${text('booksHome.actions')}"><a class="btn" data-books-action href="/app/books/invoices/new">${text('booksArea.newInvoice')}</a><a class="btn" data-books-action href="/app/books/spending#receipt-upload">${text('booksArea.addReceipt')}</a><a class="btn" data-books-action href="/app/books/bank#read-statement">${text('booksArea.readStatement')}</a></div>`:'';
  const cash=`<section class="ba-group" aria-labelledby="ba-cash"><h2 id="ba-cash">${text('booksHome.cash')}</h2><dl>${
   figure('booksArea.cashToday',o.cashToday.balance===null?missing(o.cashToday.state,cashHref):amountOf(o.cashToday.balance),null,null)}${
@@ -95,4 +98,4 @@ export function renderBooksOverview(locale:Locale,viewer:Viewer & {readonly kind
 }
 
 /** Known bookmark fragments from the former all-in-one Books home. No arbitrary URL is accepted. */
-const BOOKS_LEGACY_HASH=String.raw`<script>(function(){var h=location.hash;var paths={workbook:'/app/settings/books/connections',sheets:'/app/settings/books/connections',odoo:'/app/settings/books/connections',xero:'/app/settings/books/connections',quickbooks:'/app/settings/books/connections',accounts:'/app/settings/books/accounts',chart:'/app/settings/books/accounts','tax-start':'/app/settings/books/tax','morocco-start':'/app/settings/books/starting-balances'};var key=h.slice(1);if(Object.prototype.hasOwnProperty.call(paths,key))location.replace(paths[key]+location.search+h);})();</script>`;
+const BOOKS_LEGACY_HASH=String.raw`<script>(function(){var h=location.hash;var paths={workbook:'/app/settings/books/connections',sheets:'/app/settings/books/connections',odoo:'/app/settings/books/connections',xero:'/app/settings/books/connections',quickbooks:'/app/settings/books/connections',accounts:'/app/settings/books/accounts',chart:'/app/settings/books/accounts','tax-start':'/app/settings/books/country','morocco-start':'/app/settings/books/starting-balances'};var key=h.slice(1);if(Object.prototype.hasOwnProperty.call(paths,key))location.replace(paths[key]+location.search+h);})();</script>`;

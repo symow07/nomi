@@ -5,6 +5,7 @@ import { UI_FINISH_ZH, UI_FINISH_AR, UI_FINISH_ES, UI_FINISH_FR } from './uiFini
 import { NAVIGATION_ZH, NAVIGATION_AR, NAVIGATION_ES, NAVIGATION_FR } from './navigation.js';
 import { ASK_PICTURE_EN, ASK_PICTURE_ZH, ASK_PICTURE_AR, ASK_PICTURE_ES, ASK_PICTURE_FR } from './askPicture.js';
 import { SETTINGS_OVERHAUL_EN, SETTINGS_OVERHAUL_ZH, SETTINGS_OVERHAUL_AR, SETTINGS_OVERHAUL_ES, SETTINGS_OVERHAUL_FR } from './settingsOverhaul.js';
+import { SETTINGS_BOOKS_EN, SETTINGS_BOOKS_ZH, SETTINGS_BOOKS_AR, SETTINGS_BOOKS_ES, SETTINGS_BOOKS_FR } from './settingsBooks.js';
 
 /**
  * ADR-0008 — The owner-surface message catalog. English is the SOURCE OF TRUTH:
@@ -19,6 +20,7 @@ const EN = {
   ...REDESIGN_EN,
   ...ASK_PICTURE_EN,
   ...SETTINGS_OVERHAUL_EN,
+  ...SETTINGS_BOOKS_EN,
   'record.latestOrder': 'Latest order {reference} · {state}',
   'savedReplies.search': 'Search replies',
   'savedReplies.clearSearch': 'Clear search',
@@ -5926,6 +5928,7 @@ const ZH: Record<MessageKey, string> = {
   ...NAVIGATION_ZH,
   ...ASK_PICTURE_ZH,
   ...SETTINGS_OVERHAUL_ZH,
+  ...SETTINGS_BOOKS_ZH,
   'record.latestOrder': '最新订单 {reference} · {state}',
   'savedReplies.search': '搜索回复',
   'savedReplies.clearSearch': '清除搜索',
@@ -11858,6 +11861,7 @@ const AR: Record<MessageKey, string> = {
   ...NAVIGATION_AR,
   ...ASK_PICTURE_AR,
   ...SETTINGS_OVERHAUL_AR,
+  ...SETTINGS_BOOKS_AR,
   'record.latestOrder': 'أحدث طلب {reference} · {state}',
   'savedReplies.search': 'بحث في الردود',
   'savedReplies.clearSearch': 'مسح البحث',
@@ -17792,6 +17796,7 @@ const ES: Record<MessageKey, string> = {
   ...NAVIGATION_ES,
   ...ASK_PICTURE_ES,
   ...SETTINGS_OVERHAUL_ES,
+  ...SETTINGS_BOOKS_ES,
   'record.latestOrder': 'Último pedido {reference} · {state}',
   'savedReplies.search': 'Buscar respuestas',
   'savedReplies.clearSearch': 'Borrar búsqueda',
@@ -23666,6 +23671,7 @@ const FR: Record<MessageKey, string> = {
   ...NAVIGATION_FR,
   ...ASK_PICTURE_FR,
   ...SETTINGS_OVERHAUL_FR,
+  ...SETTINGS_BOOKS_FR,
   'record.latestOrder': 'Dernière commande {reference} · {state}',
   'savedReplies.search': 'Rechercher des réponses',
   'savedReplies.clearSearch': 'Effacer la recherche',

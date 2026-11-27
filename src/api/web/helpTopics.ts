@@ -11,7 +11,8 @@ import type { SetupStep } from '../../db/setup.js';
  */
 export type GuideId =
   | 'setup' | 'profile' | 'channels' | 'whatsapp' | 'approve' | 'inbox' | 'products' | 'away' | 'alone' | 'name'
-  | 'disclosure' | 'data' | 'practice' | 'knowledge' | 'customers' | 'calendar' | 'books' | 'team' | 'billing';
+  | 'disclosure' | 'data' | 'practice' | 'knowledge' | 'customers' | 'calendar' | 'books' | 'team' | 'billing'
+  | 'booksStart' | 'booksAccounts' | 'booksInvoices';
 
 export type Guide = {
   readonly id: GuideId;
@@ -48,6 +49,11 @@ export const GUIDES: Readonly<Record<GuideId, Guide>> = {
   books: { id: 'books', door: '/app/books', lines: 2, source: 'page' },
   team: { id: 'team', door: '/app/settings/team', lines: 2, source: 'page' },
   billing: { id: 'billing', door: '/app/settings/billing', lines: 2, source: 'page' },
+  // The settings overhaul (rule 104): the long form of what three books pages now say in one line each, word for word
+  // as those pages said it, in every language it was written in (settingsBooks.ts).
+  booksStart: { id: 'booksStart', door: '/app/settings/books/starting-balances', lines: 3, source: 'page' },
+  booksAccounts: { id: 'booksAccounts', door: '/app/settings/books/accounts', lines: 2, source: 'page' },
+  booksInvoices: { id: 'booksInvoices', door: '/app/settings/books/invoices-out', lines: 3, source: 'page' },
 };
 
 export const guideTitle = (id: GuideId): MessageKey => `help.g.${id}.title` as MessageKey;
@@ -110,6 +116,9 @@ const BY_PREFIX: readonly (readonly [string, readonly GuideId[]])[] = [
   ['/app/settings/people', ['team', 'approve']],
   ['/app/settings/billing', ['billing', 'data']],
   ['/app/settings/books', ['books', 'data']],
+  ['/app/settings/books/starting-balances', ['booksStart', 'books']],
+  ['/app/settings/books/accounts', ['booksAccounts', 'books']],
+  ['/app/settings/books/invoices-out', ['booksInvoices', 'books']],
   ['/app/settings/personal', ['team', 'data']],
 ];
 
