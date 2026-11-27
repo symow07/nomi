@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderProfile, settingsProfileValue, renderClosures, type BusinessProfile } from '../../src/api/web/settings.js';
-import { renderBusinessKind } from '../../src/api/web/businessKind.js';
+import { readFileSync } from 'node:fs';
+import { renderProfile, renderHours, renderCurrency, type BusinessProfile } from '../../src/api/web/settings.js';
+import { saveActs } from '../../src/api/web/settingsPage.js';
 import { SETTINGS_AREA_CSS } from '../../src/api/web/settingsAreaStyle.js';
 import { OWNER_VIEW, type Viewer } from '../../src/core/conversation/people.js';
 import { zoneLabel } from '../../src/core/owner/zones.js';
@@ -12,11 +13,12 @@ import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { withoutIsolates } from './isolates.js';
 
 /**
- * UI Block 7 · F35 — Business settings. The profile is three subjects, each its own form with its own Save that says
- * what it saves; the route (POST /app/settings, unchanged) still saves the whole profile, so every form carries every
- * field it needs — the others hidden — and never blanks one. Hours, the zone and the currency are shown in the profile's
- * own row pattern, by their names, and a value that cannot change here says why (rules 41, 42). Closures: what is
- * recorded first, then the form that adds more. Labels sit beside their controls on a desk; a phone stacks them.
+ * UI Block 7 · F35 — Business settings, as RULE 104 (the settings overhaul, 2026-11-27) draws them. F35 made the
+ * profile three subjects, each its own form with its own Save, every form carrying the whole profile hidden so that
+ * no Save blanked another. Rule 104 keeps what that protected and does it with ONE form: every field of the profile is
+ * on the page once, and the page's one Save sends them all; nothing is hidden, so nothing can be blanked. Working
+ * hours and the time zone have one home (Hours and closures), the currency another (Currency), each by its name, and
+ * a value that cannot change there says why (rules 41, 42). Closures: what is recorded first, then the form that adds.
  */
 
 const STAFF: Viewer = { ...OWNER_VIEW, isOwner: false } as Viewer;
@@ -24,115 +26,98 @@ const p: BusinessProfile = {
   name: 'Juniper Skin', description: 'Skin care made in small batches.', location: 'Lisbon', workingHours: 'Mon–Fri 9–18',
   contactEmail: 'hello@juniper.test', contactPhone: '+351210000000', languagesServed: ['en', 'pt'],
 } as BusinessProfile;
-const draw = (l: Locale, opts: { fixed?: boolean; viewer?: Viewer; zone?: boolean } = {}) =>
-  withoutIsolates(renderProfile(p, l, null, {}, {}, opts.zone === false ? null : { zone: 'Europe/Lisbon', country: 'PT' },
-    { currency: 'EUR', fixed: opts.fixed ?? false }, opts.viewer ?? OWNER_VIEW));
-const forms = (html: string) => [...html.matchAll(/<form method="post" action="\/app\/settings" class="sform biz-form">([\s\S]*?)<\/form>/g)].map((m) => m[1]!);
+const KIND = { view: { kind: null, country: 'PT', website: '' } };
+const draw = (l: Locale) => withoutIsolates(renderProfile(p, l, null, {}, {}, null, null, OWNER_VIEW, {}, KIND));
+const forms = (html: string) => [...html.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g)].map((m) => m[0]!);
 const names = (f: string, hidden: boolean) =>
   [...f.matchAll(/<(input|select|textarea)\b([^>]*)>/g)].filter((m) => (m[2]!.includes('type="hidden"')) === hidden)
     .map((m) => /name="([^"]+)"/.exec(m[2]!)?.[1]).filter((n): n is string => !!n);
-// UI Block 9 (F10): a Cancel (shown by the script, data-edit-cancel) now sits beside each part's Save, after it; the
-// Save read here is unchanged.
-const acts = (f: string) => [...f.matchAll(/<div class="fr-acts"><button class="btn (?:send|second)" type="submit">([^<]+)<\/button>(?:<button class="btn ghost" type="button" data-edit-cancel hidden>[^<]+<\/button>)?<\/div>/g)].map((m) => m[1]!);
-const fills = (f: string) => f.match(/class="btn send\b/g)?.length ?? 0;
-const PROFILE = ['name', 'description', 'location', 'working_hours', 'contact_email', 'contact_phone'];
 
-describe('F35 · the profile is three subjects, each saved by its own Save', () => {
-  it('three forms, one Save each, inside its own card, saying what it saves — in every language', () => {
+describe('F35 · rule 104 · the profile is one form with one Save', () => {
+  it('one form, one Save that says "Save", its Cancel beside it, at the end — in every language', () => {
     for (const l of LOCALES) {
       const html = draw(l);
       const fs = forms(html);
-      expect(fs.length, l).toBe(3);
+      expect(fs.length, l).toBe(1);
+      expect(fs[0], l).toContain('<form method="post" action="/app/settings/business/profile" class="set-form" data-save id="profile-form">');
       expect(html, l).not.toContain('class="savebar"');
-      expect(fs.map(acts), l).toEqual([[esc(t(l, 'biz.save.business'))], [esc(t(l, 'biz.save.contact'))], [esc(t(l, 'biz.save.zone'))]]);
-      // One primary act per page (the surface walk holds the profile to two filled buttons, with the kind form's):
-      // the business details' Save is filled, the other two outlined.
-      expect(fs.map(fills), l).toEqual([1, 0, 0]);
-      expect(html, l).toContain('<button class="btn second" type="submit">');
-      // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Each Save still names what it saves.
-      expect(html, l).not.toContain(esc(t(l, 'biz.scopeNote')));
+      expect(fs[0]!.endsWith(`${saveActs(l)}</form>`), l).toBe(true);
+      expect(html.match(/class="btn send\b/g)?.length, l).toBe(1);
+      // the per-subject Saves are gone with the subjects' own forms
+      for (const k of ['biz.save.business', 'biz.save.contact', 'biz.save.zone', 'biz.save.kind'] as MessageKey[]) expect(html, `${l} ${k}`).not.toContain(`>${esc(t(l, k))}</button>`);
     }
   });
-  it('each field is shown in exactly one subject; every form carries the whole profile, so no Save blanks another', () => {
-    const fs = forms(draw('en'));
-    const shown = fs.map((f) => names(f, false));
-    expect(shown[0]).toEqual(expect.arrayContaining(['name', 'description', 'location', 'working_hours', 'lang_en', 'lang_pt']));
-    expect(shown[1]).toEqual(['contact_email', 'contact_phone', 'postal_address']);
-    expect(shown[2]).toEqual(['zone', 'currency']);
-    expect(shown.flat().length).toBe(new Set(shown.flat()).size);
-    for (const f of fs) {
-      const all = [...names(f, false), ...names(f, true)];
-      for (const n of PROFILE) expect(all, n).toContain(n);
-      // the languages served are carried too (an absent box is an unticked one)
-      expect(all).toEqual(expect.arrayContaining(['lang_en', 'lang_pt']));
-      expect(names(f, true)).not.toContain('lang_fr');
-    }
-    // The address, the zone and the currency ride only with their own subject: the route leaves each as it is otherwise.
-    for (const [i, own] of [[1, 'postal_address'], [2, 'zone'], [2, 'currency']] as const) {
-      fs.forEach((f, j) => { if (j !== i) expect([...names(f, false), ...names(f, true)], `${own} in ${j}`).not.toContain(own); });
-    }
-    // The hidden values are the stored ones.
-    expect(fs[1]).toContain('<input type="hidden" name="description" value="Skin care made in small batches." />');
-    expect(fs[0]).toContain('<input type="hidden" name="contact_email" value="hello@juniper.test" />');
+  it('every field is on the page exactly once and none is carried hidden, so no Save blanks another', () => {
+    const f = forms(draw('en'))[0]!;
+    const shown = names(f, false);
+    expect(shown).toEqual(expect.arrayContaining(['name', 'description', 'location', 'lang_en', 'lang_pt', 'contact_email', 'contact_phone', 'postal_address', 'kind', 'country', 'website']));
+    expect(shown.length).toBe(new Set(shown).size);
+    expect(names(f, true)).toEqual([]);
+    // the stored values are the fields' values
+    expect(f).toContain('>Skin care made in small batches.</textarea>');
+    expect(f).toContain('name="contact_email" value="hello@juniper.test"');
+    // Working hours left the profile: the route keeps what is stored, so the profile's Save never blanks them.
+    const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    const route = app.slice(app.indexOf('app.post(PROFILE_PAGE'), app.indexOf('app.post(PROFILE_PAGE') + 1200);
+    expect(route).toContain("workingHours: stored.workingHours ?? ''");
+    expect(shown).not.toContain('working_hours');
   });
-  it('rule 42 kept: a fixed currency and a staff member get no currency choice; the zone Save then says only the zone', () => {
-    for (const html of [draw('en', { fixed: true }), draw('en', { viewer: STAFF })]) {
-      expect(html).not.toContain('name="currency"');
-      expect(acts(forms(html)[2]!)).toEqual([esc(t('en', 'biz.save.zoneOnly'))]);
-    }
-    expect(draw('en', { fixed: true })).toContain(esc(t('en', 'settings.currency.fixed')));
-    expect(draw('en', { viewer: STAFF })).toContain(esc(t('en', 'staff.ownerDecides')));
-    // nothing to save in it: no Save at all. UI Block 9 (F10): a part with nothing to save is no longer an empty form
-    // (it has no fold to open): its rows are drawn read-only, the currency and why it is fixed, and no form at all.
-    const none = draw('en', { fixed: true, zone: false });
-    expect(forms(none).length).toBe(2);
-    expect(none).toContain('<section class="sgroup" id="zone">');
-    expect(none).toContain(esc(t('en', 'settings.currency.fixed')));
-    expect(none).not.toContain(esc(t('en', 'biz.save.currencyOnly')));
-  });
-  it('the type, country and website on the profile: its own Save in its own card, saying what it saves', () => {
-    const v = { kind: null, country: 'PT', website: '' };
+  it('the type, country and website are rows of the same form: no Save of their own', () => {
     for (const l of LOCALES) {
-      const on = renderBusinessKind(v, l, null, 'x', null, true);
-      // UI Block 9 (F10): the part's Cancel sits after its Save, in the same card foot.
-      expect(on, l).toContain(`<div class="fr-acts"><button class="btn send" type="submit">${esc(t(l, 'biz.save.kind'))}</button><button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(l, 'common.cancel'))}</button></div></div></section>`);
-      expect(on, l).not.toContain('class="savebar"');
-      expect(renderBusinessKind(v, l, null, 'x'), l).toContain(`<div class="savebar"><button class="btn send" type="submit">${esc(t(l, 'business.kind.save'))}</button>`);
+      const html = draw(l);
+      const part = html.slice(html.indexOf('<section class="set-sec" id="business-kind">'));
+      expect(part.slice(0, part.indexOf('</section>')), l).not.toContain('type="submit"');
+      expect(part, l).toContain('<select id="bk-kind" name="kind">');
+      expect(part, l).toContain('<option value="PT" selected>');
     }
   });
 });
 
-describe('F35 · hours, zone and currency in the same row pattern, by their names, read-only states explained', () => {
-  const hours = (l: Locale) => withoutIsolates(settingsProfileValue(l, 'hours', p, { zone: 'Asia/Shanghai', country: 'CN' }, null));
+describe('F35 · hours, zone and currency by their names, each in its one home, read-only states explained', () => {
+  const hours = (l: Locale) => withoutIsolates(renderHours({ workingHours: 'Mon–Fri 9–18', zone: { zone: 'Asia/Shanghai', country: 'CN' }, closures: [] }, l, null));
   const cur = (fixed: boolean, viewer: Viewer = OWNER_VIEW) =>
-    withoutIsolates(settingsProfileValue('en', 'currency', p, null, { currency: 'EUR', fixed }, viewer));
+    withoutIsolates(renderCurrency({ current: null, previous: [], pair: null, currency: 'EUR' }, { currency: 'EUR', fixed }, 'en', null, viewer));
+  it('rule 42 kept: a fixed currency and a staff member get no currency choice', () => {
+    for (const html of [cur(true), cur(false, STAFF)]) {
+      expect(html).not.toContain('name="currency"');
+      expect(html).not.toContain('type="submit"');   // nothing to save: no Save at all
+    }
+    expect(cur(false)).toContain('<select id="pf-currency" name="currency">');
+  });
   it('the zone by its name in the owner\'s language, never its raw name; the currency by its name, not its code', () => {
     for (const l of LOCALES) {
       const html = hours(l);
-      expect(html, l).toContain(esc(zoneLabel(l, 'Asia/Shanghai')));
-      expect(html, l).not.toContain('Asia/Shanghai');
+      // (one zone for the country: the list names it as zoneLabel does, by the place and its time)
+      const chosen = /<option value="Asia\/Shanghai" selected>([^<]+)<\/option>/.exec(html)?.[1] ?? '';
+      expect(chosen, l).not.toBe('');
+      expect(esc(zoneLabel(l, 'Asia/Shanghai')), l).toContain(chosen);
+      expect(html.replace(/<[^>]+>/g, ' '), l).not.toContain('Asia/Shanghai');
       expect(html, l).toContain('class="setrow"');
-      expect(html.match(/settings\/business\/profile#/g)?.length, l).toBe(1);
+      // hours and the zone are fields of the page's one Save, at the end of the page
+      expect(html, l).toContain('<form method="post" action="/app/settings/business/hours" class="set-form" data-save id="hours-form">');
+      expect(html, l).toContain('name="working_hours" value="Mon–Fri 9–18"');
+      expect(html.trimEnd().endsWith(`${saveActs(l)}</form>`), l).toBe(true);
     }
     expect(cur(false)).toContain(esc(currencyLabel('en', 'EUR')));
   });
-  it('a fixed currency says why and offers no door; staff are told who decides; the owner gets the door', () => {
+  it('a fixed currency says why; staff are told who decides; the owner may choose, and is told why it matters', () => {
     expect(cur(true)).toContain(esc(t('en', 'settings.currency.fixed')));
-    expect(cur(true)).not.toContain('/app/settings/business/profile#zone');
     expect(cur(false, STAFF)).toContain(esc(t('en', 'staff.ownerDecides')));
-    expect(cur(false, STAFF)).not.toContain('/app/settings/business/profile#zone');
-    expect(cur(false)).toContain('/app/settings/business/profile#zone');
     expect(cur(false)).toContain(esc(t('en', 'settings.currency.why')));
+    expect(cur(false)).toContain('<form method="post" action="/app/settings/business/currency" class="set-form" data-save id="currency-form">');
   });
-  it('closures on Settings: what is recorded first, then the form; each Remove names its closure; the add form unchanged', () => {
-    const v = { closures: [{ id: '00000000-0000-4000-8000-000000000001', label: 'Summer break', from: new Date(Date.UTC(2026, 7, 1)), to: new Date(Date.UTC(2026, 7, 15)) }] };
+  it('closures: what is recorded first, then the form; each Remove names its closure; the add form unchanged', () => {
+    const closures = [{ id: '00000000-0000-4000-8000-000000000001', label: 'Summer break', from: new Date(Date.UTC(2026, 7, 1)), to: new Date(Date.UTC(2026, 7, 15)) }];
     for (const l of LOCALES) {
-      const html = renderClosures(v, l, null, null, true);
+      const html = renderHours({ workingHours: null, zone: null, closures }, l, null);
       expect(html.indexOf('class="closures"'), l).toBeLessThan(html.indexOf('action="/app/settings/closures"'));
-      expect(html, l).toContain(`${esc(t(l, 'closures.remove'))}<span class="sa-vh"> <bdi>Summer break</bdi></span>`);
+      expect(html, l).toContain(`aria-label="${esc(t(l, 'closures.remove'))} Summer break"`);
       expect(html, l).toContain(esc(t(l, 'biz.closures.now')));
       expect(html, l).toContain(esc(t(l, 'biz.closures.add')));
       expect(html, l).toContain('action="/app/settings/closures/00000000-0000-4000-8000-000000000001/remove"');
+      // the add form is its own (it adds; it is not the page's Save), with its own button named for what it does
+      expect(html, l).toContain('<form method="post" action="/app/settings/closures" class="biz-form" id="add-closure">');
+      expect(html, l).toContain(`>${esc(t(l, 'closures.add.button'))}</button>`);
     }
   });
 });
