@@ -166,8 +166,9 @@ Durations: fast 160 ms, normal 220 ms, max 250 ms. The ease is `cubic-bezier(0.2
 
 - Everything sits inside `@media (prefers-reduced-motion: no-preference)`. Under reduce, the reduce block sets
   `animation-name:none` and `transition-property:none` on everything: 0 running animations.
-- **Routine pages arrive still.** No card, row or group rises on load. Moving between pages fades nothing: the
-  view-transition `page` and `root` have no animation, and only the rail's marker slides.
+- **Routine pages arrive still.** No card, row or group rises on load. Moving between pages moves nothing: no page
+  opts into a cross-document view transition (removed 2026-11-27: it could only start after the next page arrived, and
+  drew the page body over the bars while it ran). The icon of the page you land on settles into its place.
 - **What moves is what a person did:**
   - a fold opening, a transition on `::details-content` (when closing, the hiding waits with `allow-discrete`);
   - a pressed button (scale 0.97);
