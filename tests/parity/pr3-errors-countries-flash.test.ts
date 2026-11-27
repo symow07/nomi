@@ -115,7 +115,7 @@ describe('the country list names each country once', () => {
     expect(read('src/core/owner/signup.ts')).toContain('country: canonicalCountry(country)');
     expect(read('src/api/web/businessKind.ts')).toMatch(/const stored = canonicalCountry\(country\)/);
     // …and the page preselects the successor, so her own country is shown.
-    expect(read('src/api/web/businessKind.ts')).toMatch(/canonicalCountry\(v\.country\)/);
+    expect(read('src/api/web/businessKind.ts')).toMatch(/canonicalCountry\(v\.country\b/);
   });
 });
 

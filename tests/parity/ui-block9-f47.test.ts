@@ -82,7 +82,9 @@ describe('F47 · a page in a state says which state, why, and the one next step'
       const bill = renderBilling(billingOff, l, null, 'Back');
       expect(one(bill, 'unavailable').next[0], l).toContain('href="/app/settings/setup"');
       // the lede still says payments are off; the rows still say what is charged (w5-settings-a, phase9-inbox-settings)
-      expect(plain(bill), l).toMatch(/<\/h1>\s*<p class="lede">/);
+      expect(plain(bill), l).toMatch(/<\/h1><p class="lede set-lede">/);
+      // rule 104 — "payments are not switched on" is a line ON the page, beside the state
+      expect(plain(bill), l).toContain(esc(t(l, 'billing.notConfigured')));
       expect(plain(bill), l).toContain(esc(t(l, 'billing.value.nothing')));
       for (const screen of ['telegram', 'tiktok', 'chat'] as const) {
         const ch = one(renderChannelScreen(screen, channels, l, null, OWNER_VIEW, {}), 'unavailable');

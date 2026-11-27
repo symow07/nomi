@@ -8,7 +8,7 @@ import { type InboxList } from '../../src/api/web/inbox.js';
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderAddForm, renderPhotoRefusal } from '../../src/api/web/products.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
-import { renderClosures, renderForbidden, type ClosureView, type ForbiddenView } from '../../src/api/web/settings.js';
+import { renderHours, renderForbidden, type HoursView, type ForbiddenView } from '../../src/api/web/settings.js';
 import { renderGuide } from '../../src/api/web/guide.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { t, messages } from '../../src/core/owner/i18n/messages.js';
@@ -94,8 +94,9 @@ describe('phase 6 · errors under their field, on the same page, with what was t
   });
 
   it('the settings forms: the field that was wrong is marked and says why; everything typed is still there', () => {
-    const noClosures: ClosureView = { closures: [] };
-    const closures = renderClosures(noClosures, 'en', null,
+    // Rule 104 — the closures are a section of Hours and closures; the "add" form is still its own, and refuses there.
+    const noClosures: HoursView = { workingHours: null, zone: null, closures: [] };
+    const closures = renderHours(noClosures, 'en', null,
       { values: { label: 'Eid', from: '2026-12-04', to: '2026-12-01' }, field: 'to', text: t('en', 'closures.flash.ends_before_starts') });
     expect(closures).toContain('value="Eid"');
     // The warmth run, phase 9 (V1-008) — each date is day, month by name and year; what was typed comes back in them.

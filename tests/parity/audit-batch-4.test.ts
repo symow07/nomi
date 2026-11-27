@@ -173,8 +173,11 @@ describe('B22 · the main action is a real primary button', () => {
       rotation: { on: true, people: [{ id: 'o', name: 'Symow', inRotation: true, awayUntil: null, lastGivenAt: null, accountant: false }] },
     };
     const html = renderPeople(view, 'en', null, new Date());
-    expect(filled(html)).toEqual([t('en', 'people.add.button')]);
-    const turn = html.slice(html.indexOf('action="/app/settings/people/o/turn"'));
-    expect(turn).toMatch(new RegExp(`<button class="btn" type="submit">${t('en', 'turn.save')}`));
+    // Rule 104 — the page's ONE filled button is its Save; adding someone is a real button of its own form, and
+    // "in turn" is a switch (a real button), never a link drawn as text.
+    expect(filled(html)).toEqual([t('en', 'autonomy.save')]);
+    expect(html).toMatch(new RegExp(`<button class="btn" type="submit">${t('en', 'people.add.button')}`));
+    const turn = html.slice(html.indexOf('action="/app/settings/people/o/in-turn"'));
+    expect(turn).toMatch(/^action="\/app\/settings\/people\/o\/in-turn" class="set-act"><input[^>]*><button class="set-switch" type="submit" role="switch"/);
   });
 });

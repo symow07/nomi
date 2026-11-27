@@ -5,6 +5,7 @@ import { esc, atWork } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow } from './rows.js';
 import { pageHead, setSection, setNotice } from './settingsPage.js';
+import { stateBlock, stateNext } from './stateBlock.js';
 import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
 import type { BillingHold, BillingState, Plan } from '../../db/billing.js';
@@ -41,11 +42,11 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
     fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
     fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
   ] });
-  // F47 — not offered on this installation: said ON the page as its own line (billing is not open, payments are not
-  // switched on, plans cannot be chosen), with the door to what is left of setting up; the plan and the charge as none.
+  // F47 — not offered on this installation: said ON the page in one line (payments are not switched on), and as a
+  // state of its own with its one next step; the plan and the charge still shown as none.
   if (!v.configured) return `${head}
-    ${setNotice({ id: 'billing-closed', html: `<strong>${esc(t(locale, 'state.billing.h'))}</strong> · ${esc(t(locale, 'billing.notConfigured'))} ${esc(t(locale, 'state.billing.p'))}`,
-      door: { href: '/app/get-started', label: t(locale, 'state.billing.next') } })}
+    ${setNotice({ id: 'billing-closed', text: t(locale, 'billing.notConfigured') })}
+    ${stateBlock('unavailable', { heading: t(locale, 'state.billing.h'), body: t(locale, 'state.billing.p'), nextHtml: stateNext('/app/settings/setup', t(locale, 'state.billing.next')) })}
     ${none}`;
   if (!v.state.billed) return `${head}
     ${setNotice({ text: t(locale, 'billing.notBilled') })}

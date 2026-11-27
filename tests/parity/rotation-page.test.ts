@@ -25,15 +25,20 @@ describe('S3 · the turn on the team page', () => {
       const html = renderPeople(view, l, null, NOW);
       const turn = html.slice(html.indexOf('id="turn"'));
       expect(turn, l).toContain('action="/app/settings/people/turn"');
-      expect(turn, l).toContain('action="/app/settings/people/a/turn"');
-      expect(turn, l).toContain('name="awayUntil" value="2026-10-25"');
-      expect(turn, l).not.toContain('/app/settings/people/b/turn');
+      // Rule 104 — "in turn" is a switch in the person's row, sent at once; "away until" is a date in the row that
+      // waits for the page's one Save (the field belongs to the Save's form).
+      expect(html, l).toMatch(/action="\/app\/settings\/people\/a\/in-turn" class="set-act"><input type="hidden" name="on" value="0" \/><button class="set-switch" type="submit" role="switch" aria-checked="true"/);
+      expect(html, l).toMatch(/action="\/app\/settings\/people\/o\/in-turn" class="set-act"><input type="hidden" name="on" value="1" \/><button class="set-switch" type="submit" role="switch" aria-checked="false"/);
+      expect(html, l).toContain('type="date" form="team-save" name="away_a" value="2026-10-25"');
+      expect(html, l).toContain('<form method="post" action="/app/settings/team" class="set-form" data-save id="team-save">');
+      expect(html, l).not.toContain('/app/settings/people/b/in-turn');
+      expect(html, l).not.toContain('name="away_b"');
     }
   });
 
   it('the routes are the owner\'s; the worker gives a hand-off in turn before its alert, and never a deletion request', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    for (const r of ["app.post('/app/settings/people/turn'", "app.post('/app/settings/people/:id/turn'"]) {
+    for (const r of ["app.post('/app/settings/people/turn'", "app.post('/app/settings/people/:id/turn'", "app.post('/app/settings/people/:id/in-turn'", 'app.post(TEAM_PAGE']) {
       const body = app.slice(app.indexOf(r), app.indexOf(r) + 400);
       expect(body, r).toContain("ownerOnly(req, reply, 'people'");
     }

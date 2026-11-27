@@ -114,7 +114,9 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // 2026-11-04 — one fewer: the zone's old route left; its save is the profile's form's, counted above.
     // 0224 (Block 1 #6) — one more: a larger-order price taken off a product (the products step reads its prices).
     // 0230 (Block 3 PR 3) — one more: a check kept (a price or a fact the setup steps read, written for good).
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(29);
+    // Rule 104 (the settings overhaul) — three more: the profile's one Save (profile, identifiers, kind and country),
+    // Hours and closures' Save (working hours, time zone), and Currency's Save.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(32);
   });
 });
 

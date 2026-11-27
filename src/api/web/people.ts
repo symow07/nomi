@@ -357,8 +357,8 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
   // F36; phase 9 (V1-518) — roles and what each can do: ONE table to read. The accountant's column only where the
   // books are on. Every owner-only ability is a row (`OWNER_ONLY`), so the table cannot fall behind the rule.
   const books = booksShown();
-  const yes = `<span aria-hidden="true">✓</span><span class="sa-vh">${esc(t(locale, 'ws.team.yes'))}</span>`;
-  const no = `<span aria-hidden="true" class="muted">–</span><span class="sa-vh">${esc(t(locale, 'ws.team.no'))}</span>`;
+  const yes = `<span>${esc(t(locale, 'ws.team.yes'))}</span>`;
+  const no = `<span class="muted">${esc(t(locale, 'ws.team.no'))}</span>`;
   const can = (label: string, owner: string, team: string, accountant: string): string =>
     `<tr class="tm"><th scope="row">${esc(label)}</th>${cell('team.role.owner', owner)}${cell('team.role.team', team)}${books ? cell('people.kind.accountant', accountant) : ''}</tr>`;
   const roles = setSection({ id: 'roles', title: t(locale, 'team.roles.title'), rows: [
