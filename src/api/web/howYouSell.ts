@@ -157,7 +157,8 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null, secti
     ${flashBanner(flash)}
     ${setSection({ id: 'questions', title: t(locale, 'hs.questions.title'), help: t(locale, 'ws.selling.ticks'), rows: [
       `<p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>`,
-      first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn send" type="submit">${esc(t(locale,
+      // One filled act a page: where the terms and the sample policy are sections here, that act is the page's Save.
+      first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn${sections ? '' : ' send'}" type="submit">${esc(t(locale,
         done.size === 0 ? 'hs.start' : 'hs.continue', { i: show.count(locale, position(first).i), n: show.count(locale, position(first).n) }))}</button></form>`
       : `<p class="muted">${esc(t(locale, 'hs.allDone', { name }))}</p>`,
       menuGroup('questions', null, rows),

@@ -111,7 +111,7 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   '/app/sandbox/message': { text: 'authz', expected: '' },
   // A golden scenario's own id (H3): without one the route stops at "no such scenario", before Practice is asked at all.
   '/app/sandbox/scenario': { scenarioId: SCENARIOS[0]!.id }, '/app/advisor/consent': { choice: 'allow' }, '/app/customers/import/:id/select': { selection: 'all' },
-  '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
+  '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/settings/business/profile': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
   '/app/books/fields': { key: 'authz_g', label: 'Authz field', kind: 'text', appliesTo: 'entry', choices: '', required: '' },
   '/app/books/parties': { code: 'AUTHZ2', name: 'Authz party', country: '', ice: '', taxNumber: '', address: '' },
   '/app/settings/alerts/channel': { channel: 'email' }, '/app/help/write': { words: 'authz' },
@@ -127,6 +127,9 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((i) => [[`account${i}`, ''], [`quantity${i}`, ''], [`price${i}`, ''], [`label${i}`, ''], [`tax${i}`, '']])) }])),
   ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/credit-notes/preview', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
   '/app/settings/closures': { from: '2026-12-01', to: '2026-12-02' },
+  // Rule 104 — no page draws the older terms form any more (the terms are a section of How you sell, saved by its one
+  // Save), so the walk sends that command what the form sent: how customers pay, and a delivery term.
+  '/app/settings/terms': { payment: 'authz terms', incoterm: 'FOB' },
   // Fix round 3 (F4, F6): what each of these reads before it reads an id. A year's close names the account its result
   // goes to and the journal; a follow-up is confirmed at its position; a reading's lines are ticked by key; a request
   // is withdrawn by its id; a state's tax names the state; a statement's columns are chosen over its first rows.
@@ -485,6 +488,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/business/pilot/end": ["refused: pilot.flash.not_active", "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated"],
   "POST /app/prospects/key/remove": ["refused: prospects.flash.failed", "no prospect-search key is stored for the walk's workspace"],
   "POST /app/settings/rate": ["refused: rate.flash.none", "the rate page exists only where the selling currency differs from the country's (MAD in MA)"],
+  "POST /app/settings/business/currency": ["refused: rate.flash.none", "Currency's one Save (rule 104), sent the walk's rate: there is a rate to set only where the selling currency differs from the country's (MAD in MA)"],
   "POST /app/channels/instagram/connect": ["refused: reach.inbound.flash.notConfigured", "takes no id; it connects the installation's own configured Instagram account, and the walk configures none: 'not configured' after the connection gate, before anything is written"],
   "POST /app/channels/messenger/connect": ["refused: reach.inbound.flash.notConfigured", "takes no id; it connects the installation's own configured Facebook Page, and the walk configures none: 'not configured' after the connection gate, before anything is written"],
   "POST /app/sequences/:id/enroll": ["refused: seq.flash.notLive", "enrolling needs the outbound worker (messaging is off in the walk's composition): 'notLive'"],

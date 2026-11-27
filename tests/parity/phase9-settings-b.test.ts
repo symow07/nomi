@@ -252,7 +252,7 @@ const zonePage = (l: (typeof LOCALES)[number], _p?: BusinessProfile, zone = 'Asi
   // …read as its one control, the zone's own list (the page has the closure's month list too).
   ((html: string) => html.slice(html.indexOf('<select id="pf-zone"'), html.indexOf('</select>', html.indexOf('<select id="pf-zone"')) + 9))(
     renderHours({ workingHours: null, zone: { zone, country }, closures: [] }, l, null));
-const renderRate = (v: RateView, l: (typeof LOCALES)[number], _f: null): string => renderCurrency(v, { currency: v.currency ?? 'USD', fixed: true } as never, l, null);
+const renderRate = (v: RateView, l: (typeof LOCALES)[number], _f: null): string => renderCurrency(v, { currency: 'USD', fixed: true }, l, null);
 const renderSamples = (v: SamplesView, l: (typeof LOCALES)[number], _f: null, _at: Date): string => sellingTermsSections({ terms: null }, v, l);
 const renderTerms = (v: TermsView, l: (typeof LOCALES)[number], _f: null): string => sellingTermsSections(v, { policy: null, waiting: [] }, l);
 

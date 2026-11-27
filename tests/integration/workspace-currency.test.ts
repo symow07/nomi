@@ -104,10 +104,17 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
     const bad = await form('/app/settings', { name, currency: 'CHF' }, cookie);
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
-    expect((await get('/app/settings/business/profile')).body).toContain('<option value="AED" selected>');
-    // The old address saves nothing: an old form lands on the profile, where the currency lives, and it stays.
+    // Rule 104 — the currency's one home is the Currency page, and its one Save keeps the same rule.
+    expect((await get('/app/settings/business/currency')).body).toContain('<option value="AED" selected>');
+    const own = await form('/app/settings/business/currency', { currency: 'SAR', rate: '' }, cookie);
+    expect(flashSaid(own, WEB_SECRET)).toBe(t('en', 'ws.flash.saved'));
+    expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('SAR');
+    const ownBad = await form('/app/settings/business/currency', { currency: 'CHF', rate: '' }, cookie);
+    expect(flashSaid(ownBad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
+    expect(flashSaid(await form('/app/settings/business/currency', { currency: 'AED', rate: '' }, cookie), WEB_SECRET)).toBe(t('en', 'ws.flash.saved'));
+    // The old address saves nothing: an old form lands on the page where the currency lives, and it stays.
     const oldForm = await form('/app/settings/currency', { currency: 'SAR' }, cookie);
-    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/profile']);
+    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/business/currency']);
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
   });
 
@@ -145,7 +152,10 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const fixed = await form('/app/settings', { name, currency: 'SAR' }, cookie);
     expect(flashSaid(fixed, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyFixed'));
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
-    expect((await get('/app/settings/business/profile')).body).toContain(t('en', 'settings.currency.fixed'));
+    // Rule 104 — said on the Currency page, where the currency lives; its own Save answers the same.
+    expect((await get('/app/settings/business/currency')).body).toContain(t('en', 'settings.currency.fixed'));
+    expect(flashSaid(await form('/app/settings/business/currency', { currency: 'SAR', rate: '' }, cookie), WEB_SECRET)).toBe(t('en', 'settings.flash.currencyFixed'));
+    expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
   });
 
   it('A FLOOR AND A NEW PRICE are in dirhams too; a shop has no sample price to state (audit B14)', async () => {
@@ -169,7 +179,12 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
     // Currency remains navigable, but no exchange-rate command is offered without a currency pair.
-    expect((await get('/app/settings/business/currency')).body).not.toContain('action="/app/settings/rate"');
+    const page = (await get('/app/settings/business/currency')).body;
+    expect(page).not.toContain('action="/app/settings/rate"');
+    expect(page).not.toContain('name="rate"');
+    // …and the page's own Save (rule 104) answers a typed rate the same way: nothing to convert, nothing written.
+    expect(flashSaid(await form('/app/settings/business/currency', { rate: '3.67' }, cookie), WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
+    expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
   });
 
   it('A QUOTE FROM THOSE ROWS IS IN DIRHAMS, and the same figure in dollars does not leave', async () => {

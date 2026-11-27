@@ -72,9 +72,13 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
       for (const url of EXPORT_PAGES) expect((await get(url)).statusCode, `${kind} GET ${url}`).toBe(404);
       expect((await post('/app/settings/terms', 'payment=T%2FT&incoterm=FOB')).statusCode, kind).toBe(404);
       expect((await post('/app/settings/samples', 'price=5&credited=on')).statusCode, kind).toBe(404);
+      // Rule 104 — the two are sections of How you sell where they are kept: not drawn here, and the page's one Save
+      // states nothing of them.
+      expect((await post('/app/settings/business/selling', 'payment=T%2FT&incoterm=FOB&price=5&credited=on')).statusCode, kind).toBe(302);
       const how = await get('/app/settings/business/selling');
       expect(how.statusCode, kind).toBe(200);
       for (const url of EXPORT_PAGES) expect(how.body, `${kind} how-you-sell ${url}`).not.toContain(`href="${url}"`);
+      for (const id of ['terms', 'samples', 'selling-form']) expect(how.body, `${kind} how-you-sell #${id}`).not.toContain(`id="${id}"`);
       const page = await get(`/app/inbox/${conv}`);
       expect(page.statusCode, kind).toBe(200);
       expect(page.body, `${kind} sample card`).not.toContain('href="/app/settings/business/samples"');
@@ -86,9 +90,14 @@ d('audit batch 2 · shop screens and Moroccan books (requires DATABASE_URL + MIG
   it('B14 · A FACTORY, AN EXPORTER, A WHOLESALER, OR NO KIND YET: the pages, the doors and the sample card\'s door are all there', async () => {
     for (const kind of ['manufacturer', 'trading', 'wholesale', null]) {
       await be({ kind });
-      for (const url of EXPORT_PAGES) expect((await get(url)).statusCode, `${kind} GET ${url}`).toBe(200);
+      // Rule 104 — each older address opens its section of How you sell, where the two are drawn in the page's one form.
+      for (const url of EXPORT_PAGES) {
+        const moved = await get(url);
+        expect([moved.statusCode, moved.headers['location']], `${kind} GET ${url}`).toEqual([302, `/app/settings/business/selling#${url.split('/').pop()}`]);
+      }
       const how = (await get('/app/settings/business/selling')).body;
-      for (const url of EXPORT_PAGES) expect(how, `${kind} how-you-sell ${url}`).toContain(`href="${url}"`);
+      for (const id of ['terms', 'samples']) expect(how, `${kind} how-you-sell #${id}`).toContain(`<section class="set-sec" id="${id}">`);
+      expect(how, `${kind} how-you-sell`).toContain('id="selling-form"');
       expect((await get(`/app/inbox/${conv}`)).body, `${kind} sample card`).toContain('href="/app/settings/business/samples"');
     }
   });

@@ -55,6 +55,8 @@ const STAFF_JOB = new Set([
   'GET /app/inbox/:conversationId', 'POST /app/inbox/:conversationId/takeover', 'POST /app/inbox/:conversationId/reply',
   'POST /app/inbox/:conversationId/resume', 'POST /app/buyers/:clientId/labels', 'POST /app/conversations/:conversationId/opt-out/record',
   'POST /app/conversations/:conversationId/name', 'POST /app/settings',
+  // Rule 104 — the profile's and the hours' own Saves: the same profile, by the same save, under the same rule.
+  'POST /app/settings/business/profile', 'POST /app/settings/business/hours',
   // Outreach: staff draft a sequence; approving it (the exact words) is the owner's, and an approved one cannot be edited.
   'POST /app/sequences', 'POST /app/sequences/:id/steps', 'POST /app/sequences/:id/steps/:position',
 ]);
@@ -174,6 +176,7 @@ const OWNER_ONLY_ROUTES = [
   // people
   'POST /app/inbox/:conversationId/assistant',
   'POST /app/settings/people',
+  'POST /app/settings/people/:id/in-turn',
   'POST /app/settings/people/:id/name',
   'POST /app/settings/people/:id/remove',
   'POST /app/settings/people/:id/turn',
@@ -181,6 +184,7 @@ const OWNER_ONLY_ROUTES = [
   'POST /app/settings/people/assistants/:id',
   'POST /app/settings/people/assistants/:id/archive',
   'POST /app/settings/people/turn',
+  'POST /app/settings/team',
   // price_rules
   'GET /app/products/import/:importId/photo/:n',
   'GET /app/settings/business/selling/:q',
@@ -210,6 +214,8 @@ const OWNER_ONLY_ROUTES = [
   'POST /app/products/import/:importId/reread',
   'POST /app/products/import/:importId/save',
   'POST /app/products/prices-to-me',
+  'POST /app/settings/business/currency',
+  'POST /app/settings/business/selling',
   'POST /app/settings/rate',
   'POST /app/settings/samples',
   'POST /app/settings/terms',

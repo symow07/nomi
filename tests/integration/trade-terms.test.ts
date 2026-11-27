@@ -132,15 +132,21 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
     const page = await get(ownerCookie, `/app/orders/${orderId}`);
     expect(page.statusCode).toBe(200);
     expect(page.body).not.toContain('PROFORMA INVOICE');
-    expect(page.body).toContain('href="/app/settings/business/terms"');
+    expect(page.body).toContain('href="/app/settings/business/selling#terms"');   // rule 104: a section of How you sell
     expect(page.body).not.toMatch(/deposit|\bFOB\b/);
   });
 
   it('staff may read the page but may not set her terms', async () => {
-    const page = await get(staffCookie, '/app/settings/business/terms');
+    // Rule 104 — the terms are a section of How you sell; their older address opens it there.
+    const moved = await get(staffCookie, '/app/settings/business/terms');
+    expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/business/selling#terms']);
+    const page = await get(staffCookie, '/app/settings/business/selling');
     expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('<section class="set-sec" id="terms">');
     // Phase 4 — and are not shown a form that could only refuse them.
     expect(page.body).not.toContain('action="/app/settings/terms"');
+    expect(page.body).not.toContain('id="selling-form"');
+    expect(page.body).not.toContain('name="payment"');
     expect(page.body).toContain('The owner decides this.');
     const res = await post(staffCookie, '/app/settings/terms', `payment=${encodeURIComponent('100% up front')}&incoterm=EXW`);
     expect(res.statusCode).toBe(302);
@@ -169,7 +175,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
        where business_id = ${BIZ} and kind = 'incoterm' and claim_key = 'CIF'`.execute(t).then((r) => r.rows));
     expect(claim).toEqual([{ allowed: true }]);
 
-    const page = await get(ownerCookie, '/app/settings/business/terms');
+    const page = await get(ownerCookie, '/app/settings/business/selling');
     expect(page.body).toContain(HERS);
     expect(page.body).toContain('<option value="CIF" selected>');
   });
@@ -211,7 +217,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
     expect(latest).toMatchObject({ payment_terms: 'Cash when you collect', incoterm: null });
     expect(await claims()).toEqual(sayable);
 
-    const page = await get(ownerCookie, '/app/settings/business/terms');
+    const page = await get(ownerCookie, '/app/settings/business/selling');
     expect(page.body).toContain('<option value="" selected>No delivery term</option>');
     expect(page.body).toContain('A proforma needs one, so none is made');
 

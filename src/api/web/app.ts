@@ -1035,13 +1035,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/business${u.slice(LEGACY_BUSINESS.length)}`,
       req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
   });
-  // The zone and the currency ride with the profile's one form (`POST /app/settings`); no page posts to these two any
-  // more. An old link lands on that page, where they live (and a stranger, from there, on the door). An old form saves
+  // No page posts to these two any more. An old link lands on the page where each lives now (rule 104: the time zone
+  // on Hours and closures, the currency on Currency; and a stranger, from there, on the door). An old form saves
   // nothing and is not posted again: 303, not 308.
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
     if (path !== '/app/settings/zone' && path !== '/app/settings/currency') return;
-    return reply.redirect('/app/settings/profile', req.method === 'GET' || req.method === 'HEAD' ? 301 : 303);
+    return reply.redirect(path === '/app/settings/zone' ? HOURS_PAGE : CURRENCY_PAGE, req.method === 'GET' || req.method === 'HEAD' ? 301 : 303);
   });
 
   /**
@@ -2671,12 +2671,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/business/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => {
       // Rule 104 — the workspace's Ask Nomi history policy is a section of this page: whether the workspace allows
-      // history, and the team (never what anyone kept). Read through the same narrow port; without it, not drawn.
+      // history, and the team (never what anyone kept). Read through the same narrow port; without it (or when it
+      // does not answer) the policy reads off and nobody is listed, as its older page read.
       const mem = deps.advisorMemory, me = personOf(s).id;
-      const history = mem ? {
-        workspaceOn: await mem.state(s.businessId, me, new Date()).then((st) => st.workspaceOn).catch(() => false),
-        team: await mem.team(s.businessId, me).catch(() => []),
-      } : null;
+      const history = {
+        workspaceOn: mem ? await mem.state(s.businessId, me, new Date()).then((st) => st.workspaceOn).catch(() => false) : false,
+        team: mem ? await mem.team(s.businessId, me).catch(() => []) : [],
+      };
       return renderDataRights(
         { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null, history,
           // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.

@@ -407,7 +407,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const before = await nameOf();
     await tx((t) => sql`update people set name = (select name from businesses where id = ${BIZ}::uuid) where id = ${ownerId}::uuid`.execute(t));
     const asked = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
-    expect(asked.body).toContain(`action="/app/settings/people/${ownerId}/name"`);
+    // Rule 104 — asked as a field of the page's one Save.
+    expect(asked.body).toContain(`name="name_${ownerId}"`);
+    expect(asked.body).toContain('action="/app/settings/team" class="set-form" data-save id="team-save"');
     // an empty name changes nothing and says why
     const empty = await post(ownerCookie, `/app/settings/people/${ownerId}/name`, 'name=%20');
     expect(flashSaid(empty, SECRET)).toContain('Type their name first');
@@ -416,7 +418,15 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(flashSaid(saved, SECRET)).toContain('Mrs Wang');
     expect(await nameOf()).toBe('Mrs Wang');
     const after = await app.inject({ method: 'GET', url: '/app/settings/team', headers: { cookie: ownerCookie } });
-    expect(after.body).not.toContain('/name"');
+    expect(after.body).not.toContain(`/people/${ownerId}/name"`);   // (the Settings menu has its own ".../assistant/name")
+    expect(after.body).not.toContain(`name="name_${ownerId}"`);
+    // …and the page's own Save keeps the same rule: a name saves, and a person of another business is not reachable.
+    await tx((t) => sql`update people set name = (select name from businesses where id = ${BIZ}::uuid) where id = ${ownerId}::uuid`.execute(t));
+    const own = await post(ownerCookie, '/app/settings/team', `name_${ownerId}=Mrs%20Wang`);
+    expect(own.statusCode).toBe(302);
+    expect(await nameOf()).toBe('Mrs Wang');
+    const other = randomUUID();
+    expect(flashSaid(await post(ownerCookie, '/app/settings/team', `name_${other}=Nobody`), SECRET)).toContain('Not saved');
     // a person of another business is not reachable: nothing saves
     const stranger = await post(ownerCookie, `/app/settings/people/${randomUUID()}/name`, 'name=Nobody');
     expect(flashSaid(stranger, SECRET)).toContain('did not save');

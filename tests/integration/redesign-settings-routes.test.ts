@@ -39,26 +39,34 @@ d('Grouped Settings preserve command and permission ownership',()=>{
   expect([originalPost.statusCode,originalPost.headers.location]).toEqual([302,'/app/business/selling']);
  });
  it('opens one focused page per subject with the original forms and role boundaries',async()=>{
-  const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/terms','/app/settings/business/samples','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/assistant/history-policy','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/language','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
+  const paths=['/app/settings','/app/settings/business','/app/settings/business/profile','/app/settings/business/hours','/app/settings/business/currency','/app/settings/business/selling','/app/settings/business/data','/app/settings/channels',...['whatsapp','meta','email','chat','telegram','tiktok'].map(x=>'/app/settings/channels/'+x),'/app/settings/assistant','/app/settings/assistant/name','/app/settings/assistant/words','/app/settings/team','/app/settings/billing','/app/settings/personal','/app/settings/personal/account','/app/settings/personal/language','/app/settings/personal/notifications','/app/settings/personal/advisor-history'];
   for(const path of paths){const r=await get(path);expect(r.statusCode,path).toBe(200);expect(r.body.match(/<h1\b/g)?.length,path).toBe(1);expect(r.body,path).toContain('settings-area');expect(r.body,path).toContain('data-nav="settings" aria-current="page"');} // every setting is in the ONE Settings area, the assistant's too (the settings overhaul, rule 104)
+  // Rule 104 — three older pages are sections now: each address opens its section on the page that holds it.
+  for(const [from,to] of [['/app/settings/business/terms','/app/settings/business/selling#terms'],['/app/settings/business/samples','/app/settings/business/selling#samples'],['/app/settings/assistant/history-policy','/app/settings/business/data#advisor-history']] as const){const r=await get(from);expect([r.statusCode,r.headers.location],from).toEqual([302,to]);}
   expect((await get('/app/settings/team',staff)).statusCode).toBe(302);
   expect((await get('/app/settings/assistant/history-policy',staff)).headers.location).toBe('/app/settings/personal/advisor-history');
   for(const path of ['/app/settings/personal/account','/app/settings/personal/language'])expect((await get(path,accountant)).statusCode,path).toBe(200);
   expect((await get('/app/settings/business/profile',accountant)).headers.location).toBe('/app/books');
-  const profile=await get('/app/settings/business/profile');expect(profile.body).toContain('action="/app/settings"');expect(profile.body).toContain('action="/app/settings/business"');
-  expect(profile.body).toContain('name="working_hours"');expect(profile.body).toContain('name="postal_address"');
+  // Rule 104 — one form and one Save a page: the profile with the kind of business in it; the hours and the zone on Hours and closures.
+  const profile=await get('/app/settings/business/profile');expect(profile.body.match(/data-save/g)?.length).toBe(1);expect(profile.body).toContain('action="/app/settings/business/profile" class="set-form" data-save');
+  expect(profile.body).toContain('name="kind"');expect(profile.body).toContain('name="postal_address"');expect(profile.body).not.toContain('name="working_hours"');
+  const hours=await get('/app/settings/business/hours');expect(hours.body).toContain('action="/app/settings/business/hours" class="set-form" data-save');expect(hours.body).toContain('name="working_hours"');expect(hours.body).toContain('name="zone"');
   const team=await get('/app/settings/team');expect(team.body).not.toContain('action="/app/settings/people/assistants"');
   const identity=await get('/app/settings/assistant/name');expect(identity.body).toContain('action="/app/settings/people/assistants"');
   expect(calls).toBe(0);
  });
  it('separates personal history consent from owner workspace controls',async()=>{
   const mine=await get('/app/settings/personal/advisor-history');expect(mine.body).toContain('id="mine"');expect(mine.body).not.toContain('id="workspace"');expect(mine.body).not.toContain('id="team"');
-  const policy=await get('/app/settings/assistant/history-policy');expect(policy.body).toContain('id="workspace"');expect(policy.body).toContain('id="team"');expect(policy.body).not.toContain('id="mine"');
+  // Rule 104 — the workspace's policy is a section of Data and privacy (the owner's page); never anyone's own consent.
+  const policy=await get('/app/settings/business/data');expect(policy.body).toContain('<section class="set-sec" id="advisor-history">');expect(policy.body).toContain('action="/app/settings/advisor-history/workspace"');expect(policy.body).not.toContain('id="mine"');expect(policy.body).not.toContain('action="/app/settings/advisor-history/me"');
   const staffPolicy=await post('/app/settings/advisor-history/workspace',{on:'on'},staff);expect(staffPolicy.statusCode).toBe(302);
  });
  it('keeps invalid profile and business fields, and sends a new access code only to the canonical Team cookie',async()=>{
   const invalid=await post('/app/settings',{name:'Kept business',description:'Keep exact details',location:'Local',working_hours:'Weekdays',contact_email:'bad email',contact_phone:'',postal_address:'Kept address',zone:'UTC',currency:'USD'});
-  expect(invalid.statusCode).toBe(200);expect(invalid.body).toContain('Keep exact details');expect(invalid.body).toContain('value="Weekdays"');expect(invalid.body).toContain('Kept address');
+  expect(invalid.statusCode).toBe(200);expect(invalid.body).toContain('Keep exact details');expect(invalid.body).toContain('Kept address');
+  // Rule 104 — and the page's own Save: refused whole, everything typed kept, the kind of business too.
+  const own=await post('/app/settings/business/profile',{name:'Kept business',description:'Keep exact details',location:'Local',contact_email:'bad email',contact_phone:'',postal_address:'Kept address',kind:'agency',country:'US',website:'https://kept.example'});
+  expect(own.statusCode).toBe(400);expect(own.body).toContain('Keep exact details');expect(own.body).toContain('Kept address');expect(own.body).toContain('value="https://kept.example"');
   const kind=await post('/app/settings/business',{kind:'agency',country:'US',website:'not a url'});expect(kind.statusCode).toBe(400);expect(kind.body).toContain('value="not a url"');
   const added=await post('/app/settings/people',{name:'New local teammate'});expect(added.statusCode).toBe(302);const cookie=String(added.headers['set-cookie']);expect(cookie).toContain('Path=/app/settings/team');expect(String(added.headers.location)).not.toContain('code=');
  });
@@ -76,9 +84,11 @@ d('Grouped Settings preserve command and permission ownership',()=>{
  });
 
  it('separates sample policy and requests without moving the command endpoints',async()=>{
-  const policy=await get('/app/settings/business/samples'),requests=await get('/app/customers/samples');
+  // Rule 104 — the policy is a section of How you sell, saved by that page's one Save; the older command endpoint stays.
+  const policy=await get('/app/settings/business/selling'),requests=await get('/app/customers/samples');
   expect(policy.statusCode).toBe(200);expect(requests.statusCode).toBe(200);
-  expect(policy.body).toContain('action="/app/settings/samples"');expect(policy.body).toContain('href="/app/customers/samples"');
+  expect(policy.body).toContain('<section class="set-sec" id="samples">');expect(policy.body).toContain('action="/app/settings/business/selling" class="set-form" data-save');expect(policy.body).toContain('href="/app/customers/samples"');
+  expect((await post('/app/settings/samples',{price:'not a price'})).statusCode).toBe(400);
   expect(requests.body).not.toContain('action="/app/settings/samples"');expect(requests.body).toContain('data-nav="customers" aria-current="page"');
   expect((await get('/app/customers/samples',accountant)).headers.location).toBe('/app/books');
  });
