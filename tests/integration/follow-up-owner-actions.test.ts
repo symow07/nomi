@@ -118,6 +118,8 @@ suite('A null-turn follow-up uses the existing owner controls (requires DATABASE
       expect(page.statusCode).toBe(200);
       expect(page.body).toContain('Follow-ups after a quote');
       expect(page.body).not.toContain('action="/app/settings/assistant/follow-ups"');
+      expect(page.body).not.toContain('action="/app/settings/assistant/save"');   // rule 104: the rule's fields are the page's one form
+      expect(page.body).not.toContain('name="wording"');
       expect(page.body).not.toContain(`/follow-ups/${run}/skip`);
     }
     for (const url of ['/app/settings/assistant/follow-ups', `/app/inbox/${conversation}/follow-ups/${run}/skip`]) {
@@ -166,7 +168,9 @@ suite('A null-turn follow-up uses the existing owner controls (requires DATABASE
     expect(invalid.statusCode).toBe(400);
     expect(invalid.body).toContain('My exact &lt;words&gt;');
     expect(invalid.body.match(/<h1\b/g)).toHaveLength(1);
-    expect(invalid.body).toContain('Preview');
+    // rule 104: the reason is said under its own field, in the page's one form; what was typed is in the field
+    expect(invalid.body).toContain('id="follow-up-error"');
+    expect(invalid.body).toContain('action="/app/settings/assistant/save"');
     expect(invalid.body).not.toContain('Saved words');
     await query(`update follow_up_rules set wording = $2, delay_days = 2 where business_id = $1`, [business, WORDS]);
   });

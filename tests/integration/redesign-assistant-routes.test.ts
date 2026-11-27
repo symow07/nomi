@@ -41,7 +41,7 @@ d('Approved daily Assistant destinations preserve grants and commands',()=>{
   const external=await post('/app/knowledge/teach',{from:'https://example.test',kind:'faq',label:'Kept',content:''});expect(external.headers.location).toBe('/app/assistant/knowledge?view=facts');
  });
  it('keeps the authority controls on their own page (Settings › Assistant, rule 104) and returns old employee GETs directly',async()=>{
-  const settings=await get('/app/settings/assistant');expect(settings.statusCode).toBe(200);expect(settings.body).toContain('data-nav="settings" aria-current="page"');expect(settings.body).toContain('<a href="/app/settings/assistant" aria-current="page">');expect(settings.body).toContain('action="/app/settings/assistant/autonomy"');
+  const settings=await get('/app/settings/assistant');expect(settings.statusCode).toBe(200);expect(settings.body).toContain('data-nav="settings" aria-current="page"');expect(settings.body).toContain('<a href="/app/settings/assistant" aria-current="page">');expect(settings.body).toContain('action="/app/settings/assistant/save"');expect(settings.body).toContain('name="level"');
   const overview=await get('/app/assistant');expect(overview.body).not.toContain('action="/app/settings/assistant/autonomy"');
   expect((await get('/app/employee/checks?q=kept')).headers.location).toBe('/app/assistant/review?q=kept');
   expect((await post('/app/employee/spot-check/'+missing,{answer:'好'})).statusCode).toBe(308);

@@ -23,7 +23,7 @@ import { renderBilling, type BillingView } from '../../src/api/web/billing.js';
 import { renderPhoneAlerts } from '../../src/api/web/phoneAlerts.js';
 import { renderComponents } from '../../src/api/web/components.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
-import { renderHours, renderProfile, renderForbidden, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
+import { renderHours, renderProfile, forbiddenSection, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
 import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
 import { BACK, GO, icon } from '../../src/api/web/icons.js';
@@ -558,14 +558,16 @@ const PAGES: Record<string, (l: Locale) => string> = {
   closures: (l) => renderHours({ workingHours: null, zone: null, closures: [] }, l, null),
   components: (l) => renderComponents(l),
   data: (l) => renderDataRights(DATA, l, null, OWNER, t(l, 'nav.settings')),
-  forbidden: (l) => renderForbidden({ own: [], floor: FORBIDDEN_FLOOR }, l, null),
+  // Rule 104 — the words to avoid are a SECTION of Settings › Assistant › Promises and words, not a page: what a page
+  // owes (its title, its heading, one Save) is held for that page by tests/parity/settings-safety-lines.test.ts.
+  forbidden: (l) => forbiddenSection({ own: [], floor: FORBIDDEN_FLOOR }, l),
 };
 const draw = (page: string, l: Locale): string => withoutIsolates(PAGES[page]!(l));
 const textOf = (h: string) => h.replace(/<[^>]+>/g, ' ');
 
 describe('the settings pages', () => {
   it('V1-465 · V1-470 · V1-476 · V1-478 · V1-499 · V1-506 · each tab names its page by its heading, not "Setup"', () => {
-    for (const l of LOCALES) for (const p of ['account', 'billing', 'business', 'closures', 'data', 'forbidden']) {
+    for (const l of LOCALES) for (const p of ['account', 'billing', 'business', 'closures', 'data']) {
       const body = PAGES[p]!(l);
       const h1 = /<h1 class="page">([\s\S]*?)<\/h1>/.exec(body)![1]!.replace(/<[^>]+>/g, '');
       const page = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: `/app/settings/${p}`, bodyHtml: body }));
@@ -581,7 +583,7 @@ describe('the settings pages', () => {
       expect(draw(p, l).trimStart().startsWith('<h1 class="page">'), `${l}/${p}`).toBe(true);
       expect(draw(p, l), `${l}/${p}`).not.toContain('class="back"');
     }
-    const backs: Record<string, string> = { forbidden: '/app/settings/assistant', components: '/app/settings' };
+    const backs: Record<string, string> = { components: '/app/settings' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }
@@ -591,14 +593,18 @@ describe('the settings pages', () => {
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
     // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
-    for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
+    for (const p of ['alerts', 'billing', 'closures']) {
       const h = draw(p, 'en');
       expect(h, p).toMatch(/<\/h1>\s*<p class="lede(?: set-lede)?">/);
     }
+    // The section's rule is its one line of help, under its heading.
+    expect(draw('forbidden', 'en')).toMatch(/<h2 class="set-h">Words to avoid<\/h2><p class="set-help">/);
   });
 
   it('settings-a-new-10 · an empty panel spans the column, as the cards above it do', () => {
-    for (const p of ['alerts', 'closures', 'forbidden', 'data']) expect(draw(p, 'en'), p).toContain('<div class="empty whole">');
+    for (const p of ['alerts', 'closures', 'data']) expect(draw(p, 'en'), p).toContain('<div class="empty whole">');
+    // In a section the empty list is one line, where the list will be.
+    expect(draw('forbidden', 'en')).toContain(`<p class="set-none muted">${t('en', 'forbidden.empty')}</p>`);
     expect(CSS).toMatch(/\.empty\.whole \{ max-width:100%; \}/);
   });
 
@@ -739,7 +745,7 @@ describe('the settings pages', () => {
     expect(FLOOR_BY_LANGUAGE.flatMap((g) => g.words)).toEqual([...FORBIDDEN_FLOOR]);
     for (const l of LOCALES) {
       const h = draw('forbidden', l);
-      expect(h, l).toContain(`<h2>${shown(l, 'forbidden.floor.title')}</h2>`);
+      expect(h, l).toContain(`<h3 class="sgroup-h">${shown(l, 'forbidden.floor.title')}</h3>`);
       expect(h, l).toContain(`<summary>${withoutIsolates(esc(tn(l, 'forbidden.floor.count', FORBIDDEN_FLOOR.length)))}</summary>`);
       // why it is there is said before the fold, not inside it
       expect(h.indexOf(shown(l, 'forbidden.floor.body')), l).toBeLessThan(h.indexOf('<details class="floor-fold">'));

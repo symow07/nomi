@@ -56,8 +56,9 @@ export const setNotice = (o: {
   readonly text?: string; readonly html?: string; readonly id?: string | undefined;
   readonly door?: { readonly href: string; readonly label: string } | undefined; readonly act?: string | undefined;
 }): string =>
-  `<p class="set-note"${o.id ? ` id="${esc(o.id)}"` : ''}><span>${o.html ?? esc(o.text ?? '')}</span>${o.door
-    ? `<a href="${esc(o.door.href)}">${esc(o.door.label)}</a>` : ''}${o.act ?? ''}</p>`;
+  // An act is a form, and a paragraph cannot hold one (the browser would end the paragraph before it): a block then.
+  `<${o.act ? 'div' : 'p'} class="set-note"${o.id ? ` id="${esc(o.id)}"` : ''}><span>${o.html ?? esc(o.text ?? '')}</span>${o.door
+    ? `<a href="${esc(o.door.href)}">${esc(o.door.label)}</a>` : ''}${o.act ?? ''}</${o.act ? 'div' : 'p'}>`;
 
 /**
  * 4 · The form the page's ONE Save sends. `data-save` is what the page's script watches for unsaved changes.
@@ -101,10 +102,13 @@ export const rowSwitch = (locale: Locale, o: {
   readonly action: string; readonly on: boolean; readonly label: string; readonly confirm?: string | undefined;
   readonly name?: string; readonly values?: readonly [on: string, off: string];
   readonly hidden?: Readonly<Record<string, string>>; readonly disabled?: boolean;
+  /** The state in the row's own words, where "On" / "Off" would have to agree with what is switched (a certification: yes / no). */
+  readonly words?: readonly [on: string, off: string];
 }): string => {
   const [toOn, toOff] = o.values ?? ['1', '0'];
+  const [saidOn, saidOff] = o.words ?? [t(locale, 'followUp.on'), t(locale, 'followUp.off')];
   return `<form method="post" action="${esc(o.action)}" class="set-act">${hiddenFields(o.hidden)}<input type="hidden" name="${esc(o.name ?? 'on')}" value="${esc(o.on ? toOff : toOn)}" />`
-    + `<button class="set-switch" type="submit" role="switch" aria-checked="${o.on ? 'true' : 'false'}" aria-label="${esc(o.label)}"${o.disabled ? ' disabled' : ''}${asks(o.confirm)}><span class="set-track" aria-hidden="true"></span><span class="set-state">${esc(t(locale, o.on ? 'followUp.on' : 'followUp.off'))}</span></button></form>`;
+    + `<button class="set-switch" type="submit" role="switch" aria-checked="${o.on ? 'true' : 'false'}" aria-label="${esc(o.label)}"${o.disabled ? ' disabled' : ''}${asks(o.confirm)}><span class="set-track" aria-hidden="true"></span><span class="set-state">${esc(o.on ? saidOn : saidOff)}</span></button></form>`;
 };
 
 /** 5 · One row of the danger zone: what the action is, what happens in one line, and its button, which asks first. */

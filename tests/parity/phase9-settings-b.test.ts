@@ -66,8 +66,8 @@ describe('V1-547, V1-562, V1-563 · a page reached from the customer list lights
 
 // ── Who works here ─────────────────────────────────────────────────────────
 import { renderPeople, type TeamMember } from '../../src/api/web/people.js';
-import { OWNER_ONLY } from '../../src/core/conversation/people.js';
-import { renderAssistantsSection } from '../../src/api/web/assistants.js';
+import { OWNER_ONLY, OWNER_VIEW } from '../../src/core/conversation/people.js';
+import { renderNameIdentity } from '../../src/api/web/assistants.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import type { Assistant } from '../../src/core/owner/assistants.js';
@@ -82,6 +82,9 @@ const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noo
 const people = (l: (typeof LOCALES)[number], extra: Partial<Parameters<typeof renderPeople>[0]> = {}) =>
   renderPeople({ people: [you, chen], justIssued: null, assistants: [lily, noor], ...extra }, l, null, NOW);
 const SCOPE = { name: null, several: false, outreach: false, setup: null, business: '义乌宏发日用品厂 (demo)' };
+// Rule 104 — who answers customers is on Settings › Assistant › Name and identity (it was a section of the team page).
+const namePage = (l: (typeof LOCALES)[number], named = true, edit: string | null = null) =>
+  renderNameIdentity({ named, pending: lily.name }, [lily, noor], l, null, OWNER_VIEW, edit);
 const text = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 describe('V1-509, V1-519 · adding someone has its own heading, and says a code will be shown to hand over', () => {
@@ -112,12 +115,17 @@ describe('settings-b-outreach-missed-02 · one word, one act', () => {
   });
 });
 
-describe('V1-510 · the assistant\'s folds are controls, and say what they change', () => {
-  it('each summary is drawn as a button with its own words', () => {
+describe('V1-510 · the assistant\'s controls say what they change (rule 104: fields in view, no fold)', () => {
+  it('nothing is folded: the fields stand under their own heading with the one Save, and adding has its own heading and button', () => {
     for (const l of LOCALES) {
-      const html = renderAssistantsSection([lily, noor], l);
-      const sums = [...html.matchAll(/<summary class="btn">([^<]*)<\/summary>/g)].map((m) => m[1]);
-      expect(sums, l).toEqual([esc(t(l, 'assistants.change')), esc(t(l, 'assistants.change.channels')), esc(t(l, 'assistants.add.summary'))]);
+      const html = namePage(l);
+      expect(html, l).not.toContain('<summary');
+      expect(html, l).toContain(`<section class="set-sec" id="identity"><h2 class="set-h">${esc(t(l, 'as.name.section'))}</h2>`);
+      expect(html, l).toContain(`<section class="set-sec" id="add-assistant"><h2 class="set-h">${esc(t(l, 'assistants.add.summary'))}</h2>`);
+      expect(html.match(/<button[^>]*>([^<]*)<\/button>/g)?.filter((b) => b.includes(`>${esc(t(l, 'autonomy.save'))}<`)), l).toHaveLength(1);
+      expect(html, l).toContain(`>${esc(t(l, 'assistants.add.button'))}</button>`);
+      // The other assistant's row says what its door changes, for a screen reader too.
+      expect(html, l).toContain(`aria-label="${esc(`${t(l, 'as.name.edit')}: Noor`)}"`);
     }
     expect(t('en', 'assistants.add.summary')).toBe('Add another assistant');
     expect(t('es', 'assistants.add.summary')).not.toMatch(/alguien/);
@@ -127,17 +135,20 @@ describe('V1-510 · the assistant\'s folds are controls, and say what they chang
 describe('V1-511 · one name for the assistant on the page', () => {
   it('while the name is unconfirmed, the page says "your assistant" and the row says the name is not confirmed', () => {
     for (const l of LOCALES) {
-      const html = withWorkspace(SCOPE, () => people(l));
+      const html = withWorkspace(SCOPE, () => namePage(l, false));
       expect(html, l).toContain(esc(t(l, 'assistants.unconfirmed')));
       expect(html, l).toContain('href="/app/onboarding"');
-      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<ul class="rows', html.indexOf('id="assistants"')));
+      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<table', html.indexOf('id="assistants"')));
+      expect(intro, l).toContain(esc(t(l, 'assistants.intro')));
       expect(intro, l).not.toContain('Lily');
+      // The lede says "your assistant" too; the name stands once, marked as the one awaiting confirmation.
+      expect(html.slice(0, html.indexOf('class="set-note"')), l).not.toContain('Lily');
     }
   });
   it('once confirmed, the intro and the list say the name, and nothing says it is unconfirmed', () => {
-    const html = withWorkspace({ ...SCOPE, name: 'Lily' }, () => people('en'));
+    const html = withWorkspace({ ...SCOPE, name: 'Lily' }, () => namePage('en'));
     expect(html).toContain('goes to Lily.');
-    expect(html).toContain('Decide what Lily may do without asking');
+    expect(withWorkspace({ ...SCOPE, name: 'Lily' }, () => people('en'))).toContain('Decide what Lily may do without asking');
     expect(html).not.toContain(t('en', 'assistants.unconfirmed'));
   });
 });
@@ -182,7 +193,7 @@ describe('V1-514, V1-520 · one label style and one field width on the page', ()
     }
   });
   it('the channels are a grid of two, so no channel sits alone on a line', () => {
-    const html = renderAssistantsSection([lily, noor], 'en');
+    const html = namePage('en', true, noor.id);
     expect(html).toContain('class="choices as-chans"');
     expect(rulesFor('.as-chans').join(';')).toContain('grid-template-columns:repeat(2, max-content)');
   });
@@ -219,7 +230,8 @@ describe('V1-517 · labels are words, the one state is a pill you can see', () =
       expect(html, l).not.toContain('<span class="pill">');
       expect(html, l).not.toContain('class="pill owner"');
       expect(html, l).toContain(`<span class="pill stop">${esc(t(l, 'people.online'))}</span>`);
-      expect(text(html), l).toContain(`${t(l, 'assistants.role.sales')} · ${t(l, 'assistants.default.pill')}`);
+      expect(text(namePage(l)), l).toContain(`${t(l, 'assistants.role.sales')} · ${t(l, 'assistants.default.pill')}`);
+      expect(namePage(l), l).not.toContain('<span class="pill">');
     }
     expect(rulesFor('.pill.stop').join(';')).toContain('border:1px solid');
   });

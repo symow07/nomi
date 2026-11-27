@@ -88,7 +88,7 @@ describe('R2 · the level page', () => {
   for (const l of LOCALES) {
     it(`${l} · "14 of 20" where the hints were, and only the levels the rung allows`, () => {
       // Phase 9 (w4-business-assistant-26) — how sending alone is earned is one level down from the levels.
-      const html = withoutIsolates(renderEmployeeScreen('alone', { ...base, earned: false, ramp: ramp(0) }, l, null));
+      const html = withoutIsolates(renderEmployee({ ...base, earned: false, ramp: ramp(0) }, l, null));
       expect(html).toContain(esc(withoutIsolates(t(l, 'ramp.talks', { done: 14, of: 20, need: 17, customers: 4, customersNeed: 5, days: 2, daysNeed: 3 }))));
       expect(html).toContain(esc(withoutIsolates(t(l, 'ramp.sells', { done: 12, of: 30, customers: 6, customersNeed: 10, days: 5, daysNeed: 7 }))));
       const one = renderEmployee({ ...base, earned: true, ramp: ramp(1) }, l, null);
@@ -97,7 +97,7 @@ describe('R2 · the level page', () => {
     });
   }
   it('no prices: the second rung says prices stay with the owner', () => {
-    const html = renderEmployeeScreen('alone', { ...base, earned: true, ramp: ramp(1, { sells: null }) }, 'en', null);
+    const html = renderEmployee({ ...base, earned: true, ramp: ramp(1, { sells: null }) }, 'en', null);
     expect(html).toContain(esc(t('en', 'ramp.sells.none')));
   });
 });

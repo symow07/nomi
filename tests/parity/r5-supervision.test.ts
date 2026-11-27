@@ -110,12 +110,12 @@ describe('R5 · Today and the level page', () => {
       const html = withoutIsolates(renderOperationsHome(snapshot({ spotChecks: 2, demoted: ['quote'] }), l, NOTHING_TODAY(new Date('2026-10-02T09:00:00Z'))));
       expect(html).toContain('href="/app/settings/assistant#on-her-own"');
       expect(html).toContain(esc(t(l, 'today.demoted', { caps: capabilityName(l, 'quote') })));
-      expect(html).toContain('href="/app/settings/assistant#spot-checks"');
+      expect(html).toContain('href="/app/assistant/review"');
     });
   }
   it('nothing to say, nothing said', () => {
     const html = renderOperationsHome(snapshot({ spotChecks: 0, demoted: [] }), 'en', NOTHING_TODAY(new Date('2026-10-02T09:00:00Z')));
-    expect(html).not.toContain('#spot-checks');
+    expect(html).not.toContain('/app/assistant/review');
     expect(html).not.toContain('href="/app/settings/assistant#on-her-own"');
   });
 
@@ -137,7 +137,7 @@ describe('R5 · Today and the level page', () => {
       const e = { ...base, earned: true, ramp: ramp(1), chosen, stepped };
       // What is in force beside the levels; the choice, since when and why, one level down (w4-business-assistant-26).
       expect(withoutIsolates(renderEmployee(e, l, null))).toContain(esc(t(l, 'autonomy.inForce', { level: t(l, 'autonomy.level.talks') })));
-      const html = withoutIsolates(renderEmployeeScreen('alone', e, l, null));
+      const html = withoutIsolates(renderEmployee(e, l, null));
       expect(html).toContain(esc(t(l, 'autonomy.inForce', { level: t(l, 'autonomy.level.talks') })));
       expect(html).toContain(esc(withoutIsolates(t(l, 'notify.self_demoted.why.wrong_price'))));
       expect(html).toContain(esc(capabilityName(l, 'quote')));
@@ -154,8 +154,8 @@ describe('R5 · Today and the level page', () => {
   });
   it('a spot check on work sent alone says so', () => {
     const check = { id: 'c1', capability: 'quote', buyerMessage: 'How much?', reply: '$12.00 each.', conversationId: null, askedAt: new Date(), wasAuto: true };
-    // Phase 7 — Today's line lands on the row (its anchor); the work itself is the row's screen.
-    expect(renderEmployee({ ...base, spotChecks: [check] }, 'en', null)).toContain('id="spot-checks"');
+    // Rule 104 — Today's line opens the work itself (Assistant › Review); Reply permissions holds settings only.
+    expect(renderEmployee({ ...base, spotChecks: [check] }, 'en', null)).not.toContain('spot-checks');
     const html = withoutIsolates(screen('checks', { ...base, spotChecks: [check] }, 'en'));
     expect(html).toContain(esc(t('en', 'spotcheck.sentAlone', { name: assistantName('en') })));
   });

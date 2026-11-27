@@ -5,7 +5,8 @@ import { speakerContext } from '../../src/llm/anthropic.js';
 import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import { validateAssistant, voiceFrom, DEFAULT_VOICE, VOICE_TONES, VOICE_LENGTHS, VOICE_EMOJI, NOTE_MAX, type Speaker, type Voice } from '../../src/core/owner/assistants.js';
-import { renderAssistantsSection } from '../../src/api/web/assistants.js';
+import { renderNameIdentity } from '../../src/api/web/assistants.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { ASSISTANT_AREA_EN } from '../../src/core/owner/i18n/assistantArea.js';
 import { emptyState, CONVERSATION, PRODUCT } from './fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from '../pipeline/fakes.js';
@@ -92,8 +93,8 @@ describe('the same message under each tone', () => {
 
 describe('the assistant\'s page', () => {
   it('offers the three choices with the saved ones selected, and the one line with what it does and does not change', () => {
-    const html = renderAssistantsSection([{ id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales',
-      note: 'Friendly & direct', channels: [], isDefault: true, voice: formal }], 'en');
+    const html = renderNameIdentity({ named: true, pending: 'Lily' }, [{ id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales',
+      note: 'Friendly & direct', channels: [], isDefault: true, voice: formal }], 'en', null, OWNER_VIEW);
     expect(html).toContain('name="tone"'); expect(html).toContain('<option value="formal" selected>');
     expect(html).toContain('name="length"'); expect(html).toContain('<option value="short" selected>');
     expect(html).toContain('name="emoji"'); expect(html).toContain('<option value="like_customer" selected>');

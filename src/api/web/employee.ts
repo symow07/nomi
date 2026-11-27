@@ -3,7 +3,7 @@ import { markSmall } from '../../core/owner/brand.js';
 import { dailyAssistantScreen } from './assistantArea.js';
 import { rampState, type RampState } from '../../db/ramp.js';
 import { loadReadiness } from '../../db/readiness.js';
-import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
+import { rungOfLevel } from '../../core/trust/ramp.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -26,9 +26,11 @@ import { assistantStopped } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { aloneNow, type AloneHold } from '../../core/conversation/aloneNow.js';
-import { defaultAssistantName, NAME_MAX } from '../../core/owner/assistants.js';
 import { type IconId, GO } from './icons.js';
 import { menuRow as settingsRow } from './settings.js';
+import { DEFAULT_FOLLOW_UP_RULE, type FollowUpRule, type FollowUpRuleError } from '../../core/conversation/followUps.js';
+import { pageHead, setSection, setNotice, saveForm, saveActs, rowAction } from './settingsPage.js';
+import { wordsHtml } from './layout.js';
 import * as show from './values.js';
 
 /**
@@ -283,17 +285,23 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
  */
 
 /** Phase 7 — the screens one row each opens, in the menu's order. */
-export const EMPLOYEE_SCREENS = ['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
+/*
+ * The settings overhaul (rule 104) — "How sending without you works" (`alone`) is cut as a page: its state is on Reply
+ * permissions and its explanation in that page's help. The name is Settings › Assistant › Name and identity, drawn by
+ * assistantSettings.ts. Each kind of reply, one kind at a time and what comes next are sections of Reply permissions.
+ */
+export const EMPLOYEE_SCREENS = ['talk', 'learning', 'checks', 'month', 'history'] as const;
+/** Settings › Assistant › Name and identity. */
+export const NAME_HOME = `${ASSISTANT_HOME}/name`;
+/** The one route that collects Reply permissions' fields: the level and the follow-up rule (app.ts). */
+export const PERMISSIONS_SAVE = `${ASSISTANT_HOME}/save`;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
 export const screenHref = (s: EmployeeScreen): string => dailyAssistantScreen(s) ?? settingsHref(`${ASSISTANT_HOME}/${s}`);
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
-  // Phase 9 (w4-business-assistant-26) — what used to stand before the levels on the landing, one level down.
-  alone: 'her.alone.title',
-  talk: 'her.talk.title', learning: 'her.teach.title', name: 'settingsArea.identity', replies: 'her.handles.title',
-  'one-kind': 'employee.actions.title', checks: 'spotcheck.title', month: 'her.recent.title',
-  next: 'employee.promo.title', history: 'employee.growth.title',
+  talk: 'her.talk.title', learning: 'her.teach.title',
+  checks: 'spotcheck.title', month: 'her.recent.title', history: 'employee.growth.title',
 };
 export const screenTitle = (locale: Locale, s: EmployeeScreen): string => t(locale, SCREEN_TITLE[s]);
 
@@ -307,11 +315,6 @@ export const screenTitle = (locale: Locale, s: EmployeeScreen): string => t(loca
  * a standing rule ("always waits for you") carries no shape at all, so it is
  * told apart from "waits for you" by more than its colour.
  */
-const list = (title: string, mark: Signal | null, items: readonly string[], emptyLabel: string): string =>
-  `<div class="dgroup"><div class="dtitle">${esc(title)}</div>${items.length
-    ? `<ul class="ditems">${items.map((i) => `<li class="ditem">${mark ? `${signalMark(mark)} ` : ''}${esc(i)}</li>`).join('')}</ul>`
-    : `<p class="ditem muted">${esc(emptyLabel)}</p>`}</div>`;
-
 /**
  * Nomi Phase C — the rest of "who is she today?", composed by the route from
  * read models that already exist (M13/M14 knowledge, the operations snapshot,
@@ -355,7 +358,7 @@ export type TalkAbout = {
 };
 
 /** What a screen may be given beyond the profile and the month's counts. */
-export type ScreenExtras = { readonly talk?: TalkAbout; readonly embedded?: boolean };
+export type ScreenExtras = { readonly talk?: TalkAbout };
 
 const countRow = (value: number, label: string): string =>
   `<div class="hrow"><span class="hnum">${value}</span><span class="hlabel">${esc(label)}</span></div>`;
@@ -437,7 +440,7 @@ function teachBody(c: HerContext | undefined, locale: Locale): string {
  * close it is — "14 of the last 20 sent as written". The rung is the
  * workspace's, counted over every decision; the levels above follow it.
  */
-function rampBlock(r: RampState, locale: Locale): string {
+export function rampBlock(r: RampState, locale: Locale): string {
   const name = assistantName(locale);
   const talks = r.talksEarnedAt
     ? `<p class="fok">${esc(t(locale, 'ramp.talks.earned', { date: show.date(locale, r.talksEarnedAt) }))}</p>`
@@ -477,7 +480,7 @@ const HELD_WHY: Readonly<Record<AloneHold, MessageKey>> = {
   silenced: 'today.silenced.body', stopped: 'today.stopped.body', release: 'her.handles.held.why.release',
   name: 'her.handles.held.why.name', ramp: 'her.handles.held.why.ramp',
 };
-function standing(e: EmployeeProfile, locale: Locale) {
+export function standing(e: EmployeeProfile, locale: Locale) {
   const name = assistantName(locale);
   const now = aloneNow({
     capabilities: e.capabilities, released: autonomyReleased(), named: e.assistantNamed,
@@ -527,7 +530,7 @@ function demotionWhy(locale: Locale, reasons: readonly string[]): string {
  * where the alert and Today land (the levels) and a level down: the capability's own mode still says "alone", so
  * nothing else on the page would show it waits in that language.
  */
-function withdrawnRows(e: EmployeeProfile, locale: Locale): string {
+export function withdrawnRows(e: EmployeeProfile, locale: Locale): string {
   const open = (e.stepped ?? []).filter((x) => x.language && x.open);
   return open.length ? `<ul class="rows">${open.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since.inLanguage', {
     cap: capabilityName(locale, x.capability), language: languageDisplay(locale, x.language!),
@@ -535,154 +538,203 @@ function withdrawnRows(e: EmployeeProfile, locale: Locale): string {
   }))}</li>`).join('')}</ul>` : '';
 }
 
-function chosenBlock(e: EmployeeProfile, locale: Locale): string {
-  if (!e.chosen) return withdrawnRows(e, locale);
+/**
+ * R5 — what the owner chose and when; and, where the system's own demotions (a guard in auto, a spot check, a wrong
+ * price) or a hold moved things since, what is in force now and each step back with its date and reason. Nothing
+ * when nothing was chosen here and nothing differs.
+ */
+function chosenLines(e: EmployeeProfile, locale: Locale, st: ReturnType<typeof standing>): string {
+  if (!e.chosen) return '';
   const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
-  const chose = `<p class="muted">${esc(t(locale, 'autonomy.chosen', { level: levelName(e.chosen.level), date: show.date(locale, e.chosen.at) }))}</p>`;
-  const st = standing(e, locale);
+  const chose = `<p class="set-help">${esc(t(locale, 'autonomy.chosen', { level: levelName(e.chosen.level), date: show.date(locale, e.chosen.at) }))}</p>`;
   const now = st.effective;
-  if (now === e.chosen.level) return `${chose}${withdrawnRows(e, locale)}`;
+  if (now === e.chosen.level) return chose;
   const still = (e.stepped ?? []).filter((x) => !x.language && !st.alone.includes(x.capability));
-  const why = (reasons: readonly string[]) => demotionWhy(locale, reasons);
   return `${chose}
-      <p>${esc(now ? t(locale, 'autonomy.inForce', { level: levelName(now) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
-      ${st.hold ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}
+      <p class="as-force">${esc(now ? t(locale, 'autonomy.inForce', { level: levelName(now) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
       ${still.length ? `<ul class="rows">${still.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since', {
-        cap: capabilityName(locale, x.capability), date: show.date(locale, x.at), why: why(x.reasons),
-      }))}</li>`).join('')}</ul>` : ''}
-      ${withdrawnRows(e, locale)}`;
-}
-
-/**
- * 0070 / 0071 (rule 13) — stopped, or paused by the operator: nothing the
- * assistant writes is sent, whatever is chosen below. Said first, in Today's
- * own words; the way to Start is My business's, and the owner's alone.
- */
-function heldEverywhere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
-  const name = assistantName(locale);
-  const stop = e.stopped
-    ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.stopped.title', { name }))}</p>
-        <p class="small">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        ${viewer.isOwner ? deeper('/app/business/ready#stop', t(locale, 'today.stopped.start', { name })) : ''}</div>`
-    : '';
-  const paused = e.silenced
-    ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.silenced.title', { name }))}</p>
-        <p class="small">${esc(t(locale, 'today.silenced.body', { name }))}</p></div>`
-    : '';
-  return `${paused}${stop}`;
-}
-
-/**
- * The one hold that drafts every reply (rule 1's native read, rule 2's name),
- * said ABOVE the levels in one line at the size of the text around it, with
- * its door where the owner can lift it. Under Save, in grey small print, it
- * read as the end of the paragraph (V1-419). The Stop and the pause are said
- * by `heldEverywhere`; the ramp replaces the levels with its own words.
- */
-function holdLine(e: EmployeeProfile, locale: Locale, hold: AloneHold | null): string {
-  if (hold === 'release') return `<p>${esc(t(locale, 'autonomy.notReleased'))}</p>`;
-  if (hold === 'name') return `<p>${esc(t(locale, 'autonomy.needsName'))}</p>${deeper(screenHref('name'), t(locale, 'autonomy.confirmName'))}`;
-  return '';
+        cap: capabilityName(locale, x.capability), date: show.date(locale, x.at), why: demotionWhy(locale, x.reasons),
+      }))}</li>`).join('')}</ul>` : ''}`;
 }
 
 /**
  * S4 — strict mode: in which languages only signed sentences go alone. None until a native reader signs a set; the
- * line says so, and how many sentences each set has to read. Only while something goes alone at all.
+ * line says so. Only while something goes alone at all.
  */
 function strictLine(locale: Locale, hold: AloneHold | null): string {
   if (hold !== null || !autonomyReleased()) return '';
   const strict = STRICT_LOCALES.filter((l) => STRICT_SIGNED[l] !== undefined);
   // The text audit (2026-11-26): where no language is strict there is nothing to say; a strict language is still named.
-  return strict.length === 0 ? '' : `<p class="small">${esc(t(locale, 'autonomy.strict.some', { list: formatList(locale, strict.map((l) => languageName(locale, l))) }))}</p>`;
+  return strict.length === 0 ? '' : `<p class="set-help">${esc(t(locale, 'autonomy.strict.some', { list: formatList(locale, strict.map((l) => languageName(locale, l))) }))}</p>`;
 }
 
 /** 2026-09-30 — per language: which customers get replies sent alone, and which always wait. Only while something goes alone at all. */
 function languagesLine(locale: Locale, hold: AloneHold | null): string {
-  return hold === null && autonomyReleased() && disclosureAwaitingReview().length ? `<p class="small">${esc(t(locale, 'autonomy.languages', {
+  return hold === null && autonomyReleased() && disclosureAwaitingReview().length ? `<p class="set-help">${esc(t(locale, 'autonomy.languages', {
     ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
     waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
   }))}</p>` : '';
 }
 
 /**
- * Rule 13 (w4-business-assistant-12) — while something the assistant writes
- * could reach a customer, the owner's Stop is on the assistant's own page,
- * under the levels, in the words My business uses: one line, one button that
- * asks first. Owner only (rule 11), like the switch it is.
+ * What stands above everything on Reply permissions, each one line (rule 104: a safety line is ON the page, beside
+ * what it is about):
+ *
+ *   · the operator's pause (0071) and the owner's Stop (0070, rule 13): nothing the assistant writes is sent, whatever
+ *     is chosen below. Stopped: the way to start again is Going live's, the owner's alone. Answering: the Stop itself,
+ *     a button that asks first and posts where Going live's does — only while something could reach a customer.
+ *   · the one hold that drafts every reply: the native read (rule 1), the name (rule 2, with its door), or a workspace
+ *     that has not earned sending alone (rule 57), which may only step down.
  */
-function stopHere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
-  if (!viewer.isOwner || e.stopped || !e.answering) return '';
+function standingNotices(e: EmployeeProfile, locale: Locale, viewer: Viewer, st: ReturnType<typeof standing>): string {
   const name = assistantName(locale);
-  // The text audit (2026-11-26, the owner's approval): the Stop is drawn once, on Going live; here it is one press away,
-  // under the levels, for the owner alone and only while something could be sent.
-  return `<p class="stop-here" id="stop">${deeper('/app/settings/assistant/ready#stop', t(locale, 'assistant.stop.action.stop', { name }))}</p>`;
+  const said = (title: MessageKey, body: MessageKey): string => `<b class="as-said">${esc(t(locale, title, { name }))}</b>${esc(t(locale, body, { name }))}`;
+  const paused = e.silenced ? setNotice({ html: said('today.silenced.title', 'today.silenced.body') }) : '';
+  const stop = e.stopped
+    ? setNotice({ id: 'stop', html: said('today.stopped.title', 'today.stopped.body'),
+        door: viewer.isOwner ? { href: '/app/settings/assistant/ready#stop', label: t(locale, 'today.stopped.start', { name }) } : undefined })
+    : viewer.isOwner && e.answering
+      ? setNotice({ id: 'stop', text: t(locale, 'as.perm.answering', { name }), act: rowAction({
+          action: '/app/business/stop-assistant', label: t(locale, 'assistant.stop.action.stop', { name }),
+          confirm: t(locale, 'assistant.stop.action.stopConfirm', { name }), danger: true, hidden: { from: 'employee' } }) })
+      : '';
+  const hold = st.hold === 'release' ? setNotice({ text: t(locale, 'autonomy.notReleased') })
+    : st.hold === 'name' ? setNotice({ text: t(locale, 'her.handles.held.why.name'),
+        door: { href: NAME_HOME, label: t(locale, 'autonomy.confirmName') } })
+    : '';
+  const notEarned = e.earned === false && viewer.isOwner
+    ? setNotice({ html: `<b class="as-said">${esc(t(locale, 'autonomy.notEarned.title'))}</b>${esc(t(locale, 'autonomy.notEarned.body', { name }))}`,
+        act: st.level !== 'waits' ? rowAction({ action: `${ASSISTANT_HOME}/autonomy`, label: t(locale, 'autonomy.notEarned.stepDown'), hidden: { level: 'waits' } }) : undefined })
+    : '';
+  return `${paused}${stop}${hold}${notEarned}`;
+}
+
+/** What Reply permissions is drawn with beyond the profile: the follow-up rule, and what a refused Save typed. */
+export type PermissionsExtra = {
+  /** The follow-up rule as it stands, or as it was typed when the Save was refused. Absent: the default rule. */
+  readonly followUps?: FollowUpRule;
+  /** Which follow-up field the Save refused. */
+  readonly followUpError?: FollowUpRuleError | null;
+  /** The level that was ticked when the Save was refused, kept ticked. */
+  readonly level?: AutonomyLevel | null;
+  /** Why the level was refused (a flash key: not released, not earned), said under the levels. */
+  readonly levelError?: MessageKey | null;
+};
+
+/** The form the page's one Save sends; the levels, drawn above the table, belong to it by its id. */
+const PERMISSIONS_FORM = 'reply-permissions';
+
+/**
+ * T1 — HOW MUCH THE ASSISTANT DOES ALONE: the three levels in their own words, the one that is set ticked. They are
+ * FIELDS: they wait for the page's Save, with the follow-up rule (one route validates both, then calls the two saves
+ * that were always called). The level the page was drawn with travels with them (`level_was`), so a Save that only
+ * changes the follow-up words does not choose the level again. Owner only; a member of staff reads where it stands.
+ * The rung of a workspace that signed itself up (rule 63) decides which levels are offered; one that has earned
+ * nothing is offered none (the notice above lets it step down).
+ */
+function levelsSection(e: EmployeeProfile, locale: Locale, viewer: Viewer, st: ReturnType<typeof standing>, x: PermissionsExtra): string {
+  const name = assistantName(locale);
+  const { level } = st;
+  const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
+  const ticked = x.level === undefined ? level : x.level;
+  const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capabilityName(locale, c.capability));
+  // The mix, in words, when none of the three applies: said under the levels, beside the choice.
+  const mixed = level === null ? `<p class="set-help">${esc(setAlone.length
+    ? t(locale, 'autonomy.mixed', { list: formatList(locale, setAlone) }) : t(locale, 'autonomy.mixed.none'))}</p>` : '';
+  const choice = !viewer.isOwner
+    ? `<p>${esc(st.effective ? t(locale, 'autonomy.inForce', { level: levelName(st.effective) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
+       <p class="set-help">${esc(t(locale, 'staff.ownerDecides'))}</p>`
+    : e.earned === false ? ''
+    : `<fieldset class="levels" aria-label="${esc(t(locale, 'autonomy.title', { name }))}">
+        <input type="hidden" name="level_was" value="${esc(level ?? '')}" form="${PERMISSIONS_FORM}" />
+        ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}" form="${PERMISSIONS_FORM}"${ticked === l ? ' checked' : ''}${x.levelError ? ' aria-describedby="level-error"' : ''} />
+          <span><b>${esc(levelName(l))}</b>
+          <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
+      </fieldset>
+      ${x.levelError ? `<p class="fielderr" role="alert" id="level-error">${esc(t(locale, x.levelError, { name }))}</p>` : ''}${mixed}`;
+  // 0163 — a kind withdrawn in ONE language still says "alone" everywhere else on the page; choosing the level again
+  // ends the wait (`chooseAutonomyLevel`), so the act is beside the line that says so.
+  const withdrawn = withdrawnRows(e, locale);
+  const again = withdrawn && viewer.isOwner && level !== null && e.earned !== false
+    ? rowAction({ action: `${ASSISTANT_HOME}/autonomy`, label: t(locale, 'as.perm.again'), hidden: { level } }) : '';
+  // The ramp holds some or all of it: why, and how far it has come (rule 63).
+  const rampWhy = st.hold === 'ramp' || (st.hold === null && st.setButHeld.length > 0) ? `<p class="set-help">${esc(st.heldWhy)}</p>` : '';
+  return setSection({ id: 'on-her-own', title: t(locale, 'autonomy.title', { name }), help: t(locale, 'as.perm.disclosure'),
+    rows: `${choice}${chosenLines(e, locale, st)}${withdrawn}${again}${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}${rampWhy}${e.ramp ? rampBlock(e.ramp, locale) : ''}` });
 }
 
 /**
- * T1 — HOW MUCH THE ASSISTANT DOES ALONE: the heart of the product, so it
- * stays on the landing, whole — the three levels in their own words, the one
- * in force checked, the form posting where it always did — with everything
- * that holds it said beside it. The ladder stays as advice about what has been
- * EARNED; this is what the owner has DECIDED. Owner only, like it; a member of
- * staff reads where it stands and who decides it.
- *
- * Phase 9 (w4-business-assistant-26) — the levels come first after the name.
- * What preceded them (what every level keeps the same, what a customer is
- * told, the ramp, the choice and what is in force) is one level down, on
- * `<ASSISTANT_HOME>/alone`; what holds the levels stays beside them, one line.
+ * EACH KIND OF REPLY — one visible table: the kind, where it stands now, and the one act the owner has on it. A row's
+ * act is sent at once, in its own small form, asking first (the one saving rule): "Wait for my OK" for a kind set to
+ * go alone, "Send without my OK" for a kind that has earned it. The four that always wait are rows too, locked.
+ * Staff read the table and are given no button (G9a).
  */
-function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
-  const st = standing(e, locale);
-  const { level } = st;
-  if (!viewer.isOwner) {
-    const now = st.effective;
-    const said = now ? t(locale, 'autonomy.inForce', { level: t(locale, `autonomy.level.${now}` as MessageKey) }) : t(locale, 'autonomy.inForce.mixed');
-    return `<section class="block level-control">
-      <h2>${esc(t(locale, 'autonomy.title'))}</h2>
-      ${heldEverywhere(e, locale, viewer)}
-      <p>${esc(said)}</p>
-      <p class="muted small">${esc(t(locale, 'staff.ownerDecides'))}</p>
-    </section>`;
-  }
-  // The mix, in words: which kinds are set to go without the owner now.
-  const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capabilityName(locale, c.capability));
-  const mixed = level === null
-    ? `<p class="small">${esc(setAlone.length
-      ? t(locale, 'autonomy.mixed', { list: formatList(locale, setAlone) })
-      : t(locale, 'autonomy.mixed.none'))}</p>` : '';
-  const more = deeper(screenHref('alone'), t(locale, 'her.alone.title', { name: assistantName(locale) }));
-  // R5 — where what is in force is not what was chosen, one line says so beside the levels; why, and since when, is a level down.
-  const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
-  const inForce = e.chosen && st.effective !== e.chosen.level
-    ? `<p class="small">${esc(st.effective ? t(locale, 'autonomy.inForce', { level: levelName(st.effective) }) : t(locale, 'autonomy.inForce.mixed'))}</p>` : '';
-  return `<section class="block level-control" id="on-her-own">
-      <h2>${esc(t(locale, 'autonomy.title'))}</h2>
-      ${heldEverywhere(e, locale, viewer)}
-      ${holdLine(e, locale, st.hold)}
-      ${e.earned === false ? `<p class="fwarn">${esc(t(locale, 'autonomy.notEarned.title'))}</p>
-      <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
-      ${level !== 'waits' ? `<form method="post" action="${ASSISTANT_HOME}/autonomy"><input type="hidden" name="level" value="waits" />
-        <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="${ASSISTANT_HOME}/autonomy" class="levels">
-        ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
-          <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
-          <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
-        ${/* The mix, when none of the three applies: said under the levels, beside the choice (w4-business-assistant-26). */ ''}${mixed}
-        <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
-      </form>`}
-      ${inForce}
-      ${withdrawnRows(e, locale)}
-      ${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}
-      ${more}
-    </section>`;
+function kindsSection(e: EmployeeProfile, locale: Locale, viewer: Viewer, st: ReturnType<typeof standing>): string {
+  const name = assistantName(locale);
+  const capName = (c: string) => capabilityName(locale, c);
+  const k = (key: MessageKey): string => `<span class="tm-k">${esc(t(locale, key))}</span>`;
+  const row = (kind: string, pill: string, act: string, cls = ''): string =>
+    `<tr class="tm${cls}"><th scope="row"><bdi>${esc(kind)}</bdi></th><td>${k('employee.promo.current')}${pill}</td><td class="as-act">${act}</td></tr>`;
+  const locked = (key: MessageKey): string => `<span class="as-lock">${esc(t(locale, key))}</span>`;
+  const act = (verb: 'revoke' | 'promote', c: string): string => !viewer.isOwner ? '' : rowAction({
+    action: `${ASSISTANT_HOME}/capability/${c}/${verb}`, label: t(locale, verb === 'revoke' ? 'employee.actions.revoke' : 'employee.actions.grant'),
+    confirm: t(locale, verb === 'revoke' ? 'employee.actions.revokeConfirm' : 'employee.actions.grantConfirm', { cap: capName(c) }),
+    ariaLabel: `${t(locale, verb === 'revoke' ? 'employee.actions.revoke' : 'employee.actions.grant')}: ${capName(c)}`,
+  });
+  const rows = e.capabilities.filter((c) => c.capability !== 'confirm_order').map((c) => {
+    if (c.mode === 'auto') {
+      const goes = st.alone.includes(c.capability);
+      return row(capName(c.capability), `<span class="pill long${goes ? ' ok' : ''}">${esc(t(locale, goes ? 'her.handles.alone' : 'her.handles.held'))}</span>`, act('revoke', c.capability));
+    }
+    const earned = c.promotable;
+    return row(capName(c.capability),
+      `<span class="pill long">${esc(t(locale, 'her.handles.waits'))}</span>${earned ? ` <span class="as-earned">${esc(t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capName(c.capability) }))}</span>` : ''}`,
+      earned && viewer.isOwner ? act('promote', c.capability) : locked('as.perm.earned'));
+  });
+  const always = [capName('confirm_order'), ...NEVER_ALLOWED.map((key) => t(locale, key))]
+    .map((kind) => row(kind, `<span class="pill long stop">${esc(t(locale, 'her.handles.always'))}</span>`, locked('as.perm.locked'), ' as-always'));
+  // What comes next, in one line: now → next; and what earns it, while nothing goes out alone yet.
+  const next = `<p class="set-help" id="progress">${esc(labelled(locale, t(locale, 'employee.promo.current'), st.nowLabel))}${st.alone.length
+    ? ` · ${esc(t(locale, 'employee.promo.done'))}`
+    : ` · ${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}`}</p>${e.conditions.length
+    ? `<ul class="conds as-conds">${e.conditions.map((c) => `<li class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</li>`).join('')}</ul>` : ''}`;
+  const table = `<table class="team-table as-kinds"><thead><tr><th scope="col">${esc(t(locale, 'as.perm.kind'))}</th><th scope="col">${esc(t(locale, 'employee.promo.current'))}</th><th scope="col"></th></tr></thead>
+      <tbody>${rows.join('')}${always.join('')}</tbody></table>`;
+  return setSection({ id: 'reply-types', title: t(locale, 'her.handles.title'),
+    help: e.canDo.length === 0 && e.needConfirm.length === 0 ? t(locale, 'her.handles.none') : undefined,
+    rows: `${table}${next}<p class="set-help">${esc(t(locale, 'employee.actions.note'))}</p>${viewer.isOwner ? '' : `<p class="set-help">${esc(t(locale, 'staff.ownerDecides'))}</p>`}` });
 }
 
-/** UI Block 6 (F32) — the folds on the assistant's settings page a link may open by name. */
-export const SETUP_FOLDS = ['progress', 'reply-types', 'follow-ups'] as const;
-export type SetupFold = typeof SETUP_FOLDS[number];
-export const setupFoldOf = (raw: unknown): SetupFold | null => SETUP_FOLDS.find((f) => f === raw) ?? null;
-/** One folded decision: its name and where it stands in the summary (both already escaped); the target id inside. */
-export const setupFold = (id: SetupFold, open: SetupFold | null, nameHtml: string, nowHtml: string, body: string, extraClass = '', force = false): string =>
-  `<details class="sa-subject${extraClass ? ` ${extraClass}` : ''}"${open === id || force ? ' open' : ''}><summary><span class="sa-sum"><span class="sa-sname">${nameHtml}</span>${nowHtml?`<span class="sa-now">${nowHtml}</span>`:''}</span></summary><div class="sa-body" id="${id}" tabindex="-1">${body}</div></details>`;
+/**
+ * FOLLOW-UPS AFTER A QUOTE — the rule's three FIELDS (on or off, the days, the words), always in view, saved by the
+ * page's Save. A refusal says what is wrong under the field it is about, with what was typed kept. A member of staff
+ * reads the rule. The words are English where the catalogue has no other (`wordsHtml` says so to the browser).
+ */
+function followUpRows(locale: Locale, rule: FollowUpRule, owner: boolean, error: FollowUpRuleError | null): string {
+  const say = (key: MessageKey, p?: Record<string, string | number>): string => wordsHtml(locale, key, p);
+  const daysKey = (n: number): MessageKey => (n === 1 ? 'followUp.day' : 'followUp.days');
+  const days = (n: number): string => say(daysKey(n), { n: show.count(locale, n) });
+  const fieldErr = (id: string): string => `<span class="fielderr" role="alert" id="${id}">${say('followUp.ruleError')}</span>`;
+  const line = (o: { label: string; forId?: string; desc?: string; descId?: string; control: string; bad?: boolean }): string =>
+    `<div class="setrow${o.bad ? ' bad' : ''}"><div class="fr-l">${o.forId ? `<label class="fr-name" for="${o.forId}">${o.label}</label>` : `<span class="fr-name">${o.label}</span>`}${o.desc
+      ? `<span class="fr-desc"${o.descId ? ` id="${o.descId}"` : ''}>${o.desc}</span>` : ''}</div><div class="fr-c">${o.control}</div></div>`;
+  if (!owner) return [
+    line({ label: say('followUp.enabled'), control: `<span class="fr-value">${say(rule.enabled ? 'followUp.on' : 'followUp.off')}</span>` }),
+    line({ label: say('followUp.delay'), control: `<span class="fr-value">${days(rule.delayDays)}</span>` }),
+    line({ label: say('followUp.wording'), control: rule.wording
+      ? `<blockquote class="follow-up-words" dir="auto">${esc(rule.wording)}</blockquote>` : `<span class="fr-value muted">${say('followUp.emptyWords')}</span>` }),
+    `<p class="set-help">${esc(t(locale, 'staff.ownerDecides'))}</p>`,
+  ].join('');
+  return [
+    line({ label: say('followUp.enabled'), forId: 'follow-up-enabled',
+      control: `<span class="as-check"><input type="checkbox" id="follow-up-enabled" name="enabled" value="1"${rule.enabled ? ' checked' : ''} /><span class="set-track" aria-hidden="true"></span></span>` }),
+    line({ label: say('followUp.delay'), forId: 'follow-up-delay', desc: say('followUp.clock'), descId: 'follow-up-clock', bad: error === 'delay',
+      control: `<select id="follow-up-delay" name="delayDays" aria-describedby="follow-up-clock${error === 'delay' ? ' follow-up-error' : ''}"${error === 'delay' ? ' aria-invalid="true"' : ''}>${[1, 2, 3, 4, 5, 6, 7].map((n) =>
+        `<option value="${n}"${n === rule.delayDays ? ' selected' : ''}>${esc(t(locale, daysKey(n), { n: show.count(locale, n) }))}</option>`).join('')}</select>${error === 'delay' ? fieldErr('follow-up-error') : ''}` }),
+    line({ label: say('followUp.wording'), forId: 'follow-up-wording', desc: say('followUp.wordsHelp'), descId: 'follow-up-words-help', bad: error === 'wording',
+      control: `<textarea id="follow-up-wording" name="wording" rows="4" dir="auto" aria-describedby="follow-up-words-help${error === 'wording' ? ' follow-up-error' : ''}"${error === 'wording' ? ' aria-invalid="true" autofocus' : ''}>${esc(rule.wording)}</textarea>${error === 'wording' ? fieldErr('follow-up-error') : ''}` }),
+  ].join('');
+}
 
 /**
  * A row of the menu: the settings pattern's own row (`settings.ts` menuRow —
@@ -700,86 +752,35 @@ const menuRow = (r: MenuRow): string => {
     ...(r.descHtml === undefined ? {} : { descHtml: r.descHtml }) });
   return r.id ? html.replace(/^<li>/, `<li id="${r.id}">`) : html;
 };
-const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string =>
-  `<section class="sgroup" aria-labelledby="ag-${id}"><h2 class="sgroup-h" id="ag-${id}">${esc(title)}</h2>
-    <ul class="scard asst-menu">${rows.map(menuRow).join('')}</ul></section>`;
 
 /**
- * The landing: the name, the control, the menu. Three groups, named by me as
- * the owner allowed: what the assistant says (what it can talk about, what it
- * was taught, what it still needs, the words it never uses); how it works with
- * you (its name, each kind of reply, one kind at a time, checking its work,
- * Practice); and how it is going (the month, what comes next, what changed).
+ * SETTINGS › ASSISTANT › REPLY PERMISSIONS (the settings overhaul, rule 104) — what the assistant may send without
+ * the owner, on ONE page, every control in view:
  *
- * Phase 9 — each row says its own thing (w4-business-assistant-29): "Each
- * kind of reply" what happens now (nothing is sent, which kinds go out, or
- * every reply waits); "What comes next" the next step; "One kind at a time"
- * what is set or earned. The waiting colour is for what waits on the owner's
- * hand (work to check, questions customers asked); a setting not finished is
- * said in plain words (w4-business-assistant-02).
+ *   the title and one line; what stands above everything (the Stop, the pause, the one hold);
+ *   1 · how much the assistant does alone — the three levels (fields), with the line that says what a customer is
+ *       told when a reply goes without the owner; what was chosen beside what is in force; the ramp;
+ *   2 · each kind of reply — a table whose rows act at once;
+ *   3 · follow-ups after a quote — three fields;
+ *   and ONE Save, at the end, for the fields of 1 and 3.
+ *
+ * It replaces the landing, its folds and the page "How sending without you works" (whose long form is in this page's
+ * help, helpTopics.ts). Nothing here changes what a level, a kind or a follow-up MEANS or how it is stored: the form
+ * posts to one route that calls the saves that were always called, and each row posts where it always did.
  */
 export function renderEmployee(
-  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW, focused = false,
-  open: SetupFold | null = null,
+  e: EmployeeProfile, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, extra: PermissionsExtra = {},
 ): string {
   const name = assistantName(locale);
   const st = standing(e, locale);
-  const met = e.conditions.filter((c) => c.met).length;
-  // UI Block 6 (F32) — each decision folded under its name and where it stands now; the fold a link names is open
-  // (?open=), and the link's target is inside the fold, so a browser opens it for #progress without any script.
-  if(focused) return `<h1 class="page">${esc(t(locale,'settingsArea.permissions'))}</h1>${flashBanner(flash)}<p class="lede">${esc(t(locale,'settingsArea.permissionHint'))}</p>${levelControl(e,locale,viewer)}${stopHere(e,locale,viewer)}
-    ${setupFold('progress',open,esc(t(locale,'employee.promo.title')),esc(e.conditions.length?t(locale,'nav.setup.progress',{done:met,total:e.conditions.length}):st.alone.length?'':labelled(locale,t(locale,'employee.promo.next'),t(locale,'employee.stage.partial'))),renderEmployeeScreen('next',e,locale,null,ctx,viewer,{embedded:true}))}
-    ${setupFold('reply-types',open,esc(t(locale,'her.handles.title')),esc(st.level===null?st.nowLabel:''),renderEmployeeScreen('replies',e,locale,null,ctx,viewer,{embedded:true})+renderEmployeeScreen('one-kind',e,locale,null,ctx,viewer,{embedded:true}))}`;
-  const nothingYet = t(locale, 'her.menu.nothingYet');
-  const capList = (caps: readonly string[]) => formatList(locale, caps.map((c) => capabilityName(locale, c)));
-
-  const says: MenuRow[] = [
-    { href: screenHref('talk'), icon: 'talk', label: t(locale, 'her.talk.title'),
-      ...(e.products === undefined ? {} : { value: tn(locale, 'her.talk.products', e.products) }) },
-    { href: '/app/assistant/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
-      value: e.knows ? tn(locale, 'knowledge.product.facts', e.knows) : nothingYet },
-    // V1-423 — what customers asked this month that needed something not taught: a count of questions.
-    { href: screenHref('learning'), icon: 'question', label: t(locale, 'her.teach.title'),
-      ...(ctx ? ctx.gaps.length ? { value: tn(locale, 'her.menu.questions', ctx.gaps.length), tone: 'warn' as const }
-        : { value: tn(locale, 'her.menu.questions', 0) } : {}) },
-    { href: '/app/settings/forbidden', icon: 'nope', label: t(locale, 'forbidden.title'),
-      ...(e.words === undefined ? {} : { value: e.words ? tn(locale, 'forbidden.floor.count', e.words) : nothingYet }) },
-  ];
-  const works: MenuRow[] = [
-    { href: screenHref('name'), icon: 'name', label: t(locale, 'her.menu.name'),
-      value: e.assistantNamed ? name : t(locale, 'her.menu.name.unconfirmed') },
-    // What happens now is a sentence here, so it is the line under the name, never a value cut short.
-    { href: screenHref('replies'), icon: 'kinds', label: t(locale, 'her.handles.title'), desc: st.nowLabel },
-    // What stands here: a kind earned (the owner's to grant), else the kinds set to go alone.
-    { href: screenHref('one-kind'), icon: 'sliders', label: t(locale, 'employee.actions.title'),
-      ...(viewer.isOwner && st.grantable.length
-        ? { desc: t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capList(st.grantable.map((c) => c.capability)) }) }
-        : st.revocable.length ? { desc: t(locale, 'her.menu.oneKind.set', { list: capList(st.revocable.map((c) => c.capability)) }) }
-        : { value: nothingYet }) },
-    // M34.7 — 抽查, the one thing here that asks the owner to act, so its row
-    // carries the count in the waiting colour. Absent when there is nothing to
-    // check — an empty ritual is worse than none. Today's line lands on it.
-    ...(e.spotChecks.length ? [{ href: screenHref('checks'), icon: 'check' as const, label: t(locale, 'spotcheck.title'),
-      value: tn(locale, 'today.spotChecks', e.spotChecks.length), tone: 'warn' as const, id: 'spot-checks' }] : []),
-    { href: '/app/assistant/practice', icon: 'practice', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
-  ];
-  const going: MenuRow[] = [
-    { href: screenHref('month'), icon: 'month', label: t(locale, 'her.recent.title'),
-      ...(ctx ? { desc: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
-    { href: screenHref('next'), icon: 'next', label: t(locale, 'employee.promo.title'),
-      ...(e.conditions.length ? { value: t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) }
-        : { desc: st.alone.length ? t(locale, 'employee.promo.done')
-          : labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')) }) },
-    { href: screenHref('history'), icon: 'history', label: t(locale, 'employee.growth.title'),
-      value: e.growth[0] ? show.date(locale, e.growth[0].at) : nothingYet },
-  ];
-
-  return `<h1 class="page">${esc(name)}</h1>
-    ${flashBanner(flash)}
-    ${levelControl(e, locale, viewer)}${stopHere(e, locale, viewer)}
-    ${menuGroup('says', t(locale, 'her.group.says'), says)}
-    ${menuGroup('works', t(locale, 'her.group.works'), works)}
-    ${menuGroup('going', t(locale, 'her.group.going'), going)}`;
+  const rule = extra.followUps ?? DEFAULT_FOLLOW_UP_RULE;
+  // The template's section, written out: its heading and its line are English where the catalogue has no other.
+  const follow = `<section class="set-sec" id="follow-ups"><h2 class="set-h">${wordsHtml(locale, 'followUp.title')}</h2><p class="set-help">${wordsHtml(locale, 'followUp.intro')}</p><div class="set-rows">${followUpRows(locale, rule, viewer.isOwner, extra.followUpError ?? null)}${viewer.isOwner ? `<p class="set-help">${wordsHtml(locale, 'followUp.future')}</p>` : ''}</div></section>`;
+  return `${pageHead(t(locale, 'settingsArea.permissions'), t(locale, 'as.perm.lede', { name }))}${flashBanner(flash)}
+    ${standingNotices(e, locale, viewer, st)}
+    ${levelsSection(e, locale, viewer, st, extra)}
+    ${kindsSection(e, locale, viewer, st)}
+    ${viewer.isOwner ? saveForm(PERMISSIONS_SAVE, `${follow}${saveActs(locale)}`, { id: PERMISSIONS_FORM }) : follow}`;
 }
 
 /**
@@ -797,7 +798,7 @@ export function renderEmployeeScreen(
   const dailyTool = screen === 'checks' || screen === 'history' || screen === 'talk' || screen === 'learning';
   const returnTo = screen === 'month' ? '/app' : dailyTool ? '/app/assistant' : ASSISTANT_HOME;
   const returnLabel = screen === 'month' ? t(locale, 'split.title') : dailyTool ? t(locale, 'nav.assistant') : name;
-  const head = extras.embedded ? '' : `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  const head = `${back(returnTo, returnLabel)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
 
   switch (screen) {
     // Two doors, one data: what the assistant answers from, each line opening
@@ -835,82 +836,6 @@ export function renderEmployeeScreen(
     // the whole of it (Knowledge, and each entry under it).
     case 'learning':
       return `${head}${teachBody(ctx, locale)}${knowsSection(e, ctx, locale)}`;
-    // Phase 9 (w4-business-assistant-26) — what stood before the levels on
-    // the landing: what no level changes, what a customer is told, which
-    // languages wait, how sending alone is earned, and the choice beside what
-    // is in force.
-    case 'alone': {
-      const back2 = `${back(ASSISTANT_HOME, name)}<h1 class="page">${esc(t(locale, 'her.alone.title', { name }))}</h1>${flashBanner(flash)}`;
-      return `${back2}<div class="block">
-        <p>${esc(t(locale, 'autonomy.intro'))}</p>
-        ${st.hold ? `<p>${esc(st.heldWhy)}</p>` : ''}
-        ${languagesLine(locale, st.hold)}${strictLine(locale, st.hold)}
-        <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
-        ${chosenBlock(e, locale)}
-        ${e.ramp ? rampBlock(e.ramp, locale) : ''}
-        ${deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'autonomy.title'))}
-      </div>`;
-    }
-    // Phase 9 — the h1 of the landing names the assistant; this says what it
-    // does today, and since when. Until the name is confirmed it says so, with
-    // the way to confirm it (the owner's: `messaging_activation`); once it is,
-    // the way to change it, where every assistant is named (A5).
-    // V1-420 — until it is confirmed, the screen shows the name that awaits
-    // confirmation (the row's name, as Getting ready's box holds it), says it
-    // is not confirmed, and confirms it HERE (the owner's: the same action
-    // Getting ready posts to, back to this screen). What happens to replies is
-    // "Each kind of reply"'s; this card says what the assistant does and since when.
-    case 'name': {
-      const pending = (e.pendingName ?? '').trim() || defaultAssistantName(locale);
-      const shown = e.assistantNamed ? name : pending;
-      const confirm = !viewer.isOwner || e.assistantNamed ? ''
-        : `<form method="post" action="/app/onboarding/assistant-name" class="pr-name emp-confirm">
-            <input type="hidden" name="from" value="employee" />
-            <input type="text" name="name" maxlength="${NAME_MAX}" required value="${esc(pending)}" aria-label="${esc(t(locale, 'pilot.attest.assistant_named'))}" />
-            <button class="btn send" type="submit">${esc(t(locale, 'autonomy.confirmName'))}</button>
-          </form>`;
-      return `${head}
-        <p class="emp-called"><bdi>${esc(shown)}</bdi></p>
-        ${e.assistantNamed ? '' : `<p>${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
-        ${confirm}
-        <div class="card emp">
-          <div class="emp-stage">${esc(t(locale, 'employee.role.reception'))}</div>
-        </div>`;
-    }
-    // 2 · What can she handle? Permission and trust boundaries — never a
-    //     measure of how good she is. Promotion LOGIC is untouched; only the framing.
-    case 'replies': {
-      const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
-      return `${head}<div class="block">
-        ${e.canDo.length === 0 && e.needConfirm.length === 0
-          ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
-        ${list(t(locale, 'her.handles.alone'), 'ok', st.alone.map(capName), t(locale, 'employee.duties.none'))}
-        ${st.setButHeld.length ? `${list(t(locale, 'her.handles.held'), null, st.setButHeld.map(capName), '')}
-          <p class="muted small">${esc(st.heldWhy)}</p>` : ''}
-        ${list(t(locale, 'her.handles.waits'), null, e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
-        ${list(t(locale, 'her.handles.always'), null, cannotDo, t(locale, 'employee.duties.none'))}
-      </div>`;
-    }
-    // G9a — what she may do on her own is the owner's decision; staff see the
-    // ladder but not the buttons that move her along it.
-    case 'one-kind':
-      return `${head}${!viewer.isOwner
-        ? `<div class="block"><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
-        : (st.grantable.length || st.revocable.length)
-        ? `<div class="block">
-            ${/* V1-417 — what holds every reply, first: a kind set to go alone says it still waits. */ ''}${st.hold || st.setButHeld.length ? `<p>${esc(st.heldWhy)}</p>` : ''}
-            ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${st.revocable.map((c) => `<form method="post" action="${ASSISTANT_HOME}/capability/${esc(c.capability)}/revoke" class="actrow">
-                <span>${esc(t(locale, st.alone.includes(c.capability) ? 'employee.actions.granted' : 'employee.actions.grantedHeld', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
-                  onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
-            ${st.grantable.map((c) => `<form method="post" action="${ASSISTANT_HOME}/capability/${esc(c.capability)}/promote" class="actrow">
-                <span>${esc(t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
-                  onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
-            ${st.grantable.length === 0 ? `<p class="muted">${esc(t(locale, 'employee.actions.more', { name }))}</p>` : ''}
-            <p class="muted">${esc(t(locale, 'employee.actions.note'))}</p>
-          </div>`
-        : `<div class="block"><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`}`;
     // M34.7 — 抽查: is the trust warranted? The work itself, and the words to answer it with.
     case 'checks':
       return `${head}${e.spotChecks.length
@@ -941,16 +866,6 @@ export function renderEmployeeScreen(
         : `<div class="empty">${esc(t(locale, 'spotcheck.none'))}</div>`}`;
     case 'month':
       return `${head}${recentBody(ctx, locale)}`;
-    case 'next':
-      return `${head}<div class="block">
-        <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), st.nowLabel))}</div>
-        ${st.alone.length
-          ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
-          : `<div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}</div>
-             ${st.setButHeld.length || st.hold ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}`}
-        ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
-          `<div class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</div>`).join('')}</div>` : ''}
-      </div>`;
     case 'history':
       return `${head}<div class="block">
         ${e.growth.length

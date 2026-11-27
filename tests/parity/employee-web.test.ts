@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
-import { everyScreen, screen } from './employee-screens.js';
+import { everyScreen, screen, namePage } from './employee-screens.js';
+import { renderHelp } from '../../src/api/web/helpPanel.js';
+import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, withAssistantName, assistantName } from '../../src/api/web/say.js';
 import { readFileSync } from 'node:fs';
@@ -48,14 +50,17 @@ const ownerReads = (html: string): string =>
 
 
 describe('M9.6 · employee profile (localized)', () => {
-  it('card: headlined by the name in force (else "your assistant"); stage/role localized', () => {
+  // Rule 104 — a settings page is headed by its menu label; the assistant is named in the line under it.
+  it('card: the page names the assistant by the name in force (else "your assistant"); stage/role localized', () => {
     const zh = everyScreen(base, 'zh', null);
-    expect(zh).toContain('<h1 class="page">你的助手</h1>');   // no name chosen: the fallback, never an invented name
-    expect(zh).toContain(t('zh', 'employee.stage.partial')); expect(zh).toContain(t('zh', 'employee.role.reception')); expect(zh).not.toContain('入职');   // the hire date is no longer drawn (2026-11-26)
+    expect(zh).toContain(`<h1 class="page">${t('zh', 'settingsArea.permissions')}</h1><p class="lede set-lede">你的助手可以不经你同意发出哪些回复。</p>`);   // no name chosen: the fallback, never an invented name
+    expect(zh).toContain(t('zh', 'employee.promo.done')); expect(zh).not.toContain('入职');   // the hire date is no longer drawn (2026-11-26)
+    expect(namePage(base, 'zh', { isOwner: false })).toContain(t('zh', 'employee.role.reception'));
     const en = withAssistantName('Lily', () => everyScreen(base, 'en', null));
-    expect(en).toContain('<h1 class="page">Lily</h1>');      // the headline IS the chosen name
-    expect(en).toContain('Answers your customers');
-    expect(everyScreen(base, 'ar', null)).toContain('<h1 class="page">مساعدك</h1>');
+    expect(en).toContain('<h1 class="page">Reply permissions</h1><p class="lede set-lede">What Lily may send without you.</p>');      // the chosen name, as it is
+    expect(withAssistantName('Lily', () => namePage(base, 'en', { isOwner: false }))).toContain('<p class="emp-called"><bdi>Lily</bdi></p>');
+    expect(withAssistantName('Lily', () => namePage(base, 'en', { isOwner: false }))).toContain('Answers your customers');
+    expect(everyScreen(base, 'ar', null)).toContain('مساعدك');
   });
 
   it('duties: canDo / needConfirm / cannotDo from capability codes', () => {
@@ -85,12 +90,12 @@ describe('M9.6 · employee profile (localized)', () => {
 
   it('promotion: stage, next step, real conditions — no invented score', () => {
     const zh = everyScreen(probation, 'zh', null);
-    expect(zh).toContain(t('zh', 'employee.promo.title')); expect(zh).toContain('当前：每条回复都先等你');
+    expect(zh).toContain('当前：每条回复都先等你');
     expect(zh).toContain('下一步：部分回复不等你就发出');
     expect(zh).toContain('<span class="dot ok shape s-ok" aria-hidden="true"></span> 你检查你的助手的一条回复，没问题');
     expect(zh).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span> 你改过你的助手的一条回复');
     const en = everyScreen(probation, 'en', null);
-    expect(en).toContain('What comes next'); expect(en).toContain('Now: Every reply waits for you');
+    expect(en).toContain('Now: Every reply waits for you');
     expect(en).toContain(`Next: ${t('en', 'employee.stage.partial')}`);
     expect(en).toContain('s-ok" aria-hidden="true"></span> You check one of your assistant’s replies and it is right');
     expect(en).toContain('s-waiting" aria-hidden="true"></span> You correct one of your assistant’s replies');
@@ -116,8 +121,12 @@ describe('M9.6 · employee profile (localized)', () => {
     }
   });
 
-  it('mobile: no tables', () => {
-    expect(everyScreen(base, 'en', null)).not.toContain('<table');
+  it('mobile: no table but the settings template\'s own (rule 104), which a phone reads as stacked rows', () => {
+    const tables = everyScreen(base, 'en', null).match(/<table[^>]*>/g) ?? [];
+    expect(tables.length).toBeGreaterThan(0);
+    for (const tb of tables) expect(tb).toMatch(/^<table class="team-table as-(kinds|team)">$/);
+    const css = readFileSync(new URL('../../src/api/web/settingsAreaStyle.ts', import.meta.url), 'utf8');
+    expect(css).toContain('@media(max-width:600px){.team-table .as-act{text-align:start;white-space:normal;}');
   });
 });
 
@@ -135,19 +144,21 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     ],
   };
 
-  it('the page is the assistant — headlined by the chosen name in every locale', () => {
+  it('the pages are about the assistant — named by the chosen name in every locale, under each page\'s own heading', () => {
     for (const l of LOCALES) {
       // A chosen name is stored once and shown as-is, whatever the language.
-      expect(withAssistantName('Lily', () => everyScreen(base, l, null, ctx)))
-        .toContain('<h1 class="page">Lily</h1>');
-      // No name chosen yet: the capitalised "your assistant" label.
-      expect(everyScreen(base, l, null, ctx)).toContain(`<h1 class="page">${assistantName(l)}</h1>`);
+      const named = withAssistantName('Lily', () => everyScreen(base, l, null, ctx));
+      expect(named, l).toContain(`<h1 class="page">${esc(t(l, 'settingsArea.permissions'))}</h1><p class="lede set-lede">${esc(withAssistantName('Lily', () => t(l, 'as.perm.lede')))}</p>`);
+      expect(named, l).toContain(`<h1 class="page">${esc(t(l, 'settingsArea.identity'))}</h1><p class="lede set-lede">${esc(withAssistantName('Lily', () => t(l, 'as.name.lede')))}</p>`);
+      expect(withAssistantName('Lily', () => t(l, 'as.perm.lede')), l).toContain('Lily');
+      // No name chosen yet: the "your assistant" label, never an invented name.
+      expect(t(l, 'as.perm.lede'), l).toContain(assistantName(l).toLocaleLowerCase(l).slice(1));
+      expect(everyScreen(base, l, null, ctx), l).toContain(esc(t(l, 'as.perm.lede')));
     }
   });
 
   it('what the assistant knows: the learning, with a real lifetime count', () => {
     const html = everyScreen(base, 'en', null, ctx);
-    expect(html).toContain(t('en', 'her.knows.title'));
     expect(html).toContain(t('en', 'her.knows.count'));
     expect(html).toContain('>14<');            // base.knows
     expect(html).toContain('Added recently');
@@ -200,7 +211,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(html).toContain('asked 4×');
     expect(html).toContain('href="/app/assistant/knowledge?view=facts&amp;teach=Do%20you%20ship%20to%20Dubai%3F');
     expect(html).toContain(t('en', 'her.teach.go'));
-    expect(html).not.toContain('<textarea');           // no second knowledge editor
+    expect(screen('learning', base, 'en', ctx)).not.toContain('<textarea');           // no second knowledge editor
   });
 
   it('nothing to teach is a success state', () => {
@@ -214,20 +225,16 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     const learning = screen('learning', base, 'en');
     expect(learning).not.toContain(t('en', 'her.teach.none'));
     expect(learning).not.toContain(t('en', 'her.teach.unasked'));
-    const landing = renderEmployee(base, 'en', null);
-    const row = (href: string) => landing.slice(landing.indexOf(`href="${href}"`), landing.indexOf('</a>', landing.indexOf(`href="${href}"`)));
-    expect(row('/app/settings/assistant/month')).not.toMatch(/sr-value|sr-desc/);
-    expect(renderEmployee(base, 'en', null, { taughtRecently: 0, corrected: 0, handled: 12, draftsPrepared: 0, neededYou: 0, gaps: [] }))
-      .toContain(`<span class="sr-desc">${t('en', 'her.count.handled.other', { n: '12' })}</span>`);
-    expect(row('/app/assistant/knowledge?view=needs-answer')).not.toContain('sr-value');
+    // Rule 104 — Reply permissions is settings only: it carries no count of the month's work at all.
+    expect(renderEmployee(base, 'en', null)).not.toMatch(/sr-value|sr-desc|class="hrow"/);
   });
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
     const zh = everyScreen(base, 'zh', null, ctx);
-    expect(zh).toContain(t('zh', 'nav.knowledge')); expect(zh).toContain(t('zh', 'her.handles.title'));
+    expect(zh).toContain(t('zh', 'her.handles.title'));
     expect(zh).toContain(t('zh', 'her.teach.title'));
     const ar = everyScreen(base, 'ar', null, ctx);
-    expect(ar).toContain(t('ar', 'nav.knowledge')); expect(ar).toContain(t('ar', 'her.handles.title'));
+    expect(ar).toContain(t('ar', 'her.handles.title'));
     expect(ar).toContain('<span class="go" aria-hidden="true">');   // the shell mirrors it
   });
 
@@ -250,7 +257,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('mobile-first: no tables, and no breakpoint of its own — the shell holds the one', () => {
     const html = everyScreen(base, 'en', null, ctx);
-    expect(html).not.toContain('<table');
+    expect(html.replace(/<table class="team-table as-(?:kinds|team)">/g, '')).not.toContain('<table');   // the settings template's own
     // V1 step four: the page carries no stylesheet; its phone rules live in the shell.
     expect(html).not.toContain('<style');
     expect(html).not.toContain('@media');
@@ -311,9 +318,10 @@ describe('Phase 9 · "Handled without you" lists only what goes out alone today'
   it('name unconfirmed: greet is set, still waiting, with the reason; nothing is handled', () => {
     for (const l of LOCALES) {
       const html = everyScreen({ ...base, assistantNamed: false }, l, null);
-      const alone = between(html, t(l, 'her.handles.alone'), '</div></div>');
-      expect(alone, l).toContain(t(l, 'employee.duties.none'));
-      expect(html, l).toContain(t(l, 'her.handles.held'));
+      // Rule 104 — each kind is a row with its state in a pill: none says it goes out; greet says set, still waiting.
+      expect(html, l).not.toContain(`>${t(l, 'her.handles.alone')}</span>`);
+      const greet = between(html, `<bdi>${t(l, 'capability.greet')}</bdi></th>`, '</tr>');
+      expect(greet, l).toContain(`<span class="pill long">${t(l, 'her.handles.held')}</span>`);
       expect(html, l).toContain(t(l, 'her.handles.held.why.name', { ready: t(l, 'pilot.title') }));
       expect(html, l).not.toContain(t(l, 'employee.promo.done'));
       expect(html, l).toContain(t(l, 'employee.stage.probation'));
@@ -353,7 +361,7 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
 
   it('V1-418 · no level matches: the page says which kinds are set to go alone, beside the choices (under them since w4-business-assistant-26)', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee(mix, l, null, quiet);
+      const html = renderEmployee(mix, l, null);
       const said = t(l, 'autonomy.mixed', { list: new Intl.ListFormat(l, { type: 'conjunction' }).format([t(l, 'capability.greet'), t(l, 'capability.qualify')]) });
       expect(html, l).toContain(said.replace(/&/g, '&amp;'));
       expect(html.indexOf(said), l).toBeGreaterThan(html.indexOf('name="level"'));
@@ -364,39 +372,44 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
 
   it('V1-419 · V1-420 · what holds the levels sits above them, with its own door, and names no page', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee(mix, l, null, quiet);
-      const hold = html.indexOf(t(l, 'autonomy.needsName'));
+      const html = renderEmployee(mix, l, null);
+      // Rule 104 — the hold is one line (the long form, `autonomy.needsName`, is in the page's help), above the levels.
+      const hold = html.indexOf(t(l, 'her.handles.held.why.name'));
       expect(hold, l).toBeGreaterThan(-1);
       expect(hold, l).toBeLessThan(html.indexOf('name="level"'));
-      // Phase 9 (V1-420) — the door opens the Name screen, where the name is confirmed.
+      expect(renderHelp(l, { from: '/app/settings/assistant', role: 'owner', canAsk: false, canWrite: false }), l).toContain(esc(t(l, 'autonomy.needsName')));
+      // Phase 9 (V1-420) — the door opens the Name page, where the name is confirmed.
       expect(html, l).toContain(`href="/app/settings/assistant/name">${t(l, 'autonomy.confirmName')}`);
-      expect(html.split('href="/app/settings/assistant/name"').length - 1, `${l}: the door, and the Name row`).toBe(2);
+      expect(html.split('href="/app/settings/assistant/name"').length - 1, `${l}: the one door`).toBe(1);
       expect(html, l).not.toContain('href="/app/onboarding"');
       expect(html, l).not.toContain(`>${t(l, 'pilot.open')}</a>`);           // the bare "Open"
       expect(visible(html), `${l}: no page called by a name the nav does not use`).not.toContain(t(l, 'pilot.title'));
-      // The card is not a second name under the h1. Phase 7 — the card is the
-      // Name row's screen; the row says the name is not confirmed, and so does
-      // the screen, with its one door to confirm it.
+      // The card is not a second name under the h1. Rule 104 — the Name and identity page says the name is not
+      // confirmed (one line, with what that means for a customer), with its one act to confirm it.
       expect(html, l).not.toContain('emp-name');
-      expect(html, l).toContain(t(l, 'her.menu.name.unconfirmed'));
-      const named = screen('name', mix, l, quiet);
-      expect(named, l).toContain(t(l, 'employee.name.unconfirmed'));
-      // V1-420 — the name that waits is shown, and confirmed here, back to this screen.
+      const named = namePage(mix, l);
+      expect(named, l).toContain(esc(t(l, 'assistants.unconfirmed')));
+      // V1-420 — the name that waits is shown, and confirmed here, back to this page.
       expect(named, l).toContain('<form method="post" action="/app/onboarding/assistant-name"');
       expect(named, l).toContain('<input type="hidden" name="from" value="employee" />');
-      expect(named, l).not.toContain('href="/app/onboarding"');
+      expect(named.match(/action="\/app\/onboarding\/assistant-name"/g), l).toHaveLength(1);
       expect(named, l).not.toContain('emp-name');
+      expect(namePage({ ...mix, assistantNamed: true }, l), l).not.toContain('/app/onboarding/assistant-name');
     }
   });
 
   it('V1-421 · the middle level promises what it sends; the one-kind block says why nothing can be granted yet', () => {
     expect(t('en', 'autonomy.level.talks.note')).toContain('Greetings, questions and recommendations');
+    // Rule 104 — the reason is said in the row itself, where the button would be: "Earned with your customers".
     for (const l of LOCALES) {
-      const html = screen('one-kind', mix, l, quiet);
-      expect(html, l).toContain(t(l, 'employee.actions.more'));
+      const html = renderEmployee(mix, l, null);
+      expect(html, l).not.toContain('/promote"');
+      expect(html.split(`<span class="as-lock">${esc(t(l, 'as.perm.earned'))}</span>`).length - 1, l).toBe(4);   // the four kinds that wait
     }
-    // With something to grant, the line is not needed.
-    expect(screen('one-kind', base, 'en')).not.toContain(t('en', 'employee.actions.more'));
+    // With something to grant, that row carries the act instead.
+    const one = renderEmployee(base, 'en', null);
+    expect(one).toContain('/capability/quote/promote" class="set-act">');
+    expect(one.split(`<span class="as-lock">${t('en', 'as.perm.earned')}</span>`).length - 1).toBe(1);   // negotiate
   });
 
   it('V1-422 · no promotion, probation, grant or spot-check words on the page', () => {
@@ -421,7 +434,6 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       // V1-427 — one door to Knowledge, in the section that is about it.
       // Phase 7 — on the landing that door is its row; here, the Teach door.
       expect(html.split('href="/app/assistant/knowledge"').length - 1, l).toBe(1);
-      expect(renderEmployee({ ...mix, knows: 0 }, l, null, quiet).split('href="/app/assistant/knowledge"').length - 1, l).toBe(1);
       // Nothing came in at all: then it says so.
       const empty = screen('learning', { ...mix, knows: 0 }, l, { ...quiet, draftsPrepared: 0 });
       expect(empty, l).toContain(t(l, 'her.teach.unasked'));
@@ -446,10 +458,12 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   });
 
   it('V1-425 · the rules and the disclosure are at the size of the text around them, in plain words', () => {
-    // Phase 9 (w4-business-assistant-26) — one level down, on "How sending without you works".
-    const html = screen('alone', mix, 'en', quiet);
-    expect(html).toContain(`<p>${t('en', 'autonomy.intro')}</p>`);
-    expect(html).toContain(`<p class="muted small disclose">`);
+    // Rule 104 — the disclosure is ON the page in one line, drawn as every section's line is; the rules at length are
+    // in the page's help, as a list at the size of the help's own text.
+    const html = renderEmployee(mix, 'en', null);
+    expect(html).toContain(`<p class="set-help">${t('en', 'as.perm.disclosure')}</p>`);
+    expect(html).not.toContain('class="muted small disclose"');
+    expect(renderHelp('en', { from: '/app/settings/assistant', role: 'owner', canAsk: false, canWrite: false })).toContain(`<li dir="auto">${esc(t('en', 'autonomy.intro'))}</li>`);
     expect(t('en', 'autonomy.intro')).not.toMatch(/price rules|your rules hold/);
     expect(t('en', 'autonomy.level.sells.note')).not.toMatch(/floor/);
   });
@@ -465,7 +479,7 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   it('missed-11 · w4-business-assistant-26 · the languages that always wait are said beside the levels, which come first', () => {
     expect(disclosureAwaitingReview().length).toBeGreaterThan(0);
     for (const l of LOCALES) {
-      const html = renderEmployee({ ...mix, assistantNamed: true }, l, null, quiet);
+      const html = renderEmployee({ ...mix, assistantNamed: true }, l, null);
       const said = t(l, 'autonomy.languages', {
         ready: formatList(l, disclosureReviewed().map((x) => languageName(l, x))),
         waiting: formatList(l, disclosureAwaitingReview().map((x) => languageName(l, x))),
@@ -473,7 +487,7 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       const at = html.indexOf(said);
       expect(at, l).toBeGreaterThan(-1);
       expect(at, l).toBeGreaterThan(html.indexOf('name="level"'));
-      expect(at, l).toBeLessThan(html.indexOf('</section>', html.indexOf('level-control')));
+      expect(at, l).toBeLessThan(html.indexOf('</section>', html.indexOf('id="on-her-own"')));
     }
   });
 
@@ -499,9 +513,10 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   it('V1-431 · new-13 · missed-14 · the undo is not red; "Now:" takes the colon; no straight quotes', () => {
     for (const l of LOCALES) {
       const html = everyScreen(mix, l, null, quiet);
-      expect(html, l).toContain('/revoke" class="actrow">');
-      expect(html, l).not.toMatch(/\/revoke" class="actrow">\s*<span>[^<]*<\/span><button class="btn danger"/);
-      expect(visible(html), l).not.toMatch(/"|&quot;/);
+      expect(html, l).toContain('/revoke" class="set-act">');
+      expect(html, l).not.toMatch(/\/revoke" class="set-act"><button class="btn danger"/);
+      // (The Name and identity page quotes an example of the owner's own line, as it always has: not read here.)
+      expect(visible(html.replace(namePage(mix, l), "")), l).not.toMatch(/"|&quot;/);
     }
     expect(everyScreen(probation, 'en', null)).toContain('Now: Every reply waits for you');
     expect(everyScreen(probation, 'es', null)).toContain('Ahora: Cada respuesta te espera');

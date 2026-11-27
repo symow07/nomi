@@ -12,7 +12,6 @@ import { esc } from './layout.js';
 import { fieldRow, cardActs } from './rows.js';
 import { pageHead, setSection, setNotice, saveForm, saveActs, rowSwitch, dangerZone } from './settingsPage.js';
 import { flashBanner, type Flash } from './flash.js';
-import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
 import * as show from './values.js';
 import type { RotationView } from '../../db/rotation.js';
@@ -386,6 +385,5 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     ${handoffs}
     ${save}
     ${roles}
-    ${danger}
-    ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}`;
+    ${danger}`;
 }

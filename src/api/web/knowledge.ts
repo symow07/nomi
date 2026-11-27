@@ -12,6 +12,7 @@ import { esc, back, deeper } from './layout.js';
 import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
 import { GO } from './icons.js';
+import { rowSwitch } from './settingsPage.js';
 
 /**
  * M13 — the owner's teach/correct surface for factory knowledge.
@@ -242,37 +243,29 @@ function kindSelect(l: Locale, kinds: readonly KnowledgeKind[], selected = ''): 
  * ("CE marking", "BPA free", "ISO 9001…") keeps its capitals.
  */
 const inSentence = (l: Locale, name: string): string =>
-  (l === 'en' || l === 'es' || l === 'fr') && /^\p{Lu}\p{Ll}/u.test(name) ? name.charAt(0).toLocaleLowerCase(l) + name.slice(1) : name;
+  // Only a first word that is one capital and then small letters is lowered: "RoHS compliance" is an initialism too
+  // (it read "roHS compliance" in the question), like "CE marking".
+  (l === 'en' || l === 'es' || l === 'fr') && /^\p{Lu}\p{Ll}+(?![\p{L}\p{N}])/u.test(name) ? name.charAt(0).toLocaleLowerCase(l) + name.slice(1) : name;
 
 /**
  * Phase 9 (V1-371, V1-372, new-18, V1-374, missed-19) — each certification is
- * a row: its name in words ("Food-safe materials", never "food_grade"), whether
- * it is on (✓ On, or Off — in words, not only in green), and a button that
- * says what pressing it does. The ask-first dialog's own button repeats that
- * word, so it reads "Turn on", never the code.
+ * a row: its name in words ("Food-safe materials", never "food_grade") and
+ * whether it is on, in words, not only in colour.
  *
- * The warmth run, phase 9 (w4-products-knowledge-02) — drawn on My business ›
- * What you promise customers, the one place they are switched.
+ * The settings overhaul (rule 104) — the one place they are switched is Settings › Assistant › Promises and words:
+ * ONE table, every certification in view (the ones never turned on were behind "Add a certification"), each row a
+ * switch that acts at once and asks first, in the words the question always had: "Turn on RoHS compliance for all
+ * 12 of your products? …". The route and what it stores are unchanged (`/app/knowledge/cert`).
  */
-export function certRows(l: Locale, certs: readonly string[], n: number, productId = '', foldOff = false): string {
-  const row = (k: typeof CERT_KEYS[number]) => {
+export function certTable(l: Locale, certs: readonly string[], n: number): string {
+  return `<table class="team-table as-certs"><tbody>${CERT_KEYS.map((k) => {
     const on = certs.includes(k);
     const label = claimName(l, k);
-    const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n });
-    return `<li class="row">
-      <span class="cert-name"><b><bdi>${esc(label)}</bdi></b> <span class="pill${on ? ' ok' : ''}">${esc(t(l, on ? 'knowledge.cert.on' : 'knowledge.cert.off'))}</span></span>
-      <form method="post" action="/app/knowledge/cert" class="inline">
-        <input type="hidden" name="productId" value="${esc(productId)}" />
-        <input type="hidden" name="key" value="${esc(k)}" />
-        <input type="hidden" name="allowed" value="${on ? '0' : '1'}" />
-        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(q)}">${esc(t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn'))}</button>
-      </form></li>`;
-  };
-  if (!foldOff) return `<ul class="rows certlist">${CERT_KEYS.map(row).join('')}</ul>`;
-  // The text audit (2026-11-26): what is ON stays in view; the ones never turned on wait behind one press, all of them.
-  const on = CERT_KEYS.filter((k) => certs.includes(k)), off = CERT_KEYS.filter((k) => !certs.includes(k));
-  return `${on.length ? `<ul class="rows certlist">${on.map(row).join('')}</ul>` : ''}${off.length
-    ? `<details class="cert-more"><summary class="btn">${esc(t(l, 'knowledge.cert.add'))}</summary><ul class="rows certlist">${off.map(row).join('')}</ul></details>` : ''}`;
+    return `<tr class="tm"><th scope="row"><bdi>${esc(label)}</bdi></th><td class="as-act">${rowSwitch(l, {
+      action: '/app/knowledge/cert', on, label: `${t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn')}: ${label}`,
+      name: 'allowed', hidden: { productId: '', key: k }, words: [t(l, 'knowledge.cert.on'), t(l, 'knowledge.cert.off')],
+      confirm: t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n }) })}</td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 /**

@@ -27,7 +27,6 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, webChatConnectable, telegramConnectable, tiktokConnectable } from './say.js';
-import { pageHead } from './settingsPage.js';
 
 import { esc, deeper, back, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
@@ -56,7 +55,8 @@ import { loadKillSwitches } from '../../db/opsFlags.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
-import { certRows } from './knowledge.js';
+import { certTable } from './knowledge.js';
+import { pageHead, setSection } from './settingsPage.js';
 import { OWNER_VIEW, actorName, type Person, type Viewer } from '../../core/conversation/people.js';
 import { loadPeople } from './people.js';
 import {
@@ -809,13 +809,13 @@ const head = (locale: Locale, title: string, flash: Flash | null, to: { href: st
 export function renderBusinessScreen(
   screen: BusinessScreen, f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
   /** KS6 — the operator's approval before the first connection, already rendered: first on the channels' home. */
-  extras: { readonly approvalHtml?: string; readonly technicalHtml?: string } = {},
+  extras: { readonly approvalHtml?: string; readonly technicalHtml?: string; /** Rule 104 — Words to avoid, a section of Promises and words, already rendered (settings.ts `forbiddenSection`). */ readonly wordsHtml?: string } = {},
 ): string {
   switch (screen) {
     case 'channels': return channelsScreen(f, locale, flash, viewer, extras.approvalHtml ?? '', extras.technicalHtml ?? '');
     case 'allowlist': return allowlistScreen(f, locale, flash, viewer);
     case 'ready': return readyScreen(f, locale, flash, viewer);
-    case 'promises': return promisesScreen(f, locale, flash, viewer);
+    case 'promises': return promisesScreen(f, locale, flash, viewer, extras.wordsHtml ?? '');
     case 'how': return howScreen(f, locale, flash, viewer);
   }
 }
@@ -1176,7 +1176,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
  * that says it. What may be promised about returns, delivery and what is sold
  * is answered in How you sell, and the page says so with its door.
  */
-function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
+function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, wordsHtml = ''): string {
   const name = assistantName(locale);
   // Only what the guard actually enforces, and only in the shape the owner's
   // own data takes: one floor, or a range across her products.
@@ -1206,19 +1206,17 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
       : null,
   ].filter((x): x is string => x !== null);
 
-  return `${head(locale, t(locale, 'settingsArea.promises'), flash)}
-    <section class="fblock" id="certs" aria-labelledby="certs-h">
-      <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
-      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
-      ${certRows(locale, f.promises.certs, f.products.total, '', true)}
-      <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
-    </section>
-    <section class="fblock">
-      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      <p class="fdesc">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
+  // The settings overhaul (rule 104) — the template: the title is the menu's label, one line under it; the
+  // certifications are a table whose switches act at once, each asking first; the rule that anything not turned on
+  // is never said stays ON the page, beside them; the price promises are read-only lines; Words to avoid follows.
+  return `${pageHead(t(locale, 'settingsArea.promises'), t(locale, 'as.promises.lede', { name }))}${flashBanner(flash)}
+    ${setSection({ id: 'certs', title: t(locale, 'knowledge.cert.title'), help: t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }),
+      rows: `${certTable(locale, f.promises.certs, f.products.total)}<p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>` })}
+    ${setSection({ id: 'prices', title: t(locale, 'factory.promise.title'), rows: `${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p class="set-help">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
       <div class="doors">${deeper(BUSINESS_SCREEN_PATH.how, t(locale, 'factory.sellhow.title'))}
-        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>
-    </section>`;
+        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>` })}
+    ${wordsHtml}`;
 }
 
 /**

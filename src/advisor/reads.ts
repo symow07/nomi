@@ -1106,7 +1106,7 @@ async function reasons(ctx: ReadCtx): Promise<Sheet> {
 async function checks(ctx: ReadCtx): Promise<Sheet> {
   const n = await ro(ctx, async (tx) => (await sql<{ n: number }>`
     select count(*)::int as n from spot_checks s where s.answered_at is null and ${notOwnerTesting('s.conversation_id')}`.execute(tx)).rows[0]!.n);
-  return n === 0 ? nothing('advisor.none.checks', undefined, ASSISTANT) : sheet([L(ctx, 'advisor.k.checks', { n: count(ctx, n) })], [], { href: '/app/settings/assistant#spot-checks', label: 'nav.employee' });
+  return n === 0 ? nothing('advisor.none.checks', undefined, ASSISTANT) : sheet([L(ctx, 'advisor.k.checks', { n: count(ctx, n) })], [], { href: '/app/assistant/review', label: 'nav.employee' });
 }
 
 /** G8 — the owner's Stop, the operator's pause, the allowance, billing (`assistantHold`). */

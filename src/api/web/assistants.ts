@@ -13,7 +13,10 @@ import {
   type AssistantWrite,
 } from '../../db/assistants.js';
 import { deeper, esc } from './layout.js';
-import { fieldRow, rowsCard, cardActs } from './rows.js';
+import { fieldRow, cardActs } from './rows.js';
+import { flashBanner, type Flash } from './flash.js';
+import type { Viewer } from '../../core/conversation/people.js';
+import { pageHead, setSection, setNotice, saveForm, saveActs, rowAction } from './settingsPage.js';
 
 /**
  * A5 — the assistants section of the team page, and the three things the owner
@@ -134,44 +137,69 @@ function fields(locale: Locale, a: Assistant | null, idPrefix: string): string[]
 const voiceOptions = (locale: Locale, kind: 'tone' | 'length' | 'emoji', list: readonly string[], current: string): string =>
   list.map((v) => `<option value="${v}"${v === current ? ' selected' : ''}>${esc(t(locale, `assistants.${kind}.${v}` as MessageKey))}</option>`).join('');
 
-export function renderAssistantsSection(assistants: readonly Assistant[], locale: Locale): string {
-  // Phase 9 (V1-511) — one name on the page. The main assistant's row name
-  // counts only once it is confirmed (rule 7): until then the page says
-  // "your assistant", as the rest of the product does, and the row says the
-  // name is not confirmed yet and where to confirm it.
-  const confirmed = (a: Assistant): boolean => !a.isDefault || assistantName(locale) === a.name;
+/**
+ * SETTINGS › ASSISTANT › NAME AND IDENTITY (the settings overhaul, rule 104) — the name customers read, and how the
+ * assistant talks:
+ *
+ *   · "Confirm the name" is its own act, never a field: it is the owner's DECISION that customers may be told this
+ *     name (rule 2), so it has its own button, with the line that says no name is given until it is pressed;
+ *   · the name, job and voice of ONE assistant are fields, always in view, with the page's ONE Save. The main
+ *     assistant by default; "Edit" on another's row puts that one's fields in the same form (`?edit=<id>`);
+ *   · who answers: a table, each row's acts beside it (Edit a door, Remove at once, asking first);
+ *   · "Add another assistant" is the list's own Add form.
+ *
+ * Every form posts where it always did (`/app/onboarding/assistant-name`, `/app/settings/people/assistants…`).
+ * A member of staff reads the name and is given no form (who is on the team is the owner's).
+ */
+export type NameView = {
+  /** The owner confirmed what customers will call the assistant. */
+  readonly named: boolean;
+  /** The main assistant's row name as it stands: what awaits confirmation until it is confirmed. */
+  readonly pending: string;
+};
+export const NAME_PAGE = '/app/settings/assistant/name';
+
+export function renderNameIdentity(
+  v: NameView, assistants: readonly Assistant[], locale: Locale, flash: Flash | null, viewer: Viewer, editId: string | null = null,
+): string {
+  const name = assistantName(locale);
+  const head = `${pageHead(t(locale, 'settingsArea.identity'), t(locale, 'as.name.lede', { name }))}${flashBanner(flash)}`;
+  // Rule 2, rule 7 — until it is confirmed the name is shown HERE as the one awaiting confirmation, and nowhere as the name.
+  const confirm = v.named ? '' : setNotice({ id: 'name',
+    html: `<b class="as-said"><bdi>${esc(v.pending)}</bdi></b>${esc(t(locale, 'assistants.unconfirmed'))}`,
+    act: viewer.isOwner ? rowAction({ action: '/app/onboarding/assistant-name', label: t(locale, 'autonomy.confirmName'),
+      hidden: { from: 'employee', name: v.pending } }) : undefined });
+  if (!viewer.isOwner) return `${head}${confirm}
+    <p class="emp-called"><bdi>${esc(v.named ? name : v.pending)}</bdi></p>
+    <p class="set-help">${esc(t(locale, 'employee.role.reception'))}</p>
+    <p class="set-help">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+
+  const main = assistants.find((a) => a.isDefault) ?? assistants[0] ?? null;
+  const editing = assistants.find((a) => a.id === editId) ?? main;
+  const other = editing !== null && editing !== main;
+  // The job and "Main" are labels, said in words on the row; a pill is for a state (V1-517).
   const answers = (a: Assistant): string => a.isDefault
     ? t(locale, 'assistants.default')
     : a.channels.length === 0
       ? t(locale, 'assistants.noChannels')
       : t(locale, 'assistants.answersOn', { channels: a.channels.map((c) => channelName(locale, c)).join(' · ') });
-  // Phase 9 (V1-517) — the job and "Main" are labels, said in words on the caption line; a pill is for a state.
   const about = (a: Assistant): string => [t(locale, `assistants.role.${a.role}` as MessageKey),
     ...(a.isDefault ? [t(locale, 'assistants.default.pill')] : []), answers(a)].map(esc).join(' · ');
-
-  return `<section class="block" id="assistants">
-      <h2>${esc(t(locale, 'assistants.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'assistants.intro'))}</p>
-      <ul class="rows team">${assistants.map((a) => `<li class="row top">
-        <span class="person"><span><bdi>${esc(a.name)}</bdi></span>
-          <span class="caption muted">${about(a)}</span>
-          ${confirmed(a) ? '' : `<span class="caption muted">${esc(t(locale, 'assistants.unconfirmed'))}</span>
-          ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}`}</span>
-        ${a.isDefault ? '' : `<form method="post" action="/app/settings/people/assistants/${esc(a.id)}/archive" class="inline">
-          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'assistants.archive.confirm', { who: a.name }))}">${esc(t(locale, 'assistants.archive'))}</button></form>`}
-        ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. The warmth run (-03, -04): the row's whole width, as the page's other forms, its act drawn as theirs. */ ''}<details class="act-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
-          <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
-            ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
-              cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
-          </form>
-        </details>
-      </li>`).join('')}</ul>
-      <details class="act-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
-        <form method="post" action="/app/settings/people/assistants" class="sform">
-          ${rowsCard(null, [...fields(locale, null, 'as-new'),
-            cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)])}
-        </form>
-      </details>
-    </section>`;
+  const form = editing === null ? '' : saveForm(`/app/settings/people/assistants/${editing.id}`,
+    `${setSection({ id: 'identity', title: t(locale, 'as.name.section'), rows: fields(locale, editing, 'as') })}${saveActs(locale)}`);
+  const list = `<table class="team-table as-team"><tbody>${assistants.map((a) => `<tr class="tm"><th scope="row"><bdi>${esc(a.name)}</bdi></th>
+      <td>${about(a)}${a.isDefault && !v.named ? ` ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}` : ''}</td>
+      <td class="as-act">${a === editing ? '' : deeper(`${NAME_PAGE}${a.isDefault ? '' : `?edit=${a.id}`}#identity`, t(locale, 'as.name.edit'), '', `aria-label="${esc(`${t(locale, 'as.name.edit')}: ${a.name}`)}"`)}${a.isDefault ? '' : rowAction({
+        action: `/app/settings/people/assistants/${a.id}/archive`, label: t(locale, 'assistants.archive'),
+        confirm: t(locale, 'assistants.archive.confirm', { who: a.name }), ariaLabel: `${t(locale, 'assistants.archive')}: ${a.name}` })}</td></tr>`).join('')}</tbody></table>`;
+  const add = `<form method="post" action="/app/settings/people/assistants" class="set-add">${fields(locale, null, 'as-new').join('')}${
+    cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)}</form>`;
+  const editingNote = !other || editing === null ? '' : setNotice({
+    html: esc(t(locale, 'as.name.editing', { who: '\u0001' })).replace('\u0001', `<bdi>${esc(editing.name)}</bdi>`),
+    door: { href: `${NAME_PAGE}#identity`, label: t(locale, 'as.name.toMain') } });
+  return `${head}${confirm}
+    ${editingNote}
+    ${form}
+    ${setSection({ id: 'assistants', title: t(locale, 'assistants.title'), help: t(locale, 'assistants.intro', { name }), rows: list })}
+    ${setSection({ id: 'add-assistant', title: t(locale, 'assistants.add.summary'), rows: add })}`;
 }

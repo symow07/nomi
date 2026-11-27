@@ -688,12 +688,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
     // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
     expect(res.body).toContain('id="progress"');
-    expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
+    expect(res.body).toContain(esc(t('en', 'employee.promo.current')));   // rule 104: "what comes next" is one line, under the kinds
     expect(res.body).not.toContain('置信度');       // no invented score
     const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: settingsHref(assistantPageUrl(`/app/settings/assistant/${s}`)), headers: { cookie } }));
     const replies = await screen('replies');
     expect(replies.statusCode).toBe(200);
-    expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
+    // Phase C: permission wording. Rule 104 — each kind is a row that says where it stands, in a pill: set to go
+    // without you, and whether it does now (the name confirmed, the wording released) or still waits.
+    expect(replies.body).toMatch(new RegExp(`<span class="pill long[^"]*">(?:${esc(t('en', 'her.handles.alone'))}|${esc(t('en', 'her.handles.held'))})</span>`));
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
     expect(replies.body).toContain('Greeting');
     expect(replies.body).toContain('id="reply-types"');
@@ -2027,7 +2029,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain(`<h1 class="page">${esc(t('en','settingsArea.permissions'))}</h1>`);
-      expect(res.body).toContain('href="/app/settings/assistant/words"');
+      expect(res.body).toContain('href="/app/settings/assistant/promises"');   // rule 104: the words are a section of that page
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
       expect(res.body).toContain('id="progress"');
       expect(res.body).toContain('id="reply-types"');

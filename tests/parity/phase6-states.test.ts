@@ -8,7 +8,7 @@ import { type InboxList } from '../../src/api/web/inbox.js';
 import { renderSplitInbox as renderInboxList } from '../../src/api/web/splitInbox.js';
 import { renderAddForm, renderPhotoRefusal } from '../../src/api/web/products.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
-import { renderHours, renderForbidden, type HoursView, type ForbiddenView } from '../../src/api/web/settings.js';
+import { renderHours, forbiddenSection, type HoursView, type ForbiddenView } from '../../src/api/web/settings.js';
 import { renderGuide } from '../../src/api/web/guide.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { t, messages } from '../../src/core/owner/i18n/messages.js';
@@ -105,7 +105,7 @@ describe('phase 6 · errors under their field, on the same page, with what was t
     expect(closures).toContain('name="to_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="01" aria-invalid="true" aria-describedby="cl-to-err"');
     expect(closures).toContain(`<span class="fielderr" role="alert" id="cl-to-err">${t('en', 'closures.flash.ends_before_starts')}</span>`);
     const noWords: ForbiddenView = { own: [], floor: [] };
-    const words = renderForbidden(noWords, 'en', null, { values: { term: 'cheap', note: 'n' }, field: 'term', text: t('en', 'forbidden.flash.duplicate') });
+    const words = forbiddenSection(noWords, 'en', { values: { term: 'cheap', note: 'n' }, field: 'term', text: t('en', 'forbidden.flash.duplicate') });
     expect(words).toContain('value="cheap" aria-invalid="true"');
     expect(words).toContain('value="n"');
   });

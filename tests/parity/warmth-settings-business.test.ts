@@ -219,9 +219,11 @@ describe('phase 7 · the channels have ONE home: My business', () => {
 });
 
 describe('phase 7 · every screen a level down starts with its way back', () => {
-  const backs: Record<BusinessScreen, string> = {
-    allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', promises: '/app/settings/business', how: '/app/settings/business',
-  } as Record<BusinessScreen, string>;
+  // Rule 104 — "Promises and words" and Channels are pages of the Settings menu now: each opens on its heading (the
+  // menu is its way back, drawn by the shell), as every settings page on the template does.
+  const backs: Partial<Record<BusinessScreen, string>> = {
+    allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', how: '/app/settings/business',
+  };
   for (const l of LOCALES) {
     it(`${l} · My business's screens, and the pages its rows open`, () => {
       for (const [s, href] of Object.entries(backs) as [BusinessScreen, string][]) {
@@ -230,6 +232,8 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
         expect(html.indexOf('<h1 class="page">'), `${l} ${s}: the heading under it`).toBeGreaterThan(0);
         expect(html.match(/<h1 /g), `${l} ${s}: one heading`).toHaveLength(1);
       }
+      expect(screen('promises', l).trimStart().startsWith('<h1 class="page">'), `${l} promises`).toBe(true);
+      expect(screen('promises', l).match(/<h1 /g), `${l} promises: one heading`).toHaveLength(1);
       const from = (html: string, href: string) => expect(withoutIsolates(html).trimStart().startsWith(`<a class="back" href="${href}">`), `${l} → ${href}`).toBe(true);
       inScope(() => {
         // Rule 104 — a page of the Settings menu has the menu beside it (and the chooser on a phone): it draws no

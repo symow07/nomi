@@ -131,7 +131,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
     expect(html).not.toContain('>food_grade<');      // never an internal key on the page (the form's own value is not read)
     // The warmth run, phase 9 (w4-products-knowledge-02) — the one place they are switched: each on, in words.
-    expect(html).toMatch(/<b><bdi>Food-safe materials<\/bdi><\/b> <span class="pill ok">On<\/span>/);
+    // Rule 104 — a row of a table, its switch on and saying so.
+    expect(html).toMatch(/<th scope="row"><bdi>Food-safe materials<\/bdi><\/th><td class="as-act">(?:(?!<\/tr>)[\s\S])*aria-checked="true"(?:(?!<\/tr>)[\s\S])*<span class="set-state">On<\/span>/);
     expect(html).toContain('action="/app/knowledge/cert"');
     expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language — true of this page now
     // meaning arrives before the tokens it explains
@@ -266,7 +267,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     for (const f of forms)
       expect(f[1]).toMatch(/^\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove)|pilot\/(end|resume))$|^\/app\/knowledge\/cert$/);
     expect(everything(complete)).not.toContain('<textarea');
-    expect(everything(complete)).not.toContain('<table');
+    // Rule 104 — the one table is the certifications' (a row each, its switch beside it); nothing else is tabulated.
+    expect(everything(complete).match(/<table[^>]*>/g)).toEqual(['<table class="team-table as-certs">']);
   });
 });
 
