@@ -37,10 +37,24 @@ export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
   '/app/settings/channels/tiktok': { lines: ['connect.state.notHere'] },
   '/app/settings/channels/telegram': { lines: ['connect.state.notHere'] },
   '/app/settings/channels/chat': { lines: ['connect.state.notHere'] },
+  // ── Settings › Assistant (one block) ──
+  // Reply permissions: a reply sent without the owner tells the customer they are not talking to a person; until the
+  // name is confirmed every reply waits (a new workspace has none confirmed); the kinds that ALWAYS wait; any kind
+  // can be made to wait again; a follow-up is prepared, never sent on its own.
+  '/app/settings/assistant': { lines: ['as.perm.disclosure', 'her.handles.held.why.name', 'her.handles.always', 'neverAllowed.promise_stock',
+    'neverAllowed.change_payment', 'neverAllowed.promise_leadtime', 'employee.actions.note', 'followUp.intro'] },
+  // Name and identity: customers are given no name until the owner confirms one.
+  '/app/settings/assistant/name': { lines: ['assistants.unconfirmed'] },
+  // Promises and words: what is not turned on is not said; a reply with a word to avoid is never sent; the built-in
+  // list cannot be switched off.
+  '/app/settings/assistant/promises': { lines: ['factory.promise.never', 'forbidden.intro', 'forbidden.floor.body'] },
 };
 
 /** The pages that already follow the one template (rule 104). Add a page's address when it is converted. */
-export const CONVERTED: readonly string[] = [];
+export const CONVERTED: readonly string[] = [
+  // Settings › Assistant (one block)
+  '/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises',
+];
 
 /** Is the line on the page? Its words, escaped as a page writes them, in order around any value they carry. */
 const hasLine = (main: string, locale: Locale, key: MessageKey): boolean => {

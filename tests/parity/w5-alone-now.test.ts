@@ -7,6 +7,8 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, withAssistantName } from '../../src/api/web/say.js';
 import { capabilityName } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { notesFor } from '../../src/api/web/helpTopics.js';
+import { renderHelp } from '../../src/api/web/helpPanel.js';
 import { withoutIsolates } from './isolates.js';
 
 /**
@@ -47,6 +49,12 @@ const held = (h: Hold): EmployeeProfile =>
 const everything = (e: EmployeeProfile, l: Locale): string => withAssistantName('Lily', () =>
   [renderEmployee(e, l, null), ...EMPLOYEE_SCREENS.map((s) => renderEmployeeScreen(s, e, l, null))].join('\n'));
 const plain = (html: string): string => withoutIsolates(html);
+// Rule 104 — a kind of reply is a ROW of Reply permissions' table: its name, then where it stands, in a pill.
+const kindRow = (html: string, l: Locale, capability: string): string => {
+  const at = html.indexOf(`<th scope="row"><bdi>${esc(plain(capabilityName(l, capability)))}</bdi></th>`);
+  if (at < 0) throw new Error(`no row for ${capability}`);
+  return html.slice(at, html.indexOf('</tr>', at));
+};
 
 describe('V1-417 · one function decides what goes out without the owner', () => {
   it('each hold keeps every kind waiting; with none, what is set goes, up to the rung', () => {
@@ -73,30 +81,32 @@ describe('V1-417 · one function decides what goes out without the owner', () =>
         if (h === 'release') gate.released = false;
         const html = plain(everything(held(h), l));
         for (const c of ['greet', 'qualify']) {
-          const cap = capabilityName(l, c);
-          expect(html, `${l}/${h}/${c}`).not.toContain(esc(plain(t(l, 'employee.actions.granted', { cap }))));
-          expect(html, `${l}/${h}/${c}`).toContain(esc(plain(t(l, 'employee.actions.grantedHeld', { cap }))));
+          // the row says it is set and still waits, never that it goes out
+          expect(kindRow(html, l, c), `${l}/${h}/${c}`).toContain(`<span class="pill long">${esc(plain(t(l, 'her.handles.held')))}</span>`);
         }
-        // The landing's rows and "What comes next" say no reply goes out now.
+        // No row, and not "What comes next", says a reply goes out now.
+        expect(html, `${l}/${h}`).not.toContain(`>${esc(plain(t(l, 'her.handles.alone')))}</span>`);
         expect(html, `${l}/${h}`).not.toContain(esc(plain(t(l, 'employee.promo.done'))));
-        expect(html, `${l}/${h}`).not.toContain(`<span class="sr-desc">${esc(t(l, 'her.handles.alone'))}`);
         // The languages line says who gets replies sent alone: not while nothing is.
         expect(html, `${l}/${h}`).not.toContain(esc(plain(withAssistantName('Lily', () => t(l, 'autonomy.languages', { ready: '\u0000', waiting: '\u0000' }))).split('\u0000')[0]!));
         // A kind earned is said as earned, not as going out now.
         expect(html, `${l}/${h}`).not.toContain(esc(plain(t(l, 'employee.actions.eligible', { cap: capabilityName(l, 'recommend') }))));
-        // And the reason is said where the kinds are.
-        const oneKind = plain(withAssistantName('Lily', () => renderEmployeeScreen('one-kind', held(h), l, null)));
+        // And the reason is said on the page the kinds are on, before them (one notice at the top).
+        const page = plain(withAssistantName('Lily', () => renderEmployee(held(h), l, null)));
         const why = h === 'stopped' ? 'today.stopped.body' : h === 'silenced' ? 'today.silenced.body'
-          : h === 'name' ? 'her.handles.held.why.name' : 'her.handles.held.why.release';
-        expect(oneKind, `${l}/${h}`).toContain(esc(plain(withAssistantName('Lily', () => t(l, why, { name: 'Lily' })))));
+          : h === 'name' ? 'her.handles.held.why.name' : 'autonomy.notReleased';
+        const said = page.indexOf(esc(plain(withAssistantName('Lily', () => t(l, why, { name: 'Lily' })))));
+        expect(said, `${l}/${h}`).toBeGreaterThan(0);
+        expect(said, `${l}/${h}`).toBeLessThan(page.indexOf('id="reply-types"'));
       });
     }
 
     it(`${l} · the control: with nothing holding it, what is set goes out, and the screens say so`, () => {
       const html = plain(everything(set, l));
-      expect(html).toContain(esc(plain(t(l, 'employee.actions.granted', { cap: capabilityName(l, 'greet') }))));
+      expect(kindRow(html, l, 'greet')).toContain(`<span class="pill long ok">${esc(plain(t(l, 'her.handles.alone')))}</span>`);
       expect(html).toContain(esc(plain(t(l, 'employee.actions.eligible', { cap: capabilityName(l, 'recommend') }))));
-      expect(html).not.toContain(esc(plain(t(l, 'employee.actions.grantedHeld', { cap: capabilityName(l, 'greet') }))));
+      expect(html).not.toContain(`>${esc(plain(t(l, 'her.handles.held')))}</span>`);
+      expect(html).toContain(esc(plain(t(l, 'employee.promo.done'))));
     });
 
     it(`${l} · what is in force follows the holds: chose "talks", stopped — in force, every reply waits`, () => {
@@ -107,43 +117,54 @@ describe('V1-417 · one function decides what goes out without the owner', () =>
   }
 });
 
-// The text cleanup (2026-11-26, the owner's approval): the Stop is drawn once, on Going live; the assistant's page is one press from it.
-describe('rule 13 · while the assistant answers, the way to its Stop is on its own page; owner only', () => {
+// Rule 104 (the owner-approved plan: "Stop at the top") — Reply permissions carries the Stop itself, at the top, as its
+// own form that asks first; Going live keeps its own. It was a door to Going live's (the text cleanup, 2026-11-26).
+describe('rule 13 · while the assistant answers, its Stop is at the top of its own page; owner only', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
-      const landing = (e: EmployeeProfile, owner = true) => withAssistantName('Lily', () => renderEmployee(e, l, null, undefined, { isOwner: owner }));
+      const landing = (e: EmployeeProfile, owner = true) => withAssistantName('Lily', () => renderEmployee(e, l, null, { isOwner: owner }));
       const on = landing(set);
-      expect(on).toContain('<p class="stop-here" id="stop">');
-      expect(on).toContain('href="/app/settings/assistant/ready#stop"');
-      expect(on).toContain(esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop'))));
-      expect(on).not.toContain('action="/app/business/stop-assistant"');
-      // …under the levels, and the levels first after the name.
-      expect(on.indexOf('name="level"')).toBeLessThan(on.indexOf('stop-here'));
+      const at = on.indexOf('<div class="set-note" id="stop">');
+      expect(at).toBeGreaterThan(0);
+      const stop = on.slice(at, on.indexOf('</div>', at));
+      expect(stop).toContain('<form method="post" action="/app/business/stop-assistant" class="set-act">');
+      expect(stop).toContain(`>${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop')))}</button>`);
+      expect(stop).toContain(`data-confirm="${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stopConfirm')))}"`);
+      // …at the top: before the levels.
+      expect(at).toBeLessThan(on.indexOf('name="level"'));
       // Not for staff (rule 11); not while already stopped (Start's door instead); not while nothing is connected.
-      expect(landing(set, false)).not.toContain('stop-here');
-      expect(landing({ ...set, stopped: true })).not.toContain('stop-here');
+      expect(landing(set, false)).not.toContain('stop-assistant');
+      expect(landing({ ...set, stopped: true })).not.toContain('stop-assistant');
       expect(landing({ ...set, stopped: true })).toContain('href="/app/settings/assistant/ready#stop"');
-      expect(landing({ ...set, answering: false })).not.toContain('stop-here');
+      expect(landing({ ...set, answering: false })).not.toContain('stop-assistant');
     });
   }
 });
 
-describe('w4-business-assistant-26 · the levels come first after the name; the prose before them is one level down', () => {
+// Rule 104 — "one level down" is the page's own help now (helpTopics.ts `PAGE_NOTES`), and the DISCLOSURE is on the
+// page in one line, before the levels (the owner-approved plan: the safety line stays on the page).
+describe('w4-business-assistant-26 · the levels come first; before them one line, the disclosure; the long form is in the page\'s help', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const html = withAssistantName('Lily', () => renderEmployee(set, l, null));
-      const control = html.slice(html.indexOf('level-control'), html.indexOf('name="level"'));
-      // Between the heading and the first level: no paragraph at all when nothing holds it.
-      expect(control.replace(/<h2>[\s\S]*?<\/h2>/, ''), l).not.toMatch(/<p[\s>]/);
-      for (const k of ['autonomy.intro', 'autonomy.disclosure'] as const) {
+      const control = html.slice(html.indexOf('id="on-her-own"'), html.indexOf('name="level"'));
+      // Between the heading and the first level: the one line that says a customer is told, and nothing else.
+      expect(control.match(/<p[\s>]/g) ?? [], l).toHaveLength(1);
+      expect(control, l).toContain(`<p class="set-help">${esc(t(l, 'as.perm.disclosure'))}</p>`);
+      const help = withAssistantName('Lily', () => renderHelp(l, { from: '/app/settings/assistant', role: 'owner', canAsk: false, canWrite: false }));
+      expect(notesFor('/app/settings/assistant?x=1#on-her-own').flatMap((n) => n.lines), l).toEqual(['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure']);
+      for (const k of ['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure'] as const) {
         expect(html, `${l}/${k}`).not.toContain(esc(withAssistantName('Lily', () => t(l, k))));
-        expect(withAssistantName('Lily', () => renderEmployeeScreen('alone', set, l, null)), `${l}/${k}`).toContain(esc(withAssistantName('Lily', () => t(l, k))));
+        expect(help, `${l}/${k}`).toContain(esc(withAssistantName('Lily', () => t(l, k))));
       }
-      expect(html).toContain(`href="/app/settings/assistant/alone">${esc(withAssistantName('Lily', () => t(l, 'her.alone.title')))}`);
-      // With the name not confirmed: one line, then the levels.
+      expect(help, l).toContain(esc(withAssistantName('Lily', () => t(l, 'her.alone.title'))));
+      // With the name not confirmed: the reason is one notice above the section, with the door to confirm it.
       const unnamed = withAssistantName('Lily', () => renderEmployee({ ...set, assistantNamed: false }, l, null));
-      const before = unnamed.slice(unnamed.indexOf('level-control'), unnamed.indexOf('name="level"'));
+      const before = unnamed.slice(unnamed.indexOf('id="on-her-own"'), unnamed.indexOf('name="level"'));
       expect(before.match(/<p[\s>]/g) ?? [], l).toHaveLength(1);
+      const top = unnamed.slice(0, unnamed.indexOf('id="on-her-own"'));
+      expect(top, l).toContain(esc(t(l, 'her.handles.held.why.name')));
+      expect(top, l).toContain('href="/app/settings/assistant/name"');
     });
   }
 });
