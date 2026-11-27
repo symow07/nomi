@@ -2835,6 +2835,16 @@ export function assetAt(file: string): { readonly body: string | Buffer; readonl
   return font ? { body: font, type: FONT_TYPE, current: true } : null;
 }
 
+/**
+ * The page is painted whole (2026-11-27). The browser keeps the page being left on the screen until the next one can
+ * be drawn; without this, a slow device drew the next one in pieces as it read it — the bars first, the page body a
+ * few frames later (the tester's finding once the cross-page transition, which had held the paint, was removed). The
+ * head asks the browser to wait for the mark at the document's end; a browser that does not know the request paints
+ * as it always did, and the wait ends by itself when the document has been read.
+ */
+const WHOLE_PAGE = '<link rel="expect" href="#page-end" blocking="render">';
+const PAGE_END = '<i id="page-end" hidden></i>';
+
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
 
 /** The public document's base rules: the same tokens, a reading page on paper. */
@@ -3277,6 +3287,7 @@ function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
+${WHOLE_PAGE}
 ${linkTo(APP_SHEET)}
 ${TYPE_SLOT}\n${linkTo(SPLIT_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
@@ -3290,7 +3301,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${helpDoor(locale, input.path)}
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${area && isSectionPage(area, input.path) ? '' : wayBack(locale, input.path, input.bodyHtml)}${placeLive(area && isSectionPage(area, input.path) ? withoutLeadingBack(input.path, input.bodyHtml) : input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}${PAGE_END}</body></html>`);
 }
 
 

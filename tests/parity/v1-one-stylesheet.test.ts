@@ -100,7 +100,7 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     return a;
   };
 
-  it('the two source blocks are the public document and the shared navigation opt-in', () => {
+  it('the one source block is the public document\'s', () => {
     const where = files.filter((f) => read(f).includes('<style'));
     expect(where).toEqual(['layout.ts']);
     expect(read('layout.ts').match(/<style/g)?.length).toBe(1);
